@@ -23,10 +23,10 @@ barriers. rl_fs handles this with three, all polled like our asset tasks:
   Polled each frame with a **timeout → fall back to network fetch**.
 - **Flush (writes):** MEMFS → IDBFS sync; run after writes and before deinit, or
   cached data is lost on reload.
-- **JS↔C coordination:** an `EM_ASYNC_JS` shim spins on a `Module.*_idbfs_syncing`
-  flag. libsk leans on **JSPI** for this (like librl), **not ASYNCIFY**. The
-  identifier is Emscripten-facing ABI — never rename it (AGENTS.md § C
-  implementation naming).
+- **JS↔C coordination:** plain `EM_JS` callbacks — `FS.syncfs` is kicked
+  non-blocking and sets a `Module.sk_fs_restore` flag that `sk_fs_is_ready()`
+  polls. **No JSPI suspension** (see the JSPI finding under "Decisions locked":
+  `sapp_run` owns the loop, so callbacks can't suspend).
 
 Desktop has none of this: restore is instantly "ready," read/write hit the real
 directory.
@@ -85,13 +85,12 @@ wasm/desktop abstraction). We can vendor it, but likely don't need to:
 - **Skip (for now):** the LRU memory cache, dependency/batch prefetch state
   machine, host-ping. Not needed for basic ensure.
 
-## Build prerequisite
+## Build prerequisite (done — step 1/2)
 
-libsk has **no wasm target yet** (the Makefile is desktop GL only). The web half
-of `sk_fs` can't be built or tested until there's an Emscripten target with at
-least: `-sFORCE_FILESYSTEM`, `-lidbfs.js`, and **JSPI** (libsk leans on JSPI like
-librl, not ASYNCIFY) for the `EM_ASYNC_JS` sync shim. That target is a
-prerequisite milestone of its own.
+The Emscripten target needs `-sFORCE_FILESYSTEM` and `-lidbfs.js` for the idbfs
+store, plus `-sALLOW_MEMORY_GROWTH=1`. **No `-sASYNCIFY` and no `-sJSPI`** — the
+restore is a polled barrier (callbacks), so no stack-unwinding mechanism is
+linked. (sokol_app owns the loop; suspension isn't available in its callbacks.)
 
 ## Phasing (locked order: 2b → 2a → 2c)
 
@@ -121,7 +120,17 @@ installed (`~/toolchains/emsdk`).
   `sk_fs`; use sokol_fetch (XHR on web) + our existing asset-task machinery rather
   than importing wgutils wholesale.
 - **Desktop never regresses.** Web code is `__EMSCRIPTEN__`-gated.
-- **JSPI, not ASYNCIFY** — matches librl; dev target is Chromium-class browsers.
+- **No JSPI / no ASYNCIFY — async polled barrier instead.** ⚠️ Supersedes the
+  earlier "lean on JSPI" call. Finding (verified in-browser): JSPI can only
+  suspend when the wasm export called from JS is promising-wrapped, but
+  **`sapp_run` owns the emscripten RAF loop**, so init/frame callbacks aren't
+  promising — suspending in them throws `SuspendError: trying to suspend without
+  WebAssembly.promising`. librl could use JSPI because it drove its *own* tick
+  loop; sokol_app doesn't expose that. So `sk_fs` restore is a **polled barrier**
+  (`FS.syncfs` kicked non-blocking; `sk_fs_is_ready()` reflects a flag; `ensure`
+  waits via the existing `sk_asset_tick` gate). `-sJSPI` is dropped (it only
+  narrowed browser support). Reconsider only if we ever drive our own loop
+  instead of `sapp_run`.
 - **Web backend is parameterized** (`make wasm BACKEND=gl|wgpu`). WebGPU
   (`SOKOL_WGPU`, via emscripten's `emdawnwebgpu` port) was a motivation for
   choosing sokol and is a first-class target — but the same libsk source compiles

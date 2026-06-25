@@ -1,6 +1,5 @@
 #include "sk_render.h"
 
-#include <math.h>
 #include <stdbool.h>
 
 #include "internal/exports.h"

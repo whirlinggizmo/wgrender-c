@@ -74,7 +74,7 @@ run: $(EX_BUILD_DESKTOP)/hello
 print-ldlibs:
 	@echo $(LDLIBS_PLATFORM)
 
-# --- wasm (emscripten; WebGL2 or WebGPU, JSPI) ------------------------------
+# --- wasm (emscripten; WebGL2 or WebGPU) ------------------------------------
 # Requires emcc on PATH (source your emsdk_env.sh first).
 #   make wasm                  # WebGL2 (SOKOL_GLES3), example=hello
 #   make wasm BACKEND=wgpu     # WebGPU (SOKOL_WGPU, emdawnwebgpu port)
@@ -92,8 +92,11 @@ else
   WASM_DEFS         := -DSOKOL_GLES3
   WASM_BACKEND_LINK := -sUSE_WEBGL2=1
 endif
-# JSPI (not ASYNCIFY) for the future idbfs sync shim; grow memory for assets.
-WASM_LINK := $(WASM_BACKEND_LINK) -sJSPI -sALLOW_MEMORY_GROWTH=1
+# idbfs for persistent storage; FORCE_FILESYSTEM so the FS/IDBFS JS is linked;
+# grow memory for assets. (No -sJSPI: sapp_run owns the loop, so we can't suspend
+# in callbacks — sk_fs restore is a polled barrier, not an await. See PLAN-sk_fs.)
+WASM_LINK := $(WASM_BACKEND_LINK) -sALLOW_MEMORY_GROWTH=1 \
+             -sFORCE_FILESYSTEM -lidbfs.js
 
 # Per-example bundles (.js + .wasm) + one shared index.html switcher. The switcher
 # self-populates from examples.json (built examples only).
