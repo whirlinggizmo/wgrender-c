@@ -14,7 +14,11 @@ STD     := -std=gnu11
 WARN    := -Wall -Wextra -Wno-unused-parameter
 OPT     := -O2 -g
 DEFS    := -DSOKOL_GLCORE
-INCS    := -Iinclude -Isrc -Ideps/sokol -Ideps/stb -Ideps/fontstash -Ideps/dr -Ideps/cgltf
+# Our headers use -I (full warnings); vendored single-header libs use -isystem so
+# their warnings (stb/fontstash/dr/cgltf/sokol) don't drown out ours.
+INCS    := -Iinclude -Isrc
+INCS    += -isystem deps/sokol -isystem deps/stb -isystem deps/fontstash \
+           -isystem deps/dr -isystem deps/cgltf
 CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
 BUILD   := build

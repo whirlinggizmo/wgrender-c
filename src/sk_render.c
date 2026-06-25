@@ -28,7 +28,6 @@
 static color_t sk_clear_color = {0.1f, 0.1f, 0.1f, 1.0f};
 static sgl_pipeline sk_pip_2d;
 static sgl_pipeline sk_pip_3d;
-static bool sk_in_frame = false;
 
 void sk_render_init(void)
 {
@@ -88,7 +87,6 @@ static void setup_2d_projection(void)
 SK_KEEP
 void sk_render_begin(void)
 {
-    sk_in_frame = true;
     setup_2d_projection();
 }
 
@@ -124,8 +122,6 @@ void sk_render_end(void)
     sk_text_flush();  /* debugtext overlay */
     sg_end_pass();
     sg_commit();
-
-    sk_in_frame = false;
 }
 
 SK_KEEP
