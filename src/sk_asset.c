@@ -1,6 +1,7 @@
 #include "sk_asset.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "internal/exports.h"
@@ -11,7 +12,11 @@
 #include "sk_logger.h"
 
 #ifdef __EMSCRIPTEN__
-#include <emscripten.h>
+#include "sokol_fetch.h"
+/* Whole-file fetch into one preallocated buffer (no chunk streaming, so no HTTP
+ * Range — our dev server doesn't serve partial content). Files larger than this
+ * fail with SFETCH_ERROR_BUFFER_TOO_SMALL; bump if an asset outgrows it. */
+#define ASSET_FETCH_MAX_BYTES (16 * 1024 * 1024)
 #endif
 
 /* Acquisition layer: "ensure" makes an asset locally available, then fires the
@@ -19,12 +24,14 @@
  *
  * Desktop: the host is a local base dir (set as the sk_fs root); a missing file
  * is a failure. Web: the host is a fetch origin — a cache miss downloads the
- * asset, writes it into the idbfs-backed store, then resolves. Either way the
- * callback receives a path the sync sk_*_create(path) creators can fopen. */
+ * asset via sokol_fetch, writes it into the idbfs-backed store, then resolves.
+ * Either way the callback receives a path the sync sk_*_create(path) creators
+ * can fopen. */
 
 #define MAX_ASSET_TASKS 64
 
 enum { TASK_NEW = 0, TASK_FETCHING };
+enum { FETCH_PENDING = 0, FETCH_OK, FETCH_FAILED };
 
 typedef struct {
     char path[512];
@@ -33,6 +40,8 @@ typedef struct {
     void *user_data;
     bool armed; /* callbacks attached via sk_asset_add_task */
     int state;
+    unsigned char *fetch_buf; /* web: buffer bound to the in-flight fetch */
+    int fetch_result;         /* web: FETCH_* set by the sokol_fetch callback */
 } sk_asset_task_t;
 
 static sk_asset_task_t sk_asset_tasks[MAX_ASSET_TASKS];
@@ -66,47 +75,52 @@ void sk_asset_set_host(const char *host)
 }
 
 #ifdef __EMSCRIPTEN__
-/* Per-slot fetch state, polled by sk_asset_tick: 0 pending / 1 ok / 2 failed. */
-static volatile int sk_asset_fetch_state[MAX_ASSET_TASKS];
-
-/* Called from JS when bytes arrive: hand them to sk_fs (which writes + flushes),
- * then flag the slot so tick can fire the callback with the local path. */
-SK_KEEP
-void sk_asset_on_fetched(int slot, const unsigned char *data, int size)
+/* sokol_fetch delivers bytes on the main thread when sfetch_dowork() (called in
+ * sk_asset_tick) pumps it. On finish we hand the whole file to sk_fs (which
+ * writes + flushes to idbfs) and flag the slot; tick then resolves the task. */
+static void on_fetch(const sfetch_response_t *r)
 {
-    if (slot < 0 || slot >= MAX_ASSET_TASKS) return;
-    if (data != NULL && size >= 0 && sk_fs_write(sk_asset_tasks[slot].path, data, size)) {
-        sk_asset_fetch_state[slot] = 1;
+    uint16_t slot = *(const uint16_t *)r->user_data;
+    sk_asset_task_t *task = &sk_asset_tasks[slot];
+    if (!r->finished) {
+        return;
+    }
+    if (!r->failed && sk_fs_write(task->path, (const unsigned char *)r->data.ptr,
+                                  (int)r->data.size)) {
+        task->fetch_result = FETCH_OK;
     } else {
-        sk_asset_fetch_state[slot] = 2;
+        task->fetch_result = FETCH_FAILED;
+    }
+    free(task->fetch_buf);
+    task->fetch_buf = NULL;
+}
+
+static void start_fetch(uint16_t slot)
+{
+    sk_asset_task_t *task = &sk_asset_tasks[slot];
+    char url[768];
+    sfetch_handle_t h;
+
+    task->state = TASK_FETCHING;
+    task->fetch_result = FETCH_PENDING;
+    task->fetch_buf = (unsigned char *)malloc(ASSET_FETCH_MAX_BYTES);
+    if (task->fetch_buf == NULL) {
+        task->fetch_result = FETCH_FAILED;
+        return;
+    }
+    snprintf(url, sizeof(url), "%s/%s", sk_asset_host, task->path);
+    h = sfetch_send(&(sfetch_request_t){
+        .path = url,
+        .callback = on_fetch,
+        .buffer = { .ptr = task->fetch_buf, .size = ASSET_FETCH_MAX_BYTES },
+        .user_data = { .ptr = &slot, .size = sizeof(slot) },
+    });
+    if (!sfetch_handle_valid(h)) {
+        free(task->fetch_buf);
+        task->fetch_buf = NULL;
+        task->fetch_result = FETCH_FAILED;
     }
 }
-
-SK_KEEP
-void sk_asset_on_fetch_failed(int slot)
-{
-    if (slot >= 0 && slot < MAX_ASSET_TASKS) sk_asset_fetch_state[slot] = 2;
-}
-
-/* fetch(url) -> bytes -> sk_asset_on_fetched(slot, ...). No JSPI: this is a
- * fire-and-forget Promise; tick polls sk_asset_fetch_state[slot]. */
-EM_JS(void, sk_asset_fetch_begin, (int slot, const char *url_c), {
-    const url = UTF8ToString(url_c);
-    fetch(url).then(function (r) {
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        return r.arrayBuffer();
-    }).then(function (buf) {
-        const bytes = new Uint8Array(buf);
-        const ptr = Module._malloc(bytes.length || 1);
-        Module.HEAPU8.set(bytes, ptr);
-        Module.ccall("sk_asset_on_fetched", "void",
-                     ["number", "number", "number"], [slot, ptr, bytes.length]);
-        Module._free(ptr);
-    }).catch(function (e) {
-        console.error("sk_asset: fetch failed", url, e);
-        Module.ccall("sk_asset_on_fetch_failed", "void", ["number"], [slot]);
-    });
-});
 #endif
 
 SK_KEEP
@@ -153,6 +167,13 @@ void sk_asset_init(void)
     sk_handle_pool_init(&sk_asset_pool, SK_HANDLE_KIND_ASSET_TASK, MAX_ASSET_TASKS,
                         sk_asset_free_indices, MAX_ASSET_TASKS,
                         sk_asset_generations, sk_asset_occupied);
+#ifdef __EMSCRIPTEN__
+    sfetch_setup(&(sfetch_desc_t){
+        .max_requests = MAX_ASSET_TASKS,
+        .num_channels = 1,
+        .num_lanes = 4,
+    });
+#endif
     sk_asset_ready = true;
 }
 
@@ -179,6 +200,9 @@ void sk_asset_tick(void)
     if (!sk_asset_ready || !sk_fs_is_ready()) {
         return;
     }
+#ifdef __EMSCRIPTEN__
+    sfetch_dowork(); /* fires on_fetch for any completed downloads */
+#endif
     for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) {
         sk_asset_task_t *task = &sk_asset_tasks[i];
         char local[512];
@@ -189,10 +213,10 @@ void sk_asset_tick(void)
 
 #ifdef __EMSCRIPTEN__
         if (task->state == TASK_FETCHING) {
-            int st = sk_asset_fetch_state[i];
-            if (st == 0) continue; /* still downloading */
+            if (task->fetch_result == FETCH_PENDING) continue; /* still downloading */
             sk_fs_resolve(task->path, local, sizeof(local));
-            finish(i, st == 1, local, task->on_success, task->on_failure, task->user_data);
+            finish(i, task->fetch_result == FETCH_OK, local,
+                   task->on_success, task->on_failure, task->user_data);
             continue;
         }
 #endif
@@ -204,14 +228,7 @@ void sk_asset_tick(void)
         }
 
 #ifdef __EMSCRIPTEN__
-        /* Cache miss: fetch from the host, then cache + resolve next ticks. */
-        {
-            char url[768];
-            snprintf(url, sizeof(url), "%s/%s", sk_asset_host, task->path);
-            sk_asset_fetch_state[i] = 0;
-            task->state = TASK_FETCHING;
-            sk_asset_fetch_begin((int)i, url);
-        }
+        start_fetch(i); /* cache miss: download, cache, resolve on later ticks */
 #else
         sk_fs_resolve(task->path, local, sizeof(local));
         finish(i, false, local, task->on_success, task->on_failure, task->user_data);
@@ -222,5 +239,8 @@ void sk_asset_tick(void)
 void sk_asset_deinit(void)
 {
     sk_asset_ready = false;
+#ifdef __EMSCRIPTEN__
+    sfetch_shutdown();
+#endif
     sk_handle_pool_reset(&sk_asset_pool);
 }

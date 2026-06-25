@@ -95,12 +95,8 @@ endif
 # idbfs for persistent storage; FORCE_FILESYSTEM so the FS/IDBFS JS is linked;
 # grow memory for assets. (No -sJSPI: sapp_run owns the loop, so we can't suspend
 # in callbacks — sk_fs restore is a polled barrier, not an await. See PLAN-sk_fs.)
-# ccall + HEAPU8 + malloc/free: the sk_asset web fetch bridge hands downloaded
-# bytes from JS back into C (sk_asset_on_fetched). idbfs for persistent storage.
 WASM_LINK := $(WASM_BACKEND_LINK) -sALLOW_MEMORY_GROWTH=1 \
-             -sFORCE_FILESYSTEM -lidbfs.js \
-             -sEXPORTED_RUNTIME_METHODS=ccall,HEAPU8 \
-             -sEXPORTED_FUNCTIONS=_main,_malloc,_free
+             -sFORCE_FILESYSTEM -lidbfs.js
 
 # Per-example bundles (.js + .wasm) + one shared index.html switcher. The switcher
 # self-populates from examples.json (built examples only).
