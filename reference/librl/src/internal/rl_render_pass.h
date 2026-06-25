@@ -1,0 +1,10 @@
+#ifndef RL_INTERNAL_RENDER_PASS_H
+#define RL_INTERNAL_RENDER_PASS_H
+
+typedef enum
+{
+    RL_RENDER_PASS_OPAQUE_3D = 0,
+    RL_RENDER_PASS_TRANSPARENT_3D = 1
+} rl_render_pass_t;
+
+#endif // RL_INTERNAL_RENDER_PASS_H

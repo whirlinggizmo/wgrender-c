@@ -1,0 +1,9 @@
+-std=gnu11
+-DSOKOL_GLCORE
+-Iinclude
+-Isrc
+-Ideps/sokol
+-Ideps/stb
+-Ideps/fontstash
+-Ideps/dr
+-Ideps/cgltf
