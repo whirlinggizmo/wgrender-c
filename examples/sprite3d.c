@@ -8,8 +8,9 @@
 #include <stddef.h>
 
 #include "sk.h"
+#include "example_assets.h"
 
-#define LOGO_PATH "examples/assets/sprites/logo/wg-logo-bw-alpha.png"
+#define LOGO_PATH "sprites/logo/wg-logo-bw-alpha.png"
 
 static sk_handle_t g_scene;
 static sk_handle_t g_camera;
@@ -41,6 +42,7 @@ static void on_logo_failed(const char *path, void *user)
 
 static void on_init(void *user_data)
 {
+    sk_asset_set_host(EXAMPLE_ASSET_BASE);
     (void)user_data;
     g_bg = sk_color_create(20, 22, 30, 255);
     g_camera = sk_camera3d_create(12.0f, 7.0f, 12.0f, 0.0f, 2.5f, 0.0f,

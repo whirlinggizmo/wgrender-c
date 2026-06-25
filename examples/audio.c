@@ -6,9 +6,10 @@
 #include <stddef.h>
 
 #include "sk.h"
+#include "example_assets.h"
 
-#define MUSIC_PATH "examples/assets/music/ethernight_club.mp3"
-#define CLICK_PATH "examples/assets/sounds/click_004.ogg"
+#define MUSIC_PATH "music/ethernight_club.mp3"
+#define CLICK_PATH "sounds/click_004.ogg"
 
 static sk_handle_t g_bg;
 static sk_handle_t g_music;
@@ -40,6 +41,7 @@ static void on_failed(const char *p, void *u) { (void)u; sk_logger_error("load f
 
 static void on_init(void *user_data)
 {
+    sk_asset_set_host(EXAMPLE_ASSET_BASE);
     (void)user_data;
     g_bg = sk_color_create(18, 20, 28, 255);
     sk_asset_add_task(sk_asset_ensure_async(MUSIC_PATH, NULL), on_music_loaded, on_failed, NULL);

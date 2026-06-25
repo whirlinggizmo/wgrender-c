@@ -2,6 +2,7 @@
 #define SK_INTERNAL_FS_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "sk_types.h"
 
@@ -13,6 +14,12 @@
 
 void sk_fs_init(const char *root_dir); /* root_dir NULL -> platform default */
 void sk_fs_deinit(void);
+
+/* Override the local root (base dir reads/writes resolve against). */
+void sk_fs_set_root(const char *root);
+
+/* Build the directly-openable local path for `path` (root + path). */
+void sk_fs_resolve(const char *path, char *out, size_t out_size);
 
 /* True once the local store is usable. Desktop: always. Web: after the IDBFS→
  * MEMFS restore completes. ensure must not read/fetch until ready. */

@@ -4,8 +4,9 @@
 #include <stddef.h>
 
 #include "sk.h"
+#include "example_assets.h"
 
-#define MODEL_PATH "examples/assets/models/gumshoe/gumshoe.glb"
+#define MODEL_PATH "models/gumshoe/gumshoe.glb"
 
 static sk_handle_t g_scene;
 static sk_handle_t g_camera;
@@ -38,6 +39,7 @@ static void on_failed(const char *p, void *u) { (void)u; sk_logger_error("model 
 
 static void on_init(void *user_data)
 {
+    sk_asset_set_host(EXAMPLE_ASSET_BASE);
     (void)user_data;
     g_bg = sk_color_create(30, 32, 40, 255);
     g_camera = sk_camera3d_create(8, 8, 8, 0, 3, 0, 0, 1, 0, 45.0f, SK_CAMERA3D_PERSPECTIVE);

@@ -4,9 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "internal/sk_internal.h"
-#include "sk_logger.h"  /* log_info used in the __EMSCRIPTEN__ path */
+#include "sk_logger.h"
 
 /* Local storage. Desktop: stdio relative to the working dir (root defaults to ""
  * so paths resolve as-is). Web: IDBFS mounted at `root` (default "/sk") and
@@ -76,6 +77,23 @@ static void mkdir_parents(const char *full)
     }
 }
 
+/* Override the local root (base dir reads/writes resolve against). Trailing
+ * slashes are trimmed so resolve()'s "%s/%s" join stays clean. */
+void sk_fs_set_root(const char *root)
+{
+    size_t n;
+    if (root == NULL) root = "";
+    snprintf(sk_fs_root, sizeof(sk_fs_root), "%s", root);
+    n = strlen(sk_fs_root);
+    while (n > 1 && sk_fs_root[n - 1] == '/') sk_fs_root[--n] = '\0';
+}
+
+/* Build the directly-openable local path for `path` (root + path). */
+void sk_fs_resolve(const char *path, char *out, size_t out_size)
+{
+    resolve(path, out, out_size);
+}
+
 void sk_fs_init(const char *root_dir)
 {
     const char *root = (root_dir != NULL) ? root_dir : SK_FS_DEFAULT_ROOT;
@@ -84,6 +102,9 @@ void sk_fs_init(const char *root_dir)
     /* Mount idbfs + kick the async restore; sk_fs_is_ready() reflects it. */
     sk_fs_idbfs_begin(sk_fs_root);
     log_info("sk_fs: idbfs mounting at %s (restoring cache)", sk_fs_root);
+#else
+    const char *cwd = getcwd(NULL, 0);
+    log_info("sk_fs: using stdio relative to working dir (absolute path=%s/%s)", cwd, sk_fs_root);
 #endif
 }
 

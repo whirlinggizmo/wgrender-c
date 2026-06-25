@@ -6,9 +6,10 @@
 #include <stdio.h>
 
 #include "sk.h"
+#include "example_assets.h"
 
-#define JETBRAINS_PATH "examples/assets/fonts/JetBrainsMono/JetBrainsMono-Regular.ttf"
-#define KOMIKA_PATH    "examples/assets/fonts/Komika/KOMIKAH_.ttf"
+#define JETBRAINS_PATH "fonts/JetBrainsMono/JetBrainsMono-Regular.ttf"
+#define KOMIKA_PATH    "fonts/Komika/KOMIKAH_.ttf"
 
 static sk_handle_t g_bg;
 static sk_handle_t g_mono;
@@ -32,6 +33,7 @@ static void on_failed(const char *p, void *u)
 
 static void on_init(void *user_data)
 {
+    sk_asset_set_host(EXAMPLE_ASSET_BASE);
     (void)user_data;
     g_bg = sk_color_create(248, 248, 250, 255);
     sk_asset_add_task(sk_asset_ensure_async(JETBRAINS_PATH, NULL), on_mono_loaded, on_failed, NULL);

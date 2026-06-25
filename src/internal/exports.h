@@ -1,7 +1,7 @@
 #ifndef SK_INTERNAL_EXPORTS_H
 #define SK_INTERNAL_EXPORTS_H
 
-#ifdef PLATFORM_WEB
+#if defined(PLATFORM_WEB) || defined(__EMSCRIPTEN__)
     #include <emscripten.h>
     #define SK_KEEP EMSCRIPTEN_KEEPALIVE
 #else // empty stub on native targets

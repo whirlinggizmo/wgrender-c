@@ -10,10 +10,11 @@
 #include <stdio.h>
 
 #include "sk.h"
+#include "example_assets.h"
 #include "sk_sprite3d.h"
 
-#define LOGO_PATH  "examples/assets/sprites/logo/wg-logo-bw-alpha.png"
-#define MODEL_PATH "examples/assets/models/gumshoe/gumshoe.glb"
+#define LOGO_PATH  "sprites/logo/wg-logo-bw-alpha.png"
+#define MODEL_PATH "models/gumshoe/gumshoe.glb"
 
 static sk_handle_t g_scene;
 static sk_handle_t g_camera;
@@ -76,6 +77,7 @@ static void on_failed(const char *path, void *user)
 
 static void on_init(void *user_data)
 {
+    sk_asset_set_host(EXAMPLE_ASSET_BASE);
     (void)user_data;
 
     g_bg = sk_color_create(24, 26, 34, 255);
