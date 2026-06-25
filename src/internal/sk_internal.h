@@ -53,7 +53,11 @@ void sk_model_init(void);
 void sk_model_deinit(void);
 void sk_model_flush(void); /* issue queued model draws inside the render pass */
 
-/* asset (sokol_fetch async loading) */
+/* fs (local storage; web idbfs later) — asset acquisition sits on top */
+void sk_fs_init(const char *root_dir);
+void sk_fs_deinit(void);
+
+/* asset (ensure/fetch acquisition, async) */
 void sk_asset_init(void);
 void sk_asset_tick(void);
 void sk_asset_deinit(void);

@@ -51,7 +51,7 @@ $(LIB): $(OBJS) | $(LIBDIR)
 	@echo "built $@"
 
 # --- examples ---------------------------------------------------------------
-EX_BUILD := examples/build
+EX_BUILD := examples/build/desktop
 EX_SRCS  := $(wildcard examples/*.c)
 EX_BINS  := $(patsubst examples/%.c,$(EX_BUILD)/%,$(EX_SRCS))
 
@@ -76,7 +76,7 @@ print-ldlibs:
 #   make wasm WASM_EXAMPLE=model
 #   make serve                 # static-serve web/ at :8000
 EMCC         ?= emcc
-WEB          := web
+WEB          := examples/build/web
 WEB_SHELL    := examples/web/index.html
 WASM_EXAMPLE ?= hello
 BACKEND      ?= gl
@@ -118,8 +118,7 @@ $(WEB):
 	mkdir -p $(WEB)
 
 serve:
-	@echo "serving $(WEB)/ at http://localhost:8000  (Ctrl-C to stop)"
-	@cd $(WEB) && python3 -m http.server 8000
+	@python3 tools/serve.py 8000
 
 # Enforce project invariants: no backend (sokol) leakage into the public
 # surface, and the naming conventions in AGENTS.md.
@@ -128,4 +127,4 @@ check:
 	@tools/check_naming.sh
 
 clean:
-	rm -rf $(BUILD) $(LIBDIR) $(EX_BUILD) $(WEB)
+	rm -rf $(BUILD) $(LIBDIR) examples/build

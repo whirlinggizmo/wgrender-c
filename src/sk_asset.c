@@ -1,17 +1,18 @@
 #include "sk_asset.h"
 
-#include <stdio.h>
 #include <string.h>
 
 #include "internal/exports.h"
+#include "internal/sk_fs.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
 #include "sk_handle.h"
 #include "sk_logger.h"
 
-/* Phase 1 (desktop): "ensure" verifies the file is present locally and fires the
- * callback with its path. Host fetch + a local store (web/idbfs) come in a later
- * phase; the public surface (ensure_async + add_task) stays the same. */
+/* Acquisition layer: "ensure" makes an asset locally available, then fires the
+ * callback with its path. Storage is delegated to sk_fs (sk_fs_exists / the web
+ * idbfs store); host fetch for missing files lands in a later phase. The public
+ * surface (ensure_async + add_task) is stable across both. */
 
 #define MAX_ASSET_TASKS 64
 
@@ -37,16 +38,6 @@ static sk_asset_task_t *resolve(sk_handle_t handle)
         return NULL;
     }
     return &sk_asset_tasks[index];
-}
-
-static bool file_exists(const char *path)
-{
-    FILE *f = (path != NULL) ? fopen(path, "rb") : NULL;
-    if (f == NULL) {
-        return false;
-    }
-    fclose(f);
-    return true;
 }
 
 SK_KEEP
@@ -98,7 +89,9 @@ void sk_asset_init(void)
 
 void sk_asset_tick(void)
 {
-    if (!sk_asset_ready) {
+    /* Nothing can be ensured until storage is up (web: after the idbfs restore
+     * barrier; desktop: immediately). Tasks stay queued until then. */
+    if (!sk_asset_ready || !sk_fs_is_ready()) {
         return;
     }
     for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) {
@@ -115,7 +108,7 @@ void sk_asset_tick(void)
         on_failure = task->on_failure;
         user_data = task->user_data;
         memcpy(path, task->path, sizeof(path));
-        exists = file_exists(path);
+        exists = sk_fs_exists(path);
 
         /* free the slot before firing — the callback may queue more work */
         {

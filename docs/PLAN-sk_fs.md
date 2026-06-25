@@ -103,7 +103,7 @@ installed (`~/toolchains/emsdk`).
 
 - **Step 1 (was 2b) — wasm/JSPI target + serve loop.** Build a **no-asset** example
   (`hello`) with emcc: `-DSOKOL_GLES3`, `-sUSE_WEBGL2=1`, `-sJSPI`,
-  `-sALLOW_MEMORY_GROWTH=1`, `-o web/hello.html`. Serve `web/` and confirm it
+  `-sALLOW_MEMORY_GROWTH=1`, `-o examples/build/web/hello.js`. Serve it and confirm
   renders in a Chromium-class browser. Desktop build untouched. (No files yet, so
   no `FORCE_FILESYSTEM`/idbfs — that's step 3.)
 - **Step 2 (was 2a) — `sk_fs` desktop seam.** Add `sk_fs` (real-dir backend), route
@@ -138,16 +138,34 @@ installed (`~/toolchains/emsdk`).
   locally for reads. (This is exactly why librl had both `assetHost` and
   `rl_fs_init(root_dir)`.) Normalize the example path `#define`s + set the bases
   when step 3 lands.
-- **Assets: one source, staged not duplicated.** `examples/assets/` stays the
-  single tracked source of truth. The web build **stages** it into the site
-  (`web/assets/`) — symlink for dev, copy for deploy — gitignored like the rest of
-  `web/`. Never a second tracked copy. The site stays the top-level `web/`
-  (deployable); `examples/web/` holds only tracked web source (the shell).
-- **Serve loop:** `make wasm` emits to `web/`; serve with any static server.
-  Zero-dep first light: `python3 -m http.server`. Reload-on-change: a watcher
-  reruns `make wasm` + a live-reloading static server (vite / `npx live-server` /
-  LiveServer extension). Not hard-picked — `make serve` provides the simple default.
+- **Assets: one source, mounted not duplicated.** `examples/assets/` stays the
+  single tracked source of truth. For dev we **mount** it at the server (no
+  symlink — Windows-hostile — and no copy): `tools/serve.py` serves the built site
+  at `/` and maps `/assets/* → examples/assets/*`, so web `assetHost = "/assets/"`.
+  A standalone deploy copies the tree into the bundle; dev never does.
+  (`npx live-server --mount=/assets:examples/assets` or a vite alias work the same
+  if you want live reload.)
+- **Build layout.** Generated artifacts live under `examples/build/` —
+  `examples/build/desktop/` (native example binaries) and `examples/build/web/`
+  (the wasm site) — both gitignored, so `make clean` (`rm -rf examples/build`)
+  nukes either/both and the project root stays clean. The library still builds to
+  root `build/` + `lib/`. `examples/web/` is the only *tracked* web bit (the shell).
+- **Serve loop:** `make wasm` emits to `examples/build/web/`; `make serve` runs
+  `tools/serve.py` (stdlib, cross-platform) which serves it and mounts `/assets/`.
+  Reload-on-change: rerun `make wasm` (manually or via a watcher) and a live server
+  (`npx live-server --mount=/assets:examples/assets`, or a vite alias) if you want
+  auto-refresh. Not hard-picked.
 
-## Open questions
-1. **`sk_fs` surface:** internal-only (just what ensure needs) to start, or expose
-   a public user-facing fs API (read/write/save-games) now? Leaning internal-only.
+## Decided
+- **`sk_fs` is internal storage; `ensure` stays public in `sk_asset`.** `sk_fs`
+  owns local storage only (exists/read/write + idbfs sync) with no network;
+  `sk_asset` owns acquisition (ensure + host + fetch) on top of it. Keeps the
+  filesystem free of an HTTP/host dependency (layered, matches librl). Promote
+  `sk_fs` to a public VFS later only if user-facing read/write/save-games is wanted.
+
+## Later
+- **`sk_net` (fetch / websockets).** The web fetch inside `ensure` is really a
+  network primitive; eventually a small `sk_net` subsystem (HTTP fetch, later
+  websockets) should own it, and `sk_asset` would call `sk_net` rather than
+  sokol_fetch directly. Out of scope for Phase 2; revisit when websockets/network
+  features land.
