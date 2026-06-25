@@ -51,20 +51,21 @@ $(LIB): $(OBJS) | $(LIBDIR)
 	@echo "built $@"
 
 # --- examples ---------------------------------------------------------------
-EX_BUILD := examples/build/desktop
-EX_SRCS  := $(wildcard examples/*.c)
-EX_BINS  := $(patsubst examples/%.c,$(EX_BUILD)/%,$(EX_SRCS))
+EX_DIR           := examples
+EX_BUILD_DESKTOP := $(EX_DIR)/build/desktop
+EX_SRCS          := $(wildcard $(EX_DIR)/*.c)
+EX_BINS          := $(patsubst $(EX_DIR)/%.c,$(EX_BUILD_DESKTOP)/%,$(EX_SRCS))
 
 examples: $(EX_BINS)
 
-$(EX_BUILD):
-	mkdir -p $(EX_BUILD)
+$(EX_BUILD_DESKTOP):
+	mkdir -p $(EX_BUILD_DESKTOP)
 
-$(EX_BUILD)/%: examples/%.c $(LIB) | $(EX_BUILD)
+$(EX_BUILD_DESKTOP)/%: $(EX_DIR)/%.c $(LIB) | $(EX_BUILD_DESKTOP)
 	$(CC) $(CFLAGS) $< -o $@ -L$(LIBDIR) -lsk $(LDLIBS_PLATFORM)
 
-run: $(EX_BUILD)/hello
-	./$(EX_BUILD)/hello
+run: $(EX_BUILD_DESKTOP)/hello
+	./$(EX_BUILD_DESKTOP)/hello
 
 print-ldlibs:
 	@echo $(LDLIBS_PLATFORM)
@@ -74,10 +75,10 @@ print-ldlibs:
 #   make wasm                  # WebGL2 (SOKOL_GLES3), example=hello
 #   make wasm BACKEND=wgpu     # WebGPU (SOKOL_WGPU, emdawnwebgpu port)
 #   make wasm WASM_EXAMPLE=model
-#   make serve                 # static-serve web/ at :8000
+#   make serve                 # static-serve examples/build/web at :8000
 EMCC         ?= emcc
-WEB          := examples/build/web
-WEB_SHELL    := examples/web/index.html
+EX_BUILD_WEB := $(EX_DIR)/build/web
+WEB_SHELL    := $(EX_DIR)/web/index.html
 WASM_EXAMPLE ?= hello
 BACKEND      ?= gl
 ifeq ($(BACKEND),wgpu)
@@ -90,32 +91,32 @@ endif
 # JSPI (not ASYNCIFY) for the future idbfs sync shim; grow memory for assets.
 WASM_LINK := $(WASM_BACKEND_LINK) -sJSPI -sALLOW_MEMORY_GROWTH=1
 
-# Per-example bundles (.js + .wasm) + one shared index.html switcher served from
-# web/. The switcher self-populates from web/examples.json (built examples only).
+# Per-example bundles (.js + .wasm) + one shared index.html switcher. The switcher
+# self-populates from examples.json (built examples only).
 define wasm_deploy
-	@cp $(WEB_SHELL) $(WEB)/index.html
-	@cd $(WEB) && printf '[%s]\n' \
+	@cp $(WEB_SHELL) $(EX_BUILD_WEB)/index.html
+	@cd $(EX_BUILD_WEB) && printf '[%s]\n' \
 	    "$$(ls *.js 2>/dev/null | sed 's/\.js$$//;s/^/"/;s/$$/"/' | paste -sd, -)" \
 	    > examples.json
-	@echo "deployed $(WEB)/ ($(BACKEND)) — 'make serve' then open http://localhost:8000/"
+	@echo "deployed $(EX_BUILD_WEB) ($(BACKEND)) — 'make serve' then open http://localhost:8000/"
 endef
 
-wasm: | $(WEB)
+wasm: | $(EX_BUILD_WEB)
 	$(EMCC) $(STD) $(WARN) $(OPT) $(WASM_DEFS) $(INCS) \
-	    $(SRCS) examples/$(WASM_EXAMPLE).c \
-	    $(WASM_LINK) -o $(WEB)/$(WASM_EXAMPLE).js
+	    $(SRCS) $(EX_DIR)/$(WASM_EXAMPLE).c \
+	    $(WASM_LINK) -o $(EX_BUILD_WEB)/$(WASM_EXAMPLE).js
 	$(wasm_deploy)
 
-wasm-all: | $(WEB)
-	@for ex in $(patsubst examples/%.c,%,$(EX_SRCS)); do \
+wasm-all: | $(EX_BUILD_WEB)
+	@for ex in $(patsubst $(EX_DIR)/%.c,%,$(EX_SRCS)); do \
 	    echo "  wasm[$(BACKEND)]: $$ex"; \
 	    $(EMCC) $(STD) $(WARN) $(OPT) $(WASM_DEFS) $(INCS) \
-	        $(SRCS) examples/$$ex.c $(WASM_LINK) -o $(WEB)/$$ex.js || exit 1; \
+	        $(SRCS) $(EX_DIR)/$$ex.c $(WASM_LINK) -o $(EX_BUILD_WEB)/$$ex.js || exit 1; \
 	done
 	$(wasm_deploy)
 
-$(WEB):
-	mkdir -p $(WEB)
+$(EX_BUILD_WEB):
+	mkdir -p $(EX_BUILD_WEB)
 
 serve:
 	@python3 tools/serve.py 8000
@@ -127,4 +128,4 @@ check:
 	@tools/check_naming.sh
 
 clean:
-	rm -rf $(BUILD) $(LIBDIR) examples/build
+	rm -rf $(BUILD) $(LIBDIR) $(EX_DIR)/build
