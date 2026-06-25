@@ -8,12 +8,27 @@ extern "C" {
 #include <stdbool.h>
 #include "sk_types.h"
 
-/* Static glTF/glb models (cgltf). Meshes are uploaded to GPU buffers and drawn
- * with a dedicated lit/textured pipeline. Skeletal animation is not handled
- * yet — see the roadmap. Models are scene drawables (kind MODEL). */
+/* glTF/glb models (cgltf).
+ *
+ * Two layers, mirroring the rest of libsk (see docs/ARCHITECTURE.md):
+ *   - A *Mesh* resource (kind MESH) owns the loaded, shared data: CPU geometry
+ *     (incl. retained pick data), GPU buffers, skeleton and animation clips.
+ *     Meshes are deduplicated by source path and reference counted.
+ *   - A *Model* object (kind MODEL) is a lightweight scene drawable that
+ *     references a Mesh and carries its own transform, tint, visibility and
+ *     animation playback state.
+ *
+ * Load a Mesh from a path (sk_mesh_create), then spawn one or more Models from
+ * it (sk_model_create). One Mesh can back many Models. */
 
-sk_handle_t sk_model_create(const char *path);
-sk_handle_t sk_model_create_from_memory(const unsigned char *data, int size, const char *hint);
+/* Mesh resource. Loads (or returns a shared, deduped) Mesh from a path and adds
+ * a reference owned by the caller; release it with sk_mesh_destroy. */
+sk_handle_t sk_mesh_create(const char *path);
+void        sk_mesh_destroy(sk_handle_t mesh);
+
+/* Model object: a drawable instance of a Mesh (kind MODEL). */
+sk_handle_t sk_model_create(sk_handle_t mesh);
+
 bool sk_model_set_transform(sk_handle_t handle,
                             float position_x, float position_y, float position_z,
                             float rotation_x, float rotation_y, float rotation_z, /* radians */

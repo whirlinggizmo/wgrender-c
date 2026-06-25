@@ -11,7 +11,7 @@
 #define SK_CAMERA3D_BUILTIN_COUNT 1
 #define SK_CAMERA3D_DYNAMIC_START_INDEX (SK_CAMERA3D_BUILTIN_COUNT + 1)
 
-static sk_camera3d_data_t sk_cameras[MAX_CAMERAS];
+static sk_camera3d_t sk_cameras[MAX_CAMERAS];
 static sk_handle_pool_t sk_camera_pool;
 static uint16_t sk_camera_free_indices[MAX_CAMERAS];
 static uint16_t sk_camera_generations[MAX_CAMERAS];
@@ -38,7 +38,7 @@ static void store(uint16_t index,
                   float ux, float uy, float uz,
                   float fovy, int projection)
 {
-    sk_cameras[index] = (sk_camera3d_data_t){
+    sk_cameras[index] = (sk_camera3d_t){
         .position = {px, py, pz},
         .target = {tx, ty, tz},
         .up = {ux, uy, uz},
@@ -119,7 +119,7 @@ void sk_camera3d_destroy(sk_handle_t handle)
     if (sk_active_camera == handle) {
         sk_active_camera = SK_CAMERA3D_DEFAULT;
     }
-    sk_cameras[index] = (sk_camera3d_data_t){0};
+    sk_cameras[index] = (sk_camera3d_t){0};
     sk_handle_pool_free(&sk_camera_pool, handle);
 }
 
@@ -133,7 +133,7 @@ bool sk_camera3d_ensure_active(void)
     return resolve(sk_active_camera, &index);
 }
 
-bool sk_camera3d_get_active_data(sk_camera3d_data_t *out)
+bool sk_camera3d_get_active_data(sk_camera3d_t *out)
 {
     uint16_t index = 0;
     if (out == NULL) {

@@ -11,7 +11,7 @@ typedef struct {
     vec3_t up;
     float fovy;     /* degrees (perspective) or world-units height (ortho) */
     int projection; /* SK_CAMERA3D_PERSPECTIVE / SK_CAMERA3D_ORTHOGRAPHIC */
-} sk_camera3d_data_t;
+} sk_camera3d_t;
 
 void sk_camera3d_init(void);
 void sk_camera3d_deinit(void);
@@ -20,6 +20,6 @@ void sk_camera3d_deinit(void);
 bool sk_camera3d_ensure_active(void);
 
 /* Fetch the parameters of the currently active camera. */
-bool sk_camera3d_get_active_data(sk_camera3d_data_t *out);
+bool sk_camera3d_get_active_data(sk_camera3d_t *out);
 
 #endif // SK_INTERNAL_CAMERA3D_H

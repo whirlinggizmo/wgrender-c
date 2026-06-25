@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #include "sk_asset.h"    // IWYU pragma: keep
+#include "sk_audio.h"    // IWYU pragma: keep
 #include "sk_camera3d.h" // IWYU pragma: keep
 #include "sk_color.h"   // IWYU pragma: keep
 #include "sk_debug.h"   // IWYU pragma: keep
@@ -14,7 +15,6 @@
 #include "sk_keys.h"    // IWYU pragma: keep
 #include "sk_logger.h"  // IWYU pragma: keep
 #include "sk_model.h"   // IWYU pragma: keep
-#include "sk_music.h"   // IWYU pragma: keep
 #include "sk_render.h"  // IWYU pragma: keep
 #include "sk_scene.h"   // IWYU pragma: keep
 #include "sk_shape.h"   // IWYU pragma: keep

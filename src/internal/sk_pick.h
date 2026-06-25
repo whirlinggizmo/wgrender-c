@@ -23,7 +23,7 @@ typedef struct {
     float u, v;    /* barycentric weights of v1/v2 (triangle tests only) */
 } sk_ray_hit_t;
 
-sk_ray_t sk_pick_ray_from_screen(const sk_camera3d_data_t *cam,
+sk_ray_t sk_pick_ray_from_screen(const sk_camera3d_t *cam,
                                  float mouse_x, float mouse_y,
                                  float screen_w, float screen_h);
 

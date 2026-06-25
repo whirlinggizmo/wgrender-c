@@ -29,9 +29,9 @@ typedef struct {
     bool visible;
     bool pick_alpha_test;
     float pick_alpha_threshold;
-} sk_sprite3d_data_t;
+} sk_sprite3d_t;
 
-static sk_sprite3d_data_t sk_sprites[MAX_SPRITES];
+static sk_sprite3d_t sk_sprites[MAX_SPRITES];
 static sk_handle_pool_t sk_sprite_pool;
 static uint16_t sk_sprite_free_indices[MAX_SPRITES];
 static uint16_t sk_sprite_generations[MAX_SPRITES];
@@ -54,7 +54,7 @@ static vec3_t v3_norm(vec3_t a)
     return (vec3_t){a.x / len, a.y / len, a.z / len};
 }
 
-static sk_sprite3d_data_t *resolve(sk_handle_t handle)
+static sk_sprite3d_t *resolve(sk_handle_t handle)
 {
     uint16_t index = 0;
     if (!sk_handle_pool_resolve(&sk_sprite_pool, handle, &index)) {
@@ -66,8 +66,7 @@ static sk_sprite3d_data_t *resolve(sk_handle_t handle)
     return &sk_sprites[index];
 }
 
-SK_KEEP
-sk_handle_t sk_sprite3d_create(sk_handle_t texture)
+static sk_handle_t create_sprite(sk_handle_t texture)
 {
     sk_handle_t handle = sk_handle_pool_alloc(&sk_sprite_pool);
     uint16_t index = 0;
@@ -77,7 +76,7 @@ sk_handle_t sk_sprite3d_create(sk_handle_t texture)
         return 0;
     }
     sk_handle_pool_resolve(&sk_sprite_pool, handle, &index);
-    sk_sprites[index] = (sk_sprite3d_data_t){
+    sk_sprites[index] = (sk_sprite3d_t){
         .texture = texture,
         .scale = {1.0f, 1.0f, 1.0f},
         .size = 1.0f,
@@ -85,15 +84,35 @@ sk_handle_t sk_sprite3d_create(sk_handle_t texture)
         .tint = 0,
         .visible = true,
     };
+    if (texture != 0) {
+        sk_texture_retain(texture);
+    }
     return handle;
+}
+
+SK_KEEP
+sk_handle_t sk_sprite3d_create(sk_handle_t texture)
+{
+    return create_sprite(texture);
 }
 
 SK_KEEP
 bool sk_sprite3d_set_texture(sk_handle_t handle, sk_handle_t texture)
 {
-    sk_sprite3d_data_t *s = resolve(handle);
-    if (s == NULL) return false;
-    s->texture = texture;
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    if (sprite_ptr == NULL) {
+        return false;
+    }
+    if (sprite_ptr->texture == texture) {
+        return true;
+    }
+    if (sprite_ptr->texture != 0) {
+        sk_texture_release(sprite_ptr->texture);
+    }
+    sprite_ptr->texture = texture;
+    if (texture != 0) {
+        sk_texture_retain(texture);
+    }
     return true;
 }
 
@@ -103,81 +122,86 @@ bool sk_sprite3d_set_transform(sk_handle_t handle,
                                float rx, float ry, float rz,
                                float sx, float sy, float sz)
 {
-    sk_sprite3d_data_t *s = resolve(handle);
-    if (s == NULL) return false;
-    s->position = (vec3_t){px, py, pz};
-    s->rotation = (vec3_t){rx, ry, rz};
-    s->scale = (vec3_t){sx, sy, sz};
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    if (sprite_ptr == NULL) return false;
+    sprite_ptr->position = (vec3_t){px, py, pz};
+    sprite_ptr->rotation = (vec3_t){rx, ry, rz};
+    sprite_ptr->scale = (vec3_t){sx, sy, sz};
     return true;
 }
 
 SK_KEEP
 bool sk_sprite3d_set_size(sk_handle_t handle, float size)
 {
-    sk_sprite3d_data_t *s = resolve(handle);
-    if (s == NULL) return false;
-    s->size = size;
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    if (sprite_ptr == NULL) return false;
+    sprite_ptr->size = size;
     return true;
 }
 
 SK_KEEP
 bool sk_sprite3d_set_facing(sk_handle_t handle, int facing)
 {
-    sk_sprite3d_data_t *s = resolve(handle);
-    if (s == NULL) return false;
-    s->facing = facing;
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    if (sprite_ptr == NULL) return false;
+    sprite_ptr->facing = facing;
     return true;
 }
 
 SK_KEEP
 bool sk_sprite3d_set_tint(sk_handle_t handle, sk_handle_t color)
 {
-    sk_sprite3d_data_t *s = resolve(handle);
-    if (s == NULL) return false;
-    s->tint = color;
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    if (sprite_ptr == NULL) return false;
+    sprite_ptr->tint = color;
     return true;
 }
 
 SK_KEEP
 bool sk_sprite3d_set_visible(sk_handle_t handle, bool visible)
 {
-    sk_sprite3d_data_t *s = resolve(handle);
-    if (s == NULL) return false;
-    s->visible = visible;
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    if (sprite_ptr == NULL) return false;
+    sprite_ptr->visible = visible;
     return true;
 }
 
 SK_KEEP
 bool sk_sprite3d_set_pick_alpha_test(sk_handle_t handle, bool enable, float threshold)
 {
-    sk_sprite3d_data_t *s = resolve(handle);
-    if (s == NULL) return false;
-    s->pick_alpha_test = enable;
-    s->pick_alpha_threshold = threshold;
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    if (sprite_ptr == NULL) {
+        return false;
+    }
+    if (enable && sprite_ptr->texture != 0) {
+        sk_texture_ensure_alpha_mask(sprite_ptr->texture);
+    }
+    sprite_ptr->pick_alpha_test = enable;
+    sprite_ptr->pick_alpha_threshold = threshold;
     return true;
 }
 
 SK_KEEP
 bool sk_sprite3d_is_visible(sk_handle_t handle)
 {
-    sk_sprite3d_data_t *s = resolve(handle);
-    return s != NULL && s->visible;
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    return sprite_ptr != NULL && sprite_ptr->visible;
 }
 
 static void draw_handle(sk_handle_t handle)
 {
-    sk_sprite3d_data_t *s = resolve(handle);
-    sk_camera3d_data_t cam;
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    sk_camera3d_t cam;
     sg_view view;
     sg_sampler smp;
     color_t tint;
     vec3_t right, up;
     float hw, hh;
 
-    if (s == NULL || !s->visible) {
+    if (sprite_ptr == NULL || !sprite_ptr->visible) {
         return;
     }
-    if (!sk_texture_get_binding(s->texture, &view, &smp, NULL, NULL)) {
+    if (!sk_texture_get_binding(sprite_ptr->texture, &view, &smp, NULL, NULL)) {
         return;
     }
     if (!sk_camera3d_get_active_data(&cam)) {
@@ -185,25 +209,25 @@ static void draw_handle(sk_handle_t handle)
     }
 
     /* billboard basis */
-    if (s->facing == SK_SPRITE3D_FACING_Y_UP) {
+    if (sprite_ptr->facing == SK_SPRITE3D_FACING_Y_UP) {
         right = (vec3_t){1, 0, 0};
         up = (vec3_t){0, 0, -1};
     } else {
         vec3_t fwd = v3_norm(v3_sub(cam.target, cam.position));
-        vec3_t world_up = (s->facing == SK_SPRITE3D_FACING_CAMERA_FIXED_Y)
+        vec3_t world_up = (sprite_ptr->facing == SK_SPRITE3D_FACING_CAMERA_FIXED_Y)
                               ? (vec3_t){0, 1, 0}
                               : cam.up;
         right = v3_norm(v3_cross(fwd, world_up));
         up = v3_norm(v3_cross(right, fwd));
     }
 
-    hw = 0.5f * s->size * s->scale.x;
-    hh = 0.5f * s->size * s->scale.y;
+    hw = 0.5f * sprite_ptr->size * sprite_ptr->scale.x;
+    hh = 0.5f * sprite_ptr->size * sprite_ptr->scale.y;
 
-    tint = sk_color_get(s->tint != 0 ? s->tint : 0); /* 0 -> white */
+    tint = sk_color_get(sprite_ptr->tint != 0 ? sprite_ptr->tint : 0); /* 0 -> white */
 
     {
-        vec3_t c = s->position;
+        vec3_t c = sprite_ptr->position;
         float tlx = c.x - right.x * hw + up.x * hh;
         float tly = c.y - right.y * hw + up.y * hh;
         float tlz = c.z - right.z * hw + up.z * hh;
@@ -238,46 +262,46 @@ void sk_sprite3d_draw(sk_handle_t handle)
 
 static bool sprite_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model)
 {
-    sk_sprite3d_data_t *s = resolve(handle);
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
     float hw, hh, r;
-    if (s == NULL || !s->visible) {
+    if (sprite_ptr == NULL || !sprite_ptr->visible) {
         return false;
     }
     /* The billboard rotates to face the camera, so use a conservative cube that
      * encloses the quad at any orientation (radius = half-diagonal). This keeps
      * the broadphase from rejecting a glancing hit on the rotated quad. */
-    hw = 0.5f * s->size * s->scale.x;
-    hh = 0.5f * s->size * s->scale.y;
+    hw = 0.5f * sprite_ptr->size * sprite_ptr->scale.x;
+    hh = 0.5f * sprite_ptr->size * sprite_ptr->scale.y;
     r = sqrtf(hw * hw + hh * hh);
     *lmin = (vec3_t){-r, -r, -r};
     *lmax = (vec3_t){r, r, r};
-    *model = sk_mat4_translate(s->position.x, s->position.y, s->position.z);
+    *model = sk_mat4_translate(sprite_ptr->position.x, sprite_ptr->position.y, sprite_ptr->position.z);
     return true;
 }
 
 /* Reconstruct the billboard basis exactly as draw_handle() does, so the quad we
  * test is the quad on screen. */
-static void sprite_quad_corners(const sk_sprite3d_data_t *s, const sk_camera3d_data_t *cam,
+static void sprite_quad_corners(const sk_sprite3d_t *sprite_ptr, const sk_camera3d_t *cam,
                                 vec3_t *tl, vec3_t *tr, vec3_t *br, vec3_t *bl)
 {
     vec3_t right, up, c;
     float hw, hh;
 
-    if (s->facing == SK_SPRITE3D_FACING_Y_UP) {
+    if (sprite_ptr->facing == SK_SPRITE3D_FACING_Y_UP) {
         right = (vec3_t){1, 0, 0};
         up = (vec3_t){0, 0, -1};
     } else {
         vec3_t fwd = v3_norm(v3_sub(cam->target, cam->position));
-        vec3_t world_up = (s->facing == SK_SPRITE3D_FACING_CAMERA_FIXED_Y)
+        vec3_t world_up = (sprite_ptr->facing == SK_SPRITE3D_FACING_CAMERA_FIXED_Y)
                               ? (vec3_t){0, 1, 0}
                               : cam->up;
         right = v3_norm(v3_cross(fwd, world_up));
         up = v3_norm(v3_cross(right, fwd));
     }
 
-    hw = 0.5f * s->size * s->scale.x;
-    hh = 0.5f * s->size * s->scale.y;
-    c = s->position;
+    hw = 0.5f * sprite_ptr->size * sprite_ptr->scale.x;
+    hh = 0.5f * sprite_ptr->size * sprite_ptr->scale.y;
+    c = sprite_ptr->position;
     *tl = (vec3_t){c.x - right.x * hw + up.x * hh, c.y - right.y * hw + up.y * hh, c.z - right.z * hw + up.z * hh};
     *tr = (vec3_t){c.x + right.x * hw + up.x * hh, c.y + right.y * hw + up.y * hh, c.z + right.z * hw + up.z * hh};
     *br = (vec3_t){c.x + right.x * hw - up.x * hh, c.y + right.y * hw - up.y * hh, c.z + right.z * hw - up.z * hh};
@@ -286,22 +310,22 @@ static void sprite_quad_corners(const sk_sprite3d_data_t *s, const sk_camera3d_d
 
 static bool sprite_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_result_t *out)
 {
-    sk_sprite3d_data_t *s = resolve(handle);
-    sk_camera3d_data_t cam;
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    sk_camera3d_t cam;
     sk_ray_t ray;
     vec3_t tl, tr, br, bl;
     sk_ray_hit_t h0 = {0}, h1 = {0};
     const sk_ray_hit_t *best = NULL;
     bool got0, got1;
 
-    if (out == NULL || s == NULL || !s->visible) {
+    if (out == NULL || sprite_ptr == NULL || !sprite_ptr->visible) {
         return false;
     }
     if (!sk_camera3d_get_active_data(&cam)) {
         return false;
     }
 
-    sprite_quad_corners(s, &cam, &tl, &tr, &br, &bl);
+    sprite_quad_corners(sprite_ptr, &cam, &tl, &tr, &br, &bl);
 
     ray.origin = origin;
     ray.dir = dir;
@@ -320,7 +344,7 @@ static bool sprite_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_r
     /* Optional alpha test: reject the hit if the texel under it is transparent,
      * so the ray passes through to whatever is behind the sprite. UVs follow the
      * quad layout in draw_handle(): tl=(0,0) tr=(1,0) br=(1,1) bl=(0,1). */
-    if (best != NULL && s->pick_alpha_test) {
+    if (best != NULL && sprite_ptr->pick_alpha_test) {
         float uv_x, uv_y, a;
         if (best == &h0) { /* tri (tl,tr,br): uv = (u+v, v) */
             uv_x = best->u + best->v;
@@ -329,14 +353,14 @@ static bool sprite_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_r
             uv_x = best->u;
             uv_y = best->u + best->v;
         }
-        if (sk_texture_sample_alpha(s->texture, uv_x, uv_y, &a) &&
-            a < s->pick_alpha_threshold) {
+        if (sk_texture_sample_alpha(sprite_ptr->texture, uv_x, uv_y, &a) &&
+            a < sprite_ptr->pick_alpha_threshold) {
             best = NULL;
         }
     }
 
     if (best != NULL) {
-        sk_mat4_t model = sk_mat4_translate(s->position.x, s->position.y, s->position.z);
+        sk_mat4_t model = sk_mat4_translate(sprite_ptr->position.x, sprite_ptr->position.y, sprite_ptr->position.z);
         sk_pick_result_from_world(best, ray, model, out);
     } else {
         *out = (sk_pick_result_t){0};
@@ -347,12 +371,17 @@ static bool sprite_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_r
 SK_KEEP
 void sk_sprite3d_destroy(sk_handle_t handle)
 {
-    sk_sprite3d_data_t *s = resolve(handle);
-    if (s == NULL) {
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    sk_handle_t texture;
+    if (sprite_ptr == NULL) {
         return;
     }
-    *s = (sk_sprite3d_data_t){0};
+    texture = sprite_ptr->texture;
+    *sprite_ptr = (sk_sprite3d_t){0};
     sk_handle_pool_free(&sk_sprite_pool, handle);
+    if (texture != 0) {
+        sk_texture_release(texture);
+    }
 }
 
 void sk_sprite3d_init(void)

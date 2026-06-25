@@ -15,7 +15,15 @@ bool sk_texture_get_binding(sk_handle_t handle, sg_view *view, sg_sampler *smp,
                             int *width, int *height);
 
 /* Sample the retained CPU alpha mask at normalized UV (nearest). Returns false
- * if the texture was not created pickable (no mask). `*out_alpha` is in [0,1]. */
+ * if no mask is available. `*out_alpha` is in [0,1]. */
 bool sk_texture_sample_alpha(sk_handle_t handle, float u, float v, float *out_alpha);
+
+/* Reference counting (used by Sprite objects and explicit texture ownership). */
+void sk_texture_retain(sk_handle_t handle);
+void sk_texture_release(sk_handle_t handle);
+
+/* Build the CPU alpha mask on demand (re-reads from the texture's source path).
+ * Returns false if the texture has no path or decode fails. */
+bool sk_texture_ensure_alpha_mask(sk_handle_t handle);
 
 #endif // SK_INTERNAL_TEXTURE_H

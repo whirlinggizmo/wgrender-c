@@ -13,10 +13,12 @@ static sk_handle_t g_bg;
 static sk_handle_t g_model;
 static bool g_loaded;
 
-static void on_model_loaded(const char *p, const unsigned char *d, int n, void *u)
+static void on_model_loaded(const char *path, void *user)
 {
-    (void)p; (void)u;
-    g_model = sk_model_create_from_memory(d, n, MODEL_PATH);
+    sk_handle_t mesh = sk_mesh_create(path);
+    (void)user;
+    g_model = sk_model_create(mesh);
+    sk_mesh_destroy(mesh); /* the model holds its own reference to the mesh */
     if (g_model == 0) {
         return;
     }
@@ -41,7 +43,7 @@ static void on_init(void *user_data)
     g_camera = sk_camera3d_create(8, 8, 8, 0, 3, 0, 0, 1, 0, 45.0f, SK_CAMERA3D_PERSPECTIVE);
     g_scene = sk_scene_create();
     sk_scene_set_active_camera(g_scene, g_camera);
-    sk_asset_load_async(MODEL_PATH, on_model_loaded, on_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(MODEL_PATH, NULL), on_model_loaded, on_failed, NULL);
     sk_debug_enable_fps(12, 10, 16);
 }
 

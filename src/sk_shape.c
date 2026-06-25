@@ -33,9 +33,9 @@ typedef struct {
     sk_handle_t color;
     bool visible;
     bool pickable;
-} sk_shape_data_t;
+} sk_shape_t;
 
-static sk_shape_data_t sk_shapes[MAX_SHAPES];
+static sk_shape_t sk_shapes[MAX_SHAPES];
 static sk_handle_pool_t sk_shape_pool;
 static uint16_t sk_shape_free_indices[MAX_SHAPES];
 static uint16_t sk_shape_generations[MAX_SHAPES];
@@ -276,7 +276,7 @@ void sk_shape_draw_grid(int slices, float spacing, sk_handle_t color)
 
 /* -------------------------------------------------- retained 3D shapes ----- */
 
-static sk_shape_data_t *resolve_shape(sk_handle_t shape)
+static sk_shape_t *resolve(sk_handle_t shape)
 {
     uint16_t index = 0;
     if (!sk_handle_pool_resolve(&sk_shape_pool, shape, &index)) {
@@ -299,7 +299,7 @@ sk_handle_t sk_shape_create(void)
         return 0;
     }
     sk_handle_pool_resolve(&sk_shape_pool, handle, &index);
-    sk_shapes[index] = (sk_shape_data_t){
+    sk_shapes[index] = (sk_shape_t){
         .kind = SK_SHAPE_NONE,
         .dim = {1.0f, 1.0f, 1.0f},
         .position = {0.0f, 0.0f, 0.0f},
@@ -315,37 +315,37 @@ sk_handle_t sk_shape_create(void)
 SK_KEEP
 void sk_shape_destroy(sk_handle_t shape)
 {
-    sk_shape_data_t *s = resolve_shape(shape);
-    if (s == NULL) {
+    sk_shape_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL) {
         return;
     }
-    *s = (sk_shape_data_t){0};
+    *shape_ptr = (sk_shape_t){0};
     sk_handle_pool_free(&sk_shape_pool, shape);
 }
 
 SK_KEEP
 bool sk_shape_set_cube(sk_handle_t shape, float width, float height, float length)
 {
-    sk_shape_data_t *s = resolve_shape(shape);
-    if (s == NULL) {
+    sk_shape_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL) {
         return false;
     }
-    s->kind = SK_SHAPE_CUBE;
-    s->dim[0] = width;
-    s->dim[1] = height;
-    s->dim[2] = length;
+    shape_ptr->kind = SK_SHAPE_CUBE;
+    shape_ptr->dim[0] = width;
+    shape_ptr->dim[1] = height;
+    shape_ptr->dim[2] = length;
     return true;
 }
 
 SK_KEEP
 bool sk_shape_set_sphere(sk_handle_t shape, float radius)
 {
-    sk_shape_data_t *s = resolve_shape(shape);
-    if (s == NULL) {
+    sk_shape_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL) {
         return false;
     }
-    s->kind = SK_SHAPE_SPHERE;
-    s->dim[0] = radius;
+    shape_ptr->kind = SK_SHAPE_SPHERE;
+    shape_ptr->dim[0] = radius;
     return true;
 }
 
@@ -355,81 +355,81 @@ bool sk_shape_set_transform(sk_handle_t shape,
                             float rotation_x, float rotation_y, float rotation_z,
                             float scale_x, float scale_y, float scale_z)
 {
-    sk_shape_data_t *s = resolve_shape(shape);
-    if (s == NULL) {
+    sk_shape_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL) {
         return false;
     }
-    s->position = (vec3_t){position_x, position_y, position_z};
-    s->rotation = (vec3_t){rotation_x, rotation_y, rotation_z};
-    s->scale = (vec3_t){scale_x, scale_y, scale_z};
+    shape_ptr->position = (vec3_t){position_x, position_y, position_z};
+    shape_ptr->rotation = (vec3_t){rotation_x, rotation_y, rotation_z};
+    shape_ptr->scale = (vec3_t){scale_x, scale_y, scale_z};
     return true;
 }
 
 SK_KEEP
 bool sk_shape_set_color(sk_handle_t shape, sk_handle_t color)
 {
-    sk_shape_data_t *s = resolve_shape(shape);
-    if (s == NULL) {
+    sk_shape_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL) {
         return false;
     }
-    s->color = color;
+    shape_ptr->color = color;
     return true;
 }
 
 SK_KEEP
 bool sk_shape_set_visible(sk_handle_t shape, bool visible)
 {
-    sk_shape_data_t *s = resolve_shape(shape);
-    if (s == NULL) {
+    sk_shape_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL) {
         return false;
     }
-    s->visible = visible;
+    shape_ptr->visible = visible;
     return true;
 }
 
 SK_KEEP
 bool sk_shape_is_visible(sk_handle_t shape)
 {
-    sk_shape_data_t *s = resolve_shape(shape);
-    return s != NULL && s->visible;
+    sk_shape_t *shape_ptr = resolve(shape);
+    return shape_ptr != NULL && shape_ptr->visible;
 }
 
 SK_KEEP
 bool sk_shape_set_pickable(sk_handle_t shape, bool pickable)
 {
-    sk_shape_data_t *s = resolve_shape(shape);
-    if (s == NULL) {
+    sk_shape_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL) {
         return false;
     }
-    s->pickable = pickable;
+    shape_ptr->pickable = pickable;
     return true;
 }
 
 SK_KEEP
 bool sk_shape_is_pickable(sk_handle_t shape)
 {
-    sk_shape_data_t *s = resolve_shape(shape);
-    return s != NULL && s->pickable;
+    sk_shape_t *shape_ptr = resolve(shape);
+    return shape_ptr != NULL && shape_ptr->pickable;
 }
 
 static void draw_handle(sk_handle_t shape)
 {
-    sk_shape_data_t *s = resolve_shape(shape);
-    if (s == NULL || !s->visible || s->kind == SK_SHAPE_NONE) {
+    sk_shape_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL || !shape_ptr->visible || shape_ptr->kind == SK_SHAPE_NONE) {
         return;
     }
 
     sgl_push_matrix();
-    sgl_translate(s->position.x, s->position.y, s->position.z);
-    sgl_rotate(s->rotation.z, 0.0f, 0.0f, 1.0f);
-    sgl_rotate(s->rotation.y, 0.0f, 1.0f, 0.0f);
-    sgl_rotate(s->rotation.x, 1.0f, 0.0f, 0.0f);
-    sgl_scale(s->scale.x, s->scale.y, s->scale.z);
+    sgl_translate(shape_ptr->position.x, shape_ptr->position.y, shape_ptr->position.z);
+    sgl_rotate(shape_ptr->rotation.z, 0.0f, 0.0f, 1.0f);
+    sgl_rotate(shape_ptr->rotation.y, 0.0f, 1.0f, 0.0f);
+    sgl_rotate(shape_ptr->rotation.x, 1.0f, 0.0f, 0.0f);
+    sgl_scale(shape_ptr->scale.x, shape_ptr->scale.y, shape_ptr->scale.z);
 
-    if (s->kind == SK_SHAPE_CUBE) {
-        sk_shape_draw_cube(0.0f, 0.0f, 0.0f, s->dim[0], s->dim[1], s->dim[2], s->color);
-    } else if (s->kind == SK_SHAPE_SPHERE) {
-        sk_shape_draw_sphere(0.0f, 0.0f, 0.0f, s->dim[0], s->color);
+    if (shape_ptr->kind == SK_SHAPE_CUBE) {
+        sk_shape_draw_cube(0.0f, 0.0f, 0.0f, shape_ptr->dim[0], shape_ptr->dim[1], shape_ptr->dim[2], shape_ptr->color);
+    } else if (shape_ptr->kind == SK_SHAPE_SPHERE) {
+        sk_shape_draw_sphere(0.0f, 0.0f, 0.0f, shape_ptr->dim[0], shape_ptr->color);
     }
 
     sgl_pop_matrix();
@@ -443,49 +443,49 @@ void sk_shape_draw(sk_handle_t shape)
 
 static bool shape_bounds(sk_handle_t shape, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model)
 {
-    sk_shape_data_t *s = resolve_shape(shape);
+    sk_shape_t *shape_ptr = resolve(shape);
     float hx, hy, hz;
-    if (s == NULL || !s->visible || s->kind == SK_SHAPE_NONE) {
+    if (shape_ptr == NULL || !shape_ptr->visible || shape_ptr->kind == SK_SHAPE_NONE) {
         return false;
     }
-    if (s->kind == SK_SHAPE_CUBE) {
-        hx = s->dim[0] * 0.5f; hy = s->dim[1] * 0.5f; hz = s->dim[2] * 0.5f;
+    if (shape_ptr->kind == SK_SHAPE_CUBE) {
+        hx = shape_ptr->dim[0] * 0.5f; hy = shape_ptr->dim[1] * 0.5f; hz = shape_ptr->dim[2] * 0.5f;
     } else { /* sphere: dim[0] = radius */
-        hx = hy = hz = s->dim[0];
+        hx = hy = hz = shape_ptr->dim[0];
     }
     *lmin = (vec3_t){-hx, -hy, -hz};
     *lmax = (vec3_t){hx, hy, hz};
-    *model = sk_mat4_trs(s->position, s->rotation, s->scale);
+    *model = sk_mat4_trs(shape_ptr->position, shape_ptr->rotation, shape_ptr->scale);
     return true;
 }
 
 static bool shape_pick(sk_handle_t shape, vec3_t origin, vec3_t dir, sk_pick_result_t *out)
 {
-    sk_shape_data_t *s = resolve_shape(shape);
+    sk_shape_t *shape_ptr = resolve(shape);
     sk_mat4_t model;
     sk_ray_t world, local;
     sk_ray_hit_t h = {0};
     vec3_t lmin, lmax;
     bool hit;
 
-    if (out == NULL || s == NULL || !s->visible || !s->pickable || s->kind == SK_SHAPE_NONE) {
+    if (out == NULL || shape_ptr == NULL || !shape_ptr->visible || !shape_ptr->pickable || shape_ptr->kind == SK_SHAPE_NONE) {
         return false;
     }
 
-    model = sk_mat4_trs(s->position, s->rotation, s->scale);
+    model = sk_mat4_trs(shape_ptr->position, shape_ptr->rotation, shape_ptr->scale);
     world.origin = origin;
     world.dir = dir;
     local = sk_pick_ray_to_local(model, world);
 
-    if (s->kind == SK_SHAPE_CUBE) {
-        float hx = s->dim[0] * 0.5f;
-        float hy = s->dim[1] * 0.5f;
-        float hz = s->dim[2] * 0.5f;
+    if (shape_ptr->kind == SK_SHAPE_CUBE) {
+        float hx = shape_ptr->dim[0] * 0.5f;
+        float hy = shape_ptr->dim[1] * 0.5f;
+        float hz = shape_ptr->dim[2] * 0.5f;
         lmin = (vec3_t){-hx, -hy, -hz};
         lmax = (vec3_t){hx, hy, hz};
         hit = sk_pick_ray_aabb(local, lmin, lmax, &h);
     } else {
-        hit = sk_pick_ray_sphere(local, (vec3_t){0, 0, 0}, s->dim[0], &h);
+        hit = sk_pick_ray_sphere(local, (vec3_t){0, 0, 0}, shape_ptr->dim[0], &h);
     }
 
     if (hit) {

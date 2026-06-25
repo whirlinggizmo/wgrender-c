@@ -7,11 +7,11 @@ extern "C" {
 
 #include "sk_types.h"
 
-/* TrueType fonts via fontstash. A font handle wraps a rasterizable typeface;
- * the pixel size is chosen per draw call (sk_text_draw_ex). Load font bytes
- * however you like (e.g. sk_asset_load_async) and pass them here. */
+/* Font resource (kind FONT): a TrueType typeface (fontstash) loaded from a path.
+ * The pixel size is chosen per draw call (sk_text_draw_ex), not at create time.
+ * See docs/ARCHITECTURE.md. */
 
-sk_handle_t sk_font_create_from_memory(const unsigned char *data, int size);
+sk_handle_t sk_font_create(const char *path);
 void        sk_font_destroy(sk_handle_t handle);
 
 #ifdef __cplusplus

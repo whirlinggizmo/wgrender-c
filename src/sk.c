@@ -126,7 +126,6 @@ static void on_init(void)
     sk_asset_init();
     sk_audio_init();
     sk_sound_init();
-    sk_music_init();
     sk_event_init();
     sk_input_init();
     sk_debug_init();
@@ -170,7 +169,6 @@ static void on_cleanup(void)
     sk_debug_deinit();
     sk_input_deinit();
     sk_event_deinit();
-    sk_music_deinit();
     sk_sound_deinit();
     sk_audio_deinit();
     sk_asset_deinit();

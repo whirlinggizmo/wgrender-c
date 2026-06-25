@@ -64,8 +64,6 @@ void sk_audio_tick(void);
 void sk_audio_deinit(void);
 void sk_sound_init(void);
 void sk_sound_deinit(void);
-void sk_music_init(void);
-void sk_music_deinit(void);
 
 /* font (fontstash) */
 void sk_font_init(void);

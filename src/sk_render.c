@@ -144,7 +144,7 @@ void sk_render_end_mode_2d(void)
 SK_KEEP
 void sk_render_begin_mode_3d(void)
 {
-    sk_camera3d_data_t cam;
+    sk_camera3d_t cam;
     const float w = (float)sapp_width();
     const float h = (float)sapp_height();
     const float aspect = h > 0.0f ? w / h : 1.0f;

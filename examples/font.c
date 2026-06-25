@@ -14,15 +14,15 @@ static sk_handle_t g_bg;
 static sk_handle_t g_mono;
 static sk_handle_t g_komika;
 
-static void on_mono_loaded(const char *p, const unsigned char *d, int n, void *u)
+static void on_mono_loaded(const char *path, void *user)
 {
-    (void)p; (void)u;
-    g_mono = sk_font_create_from_memory(d, n);
+    (void)user;
+    g_mono = sk_font_create(path);
 }
-static void on_komika_loaded(const char *p, const unsigned char *d, int n, void *u)
+static void on_komika_loaded(const char *path, void *user)
 {
-    (void)p; (void)u;
-    g_komika = sk_font_create_from_memory(d, n);
+    (void)user;
+    g_komika = sk_font_create(path);
 }
 static void on_failed(const char *p, void *u)
 {
@@ -34,8 +34,8 @@ static void on_init(void *user_data)
 {
     (void)user_data;
     g_bg = sk_color_create(248, 248, 250, 255);
-    sk_asset_load_async(JETBRAINS_PATH, on_mono_loaded, on_failed, NULL);
-    sk_asset_load_async(KOMIKA_PATH, on_komika_loaded, on_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(JETBRAINS_PATH, NULL), on_mono_loaded, on_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(KOMIKA_PATH, NULL), on_komika_loaded, on_failed, NULL);
 }
 
 static void frame(void *user_data)

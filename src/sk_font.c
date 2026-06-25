@@ -19,16 +19,16 @@
 
 typedef struct {
     int fons_id;
-} sk_font_data_t;
+} sk_font_t;
 
-static sk_font_data_t sk_fonts[MAX_FONTS];
+static sk_font_t sk_fonts[MAX_FONTS];
 static sk_handle_pool_t sk_font_pool;
 static uint16_t sk_font_free_indices[MAX_FONTS];
 static uint16_t sk_font_generations[MAX_FONTS];
 static unsigned char sk_font_occupied[MAX_FONTS];
 static FONScontext *sk_fons = NULL;
 
-static sk_font_data_t *resolve(sk_handle_t handle)
+static sk_font_t *resolve(sk_handle_t handle)
 {
     uint16_t index = 0;
     if (!sk_handle_pool_resolve(&sk_font_pool, handle, &index)) {
@@ -37,29 +37,49 @@ static sk_font_data_t *resolve(sk_handle_t handle)
     return &sk_fonts[index];
 }
 
+static unsigned char *read_file(const char *path, int *out_size)
+{
+    FILE *f;
+    long size;
+    unsigned char *bytes;
+
+    *out_size = 0;
+    if (path == NULL || (f = fopen(path, "rb")) == NULL) {
+        return NULL;
+    }
+    fseek(f, 0, SEEK_END); size = ftell(f); fseek(f, 0, SEEK_SET);
+    if (size <= 0) { fclose(f); return NULL; }
+    bytes = (unsigned char *)malloc((size_t)size);
+    if (bytes == NULL) { fclose(f); return NULL; }
+    if (fread(bytes, 1, (size_t)size, f) != (size_t)size) { free(bytes); fclose(f); return NULL; }
+    fclose(f);
+    *out_size = (int)size;
+    return bytes;
+}
+
 SK_KEEP
-sk_handle_t sk_font_create_from_memory(const unsigned char *data, int size)
+sk_handle_t sk_font_create(const char *path)
 {
     sk_handle_t handle;
     uint16_t index = 0;
-    unsigned char *copy;
+    unsigned char *bytes;
+    int size = 0;
     int fid;
 
-    if (sk_fons == NULL || data == NULL || size <= 0) {
+    if (sk_fons == NULL) {
         return 0;
     }
-
-    /* fontstash needs the TTF bytes to outlive the font; give it an owned copy
-     * (freeData = 1 -> fontstash frees on context destroy). */
-    copy = (unsigned char *)malloc((size_t)size);
-    if (copy == NULL) {
+    /* fontstash needs the TTF bytes to outlive the font; hand it the read buffer
+     * with freeData = 1 so it owns and frees them on context destroy. */
+    bytes = read_file(path, &size);
+    if (bytes == NULL) {
+        log_error("Failed to read font: %s", path ? path : "(null)");
         return 0;
     }
-    memcpy(copy, data, (size_t)size);
 
     handle = sk_handle_pool_alloc(&sk_font_pool);
     if (handle == 0) {
-        free(copy);
+        free(bytes);
         log_error("MAX_FONTS reached (%d)", MAX_FONTS);
         return 0;
     }
@@ -68,7 +88,7 @@ sk_handle_t sk_font_create_from_memory(const unsigned char *data, int size)
     {
         char name[32];
         snprintf(name, sizeof(name), "font%u", (unsigned int)index);
-        fid = fonsAddFontMem(sk_fons, name, copy, size, 1);
+        fid = fonsAddFontMem(sk_fons, name, bytes, size, 1);
     }
     if (fid == FONS_INVALID) {
         sk_handle_pool_free(&sk_font_pool, handle);
@@ -99,8 +119,8 @@ FONScontext *sk_font_context(void)
 
 int sk_font_fons_id(sk_handle_t handle)
 {
-    sk_font_data_t *f = resolve(handle);
-    return f != NULL ? f->fons_id : FONS_INVALID;
+    sk_font_t *font_ptr = resolve(handle);
+    return font_ptr != NULL ? font_ptr->fons_id : FONS_INVALID;
 }
 
 void sk_font_flush(void)

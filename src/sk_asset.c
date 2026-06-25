@@ -1,112 +1,140 @@
 #include "sk_asset.h"
 
-#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "internal/exports.h"
+#include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
+#include "sk_handle.h"
 #include "sk_logger.h"
 
-#include "sokol_fetch.h"
-#include "sokol_log.h"
+/* Phase 1 (desktop): "ensure" verifies the file is present locally and fires the
+ * callback with its path. Host fetch + a local store (web/idbfs) come in a later
+ * phase; the public surface (ensure_async + add_task) stays the same. */
 
-/* Each request gets a fixed max buffer bound at dispatch (sokol_fetch's
- * canonical pattern when the size is unknown up front). Streaming / right-sized
- * buffers can come later. */
-#define SK_ASSET_MAX_FILE_BYTES (24 * 1024 * 1024)
+#define MAX_ASSET_TASKS 64
 
 typedef struct {
     char path[512];
-    unsigned char *buffer;
-    sk_asset_loaded_fn on_loaded;
-    sk_asset_failed_fn on_failed;
+    sk_asset_callback_fn on_success;
+    sk_asset_callback_fn on_failure;
     void *user_data;
+    bool armed; /* callbacks attached via sk_asset_add_task */
 } sk_asset_task_t;
 
+static sk_asset_task_t sk_asset_tasks[MAX_ASSET_TASKS];
+static sk_handle_pool_t sk_asset_pool;
+static uint16_t sk_asset_free_indices[MAX_ASSET_TASKS];
+static uint16_t sk_asset_generations[MAX_ASSET_TASKS];
+static unsigned char sk_asset_occupied[MAX_ASSET_TASKS];
 static bool sk_asset_ready = false;
 
-static void on_response(const sfetch_response_t *res)
+static sk_asset_task_t *resolve(sk_handle_t handle)
 {
-    sk_asset_task_t *task = *(sk_asset_task_t **)res->user_data;
+    uint16_t index = 0;
+    if (!sk_handle_pool_resolve(&sk_asset_pool, handle, &index)) {
+        return NULL;
+    }
+    return &sk_asset_tasks[index];
+}
 
-    if (res->dispatched) {
-        task->buffer = (unsigned char *)malloc(SK_ASSET_MAX_FILE_BYTES);
-        sfetch_bind_buffer(res->handle,
-                           (sfetch_range_t){.ptr = task->buffer, .size = SK_ASSET_MAX_FILE_BYTES});
+static bool file_exists(const char *path)
+{
+    FILE *f = (path != NULL) ? fopen(path, "rb") : NULL;
+    if (f == NULL) {
+        return false;
     }
-    if (res->fetched) {
-        if (task->on_loaded) {
-            task->on_loaded(task->path, (const unsigned char *)res->data.ptr,
-                            (int)res->data.size, task->user_data);
-        }
-    }
-    if (res->failed) {
-        log_error("Asset load failed: %s (error %d)", task->path, (int)res->error_code);
-        if (task->on_failed) {
-            task->on_failed(task->path, task->user_data);
-        }
-    }
-    if (res->finished) {
-        free(task->buffer);
-        free(task);
-    }
+    fclose(f);
+    return true;
 }
 
 SK_KEEP
-bool sk_asset_load_async(const char *path,
-                         sk_asset_loaded_fn on_loaded,
-                         sk_asset_failed_fn on_failed,
-                         void *user_data)
+sk_handle_t sk_asset_ensure_async(const char *path, const char *src)
 {
-    sk_asset_task_t *task;
+    sk_handle_t handle;
+    sk_asset_task_t *task_ptr;
 
+    (void)src; /* host fetch is a later phase; desktop reads local files */
     if (!sk_asset_ready || path == NULL) {
-        return false;
+        return 0;
     }
+    handle = sk_handle_pool_alloc(&sk_asset_pool);
+    if (handle == 0) {
+        log_error("MAX_ASSET_TASKS reached (%d)", MAX_ASSET_TASKS);
+        return 0;
+    }
+    task_ptr = resolve(handle);
+    *task_ptr = (sk_asset_task_t){0};
+    strncpy(task_ptr->path, path, sizeof(task_ptr->path) - 1);
+    return handle;
+}
 
-    task = (sk_asset_task_t *)calloc(1, sizeof(*task));
-    if (task == NULL) {
-        return false;
+SK_KEEP
+sk_asset_add_task_result_t sk_asset_add_task(sk_handle_t handle,
+                                             sk_asset_callback_fn on_success,
+                                             sk_asset_callback_fn on_failure,
+                                             void *user_data)
+{
+    sk_asset_task_t *task_ptr = resolve(handle);
+    if (task_ptr == NULL) {
+        return SK_ASSET_ADD_TASK_ERR_INVALID;
     }
-    strncpy(task->path, path, sizeof(task->path) - 1);
-    task->on_loaded = on_loaded;
-    task->on_failed = on_failed;
-    task->user_data = user_data;
-
-    sfetch_handle_t h = sfetch_send(&(sfetch_request_t){
-        .path = task->path,
-        .callback = on_response,
-        .user_data = {.ptr = &task, .size = sizeof(task)},
-    });
-    if (!sfetch_handle_valid(h)) {
-        free(task);
-        return false;
-    }
-    return true;
+    task_ptr->on_success = on_success;
+    task_ptr->on_failure = on_failure;
+    task_ptr->user_data = user_data;
+    task_ptr->armed = true;
+    return SK_ASSET_ADD_TASK_OK;
 }
 
 void sk_asset_init(void)
 {
-    sfetch_setup(&(sfetch_desc_t){
-        .max_requests = 64,
-        .num_channels = 1,
-        .num_lanes = 4,
-        .logger.func = slog_func,
-    });
+    memset(sk_asset_tasks, 0, sizeof(sk_asset_tasks));
+    sk_handle_pool_init(&sk_asset_pool, SK_HANDLE_KIND_ASSET_TASK, MAX_ASSET_TASKS,
+                        sk_asset_free_indices, MAX_ASSET_TASKS,
+                        sk_asset_generations, sk_asset_occupied);
     sk_asset_ready = true;
 }
 
 void sk_asset_tick(void)
 {
-    if (sk_asset_ready) {
-        sfetch_dowork();
+    if (!sk_asset_ready) {
+        return;
+    }
+    for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) {
+        sk_asset_task_t *task = &sk_asset_tasks[i];
+        sk_asset_callback_fn on_success, on_failure;
+        void *user_data;
+        char path[512];
+        bool exists;
+
+        if (!sk_asset_occupied[i] || !task->armed) {
+            continue;
+        }
+        on_success = task->on_success;
+        on_failure = task->on_failure;
+        user_data = task->user_data;
+        memcpy(path, task->path, sizeof(path));
+        exists = file_exists(path);
+
+        /* free the slot before firing — the callback may queue more work */
+        {
+            sk_handle_t handle = sk_handle_pool_handle_from_index(&sk_asset_pool, i);
+            *task = (sk_asset_task_t){0};
+            sk_handle_pool_free(&sk_asset_pool, handle);
+        }
+
+        if (exists) {
+            if (on_success) on_success(path, user_data);
+        } else {
+            log_error("Asset not found: %s", path);
+            if (on_failure) on_failure(path, user_data);
+        }
     }
 }
 
 void sk_asset_deinit(void)
 {
-    if (sk_asset_ready) {
-        sfetch_shutdown();
-        sk_asset_ready = false;
-    }
+    sk_asset_ready = false;
+    sk_handle_pool_reset(&sk_asset_pool);
 }

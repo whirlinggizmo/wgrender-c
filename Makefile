@@ -69,10 +69,11 @@ run: $(EX_BUILD)/hello
 print-ldlibs:
 	@echo $(LDLIBS_PLATFORM)
 
-# Enforce the "no backend leakage" invariant (sokol must not appear in the
-# public headers or example sources).
+# Enforce project invariants: no backend (sokol) leakage into the public
+# surface, and the naming conventions in AGENTS.md.
 check:
 	@tools/check_no_backend_leak.sh
+	@tools/check_naming.sh
 
 clean:
 	rm -rf $(BUILD) $(LIBDIR) $(EX_BUILD)

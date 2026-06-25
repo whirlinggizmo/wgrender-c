@@ -28,9 +28,9 @@ typedef struct {
     int count;
     int capacity;
     sk_handle_t camera;
-} sk_scene_data_t;
+} sk_scene_t;
 
-static sk_scene_data_t sk_scenes[MAX_SCENES];
+static sk_scene_t sk_scenes[MAX_SCENES];
 static sk_handle_pool_t sk_scene_pool;
 static uint16_t sk_scene_free_indices[MAX_SCENES];
 static uint16_t sk_scene_generations[MAX_SCENES];
@@ -97,7 +97,7 @@ bool sk_drawable_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_res
 
 /* ---- scene store ------------------------------------------------------- */
 
-static sk_scene_data_t *resolve(sk_handle_t scene)
+static sk_scene_t *resolve(sk_handle_t scene)
 {
     uint16_t index = 0;
     if (!sk_handle_pool_resolve(&sk_scene_pool, scene, &index)) {
@@ -109,10 +109,10 @@ static sk_scene_data_t *resolve(sk_handle_t scene)
     return &sk_scenes[index];
 }
 
-static int find_entry(sk_scene_data_t *s, sk_handle_t drawable)
+static int find_entry(sk_scene_t *scene_ptr, sk_handle_t drawable)
 {
-    for (int i = 0; i < s->count; i++) {
-        if (s->items[i].drawable == drawable) {
+    for (int i = 0; i < scene_ptr->count; i++) {
+        if (scene_ptr->items[i].drawable == drawable) {
             return i;
         }
     }
@@ -130,135 +130,135 @@ sk_handle_t sk_scene_create(void)
         return 0;
     }
     sk_handle_pool_resolve(&sk_scene_pool, handle, &index);
-    sk_scenes[index] = (sk_scene_data_t){0};
+    sk_scenes[index] = (sk_scene_t){0};
     return handle;
 }
 
 SK_KEEP
 void sk_scene_destroy(sk_handle_t scene)
 {
-    sk_scene_data_t *s = resolve(scene);
-    if (s == NULL) {
+    sk_scene_t *scene_ptr = resolve(scene);
+    if (scene_ptr == NULL) {
         return;
     }
-    free(s->items);
-    *s = (sk_scene_data_t){0};
+    free(scene_ptr->items);
+    *scene_ptr = (sk_scene_t){0};
     sk_handle_pool_free(&sk_scene_pool, scene);
 }
 
 SK_KEEP
 bool sk_scene_add(sk_handle_t scene, sk_handle_t drawable, int layer)
 {
-    sk_scene_data_t *s = resolve(scene);
+    sk_scene_t *scene_ptr = resolve(scene);
     int existing;
 
-    if (s == NULL || drawable == 0) {
+    if (scene_ptr == NULL || drawable == 0) {
         return false;
     }
 
-    existing = find_entry(s, drawable);
+    existing = find_entry(scene_ptr, drawable);
     if (existing >= 0) {
-        s->items[existing].layer = layer;
+        scene_ptr->items[existing].layer = layer;
         return true;
     }
 
-    if (s->count >= s->capacity) {
-        int cap = s->capacity > 0 ? s->capacity * 2 : 8;
-        sk_scene_entry_t *grown = realloc(s->items, (size_t)cap * sizeof(*grown));
+    if (scene_ptr->count >= scene_ptr->capacity) {
+        int cap = scene_ptr->capacity > 0 ? scene_ptr->capacity * 2 : 8;
+        sk_scene_entry_t *grown = realloc(scene_ptr->items, (size_t)cap * sizeof(*grown));
         if (grown == NULL) {
             return false;
         }
-        s->items = grown;
-        s->capacity = cap;
+        scene_ptr->items = grown;
+        scene_ptr->capacity = cap;
     }
 
-    s->items[s->count].drawable = drawable;
-    s->items[s->count].layer = layer;
-    s->count++;
+    scene_ptr->items[scene_ptr->count].drawable = drawable;
+    scene_ptr->items[scene_ptr->count].layer = layer;
+    scene_ptr->count++;
     return true;
 }
 
 SK_KEEP
 bool sk_scene_set_layer(sk_handle_t scene, sk_handle_t drawable, int layer)
 {
-    sk_scene_data_t *s = resolve(scene);
+    sk_scene_t *scene_ptr = resolve(scene);
     int idx;
-    if (s == NULL) {
+    if (scene_ptr == NULL) {
         return false;
     }
-    idx = find_entry(s, drawable);
+    idx = find_entry(scene_ptr, drawable);
     if (idx < 0) {
         return false;
     }
-    s->items[idx].layer = layer;
+    scene_ptr->items[idx].layer = layer;
     return true;
 }
 
 SK_KEEP
 bool sk_scene_remove(sk_handle_t scene, sk_handle_t drawable)
 {
-    sk_scene_data_t *s = resolve(scene);
+    sk_scene_t *scene_ptr = resolve(scene);
     int idx;
-    if (s == NULL) {
+    if (scene_ptr == NULL) {
         return false;
     }
-    idx = find_entry(s, drawable);
+    idx = find_entry(scene_ptr, drawable);
     if (idx < 0) {
         return false;
     }
     /* preserve order (stable for equal layers) */
-    memmove(&s->items[idx], &s->items[idx + 1],
-            (size_t)(s->count - idx - 1) * sizeof(sk_scene_entry_t));
-    s->count--;
+    memmove(&scene_ptr->items[idx], &scene_ptr->items[idx + 1],
+            (size_t)(scene_ptr->count - idx - 1) * sizeof(sk_scene_entry_t));
+    scene_ptr->count--;
     return true;
 }
 
 SK_KEEP
 void sk_scene_clear(sk_handle_t scene)
 {
-    sk_scene_data_t *s = resolve(scene);
-    if (s == NULL) {
+    sk_scene_t *scene_ptr = resolve(scene);
+    if (scene_ptr == NULL) {
         return;
     }
-    s->count = 0;
+    scene_ptr->count = 0;
 }
 
 SK_KEEP
 void sk_scene_set_active_camera(sk_handle_t scene, sk_handle_t camera)
 {
-    sk_scene_data_t *s = resolve(scene);
-    if (s == NULL) {
+    sk_scene_t *scene_ptr = resolve(scene);
+    if (scene_ptr == NULL) {
         return;
     }
-    s->camera = camera;
+    scene_ptr->camera = camera;
 }
 
 SK_KEEP
 void sk_scene_draw(sk_handle_t scene)
 {
-    sk_scene_data_t *s = resolve(scene);
-    if (s == NULL) {
+    sk_scene_t *scene_ptr = resolve(scene);
+    if (scene_ptr == NULL) {
         return;
     }
 
-    if (s->camera != 0) {
-        sk_camera3d_set_active(s->camera);
+    if (scene_ptr->camera != 0) {
+        sk_camera3d_set_active(scene_ptr->camera);
     }
 
     /* insertion sort by layer ascending (stable, small lists) */
-    for (int i = 1; i < s->count; i++) {
-        sk_scene_entry_t key = s->items[i];
+    for (int i = 1; i < scene_ptr->count; i++) {
+        sk_scene_entry_t key = scene_ptr->items[i];
         int j = i - 1;
-        while (j >= 0 && s->items[j].layer > key.layer) {
-            s->items[j + 1] = s->items[j];
+        while (j >= 0 && scene_ptr->items[j].layer > key.layer) {
+            scene_ptr->items[j + 1] = scene_ptr->items[j];
             j--;
         }
-        s->items[j + 1] = key;
+        scene_ptr->items[j + 1] = key;
     }
 
     sk_render_begin_mode_3d();
-    for (int i = 0; i < s->count; i++) {
-        sk_drawable_draw(s->items[i].drawable);
+    for (int i = 0; i < scene_ptr->count; i++) {
+        sk_drawable_draw(scene_ptr->items[i].drawable);
     }
     sk_render_end_mode_3d();
 }
@@ -270,18 +270,18 @@ sk_pick_result_t sk_scene_pick(sk_handle_t scene, sk_handle_t camera,
                                float mouse_x, float mouse_y)
 {
     sk_pick_result_t result = {0};
-    sk_scene_data_t *s = resolve(scene);
-    sk_camera3d_data_t cam;
+    sk_scene_t *scene_ptr = resolve(scene);
+    sk_camera3d_t cam;
     sk_ray_t ray;
     vec2_t screen;
     float best_t = 1e30f;
 
-    if (s == NULL) {
+    if (scene_ptr == NULL) {
         return result;
     }
 
     if (camera == 0) {
-        camera = s->camera;
+        camera = scene_ptr->camera;
     }
     if (camera != 0) {
         sk_camera3d_set_active(camera);
@@ -293,8 +293,8 @@ sk_pick_result_t sk_scene_pick(sk_handle_t scene, sk_handle_t camera,
     screen = sk_window_get_screen_size();
     ray = sk_pick_ray_from_screen(&cam, mouse_x, mouse_y, screen.x, screen.y);
 
-    for (int i = 0; i < s->count; i++) {
-        sk_handle_t drawable = s->items[i].drawable;
+    for (int i = 0; i < scene_ptr->count; i++) {
+        sk_handle_t drawable = scene_ptr->items[i].drawable;
         vec3_t lmin, lmax;
         sk_mat4_t model;
         sk_pick_result_t hit = {0};
@@ -351,7 +351,7 @@ void sk_scene_deinit(void)
 {
     for (int i = 0; i < MAX_SCENES; i++) {
         free(sk_scenes[i].items);
-        sk_scenes[i] = (sk_scene_data_t){0};
+        sk_scenes[i] = (sk_scene_t){0};
     }
     sk_handle_pool_reset(&sk_scene_pool);
 }

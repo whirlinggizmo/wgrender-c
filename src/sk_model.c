@@ -19,6 +19,7 @@
 #include "stb_image.h"
 
 #define MAX_MODELS 256
+#define MAX_MESHES 256
 #define MAX_DRAW_QUEUE 512
 #define SK_MAX_JOINTS 128
 
@@ -60,6 +61,10 @@ typedef struct {
     float duration;
 } sk_animation_t;
 
+/* Mesh resource: shared, refcounted, deduped data built from a source asset (a
+ * glTF/glb path) or generated. Holds CPU geometry (primitives incl. retained
+ * pick data), GPU buffers, skeleton, and animation clips. Many Model objects may
+ * reference one Mesh. */
 typedef struct {
     sk_primitive_t *prims;
     int prim_count;
@@ -72,22 +77,37 @@ typedef struct {
     int joint_count;
     bool has_skin;
 
-    /* animations */
+    /* animation clips (shared; playback state lives on the model) */
     sk_animation_t *animations;
     int animation_count;
-    int cur_anim;
-    float anim_time;
-    float anim_speed;
-    bool anim_loop;
 
-    sk_mat4_t joint_matrices[SK_MAX_JOINTS];
+    /* merged local-space AABB (for broadphase/picking) */
+    vec3_t lmin, lmax;
+
+    int ref_count;
+    char path[256];
+    bool has_path;
+} sk_mesh_t;
+
+/* Model object: lightweight per-placement runtime state. References a Mesh
+ * resource and owns its own transform, tint, visibility, and animation
+ * playback. */
+typedef struct {
+    sk_handle_t mesh;
 
     vec3_t position;
     vec3_t rotation;
     vec3_t scale;
     sk_handle_t tint;
     bool visible;
-} sk_model_data_t;
+
+    /* animation playback */
+    int cur_anim;
+    float anim_time;
+    float anim_speed;
+    bool anim_loop;
+    sk_mat4_t joint_matrices[SK_MAX_JOINTS];
+} sk_model_t;
 
 typedef struct {
     sk_handle_t model;
@@ -100,7 +120,13 @@ typedef struct { float mvp[16]; float model[16]; } vs_params_t;
 typedef struct { float mvp[16]; float model[16]; float joints[16 * SK_MAX_JOINTS]; } vs_skin_params_t;
 typedef struct { float light_dir[4]; float tint[4]; float ambient[4]; } fs_params_t;
 
-static sk_model_data_t sk_models[MAX_MODELS];
+static sk_mesh_t sk_meshes[MAX_MESHES];
+static sk_handle_pool_t sk_mesh_pool;
+static uint16_t sk_mesh_free_indices[MAX_MESHES];
+static uint16_t sk_mesh_generations[MAX_MESHES];
+static unsigned char sk_mesh_occupied[MAX_MESHES];
+
+static sk_model_t sk_models[MAX_MODELS];
 static sk_handle_pool_t sk_model_pool;
 static uint16_t sk_model_free_indices[MAX_MODELS];
 static uint16_t sk_model_generations[MAX_MODELS];
@@ -118,8 +144,12 @@ static sk_model_draw_t sk_draw_queue[MAX_DRAW_QUEUE];
 static int sk_draw_count;
 
 static void enqueue(sk_handle_t handle);
-static bool model_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model);
+static bool model_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model_mat);
 static bool model_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_result_t *out);
+static sk_model_t *resolve(sk_handle_t handle);
+static sk_mesh_t *resolve_mesh(sk_handle_t handle);
+static void release_mesh(sk_handle_t mesh_handle);
+static void free_mesh_cpu(sk_mesh_t *mesh);
 
 /* ------------------------------------------------------------- shaders ----- */
 
@@ -391,17 +421,17 @@ static void node_local_trs(const cgltf_node *n, vec3_t *t, quat_t *r, vec3_t *s)
     if (n->has_scale) *s = (vec3_t){n->scale[0], n->scale[1], n->scale[2]};
 }
 
-static void parse_skeleton(sk_model_data_t *md, const cgltf_data *g)
+static void parse_skeleton(sk_mesh_t *mesh, const cgltf_data *g)
 {
     const cgltf_skin *skin = NULL;
 
     /* nodes */
-    md->node_count = (int)g->nodes_count;
-    md->nodes = (sk_node_t *)calloc((size_t)md->node_count, sizeof(sk_node_t));
-    for (int i = 0; i < md->node_count; i++) {
+    mesh->node_count = (int)g->nodes_count;
+    mesh->nodes = (sk_node_t *)calloc((size_t)mesh->node_count, sizeof(sk_node_t));
+    for (int i = 0; i < mesh->node_count; i++) {
         const cgltf_node *n = &g->nodes[i];
-        node_local_trs(n, &md->nodes[i].t, &md->nodes[i].r, &md->nodes[i].s);
-        md->nodes[i].parent = node_index(g, n->parent);
+        node_local_trs(n, &mesh->nodes[i].t, &mesh->nodes[i].r, &mesh->nodes[i].s);
+        mesh->nodes[i].parent = node_index(g, n->parent);
     }
 
     /* first skin */
@@ -410,34 +440,34 @@ static void parse_skeleton(sk_model_data_t *md, const cgltf_data *g)
     }
     if (skin == NULL) return;
 
-    md->joint_count = (int)skin->joints_count;
-    if (md->joint_count > SK_MAX_JOINTS) {
-        log_warn("model has %d joints; clamping to %d", md->joint_count, SK_MAX_JOINTS);
-        md->joint_count = SK_MAX_JOINTS;
+    mesh->joint_count = (int)skin->joints_count;
+    if (mesh->joint_count > SK_MAX_JOINTS) {
+        log_warn("model has %d joints; clamping to %d", mesh->joint_count, SK_MAX_JOINTS);
+        mesh->joint_count = SK_MAX_JOINTS;
     }
-    md->joint_nodes = (int *)calloc((size_t)md->joint_count, sizeof(int));
-    md->inverse_bind = (sk_mat4_t *)calloc((size_t)md->joint_count, sizeof(sk_mat4_t));
-    for (int j = 0; j < md->joint_count; j++) {
-        md->joint_nodes[j] = node_index(g, skin->joints[j]);
+    mesh->joint_nodes = (int *)calloc((size_t)mesh->joint_count, sizeof(int));
+    mesh->inverse_bind = (sk_mat4_t *)calloc((size_t)mesh->joint_count, sizeof(sk_mat4_t));
+    for (int j = 0; j < mesh->joint_count; j++) {
+        mesh->joint_nodes[j] = node_index(g, skin->joints[j]);
         if (skin->inverse_bind_matrices) {
             cgltf_accessor_read_float(skin->inverse_bind_matrices, (cgltf_size)j,
-                                      md->inverse_bind[j].m, 16);
+                                      mesh->inverse_bind[j].m, 16);
         } else {
-            md->inverse_bind[j] = sk_mat4_identity();
+            mesh->inverse_bind[j] = sk_mat4_identity();
         }
     }
-    md->has_skin = true;
+    mesh->has_skin = true;
 }
 
-static void parse_animations(sk_model_data_t *md, const cgltf_data *g)
+static void parse_animations(sk_mesh_t *mesh, const cgltf_data *g)
 {
-    md->animation_count = (int)g->animations_count;
-    if (md->animation_count == 0) return;
-    md->animations = (sk_animation_t *)calloc((size_t)md->animation_count, sizeof(sk_animation_t));
+    mesh->animation_count = (int)g->animations_count;
+    if (mesh->animation_count == 0) return;
+    mesh->animations = (sk_animation_t *)calloc((size_t)mesh->animation_count, sizeof(sk_animation_t));
 
-    for (int a = 0; a < md->animation_count; a++) {
+    for (int a = 0; a < mesh->animation_count; a++) {
         const cgltf_animation *ga = &g->animations[a];
-        sk_animation_t *anim = &md->animations[a];
+        sk_animation_t *anim = &mesh->animations[a];
         int cc = 0;
 
         anim->channels = (sk_anim_channel_t *)calloc(ga->channels_count, sizeof(sk_anim_channel_t));
@@ -470,7 +500,7 @@ static void parse_animations(sk_model_data_t *md, const cgltf_data *g)
     }
 }
 
-static bool load_model(sk_model_data_t *md, const unsigned char *data, int size)
+static bool load_model(sk_mesh_t *mesh, const unsigned char *data, int size)
 {
     cgltf_options options = {0};
     cgltf_data *g = NULL;
@@ -479,8 +509,8 @@ static bool load_model(sk_model_data_t *md, const unsigned char *data, int size)
     if (cgltf_parse(&options, data, (cgltf_size)size, &g) != cgltf_result_success) return false;
     if (cgltf_load_buffers(&options, g, NULL) != cgltf_result_success) { cgltf_free(g); return false; }
 
-    parse_skeleton(md, g);
-    parse_animations(md, g);
+    parse_skeleton(mesh, g);
+    parse_animations(mesh, g);
 
     /* count triangle primitives across nodes that carry a mesh */
     for (cgltf_size n = 0; n < g->nodes_count; n++) {
@@ -491,28 +521,38 @@ static bool load_model(sk_model_data_t *md, const unsigned char *data, int size)
         for (cgltf_size m = 0; m < g->meshes_count; m++) total += (int)g->meshes[m].primitives_count;
     }
     if (total == 0) { cgltf_free(g); return false; }
-    md->prims = (sk_primitive_t *)calloc((size_t)total, sizeof(sk_primitive_t));
+    mesh->prims = (sk_primitive_t *)calloc((size_t)total, sizeof(sk_primitive_t));
 
     for (cgltf_size n = 0; n < g->nodes_count; n++) {
         const cgltf_node *node = &g->nodes[n];
         if (node->mesh == NULL) continue;
-        bool node_skinned = (node->skin != NULL) && md->has_skin;
+        bool node_skinned = (node->skin != NULL) && mesh->has_skin;
         for (cgltf_size p = 0; p < node->mesh->primitives_count; p++) {
             if (node->mesh->primitives[p].type != cgltf_primitive_type_triangles) continue;
-            if (build_primitive(&node->mesh->primitives[p], node_skinned, &md->prims[idx])) idx++;
+            if (build_primitive(&node->mesh->primitives[p], node_skinned, &mesh->prims[idx])) idx++;
         }
     }
     if (idx == 0) { /* no node-meshes: load meshes directly (static) */
         for (cgltf_size m = 0; m < g->meshes_count; m++) {
             for (cgltf_size p = 0; p < g->meshes[m].primitives_count; p++) {
                 if (g->meshes[m].primitives[p].type != cgltf_primitive_type_triangles) continue;
-                if (build_primitive(&g->meshes[m].primitives[p], false, &md->prims[idx])) idx++;
+                if (build_primitive(&g->meshes[m].primitives[p], false, &mesh->prims[idx])) idx++;
             }
         }
     }
-    md->prim_count = idx;
+    mesh->prim_count = idx;
 
-    for (int j = 0; j < SK_MAX_JOINTS; j++) md->joint_matrices[j] = sk_mat4_identity();
+    /* merged local-space AABB for broadphase/picking */
+    mesh->lmin = (vec3_t){1e30f, 1e30f, 1e30f};
+    mesh->lmax = (vec3_t){-1e30f, -1e30f, -1e30f};
+    for (int p = 0; p < mesh->prim_count; p++) {
+        if (mesh->prims[p].pmin.x < mesh->lmin.x) mesh->lmin.x = mesh->prims[p].pmin.x;
+        if (mesh->prims[p].pmin.y < mesh->lmin.y) mesh->lmin.y = mesh->prims[p].pmin.y;
+        if (mesh->prims[p].pmin.z < mesh->lmin.z) mesh->lmin.z = mesh->prims[p].pmin.z;
+        if (mesh->prims[p].pmax.x > mesh->lmax.x) mesh->lmax.x = mesh->prims[p].pmax.x;
+        if (mesh->prims[p].pmax.y > mesh->lmax.y) mesh->lmax.y = mesh->prims[p].pmax.y;
+        if (mesh->prims[p].pmax.z > mesh->lmax.z) mesh->lmax.z = mesh->prims[p].pmax.z;
+    }
 
     cgltf_free(g);
     return idx > 0;
@@ -555,14 +595,14 @@ static void sample_channel(const sk_anim_channel_t *ch, float time, vec3_t *t, q
 }
 
 /* recursive global transform with per-call cache */
-static sk_mat4_t global_of(sk_model_data_t *md, vec3_t *ct, quat_t *cr, vec3_t *cs,
+static sk_mat4_t global_of(sk_mesh_t *mesh, vec3_t *ct, quat_t *cr, vec3_t *cs,
                            sk_mat4_t *cache, bool *done, int i)
 {
     sk_mat4_t local;
     if (done[i]) return cache[i];
     local = sk_mat4_compose(ct[i], cr[i], cs[i]);
-    if (md->nodes[i].parent >= 0) {
-        cache[i] = sk_mat4_mul(global_of(md, ct, cr, cs, cache, done, md->nodes[i].parent), local);
+    if (mesh->nodes[i].parent >= 0) {
+        cache[i] = sk_mat4_mul(global_of(mesh, ct, cr, cs, cache, done, mesh->nodes[i].parent), local);
     } else {
         cache[i] = local;
     }
@@ -573,48 +613,48 @@ static sk_mat4_t global_of(sk_model_data_t *md, vec3_t *ct, quat_t *cr, vec3_t *
 SK_KEEP
 bool sk_model_animate(sk_handle_t handle, float delta_seconds)
 {
-    sk_model_data_t *md;
+    sk_model_t *model_ptr = resolve(handle);
+    sk_mesh_t *mesh_ptr;
     sk_animation_t *anim;
     vec3_t *ct, *cs;
     quat_t *cr;
     sk_mat4_t *cache;
     bool *done;
-    {
-        uint16_t index = 0;
-        if (!sk_handle_pool_resolve(&sk_model_pool, handle, &index)) return false;
-        md = &sk_models[index];
-    }
-    if (!md->has_skin || md->cur_anim < 0 || md->cur_anim >= md->animation_count) return false;
-    anim = &md->animations[md->cur_anim];
 
-    md->anim_time += delta_seconds * md->anim_speed;
+    if (model_ptr == NULL) return false;
+    mesh_ptr = resolve_mesh(model_ptr->mesh);
+    if (mesh_ptr == NULL) return false;
+    if (!mesh_ptr->has_skin || model_ptr->cur_anim < 0 || model_ptr->cur_anim >= mesh_ptr->animation_count) return false;
+    anim = &mesh_ptr->animations[model_ptr->cur_anim];
+
+    model_ptr->anim_time += delta_seconds * model_ptr->anim_speed;
     if (anim->duration > 0.0f) {
-        if (md->anim_loop) {
-            md->anim_time = fmodf(md->anim_time, anim->duration);
-            if (md->anim_time < 0.0f) md->anim_time += anim->duration;
-        } else if (md->anim_time > anim->duration) {
-            md->anim_time = anim->duration;
+        if (model_ptr->anim_loop) {
+            model_ptr->anim_time = fmodf(model_ptr->anim_time, anim->duration);
+            if (model_ptr->anim_time < 0.0f) model_ptr->anim_time += anim->duration;
+        } else if (model_ptr->anim_time > anim->duration) {
+            model_ptr->anim_time = anim->duration;
         }
     }
 
-    ct = (vec3_t *)malloc((size_t)md->node_count * sizeof(vec3_t));
-    cr = (quat_t *)malloc((size_t)md->node_count * sizeof(quat_t));
-    cs = (vec3_t *)malloc((size_t)md->node_count * sizeof(vec3_t));
-    cache = (sk_mat4_t *)malloc((size_t)md->node_count * sizeof(sk_mat4_t));
-    done = (bool *)calloc((size_t)md->node_count, sizeof(bool));
+    ct = (vec3_t *)malloc((size_t)mesh_ptr->node_count * sizeof(vec3_t));
+    cr = (quat_t *)malloc((size_t)mesh_ptr->node_count * sizeof(quat_t));
+    cs = (vec3_t *)malloc((size_t)mesh_ptr->node_count * sizeof(vec3_t));
+    cache = (sk_mat4_t *)malloc((size_t)mesh_ptr->node_count * sizeof(sk_mat4_t));
+    done = (bool *)calloc((size_t)mesh_ptr->node_count, sizeof(bool));
 
-    for (int i = 0; i < md->node_count; i++) {
-        ct[i] = md->nodes[i].t; cr[i] = md->nodes[i].r; cs[i] = md->nodes[i].s;
+    for (int i = 0; i < mesh_ptr->node_count; i++) {
+        ct[i] = mesh_ptr->nodes[i].t; cr[i] = mesh_ptr->nodes[i].r; cs[i] = mesh_ptr->nodes[i].s;
     }
     for (int c = 0; c < anim->channel_count; c++) {
         sk_anim_channel_t *ch = &anim->channels[c];
-        if (ch->node < 0 || ch->node >= md->node_count) continue;
-        sample_channel(ch, md->anim_time, &ct[ch->node], &cr[ch->node], &cs[ch->node]);
+        if (ch->node < 0 || ch->node >= mesh_ptr->node_count) continue;
+        sample_channel(ch, model_ptr->anim_time, &ct[ch->node], &cr[ch->node], &cs[ch->node]);
     }
-    for (int j = 0; j < md->joint_count; j++) {
-        int jn = md->joint_nodes[j];
-        sk_mat4_t gjoint = global_of(md, ct, cr, cs, cache, done, jn);
-        md->joint_matrices[j] = sk_mat4_mul(gjoint, md->inverse_bind[j]);
+    for (int j = 0; j < mesh_ptr->joint_count; j++) {
+        int jn = mesh_ptr->joint_nodes[j];
+        sk_mat4_t gjoint = global_of(mesh_ptr, ct, cr, cs, cache, done, jn);
+        model_ptr->joint_matrices[j] = sk_mat4_mul(gjoint, mesh_ptr->inverse_bind[j]);
     }
 
     free(ct); free(cr); free(cs); free(cache); free(done);
@@ -623,40 +663,51 @@ bool sk_model_animate(sk_handle_t handle, float delta_seconds)
 
 SK_KEEP int sk_model_get_animation_count(sk_handle_t handle)
 {
-    uint16_t index = 0;
-    if (!sk_handle_pool_resolve(&sk_model_pool, handle, &index)) return 0;
-    return sk_models[index].animation_count;
+    sk_model_t *model_ptr = resolve(handle);
+    sk_mesh_t *mesh_ptr = model_ptr ? resolve_mesh(model_ptr->mesh) : NULL;
+    return mesh_ptr ? mesh_ptr->animation_count : 0;
 }
 
 SK_KEEP bool sk_model_set_animation(sk_handle_t handle, int animation_index)
 {
-    uint16_t index = 0;
-    if (!sk_handle_pool_resolve(&sk_model_pool, handle, &index)) return false;
-    if (animation_index < 0 || animation_index >= sk_models[index].animation_count) return false;
-    sk_models[index].cur_anim = animation_index;
-    sk_models[index].anim_time = 0.0f;
+    sk_model_t *model_ptr = resolve(handle);
+    sk_mesh_t *mesh_ptr = model_ptr ? resolve_mesh(model_ptr->mesh) : NULL;
+    if (mesh_ptr == NULL) return false;
+    if (animation_index < 0 || animation_index >= mesh_ptr->animation_count) return false;
+    model_ptr->cur_anim = animation_index;
+    model_ptr->anim_time = 0.0f;
     return true;
 }
 
 SK_KEEP bool sk_model_set_animation_speed(sk_handle_t handle, float speed)
 {
-    uint16_t index = 0;
-    if (!sk_handle_pool_resolve(&sk_model_pool, handle, &index)) return false;
-    sk_models[index].anim_speed = speed;
+    sk_model_t *model_ptr = resolve(handle);
+    if (model_ptr == NULL) return false;
+    model_ptr->anim_speed = speed;
     return true;
 }
 
 SK_KEEP bool sk_model_set_animation_loop(sk_handle_t handle, bool loop)
 {
-    uint16_t index = 0;
-    if (!sk_handle_pool_resolve(&sk_model_pool, handle, &index)) return false;
-    sk_models[index].anim_loop = loop;
+    sk_model_t *model_ptr = resolve(handle);
+    if (model_ptr == NULL) return false;
+    model_ptr->anim_loop = loop;
     return true;
 }
 
-/* ----------------------------------------------------------- public API ---- */
+/* ------------------------------------------------ mesh resources ---------- */
 
-static sk_model_data_t *resolve(sk_handle_t handle)
+static sk_mesh_t *resolve_mesh(sk_handle_t handle)
+{
+    uint16_t index = 0;
+    if (!sk_handle_pool_resolve(&sk_mesh_pool, handle, &index)) {
+        if (handle != 0) log_warn("Invalid mesh handle (%u)", (unsigned int)handle);
+        return NULL;
+    }
+    return &sk_meshes[index];
+}
+
+static sk_model_t *resolve(sk_handle_t handle)
 {
     uint16_t index = 0;
     if (!sk_handle_pool_resolve(&sk_model_pool, handle, &index)) {
@@ -666,138 +717,225 @@ static sk_model_data_t *resolve(sk_handle_t handle)
     return &sk_models[index];
 }
 
-SK_KEEP
-sk_handle_t sk_model_create_from_memory(const unsigned char *data, int size, const char *hint)
+static void free_mesh_data(sk_mesh_t *mesh)
+{
+    for (int p = 0; p < mesh->prim_count; p++) {
+        sg_destroy_buffer(mesh->prims[p].vbuf);
+        sg_destroy_buffer(mesh->prims[p].ibuf);
+        if (mesh->prims[p].view.id != sk_model_white_view.id) sg_destroy_view(mesh->prims[p].view);
+        free(mesh->prims[p].pick_positions);
+        free(mesh->prims[p].pick_indices);
+    }
+    free(mesh->prims);
+    free_mesh_cpu(mesh);
+}
+
+static void retain_mesh(sk_handle_t mesh_handle)
+{
+    sk_mesh_t *mesh_ptr = resolve_mesh(mesh_handle);
+    if (mesh_ptr != NULL) mesh_ptr->ref_count++;
+}
+
+static void release_mesh(sk_handle_t mesh_handle)
+{
+    sk_mesh_t *mesh_ptr = resolve_mesh(mesh_handle);
+    if (mesh_ptr == NULL) return;
+    if (mesh_ptr->ref_count > 0) mesh_ptr->ref_count--;
+    if (mesh_ptr->ref_count == 0) {
+        free_mesh_data(mesh_ptr);
+        memset(mesh_ptr, 0, sizeof(*mesh_ptr));
+        sk_handle_pool_free(&sk_mesh_pool, mesh_handle);
+    }
+}
+
+static sk_handle_t find_mesh_by_path(const char *path)
+{
+    if (path == NULL || path[0] == '\0') return 0;
+    for (uint16_t i = 1; i < MAX_MESHES; i++) {
+        if (sk_mesh_occupied[i] && sk_meshes[i].has_path &&
+            strcmp(sk_meshes[i].path, path) == 0) {
+            return sk_handle_pool_handle_from_index(&sk_mesh_pool, i);
+        }
+    }
+    return 0;
+}
+
+static sk_handle_t create_mesh(const unsigned char *data, int size, const char *path)
 {
     sk_handle_t handle;
     uint16_t index = 0;
-    sk_model_data_t md = {0};
+    sk_mesh_t mesh = {0};
 
-    (void)hint;
-    md.scale = (vec3_t){1, 1, 1};
-    md.visible = true;
-    md.cur_anim = -1;
-    md.anim_speed = 1.0f;
-    md.anim_loop = true;
-    if (!load_model(&md, data, size)) {
+    if (!load_model(&mesh, data, size)) {
         log_error("failed to load model");
         return 0;
     }
+    handle = sk_handle_pool_alloc(&sk_mesh_pool);
+    if (handle == 0) {
+        log_error("MAX_MESHES reached (%d)", MAX_MESHES);
+        free_mesh_data(&mesh);
+        return 0;
+    }
+    if (path != NULL && path[0] != '\0') {
+        size_t n = strlen(path);
+        if (n >= sizeof(mesh.path)) n = sizeof(mesh.path) - 1;
+        memcpy(mesh.path, path, n);
+        mesh.path[n] = '\0';
+        mesh.has_path = true;
+    }
+    mesh.ref_count = 0; /* references are added by models and explicit ownership */
+    sk_handle_pool_resolve(&sk_mesh_pool, handle, &index);
+    sk_meshes[index] = mesh;
+    return handle;
+}
+
+static sk_handle_t create_model(sk_handle_t mesh_handle)
+{
+    sk_handle_t handle;
+    uint16_t index = 0;
+    sk_model_t model = {0};
+
+    if (resolve_mesh(mesh_handle) == NULL) return 0;
     handle = sk_handle_pool_alloc(&sk_model_pool);
     if (handle == 0) {
         log_error("MAX_MODELS reached (%d)", MAX_MODELS);
         return 0;
     }
+    model.mesh = mesh_handle;
+    model.scale = (vec3_t){1, 1, 1};
+    model.visible = true;
+    model.cur_anim = -1;
+    model.anim_speed = 1.0f;
+    model.anim_loop = true;
+    for (int j = 0; j < SK_MAX_JOINTS; j++) model.joint_matrices[j] = sk_mat4_identity();
+    retain_mesh(mesh_handle);
     sk_handle_pool_resolve(&sk_model_pool, handle, &index);
-    sk_models[index] = md;
+    sk_models[index] = model;
     return handle;
 }
 
-SK_KEEP
-sk_handle_t sk_model_create(const char *path)
+static unsigned char *read_file_bytes(const char *path, int *out_size)
 {
     FILE *f;
     long size;
     unsigned char *bytes;
-    sk_handle_t handle;
 
+    *out_size = 0;
     if (path == NULL || (f = fopen(path, "rb")) == NULL) {
         log_error("failed to open model: %s", path ? path : "(null)");
-        return 0;
+        return NULL;
     }
     fseek(f, 0, SEEK_END); size = ftell(f); fseek(f, 0, SEEK_SET);
-    if (size <= 0) { fclose(f); return 0; }
+    if (size <= 0) { fclose(f); return NULL; }
     bytes = (unsigned char *)malloc((size_t)size);
-    if (bytes == NULL) { fclose(f); return 0; }
-    if (fread(bytes, 1, (size_t)size, f) != (size_t)size) { free(bytes); fclose(f); return 0; }
+    if (bytes == NULL) { fclose(f); return NULL; }
+    if (fread(bytes, 1, (size_t)size, f) != (size_t)size) { free(bytes); fclose(f); return NULL; }
     fclose(f);
-    handle = sk_model_create_from_memory(bytes, (int)size, path);
-    free(bytes);
-    return handle;
+    *out_size = (int)size;
+    return bytes;
 }
+
+/* --------------------------------------------- public API (mesh resource) - */
+
+SK_KEEP
+sk_handle_t sk_mesh_create(const char *path)
+{
+    sk_handle_t mesh = find_mesh_by_path(path);
+    unsigned char *bytes;
+    int size = 0;
+
+    if (mesh != 0) { retain_mesh(mesh); return mesh; }
+    bytes = read_file_bytes(path, &size);
+    if (bytes == NULL) return 0;
+    mesh = create_mesh(bytes, size, path);
+    free(bytes);
+    if (mesh == 0) return 0;
+    retain_mesh(mesh);
+    return mesh;
+}
+
+SK_KEEP void sk_mesh_destroy(sk_handle_t mesh) { release_mesh(mesh); }
+
+/* --------------------------------------------- public API (model object) -- */
+
+/* A drawable instance of a Mesh; adds its own reference to the mesh. */
+SK_KEEP sk_handle_t sk_model_create(sk_handle_t mesh) { return create_model(mesh); }
 
 SK_KEEP bool sk_model_set_transform(sk_handle_t handle,
                                     float px, float py, float pz,
                                     float rx, float ry, float rz,
                                     float sx, float sy, float sz)
 {
-    sk_model_data_t *md = resolve(handle);
-    if (md == NULL) return false;
-    md->position = (vec3_t){px, py, pz};
-    md->rotation = (vec3_t){rx, ry, rz};
-    md->scale = (vec3_t){sx, sy, sz};
+    sk_model_t *model_ptr = resolve(handle);
+    if (model_ptr == NULL) return false;
+    model_ptr->position = (vec3_t){px, py, pz};
+    model_ptr->rotation = (vec3_t){rx, ry, rz};
+    model_ptr->scale = (vec3_t){sx, sy, sz};
     return true;
 }
 
 SK_KEEP bool sk_model_set_tint(sk_handle_t handle, sk_handle_t color)
 {
-    sk_model_data_t *md = resolve(handle);
-    if (md == NULL) return false;
-    md->tint = color;
+    sk_model_t *model_ptr = resolve(handle);
+    if (model_ptr == NULL) return false;
+    model_ptr->tint = color;
     return true;
 }
 
 SK_KEEP bool sk_model_set_visible(sk_handle_t handle, bool visible)
 {
-    sk_model_data_t *md = resolve(handle);
-    if (md == NULL) return false;
-    md->visible = visible;
+    sk_model_t *model_ptr = resolve(handle);
+    if (model_ptr == NULL) return false;
+    model_ptr->visible = visible;
     return true;
 }
 
 SK_KEEP bool sk_model_is_visible(sk_handle_t handle)
 {
-    sk_model_data_t *md = resolve(handle);
-    return md != NULL && md->visible;
+    sk_model_t *model_ptr = resolve(handle);
+    return model_ptr != NULL && model_ptr->visible;
 }
 
 SK_KEEP void sk_model_draw(sk_handle_t handle) { enqueue(handle); }
 
-static bool model_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model)
+static bool model_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model_mat)
 {
-    sk_model_data_t *md = resolve(handle);
-    vec3_t mn = {1e30f, 1e30f, 1e30f}, mx = {-1e30f, -1e30f, -1e30f};
-    if (md == NULL || !md->visible || md->prim_count == 0) {
+    sk_model_t *model_ptr = resolve(handle);
+    sk_mesh_t *mesh_ptr = model_ptr ? resolve_mesh(model_ptr->mesh) : NULL;
+    if (model_ptr == NULL || mesh_ptr == NULL || !model_ptr->visible || mesh_ptr->prim_count == 0) {
         return false;
     }
-    for (int p = 0; p < md->prim_count; p++) {
-        if (md->prims[p].pmin.x < mn.x) mn.x = md->prims[p].pmin.x;
-        if (md->prims[p].pmin.y < mn.y) mn.y = md->prims[p].pmin.y;
-        if (md->prims[p].pmin.z < mn.z) mn.z = md->prims[p].pmin.z;
-        if (md->prims[p].pmax.x > mx.x) mx.x = md->prims[p].pmax.x;
-        if (md->prims[p].pmax.y > mx.y) mx.y = md->prims[p].pmax.y;
-        if (md->prims[p].pmax.z > mx.z) mx.z = md->prims[p].pmax.z;
-    }
-    *lmin = mn;
-    *lmax = mx;
-    *model = sk_mat4_trs(md->position, md->rotation, md->scale);
+    *lmin = mesh_ptr->lmin;
+    *lmax = mesh_ptr->lmax;
+    *model_mat = sk_mat4_trs(model_ptr->position, model_ptr->rotation, model_ptr->scale);
     return true;
 }
 
 static bool model_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_result_t *out)
 {
-    sk_model_data_t *md = resolve(handle);
-    sk_mat4_t model;
+    sk_model_t *model_ptr = resolve(handle);
+    sk_mesh_t *mesh_ptr = model_ptr ? resolve_mesh(model_ptr->mesh) : NULL;
+    sk_mat4_t model_mat;
     sk_ray_t world, local;
     sk_ray_hit_t best = {0};
     vec3_t lmin, lmax;
 
-    if (out == NULL || md == NULL || !md->visible || md->prim_count == 0) {
+    if (out == NULL || model_ptr == NULL || mesh_ptr == NULL || !model_ptr->visible || mesh_ptr->prim_count == 0) {
         return false;
     }
 
-    if (!model_bounds(handle, &lmin, &lmax, &model)) {
+    if (!model_bounds(handle, &lmin, &lmax, &model_mat)) {
         return false;
     }
 
     world.origin = origin;
     world.dir = dir;
-    local = sk_pick_ray_to_local(model, world);
+    local = sk_pick_ray_to_local(model_mat, world);
 
     /* Narrow phase: exact ray/triangle against retained bind-pose geometry.
      * Skinned meshes are tested against the bind pose (matches raylib). */
-    for (int p = 0; p < md->prim_count; p++) {
-        sk_primitive_t *prim = &md->prims[p];
+    for (int p = 0; p < mesh_ptr->prim_count; p++) {
+        sk_primitive_t *prim = &mesh_ptr->prims[p];
         if (prim->pick_positions == NULL || prim->pick_indices == NULL) {
             continue;
         }
@@ -823,7 +961,7 @@ static bool model_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_re
     }
 
     if (best.hit) {
-        sk_pick_result_from_local(&best, world, model, out);
+        sk_pick_result_from_local(&best, world, model_mat, out);
     } else {
         *out = (sk_pick_result_t){0};
     }
@@ -832,18 +970,19 @@ static bool model_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_re
 
 static void enqueue(sk_handle_t handle)
 {
-    sk_model_data_t *md = resolve(handle);
-    sk_camera3d_data_t cam;
+    sk_model_t *model_ptr = resolve(handle);
+    sk_mesh_t *mesh_ptr = model_ptr ? resolve_mesh(model_ptr->mesh) : NULL;
+    sk_camera3d_t cam;
     sk_mat4_t model_mat, view, proj, vp;
     float aspect;
     sk_model_draw_t *e;
 
-    if (md == NULL || !md->visible || md->prim_count == 0) return;
+    if (model_ptr == NULL || mesh_ptr == NULL || !model_ptr->visible || mesh_ptr->prim_count == 0) return;
     if (sk_draw_count >= MAX_DRAW_QUEUE) return;
     if (!sk_camera3d_get_active_data(&cam)) return;
 
     aspect = sapp_height() > 0 ? (float)sapp_width() / (float)sapp_height() : 1.0f;
-    model_mat = sk_mat4_trs(md->position, md->rotation, md->scale);
+    model_mat = sk_mat4_trs(model_ptr->position, model_ptr->rotation, model_ptr->scale);
     view = sk_mat4_lookat(cam.position, cam.target, cam.up);
     proj = sk_mat4_perspective(cam.fovy * 0.01745329252f, aspect, 0.01f, 1000.0f);
     vp = sk_mat4_mul(proj, view);
@@ -852,7 +991,7 @@ static void enqueue(sk_handle_t handle)
     e->model = handle;
     e->mvp = sk_mat4_mul(vp, model_mat);
     e->model_mat = model_mat;
-    e->tint = sk_color_get(md->tint != 0 ? md->tint : 0);
+    e->tint = sk_color_get(model_ptr->tint != 0 ? model_ptr->tint : 0);
 }
 
 static void apply_fs(sk_model_draw_t *e, sk_primitive_t *prim)
@@ -873,11 +1012,12 @@ void sk_model_flush(void)
 
     for (int i = 0; i < sk_draw_count; i++) {
         sk_model_draw_t *e = &sk_draw_queue[i];
-        sk_model_data_t *md = resolve(e->model);
-        if (md == NULL) continue;
+        sk_model_t *model_ptr = resolve(e->model);
+        sk_mesh_t *mesh_ptr = model_ptr ? resolve_mesh(model_ptr->mesh) : NULL;
+        if (model_ptr == NULL || mesh_ptr == NULL) continue;
 
-        for (int p = 0; p < md->prim_count; p++) {
-            sk_primitive_t *prim = &md->prims[p];
+        for (int p = 0; p < mesh_ptr->prim_count; p++) {
+            sk_primitive_t *prim = &mesh_ptr->prims[p];
             int want = prim->skinned ? 2 : 1;
             if (want != cur_pip) {
                 sg_apply_pipeline(prim->skinned ? sk_pip_skinned : sk_pip_static);
@@ -889,7 +1029,7 @@ void sk_model_flush(void)
                 memcpy(vsp.mvp, e->mvp.m, sizeof(vsp.mvp));
                 memcpy(vsp.model, e->model_mat.m, sizeof(vsp.model));
                 for (int j = 0; j < SK_MAX_JOINTS; j++) {
-                    memcpy(&vsp.joints[j * 16], md->joint_matrices[j].m, 16 * sizeof(float));
+                    memcpy(&vsp.joints[j * 16], model_ptr->joint_matrices[j].m, 16 * sizeof(float));
                 }
                 sg_apply_uniforms(0, &(sg_range){.ptr = &vsp, .size = sizeof(vsp)});
             } else {
@@ -912,36 +1052,30 @@ void sk_model_flush(void)
     sk_draw_count = 0;
 }
 
-static void free_model_cpu(sk_model_data_t *md)
+static void free_mesh_cpu(sk_mesh_t *mesh)
 {
-    for (int a = 0; a < md->animation_count; a++) {
-        for (int c = 0; c < md->animations[a].channel_count; c++) {
-            free(md->animations[a].channels[c].times);
-            free(md->animations[a].channels[c].values);
+    for (int a = 0; a < mesh->animation_count; a++) {
+        for (int c = 0; c < mesh->animations[a].channel_count; c++) {
+            free(mesh->animations[a].channels[c].times);
+            free(mesh->animations[a].channels[c].values);
         }
-        free(md->animations[a].channels);
+        free(mesh->animations[a].channels);
     }
-    free(md->animations);
-    free(md->nodes);
-    free(md->joint_nodes);
-    free(md->inverse_bind);
+    free(mesh->animations);
+    free(mesh->nodes);
+    free(mesh->joint_nodes);
+    free(mesh->inverse_bind);
 }
 
 SK_KEEP void sk_model_destroy(sk_handle_t handle)
 {
-    sk_model_data_t *md = resolve(handle);
-    if (md == NULL) return;
-    for (int p = 0; p < md->prim_count; p++) {
-        sg_destroy_buffer(md->prims[p].vbuf);
-        sg_destroy_buffer(md->prims[p].ibuf);
-        if (md->prims[p].view.id != sk_model_white_view.id) sg_destroy_view(md->prims[p].view);
-        free(md->prims[p].pick_positions);
-        free(md->prims[p].pick_indices);
-    }
-    free(md->prims);
-    free_model_cpu(md);
-    memset(md, 0, sizeof(*md));
+    sk_model_t *model_ptr = resolve(handle);
+    sk_handle_t mesh;
+    if (model_ptr == NULL) return;
+    mesh = model_ptr->mesh;
+    memset(model_ptr, 0, sizeof(*model_ptr));
     sk_handle_pool_free(&sk_model_pool, handle);
+    release_mesh(mesh); /* frees the mesh once its last model/owner is gone */
 }
 
 void sk_model_init(void)
@@ -950,10 +1084,14 @@ void sk_model_init(void)
     sg_pipeline_desc base;
 
     memset(sk_models, 0, sizeof(sk_models));
+    memset(sk_meshes, 0, sizeof(sk_meshes));
     sk_draw_count = 0;
     sk_handle_pool_init(&sk_model_pool, SK_HANDLE_KIND_MODEL, MAX_MODELS,
                         sk_model_free_indices, MAX_MODELS,
                         sk_model_generations, sk_model_occupied);
+    sk_handle_pool_init(&sk_mesh_pool, SK_HANDLE_KIND_MESH, MAX_MESHES,
+                        sk_mesh_free_indices, MAX_MESHES,
+                        sk_mesh_generations, sk_mesh_occupied);
 
     sk_shd_static = make_static_shader();
     sk_shd_skinned = make_skinned_shader();
@@ -1007,6 +1145,14 @@ void sk_model_deinit(void)
             sk_model_destroy(h);
         }
     }
+    /* drop any meshes created explicitly (preloaded) with no live models */
+    for (uint16_t i = 1; i < MAX_MESHES; i++) {
+        if (sk_mesh_occupied[i]) {
+            sk_mesh_t *mesh = &sk_meshes[i];
+            free_mesh_data(mesh);
+            memset(mesh, 0, sizeof(*mesh));
+        }
+    }
     sg_destroy_view(sk_model_white_view);
     sg_destroy_image(sk_model_white_img);
     sg_destroy_sampler(sk_model_sampler);
@@ -1015,4 +1161,5 @@ void sk_model_deinit(void)
     sg_destroy_shader(sk_shd_static);
     sg_destroy_shader(sk_shd_skinned);
     sk_handle_pool_reset(&sk_model_pool);
+    sk_handle_pool_reset(&sk_mesh_pool);
 }

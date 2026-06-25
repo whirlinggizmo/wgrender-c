@@ -20,16 +20,22 @@
 #define MAX_TEXTURES 1024
 #define SK_TEXTURE_BUILTIN_COUNT 1 /* index 1 = default white */
 
+/* Texture resource: shared, refcounted, deduped GPU image (+ optional CPU alpha
+ * mask for picking, generated lazily). Many Sprite objects may reference one
+ * Texture. */
 typedef struct {
     sg_image image;
     sg_view view;
     sg_sampler sampler;
     int width;
     int height;
-    unsigned char *alpha; /* optional CPU alpha mask (w*h bytes) for picking */
-} sk_texture_data_t;
+    unsigned char *alpha; /* lazy CPU alpha mask (w*h bytes) for picking */
+    int ref_count;
+    char path[256];
+    bool has_path;
+} sk_texture_t;
 
-static sk_texture_data_t sk_textures[MAX_TEXTURES];
+static sk_texture_t sk_textures[MAX_TEXTURES];
 static sk_handle_pool_t sk_texture_pool;
 static uint16_t sk_texture_free_indices[MAX_TEXTURES];
 static uint16_t sk_texture_generations[MAX_TEXTURES];
@@ -38,20 +44,70 @@ static sg_sampler sk_default_sampler;
 
 static const sk_handle_t SK_TEXTURE_DEFAULT = SK_HANDLE_MAKE(SK_HANDLE_KIND_TEXTURE, 1, 1);
 
-static sk_texture_data_t *resolve(sk_handle_t handle)
+static sk_texture_t *resolve(sk_handle_t handle)
 {
     uint16_t index = 0;
     if (!sk_handle_pool_resolve(&sk_texture_pool, handle, &index)) {
+        if (handle != 0) {
+            log_warn("Invalid texture handle (%u)", (unsigned int)handle);
+        }
         return NULL;
     }
     return &sk_textures[index];
 }
 
-static sk_handle_t make_texture(const unsigned char *rgba, int w, int h, bool keep_alpha)
+static bool is_builtin_texture(uint16_t index)
+{
+    return index <= SK_TEXTURE_BUILTIN_COUNT;
+}
+
+static void free_texture_data(sk_texture_t *texture_ptr)
+{
+    if (texture_ptr->view.id != 0) {
+        sg_destroy_view(texture_ptr->view);
+    }
+    if (texture_ptr->image.id != 0) {
+        sg_destroy_image(texture_ptr->image);
+    }
+    free(texture_ptr->alpha);
+}
+
+static void extract_alpha_mask(sk_texture_t *texture_ptr, const unsigned char *rgba)
+{
+    int i;
+    if (texture_ptr == NULL || rgba == NULL || texture_ptr->width <= 0 || texture_ptr->height <= 0) {
+        return;
+    }
+    if (texture_ptr->alpha != NULL) {
+        return;
+    }
+    texture_ptr->alpha = (unsigned char *)malloc((size_t)(texture_ptr->width * texture_ptr->height));
+    if (texture_ptr->alpha == NULL) {
+        return;
+    }
+    for (i = 0; i < texture_ptr->width * texture_ptr->height; i++) {
+        texture_ptr->alpha[i] = rgba[i * 4 + 3];
+    }
+}
+
+static sk_handle_t find_texture_by_path(const char *path)
+{
+    if (path == NULL || path[0] == '\0') {
+        return 0;
+    }
+    for (uint16_t i = SK_TEXTURE_BUILTIN_COUNT + 1; i < MAX_TEXTURES; i++) {
+        if (sk_texture_occupied[i] && sk_textures[i].has_path &&
+            strcmp(sk_textures[i].path, path) == 0) {
+            return sk_handle_pool_handle_from_index(&sk_texture_pool, i);
+        }
+    }
+    return 0;
+}
+
+static sk_handle_t alloc_texture_slot(sk_texture_t *out)
 {
     sk_handle_t handle;
     uint16_t index = 0;
-    sk_texture_data_t *t;
 
     handle = sk_handle_pool_alloc(&sk_texture_pool);
     if (handle == 0) {
@@ -59,36 +115,88 @@ static sk_handle_t make_texture(const unsigned char *rgba, int w, int h, bool ke
         return 0;
     }
     sk_handle_pool_resolve(&sk_texture_pool, handle, &index);
-    t = &sk_textures[index];
+    *out = (sk_texture_t){0};
+    out->sampler = sk_default_sampler;
+    sk_textures[index] = *out;
+    return handle;
+}
 
-    t->width = w;
-    t->height = h;
-    if (keep_alpha && rgba != NULL && w > 0 && h > 0) {
-        t->alpha = (unsigned char *)malloc((size_t)(w * h));
-        if (t->alpha != NULL) {
-            for (int i = 0; i < w * h; i++) {
-                t->alpha[i] = rgba[i * 4 + 3];
-            }
-        }
+static sk_handle_t create_texture_from_rgba(const unsigned char *rgba, int w, int h,
+                                            const char *path)
+{
+    sk_handle_t handle;
+    uint16_t index = 0;
+    sk_texture_t t = {0};
+
+    if (rgba == NULL || w <= 0 || h <= 0) {
+        return 0;
     }
-    t->image = sg_make_image(&(sg_image_desc){
+    handle = alloc_texture_slot(&t);
+    if (handle == 0) {
+        return 0;
+    }
+    sk_handle_pool_resolve(&sk_texture_pool, handle, &index);
+
+    t.width = w;
+    t.height = h;
+    t.sampler = sk_default_sampler;
+    t.ref_count = 0;
+    if (path != NULL && path[0] != '\0') {
+        size_t n = strlen(path);
+        if (n >= sizeof(t.path)) {
+            n = sizeof(t.path) - 1;
+        }
+        memcpy(t.path, path, n);
+        t.path[n] = '\0';
+        t.has_path = true;
+    }
+    t.image = sg_make_image(&(sg_image_desc){
         .width = w,
         .height = h,
         .pixel_format = SG_PIXELFORMAT_RGBA8,
         .data.mip_levels[0] = {.ptr = rgba, .size = (size_t)(w * h * 4)},
     });
-    t->view = sg_make_view(&(sg_view_desc){.texture.image = t->image});
-    t->sampler = sk_default_sampler;
+    t.view = sg_make_view(&(sg_view_desc){.texture.image = t.image});
+    sk_textures[index] = t;
     return handle;
 }
 
-SK_KEEP
-sk_handle_t sk_texture_get_default(void)
+static unsigned char *read_file_bytes(const char *path, int *out_size)
 {
-    return SK_TEXTURE_DEFAULT;
+    FILE *f;
+    long size;
+    unsigned char *bytes;
+    size_t read;
+
+    *out_size = 0;
+    if (path == NULL || (f = fopen(path, "rb")) == NULL) {
+        log_error("Failed to open texture: %s", path ? path : "(null)");
+        return NULL;
+    }
+    fseek(f, 0, SEEK_END);
+    size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (size <= 0) {
+        fclose(f);
+        return NULL;
+    }
+    bytes = (unsigned char *)malloc((size_t)size);
+    if (bytes == NULL) {
+        fclose(f);
+        return NULL;
+    }
+    read = fread(bytes, 1, (size_t)size, f);
+    fclose(f);
+    if (read != (size_t)size) {
+        free(bytes);
+        return NULL;
+    }
+    *out_size = (int)size;
+    return bytes;
 }
 
-static sk_handle_t create_from_memory(const unsigned char *data, int size, bool keep_alpha)
+static sk_handle_t create_texture_from_memory(const unsigned char *data, int size,
+                                              const char *path)
 {
     int w = 0, h = 0, comp = 0;
     stbi_uc *pixels;
@@ -102,121 +210,154 @@ static sk_handle_t create_from_memory(const unsigned char *data, int size, bool 
         log_error("Failed to decode image (%s)", stbi_failure_reason());
         return 0;
     }
-    handle = make_texture(pixels, w, h, keep_alpha);
+    handle = create_texture_from_rgba(pixels, w, h, path);
     stbi_image_free(pixels);
     return handle;
 }
 
-static sk_handle_t create_from_file(const char *path, bool keep_alpha);
-
-SK_KEEP
-sk_handle_t sk_texture_create_from_memory(const unsigned char *data, int size)
+void sk_texture_retain(sk_handle_t handle)
 {
-    return create_from_memory(data, size, false);
+    sk_texture_t *texture_ptr = resolve(handle);
+    if (texture_ptr != NULL) {
+        texture_ptr->ref_count++;
+    }
 }
 
-SK_KEEP
-sk_handle_t sk_texture_create_from_memory_pickable(const unsigned char *data, int size)
+void sk_texture_release(sk_handle_t handle)
 {
-    return create_from_memory(data, size, true);
+    uint16_t index = 0;
+    sk_texture_t *texture_ptr;
+
+    if (!sk_handle_pool_resolve(&sk_texture_pool, handle, &index)) {
+        return;
+    }
+    if (is_builtin_texture(index)) {
+        return;
+    }
+    texture_ptr = &sk_textures[index];
+    if (texture_ptr->ref_count > 0) {
+        texture_ptr->ref_count--;
+    }
+    if (texture_ptr->ref_count == 0) {
+        free_texture_data(texture_ptr);
+        memset(texture_ptr, 0, sizeof(*texture_ptr));
+        sk_handle_pool_free(&sk_texture_pool, handle);
+    }
 }
 
-SK_KEEP
-sk_handle_t sk_texture_create_pickable(const char *path)
+bool sk_texture_ensure_alpha_mask(sk_handle_t handle)
 {
-    return create_from_file(path, true);
+    sk_texture_t *texture_ptr = resolve(handle);
+    unsigned char *bytes;
+    int size = 0;
+    stbi_uc *pixels;
+    int w, h, comp;
+
+    if (texture_ptr == NULL || texture_ptr->alpha != NULL) {
+        return texture_ptr != NULL && texture_ptr->alpha != NULL;
+    }
+    if (!texture_ptr->has_path) {
+        return false;
+    }
+    bytes = read_file_bytes(texture_ptr->path, &size);
+    if (bytes == NULL) {
+        return false;
+    }
+    pixels = stbi_load_from_memory(bytes, size, &w, &h, &comp, 4);
+    free(bytes);
+    if (pixels == NULL) {
+        log_error("Failed to decode image for alpha mask (%s)", stbi_failure_reason());
+        return false;
+    }
+    if (w != texture_ptr->width || h != texture_ptr->height) {
+        stbi_image_free(pixels);
+        log_warn("Alpha mask decode size mismatch for %s", texture_ptr->path);
+        return false;
+    }
+    extract_alpha_mask(texture_ptr, pixels);
+    stbi_image_free(pixels);
+    return texture_ptr->alpha != NULL;
+}
+
+/* --------------------------------------------- public API (texture resource) */
+
+SK_KEEP
+sk_handle_t sk_texture_get_default(void)
+{
+    return SK_TEXTURE_DEFAULT;
 }
 
 SK_KEEP
 sk_handle_t sk_texture_create(const char *path)
 {
-    return create_from_file(path, false);
-}
-
-static sk_handle_t create_from_file(const char *path, bool keep_alpha)
-{
-    FILE *f;
-    long size;
+    sk_handle_t tex = find_texture_by_path(path);
     unsigned char *bytes;
-    sk_handle_t handle;
-    size_t read;
+    int size = 0;
 
-    if (path == NULL) {
-        return 0;
+    if (tex != 0) {
+        sk_texture_retain(tex);
+        return tex;
     }
-    f = fopen(path, "rb");
-    if (f == NULL) {
-        log_error("Failed to open texture: %s", path);
-        return 0;
-    }
-    fseek(f, 0, SEEK_END);
-    size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    if (size <= 0) {
-        fclose(f);
-        return 0;
-    }
-    bytes = (unsigned char *)malloc((size_t)size);
+    bytes = read_file_bytes(path, &size);
     if (bytes == NULL) {
-        fclose(f);
         return 0;
     }
-    read = fread(bytes, 1, (size_t)size, f);
-    fclose(f);
-    if (read != (size_t)size) {
-        free(bytes);
-        return 0;
-    }
-    handle = create_from_memory(bytes, (int)size, keep_alpha);
+    tex = create_texture_from_memory(bytes, size, path);
     free(bytes);
-    return handle;
+    if (tex == 0) {
+        return 0;
+    }
+    sk_texture_retain(tex);
+    return tex;
 }
 
 SK_KEEP
 vec2_t sk_texture_get_size(sk_handle_t handle)
 {
-    sk_texture_data_t *t = resolve(handle);
-    if (t == NULL) {
+    sk_texture_t *texture_ptr = resolve(handle);
+    if (texture_ptr == NULL) {
         return (vec2_t){0.0f, 0.0f};
     }
-    return (vec2_t){(float)t->width, (float)t->height};
+    return (vec2_t){(float)texture_ptr->width, (float)texture_ptr->height};
 }
 
 SK_KEEP
 void sk_texture_destroy(sk_handle_t handle)
 {
     uint16_t index = 0;
-    sk_texture_data_t *t;
 
     if (!sk_handle_pool_resolve(&sk_texture_pool, handle, &index)) {
         return;
     }
-    if (index <= SK_TEXTURE_BUILTIN_COUNT) {
+    if (is_builtin_texture(index)) {
         log_error("Cannot destroy built-in texture (%u)", (unsigned int)handle);
         return;
     }
-    t = &sk_textures[index];
-    sg_destroy_view(t->view);
-    sg_destroy_image(t->image);
-    free(t->alpha);
-    *t = (sk_texture_data_t){0};
-    sk_handle_pool_free(&sk_texture_pool, handle);
+    sk_texture_release(handle);
 }
 
 bool sk_texture_sample_alpha(sk_handle_t handle, float u, float v, float *out_alpha)
 {
-    sk_texture_data_t *t = resolve(handle);
+    sk_texture_t *texture_ptr = resolve(handle);
     int px, py;
 
-    if (t == NULL || t->alpha == NULL || t->width <= 0 || t->height <= 0) {
+    if (texture_ptr == NULL || texture_ptr->alpha == NULL || texture_ptr->width <= 0 || texture_ptr->height <= 0) {
         return false;
     }
-    if (u < 0.0f) u = 0.0f; else if (u > 1.0f) u = 1.0f;
-    if (v < 0.0f) v = 0.0f; else if (v > 1.0f) v = 1.0f;
-    px = (int)(u * (float)(t->width - 1) + 0.5f);
-    py = (int)(v * (float)(t->height - 1) + 0.5f);
+    if (u < 0.0f) {
+        u = 0.0f;
+    } else if (u > 1.0f) {
+        u = 1.0f;
+    }
+    if (v < 0.0f) {
+        v = 0.0f;
+    } else if (v > 1.0f) {
+        v = 1.0f;
+    }
+    px = (int)(u * (float)(texture_ptr->width - 1) + 0.5f);
+    py = (int)(v * (float)(texture_ptr->height - 1) + 0.5f);
     if (out_alpha != NULL) {
-        *out_alpha = (float)t->alpha[py * t->width + px] / 255.0f;
+        *out_alpha = (float)texture_ptr->alpha[py * texture_ptr->width + px] / 255.0f;
     }
     return true;
 }
@@ -224,17 +365,25 @@ bool sk_texture_sample_alpha(sk_handle_t handle, float u, float v, float *out_al
 bool sk_texture_get_binding(sk_handle_t handle, sg_view *view, sg_sampler *smp,
                             int *width, int *height)
 {
-    sk_texture_data_t *t = resolve(handle);
-    if (t == NULL) {
-        t = resolve(SK_TEXTURE_DEFAULT);
-        if (t == NULL) {
+    sk_texture_t *texture_ptr = resolve(handle);
+    if (texture_ptr == NULL) {
+        texture_ptr = resolve(SK_TEXTURE_DEFAULT);
+        if (texture_ptr == NULL) {
             return false;
         }
     }
-    if (view) *view = t->view;
-    if (smp) *smp = t->sampler;
-    if (width) *width = t->width;
-    if (height) *height = t->height;
+    if (view) {
+        *view = texture_ptr->view;
+    }
+    if (smp) {
+        *smp = texture_ptr->sampler;
+    }
+    if (width) {
+        *width = texture_ptr->width;
+    }
+    if (height) {
+        *height = texture_ptr->height;
+    }
     return true;
 }
 
@@ -280,10 +429,8 @@ void sk_texture_deinit(void)
 {
     for (uint16_t i = 1; i < MAX_TEXTURES; i++) {
         if (sk_texture_occupied[i]) {
-            sg_destroy_view(sk_textures[i].view);
-            sg_destroy_image(sk_textures[i].image);
-            free(sk_textures[i].alpha);
-            sk_textures[i] = (sk_texture_data_t){0};
+            free_texture_data(&sk_textures[i]);
+            sk_textures[i] = (sk_texture_t){0};
         }
     }
     sg_destroy_sampler(sk_default_sampler);

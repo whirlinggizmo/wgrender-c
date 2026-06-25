@@ -3,8 +3,8 @@
  * Click to pick. sk_scene_pick() does a world-AABB broadphase then a per-kind
  * narrow phase: shapes use exact ray/cube + ray/sphere tests; models use exact
  * ray/triangle against the bind-pose mesh; sprites test the billboard quad and
- * (when the texture is created pickable) reject transparent texels via an alpha
- * test. The camera is fixed so aiming is predictable; the readout shows what was
+ * (when alpha-test picking is enabled) reject transparent texels via a CPU mask
+ * built from the texture source on demand. The camera is fixed so aiming is predictable; the readout shows what was
  * hit, where, and how far. */
 #include <stddef.h>
 #include <stdio.h>
@@ -37,15 +37,15 @@ static const char *kind_name(sk_handle_t handle)
     }
 }
 
-static void on_logo_loaded(const char *path, const unsigned char *data, int size, void *user)
+static void on_logo_loaded(const char *path, void *user)
 {
-    (void)path;
+    sk_handle_t texture = sk_texture_create(path);
     (void)user;
-    sk_handle_t tex = sk_texture_create_from_memory_pickable(data, size);
-    if (tex == 0) {
+    g_sprite = sk_sprite3d_create(texture);
+    sk_texture_destroy(texture); /* the sprite holds its own reference */
+    if (g_sprite == 0) {
         return;
     }
-    g_sprite = sk_sprite3d_create(tex);
     sk_sprite3d_set_size(g_sprite, 4.0f);
     sk_sprite3d_set_facing(g_sprite, SK_SPRITE3D_FACING_CAMERA);
     sk_sprite3d_set_tint(g_sprite, SK_COLOR_WHITE);
@@ -54,10 +54,12 @@ static void on_logo_loaded(const char *path, const unsigned char *data, int size
     sk_scene_add(g_scene, g_sprite, 1);
 }
 
-static void on_model_loaded(const char *path, const unsigned char *data, int size, void *user)
+static void on_model_loaded(const char *path, void *user)
 {
+    sk_handle_t mesh = sk_mesh_create(path);
     (void)user;
-    g_model = sk_model_create_from_memory(data, size, path);
+    g_model = sk_model_create(mesh);
+    sk_mesh_destroy(mesh); /* the model holds its own reference to the mesh */
     if (g_model == 0) {
         return;
     }
@@ -95,8 +97,8 @@ static void on_init(void *user_data)
     sk_shape_set_color(g_sphere, SK_COLOR_GOLD);
     sk_scene_add(g_scene, g_sphere, 0);
 
-    sk_asset_load_async(LOGO_PATH, on_logo_loaded, on_failed, NULL);
-    sk_asset_load_async(MODEL_PATH, on_model_loaded, on_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(LOGO_PATH, NULL), on_logo_loaded, on_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(MODEL_PATH, NULL), on_model_loaded, on_failed, NULL);
 
     sk_debug_enable_fps(12, 10, 16);
 }

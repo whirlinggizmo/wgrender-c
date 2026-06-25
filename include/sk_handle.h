@@ -17,14 +17,15 @@ typedef enum sk_handle_kind_t {
     SK_HANDLE_KIND_SPRITE2D = 5,
     SK_HANDLE_KIND_SPRITE3D = 6,
     SK_HANDLE_KIND_MODEL = 7,
-    SK_HANDLE_KIND_MODEL_ASSET = 8,
+    SK_HANDLE_KIND_MESH = 8,
     SK_HANDLE_KIND_SOUND = 9,
-    SK_HANDLE_KIND_MUSIC = 10,
+    /* 10 retired: music folded into Sound (a looping sound over an Audio) */
     SK_HANDLE_KIND_TEXT2D = 11,
     SK_HANDLE_KIND_SCENE = 12,
     SK_HANDLE_KIND_SHAPE = 13,
     SK_HANDLE_KIND_TEXT3D = 14,
-    /* 15-31 reserved for future drawable / presentation kinds */
+    SK_HANDLE_KIND_AUDIO = 15, /* resource: decoded PCM shared by Sound/Music */
+    /* 16-31 reserved for future drawable / presentation / resource kinds */
     SK_HANDLE_KIND_ASSET_TASK = 32,
 } sk_handle_kind_t;
 

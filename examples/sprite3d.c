@@ -1,8 +1,9 @@
 /* libsk sprite3d example — async asset load + textured billboard in a scene.
  *
- * Demonstrates the Phase C flow:
- *   sk_asset_load_async(png) -> on_loaded(bytes) -> sk_texture_create_from_memory
- *   -> sk_sprite3d_create -> sk_scene_add. The sprite bobs and faces the camera. */
+ * The handle-only flow:
+ *   sk_asset_ensure_async(png) -> on_ready(path) -> sk_texture_create(path)
+ *   -> sk_sprite3d_create(texture) -> sk_scene_add. The sprite bobs and faces
+ *   the camera. */
 #include <math.h>
 #include <stddef.h>
 
@@ -16,15 +17,15 @@ static sk_handle_t g_bg;
 static sk_handle_t g_sprite; /* set once the texture finishes loading */
 static bool g_loaded;
 
-static void on_logo_loaded(const char *path, const unsigned char *data, int size, void *user)
+static void on_logo_loaded(const char *path, void *user)
 {
-    (void)path;
+    sk_handle_t texture = sk_texture_create(path);
     (void)user;
-    sk_handle_t tex = sk_texture_create_from_memory(data, size);
-    if (tex == 0) {
+    g_sprite = sk_sprite3d_create(texture);
+    sk_texture_destroy(texture); /* the sprite holds its own reference */
+    if (g_sprite == 0) {
         return;
     }
-    g_sprite = sk_sprite3d_create(tex);
     sk_sprite3d_set_size(g_sprite, 6.0f);
     sk_sprite3d_set_facing(g_sprite, SK_SPRITE3D_FACING_CAMERA);
     sk_sprite3d_set_tint(g_sprite, SK_COLOR_WHITE);
@@ -54,7 +55,7 @@ static void on_init(void *user_data)
     sk_shape_set_color(pedestal, SK_COLOR_DARKGRAY);
     sk_scene_add(g_scene, pedestal, 0);
 
-    sk_asset_load_async(LOGO_PATH, on_logo_loaded, on_logo_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(LOGO_PATH, NULL), on_logo_loaded, on_logo_failed, NULL);
     sk_debug_enable_fps(12, 10, 16);
 }
 
@@ -81,7 +82,7 @@ static void frame(void *user_data)
     sk_scene_draw(g_scene);
 
     sk_text_draw("libsk + sokol — sprite3d", 12, 36, 24, SK_COLOR_RAYWHITE);
-    sk_text_draw(g_loaded ? "logo loaded async via sokol_fetch" : "loading logo...",
+    sk_text_draw(g_loaded ? "logo: ensure -> texture_create -> sprite" : "loading logo...",
                  12, 70, 16, SK_COLOR_LIGHTGRAY);
 
     sk_render_end();

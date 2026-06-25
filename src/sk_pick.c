@@ -27,7 +27,7 @@ static inline vec3_t v3_scale(vec3_t a, float s)
     return (vec3_t){a.x * s, a.y * s, a.z * s};
 }
 
-sk_ray_t sk_pick_ray_from_screen(const sk_camera3d_data_t *cam,
+sk_ray_t sk_pick_ray_from_screen(const sk_camera3d_t *cam,
                                  float mouse_x, float mouse_y,
                                  float screen_w, float screen_h)
 {
