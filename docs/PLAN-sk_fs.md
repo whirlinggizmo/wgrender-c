@@ -93,30 +93,61 @@ least: `-sFORCE_FILESYSTEM`, `-lidbfs.js`, and **JSPI** (libsk leans on JSPI lik
 librl, not ASYNCIFY) for the `EM_ASYNC_JS` sync shim. That target is a
 prerequisite milestone of its own.
 
-## Phasing
+## Phasing (locked order: 2b → 2a → 2c)
 
-- **2a — sk_fs desktop + route ensure through it.** Add `sk_fs` with the real-dir
-  backend; `sk_fs_is_ready()` always true; move ensure's existence check behind
-  `sk_fs_exists`. Pure refactor, no behavior change, desktop stays green. All
-  web/idbfs code gated under `#ifdef __EMSCRIPTEN__` (no-ops on desktop).
-- **2b — Emscripten build target.** Add the wasm build (flags above) so there's
-  something to run the web path in. (Could precede 2a if we want to stand up wasm
-  first.)
-- **2c — web idbfs + fetch.** Implement the IDBFS mount, restore/flush barriers
-  (cribbed shim), and the ensure fetch→write→flush state in `sk_asset_tick`.
-  Host config via `sk_asset_set_host` (port rl_asset's host API).
+Toolchain is the dominant risk and is independent of `sk_fs`, so stand up wasm
+first and get the in-browser feedback loop before adding fs complexity. Good news
+already confirmed: `sk_run` uses `sapp_run`, so sokol_app drives the web main loop
+(`emscripten_set_main_loop`) for us — no run-loop port needed. emcc 5.0.7 is
+installed (`~/toolchains/emsdk`).
+
+- **Step 1 (was 2b) — wasm/JSPI target + serve loop.** Build a **no-asset** example
+  (`hello`) with emcc: `-DSOKOL_GLES3`, `-sUSE_WEBGL2=1`, `-sJSPI`,
+  `-sALLOW_MEMORY_GROWTH=1`, `-o web/hello.html`. Serve `web/` and confirm it
+  renders in a Chromium-class browser. Desktop build untouched. (No files yet, so
+  no `FORCE_FILESYSTEM`/idbfs — that's step 3.)
+- **Step 2 (was 2a) — `sk_fs` desktop seam.** Add `sk_fs` (real-dir backend), route
+  ensure's existence check behind `sk_fs_exists`; `sk_fs_is_ready()`→true on
+  desktop, web path a `__EMSCRIPTEN__`-gated stub. Behavior-preserving; both
+  targets build.
+- **Step 3 (was 2c) — web idbfs + fetch.** IDBFS mount, restore/flush barriers
+  (cribbed JSPI `EM_ASYNC_JS` shim), and ensure's `wait-ready → exists? → fetch →
+  write → flush` path. Adds `-sFORCE_FILESYSTEM -lidbfs.js`. Asset examples then
+  run in-browser.
 
 ## Decisions locked
+- **Order:** 2b → 2a → 2c (above).
 - **Crib, don't vendor.** Pull the idbfs sync shim + barrier logic into a small
-  `sk_fs` (internal `fileio`-style helpers if useful); use sokol_fetch + our
-  existing asset-task machinery rather than importing wgutils wholesale.
-- **Desktop never regresses.** Web code is `__EMSCRIPTEN__`-gated; 2a is a
-  behavior-preserving refactor.
+  `sk_fs`; use sokol_fetch (XHR on web) + our existing asset-task machinery rather
+  than importing wgutils wholesale.
+- **Desktop never regresses.** Web code is `__EMSCRIPTEN__`-gated.
+- **JSPI, not ASYNCIFY** — matches librl; dev target is Chromium-class browsers.
+- **Web backend is parameterized** (`make wasm BACKEND=gl|wgpu`). WebGPU
+  (`SOKOL_WGPU`, via emscripten's `emdawnwebgpu` port) was a motivation for
+  choosing sokol and is a first-class target — but the same libsk source compiles
+  to either, so we get **first light on WebGL2** (`SOKOL_GLES3`, lowest risk,
+  validates canvas/loop/JSPI/serve/fs) and bring up **WebGPU as a sibling target**
+  right after, since it adds async device init + the Dawn port on top.
+- **Host fetch is required on web** (not optional): first run has an empty IDBFS
+  cache, so every asset is fetched from the serving origin then cached. Port a
+  `sk_asset_set_host` / `SK_ASSET_HOST` config in step 3.
+- **Asset paths are logical; the base differs by platform.** Examples reference
+  assets by logical relative path (e.g. `music/ethernight_club.mp3`, no
+  `examples/assets/` prefix). The base that path resolves against is per-platform
+  — the **asset host** (serving origin) on web for fetch, the **fs root_dir**
+  locally for reads. (This is exactly why librl had both `assetHost` and
+  `rl_fs_init(root_dir)`.) Normalize the example path `#define`s + set the bases
+  when step 3 lands.
+- **Assets: one source, staged not duplicated.** `examples/assets/` stays the
+  single tracked source of truth. The web build **stages** it into the site
+  (`web/assets/`) — symlink for dev, copy for deploy — gitignored like the rest of
+  `web/`. Never a second tracked copy. The site stays the top-level `web/`
+  (deployable); `examples/web/` holds only tracked web source (the shell).
+- **Serve loop:** `make wasm` emits to `web/`; serve with any static server.
+  Zero-dep first light: `python3 -m http.server`. Reload-on-change: a watcher
+  reruns `make wasm` + a live-reloading static server (vite / `npx live-server` /
+  LiveServer extension). Not hard-picked — `make serve` provides the simple default.
 
 ## Open questions
-1. **Order:** 2a (desktop refactor) first, or stand up the wasm target (2b) first
-   so the web path is testable as it's written?
-2. **`sk_fs` surface:** internal-only (just what ensure needs) to start, or expose
+1. **`sk_fs` surface:** internal-only (just what ensure needs) to start, or expose
    a public user-facing fs API (read/write/save-games) now? Leaning internal-only.
-3. **Asset host config:** port `sk_asset_set_host` / env-var (`SK_ASSET_HOST`) in
-   2c, or assume page-relative URLs on web for now?

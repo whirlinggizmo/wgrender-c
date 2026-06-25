@@ -3,3 +3,4 @@ lib/
 examples/build/
 examples/**/cache/
 reference/
+/web/

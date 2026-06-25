@@ -153,8 +153,21 @@ static void free_mesh_cpu(sk_mesh_t *mesh);
 
 /* ------------------------------------------------------------- shaders ----- */
 
+/* Backend-specific GLSL preamble. Desktop is GL 4.1 core; web (GLES3/WebGL2)
+ * needs "#version 300 es" plus an explicit float precision in the fragment
+ * stage. The shader bodies below use only syntax common to both (in/out,
+ * texture(), mat3). WebGPU (SOKOL_WGPU) needs WGSL instead — that path goes
+ * through sokol-shdc (see docs/PLAN-sk_fs.md). */
+#if defined(SOKOL_GLES3)
+#define SK_VS_PREAMBLE "#version 300 es\n"
+#define SK_FS_PREAMBLE "#version 300 es\nprecision highp float;\n"
+#else
+#define SK_VS_PREAMBLE "#version 410\n"
+#define SK_FS_PREAMBLE "#version 410\n"
+#endif
+
 static const char *vs_static_src =
-    "#version 410\n"
+    SK_VS_PREAMBLE
     "in vec3 position;\nin vec3 normal;\nin vec2 texcoord0;\n"
     "uniform mat4 mvp;\nuniform mat4 model;\n"
     "out vec3 v_normal;\nout vec2 v_uv;\n"
@@ -165,7 +178,7 @@ static const char *vs_static_src =
     "}\n";
 
 static const char *vs_skinned_src =
-    "#version 410\n"
+    SK_VS_PREAMBLE
     "in vec3 position;\nin vec3 normal;\nin vec2 texcoord0;\n"
     "in vec4 joints;\nin vec4 weights;\n"
     "uniform mat4 mvp;\nuniform mat4 model;\n"
@@ -183,7 +196,7 @@ static const char *vs_skinned_src =
     "}\n";
 
 static const char *fs_src =
-    "#version 410\n"
+    SK_FS_PREAMBLE
     "in vec3 v_normal;\nin vec2 v_uv;\nout vec4 frag_color;\n"
     "uniform vec4 u_light_dir;\nuniform vec4 u_tint;\nuniform vec4 u_ambient;\n"
     "uniform sampler2D tex;\n"

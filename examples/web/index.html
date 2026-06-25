@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>libsk examples</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #15171c;
+    color: #cdd3de; font: 14px/1.4 system-ui, sans-serif; }
+  #bar { position: fixed; inset: 0 0 auto 0; height: 38px; z-index: 10;
+    display: flex; align-items: center; gap: 12px; padding: 0 12px;
+    background: #1e2128; border-bottom: 1px solid #2c313c; }
+  #bar b { color: #7ea2ff; }
+  #status { color: #7b8494; }
+  select { background: #0f1115; color: #cdd3de; border: 1px solid #3a4150;
+    border-radius: 6px; padding: 4px 8px; font: inherit; }
+  /* canvas fills the area below the bar; sokol manages the drawing buffer */
+  #canvas { position: fixed; inset: 38px 0 0 0; width: 100vw;
+    height: calc(100vh - 38px); display: block; background: #000; outline: none; }
+</style>
+</head>
+<body>
+  <div id="bar">
+    <b>libsk</b>
+    <label>example <select id="ex"></select></label>
+    <span id="status">loading…</span>
+  </div>
+  <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
+  <script>
+    const params  = new URLSearchParams(location.search);
+    const current = params.get("ex") || "hello";
+    const statusEl = document.getElementById("status");
+    const sel = document.getElementById("ex");
+
+    // Populate the switcher from the build manifest (only examples that were built).
+    fetch("examples.json")
+      .then(r => (r.ok ? r.json() : []))
+      .then(list => {
+        if (!list.length) list = [current];
+        for (const name of list) {
+          const o = document.createElement("option");
+          o.value = o.textContent = name;
+          if (name === current) o.selected = true;
+          sel.appendChild(o);
+        }
+      })
+      .catch(() => {});
+    sel.addEventListener("change", () => {
+      location.search = "?ex=" + encodeURIComponent(sel.value);
+    });
+
+    // Emscripten module: bind the canvas and pipe logs to the console.
+    var Module = {
+      canvas: document.getElementById("canvas"),
+      print:    (...a) => console.log(...a),
+      printErr: (...a) => console.warn(...a),
+      onRuntimeInitialized: () => { statusEl.textContent = current; },
+    };
+
+    // Load the selected example's bundle (each is a standalone emscripten build).
+    const s = document.createElement("script");
+    s.src = current + ".js";
+    s.onerror = () => {
+      statusEl.textContent = "not built: " + current +
+        "  (make wasm WASM_EXAMPLE=" + current + ", or make wasm-all)";
+    };
+    document.body.appendChild(s);
+  </script>
+</body>
+</html>

@@ -33,7 +33,7 @@ ifeq ($(UNAME_S),Darwin)
                      -framework AudioToolbox
 endif
 
-.PHONY: all examples run clean print-ldlibs check
+.PHONY: all examples run clean print-ldlibs check wasm wasm-all serve
 
 all: $(LIB)
 
@@ -69,6 +69,58 @@ run: $(EX_BUILD)/hello
 print-ldlibs:
 	@echo $(LDLIBS_PLATFORM)
 
+# --- wasm (emscripten; WebGL2 or WebGPU, JSPI) ------------------------------
+# Requires emcc on PATH (source your emsdk_env.sh first).
+#   make wasm                  # WebGL2 (SOKOL_GLES3), example=hello
+#   make wasm BACKEND=wgpu     # WebGPU (SOKOL_WGPU, emdawnwebgpu port)
+#   make wasm WASM_EXAMPLE=model
+#   make serve                 # static-serve web/ at :8000
+EMCC         ?= emcc
+WEB          := web
+WEB_SHELL    := examples/web/index.html
+WASM_EXAMPLE ?= hello
+BACKEND      ?= gl
+ifeq ($(BACKEND),wgpu)
+  WASM_DEFS         := -DSOKOL_WGPU
+  WASM_BACKEND_LINK := --use-port=emdawnwebgpu
+else
+  WASM_DEFS         := -DSOKOL_GLES3
+  WASM_BACKEND_LINK := -sUSE_WEBGL2=1
+endif
+# JSPI (not ASYNCIFY) for the future idbfs sync shim; grow memory for assets.
+WASM_LINK := $(WASM_BACKEND_LINK) -sJSPI -sALLOW_MEMORY_GROWTH=1
+
+# Per-example bundles (.js + .wasm) + one shared index.html switcher served from
+# web/. The switcher self-populates from web/examples.json (built examples only).
+define wasm_deploy
+	@cp $(WEB_SHELL) $(WEB)/index.html
+	@cd $(WEB) && printf '[%s]\n' \
+	    "$$(ls *.js 2>/dev/null | sed 's/\.js$$//;s/^/"/;s/$$/"/' | paste -sd, -)" \
+	    > examples.json
+	@echo "deployed $(WEB)/ ($(BACKEND)) — 'make serve' then open http://localhost:8000/"
+endef
+
+wasm: | $(WEB)
+	$(EMCC) $(STD) $(WARN) $(OPT) $(WASM_DEFS) $(INCS) \
+	    $(SRCS) examples/$(WASM_EXAMPLE).c \
+	    $(WASM_LINK) -o $(WEB)/$(WASM_EXAMPLE).js
+	$(wasm_deploy)
+
+wasm-all: | $(WEB)
+	@for ex in $(patsubst examples/%.c,%,$(EX_SRCS)); do \
+	    echo "  wasm[$(BACKEND)]: $$ex"; \
+	    $(EMCC) $(STD) $(WARN) $(OPT) $(WASM_DEFS) $(INCS) \
+	        $(SRCS) examples/$$ex.c $(WASM_LINK) -o $(WEB)/$$ex.js || exit 1; \
+	done
+	$(wasm_deploy)
+
+$(WEB):
+	mkdir -p $(WEB)
+
+serve:
+	@echo "serving $(WEB)/ at http://localhost:8000  (Ctrl-C to stop)"
+	@cd $(WEB) && python3 -m http.server 8000
+
 # Enforce project invariants: no backend (sokol) leakage into the public
 # surface, and the naming conventions in AGENTS.md.
 check:
@@ -76,4 +128,4 @@ check:
 	@tools/check_naming.sh
 
 clean:
-	rm -rf $(BUILD) $(LIBDIR) $(EX_BUILD)
+	rm -rf $(BUILD) $(LIBDIR) $(EX_BUILD) $(WEB)
