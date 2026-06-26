@@ -45,6 +45,17 @@ that lean on them. Items with a design doc link there.
   CPU/upload micro-cost, *not* a capacity ceiling; only matters at very large
   text/sprite counts. `text2d` ships as retained-*state* today.
 
+## Infrastructure / testing
+
+- **Null / headless renderer** — run the full stack without a window or GPU, for
+  CI tests (asset loading, scene graph, picking math, animation sampling),
+  headless tools/asset validation, and benchmarking. sokol_gfx's
+  `SOKOL_DUMMY_BACKEND` no-ops the `sg_*` side (and `backend_name()` already maps
+  `SG_BACKEND_DUMMY`). The real work is a **run path that bypasses `sapp_run`** —
+  sokol_app always makes a window, so headless needs our own tick loop +
+  `sg_setup` with the dummy backend + null audio. Same "sapp owns the loop" seam
+  as the JSPI finding. Pairs naturally with a test suite.
+
 ## Dev ergonomics / nice-to-have
 
 - **Hot reload (reload-on-change)** — watch source assets and re-`ensure`; we
