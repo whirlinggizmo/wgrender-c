@@ -45,7 +45,7 @@ static void on_init(void *user_data)
     g_camera = sk_camera3d_create(8, 8, 8, 0, 3, 0, 0, 1, 0, 45.0f, SK_CAMERA3D_PERSPECTIVE);
     g_scene = sk_scene_create();
     sk_scene_set_active_camera(g_scene, g_camera);
-    sk_asset_add_task(sk_asset_ensure_async(MODEL_PATH, NULL), on_model_loaded, on_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(MODEL_PATH, NULL, 0), on_model_loaded, on_failed, NULL);
     sk_debug_enable_fps(12, 10, 16);
 }
 

@@ -44,8 +44,8 @@ static void on_init(void *user_data)
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
     (void)user_data;
     g_bg = sk_color_create(18, 20, 28, 255);
-    sk_asset_add_task(sk_asset_ensure_async(MUSIC_PATH, NULL), on_music_loaded, on_failed, NULL);
-    sk_asset_add_task(sk_asset_ensure_async(CLICK_PATH, NULL), on_click_loaded, on_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(MUSIC_PATH, NULL, 0), on_music_loaded, on_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(CLICK_PATH, NULL, 0), on_click_loaded, on_failed, NULL);
 }
 
 static void frame(void *user_data)

@@ -36,8 +36,8 @@ static void on_init(void *user_data)
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
     (void)user_data;
     g_bg = sk_color_create(248, 248, 250, 255);
-    sk_asset_add_task(sk_asset_ensure_async(JETBRAINS_PATH, NULL), on_mono_loaded, on_failed, NULL);
-    sk_asset_add_task(sk_asset_ensure_async(KOMIKA_PATH, NULL), on_komika_loaded, on_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(JETBRAINS_PATH, NULL, 0), on_mono_loaded, on_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(KOMIKA_PATH, NULL, 0), on_komika_loaded, on_failed, NULL);
 }
 
 static void frame(void *user_data)

@@ -99,8 +99,8 @@ static void on_init(void *user_data)
     sk_shape_set_color(g_sphere, SK_COLOR_GOLD);
     sk_scene_add(g_scene, g_sphere, 0);
 
-    sk_asset_add_task(sk_asset_ensure_async(LOGO_PATH, NULL), on_logo_loaded, on_failed, NULL);
-    sk_asset_add_task(sk_asset_ensure_async(MODEL_PATH, NULL), on_model_loaded, on_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(LOGO_PATH, NULL, 0), on_logo_loaded, on_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(MODEL_PATH, NULL, 0), on_model_loaded, on_failed, NULL);
 
     sk_debug_enable_fps(12, 10, 16);
 }

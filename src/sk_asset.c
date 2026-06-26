@@ -34,7 +34,9 @@ enum { TASK_NEW = 0, TASK_FETCHING };
 enum { FETCH_PENDING = 0, FETCH_OK, FETCH_FAILED };
 
 typedef struct {
-    char path[512];
+    char path[512];      /* logical key: cache path + default (host + path) source */
+    char fetch_url[1024]; /* per-call source override (empty = use host + path) */
+    unsigned int flags;
     sk_asset_callback_fn on_success;
     sk_asset_callback_fn on_failure;
     void *user_data;
@@ -112,7 +114,8 @@ static void on_fetch(const sfetch_response_t *r)
 static void start_fetch(uint16_t slot)
 {
     sk_asset_task_t *task = &sk_asset_tasks[slot];
-    char url[768];
+    char joined[1024];
+    const char *url;
     sfetch_handle_t h;
 
     task->state = TASK_FETCHING;
@@ -125,7 +128,13 @@ static void start_fetch(uint16_t slot)
         task->fetch_result = FETCH_FAILED;
         return;
     }
-    snprintf(url, sizeof(url), "%s/%s", sk_asset_host, task->path);
+    /* per-call override wins; otherwise the default host + key */
+    if (task->fetch_url[0] != '\0') {
+        url = task->fetch_url;
+    } else {
+        snprintf(joined, sizeof(joined), "%s/%s", sk_asset_host, task->path);
+        url = joined;
+    }
     h = sfetch_send(&(sfetch_request_t){
         .path = url,
         .callback = on_fetch,
@@ -142,12 +151,12 @@ static void start_fetch(uint16_t slot)
 #endif
 
 SK_KEEP
-sk_handle_t sk_asset_ensure_async(const char *path, const char *src)
+sk_handle_t sk_asset_ensure_async(const char *path, const char *fetch_url,
+                                  unsigned int flags)
 {
     sk_handle_t handle;
     sk_asset_task_t *task_ptr;
 
-    (void)src; /* per-call override unused for now; uses the configured host */
     if (!sk_asset_ready || path == NULL) {
         return 0;
     }
@@ -159,6 +168,10 @@ sk_handle_t sk_asset_ensure_async(const char *path, const char *src)
     task_ptr = resolve(handle);
     *task_ptr = (sk_asset_task_t){0};
     strncpy(task_ptr->path, path, sizeof(task_ptr->path) - 1);
+    if (fetch_url != NULL) {
+        strncpy(task_ptr->fetch_url, fetch_url, sizeof(task_ptr->fetch_url) - 1);
+    }
+    task_ptr->flags = flags;
     return handle;
 }
 
@@ -237,19 +250,19 @@ void sk_asset_tick(void)
                    task->on_success, task->on_failure, task->user_data);
             continue;
         }
-#endif
-
-        if (sk_fs_exists(task->path)) {
+        /* FORCE_FETCH re-downloads; otherwise serve the cache when present. */
+        if (!(task->flags & SK_ASSET_FORCE_FETCH) && sk_fs_exists(task->path)) {
             sk_fs_resolve(task->path, local, sizeof(local));
             finish(i, true, local, task->on_success, task->on_failure, task->user_data);
             continue;
         }
-
-#ifdef __EMSCRIPTEN__
-        start_fetch(i); /* cache miss: download, cache, resolve on later ticks */
+        start_fetch(i); /* miss (or forced): download, cache, resolve on later ticks */
 #else
+        /* Desktop has no network fetcher yet, so FORCE_FETCH is a no-op: resolve
+         * from the jailed local fs (miss = failure). Network fallback is TODO. */
         sk_fs_resolve(task->path, local, sizeof(local));
-        finish(i, false, local, task->on_success, task->on_failure, task->user_data);
+        finish(i, sk_fs_exists(task->path), local,
+               task->on_success, task->on_failure, task->user_data);
 #endif
     }
 }
