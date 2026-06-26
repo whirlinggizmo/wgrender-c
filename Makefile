@@ -12,7 +12,7 @@ CC      ?= cc
 AR      ?= ar
 STD     := -std=gnu11
 WARN    := -Wall -Wextra -Wno-unused-parameter
-OPT     := -O2 -g
+OPT     := -O2 # -g  # use -g for debug build.  TODO:  Flag for release/debug? 
 DEFS    := -DSOKOL_GLCORE
 # Our headers use -I (full warnings); vendored single-header libs use -isystem so
 # their warnings (stb/fontstash/dr/cgltf/sokol) don't drown out ours.
@@ -37,7 +37,7 @@ ifeq ($(UNAME_S),Darwin)
                      -framework AudioToolbox
 endif
 
-.PHONY: all examples run clean print-ldlibs check wasm wasm-all serve
+.PHONY: all examples run clean print-ldlibs check wasm wasm-all serve shaders
 
 all: $(LIB)
 
@@ -127,6 +127,22 @@ $(EX_BUILD_WEB):
 
 serve:
 	@python3 tools/serve.py 8000
+
+# --- shaders (sokol-shdc) ---------------------------------------------------
+# Regenerates the committed *.glsl.h (GL core, WebGL2, WebGPU) from annotated
+# GLSL. The binary is gitignored; fetch it once:
+#   curl -sSL -o tools/sokol-shdc \
+#     https://raw.githubusercontent.com/floooh/sokol-tools-bin/master/bin/linux/sokol-shdc \
+#     && chmod +x tools/sokol-shdc
+SHDC       := tools/sokol-shdc
+SHDC_SLANG := glsl410:glsl300es:wgsl
+SHADERS    := src/shaders/sk_model.glsl
+
+shaders:
+	@for s in $(SHADERS); do \
+	    echo "  shdc: $$s"; \
+	    $(SHDC) -i $$s -o $$s.h -l $(SHDC_SLANG) || exit 1; \
+	done
 
 # Enforce project invariants: no backend (sokol) leakage into the public
 # surface, and the naming conventions in AGENTS.md.

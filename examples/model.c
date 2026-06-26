@@ -13,6 +13,8 @@ static sk_handle_t g_camera;
 static sk_handle_t g_bg;
 static sk_handle_t g_model;
 static bool g_loaded;
+static bool g_orbit_camera = true;
+static bool g_spin_model = false;
 
 static void on_model_loaded(const char *path, void *user)
 {
@@ -54,11 +56,19 @@ static void frame(void *user_data)
     (void)user_data;
     float t = (float)sk_get_time();
 
+    // orbit the camera around the model
+    if (g_orbit_camera) {
+        sk_camera3d_set(g_camera, cosf(t * 0.4f) * 9.0f, 7.0f, sinf(t * 0.4f) * 9.0f,
+                        0, 3, 0, 0, 1, 0, 45.0f, SK_CAMERA3D_PERSPECTIVE);
+    }
     sk_camera3d_set(g_camera, cosf(t * 0.4f) * 9.0f, 7.0f, sinf(t * 0.4f) * 9.0f,
                     0, 3, 0, 0, 1, 0, 45.0f, SK_CAMERA3D_PERSPECTIVE);
 
     if (g_loaded) {
-        sk_model_set_transform(g_model, 0, 0, 0, 0, t * 0.5f, 0, 1, 1, 1); /* slow spin */
+        // spin the model in place
+        if (g_spin_model) {
+            sk_model_set_transform(g_model, 0, 0, 0, 0, t * 0.5f, 0, 1, 1, 1); /* slow spin */
+        }
         sk_model_animate(g_model, sk_get_delta_time());                    /* skeletal anim */
     }
 

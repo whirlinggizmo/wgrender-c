@@ -4,3 +4,4 @@ examples/build/
 examples/**/cache/
 reference/
 .sk_fs_probe
+tools/sokol-shdc
