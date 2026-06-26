@@ -11,7 +11,8 @@ extern "C" {
 /* Sound object (kind SOUND): a playable instance of an Audio resource. One-shot
  * sfx and looping background music are both Sounds — looping is just a flag, and
  * streamed-vs-decoded is a property of the Audio (see docs/ARCHITECTURE.md). */
-sk_handle_t sk_sound_create(sk_handle_t audio);
+sk_handle_t sk_sound_create(sk_handle_t audio); /* audio may be 0 (attach later) */
+bool sk_sound_set_audio(sk_handle_t handle, sk_handle_t audio);
 void sk_sound_destroy(sk_handle_t handle);
 bool sk_sound_play(sk_handle_t handle);    /* (re)start from the beginning */
 bool sk_sound_pause(sk_handle_t handle);   /* stop, keep position          */

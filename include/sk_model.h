@@ -26,8 +26,11 @@ extern "C" {
 sk_handle_t sk_mesh_create(const char *path);
 void        sk_mesh_destroy(sk_handle_t mesh);
 
-/* Model object: a drawable instance of a Mesh (kind MODEL). */
+/* Model object: a drawable instance of a Mesh (kind MODEL). `mesh` may be 0 to
+ * create an empty model now (placed/animated immediately) and attach the mesh
+ * later with sk_model_set_mesh — draw/animate no-op until then. */
 sk_handle_t sk_model_create(sk_handle_t mesh);
+bool sk_model_set_mesh(sk_handle_t handle, sk_handle_t mesh);
 
 bool sk_model_set_transform(sk_handle_t handle,
                             float position_x, float position_y, float position_z,

@@ -587,9 +587,10 @@ SK_KEEP int sk_model_get_animation_count(sk_handle_t handle)
 SK_KEEP bool sk_model_set_animation(sk_handle_t handle, int animation_index)
 {
     sk_model_t *model_ptr = resolve(handle);
-    sk_mesh_t *mesh_ptr = model_ptr ? resolve_mesh(model_ptr->mesh) : NULL;
-    if (mesh_ptr == NULL) return false;
-    if (animation_index < 0 || animation_index >= mesh_ptr->animation_count) return false;
+    if (model_ptr == NULL) return false;
+    /* Stored as instance state regardless of the current mesh; sk_model_animate
+     * applies it once a mesh with this clip is attached (range-guarded there),
+     * so the selection survives a late/changed mesh. */
     model_ptr->cur_anim = animation_index;
     model_ptr->anim_time = 0.0f;
     return true;
@@ -711,7 +712,8 @@ static sk_handle_t create_model(sk_handle_t mesh_handle)
     uint16_t index = 0;
     sk_model_t model = {0};
 
-    if (resolve_mesh(mesh_handle) == NULL) return 0;
+    /* mesh_handle may be 0 — create an empty model now and attach the mesh later
+     * with sk_model_set_mesh(); draw/animate no-op until then. */
     handle = sk_handle_pool_alloc(&sk_model_pool);
     if (handle == 0) {
         log_error("MAX_MODELS reached (%d)", MAX_MODELS);
@@ -776,6 +778,22 @@ SK_KEEP void sk_mesh_destroy(sk_handle_t mesh) { release_mesh(mesh); }
 
 /* A drawable instance of a Mesh; adds its own reference to the mesh. */
 SK_KEEP sk_handle_t sk_model_create(sk_handle_t mesh) { return create_model(mesh); }
+
+/* Attach (or swap) the mesh resource on an existing model. Transform, tint,
+ * visibility, and animation selection are retained, so a model created empty
+ * picks them up the moment a mesh arrives. */
+SK_KEEP bool sk_model_set_mesh(sk_handle_t handle, sk_handle_t mesh)
+{
+    sk_model_t *model_ptr = resolve(handle);
+    if (model_ptr == NULL) return false;
+    if (model_ptr->mesh == mesh) return true;
+    release_mesh(model_ptr->mesh); /* no-op when 0 */
+    model_ptr->mesh = mesh;
+    retain_mesh(mesh);             /* no-op when 0 */
+    /* old skeleton no longer valid; animate() rebuilds these next tick */
+    for (int j = 0; j < SK_MAX_JOINTS; j++) model_ptr->joint_matrices[j] = sk_mat4_identity();
+    return true;
+}
 
 SK_KEEP bool sk_model_set_transform(sk_handle_t handle,
                                     float px, float py, float pz,

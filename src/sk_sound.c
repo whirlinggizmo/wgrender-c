@@ -25,13 +25,15 @@ static sk_sound_t *resolve(sk_handle_t handle)
     return &sk_sounds[index];
 }
 
-/* Create a Sound object that plays `audio` (consumes one reference to it). */
+/* Create a Sound object that plays `audio` (consumes one reference to it).
+ * `audio` may be 0 — create the sound now (set volume/pitch/loop, even play())
+ * and attach the Audio later via sk_sound_set_audio(); the mixer skips a playing
+ * sound with no PCM, then picks it up once the resource is set. */
 static sk_handle_t create_sound(sk_handle_t audio, bool loop)
 {
     sk_handle_t handle;
     uint16_t index = 0;
 
-    if (audio == 0) return 0;
     handle = sk_handle_pool_alloc(&sk_sound_pool);
     if (handle == 0) {
         log_error("MAX_SOUNDS reached (%d)", MAX_SOUNDS);
@@ -45,9 +47,22 @@ static sk_handle_t create_sound(sk_handle_t audio, bool loop)
         .loop = loop,
         .playing = false,
     };
-    sk_audio_retain(audio); /* the sound's own reference to the shared Audio */
+    if (audio != 0) sk_audio_retain(audio); /* the sound's own ref to the shared Audio */
     sk_audio_register(&sk_sounds[index]);
     return handle;
+}
+
+SK_KEEP
+bool sk_sound_set_audio(sk_handle_t handle, sk_handle_t audio)
+{
+    sk_sound_t *sound_ptr = resolve(handle);
+    if (sound_ptr == NULL) return false;
+    if (sound_ptr->audio == audio) return true;
+    if (sound_ptr->audio != 0) sk_audio_release(sound_ptr->audio);
+    sound_ptr->audio = audio;
+    if (audio != 0) sk_audio_retain(audio);
+    /* volume/pitch/loop/playing/pos retained, so playback picks up the new PCM */
+    return true;
 }
 
 SK_KEEP
