@@ -13,10 +13,10 @@
 
 #ifdef __EMSCRIPTEN__
 #include "sokol_fetch.h"
-/* Whole-file fetch into one preallocated buffer (no chunk streaming, so no HTTP
- * Range — our dev server doesn't serve partial content). Files larger than this
- * fail with SFETCH_ERROR_BUFFER_TOO_SMALL; bump if an asset outgrows it. */
-#define ASSET_FETCH_MAX_BYTES (16 * 1024 * 1024)
+/* Stream the download in chunks (sokol_fetch issues HTTP Range GETs on web) and
+ * accumulate into an exactly-sized buffer — no per-file cap, memory tracks the
+ * actual asset size. The dev server (tools/serve.py) honours Range for this. */
+#define ASSET_CHUNK_BYTES (1024 * 1024)
 #endif
 
 /* Acquisition layer: "ensure" makes an asset locally available, then fires the
@@ -40,8 +40,11 @@ typedef struct {
     void *user_data;
     bool armed; /* callbacks attached via sk_asset_add_task */
     int state;
-    unsigned char *fetch_buf; /* web: buffer bound to the in-flight fetch */
     int fetch_result;         /* web: FETCH_* set by the sokol_fetch callback */
+    unsigned char *fetch_buf; /* web: chunk buffer bound to the in-flight fetch */
+    unsigned char *acc;       /* web: accumulated file bytes across chunks */
+    size_t acc_len;
+    bool acc_error;           /* web: a chunk realloc failed mid-stream */
 } sk_asset_task_t;
 
 static sk_asset_task_t sk_asset_tasks[MAX_ASSET_TASKS];
@@ -75,24 +78,35 @@ void sk_asset_set_host(const char *host)
 }
 
 #ifdef __EMSCRIPTEN__
-/* sokol_fetch delivers bytes on the main thread when sfetch_dowork() (called in
- * sk_asset_tick) pumps it. On finish we hand the whole file to sk_fs (which
- * writes + flushes to idbfs) and flag the slot; tick then resolves the task. */
+/* sokol_fetch delivers chunks on the main thread when sfetch_dowork() (called in
+ * sk_asset_tick) pumps it. We grow `acc` chunk by chunk; on the final chunk we
+ * hand the whole file to sk_fs (which writes + flushes to idbfs) and flag the
+ * slot, then tick resolves the task. */
 static void on_fetch(const sfetch_response_t *r)
 {
     uint16_t slot = *(const uint16_t *)r->user_data;
     sk_asset_task_t *task = &sk_asset_tasks[slot];
-    if (!r->finished) {
-        return;
+
+    if (r->fetched && r->data.size > 0 && !task->acc_error) {
+        unsigned char *grown = (unsigned char *)realloc(task->acc, task->acc_len + r->data.size);
+        if (grown == NULL) {
+            task->acc_error = true; /* keep draining the stream, fail at finish */
+        } else {
+            task->acc = grown;
+            memcpy(task->acc + task->acc_len, r->data.ptr, r->data.size);
+            task->acc_len += r->data.size;
+        }
     }
-    if (!r->failed && sk_fs_write(task->path, (const unsigned char *)r->data.ptr,
-                                  (int)r->data.size)) {
-        task->fetch_result = FETCH_OK;
-    } else {
-        task->fetch_result = FETCH_FAILED;
+    if (r->finished) {
+        bool ok = !r->failed && !task->acc_error &&
+                  sk_fs_write(task->path, task->acc, (int)task->acc_len);
+        task->fetch_result = ok ? FETCH_OK : FETCH_FAILED;
+        free(task->acc);
+        task->acc = NULL;
+        task->acc_len = 0;
+        free(task->fetch_buf);
+        task->fetch_buf = NULL;
     }
-    free(task->fetch_buf);
-    task->fetch_buf = NULL;
 }
 
 static void start_fetch(uint16_t slot)
@@ -103,7 +117,10 @@ static void start_fetch(uint16_t slot)
 
     task->state = TASK_FETCHING;
     task->fetch_result = FETCH_PENDING;
-    task->fetch_buf = (unsigned char *)malloc(ASSET_FETCH_MAX_BYTES);
+    task->acc = NULL;
+    task->acc_len = 0;
+    task->acc_error = false;
+    task->fetch_buf = (unsigned char *)malloc(ASSET_CHUNK_BYTES);
     if (task->fetch_buf == NULL) {
         task->fetch_result = FETCH_FAILED;
         return;
@@ -112,7 +129,8 @@ static void start_fetch(uint16_t slot)
     h = sfetch_send(&(sfetch_request_t){
         .path = url,
         .callback = on_fetch,
-        .buffer = { .ptr = task->fetch_buf, .size = ASSET_FETCH_MAX_BYTES },
+        .chunk_size = ASSET_CHUNK_BYTES,
+        .buffer = { .ptr = task->fetch_buf, .size = ASSET_CHUNK_BYTES },
         .user_data = { .ptr = &slot, .size = sizeof(slot) },
     });
     if (!sfetch_handle_valid(h)) {
