@@ -1,6 +1,8 @@
 # Plan: handle-only public API (librl-style asset/resource split)
 
-Status: **proposed — awaiting approval.** No code changed yet.
+Status: **implemented.** The handle-only public surface, the asset/resource
+split, and `sk_asset_ensure_async(path, fetch_url, flags)` are in and enforced by
+`make check` (`tools/check_naming.sh`). Kept as the design record.
 Supersedes an earlier draft of this file that invented a generic
 `sk_asset_load`/`sk_destroy`; this version follows librl's proven model instead.
 

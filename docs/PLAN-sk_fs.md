@@ -1,6 +1,12 @@
 # Plan: sk_fs + web-capable ensure (Phase 2)
 
-Status: **proposed — awaiting approval.** No code changed yet.
+Status: **implemented (steps 1–3 done).** wasm target + serve loop, `sk_fs`
+desktop seam, and web idbfs + fetch all landed. Fetch uses **sokol_fetch**
+(streaming via HTTP Range; `tools/serve.py` serves 206), not the hand-rolled
+EM_JS first tried. `ensure` gained a per-call `fetch_url` source override and a
+`SK_ASSET_FORCE_FETCH` flag. Remaining: in-browser verification of the streaming
+path, WebGPU backend (WGSL via sokol-shdc), desktop network-fetch fallback, and
+the eventual `sk_net` (see "Later"). Kept as the design record.
 Builds on the Phase 1 ensure model (see [PLAN-handle-only-api.md](PLAN-handle-only-api.md))
 and the proven librl `rl_fs` design (cribbed, not vendored — see "Decisions").
 
@@ -92,7 +98,11 @@ store, plus `-sALLOW_MEMORY_GROWTH=1`. **No `-sASYNCIFY` and no `-sJSPI`** — t
 restore is a polled barrier (callbacks), so no stack-unwinding mechanism is
 linked. (sokol_app owns the loop; suspension isn't available in its callbacks.)
 
-## Phasing (locked order: 2b → 2a → 2c)
+## Phasing (locked order: 2b → 2a → 2c) — all DONE
+
+(Steps below are kept for the record; all three landed. Note step 1's `-sJSPI`
+was later dropped — `sapp_run` owns the loop, so the idbfs restore is a polled
+barrier, not a JSPI await. See "Decisions locked".)
 
 Toolchain is the dominant risk and is independent of `sk_fs`, so stand up wasm
 first and get the in-browser feedback loop before adding fs complexity. Good news
