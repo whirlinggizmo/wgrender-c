@@ -79,6 +79,10 @@ void sk_text_init(void);
 void sk_text_deinit(void);
 void sk_text_flush(void); /* emit recorded debugtext into the current pass */
 
+/* text2d (retained text object, built on the text layer) */
+void sk_text2d_init(void);
+void sk_text2d_deinit(void);
+
 /* debug overlay */
 void sk_debug_init(void);
 void sk_debug_deinit(void);

@@ -21,6 +21,7 @@
 #include "sk_sound.h"   // IWYU pragma: keep
 #include "sk_sprite3d.h" // IWYU pragma: keep
 #include "sk_text.h"    // IWYU pragma: keep
+#include "sk_text2d.h"  // IWYU pragma: keep
 #include "sk_texture.h" // IWYU pragma: keep
 #include "sk_types.h"   // IWYU pragma: keep
 #include "sk_version.h" // IWYU pragma: keep
