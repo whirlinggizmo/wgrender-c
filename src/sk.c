@@ -101,12 +101,28 @@ void sk_set_cleanup(sk_lifecycle_fn cleanup_fn, void *user_data)
     sk_rt.cleanup_user_data = user_data;
 }
 
+static const char *backend_name(sg_backend b)
+{
+    switch (b) {
+        case SG_BACKEND_GLCORE:           return "GL core";
+        case SG_BACKEND_GLES3:            return "GLES3/WebGL2";
+        case SG_BACKEND_D3D11:            return "D3D11";
+        case SG_BACKEND_METAL_IOS:        return "Metal (iOS)";
+        case SG_BACKEND_METAL_MACOS:      return "Metal (macOS)";
+        case SG_BACKEND_METAL_SIMULATOR:  return "Metal (sim)";
+        case SG_BACKEND_WGPU:             return "WebGPU";
+        case SG_BACKEND_DUMMY:            return "dummy";
+        default:                          return "unknown";
+    }
+}
+
 static void on_init(void)
 {
     sg_setup(&(sg_desc){
         .environment = sglue_environment(),
         .logger.func = slog_func,
     });
+    sk_logger_info("libsk: %s backend", backend_name(sg_query_backend()));
     stm_setup();
     sk_rt.start_ticks = stm_now();
 
