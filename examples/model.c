@@ -51,8 +51,8 @@ static void on_init(void *user_data) {
   sk_asset_set_host(EXAMPLE_ASSET_BASE);
   (void)user_data;
   g_bg = sk_color_create(30, 32, 40, 255);
-  g_camera = sk_camera3d_create(8, 8, 8, 0, 3, 0, 0, 1, 0, 45.0f,
-                                SK_CAMERA3D_PERSPECTIVE);
+  g_camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
+  sk_camera3d_set_view(g_camera, 8, 8, 8, 0, 3, 0, 0, 1, 0);
   g_scene = sk_scene_create();
   sk_scene_set_active_camera(g_scene, g_camera);
 
@@ -73,9 +73,8 @@ static void frame(float dt, float tick_fraction, void *user_data) {
 
   // orbit the camera around the model
   if (g_orbit_camera) {
-    sk_camera3d_set(g_camera, cosf(t * 0.4f) * 9.0f, 7.0f,
-                    sinf(t * 0.4f) * 9.0f, 0, 3, 0, 0, 1, 0, 45.0f,
-                    SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(g_camera, cosf(t * 0.4f) * 9.0f, 7.0f,
+                         sinf(t * 0.4f) * 9.0f, 0, 3, 0, 0, 1, 0);
   }
 
   // spin the model in place

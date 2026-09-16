@@ -8,7 +8,7 @@ static const sk_camera3d_t CAM = {
     .position = {0, 0, 10},
     .target = {0, 0, 0},
     .up = {0, 1, 0},
-    .fovy = 45.0f,
+    .fov = 0.785398163f,
 };
 
 void test_scene_view_depth(void)

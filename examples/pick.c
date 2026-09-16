@@ -81,8 +81,8 @@ static void on_init(void *user_data)
     (void)user_data;
 
     g_bg = sk_color_create(24, 26, 34, 255);
-    g_camera = sk_camera3d_create(11.0f, 9.0f, 11.0f, 0.0f, 2.0f, 0.0f,
-                                  0.0f, 1.0f, 0.0f, 45.0f, SK_CAMERA3D_PERSPECTIVE);
+    g_camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(g_camera, 11.0f, 9.0f, 11.0f, 0.0f, 2.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
     g_scene = sk_scene_create();
     sk_scene_set_active_camera(g_scene, g_camera);

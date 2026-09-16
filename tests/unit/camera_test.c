@@ -10,7 +10,7 @@ static const sk_camera3d_t ORTHO = {
     .position = {0, 0, 10},
     .target = {0, 0, 0},
     .up = {0, 1, 0},
-    .fovy = 10.0f, /* orthographic: visible height in world units */
+    .ortho_height = 10.0f,
     .projection = SK_CAMERA3D_ORTHOGRAPHIC,
 };
 
@@ -22,16 +22,16 @@ void test_camera_projection(void)
 
     /* perspective is the existing perspective matrix */
     sk_camera3d_t persp = ORTHO;
-    persp.fovy = 45.0f;
+    persp.fov = 0.785398163f; /* pi / 4 */
     persp.projection = SK_CAMERA3D_PERSPECTIVE;
-    sk_mat4_t expected = sk_mat4_perspective(45.0f * SK_DEG2RAD, aspect, SK_CAMERA3D_PERSPECTIVE_NEAR,
+    sk_mat4_t expected = sk_mat4_perspective(0.785398163f, aspect, SK_CAMERA3D_PERSPECTIVE_NEAR,
                                              SK_CAMERA3D_PERSPECTIVE_FAR);
     sk_mat4_t actual = sk_camera3d_projection(&persp, aspect);
     for (int i = 0; i < 16; i++) {
         CHECK_NEAR(actual.m[i], expected.m[i], EPS);
     }
 
-    /* orthographic: the view spans fovy vertically and fovy * aspect horizontally,
+    /* orthographic: the view spans ortho_height vertically and ortho_height * aspect horizontally,
      * with no perspective divide (distance doesn't change size) */
     view_proj = sk_mat4_mul(sk_camera3d_projection(&ORTHO, aspect), sk_camera3d_view(&ORTHO));
     ndc = sk_mat4_mul_point(view_proj, (vec3_t){10, 5, 0}); /* right edge, top edge */
@@ -66,4 +66,43 @@ void test_pick_ray_from_screen_ortho(void)
     CHECK(sk_pick_ray_aabb(ray, (vec3_t){4.5f, -0.5f, -0.5f}, (vec3_t){5.5f, 0.5f, 0.5f}, &hit));
     CHECK_VEC3_NEAR(hit.point, 5, 0, 0.5f, 1e-3f);
     CHECK_VEC3_NEAR(hit.normal, 0, 0, 1, EPS);
+}
+
+void test_camera_api(void)
+{
+    sk_camera3d_init();
+
+    sk_handle_t camera = sk_camera3d_create(SK_CAMERA3D_ORTHOGRAPHIC);
+    CHECK(camera != 0);
+    CHECK(sk_camera3d_get_projection(camera) == SK_CAMERA3D_ORTHOGRAPHIC);
+    CHECK_NEAR(sk_camera3d_get_fov(camera), 0.785398163f, EPS); /* default pi/4 */
+    CHECK_NEAR(sk_camera3d_get_ortho_height(camera), 10.0f, EPS);
+
+    /* fov and ortho height are separate and both survive projection switches */
+    CHECK(sk_camera3d_set_fov(camera, 1.2f));
+    CHECK(sk_camera3d_set_ortho_height(camera, 25.0f));
+    CHECK(sk_camera3d_set_projection(camera, SK_CAMERA3D_PERSPECTIVE));
+    CHECK(sk_camera3d_set_projection(camera, SK_CAMERA3D_ORTHOGRAPHIC));
+    CHECK_NEAR(sk_camera3d_get_fov(camera), 1.2f, EPS);
+    CHECK_NEAR(sk_camera3d_get_ortho_height(camera), 25.0f, EPS);
+
+    /* invalid values are rejected and leave the camera unchanged */
+    CHECK(!sk_camera3d_set_fov(camera, 0.0f));
+    CHECK(!sk_camera3d_set_fov(camera, 3.2f)); /* >= pi */
+    CHECK(!sk_camera3d_set_ortho_height(camera, -1.0f));
+    CHECK(!sk_camera3d_set_projection(camera, (sk_camera3d_projection_t)5));
+    CHECK_NEAR(sk_camera3d_get_fov(camera), 1.2f, EPS);
+    CHECK_NEAR(sk_camera3d_get_ortho_height(camera), 25.0f, EPS);
+    CHECK(sk_camera3d_get_projection(camera) == SK_CAMERA3D_ORTHOGRAPHIC);
+
+    /* the view is what the projection helper uses */
+    CHECK(sk_camera3d_set_view(camera, 1, 2, 3, 4, 5, 6, 0, 1, 0));
+    CHECK(sk_camera3d_set_active(camera));
+    sk_camera3d_t data;
+    CHECK(sk_camera3d_get_active_data(&data));
+    CHECK_VEC3_NEAR(data.position, 1, 2, 3, EPS);
+    CHECK_VEC3_NEAR(data.target, 4, 5, 6, EPS);
+
+    sk_camera3d_destroy(camera);
+    sk_camera3d_deinit();
 }

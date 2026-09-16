@@ -103,7 +103,7 @@ void test_light_api(void)
     CHECK(light != 0);
     CHECK(sk_light_is_enabled(light));
 
-    /* defaults: white, intensity 1, pointing down, unlimited range, 30/45 degree cone */
+    /* defaults: white, intensity 1, pointing down, unlimited range, pi/6 and pi/4 cone */
     CHECK(sk_light_get_scene_light(light, &data));
     CHECK(data.type == SK_LIGHT_SPOT);
     CHECK_VEC3_NEAR(data.radiance, 1, 1, 1, EPS);
@@ -118,12 +118,16 @@ void test_light_api(void)
     CHECK(sk_light_set_direction(light, 3, 0, 4));
     CHECK(!sk_light_set_direction(light, 0, 0, 0)); /* no direction: rejected, unchanged */
     CHECK(sk_light_set_range(light, -5.0f));        /* negative range: unlimited */
-    CHECK(sk_light_set_spot_cone(light, 60.0f, 20.0f)); /* inner wider than outer: clamped to outer */
+    CHECK(sk_light_set_spot_cone(light, 1.0f, 0.35f)); /* inner wider than outer: clamped to outer */
     CHECK(sk_light_get_scene_light(light, &data));
     CHECK_VEC3_NEAR(data.radiance, 2, 0, 0, EPS);
     CHECK_VEC3_NEAR(data.direction, 0.6f, 0, 0.8f, EPS);
     CHECK_NEAR(data.range, 0, EPS);
     CHECK_NEAR(data.cos_inner, data.cos_outer, EPS);
+    CHECK_NEAR(data.cos_outer, 0.9393727f, EPS); /* cos(0.35 rad) */
+    CHECK(sk_light_set_spot_cone(light, 0.0f, 3.0f)); /* outer past pi/2: clamped to pi/2 */
+    CHECK(sk_light_get_scene_light(light, &data));
+    CHECK_NEAR(data.cos_outer, 0.0f, EPS);
 
     /* disabled and destroyed lights don't reach scenes */
     CHECK(sk_light_set_enabled(light, false));

@@ -25,6 +25,9 @@ rl_init_values_async                    dropped  sk_run owns startup; async setu
 rl_get_delta_time                       dropped  timing is passed to the frame/tick callbacks (dt, tick_fraction)
 rl_tick                                 ported   sk_set_frame         callback-driven loop instead of polling; sk_set_tick adds fixed-rate simulation
 
+# --- rl_camera3d.h ---
+rl_camera3d_set                         ported   sk_camera3d_set_view  plus set_projection / set_fov (radians) / set_ortho_height; fovy no longer doubles as ortho height
+
 # --- rl_asset.h ---
 rl_asset_ensure                         dropped  synchronous fetch needs JSPI on wasm; use sk_asset_ensure_async
 rl_asset_ensure_many_async              todo     batch ensure (handle-only: no path array)

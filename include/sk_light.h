@@ -9,8 +9,9 @@ extern "C" {
 
 #include "sk_types.h"
 
-/* Lights (objects). Add a light to a scene with sk_scene_add(scene, light, 0);
- * a light can be in several scenes. Scenes also have an ambient term
+/* Lights (objects). Angles are radians, like the rest of the libsk API.
+ * Add a light to a scene with sk_scene_add(scene, light, 0); a light can be in
+ * several scenes. Scenes also have an ambient term
  * (sk_scene_set_ambient). See docs/PLAN-lighting.md.
  *
  * - Nothing is lit implicitly: a new scene has no lights and no ambient, so its
@@ -40,7 +41,9 @@ bool sk_light_set_intensity(sk_handle_t light, float intensity);  /* default: 1 
 bool sk_light_set_position(sk_handle_t light, float x, float y, float z);   /* point, spot */
 bool sk_light_set_direction(sk_handle_t light, float x, float y, float z);  /* directional, spot; default (0,-1,0) */
 bool sk_light_set_range(sk_handle_t light, float range);          /* point, spot; default 0 = unlimited */
-bool sk_light_set_spot_cone(sk_handle_t light, float inner_degrees, float outer_degrees); /* half-angles; default 30, 45 */
+bool sk_light_set_spot_cone(sk_handle_t light, float inner_angle, float outer_angle);
+                                   /* radians from the spot direction, 0..pi/2 (KHR_lights_punctual
+                                    * innerConeAngle / outerConeAngle); default pi/6, pi/4 */
 bool sk_light_set_enabled(sk_handle_t light, bool enabled);        /* default: enabled */
 bool sk_light_is_enabled(sk_handle_t light);
 

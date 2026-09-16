@@ -60,7 +60,7 @@ bool sk_light_set_intensity(sk_handle_t light, float intensity);  /* default 1 *
 bool sk_light_set_position(sk_handle_t light, float x, float y, float z);  /* point, spot */
 bool sk_light_set_direction(sk_handle_t light, float x, float y, float z); /* directional, spot; normalized */
 bool sk_light_set_range(sk_handle_t light, float range);          /* point, spot; 0 = infinite */
-bool sk_light_set_spot_cone(sk_handle_t light, float inner_deg, float outer_deg); /* spot */
+bool sk_light_set_spot_cone(sk_handle_t light, float inner_angle, float outer_angle); /* spot, radians */
 bool sk_light_set_enabled(sk_handle_t light, bool enabled);
 bool sk_light_is_enabled(sk_handle_t light);
 ```

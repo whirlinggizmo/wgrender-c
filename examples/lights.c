@@ -59,7 +59,8 @@ static void init(void *user_data)
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
     g.bg = sk_color_create(12, 13, 18, 255);
     g.grid = sk_color_create(40, 42, 50, 255);
-    g.camera = sk_camera3d_create(0, 4.5f, 10, 0, 1, 0, 0, 1, 0, 45, SK_CAMERA3D_PERSPECTIVE);
+    g.camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(g.camera, 0, 4.5f, 10, 0, 1, 0, 0, 1, 0);
     g.scene = sk_scene_create();
     sk_scene_set_active_camera(g.scene, g.camera);
     sk_scene_set_ambient(g.scene, sk_color_create(90, 110, 160, 255), 0.05f);
@@ -90,7 +91,7 @@ static void init(void *user_data)
 
     g.spot = sk_light_create(SK_LIGHT_SPOT);
     sk_light_set_position(g.spot, 0, 6, 2);
-    sk_light_set_spot_cone(g.spot, 8, 16);
+    sk_light_set_spot_cone(g.spot, 0.14f, 0.28f); /* radians: about 8 and 16 degrees */
     sk_light_set_intensity(g.spot, 40.0f);
     sk_scene_add(g.scene, g.spot, 0);
 

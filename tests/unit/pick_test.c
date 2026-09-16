@@ -128,11 +128,11 @@ void test_pick_ray_from_screen(void)
         .position = {0, 0, 10},
         .target = {0, 0, 0},
         .up = {0, 1, 0},
-        .fovy = 45.0f,
+        .fov = 0.785398163f, /* pi / 4 */
         .projection = SK_CAMERA3D_PERSPECTIVE,
     };
     const float w = 800, h = 600;
-    const float tan_half_fovy = 0.41421356f; /* tan(22.5 degrees) */
+    const float tan_half_fovy = 0.41421356f; /* tan(pi / 8) */
 
     /* screen center looks straight at the target, starting on the near plane */
     sk_ray_t r = sk_pick_ray_from_screen(&cam, w / 2, h / 2, w, h);

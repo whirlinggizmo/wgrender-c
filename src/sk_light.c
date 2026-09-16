@@ -20,8 +20,8 @@ typedef struct {
     vec3_t position;
     vec3_t direction;
     float range;
-    float inner_degrees;
-    float outer_degrees;
+    float inner_angle; /* radians, from the spot direction to where the falloff starts */
+    float outer_angle; /* radians, to where the light reaches zero */
     bool enabled;
 } sk_light_t;
 
@@ -86,8 +86,8 @@ sk_handle_t sk_light_create(sk_light_type_t type)
         .intensity = 1.0f,
         .direction = {0.0f, -1.0f, 0.0f},
         .range = 0.0f,
-        .inner_degrees = 30.0f,
-        .outer_degrees = 45.0f,
+        .inner_angle = 30.0f * SK_DEG2RAD,
+        .outer_angle = 45.0f * SK_DEG2RAD,
         .enabled = true,
     };
     return handle;
@@ -158,16 +158,17 @@ bool sk_light_set_range(sk_handle_t light, float range)
 }
 
 SK_KEEP
-bool sk_light_set_spot_cone(sk_handle_t light, float inner_degrees, float outer_degrees)
+bool sk_light_set_spot_cone(sk_handle_t light, float inner_angle, float outer_angle)
 {
+    const float half_pi = 1.5707963267948966f;
     sk_light_t *light_ptr = resolve(light);
     if (light_ptr == NULL) {
         return false;
     }
-    outer_degrees = outer_degrees < 0.0f ? 0.0f : (outer_degrees > 90.0f ? 90.0f : outer_degrees);
-    inner_degrees = inner_degrees < 0.0f ? 0.0f : (inner_degrees > outer_degrees ? outer_degrees : inner_degrees);
-    light_ptr->inner_degrees = inner_degrees;
-    light_ptr->outer_degrees = outer_degrees;
+    outer_angle = outer_angle < 0.0f ? 0.0f : (outer_angle > half_pi ? half_pi : outer_angle);
+    inner_angle = inner_angle < 0.0f ? 0.0f : (inner_angle > outer_angle ? outer_angle : inner_angle);
+    light_ptr->inner_angle = inner_angle;
+    light_ptr->outer_angle = outer_angle;
     return true;
 }
 
@@ -213,8 +214,8 @@ bool sk_light_get_scene_light(sk_handle_t light, sk_scene_light_t *out)
         .position = light_ptr->position,
         .direction = light_ptr->direction,
         .range = light_ptr->range,
-        .cos_inner = cosf(light_ptr->inner_degrees * SK_DEG2RAD),
-        .cos_outer = cosf(light_ptr->outer_degrees * SK_DEG2RAD),
+        .cos_inner = cosf(light_ptr->inner_angle),
+        .cos_outer = cosf(light_ptr->outer_angle),
     };
     return true;
 }

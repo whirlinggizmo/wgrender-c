@@ -34,7 +34,7 @@ bool sk_sprite2d_set_texture(sk_handle_t sprite, sk_handle_t texture);
 bool sk_sprite2d_set_source(sk_handle_t sprite, float x, float y, float width, float height);
                                    /* texture pixels; default: whole texture */
 bool sk_sprite2d_set_position(sk_handle_t sprite, float x, float y);
-bool sk_sprite2d_set_rotation(sk_handle_t sprite, float angle);   /* see decision 5 (units) */
+bool sk_sprite2d_set_rotation(sk_handle_t sprite, float angle);   /* radians */
 bool sk_sprite2d_set_scale(sk_handle_t sprite, float x, float y); /* negative = flip */
 bool sk_sprite2d_set_size(sk_handle_t sprite, float width, float height);
                                    /* on-screen size in pixels; default: source size */
@@ -77,13 +77,13 @@ void sk_texture_draw(sk_handle_t texture, float x, float y, float width, float h
 4. **Batching.** *Recommend: sokol_gl textured quads for now,* consecutive sprites
    sharing a texture batched automatically by sokol_gl. The batched renderer on the
    roadmap replaces the internals later without an API change.
-5. **Angle units across the public API.** Transform rotations today
-   (`sk_model/shape/sprite3d_set_transform`) take **radians**; camera `fovy` and the
-   light spot cone take **degrees**. sprite2d adds another rotation, so this is the
-   moment to pick one convention for the whole public API. *Recommend: degrees
-   everywhere* (what people type and read in editors and glTF tools; conversion is
-   internal via `SK_DEG2RAD`), changing the existing transform setters in the same
-   work. The alternative is radians everywhere, changing `fovy` and the spot cone.
+5. **Angle units across the public API. Decided (2026-09-16): radians everywhere.**
+   Matches our internal math, sokol and glTF (camera `yfov`, `KHR_lights_punctual`
+   cone angles), and what `atan2`/`sin`/`cos` and physics libraries produce, so game
+   code needs no conversions. Apps that want degrees convert themselves; libsk
+   exposes no degree helpers. Done ahead of sprite2d: camera `fov` and the spot cone
+   are radians, and cameras have separate `fov` (perspective) and `ortho_height`
+   (orthographic) settings instead of one overloaded `fovy`.
 
 ## Picking
 

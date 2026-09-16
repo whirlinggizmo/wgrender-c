@@ -127,7 +127,8 @@ static void on_init(void *user_data)
     snprintf(g.message, sizeof(g.message), "Hello from libsk simple!");
     snprintf(g.platform_text, sizeof(g.platform_text), "Platform: %s", sk_get_platform());
 
-    g.camera = sk_camera3d_create(12, 12, 12, 0, 1, 0, 0, 1, 0, 45.0f, SK_CAMERA3D_PERSPECTIVE);
+    g.camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE); /* default fov: pi/4 (45 degrees) */
+    sk_camera3d_set_view(g.camera, 12, 12, 12, 0, 1, 0, 0, 1, 0);
     g.scene = sk_scene_create();
     sk_scene_set_active_camera(g.scene, g.camera);
 

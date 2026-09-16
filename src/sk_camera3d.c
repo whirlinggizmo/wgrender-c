@@ -32,26 +32,23 @@ static bool resolve(sk_handle_t handle, uint16_t *index_out)
     return true;
 }
 
-static void store(uint16_t index,
-                  float px, float py, float pz,
-                  float tx, float ty, float tz,
-                  float ux, float uy, float uz,
-                  float fovy, int projection)
+static const sk_camera3d_t CAMERA_DEFAULTS = {
+    .position = {0.0f, 0.0f, 10.0f},
+    .target = {0.0f, 0.0f, 0.0f},
+    .up = {0.0f, 1.0f, 0.0f},
+    .fov = 0.785398163f, /* pi / 4 */
+    .ortho_height = 10.0f,
+    .projection = SK_CAMERA3D_PERSPECTIVE,
+};
+
+static sk_camera3d_t *lookup(sk_handle_t camera)
 {
-    sk_cameras[index] = (sk_camera3d_t){
-        .position = {px, py, pz},
-        .target = {tx, ty, tz},
-        .up = {ux, uy, uz},
-        .fovy = fovy,
-        .projection = projection,
-    };
+    uint16_t index = 0;
+    return resolve(camera, &index) ? &sk_cameras[index] : NULL;
 }
 
 SK_KEEP
-sk_handle_t sk_camera3d_create(float position_x, float position_y, float position_z,
-                               float target_x, float target_y, float target_z,
-                               float up_x, float up_y, float up_z,
-                               float fovy, int projection)
+sk_handle_t sk_camera3d_create(sk_camera3d_projection_t projection)
 {
     sk_handle_t handle = sk_handle_pool_alloc(&sk_camera_pool);
     uint16_t index = 0;
@@ -61,8 +58,9 @@ sk_handle_t sk_camera3d_create(float position_x, float position_y, float positio
         return 0;
     }
     sk_handle_pool_resolve(&sk_camera_pool, handle, &index);
-    store(index, position_x, position_y, position_z, target_x, target_y, target_z,
-          up_x, up_y, up_z, fovy, projection);
+    sk_cameras[index] = CAMERA_DEFAULTS;
+    sk_cameras[index].projection =
+        projection == SK_CAMERA3D_ORTHOGRAPHIC ? SK_CAMERA3D_ORTHOGRAPHIC : SK_CAMERA3D_PERSPECTIVE;
     return handle;
 }
 
@@ -73,19 +71,74 @@ sk_handle_t sk_camera3d_get_default(void)
 }
 
 SK_KEEP
-bool sk_camera3d_set(sk_handle_t handle,
-                     float position_x, float position_y, float position_z,
-                     float target_x, float target_y, float target_z,
-                     float up_x, float up_y, float up_z,
-                     float fovy, int projection)
+bool sk_camera3d_set_view(sk_handle_t camera,
+                          float position_x, float position_y, float position_z,
+                          float target_x, float target_y, float target_z,
+                          float up_x, float up_y, float up_z)
 {
-    uint16_t index = 0;
-    if (!resolve(handle, &index)) {
+    sk_camera3d_t *camera_ptr = lookup(camera);
+    if (camera_ptr == NULL) {
         return false;
     }
-    store(index, position_x, position_y, position_z, target_x, target_y, target_z,
-          up_x, up_y, up_z, fovy, projection);
+    camera_ptr->position = (vec3_t){position_x, position_y, position_z};
+    camera_ptr->target = (vec3_t){target_x, target_y, target_z};
+    camera_ptr->up = (vec3_t){up_x, up_y, up_z};
     return true;
+}
+
+SK_KEEP
+bool sk_camera3d_set_projection(sk_handle_t camera, sk_camera3d_projection_t projection)
+{
+    sk_camera3d_t *camera_ptr = lookup(camera);
+    if (camera_ptr == NULL ||
+        (projection != SK_CAMERA3D_PERSPECTIVE && projection != SK_CAMERA3D_ORTHOGRAPHIC)) {
+        return false;
+    }
+    camera_ptr->projection = projection;
+    return true;
+}
+
+SK_KEEP
+sk_camera3d_projection_t sk_camera3d_get_projection(sk_handle_t camera)
+{
+    sk_camera3d_t *camera_ptr = lookup(camera);
+    return camera_ptr != NULL ? camera_ptr->projection : SK_CAMERA3D_PERSPECTIVE;
+}
+
+SK_KEEP
+bool sk_camera3d_set_fov(sk_handle_t camera, float fov)
+{
+    sk_camera3d_t *camera_ptr = lookup(camera);
+    if (camera_ptr == NULL || !(fov > 0.0f && fov < 3.14159f)) {
+        return false;
+    }
+    camera_ptr->fov = fov;
+    return true;
+}
+
+SK_KEEP
+float sk_camera3d_get_fov(sk_handle_t camera)
+{
+    sk_camera3d_t *camera_ptr = lookup(camera);
+    return camera_ptr != NULL ? camera_ptr->fov : 0.0f;
+}
+
+SK_KEEP
+bool sk_camera3d_set_ortho_height(sk_handle_t camera, float height)
+{
+    sk_camera3d_t *camera_ptr = lookup(camera);
+    if (camera_ptr == NULL || !(height > 0.0f)) {
+        return false;
+    }
+    camera_ptr->ortho_height = height;
+    return true;
+}
+
+SK_KEEP
+float sk_camera3d_get_ortho_height(sk_handle_t camera)
+{
+    sk_camera3d_t *camera_ptr = lookup(camera);
+    return camera_ptr != NULL ? camera_ptr->ortho_height : 0.0f;
 }
 
 SK_KEEP
@@ -139,12 +192,12 @@ sk_mat4_t sk_camera3d_projection(const sk_camera3d_t *cam, float aspect)
         aspect = 1.0f;
     }
     if (cam->projection == SK_CAMERA3D_ORTHOGRAPHIC) {
-        const float top = cam->fovy * 0.5f;
+        const float top = cam->ortho_height * 0.5f;
         const float right = top * aspect;
         return sk_mat4_ortho(-right, right, -top, top, SK_CAMERA3D_ORTHOGRAPHIC_NEAR,
                              SK_CAMERA3D_ORTHOGRAPHIC_FAR);
     }
-    return sk_mat4_perspective(cam->fovy * SK_DEG2RAD, aspect, SK_CAMERA3D_PERSPECTIVE_NEAR,
+    return sk_mat4_perspective(cam->fov, aspect, SK_CAMERA3D_PERSPECTIVE_NEAR,
                                SK_CAMERA3D_PERSPECTIVE_FAR);
 }
 
@@ -185,8 +238,8 @@ void sk_camera3d_init(void)
     sk_camera_occupied[1] = 1;
     sk_camera_pool.next_index = SK_CAMERA3D_DYNAMIC_START_INDEX;
 
-    store(1, 10.0f, 10.0f, 10.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f,
-          45.0f, SK_CAMERA3D_PERSPECTIVE);
+    sk_cameras[1] = CAMERA_DEFAULTS;
+    sk_cameras[1].position = (vec3_t){10.0f, 10.0f, 10.0f};
     sk_active_camera = SK_CAMERA3D_DEFAULT;
 }
 

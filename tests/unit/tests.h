@@ -3,6 +3,7 @@
 
 /* Every unit test; add new ones here and to the table in main.c. */
 
+void test_camera_api(void);
 void test_camera_projection(void);
 void test_pick_ray_from_screen_ortho(void);
 

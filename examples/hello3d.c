@@ -13,10 +13,8 @@ static sk_handle_t g_bg;
 static void on_init(void *user_data)
 {
     (void)user_data;
-    g_camera = sk_camera3d_create(14.0f, 8.0f, 14.0f,
-                                  0.0f, 1.0f, 0.0f,
-                                  0.0f, 1.0f, 0.0f,
-                                  45.0f, SK_CAMERA3D_PERSPECTIVE);
+    g_camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE); /* default fov: pi/4 */
+    sk_camera3d_set_view(g_camera, 14.0f, 8.0f, 14.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     sk_camera3d_set_active(g_camera);
     g_bg = sk_color_create(28, 28, 38, 255);
     sk_debug_enable_fps(12, 10, 16);
@@ -31,8 +29,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     float r = 16.0f;
     float cam_x = cosf(t * 0.4f) * r;
     float cam_z = sinf(t * 0.4f) * r;
-    sk_camera3d_set(g_camera, cam_x, 9.0f, cam_z, 0.0f, 1.0f, 0.0f,
-                    0.0f, 1.0f, 0.0f, 45.0f, SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(g_camera, cam_x, 9.0f, cam_z, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
     sk_render_begin();
     sk_render_clear_background(g_bg);

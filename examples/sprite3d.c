@@ -45,8 +45,8 @@ static void on_init(void *user_data)
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
     (void)user_data;
     g_bg = sk_color_create(20, 22, 30, 255);
-    g_camera = sk_camera3d_create(12.0f, 7.0f, 12.0f, 0.0f, 2.5f, 0.0f,
-                                  0.0f, 1.0f, 0.0f, 45.0f, SK_CAMERA3D_PERSPECTIVE);
+    g_camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(g_camera, 12.0f, 7.0f, 12.0f, 0.0f, 2.5f, 0.0f, 0.0f, 1.0f, 0.0f);
     g_scene = sk_scene_create();
     sk_scene_set_active_camera(g_scene, g_camera);
 
@@ -66,8 +66,8 @@ static void frame(float dt, float tick_fraction, void *user_data)
     (void)user_data;
     float t = (float)sk_get_time();
 
-    sk_camera3d_set(g_camera, cosf(t * 0.3f) * 13.0f, 7.0f, sinf(t * 0.3f) * 13.0f,
-                    0.0f, 2.5f, 0.0f, 0.0f, 1.0f, 0.0f, 45.0f, SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(g_camera, cosf(t * 0.3f) * 13.0f, 7.0f, sinf(t * 0.3f) * 13.0f,
+                         0.0f, 2.5f, 0.0f, 0.0f, 1.0f, 0.0f);
 
     if (g_loaded) {
         float y = 3.5f + sinf(t * 1.5f) * 0.8f; /* bob */

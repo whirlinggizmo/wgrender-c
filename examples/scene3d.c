@@ -20,8 +20,8 @@ static void on_init(void *user_data)
     (void)user_data;
 
     g_bg = sk_color_create(24, 26, 34, 255);
-    g_camera = sk_camera3d_create(16.0f, 11.0f, 16.0f, 0.0f, 1.0f, 0.0f,
-                                  0.0f, 1.0f, 0.0f, 45.0f, SK_CAMERA3D_PERSPECTIVE);
+    g_camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(g_camera, 16.0f, 11.0f, 16.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
     g_scene = sk_scene_create();
     sk_scene_set_active_camera(g_scene, g_camera);
@@ -93,8 +93,8 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_mouse_state_t mouse = sk_input_get_mouse_state();
     char status[96];
 
-    sk_camera3d_set(g_camera, cosf(t * 0.35f) * 18.0f, 11.0f, sinf(t * 0.35f) * 18.0f,
-                    0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 45.0f, SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(g_camera, cosf(t * 0.35f) * 18.0f, 11.0f, sinf(t * 0.35f) * 18.0f,
+                         0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
     sk_shape_set_transform(g_spinner, 0.0f, 5.0f, 0.0f, t * 1.3f, t * 0.9f, 0.0f,
                            1.0f, 1.0f, 1.0f);
