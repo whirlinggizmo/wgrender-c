@@ -7,6 +7,7 @@
 #include "internal/sk_camera3d.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
+#include "internal/sk_light.h"
 #include "internal/sk_math.h"
 #include "internal/sk_model.h"
 #include "internal/sk_pick.h"
@@ -133,6 +134,9 @@ typedef struct {
     sk_mat4_t model_mat;
     sk_mat4_t model_view; /* for view-space depth when sorting transparent parts */
     color_t tint;
+    int light_env;        /* lighting environment index, -1 = unlit */
+    int light_count;      /* lights selected for this placement */
+    int lights[SK_MAX_DRAW_LIGHTS]; /* indices into the environment's lights */
 } sk_model_draw_t;
 
 /* One primitive to draw, in submission order. sk_render replays ranges of these. */
@@ -1038,7 +1042,12 @@ static int begin_draw(sk_handle_t handle, sk_model_t *model_ptr)
     float aspect;
     sk_model_draw_t *e;
 
-    if (sk_model_draw_count > 0 && sk_model_draws[sk_model_draw_count - 1].model == handle) {
+    const int light_env = sk_light_env_current();
+    const sk_light_env_t *env = sk_light_env_get(light_env);
+    sk_mesh_t *mesh_ptr = resolve_mesh(model_ptr->mesh);
+
+    if (sk_model_draw_count > 0 && sk_model_draws[sk_model_draw_count - 1].model == handle &&
+        sk_model_draws[sk_model_draw_count - 1].light_env == light_env) {
         return sk_model_draw_count - 1;
     }
     if (sk_model_draw_count >= MAX_MODEL_DRAWS) {
@@ -1060,6 +1069,15 @@ static int begin_draw(sk_handle_t handle, sk_model_t *model_ptr)
     e->model_mat = model_mat;
     e->model_view = sk_mat4_mul(view, model_mat);
     e->tint = model_tint(model_ptr);
+
+    /* choose this placement's lights once, from its world bounds */
+    e->light_env = env != NULL ? light_env : -1;
+    e->light_count = 0;
+    if (env != NULL && mesh_ptr != NULL) {
+        vec3_t wmin, wmax;
+        sk_pick_world_aabb(mesh_ptr->lmin, mesh_ptr->lmax, model_mat, &wmin, &wmax);
+        e->light_count = sk_light_select(env, wmin, wmax, e->lights, SK_MAX_DRAW_LIGHTS);
+    }
     return sk_model_draw_count++;
 }
 
@@ -1186,14 +1204,38 @@ static void draw_transparent(sk_handle_t handle, int part)
 static void apply_fs(sk_model_draw_t *e, sk_primitive_t *prim)
 {
     fs_params_t fsp;
-    fsp.u_light_dir[0] = -0.6f; fsp.u_light_dir[1] = -1.0f; fsp.u_light_dir[2] = -0.5f; fsp.u_light_dir[3] = 0.0f;
+    const sk_light_env_t *env = sk_light_env_get(e->light_env);
+
+    memset(&fsp, 0, sizeof(fsp));
     fsp.u_tint[0] = e->tint.r * prim->base_color[0];
     fsp.u_tint[1] = e->tint.g * prim->base_color[1];
     fsp.u_tint[2] = e->tint.b * prim->base_color[2];
     fsp.u_tint[3] = e->tint.a * prim->base_color[3];
-    fsp.u_ambient[0] = 0.3f; fsp.u_ambient[1] = fsp.u_ambient[2] = fsp.u_ambient[3] = 0.0f;
     fsp.u_material[0] = prim->alpha_mode == ALPHA_MODE_MASK ? prim->alpha_cutoff : 0.0f;
-    fsp.u_material[1] = fsp.u_material[2] = fsp.u_material[3] = 0.0f;
+
+    if (env != NULL) {
+        fsp.u_ambient[0] = env->ambient.x;
+        fsp.u_ambient[1] = env->ambient.y;
+        fsp.u_ambient[2] = env->ambient.z;
+        fsp.u_ambient[3] = 1.0f; /* lit */
+        fsp.u_material[1] = (float)e->light_count;
+        for (int i = 0; i < e->light_count; i++) {
+            const sk_scene_light_t *light = &env->lights[e->lights[i]];
+            fsp.u_light_pos_range[i][0] = light->position.x;
+            fsp.u_light_pos_range[i][1] = light->position.y;
+            fsp.u_light_pos_range[i][2] = light->position.z;
+            fsp.u_light_pos_range[i][3] = light->range;
+            fsp.u_light_dir_type[i][0] = light->direction.x;
+            fsp.u_light_dir_type[i][1] = light->direction.y;
+            fsp.u_light_dir_type[i][2] = light->direction.z;
+            fsp.u_light_dir_type[i][3] = (float)light->type;
+            fsp.u_light_radiance[i][0] = light->radiance.x;
+            fsp.u_light_radiance[i][1] = light->radiance.y;
+            fsp.u_light_radiance[i][2] = light->radiance.z;
+            fsp.u_light_spot[i][0] = light->cos_inner;
+            fsp.u_light_spot[i][1] = light->cos_outer;
+        }
+    }
     sg_apply_uniforms(UB_fs_params, &(sg_range){.ptr = &fsp, .size = sizeof(fsp)});
 }
 

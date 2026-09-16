@@ -87,6 +87,12 @@ static void on_init(void *user_data)
     g_scene = sk_scene_create();
     sk_scene_set_active_camera(g_scene, g_camera);
 
+    /* scenes start unlit: a sun and some ambient so the model is visible */
+    sk_handle_t sun = sk_light_create(SK_LIGHT_DIRECTIONAL);
+    sk_light_set_direction(sun, -0.6f, -1.0f, -0.5f);
+    sk_scene_add(g_scene, sun, 0);
+    sk_scene_set_ambient(g_scene, 0, 0.3f);
+
     g_cube = sk_shape_create();
     sk_shape_set_cube(g_cube, 2.0f, 2.0f, 2.0f);
     sk_shape_set_transform(g_cube, -3.5f, 1.0f, 0.0f, 0.0f, 0.6f, 0.0f, 1.0f, 1.0f, 1.0f);

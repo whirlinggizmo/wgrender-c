@@ -1,6 +1,6 @@
 # Plan: Lighting (light objects, per-scene lighting)
 
-Status: **proposed, decisions recorded (2026-09-16); implementation pending.** No code changed yet.
+Status: **implemented (2026-09-16).** See `include/sk_light.h` and `examples/lights.c`.
 Builds on the Resource/Object model ([ARCHITECTURE.md](ARCHITECTURE.md)) and the
 scene render passes (opaque, then sorted transparent). Leaves room for the
 materials work in [ROADMAP.md](ROADMAP.md).

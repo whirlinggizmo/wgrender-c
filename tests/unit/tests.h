@@ -16,6 +16,10 @@ void test_tick_clock_stall(void);
 void test_handle_pool(void);
 void test_handle_pool_reuse(void);
 
+void test_light_falloff(void);
+void test_light_select(void);
+void test_light_api(void);
+
 void test_math_inverse(void);
 void test_math_trs(void);
 

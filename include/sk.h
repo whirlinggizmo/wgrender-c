@@ -13,6 +13,7 @@
 #include "sk_handle.h"  // IWYU pragma: keep
 #include "sk_input.h"   // IWYU pragma: keep
 #include "sk_keys.h"    // IWYU pragma: keep
+#include "sk_light.h"   // IWYU pragma: keep
 #include "sk_logger.h"  // IWYU pragma: keep
 #include "sk_model.h"   // IWYU pragma: keep
 #include "sk_render.h"  // IWYU pragma: keep

@@ -5,6 +5,7 @@
 #include "internal/exports.h"
 #include "internal/sk_camera3d.h"
 #include "internal/sk_internal.h"
+#include "internal/sk_light.h"
 #include "internal/sk_model.h"
 #include "internal/sk_render.h"
 #include "sk_camera3d.h"
@@ -241,6 +242,7 @@ void sk_render_end(void)
     sg_commit();
 
     sk_model_end_frame();
+    sk_light_end_frame();
     reset_frame_commands();
 }
 

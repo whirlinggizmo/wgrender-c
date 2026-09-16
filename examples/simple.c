@@ -123,10 +123,6 @@ static void on_init(void *user_data)
     sk_logger_set_level(SK_LOGGER_LEVEL_WARN);
     sk_set_target_fps(60);
 
-    /* PARITY: librl sets lighting here (enable, direction -0.6/-1/-0.5, ambient
-     * 0.25). libsk has no lighting API yet; its built-in light uses the same
-     * direction with ambient 0.3. */
-
     g.countdown_timer = 30.0f;
     snprintf(g.message, sizeof(g.message), "Hello from libsk simple!");
     snprintf(g.platform_text, sizeof(g.platform_text), "Platform: %s", sk_get_platform());
@@ -134,6 +130,12 @@ static void on_init(void *user_data)
     g.camera = sk_camera3d_create(12, 12, 12, 0, 1, 0, 0, 1, 0, 45.0f, SK_CAMERA3D_PERSPECTIVE);
     g.scene = sk_scene_create();
     sk_scene_set_active_camera(g.scene, g.camera);
+
+    /* same lighting as librl's c-simple: a directional light plus ambient 0.25 */
+    sk_handle_t sun = sk_light_create(SK_LIGHT_DIRECTIONAL);
+    sk_light_set_direction(sun, -0.6f, -1.0f, -0.5f);
+    sk_scene_add(g.scene, sun, 0);
+    sk_scene_set_ambient(g.scene, 0, 0.25f);
     g.background_color = sk_color_create(245, 245, 245, 255);
 
     load(BGM_PATH, on_bgm_ready);

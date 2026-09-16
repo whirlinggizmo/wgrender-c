@@ -161,6 +161,10 @@ reference/librl the raylib library this evolves from (read-only reference)
   on), then transparent parts (blended or faded model primitives, sprites,
   translucent shapes) sorted back to front with depth writes off. Direct
   `sk_*_draw()` calls outside a scene are not sorted against each other.
+- Lighting is explicit: models in a scene are lit only by lights added to that
+  scene (`sk_light_create`, `sk_scene_add`) plus its ambient
+  (`sk_scene_set_ambient`); a new scene is dark. Models drawn outside a scene are
+  unlit. Shapes and sprites are unlit. See `examples/lights.c`.
 - `sk_text_draw` without a font uses `sokol_debugtext` (built-in 8x8 bitmap
   font). TTF fonts (`sk_font_create`, `sk_text_draw_ex`, `text2d`) go through
   fontstash.
@@ -168,6 +172,6 @@ reference/librl the raylib library this evolves from (read-only reference)
 ## Not yet ported from librl
 
 Main gaps: `sprite2d`, `text3d`, the remaining 3D shapes, per-object picking,
-lighting controls, window/monitor control, language bindings and tests. See the
+window/monitor control, language bindings and tests. See the
 **librl parity** section of [docs/ROADMAP.md](docs/ROADMAP.md) for the full list,
 the suggested order, and what was left out on purpose.

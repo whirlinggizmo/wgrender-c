@@ -73,8 +73,9 @@ Lessons from librl not yet addressed (design for these; don't repeat them):
    `pick_text3d` alongside `sk_scene_pick`; `set_pickable` / `is_pickable` on
    model, sprite3d, sprite2d, text2d, text3d (only shape has it today); pick stats
    (broadphase/narrowphase counters) under `sk_debug`.
-5. **Lighting controls** — `enable` / `disable` / `is_enabled`, `set_light_direction`,
-   `set_light_ambient`. The light is currently hardcoded in `src/sk_model.c`.
+5. ~~**Lighting controls**~~ — done, redesigned as light objects (directional,
+   point, spot) with per-scene lights and ambient. See
+   [PLAN-lighting.md](PLAN-lighting.md).
 6. **Window / monitor** — `set_size`, `set_position`, monitor count / current /
    set / width / height / position. Check what sokol_app exposes per platform;
    some may be desktop-only no-ops on web.

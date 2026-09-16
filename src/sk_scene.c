@@ -7,6 +7,7 @@
 #include "internal/sk_camera3d.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
+#include "internal/sk_light.h"
 #include "internal/sk_math.h"
 #include "internal/sk_scene.h"
 #include "internal/sk_pick.h"
@@ -30,6 +31,8 @@ typedef struct {
     int count;
     int capacity;
     sk_handle_t camera;
+    sk_handle_t ambient_color;  /* 0 = white */
+    float ambient_intensity;    /* 0 = no ambient (default) */
 } sk_scene_t;
 
 static sk_scene_t sk_scenes[MAX_SCENES];
@@ -274,6 +277,37 @@ void sk_scene_set_active_camera(sk_handle_t scene, sk_handle_t camera)
     scene_ptr->camera = camera;
 }
 
+SK_KEEP
+bool sk_scene_set_ambient(sk_handle_t scene, sk_handle_t color, float intensity)
+{
+    sk_scene_t *scene_ptr = resolve(scene);
+    if (scene_ptr == NULL) {
+        return false;
+    }
+    scene_ptr->ambient_color = color;
+    scene_ptr->ambient_intensity = intensity > 0.0f ? intensity : 0.0f;
+    return true;
+}
+
+/* Gather the scene's enabled lights (in member order) and ambient into a
+ * lighting environment for the models drawn by this scene draw. */
+static int push_lighting(const sk_scene_t *scene_ptr)
+{
+    static sk_light_env_t env; /* large; built and copied once per scene draw */
+    color_t ambient = sk_color_get(scene_ptr->ambient_color);
+
+    env.count = 0;
+    env.ambient = (vec3_t){ambient.r * scene_ptr->ambient_intensity, ambient.g * scene_ptr->ambient_intensity,
+                           ambient.b * scene_ptr->ambient_intensity};
+    for (int i = 0; i < scene_ptr->count && env.count < SK_MAX_SCENE_LIGHTS; i++) {
+        if (sk_handle_get_kind(scene_ptr->items[i].drawable) == SK_HANDLE_KIND_LIGHT &&
+            sk_light_get_scene_light(scene_ptr->items[i].drawable, &env.lights[env.count])) {
+            env.count++;
+        }
+    }
+    return sk_light_env_push(&env);
+}
+
 /* One layer: opaque parts first, then transparent parts sorted back to front
  * across all drawable kinds. Consecutive parts of the same kind stay batched
  * (the render command list merges adjacent sokol_gl and model runs). */
@@ -353,6 +387,7 @@ void sk_scene_draw(sk_handle_t scene)
         return;
     }
 
+    sk_light_env_set_current(push_lighting(scene_ptr));
     sk_render_begin_mode_3d();
     for (int start = 0; start < scene_ptr->count;) {
         int layer = scene_ptr->items[start].layer;
@@ -364,6 +399,7 @@ void sk_scene_draw(sk_handle_t scene)
         start = end;
     }
     sk_render_end_mode_3d();
+    sk_light_env_set_current(-1); /* models drawn outside a scene are unlit */
 }
 
 /* ---- picking ----------------------------------------------------------- */

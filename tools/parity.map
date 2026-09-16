@@ -63,12 +63,12 @@ rl_fs_write                             dropped  sk_fs is internal; bytes never 
 # --- rl_input.h ---
 rl_input_poll_events                    dropped  sokol_app delivers events via callbacks
 
-# --- lighting (rl.h / rl_render.h) ---
-rl_disable_lighting                     todo
-rl_enable_lighting                      todo
-rl_is_lighting_enabled                  todo
-rl_set_light_ambient                    todo
-rl_set_light_direction                  todo     currently hardcoded in src/sk_model.c
+# --- lighting (rl.h / rl_render.h): redesigned as light objects in scenes (docs/PLAN-lighting.md) ---
+rl_disable_lighting                     ported   sk_light_set_enabled   per light, not global
+rl_enable_lighting                      ported   sk_light_create        lighting comes from lights added to a scene
+rl_is_lighting_enabled                  ported   sk_light_is_enabled
+rl_set_light_ambient                    ported   sk_scene_set_ambient   per scene, with color
+rl_set_light_direction                  ported   sk_light_set_direction
 
 # --- rl_model.h ---
 rl_model_create_from_file               dropped  objects are created from handles (sk_mesh_create + sk_model_create)

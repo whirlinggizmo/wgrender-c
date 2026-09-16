@@ -55,6 +55,7 @@ transform / tint / volume / playback state and points at a shared resource via
 | `gumshoe.glb` / *gen* | **Mesh** (primitives + skin + clips)     | **Model** (`set_mesh`)           |
 | `ethernight_club.mp3` | **Audio** (decoded \| streamed)          | **Sound** (`set_audio`)          |
 | `JetBrainsMono`       | **Font**                                 | Text2d / Text3d (`set_font`)     |
+| *(none)*              | *(none)*                                 | **Light** (added to a Scene)     |
 
 Rule that disambiguates every row: **resource = the data noun, object = the
 concrete placed/heard noun.** `Texture→Sprite`, `Mesh→Model`, `Audio→Sound`,
@@ -69,6 +70,9 @@ Naming notes / decisions:
   ever matters, clips can be split into their own resource later — not now.)
 - **Texture, not Image.** There is no separate public `Image` type; the Texture
   resource carries the optional CPU-side alpha mask used for picking.
+- **Light is an object with no resource.** Directional, point and spot lights are
+  created with `sk_light_create(type)` and added to scenes; nothing is loaded.
+  See [PLAN-lighting.md](PLAN-lighting.md).
 - **Audio (resource) → Sound (object).** "audio" is the loaded data ("load the
   audio"); "a sound" is the concrete thing you play and position ("play a
   sound", `sound_set_volume`). `play_sfx()` / `play_music()` are thin

@@ -55,6 +55,12 @@ static void on_init(void *user_data) {
                                 SK_CAMERA3D_PERSPECTIVE);
   g_scene = sk_scene_create();
   sk_scene_set_active_camera(g_scene, g_camera);
+
+  /* scenes start unlit: add a sun and some ambient */
+  sk_handle_t sun = sk_light_create(SK_LIGHT_DIRECTIONAL);
+  sk_light_set_direction(sun, -0.6f, -1.0f, -0.5f);
+  sk_scene_add(g_scene, sun, 0);
+  sk_scene_set_ambient(g_scene, 0, 0.3f);
   sk_debug_enable_fps(12, 10, 16);
 
   g_model = create_model(MODEL_PATH);

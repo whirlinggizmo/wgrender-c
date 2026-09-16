@@ -77,8 +77,12 @@ tick the box in the same commit.
       tick, which uses real elapsed time and catches up (up to 5 ticks per frame)
 - [ ] Decide: asset callbacks run on the main thread, so creating a resource
       blocks the frame (the MP3 decode takes ~0.22s). Related to audio streaming
-- [ ] Remove the `PARITY:` notes in `examples/simple.c` as lighting control and
-      FPS drawing in a custom font land
+- [x] Lighting: light objects (directional, point, spot), per-scene lights and
+      ambient, up to 8 lights per model by contribution, nothing lit implicitly
+      (docs/PLAN-lighting.md, examples/lights.c). `simple.c` lighting PARITY note
+      removed
+- [ ] Remove the remaining `PARITY:` note in `examples/simple.c` when FPS drawing
+      in a custom font lands
 
 ## librl parity (functional, not 1:1; see `make parity` for function-level status)
 
@@ -95,7 +99,7 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 - [ ] Per-object picking and pickable flags on every pickable object; read back
       a sprite's transform
 - [ ] Pick statistics for debugging
-- [ ] Lighting controls: on/off, direction, ambient
+- [x] Lighting controls: redesigned as light objects in scenes (see above)
 - [ ] Window and monitor control: size, position, monitor queries (check web)
 - [ ] Assets: ensure many files at once (handle-only), host reachability check
 - [ ] Models: handle validity checks, a default placeholder mesh
