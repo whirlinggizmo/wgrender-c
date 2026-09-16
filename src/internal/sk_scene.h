@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 
+#include "internal/sk_camera3d.h"
 #include "sk_handle.h"
 #include "sk_math.h"
 #include "sk_types.h"
@@ -10,13 +11,42 @@
 void sk_scene_init(void);
 void sk_scene_deinit(void);
 
-/* Drawable dispatch: each drawable module registers a draw function for its
- * handle kind at init time. The scene (and direct draws) dispatch through this
- * registry, so the scene need not know about concrete drawable types. */
-typedef void (*sk_drawable_draw_fn)(sk_handle_t handle);
+/* Render passes
+ * -------------
+ * sk_scene_draw() draws each layer in two passes: an opaque pass (depth writes
+ * on), then a transparent pass sorted back to front across every drawable kind
+ * (depth writes off). Each drawable module registers how it takes part:
+ *
+ *   draw_opaque          draw the handle's opaque parts (may be NULL)
+ *   collect_transparent  report the handle's transparent parts, one item each,
+ *                        with their view depth; returns the number written
+ *                        (may be NULL)
+ *   draw_transparent     draw one transparent part reported by collect
+ *
+ * A part is drawable-defined (e.g. a model primitive index; 0 for a sprite). */
+typedef struct {
+    sk_handle_t handle;
+    int part;
+    float depth; /* distance along the camera's view direction; larger = farther */
+    int order;   /* set by the scene: stable tie-break for equal depths */
+} sk_transparent_item_t;
 
-void sk_scene_register_drawable(sk_handle_kind_t kind, sk_drawable_draw_fn draw);
-void sk_drawable_draw(sk_handle_t handle);
+typedef void (*sk_drawable_draw_opaque_fn)(sk_handle_t handle);
+typedef int (*sk_drawable_collect_transparent_fn)(sk_handle_t handle, const sk_camera3d_t *cam,
+                                                  sk_transparent_item_t *out, int max_items);
+typedef void (*sk_drawable_draw_transparent_fn)(sk_handle_t handle, int part);
+
+void sk_scene_register_passes(sk_handle_kind_t kind,
+                              sk_drawable_draw_opaque_fn draw_opaque,
+                              sk_drawable_collect_transparent_fn collect_transparent,
+                              sk_drawable_draw_transparent_fn draw_transparent);
+
+/* Distance of a world-space point along the camera's view direction. */
+float sk_scene_view_depth(const sk_camera3d_t *cam, vec3_t world_point);
+
+/* Sort transparent items back to front (farthest first), keeping `order` for
+ * equal depths. Pure; exposed for tests. */
+void sk_scene_sort_transparent(sk_transparent_item_t *items, int count);
 
 /* Bounds for picking: a drawable reports its local-space AABB plus the model
  * matrix placing it in the world. Returns false if the handle has no bounds

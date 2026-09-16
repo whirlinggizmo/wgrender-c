@@ -38,6 +38,9 @@ static uint16_t sk_sprite_generations[MAX_SPRITES];
 static unsigned char sk_sprite_occupied[MAX_SPRITES];
 
 static void draw_handle(sk_handle_t handle);
+static int collect_transparent(sk_handle_t handle, const sk_camera3d_t *cam,
+                               sk_transparent_item_t *out, int max_items);
+static void draw_transparent(sk_handle_t handle, int part);
 static bool sprite_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model);
 static bool sprite_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_result_t *out);
 
@@ -254,6 +257,30 @@ static void draw_handle(sk_handle_t handle)
     }
 }
 
+/* Scene: sprites are always in the transparent pass (textures usually have
+ * alpha), sorted by their center. Direct sk_sprite3d_draw() calls keep the
+ * depth-writing pipeline. */
+static int collect_transparent(sk_handle_t handle, const sk_camera3d_t *cam,
+                               sk_transparent_item_t *out, int max_items)
+{
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    if (sprite_ptr == NULL || !sprite_ptr->visible || sprite_ptr->texture == 0 || max_items < 1) {
+        return 0;
+    }
+    out[0] = (sk_transparent_item_t){
+        .handle = handle,
+        .part = 0,
+        .depth = sk_scene_view_depth(cam, sprite_ptr->position),
+    };
+    return 1;
+}
+
+static void draw_transparent(sk_handle_t handle, int part)
+{
+    (void)part;
+    draw_handle(handle);
+}
+
 SK_KEEP
 void sk_sprite3d_draw(sk_handle_t handle)
 {
@@ -394,7 +421,7 @@ void sk_sprite3d_init(void)
                         MAX_SPRITES,
                         sk_sprite_generations,
                         sk_sprite_occupied);
-    sk_scene_register_drawable(SK_HANDLE_KIND_SPRITE3D, draw_handle);
+    sk_scene_register_passes(SK_HANDLE_KIND_SPRITE3D, NULL, collect_transparent, draw_transparent);
     sk_scene_register_bounds(SK_HANDLE_KIND_SPRITE3D, sprite_bounds);
     sk_scene_register_pick(SK_HANDLE_KIND_SPRITE3D, sprite_pick);
 }

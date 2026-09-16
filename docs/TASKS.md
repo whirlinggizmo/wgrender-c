@@ -28,12 +28,13 @@ tick the box in the same commit.
       (BLEND, alpha 0.2) drew as a solid black quad. Fixed: MASK discards below
       the cutoff, BLEND and faded models (tint alpha < 1) draw in a sorted blended
       pass, `doubleSided` disables culling
-- [ ] Scene layers + render passes (librl had these; libsk kept only the API).
-      All queued models draw before any sokol_gl content, so layers don't order
-      models against shapes/sprites/2D, and a faded model in front of a shape is
-      overdrawn by it. Per layer: opaque pass, then one transparent pass sorted
-      across models and sprites (batched in runs, unlike librl's per-item flush),
-      2D after all 3D layers; immediate draws follow call order
+- [x] Scene layers + render passes (librl had these; libsk kept only the API).
+      Done: per layer an opaque pass, then one transparent pass sorted back to
+      front across model primitives, sprites and translucent shapes (runs stay
+      batched, unlike librl's per-item flush). Draw order follows call order
+      across sokol_gl and model draws (frame command list in `sk_render`)
+- [ ] 2D scene drawables (sprite2d, text2d in a scene) draw after all 3D layers
+      once they exist
 - [ ] Bug: static (unskinned) glTF primitives ignore their node transform
       (gumshoe's `blobShadow` node is scaled 0.66 and offset). Bake node world
       transforms into positions, normals, pick data and bounds at load

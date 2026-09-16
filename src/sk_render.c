@@ -5,7 +5,10 @@
 #include "internal/exports.h"
 #include "internal/sk_camera3d.h"
 #include "internal/sk_internal.h"
+#include "internal/sk_model.h"
+#include "internal/sk_render.h"
 #include "sk_camera3d.h"
+#include "sk_logger.h"
 
 #include "sokol_app.h"
 #include "sokol_gfx.h"
@@ -13,6 +16,7 @@
 #include "util/sokol_gl.h"
 
 #define SK_DEG2RAD 0.01745329251994329577f
+#define MAX_RENDER_CMDS 1024
 
 /* Render model
  * -----------
@@ -21,12 +25,102 @@
  * clears via the pass load-action. To keep the librl-style
  * begin/clear/draw/end ordering, we record everything between sk_render_begin()
  * and sk_render_end(), then open the swapchain pass in sk_render_end() (where
- * the clear color is already known) and flush sgl + debugtext into it.
+ * the clear color is already known) and replay the frame's command list (sgl
+ * layers and model draws, in call order; see internal/sk_render.h), then the
+ * debugtext overlay.
  */
+
+typedef enum {
+    RENDER_CMD_SGL_LAYER,
+    RENDER_CMD_MODELS,
+} sk_render_cmd_kind_t;
+
+typedef struct {
+    sk_render_cmd_kind_t kind;
+    int layer; /* RENDER_CMD_SGL_LAYER */
+    int first; /* RENDER_CMD_MODELS: item range in sk_model's queue */
+    int count;
+} sk_render_cmd_t;
 
 static color_t sk_clear_color = {0.1f, 0.1f, 0.1f, 1.0f};
 static sgl_pipeline sk_pip_2d;
 static sgl_pipeline sk_pip_3d;
+static sgl_pipeline sk_pip_3d_transparent;
+
+static sk_render_cmd_t sk_render_cmds[MAX_RENDER_CMDS];
+static int sk_render_cmd_count;
+static int sk_render_next_layer;
+/* sokol_gl totals when the current layer was opened, to detect empty layers */
+static int sk_layer_mark_vertices;
+static int sk_layer_mark_commands;
+static bool sk_render_overflow_logged;
+
+static void open_sgl_layer(void)
+{
+    int layer = sk_render_next_layer++;
+    sgl_layer(layer);
+    sk_render_cmds[sk_render_cmd_count++] = (sk_render_cmd_t){
+        .kind = RENDER_CMD_SGL_LAYER,
+        .layer = layer,
+    };
+    sk_layer_mark_vertices = sgl_num_vertices();
+    sk_layer_mark_commands = sgl_num_commands();
+}
+
+static void reset_frame_commands(void)
+{
+    sk_render_cmd_count = 0;
+    sk_render_next_layer = 0;
+    open_sgl_layer();
+}
+
+void sk_render_submit_models(int first, int count)
+{
+    sk_render_cmd_t *last;
+
+    if (count <= 0) {
+        return;
+    }
+
+    /* drop the current sgl layer if nothing was recorded into it */
+    last = &sk_render_cmds[sk_render_cmd_count - 1];
+    if (sk_render_cmd_count > 1 && last->kind == RENDER_CMD_SGL_LAYER &&
+        sgl_num_vertices() == sk_layer_mark_vertices &&
+        sgl_num_commands() == sk_layer_mark_commands) {
+        sk_render_cmd_count--;
+        sk_render_next_layer--;
+        last = &sk_render_cmds[sk_render_cmd_count - 1];
+    }
+
+    if (last->kind == RENDER_CMD_MODELS && last->first + last->count == first) {
+        last->count += count; /* extend the adjacent model run */
+    } else if (sk_render_cmd_count < MAX_RENDER_CMDS - 1) {
+        sk_render_cmds[sk_render_cmd_count++] = (sk_render_cmd_t){
+            .kind = RENDER_CMD_MODELS,
+            .first = first,
+            .count = count,
+        };
+    } else {
+        /* out of commands: fold into the last model run (order may be off) */
+        if (!sk_render_overflow_logged) {
+            log_warn("render: MAX_RENDER_CMDS (%d) reached; draw order may be wrong", MAX_RENDER_CMDS);
+            sk_render_overflow_logged = true;
+        }
+        for (int i = sk_render_cmd_count - 1; i >= 0; i--) {
+            if (sk_render_cmds[i].kind == RENDER_CMD_MODELS) {
+                sk_render_cmds[i].count = first + count - sk_render_cmds[i].first;
+                return;
+            }
+        }
+        return;
+    }
+    open_sgl_layer();
+}
+
+void sk_render_set_3d_transparent(bool transparent)
+{
+    sgl_load_pipeline(transparent ? sk_pip_3d_transparent : sk_pip_3d);
+}
 
 void sk_render_init(void)
 {
@@ -59,12 +153,30 @@ void sk_render_init(void)
             .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
         },
     });
+
+    /* transparent pass: depth-tested, blended, no depth writes */
+    sk_pip_3d_transparent = sgl_make_pipeline(&(sg_pipeline_desc){
+        .depth = {
+            .write_enabled = false,
+            .compare = SG_COMPAREFUNC_LESS_EQUAL,
+        },
+        .colors[0].blend = {
+            .enabled = true,
+            .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+            .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+            .src_factor_alpha = SG_BLENDFACTOR_ONE,
+            .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+        },
+    });
+
+    reset_frame_commands();
 }
 
 void sk_render_deinit(void)
 {
     sgl_destroy_pipeline(sk_pip_2d);
     sgl_destroy_pipeline(sk_pip_3d);
+    sgl_destroy_pipeline(sk_pip_3d_transparent);
     sgl_shutdown();
 }
 
@@ -116,11 +228,20 @@ void sk_render_end(void)
     sk_font_flush();
 
     sg_begin_pass(&pass);
-    sk_model_flush(); /* custom-pipeline 3D meshes (depth tested) */
-    sgl_draw();       /* shapes / primitives / sprites / fontstash text */
-    sk_text_flush();  /* debugtext overlay */
+    for (int i = 0; i < sk_render_cmd_count; i++) {
+        const sk_render_cmd_t *cmd = &sk_render_cmds[i];
+        if (cmd->kind == RENDER_CMD_SGL_LAYER) {
+            sgl_draw_layer(cmd->layer); /* shapes / sprites / 2D / fontstash text */
+        } else {
+            sk_model_draw_items(cmd->first, cmd->count); /* custom-pipeline meshes */
+        }
+    }
+    sk_text_flush(); /* debugtext overlay */
     sg_end_pass();
     sg_commit();
+
+    sk_model_end_frame();
+    reset_frame_commands();
 }
 
 SK_KEEP

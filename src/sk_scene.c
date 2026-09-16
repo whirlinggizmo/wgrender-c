@@ -10,6 +10,7 @@
 #include "internal/sk_math.h"
 #include "internal/sk_scene.h"
 #include "internal/sk_pick.h"
+#include "internal/sk_render.h"
 #include "sk_camera3d.h"
 #include "sk_logger.h"
 #include "sk_render.h"
@@ -17,6 +18,7 @@
 
 #define MAX_SCENES 64
 #define SK_DRAWABLE_KIND_COUNT 64 /* handle kind is 6 bits */
+#define MAX_TRANSPARENT_ITEMS 4096 /* per scene layer */
 
 typedef struct {
     sk_handle_t drawable;
@@ -36,26 +38,65 @@ static uint16_t sk_scene_free_indices[MAX_SCENES];
 static uint16_t sk_scene_generations[MAX_SCENES];
 static unsigned char sk_scene_occupied[MAX_SCENES];
 
-static sk_drawable_draw_fn sk_drawable_registry[SK_DRAWABLE_KIND_COUNT];
+typedef struct {
+    sk_drawable_draw_opaque_fn draw_opaque;
+    sk_drawable_collect_transparent_fn collect_transparent;
+    sk_drawable_draw_transparent_fn draw_transparent;
+} sk_drawable_passes_t;
+
+static sk_drawable_passes_t sk_passes_registry[SK_DRAWABLE_KIND_COUNT];
+static sk_transparent_item_t sk_transparent_items[MAX_TRANSPARENT_ITEMS];
+static bool sk_transparent_overflow_logged;
 static sk_drawable_bounds_fn sk_bounds_registry[SK_DRAWABLE_KIND_COUNT];
 static sk_drawable_pick_fn sk_pick_registry[SK_DRAWABLE_KIND_COUNT];
 
 /* ---- drawable dispatch registry --------------------------------------- */
 
-void sk_scene_register_drawable(sk_handle_kind_t kind, sk_drawable_draw_fn draw)
+void sk_scene_register_passes(sk_handle_kind_t kind,
+                              sk_drawable_draw_opaque_fn draw_opaque,
+                              sk_drawable_collect_transparent_fn collect_transparent,
+                              sk_drawable_draw_transparent_fn draw_transparent)
 {
     if ((int)kind < 0 || (int)kind >= SK_DRAWABLE_KIND_COUNT) {
         return;
     }
-    sk_drawable_registry[kind] = draw;
+    sk_passes_registry[kind] = (sk_drawable_passes_t){
+        .draw_opaque = draw_opaque,
+        .collect_transparent = collect_transparent,
+        .draw_transparent = draw_transparent,
+    };
 }
 
-void sk_drawable_draw(sk_handle_t handle)
+static const sk_drawable_passes_t *lookup_passes(sk_handle_t handle)
 {
     sk_handle_kind_t kind = sk_handle_get_kind(handle);
-    if ((int)kind >= 0 && (int)kind < SK_DRAWABLE_KIND_COUNT &&
-        sk_drawable_registry[kind] != NULL) {
-        sk_drawable_registry[kind](handle);
+    if ((int)kind < 0 || (int)kind >= SK_DRAWABLE_KIND_COUNT) {
+        return NULL;
+    }
+    return &sk_passes_registry[kind];
+}
+
+float sk_scene_view_depth(const sk_camera3d_t *cam, vec3_t world_point)
+{
+    vec3_t forward = sk_v3_norm(sk_v3_sub(cam->target, cam->position));
+    vec3_t offset = sk_v3_sub(world_point, cam->position);
+    return offset.x * forward.x + offset.y * forward.y + offset.z * forward.z;
+}
+
+static int compare_transparent(const void *lhs, const void *rhs)
+{
+    const sk_transparent_item_t *a = (const sk_transparent_item_t *)lhs;
+    const sk_transparent_item_t *b = (const sk_transparent_item_t *)rhs;
+    if (a->depth != b->depth) {
+        return a->depth > b->depth ? -1 : 1; /* farther first */
+    }
+    return (a->order > b->order) - (a->order < b->order);
+}
+
+void sk_scene_sort_transparent(sk_transparent_item_t *items, int count)
+{
+    if (count > 1) {
+        qsort(items, (size_t)count, sizeof(items[0]), compare_transparent);
     }
 }
 
@@ -233,10 +274,62 @@ void sk_scene_set_active_camera(sk_handle_t scene, sk_handle_t camera)
     scene_ptr->camera = camera;
 }
 
+/* One layer: opaque parts first, then transparent parts sorted back to front
+ * across all drawable kinds. Consecutive parts of the same kind stay batched
+ * (the render command list merges adjacent sokol_gl and model runs). */
+static void draw_layer(const sk_scene_entry_t *entries, int count, const sk_camera3d_t *cam)
+{
+    int transparent_count = 0;
+
+    for (int i = 0; i < count; i++) {
+        const sk_drawable_passes_t *passes = lookup_passes(entries[i].drawable);
+        if (passes != NULL && passes->draw_opaque != NULL) {
+            passes->draw_opaque(entries[i].drawable);
+        }
+    }
+
+    for (int i = 0; i < count; i++) {
+        const sk_drawable_passes_t *passes = lookup_passes(entries[i].drawable);
+        int room = MAX_TRANSPARENT_ITEMS - transparent_count;
+        int first = transparent_count;
+        if (passes == NULL || passes->collect_transparent == NULL) {
+            continue;
+        }
+        if (room <= 0) {
+            if (!sk_transparent_overflow_logged) {
+                log_warn("scene: MAX_TRANSPARENT_ITEMS (%d) reached; skipping transparent parts",
+                         MAX_TRANSPARENT_ITEMS);
+                sk_transparent_overflow_logged = true;
+            }
+            break;
+        }
+        transparent_count += passes->collect_transparent(entries[i].drawable, cam,
+                                                         &sk_transparent_items[first], room);
+        for (int t = first; t < transparent_count; t++) {
+            sk_transparent_items[t].order = t;
+        }
+    }
+
+    if (transparent_count == 0) {
+        return;
+    }
+    sk_scene_sort_transparent(sk_transparent_items, transparent_count);
+    sk_render_set_3d_transparent(true);
+    for (int t = 0; t < transparent_count; t++) {
+        const sk_transparent_item_t *item = &sk_transparent_items[t];
+        const sk_drawable_passes_t *passes = lookup_passes(item->handle);
+        if (passes != NULL && passes->draw_transparent != NULL) {
+            passes->draw_transparent(item->handle, item->part);
+        }
+    }
+    sk_render_set_3d_transparent(false);
+}
+
 SK_KEEP
 void sk_scene_draw(sk_handle_t scene)
 {
     sk_scene_t *scene_ptr = resolve(scene);
+    sk_camera3d_t cam;
     if (scene_ptr == NULL) {
         return;
     }
@@ -256,9 +349,19 @@ void sk_scene_draw(sk_handle_t scene)
         scene_ptr->items[j + 1] = key;
     }
 
+    if (!sk_camera3d_get_active_data(&cam)) {
+        return;
+    }
+
     sk_render_begin_mode_3d();
-    for (int i = 0; i < scene_ptr->count; i++) {
-        sk_drawable_draw(scene_ptr->items[i].drawable);
+    for (int start = 0; start < scene_ptr->count;) {
+        int layer = scene_ptr->items[start].layer;
+        int end = start;
+        while (end < scene_ptr->count && scene_ptr->items[end].layer == layer) {
+            end++;
+        }
+        draw_layer(&scene_ptr->items[start], end - start, &cam);
+        start = end;
     }
     sk_render_end_mode_3d();
 }
@@ -335,7 +438,7 @@ sk_pick_result_t sk_scene_pick(sk_handle_t scene, sk_handle_t camera,
 void sk_scene_init(void)
 {
     memset(sk_scenes, 0, sizeof(sk_scenes));
-    memset(sk_drawable_registry, 0, sizeof(sk_drawable_registry));
+    memset(sk_passes_registry, 0, sizeof(sk_passes_registry));
     memset(sk_bounds_registry, 0, sizeof(sk_bounds_registry));
     memset(sk_pick_registry, 0, sizeof(sk_pick_registry));
     sk_handle_pool_init(&sk_scene_pool,

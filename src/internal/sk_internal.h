@@ -28,9 +28,7 @@ void sk_color_set(sk_handle_t handle, int r, int g, int b, int a);
 void sk_camera3d_init(void);
 void sk_camera3d_deinit(void);
 
-/* render */
-void sk_render_init(void);
-void sk_render_deinit(void);
+/* render: see internal/sk_render.h */
 
 /* scene */
 void sk_scene_init(void);
@@ -51,7 +49,7 @@ void sk_sprite3d_deinit(void);
 /* model (cgltf, custom pipeline) */
 void sk_model_init(void);
 void sk_model_deinit(void);
-void sk_model_flush(void); /* issue queued model draws inside the render pass */
+/* model draw queue: see internal/sk_model.h */
 
 /* fs (local storage; web idbfs later) — asset acquisition sits on top */
 void sk_fs_init(const char *root_dir);

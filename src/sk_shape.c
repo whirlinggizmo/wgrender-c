@@ -41,7 +41,11 @@ static uint16_t sk_shape_free_indices[MAX_SHAPES];
 static uint16_t sk_shape_generations[MAX_SHAPES];
 static unsigned char sk_shape_occupied[MAX_SHAPES];
 
-static void draw_handle(sk_handle_t shape); /* fwd: registered with the scene */
+static void draw_handle(sk_handle_t shape);
+static void draw_opaque(sk_handle_t shape);
+static int collect_transparent(sk_handle_t shape, const sk_camera3d_t *cam,
+                               sk_transparent_item_t *out, int max_items);
+static void draw_transparent(sk_handle_t shape, int part);
 static bool shape_bounds(sk_handle_t shape, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model);
 static bool shape_pick(sk_handle_t shape, vec3_t origin, vec3_t dir, sk_pick_result_t *out);
 
@@ -55,7 +59,7 @@ void sk_shape_init(void)
                         MAX_SHAPES,
                         sk_shape_generations,
                         sk_shape_occupied);
-    sk_scene_register_drawable(SK_HANDLE_KIND_SHAPE, draw_handle);
+    sk_scene_register_passes(SK_HANDLE_KIND_SHAPE, draw_opaque, collect_transparent, draw_transparent);
     sk_scene_register_bounds(SK_HANDLE_KIND_SHAPE, shape_bounds);
     sk_scene_register_pick(SK_HANDLE_KIND_SHAPE, shape_pick);
 }
@@ -433,6 +437,42 @@ static void draw_handle(sk_handle_t shape)
     }
 
     sgl_pop_matrix();
+}
+
+/* Scene passes: a shape is opaque unless its color is translucent. */
+static bool is_translucent(sk_handle_t shape)
+{
+    sk_shape_t *shape_ptr = resolve(shape);
+    return shape_ptr != NULL && sk_color_get(shape_ptr->color).a < 1.0f;
+}
+
+static void draw_opaque(sk_handle_t shape)
+{
+    if (!is_translucent(shape)) {
+        draw_handle(shape);
+    }
+}
+
+static int collect_transparent(sk_handle_t shape, const sk_camera3d_t *cam,
+                               sk_transparent_item_t *out, int max_items)
+{
+    sk_shape_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL || !shape_ptr->visible || shape_ptr->kind == SK_SHAPE_NONE ||
+        !is_translucent(shape) || max_items < 1) {
+        return 0;
+    }
+    out[0] = (sk_transparent_item_t){
+        .handle = shape,
+        .part = 0,
+        .depth = sk_scene_view_depth(cam, shape_ptr->position),
+    };
+    return 1;
+}
+
+static void draw_transparent(sk_handle_t shape, int part)
+{
+    (void)part;
+    draw_handle(shape);
 }
 
 SK_KEEP

@@ -10,6 +10,7 @@
 #include "internal/sk_math.h"
 #include "internal/sk_model.h"
 #include "internal/sk_pick.h"
+#include "internal/sk_render.h"
 #include "internal/sk_scene.h"
 #include "sk_logger.h"
 
@@ -24,9 +25,10 @@
 
 #define MAX_MODELS 256
 #define MAX_MESHES 256
-#define MAX_DRAW_QUEUE 512
+#define MAX_MODEL_DRAWS 1024 /* model placements queued per frame */
+#define MAX_MODEL_ITEMS 8192 /* primitives queued per frame */
 #define SK_MAX_JOINTS 128
-#define MAX_BLEND_DRAWS 1024 /* transparent primitives sorted per frame */
+#define MAX_BLEND_PRIMS 1024 /* transparent primitives sorted per immediate draw */
 
 /* ----------------------------------------------------------- data types ---- */
 
@@ -124,20 +126,27 @@ typedef struct {
     sk_mat4_t joint_matrices[SK_MAX_JOINTS];
 } sk_model_t;
 
+/* One model placement queued this frame (matrices and tint captured at submit). */
 typedef struct {
     sk_handle_t model;
     sk_mat4_t mvp;
     sk_mat4_t model_mat;
-    sk_mat4_t model_view; /* for view-space depth when sorting transparent draws */
+    sk_mat4_t model_view; /* for view-space depth when sorting transparent parts */
     color_t tint;
 } sk_model_draw_t;
 
-/* One transparent primitive to draw in the blended pass. */
+/* One primitive to draw, in submission order. sk_render replays ranges of these. */
 typedef struct {
-    int draw;    /* index into sk_draw_queue */
-    int prim;    /* index into the mesh's primitives */
-    float depth; /* view-space distance along the view direction */
-} sk_blend_draw_t;
+    int draw;     /* index into sk_model_draws */
+    int prim;     /* index into the mesh's primitives */
+    bool blended; /* use the blended pipeline */
+} sk_model_item_t;
+
+/* A transparent primitive of an immediate sk_model_draw(), sorted within that draw. */
+typedef struct {
+    int prim;
+    float depth;
+} sk_blend_prim_t;
 
 /* vs_params_t / vs_skin_params_t / fs_params_t are generated into
  * shaders/sk_model.glsl.h (included above) and mirror the shader uniform blocks. */
@@ -162,11 +171,18 @@ static sg_sampler sk_model_sampler;
 static sg_image sk_model_white_img;
 static sg_view sk_model_white_view;
 
-static sk_model_draw_t sk_draw_queue[MAX_DRAW_QUEUE];
-static int sk_draw_count;
-static sk_blend_draw_t sk_blend_draws[MAX_BLEND_DRAWS];
+static sk_model_draw_t sk_model_draws[MAX_MODEL_DRAWS];
+static int sk_model_draw_count;
+static sk_model_item_t sk_model_items[MAX_MODEL_ITEMS];
+static int sk_model_item_count;
+static sk_blend_prim_t sk_blend_prims[MAX_BLEND_PRIMS];
+static bool sk_model_queue_full_logged;
 
-static void enqueue(sk_handle_t handle);
+static void draw_immediate(sk_handle_t handle);
+static void draw_opaque(sk_handle_t handle);
+static int collect_transparent(sk_handle_t handle, const sk_camera3d_t *cam,
+                               sk_transparent_item_t *out, int max_items);
+static void draw_transparent(sk_handle_t handle, int part);
 static bool model_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model_mat);
 static bool model_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_result_t *out);
 static sk_model_t *resolve(sk_handle_t handle);
@@ -862,7 +878,7 @@ SK_KEEP bool sk_model_is_visible(sk_handle_t handle)
     return model_ptr != NULL && model_ptr->visible;
 }
 
-SK_KEEP void sk_model_draw(sk_handle_t handle) { enqueue(handle); }
+SK_KEEP void sk_model_draw(sk_handle_t handle) { draw_immediate(handle); }
 
 static bool model_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model_mat)
 {
@@ -934,31 +950,200 @@ static bool model_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_re
     return true;
 }
 
-static void enqueue(sk_handle_t handle)
+/* ---------------------------------------------------------- draw queue ---- */
+
+/* Resolve a model that has something to draw. */
+static sk_mesh_t *lookup_drawable(sk_handle_t handle, sk_model_t **model_out)
 {
     sk_model_t *model_ptr = resolve(handle);
     sk_mesh_t *mesh_ptr = model_ptr ? resolve_mesh(model_ptr->mesh) : NULL;
+    if (model_ptr == NULL || mesh_ptr == NULL || !model_ptr->visible || mesh_ptr->prim_count == 0) {
+        return NULL;
+    }
+    *model_out = model_ptr;
+    return mesh_ptr;
+}
+
+static color_t model_tint(const sk_model_t *model_ptr)
+{
+    return sk_color_get(model_ptr->tint != 0 ? model_ptr->tint : 0); /* 0 -> white */
+}
+
+/* A primitive is transparent if its material blends, or if the model's tint
+ * makes it translucent (e.g. fading a model out). */
+static bool is_blended(color_t tint, const sk_primitive_t *prim)
+{
+    return prim->alpha_mode == ALPHA_MODE_BLEND || tint.a < 1.0f;
+}
+
+static vec3_t prim_center(const sk_primitive_t *prim)
+{
+    return (vec3_t){(prim->pmin.x + prim->pmax.x) * 0.5f,
+                    (prim->pmin.y + prim->pmax.y) * 0.5f,
+                    (prim->pmin.z + prim->pmax.z) * 0.5f};
+}
+
+static void log_queue_full(void)
+{
+    if (!sk_model_queue_full_logged) {
+        log_warn("model: draw queue full (%d placements / %d primitives per frame)",
+                 MAX_MODEL_DRAWS, MAX_MODEL_ITEMS);
+        sk_model_queue_full_logged = true;
+    }
+}
+
+/* Capture the model's matrices and tint for this frame. Consecutive submissions
+ * of the same model reuse one placement. Returns the placement index or -1. */
+static int begin_draw(sk_handle_t handle, sk_model_t *model_ptr)
+{
     sk_camera3d_t cam;
-    sk_mat4_t model_mat, view, proj, vp;
+    sk_mat4_t model_mat, view, proj;
     float aspect;
     sk_model_draw_t *e;
 
-    if (model_ptr == NULL || mesh_ptr == NULL || !model_ptr->visible || mesh_ptr->prim_count == 0) return;
-    if (sk_draw_count >= MAX_DRAW_QUEUE) return;
-    if (!sk_camera3d_get_active_data(&cam)) return;
+    if (sk_model_draw_count > 0 && sk_model_draws[sk_model_draw_count - 1].model == handle) {
+        return sk_model_draw_count - 1;
+    }
+    if (sk_model_draw_count >= MAX_MODEL_DRAWS) {
+        log_queue_full();
+        return -1;
+    }
+    if (!sk_camera3d_get_active_data(&cam)) {
+        return -1;
+    }
 
     aspect = sapp_height() > 0 ? (float)sapp_width() / (float)sapp_height() : 1.0f;
     model_mat = sk_mat4_trs(model_ptr->position, model_ptr->rotation, model_ptr->scale);
     view = sk_mat4_lookat(cam.position, cam.target, cam.up);
     proj = sk_mat4_perspective(cam.fovy * 0.01745329252f, aspect, 0.01f, 1000.0f);
-    vp = sk_mat4_mul(proj, view);
 
-    e = &sk_draw_queue[sk_draw_count++];
+    e = &sk_model_draws[sk_model_draw_count];
     e->model = handle;
-    e->mvp = sk_mat4_mul(vp, model_mat);
+    e->mvp = sk_mat4_mul(sk_mat4_mul(proj, view), model_mat);
     e->model_mat = model_mat;
     e->model_view = sk_mat4_mul(view, model_mat);
-    e->tint = sk_color_get(model_ptr->tint != 0 ? model_ptr->tint : 0);
+    e->tint = model_tint(model_ptr);
+    return sk_model_draw_count++;
+}
+
+static bool push_item(int draw, int prim, bool blended)
+{
+    if (sk_model_item_count >= MAX_MODEL_ITEMS) {
+        log_queue_full();
+        return false;
+    }
+    sk_model_items[sk_model_item_count++] = (sk_model_item_t){
+        .draw = draw,
+        .prim = prim,
+        .blended = blended,
+    };
+    return true;
+}
+
+/* Farthest first. */
+static int compare_blend_prims(const void *a, const void *b)
+{
+    float da = ((const sk_blend_prim_t *)a)->depth;
+    float db = ((const sk_blend_prim_t *)b)->depth;
+    return (da < db) - (da > db);
+}
+
+/* sk_model_draw(): opaque primitives, then this model's transparent primitives
+ * back to front. Not sorted against other drawables (use a scene for that). */
+static void draw_immediate(sk_handle_t handle)
+{
+    sk_model_t *model_ptr = NULL;
+    sk_mesh_t *mesh_ptr = lookup_drawable(handle, &model_ptr);
+    int draw, first, blend_count = 0;
+
+    if (mesh_ptr == NULL || (draw = begin_draw(handle, model_ptr)) < 0) {
+        return;
+    }
+    first = sk_model_item_count;
+    for (int p = 0; p < mesh_ptr->prim_count; p++) {
+        sk_primitive_t *prim = &mesh_ptr->prims[p];
+        if (!is_blended(sk_model_draws[draw].tint, prim)) {
+            push_item(draw, p, false);
+        } else if (blend_count < MAX_BLEND_PRIMS) {
+            sk_blend_prims[blend_count++] = (sk_blend_prim_t){
+                .prim = p,
+                .depth = -sk_mat4_mul_point(sk_model_draws[draw].model_view, prim_center(prim)).z,
+            };
+        }
+    }
+    qsort(sk_blend_prims, (size_t)blend_count, sizeof(sk_blend_prims[0]), compare_blend_prims);
+    for (int b = 0; b < blend_count; b++) {
+        push_item(draw, sk_blend_prims[b].prim, true);
+    }
+    sk_render_submit_models(first, sk_model_item_count - first);
+}
+
+/* Scene opaque pass. */
+static void draw_opaque(sk_handle_t handle)
+{
+    sk_model_t *model_ptr = NULL;
+    sk_mesh_t *mesh_ptr = lookup_drawable(handle, &model_ptr);
+    color_t tint;
+    int draw = -1, first = sk_model_item_count;
+
+    if (mesh_ptr == NULL) {
+        return;
+    }
+    tint = model_tint(model_ptr);
+    for (int p = 0; p < mesh_ptr->prim_count; p++) {
+        if (is_blended(tint, &mesh_ptr->prims[p])) {
+            continue;
+        }
+        if (draw < 0 && (draw = begin_draw(handle, model_ptr)) < 0) {
+            return;
+        }
+        push_item(draw, p, false);
+    }
+    sk_render_submit_models(first, sk_model_item_count - first);
+}
+
+/* Scene transparent pass: one item per transparent primitive. */
+static int collect_transparent(sk_handle_t handle, const sk_camera3d_t *cam,
+                               sk_transparent_item_t *out, int max_items)
+{
+    sk_model_t *model_ptr = NULL;
+    sk_mesh_t *mesh_ptr = lookup_drawable(handle, &model_ptr);
+    color_t tint;
+    sk_mat4_t model_mat;
+    int count = 0;
+
+    if (mesh_ptr == NULL) {
+        return 0;
+    }
+    tint = model_tint(model_ptr);
+    model_mat = sk_mat4_trs(model_ptr->position, model_ptr->rotation, model_ptr->scale);
+    for (int p = 0; p < mesh_ptr->prim_count && count < max_items; p++) {
+        const sk_primitive_t *prim = &mesh_ptr->prims[p];
+        if (!is_blended(tint, prim)) {
+            continue;
+        }
+        out[count++] = (sk_transparent_item_t){
+            .handle = handle,
+            .part = p,
+            .depth = sk_scene_view_depth(cam, sk_mat4_mul_point(model_mat, prim_center(prim))),
+        };
+    }
+    return count;
+}
+
+static void draw_transparent(sk_handle_t handle, int part)
+{
+    sk_model_t *model_ptr = NULL;
+    sk_mesh_t *mesh_ptr = lookup_drawable(handle, &model_ptr);
+    int draw, first = sk_model_item_count;
+
+    if (mesh_ptr == NULL || part < 0 || part >= mesh_ptr->prim_count ||
+        (draw = begin_draw(handle, model_ptr)) < 0) {
+        return;
+    }
+    if (push_item(draw, part, true)) {
+        sk_render_submit_models(first, 1);
+    }
 }
 
 static void apply_fs(sk_model_draw_t *e, sk_primitive_t *prim)
@@ -973,21 +1158,6 @@ static void apply_fs(sk_model_draw_t *e, sk_primitive_t *prim)
     fsp.u_material[0] = prim->alpha_mode == ALPHA_MODE_MASK ? prim->alpha_cutoff : 0.0f;
     fsp.u_material[1] = fsp.u_material[2] = fsp.u_material[3] = 0.0f;
     sg_apply_uniforms(UB_fs_params, &(sg_range){.ptr = &fsp, .size = sizeof(fsp)});
-}
-
-/* A primitive goes in the blended pass if its material blends, or if the model's
- * tint makes it translucent (e.g. fading a model out). */
-static bool is_blended(const sk_model_draw_t *e, const sk_primitive_t *prim)
-{
-    return prim->alpha_mode == ALPHA_MODE_BLEND || e->tint.a < 1.0f;
-}
-
-/* Sort transparent draws back to front (largest view-space depth first). */
-static int compare_blend_draws(const void *a, const void *b)
-{
-    float da = ((const sk_blend_draw_t *)a)->depth;
-    float db = ((const sk_blend_draw_t *)b)->depth;
-    return (da < db) - (da > db);
 }
 
 static void draw_primitive(sk_model_draw_t *e, sk_model_t *model_ptr, sk_primitive_t *prim,
@@ -1024,50 +1194,26 @@ static void draw_primitive(sk_model_draw_t *e, sk_model_t *model_ptr, sk_primiti
     sg_draw(0, prim->index_count, 1);
 }
 
-/* Draw queued models: opaque and alpha-tested primitives first (depth writes on),
- * then blended primitives sorted back to front (depth test on, writes off).
- * Limitation: blended model primitives are not sorted against sokol_gl content
- * (sprites, shapes), which is drawn after this. */
-void sk_model_flush(void)
+void sk_model_draw_items(int first, int count)
 {
-    sg_pipeline cur_pip = {0};
-    int blend_count = 0;
+    sg_pipeline cur_pip = {0}; /* sokol_gl may have changed the pipeline since last time */
 
-    for (int i = 0; i < sk_draw_count; i++) {
-        sk_model_draw_t *e = &sk_draw_queue[i];
+    for (int i = first; i < first + count && i < sk_model_item_count; i++) {
+        const sk_model_item_t *item = &sk_model_items[i];
+        sk_model_draw_t *e = &sk_model_draws[item->draw];
         sk_model_t *model_ptr = resolve(e->model);
         sk_mesh_t *mesh_ptr = model_ptr ? resolve_mesh(model_ptr->mesh) : NULL;
-        if (model_ptr == NULL || mesh_ptr == NULL) continue;
-
-        for (int p = 0; p < mesh_ptr->prim_count; p++) {
-            sk_primitive_t *prim = &mesh_ptr->prims[p];
-            if (!is_blended(e, prim)) {
-                draw_primitive(e, model_ptr, prim, false, &cur_pip);
-            } else if (blend_count < MAX_BLEND_DRAWS) {
-                vec3_t center = {(prim->pmin.x + prim->pmax.x) * 0.5f,
-                                 (prim->pmin.y + prim->pmax.y) * 0.5f,
-                                 (prim->pmin.z + prim->pmax.z) * 0.5f};
-                sk_blend_draws[blend_count++] = (sk_blend_draw_t){
-                    .draw = i,
-                    .prim = p,
-                    .depth = -sk_mat4_mul_point(e->model_view, center).z,
-                };
-            } else {
-                /* over budget: draw unsorted rather than drop it */
-                draw_primitive(e, model_ptr, prim, true, &cur_pip);
-            }
+        if (mesh_ptr == NULL || item->prim >= mesh_ptr->prim_count) {
+            continue; /* destroyed or re-meshed after it was queued */
         }
+        draw_primitive(e, model_ptr, &mesh_ptr->prims[item->prim], item->blended, &cur_pip);
     }
+}
 
-    qsort(sk_blend_draws, (size_t)blend_count, sizeof(sk_blend_draws[0]), compare_blend_draws);
-    for (int b = 0; b < blend_count; b++) {
-        sk_model_draw_t *e = &sk_draw_queue[sk_blend_draws[b].draw];
-        sk_model_t *model_ptr = resolve(e->model);
-        sk_mesh_t *mesh_ptr = model_ptr ? resolve_mesh(model_ptr->mesh) : NULL;
-        if (model_ptr == NULL || mesh_ptr == NULL) continue;
-        draw_primitive(e, model_ptr, &mesh_ptr->prims[sk_blend_draws[b].prim], true, &cur_pip);
-    }
-    sk_draw_count = 0;
+void sk_model_end_frame(void)
+{
+    sk_model_draw_count = 0;
+    sk_model_item_count = 0;
 }
 
 static void free_mesh_cpu(sk_mesh_t *mesh)
@@ -1103,7 +1249,7 @@ void sk_model_init(void)
 
     memset(sk_models, 0, sizeof(sk_models));
     memset(sk_meshes, 0, sizeof(sk_meshes));
-    sk_draw_count = 0;
+    sk_model_end_frame();
     sk_handle_pool_init(&sk_model_pool, SK_HANDLE_KIND_MODEL, MAX_MODELS,
                         sk_model_free_indices, MAX_MODELS,
                         sk_model_generations, sk_model_occupied);
@@ -1157,7 +1303,7 @@ void sk_model_init(void)
         .data.mip_levels[0] = {.ptr = white, .size = sizeof(white)}});
     sk_model_white_view = sg_make_view(&(sg_view_desc){.texture.image = sk_model_white_img});
 
-    sk_scene_register_drawable(SK_HANDLE_KIND_MODEL, enqueue);
+    sk_scene_register_passes(SK_HANDLE_KIND_MODEL, draw_opaque, collect_transparent, draw_transparent);
     sk_scene_register_bounds(SK_HANDLE_KIND_MODEL, model_bounds);
     sk_scene_register_pick(SK_HANDLE_KIND_MODEL, model_pick);
 }

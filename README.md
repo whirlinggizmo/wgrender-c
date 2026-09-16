@@ -110,6 +110,13 @@ reference/librl the raylib library this evolves from (read-only reference)
   `sk_render_end()`, so `sk_render_clear_background()` works in librl's
   begin → clear → draw → end order even though sokol clears via the pass
   load-action.
+- Draw order follows call order. sokol_gl content is recorded into sokol_gl
+  layers and models into a queue; `sk_render_end()` replays both in the order
+  they were submitted (see `src/internal/sk_render.h`).
+- `sk_scene_draw()` draws each layer in two passes: opaque parts (depth writes
+  on), then transparent parts (blended or faded model primitives, sprites,
+  translucent shapes) sorted back to front with depth writes off. Direct
+  `sk_*_draw()` calls outside a scene are not sorted against each other.
 - `sk_text_draw` without a font uses `sokol_debugtext` (built-in 8x8 bitmap
   font). TTF fonts (`sk_font_create`, `sk_text_draw_ex`, `text2d`) go through
   fontstash.

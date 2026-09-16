@@ -5,6 +5,7 @@
 
 #include "internal/exports.h"
 #include "internal/sk_internal.h"
+#include "internal/sk_render.h"
 #include "sk_logger.h"
 #include "sk_version.h"
 
