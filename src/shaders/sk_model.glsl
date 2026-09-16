@@ -1,41 +1,52 @@
-/* sk_model shaders — static + GPU-skinned, lit (directional + ambient) textured.
+/* sk_model shaders — static + GPU-skinned, glTF metallic-roughness materials.
  * Authored once in annotated (Vulkan-style) GLSL; sokol-shdc generates
  * sk_model.glsl.h with GL core / WebGL2 / WebGPU variants. Regen: `make shaders`.
  *
  * Uniform blocks mirror the C structs in sk_model.c (std140):
- *   vs_params      = mvp, model
- *   vs_skin_params = mvp, model, joints_mat[128]
- *   fs_params      = u_tint, u_material, u_ambient, u_light_*[8]
+ *   vs_params      = mvp, model, normal_mat
+ *   vs_skin_params = mvp, model, normal_mat, joints_mat[128]
+ *   fs_params      = material, camera and lights (below)
  *
- * u_material.x is the alpha cutoff: fragments with alpha below it are discarded
- * (glTF alphaMode MASK). 0 for OPAQUE and BLEND, so nothing is discarded.
+ * Color space (docs/PLAN-materials.md): the framebuffer holds sRGB values.
+ * Color textures are decoded from sRGB, factors and light radiance are linear,
+ * lighting happens in linear space, and the result is encoded back to sRGB.
  *
- * Lighting (docs/PLAN-lighting.md), world space, diffuse only:
- *   u_ambient.rgb     ambient color * intensity
- *   u_ambient.w       1 = lit, 0 = unlit (output base color * tint)
- *   u_material.y      number of lights in the arrays (0..8)
+ * fs_params:
+ *   u_base_color      linear rgba: material base color x model tint
+ *   u_emissive        rgb linear emissive, w normal scale
+ *   u_pbr             x metallic, y roughness, z occlusion strength,
+ *                     w 1 = lit (PBR in a lit scene), 0 = unlit (base color only)
+ *   u_material        x alpha cutoff (0 = no alpha test), y number of lights (0..8)
+ *   u_camera_pos      xyz camera position, world space
+ *   u_ambient         rgb ambient color * intensity (linear)
  *   u_light_pos_range[i]  xyz position, w range (0 = unlimited)
  *   u_light_dir_type[i]   xyz direction the light travels, w type (0 dir, 1 point, 2 spot)
- *   u_light_radiance[i]   rgb color * intensity
+ *   u_light_radiance[i]   rgb color * intensity (linear)
  *   u_light_spot[i]       x cos(inner), y cos(outer)
  * The attenuation and cone formulas match sk_light_attenuation and
- * sk_light_spot_factor in src/sk_light.c.
+ * sk_light_spot_factor in src/sk_light.c. The BRDF follows the glTF 2.0
+ * specification, appendix B (Lambert diffuse, GGX / Smith height-correlated
+ * specular, Schlick Fresnel).
  */
 
 @vs vs_static
 layout(binding=0) uniform vs_params {
     mat4 mvp;
     mat4 model;
+    mat4 normal_mat; /* inverse transpose of model */
 };
 in vec3 position;
 in vec3 normal;
 in vec2 texcoord0;
+in vec4 tangent;
 out vec3 v_normal;
+out vec4 v_tangent;
 out vec2 v_uv;
 out vec3 v_world_pos;
 void main() {
     gl_Position = mvp * vec4(position, 1.0);
-    v_normal = mat3(model) * normal;
+    v_normal = mat3(normal_mat) * normal;
+    v_tangent = vec4(mat3(model) * tangent.xyz, tangent.w);
     v_uv = texcoord0;
     v_world_pos = (model * vec4(position, 1.0)).xyz;
 }
@@ -45,14 +56,17 @@ void main() {
 layout(binding=0) uniform vs_skin_params {
     mat4 mvp;
     mat4 model;
+    mat4 normal_mat;
     mat4 joints_mat[128];
 };
 in vec3 position;
 in vec3 normal;
 in vec2 texcoord0;
+in vec4 tangent;
 in vec4 joints;
 in vec4 weights;
 out vec3 v_normal;
+out vec4 v_tangent;
 out vec2 v_uv;
 out vec3 v_world_pos;
 void main() {
@@ -62,7 +76,9 @@ void main() {
               + weights.w * joints_mat[int(joints.w)];
     vec4 sp = skin * vec4(position, 1.0);
     gl_Position = mvp * sp;
-    v_normal = mat3(model) * mat3(skin) * normal;
+    /* joints are rigid transforms (plus uniform scale), so mat3(skin) keeps normals perpendicular */
+    v_normal = mat3(normal_mat) * (mat3(skin) * normal);
+    v_tangent = vec4(mat3(model) * (mat3(skin) * tangent.xyz), tangent.w);
     v_uv = texcoord0;
     v_world_pos = (model * sp).xyz;
 }
@@ -70,20 +86,43 @@ void main() {
 
 @fs fs
 layout(binding=1) uniform fs_params {
-    vec4 u_tint;
+    vec4 u_base_color;
+    vec4 u_emissive;
+    vec4 u_pbr;
     vec4 u_material;
+    vec4 u_camera_pos;
     vec4 u_ambient;
     vec4 u_light_pos_range[8];
     vec4 u_light_dir_type[8];
     vec4 u_light_radiance[8];
     vec4 u_light_spot[8];
 };
-layout(binding=0) uniform texture2D tex;
+layout(binding=0) uniform texture2D base_color_tex;
+layout(binding=1) uniform texture2D metallic_roughness_tex;
+layout(binding=2) uniform texture2D normal_tex;
+layout(binding=3) uniform texture2D occlusion_tex;
+layout(binding=4) uniform texture2D emissive_tex;
 layout(binding=0) uniform sampler smp;
 in vec3 v_normal;
+in vec4 v_tangent;
 in vec2 v_uv;
 in vec3 v_world_pos;
 out vec4 frag_color;
+
+const float PI = 3.14159265359;
+
+vec3 srgb_to_linear(vec3 c) {
+    vec3 lo = c / 12.92;
+    vec3 hi = pow((max(c, vec3(0.04045)) + 0.055) / 1.055, vec3(2.4));
+    return mix(lo, hi, step(vec3(0.04045), c));
+}
+
+vec3 linear_to_srgb(vec3 c) {
+    c = clamp(c, vec3(0.0), vec3(1.0));
+    vec3 lo = c * 12.92;
+    vec3 hi = 1.055 * pow(max(c, vec3(0.0031308)), vec3(1.0 / 2.4)) - 0.055;
+    return mix(lo, hi, step(vec3(0.0031308), c));
+}
 
 float attenuation(float d, float range) {
     float inv_sq = 1.0 / max(d * d, 0.01);
@@ -103,16 +142,43 @@ float spot_factor(float cos_angle, float cos_inner, float cos_outer) {
 }
 
 void main() {
-    vec4 base = texture(sampler2D(tex, smp), v_uv) * u_tint;
+    vec4 base_sample = texture(sampler2D(base_color_tex, smp), v_uv);
+    vec4 base = vec4(srgb_to_linear(base_sample.rgb), base_sample.a) * u_base_color;
     if (base.a < u_material.x) {
         discard;
     }
-    if (u_ambient.w < 0.5) {
-        frag_color = base; /* unlit */
+    if (u_pbr.w < 0.5) {
+        frag_color = vec4(linear_to_srgb(base.rgb), base.a); /* unlit */
         return;
     }
+
+    /* shading frame; back faces of double-sided surfaces face the viewer */
     vec3 n = normalize(v_normal);
-    vec3 lit = u_ambient.rgb;
+    vec3 t = v_tangent.xyz - n * dot(n, v_tangent.xyz);
+    float face = gl_FrontFacing ? 1.0 : -1.0;
+    if (dot(t, t) > 1e-8) {
+        t = normalize(t);
+        vec3 b = cross(n, t) * v_tangent.w;
+        vec3 tn = texture(sampler2D(normal_tex, smp), v_uv).xyz * 2.0 - 1.0;
+        tn.xy *= u_emissive.w;
+        n = normalize(mat3(t, b, n) * tn);
+    }
+    n *= face;
+
+    vec3 mr = texture(sampler2D(metallic_roughness_tex, smp), v_uv).rgb;
+    float metallic = clamp(u_pbr.x * mr.b, 0.0, 1.0);
+    float roughness = clamp(u_pbr.y * mr.g, 0.03, 1.0);
+    float alpha = roughness * roughness;
+    float alpha_sq = alpha * alpha;
+    vec3 f0 = mix(vec3(0.04), base.rgb, metallic);
+    vec3 c_diff = base.rgb * (1.0 - metallic);
+
+    vec3 v = normalize(u_camera_pos.xyz - v_world_pos);
+    float n_dot_v = clamp(abs(dot(n, v)), 1e-4, 1.0);
+
+    float ao = 1.0 + u_pbr.z * (texture(sampler2D(occlusion_tex, smp), v_uv).r - 1.0);
+    vec3 color = u_ambient.rgb * (c_diff + f0) * ao;
+
     int count = int(u_material.y);
     for (int i = 0; i < 8; i++) {
         if (i >= count) {
@@ -133,9 +199,29 @@ void main() {
                                        u_light_spot[i].x, u_light_spot[i].y);
             }
         }
-        lit += u_light_radiance[i].rgb * max(dot(n, -light_dir), 0.0) * falloff;
+        vec3 l = -light_dir;
+        float n_dot_l = dot(n, l);
+        if (n_dot_l <= 0.0 || falloff <= 0.0) {
+            continue;
+        }
+        vec3 h = normalize(l + v);
+        float n_dot_h = clamp(dot(n, h), 0.0, 1.0);
+        float v_dot_h = clamp(dot(v, h), 0.0, 1.0);
+
+        vec3 fresnel = f0 + (1.0 - f0) * pow(1.0 - v_dot_h, 5.0);
+        float dd = n_dot_h * n_dot_h * (alpha_sq - 1.0) + 1.0;
+        float distribution = alpha_sq / (PI * dd * dd);
+        float gv = n_dot_l * sqrt(n_dot_v * n_dot_v * (1.0 - alpha_sq) + alpha_sq);
+        float gl = n_dot_v * sqrt(n_dot_l * n_dot_l * (1.0 - alpha_sq) + alpha_sq);
+        float visibility = 0.5 / max(gv + gl, 1e-6);
+
+        vec3 diffuse = (1.0 - fresnel) * c_diff / PI;
+        vec3 specular = fresnel * distribution * visibility;
+        color += u_light_radiance[i].rgb * falloff * n_dot_l * (diffuse + specular);
     }
-    frag_color = vec4(base.rgb * lit, base.a);
+
+    color += u_emissive.rgb * srgb_to_linear(texture(sampler2D(emissive_tex, smp), v_uv).rgb);
+    frag_color = vec4(linear_to_srgb(color), base.a);
 }
 @end
 

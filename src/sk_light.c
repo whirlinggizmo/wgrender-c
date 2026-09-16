@@ -209,8 +209,9 @@ bool sk_light_get_scene_light(sk_handle_t light, sk_scene_light_t *out)
     color = sk_color_get(light_ptr->color);
     *out = (sk_scene_light_t){
         .type = (int)light_ptr->type,
-        .radiance = {color.r * light_ptr->intensity, color.g * light_ptr->intensity,
-                     color.b * light_ptr->intensity},
+        .radiance = {sk_srgb_to_linear(color.r) * light_ptr->intensity,
+                     sk_srgb_to_linear(color.g) * light_ptr->intensity,
+                     sk_srgb_to_linear(color.b) * light_ptr->intensity},
         .position = light_ptr->position,
         .direction = light_ptr->direction,
         .range = light_ptr->range,

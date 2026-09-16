@@ -8,12 +8,15 @@
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_light.h"
+#include "internal/sk_material.h"
 #include "internal/sk_math.h"
 #include "internal/sk_model.h"
 #include "internal/sk_pick.h"
 #include "internal/sk_platform.h"
 #include "internal/sk_render.h"
 #include "internal/sk_scene.h"
+#include "internal/sk_texture.h"
+#include "sk_material.h"
 #include "sk_logger.h"
 
 #include "cgltf.h"
@@ -30,26 +33,15 @@
 #define MAX_MODEL_ITEMS 8192 /* primitives queued per frame */
 #define SK_MAX_JOINTS 128
 #define MAX_BLEND_PRIMS 1024 /* transparent primitives sorted per immediate draw */
+#define SK_MAX_MATERIAL_SLOTS 32 /* material slots a model can override */
 
 /* ----------------------------------------------------------- data types ---- */
-
-/* glTF material alphaMode */
-typedef enum {
-    ALPHA_MODE_OPAQUE = 0,
-    ALPHA_MODE_MASK,  /* alpha test: discard below alpha_cutoff, no blending */
-    ALPHA_MODE_BLEND, /* alpha blended, drawn after opaque, back to front */
-} sk_alpha_mode_t;
 
 typedef struct {
     sg_buffer vbuf;
     sg_buffer ibuf;
     int index_count;
-    sg_view view;
-    sg_sampler sampler;
-    float base_color[4];
-    sk_alpha_mode_t alpha_mode;
-    float alpha_cutoff; /* used when alpha_mode is MASK */
-    bool double_sided;  /* no back-face culling */
+    int material;       /* slot in the mesh's materials (and a model's overrides) */
     bool skinned;
     vec3_t pmin, pmax; /* local-space AABB (for picking) */
     /* CPU-side bind-pose geometry retained for narrow-phase triangle picking */
@@ -59,10 +51,8 @@ typedef struct {
     /* skinned primitives: joints and weights, to pose pick geometry like the shader */
     uint8_t *pick_joints;  /* 4 per vertex */
     float *pick_weights;   /* 4 per vertex */
-    /* MASK / BLEND primitives: for alpha-tested picking */
-    float *pick_uvs;       /* 2 per vertex */
-    uint8_t *pick_alpha;   /* base color texture alpha; NULL = no texture (alpha 1) */
-    int pick_alpha_width, pick_alpha_height;
+    /* texture coordinates, for alpha-tested picking of MASK / BLEND materials */
+    float *pick_uvs;       /* 2 per vertex; NULL = no texture coordinates */
 } sk_primitive_t;
 
 /* node transform (base from glTF + per-frame working copy) */
@@ -106,6 +96,11 @@ typedef struct {
     sk_animation_t *animations;
     int animation_count;
 
+    /* materials, one per glTF material (plus glTF's default material when a
+     * primitive has none); each referenced by the mesh */
+    sk_handle_t *materials;
+    int material_count;
+
     /* merged local-space AABB (for broadphase/picking) */
     vec3_t lmin, lmax;
 
@@ -125,6 +120,7 @@ typedef struct {
     vec3_t scale;
     sk_handle_t tint;
     bool visible;
+    sk_handle_t materials[SK_MAX_MATERIAL_SLOTS]; /* per-slot overrides (referenced); 0 = mesh's */
 
     /* animation playback */
     int cur_anim;
@@ -148,6 +144,8 @@ typedef struct {
     sk_mat4_t mvp;
     sk_mat4_t model_mat;
     sk_mat4_t model_view; /* for view-space depth when sorting transparent parts */
+    sk_mat4_t normal_mat; /* inverse transpose of model_mat */
+    vec3_t camera_pos;
     color_t tint;
     int light_env;        /* lighting environment index, -1 = unlit */
     int light_count;      /* lights selected for this placement */
@@ -189,6 +187,8 @@ static sg_shader sk_shd_skinned;
 static sg_sampler sk_model_sampler;
 static sg_image sk_model_white_img;
 static sg_view sk_model_white_view;
+static sg_image sk_model_flat_normal_img;
+static sg_view sk_model_flat_normal_view;
 
 static sk_model_draw_t sk_model_draws[MAX_MODEL_DRAWS];
 static int sk_model_draw_count;
@@ -237,114 +237,233 @@ static sg_shader make_skinned_shader(void)
 
 /* ----------------------------------------------------------- gltf load ----- */
 
-/* Decode a glTF image into a GPU texture view. With `alpha_out`, also keep a copy
- * of its alpha channel (for alpha-tested picking). */
-static sg_view decode_image_view(const cgltf_image *img, uint8_t **alpha_out, int *width_out, int *height_out)
+/* Textures created while loading one glTF file, one per glTF image (0 = not
+ * created yet). The loader holds one reference to each; materials add their own. */
+typedef struct {
+    const cgltf_data *gltf;
+    sk_handle_t *images;
+    bool texcoord_warned;
+} sk_gltf_textures_t;
+
+/* Decode a glTF image embedded in the file into a texture (cached per image). */
+static sk_handle_t load_image(sk_gltf_textures_t *cache, const cgltf_image *img)
 {
     const cgltf_buffer_view *bv;
     const unsigned char *bytes;
     int w = 0, h = 0, comp = 0;
     stbi_uc *pixels;
-    sg_image image;
+    size_t index;
 
-    if (img == NULL || img->buffer_view == NULL || img->buffer_view->buffer == NULL ||
-        img->buffer_view->buffer->data == NULL) {
-        return sk_model_white_view;
+    if (img == NULL) {
+        return 0;
+    }
+    index = (size_t)(img - cache->gltf->images);
+    if (cache->images[index] != 0) {
+        return cache->images[index];
+    }
+    if (img->buffer_view == NULL || img->buffer_view->buffer == NULL || img->buffer_view->buffer->data == NULL) {
+        log_warn("model: image %zu isn't embedded in the file; ignored", index);
+        return 0;
     }
     bv = img->buffer_view;
     bytes = (const unsigned char *)bv->buffer->data + bv->offset;
     pixels = stbi_load_from_memory(bytes, (int)bv->size, &w, &h, &comp, 4);
     if (pixels == NULL) {
-        return sk_model_white_view;
+        log_warn("model: failed to decode image %zu (%s)", index, stbi_failure_reason());
+        return 0;
     }
-    image = sg_make_image(&(sg_image_desc){
-        .width = w, .height = h, .pixel_format = SG_PIXELFORMAT_RGBA8,
-        .data.mip_levels[0] = {.ptr = pixels, .size = (size_t)(w * h * 4)},
-    });
-    if (alpha_out != NULL) {
-        *alpha_out = (uint8_t *)malloc((size_t)(w * h));
-        if (*alpha_out != NULL) {
-            for (int i = 0; i < w * h; i++) {
-                (*alpha_out)[i] = pixels[i * 4 + 3];
+    cache->images[index] = sk_texture_create_rgba(pixels, w, h);
+    stbi_image_free(pixels);
+    return cache->images[index];
+}
+
+static void set_texture(sk_gltf_textures_t *cache, sk_handle_t material, const char *name,
+                        const cgltf_texture_view *view)
+{
+    if (view->texture == NULL) {
+        return;
+    }
+    if (view->texcoord != 0 && !cache->texcoord_warned) {
+        log_warn("model: textures using texture coordinate set %d aren't supported; set 0 is used",
+                 (int)view->texcoord);
+        cache->texcoord_warned = true;
+    }
+    sk_material_set_texture(material, name, load_image(cache, view->texture->image));
+}
+
+/* Create a material from a glTF material; NULL gives glTF's default material. */
+static sk_handle_t create_gltf_material(sk_gltf_textures_t *cache, const cgltf_material *src)
+{
+    sk_handle_t material = sk_material_create(src != NULL && src->unlit ? SK_MATERIAL_UNLIT : SK_MATERIAL_PBR);
+    const cgltf_pbr_metallic_roughness *pbr;
+    float strength;
+
+    if (material == 0 || src == NULL) {
+        return material;
+    }
+    switch (src->alpha_mode) {
+        case cgltf_alpha_mode_mask: sk_material_set_alpha_mode(material, SK_MATERIAL_ALPHA_MASK, src->alpha_cutoff); break;
+        case cgltf_alpha_mode_blend: sk_material_set_alpha_mode(material, SK_MATERIAL_ALPHA_BLEND, src->alpha_cutoff); break;
+        default: break;
+    }
+    sk_material_set_double_sided(material, src->double_sided);
+    if (src->has_pbr_metallic_roughness) {
+        pbr = &src->pbr_metallic_roughness;
+        sk_material_set_vec4(material, "base_color", pbr->base_color_factor[0], pbr->base_color_factor[1],
+                             pbr->base_color_factor[2], pbr->base_color_factor[3]);
+        sk_material_set_float(material, "metallic", pbr->metallic_factor);
+        sk_material_set_float(material, "roughness", pbr->roughness_factor);
+        set_texture(cache, material, "base_color_texture", &pbr->base_color_texture);
+        set_texture(cache, material, "metallic_roughness_texture", &pbr->metallic_roughness_texture);
+    }
+    if (src->normal_texture.texture != NULL) {
+        set_texture(cache, material, "normal_texture", &src->normal_texture);
+        sk_material_set_float(material, "normal_scale", src->normal_texture.scale);
+    }
+    if (src->occlusion_texture.texture != NULL) {
+        set_texture(cache, material, "occlusion_texture", &src->occlusion_texture);
+        sk_material_set_float(material, "occlusion_strength", src->occlusion_texture.scale);
+    }
+    strength = src->has_emissive_strength ? src->emissive_strength.emissive_strength : 1.0f;
+    sk_material_set_vec3(material, "emissive", src->emissive_factor[0] * strength,
+                         src->emissive_factor[1] * strength, src->emissive_factor[2] * strength);
+    set_texture(cache, material, "emissive_texture", &src->emissive_texture);
+    return material;
+}
+
+/* Tangents for normal mapping from triangle positions and texture coordinates
+ * (per-vertex average, orthogonalized against the normal), in glTF's convention:
+ * the tangent follows increasing u, and w is the bitangent sign, with bitangent =
+ * cross(normal, tangent.xyz) * w pointing toward decreasing v (texture up). Vertices without a usable
+ * texture mapping get any tangent perpendicular to their normal. */
+void sk_model_generate_tangents(const float *positions, const float *normals, const float *uvs, int vertex_count,
+                                const uint32_t *indices, int index_count, float *tangents)
+{
+    float *bitangents = (float *)calloc((size_t)vertex_count * 3, sizeof(float));
+
+    memset(tangents, 0, (size_t)vertex_count * 4 * sizeof(float));
+    for (int k = 0; bitangents != NULL && k + 2 < index_count; k += 3) {
+        const uint32_t i0 = indices[k], i1 = indices[k + 1], i2 = indices[k + 2];
+        float e1[3], e2[3], sdir[3], tdir[3], du1, dv1, du2, dv2, det;
+        if ((int)i0 >= vertex_count || (int)i1 >= vertex_count || (int)i2 >= vertex_count) {
+            continue;
+        }
+        for (int c = 0; c < 3; c++) {
+            e1[c] = positions[i1 * 3 + c] - positions[i0 * 3 + c];
+            e2[c] = positions[i2 * 3 + c] - positions[i0 * 3 + c];
+        }
+        du1 = uvs[i1 * 2] - uvs[i0 * 2];
+        dv1 = uvs[i1 * 2 + 1] - uvs[i0 * 2 + 1];
+        du2 = uvs[i2 * 2] - uvs[i0 * 2];
+        dv2 = uvs[i2 * 2 + 1] - uvs[i0 * 2 + 1];
+        det = du1 * dv2 - du2 * dv1;
+        if (det > -1e-12f && det < 1e-12f) {
+            continue;
+        }
+        det = 1.0f / det;
+        for (int c = 0; c < 3; c++) {
+            sdir[c] = (e1[c] * dv2 - e2[c] * dv1) * det;
+            tdir[c] = (e2[c] * du1 - e1[c] * du2) * det;
+        }
+        for (int v = 0; v < 3; v++) {
+            const uint32_t i = indices[k + v];
+            for (int c = 0; c < 3; c++) {
+                tangents[i * 4 + c] += sdir[c];
+                bitangents[i * 3 + c] += tdir[c];
             }
-            *width_out = w;
-            *height_out = h;
         }
     }
-    stbi_image_free(pixels);
-    return sg_make_view(&(sg_view_desc){.texture.image = image});
+    for (int i = 0; i < vertex_count; i++) {
+        const vec3_t n = {normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]};
+        vec3_t t = {tangents[i * 4], tangents[i * 4 + 1], tangents[i * 4 + 2]};
+        const vec3_t b = bitangents != NULL ? (vec3_t){bitangents[i * 3], bitangents[i * 3 + 1], bitangents[i * 3 + 2]}
+                                            : (vec3_t){0, 0, 0};
+        float w = 1.0f;
+        t = sk_v3_sub(t, sk_v3_scale(n, sk_v3_dot(n, t)));
+        if (sk_v3_dot(t, t) < 1e-12f) {
+            /* no texture mapping here: any direction perpendicular to the normal */
+            t = fabsf(n.x) < 0.9f ? (vec3_t){1, 0, 0} : (vec3_t){0, 1, 0};
+            t = sk_v3_sub(t, sk_v3_scale(n, sk_v3_dot(n, t)));
+        } else if (sk_v3_dot(sk_v3_cross(n, t), b) > 0.0f) {
+            w = -1.0f; /* the normal map's up (green) points toward decreasing v: bitangent = -dP/dv */
+        }
+        t = sk_v3_norm(t);
+        tangents[i * 4] = t.x;
+        tangents[i * 4 + 1] = t.y;
+        tangents[i * 4 + 2] = t.z;
+        tangents[i * 4 + 3] = w;
+    }
+    free(bitangents);
 }
 
 /* Build a GPU primitive. For static primitives `node_world` (when non-NULL) is
- * baked into positions and normals: glTF places them with their node's world
- * transform. Skinned primitives ignore it; their joints place them. */
-static bool build_primitive(const cgltf_primitive *prim, bool skinned, const sk_mat4_t *node_world,
-                            sk_primitive_t *out)
+ * baked into positions, normals and tangents: glTF places them with their node's
+ * world transform. Skinned primitives ignore it; their joints place them. */
+static bool build_primitive(const cgltf_data *g, const cgltf_primitive *prim, bool skinned,
+                            const sk_mat4_t *node_world, int default_material, sk_primitive_t *out)
 {
-    const cgltf_accessor *pos = NULL, *nrm = NULL, *uv = NULL, *jnt = NULL, *wgt = NULL;
+    const cgltf_accessor *pos = NULL, *nrm = NULL, *uv = NULL, *tan = NULL, *jnt = NULL, *wgt = NULL;
     cgltf_size vcount, icount, i;
-    float *verts;
-    uint32_t *indices;
-    float *positions;
-    size_t stride = skinned ? 16 : 8;
+    float *verts = NULL, *positions = NULL, *normals = NULL, *uvs = NULL, *tangents = NULL;
+    uint32_t *indices = NULL;
+    size_t stride;
+    bool ok = false;
 
     for (cgltf_size a = 0; a < prim->attributes_count; a++) {
         const cgltf_attribute *attr = &prim->attributes[a];
         switch (attr->type) {
             case cgltf_attribute_type_position: pos = attr->data; break;
             case cgltf_attribute_type_normal: nrm = attr->data; break;
-            case cgltf_attribute_type_texcoord: if (!uv) uv = attr->data; break;
-            case cgltf_attribute_type_joints: if (!jnt) jnt = attr->data; break;
-            case cgltf_attribute_type_weights: if (!wgt) wgt = attr->data; break;
+            case cgltf_attribute_type_tangent: tan = attr->data; break;
+            case cgltf_attribute_type_texcoord: if (attr->index == 0) uv = attr->data; break;
+            case cgltf_attribute_type_joints: if (attr->index == 0) jnt = attr->data; break;
+            case cgltf_attribute_type_weights: if (attr->index == 0) wgt = attr->data; break;
             default: break;
         }
     }
     if (pos == NULL) return false;
-    if (skinned && (jnt == NULL || wgt == NULL)) skinned = false, stride = 8;
+    if (skinned && (jnt == NULL || wgt == NULL)) skinned = false;
     if (skinned) node_world = NULL; /* joints place skinned vertices */
+    stride = skinned ? 20 : 12;
 
     vcount = pos->count;
-    verts = (float *)calloc(vcount * stride, sizeof(float));
-    if (verts == NULL) return false;
-    positions = (float *)malloc(vcount * 3 * sizeof(float));
-    if (positions == NULL) {
-        free(verts);
-        return false;
-    }
     memset(out, 0, sizeof(*out));
+    positions = (float *)calloc(vcount * 3, sizeof(float));
+    normals = (float *)calloc(vcount * 3, sizeof(float));
+    uvs = (float *)calloc(vcount * 2, sizeof(float));
+    tangents = (float *)calloc(vcount * 4, sizeof(float));
+    verts = (float *)calloc(vcount * stride, sizeof(float));
+    icount = prim->indices != NULL ? prim->indices->count : vcount;
+    indices = (uint32_t *)calloc(icount, sizeof(uint32_t));
     if (skinned) {
         out->pick_joints = (uint8_t *)calloc(vcount * 4, 1);
         out->pick_weights = (float *)calloc(vcount * 4, sizeof(float));
     }
-    if (prim->material != NULL && (prim->material->alpha_mode == cgltf_alpha_mode_mask ||
-                                   prim->material->alpha_mode == cgltf_alpha_mode_blend)) {
-        out->pick_uvs = (float *)calloc(vcount * 2, sizeof(float));
+    if (positions == NULL || normals == NULL || uvs == NULL || tangents == NULL || verts == NULL || indices == NULL ||
+        (skinned && (out->pick_joints == NULL || out->pick_weights == NULL))) {
+        goto done;
     }
-
-    out->pmin = (vec3_t){1e30f, 1e30f, 1e30f};
-    out->pmax = (vec3_t){-1e30f, -1e30f, -1e30f};
 
     /* normals transform by the inverse transpose of the node matrix */
     sk_mat4_t normal_mat = node_world ? sk_mat4_inverse(*node_world) : sk_mat4_identity();
-    bool flip_winding = false;
+    bool mirrored = false;
     if (node_world) {
         const float *m = node_world->m;
         float det = m[0] * (m[5] * m[10] - m[9] * m[6]) - m[4] * (m[1] * m[10] - m[9] * m[2]) +
                     m[8] * (m[1] * m[6] - m[5] * m[2]);
-        flip_winding = det < 0.0f; /* mirrored node: keep front faces CCW */
+        mirrored = det < 0.0f; /* keep front faces CCW and tangent frames right-handed */
     }
 
+    out->pmin = (vec3_t){1e30f, 1e30f, 1e30f};
+    out->pmax = (vec3_t){-1e30f, -1e30f, -1e30f};
     for (i = 0; i < vcount; i++) {
-        float p[3] = {0}, n[3] = {0, 1, 0}, t[2] = {0}, j[4] = {0}, w[4] = {0};
-        float *v = &verts[i * stride];
+        float p[3] = {0}, n[3] = {0, 1, 0};
         cgltf_accessor_read_float(pos, i, p, 3);
         if (node_world) {
             vec3_t wp = sk_mat4_mul_point(*node_world, (vec3_t){p[0], p[1], p[2]});
             p[0] = wp.x; p[1] = wp.y; p[2] = wp.z;
         }
-        positions[i * 3 + 0] = p[0];
-        positions[i * 3 + 1] = p[1];
-        positions[i * 3 + 2] = p[2];
+        memcpy(&positions[i * 3], p, sizeof(p));
         if (p[0] < out->pmin.x) out->pmin.x = p[0];
         if (p[1] < out->pmin.y) out->pmin.y = p[1];
         if (p[2] < out->pmin.z) out->pmin.z = p[2];
@@ -360,43 +479,54 @@ static bool build_primitive(const cgltf_primitive *prim, bool skinned, const sk_
                                             im[8] * n[0] + im[9] * n[1] + im[10] * n[2]});
             n[0] = wn.x; n[1] = wn.y; n[2] = wn.z;
         }
-        if (uv) cgltf_accessor_read_float(uv, i, t, 2);
-        if (out->pick_uvs != NULL) {
-            out->pick_uvs[i * 2] = t[0];
-            out->pick_uvs[i * 2 + 1] = t[1];
-        }
-        v[0] = p[0]; v[1] = p[1]; v[2] = p[2];
-        v[3] = n[0]; v[4] = n[1]; v[5] = n[2];
-        v[6] = t[0]; v[7] = t[1];
+        memcpy(&normals[i * 3], n, sizeof(n));
+        if (uv) cgltf_accessor_read_float(uv, i, &uvs[i * 2], 2);
         if (skinned) {
+            float j[4] = {0}, w[4] = {0};
             cgltf_accessor_read_float(jnt, i, j, 4);
             cgltf_accessor_read_float(wgt, i, w, 4);
-            v[8] = j[0]; v[9] = j[1]; v[10] = j[2]; v[11] = j[3];
-            v[12] = w[0]; v[13] = w[1]; v[14] = w[2]; v[15] = w[3];
-            if (out->pick_joints != NULL && out->pick_weights != NULL) {
-                for (int k = 0; k < 4; k++) {
-                    out->pick_joints[i * 4 + k] = (uint8_t)(j[k] < 255.0f ? j[k] : 255.0f);
-                    out->pick_weights[i * 4 + k] = w[k];
-                }
+            memcpy(&verts[i * stride + 12], j, sizeof(j));
+            memcpy(&verts[i * stride + 16], w, sizeof(w));
+            for (int k = 0; k < 4; k++) {
+                out->pick_joints[i * 4 + k] = (uint8_t)(j[k] < 255.0f ? j[k] : 255.0f);
+                out->pick_weights[i * 4 + k] = w[k];
             }
         }
     }
 
-    if (prim->indices != NULL) {
-        icount = prim->indices->count;
-        indices = (uint32_t *)malloc(icount * sizeof(uint32_t));
-        for (i = 0; i < icount; i++) indices[i] = (uint32_t)cgltf_accessor_read_index(prim->indices, i);
-    } else {
-        icount = vcount;
-        indices = (uint32_t *)malloc(icount * sizeof(uint32_t));
-        for (i = 0; i < icount; i++) indices[i] = (uint32_t)i;
+    for (i = 0; i < icount; i++) {
+        indices[i] = prim->indices != NULL ? (uint32_t)cgltf_accessor_read_index(prim->indices, i) : (uint32_t)i;
     }
-    if (flip_winding) {
+    if (mirrored) {
         for (i = 0; i + 2 < icount; i += 3) {
             uint32_t tmp = indices[i + 1];
             indices[i + 1] = indices[i + 2];
             indices[i + 2] = tmp;
         }
+    }
+
+    if (tan != NULL) {
+        for (i = 0; i < vcount; i++) {
+            float t[4] = {1, 0, 0, 1};
+            cgltf_accessor_read_float(tan, i, t, 4);
+            if (node_world) {
+                vec3_t wt = sk_v3_norm(sk_mat4_mul_dir(*node_world, (vec3_t){t[0], t[1], t[2]}));
+                t[0] = wt.x; t[1] = wt.y; t[2] = wt.z;
+                if (mirrored) t[3] = -t[3];
+            }
+            memcpy(&tangents[i * 4], t, sizeof(t));
+        }
+    } else {
+        /* after baking and winding fixes, so the generated frame matches what's drawn */
+        sk_model_generate_tangents(positions, normals, uvs, (int)vcount, indices, (int)icount, tangents);
+    }
+
+    for (i = 0; i < vcount; i++) {
+        float *v = &verts[i * stride];
+        memcpy(v, &positions[i * 3], 3 * sizeof(float));
+        memcpy(v + 3, &normals[i * 3], 3 * sizeof(float));
+        memcpy(v + 6, &uvs[i * 2], 2 * sizeof(float));
+        memcpy(v + 8, &tangents[i * 4], 4 * sizeof(float));
     }
 
     out->vbuf = sg_make_buffer(&(sg_buffer_desc){
@@ -406,39 +536,33 @@ static bool build_primitive(const cgltf_primitive *prim, bool skinned, const sk_
         .usage.index_buffer = true,
         .data = {.ptr = indices, .size = icount * sizeof(uint32_t)}});
     out->index_count = (int)icount;
+    out->skinned = skinned;
+    out->material = prim->material != NULL ? (int)(prim->material - g->materials) : default_material;
+    /* retained for picking */
     out->pick_positions = positions;
     out->pick_indices = indices;
     out->pick_vertex_count = (int)vcount;
-    out->sampler = sk_model_sampler;
-    out->view = sk_model_white_view;
-    out->skinned = skinned;
-    out->base_color[0] = out->base_color[1] = out->base_color[2] = out->base_color[3] = 1.0f;
-    out->alpha_mode = ALPHA_MODE_OPAQUE;
-    out->alpha_cutoff = 0.5f;
-    out->double_sided = false;
-
-    if (prim->material != NULL) {
-        switch (prim->material->alpha_mode) {
-            case cgltf_alpha_mode_mask: out->alpha_mode = ALPHA_MODE_MASK; break;
-            case cgltf_alpha_mode_blend: out->alpha_mode = ALPHA_MODE_BLEND; break;
-            default: out->alpha_mode = ALPHA_MODE_OPAQUE; break;
-        }
-        out->alpha_cutoff = prim->material->alpha_cutoff;
-        out->double_sided = prim->material->double_sided;
+    if (uv != NULL) {
+        out->pick_uvs = uvs;
+        uvs = NULL;
     }
-    if (prim->material != NULL && prim->material->has_pbr_metallic_roughness) {
-        const cgltf_pbr_metallic_roughness *pbr = &prim->material->pbr_metallic_roughness;
-        memcpy(out->base_color, pbr->base_color_factor, sizeof(out->base_color));
-        if (pbr->base_color_texture.texture != NULL && pbr->base_color_texture.texture->image != NULL) {
-            out->view = decode_image_view(pbr->base_color_texture.texture->image,
-                                          out->pick_uvs != NULL ? &out->pick_alpha : NULL,
-                                          &out->pick_alpha_width, &out->pick_alpha_height);
-        }
-    }
+    positions = NULL;
+    indices = NULL;
+    ok = true;
 
+done:
+    if (!ok) {
+        free(out->pick_joints);
+        free(out->pick_weights);
+        memset(out, 0, sizeof(*out));
+    }
+    free(positions);
+    free(normals);
+    free(uvs);
+    free(tangents);
     free(verts);
-    /* `positions` and `indices` are retained on the primitive for picking */
-    return true;
+    free(indices);
+    return ok;
 }
 
 static int node_index(const cgltf_data *g, const cgltf_node *n)
@@ -559,6 +683,36 @@ static void parse_animations(sk_mesh_t *mesh, const cgltf_data *g)
     }
 }
 
+/* One material per glTF material, plus glTF's default material if a primitive
+ * uses it. Textures are shared between materials that use the same image. */
+static void load_materials(sk_mesh_t *mesh, const cgltf_data *g)
+{
+    sk_gltf_textures_t cache = {.gltf = g};
+    bool uses_default = false;
+
+    for (int p = 0; p < mesh->prim_count; p++) {
+        uses_default = uses_default || mesh->prims[p].material == (int)g->materials_count;
+    }
+    mesh->material_count = (int)g->materials_count + (uses_default ? 1 : 0);
+    if (mesh->material_count == 0) {
+        return;
+    }
+    mesh->materials = (sk_handle_t *)calloc((size_t)mesh->material_count, sizeof(sk_handle_t));
+    cache.images = (sk_handle_t *)calloc(g->images_count + 1, sizeof(sk_handle_t));
+    if (mesh->materials == NULL || cache.images == NULL) {
+        free(cache.images);
+        mesh->material_count = 0;
+        return;
+    }
+    for (int i = 0; i < mesh->material_count; i++) {
+        mesh->materials[i] = create_gltf_material(&cache, i < (int)g->materials_count ? &g->materials[i] : NULL);
+    }
+    for (cgltf_size i = 0; i < g->images_count; i++) {
+        sk_texture_release(cache.images[i]); /* materials hold what they use */
+    }
+    free(cache.images);
+}
+
 static bool load_model(sk_mesh_t *mesh, const unsigned char *data, int size)
 {
     cgltf_options options = {0};
@@ -581,6 +735,9 @@ static bool load_model(sk_mesh_t *mesh, const unsigned char *data, int size)
     }
     if (total == 0) { cgltf_free(g); return false; }
     mesh->prims = (sk_primitive_t *)calloc((size_t)total, sizeof(sk_primitive_t));
+    if (mesh->prims == NULL) { cgltf_free(g); return false; }
+    /* glTF's default material, for primitives without one, goes in the last slot */
+    const int default_material = (int)g->materials_count;
 
     for (cgltf_size n = 0; n < g->nodes_count; n++) {
         const cgltf_node *node = &g->nodes[n];
@@ -590,19 +747,21 @@ static bool load_model(sk_mesh_t *mesh, const unsigned char *data, int size)
         cgltf_node_transform_world(node, node_world.m);
         for (cgltf_size p = 0; p < node->mesh->primitives_count; p++) {
             if (node->mesh->primitives[p].type != cgltf_primitive_type_triangles) continue;
-            if (build_primitive(&node->mesh->primitives[p], node_skinned, &node_world,
-                                &mesh->prims[idx])) idx++;
+            if (build_primitive(g, &node->mesh->primitives[p], node_skinned, &node_world,
+                                default_material, &mesh->prims[idx])) idx++;
         }
     }
     if (idx == 0) { /* no node-meshes: load meshes directly (static) */
         for (cgltf_size m = 0; m < g->meshes_count; m++) {
             for (cgltf_size p = 0; p < g->meshes[m].primitives_count; p++) {
                 if (g->meshes[m].primitives[p].type != cgltf_primitive_type_triangles) continue;
-                if (build_primitive(&g->meshes[m].primitives[p], false, NULL, &mesh->prims[idx])) idx++;
+                if (build_primitive(g, &g->meshes[m].primitives[p], false, NULL, default_material,
+                                    &mesh->prims[idx])) idx++;
             }
         }
     }
     mesh->prim_count = idx;
+    if (idx > 0) load_materials(mesh, g);
 
     /* merged local-space AABB for broadphase/picking */
     mesh->lmin = (vec3_t){1e30f, 1e30f, 1e30f};
@@ -786,15 +945,17 @@ static void free_mesh_data(sk_mesh_t *mesh)
     for (int p = 0; p < mesh->prim_count; p++) {
         sg_destroy_buffer(mesh->prims[p].vbuf);
         sg_destroy_buffer(mesh->prims[p].ibuf);
-        if (mesh->prims[p].view.id != sk_model_white_view.id) sg_destroy_view(mesh->prims[p].view);
         free(mesh->prims[p].pick_positions);
         free(mesh->prims[p].pick_indices);
         free(mesh->prims[p].pick_joints);
         free(mesh->prims[p].pick_weights);
         free(mesh->prims[p].pick_uvs);
-        free(mesh->prims[p].pick_alpha);
     }
     free(mesh->prims);
+    for (int m = 0; m < mesh->material_count; m++) {
+        sk_material_release(mesh->materials[m]);
+    }
+    free(mesh->materials);
     free_mesh_cpu(mesh);
 }
 
@@ -836,6 +997,7 @@ static sk_handle_t create_mesh(const unsigned char *data, int size, const char *
 
     if (!load_model(&mesh, data, size)) {
         log_error("failed to load model");
+        free_mesh_data(&mesh);
         return 0;
     }
     handle = sk_handle_pool_alloc(&sk_mesh_pool);
@@ -925,6 +1087,21 @@ sk_handle_t sk_mesh_create(const char *path)
 
 SK_KEEP void sk_mesh_destroy(sk_handle_t mesh) { release_mesh(mesh); }
 
+SK_KEEP int sk_mesh_get_material_count(sk_handle_t mesh)
+{
+    sk_mesh_t *mesh_ptr = resolve_mesh(mesh);
+    return mesh_ptr != NULL ? mesh_ptr->material_count : 0;
+}
+
+SK_KEEP sk_handle_t sk_mesh_get_material(sk_handle_t mesh, int slot)
+{
+    sk_mesh_t *mesh_ptr = resolve_mesh(mesh);
+    if (mesh_ptr == NULL || slot < 0 || slot >= mesh_ptr->material_count) {
+        return 0;
+    }
+    return mesh_ptr->materials[slot];
+}
+
 /* --------------------------------------------- public API (model object) -- */
 
 /* A drawable instance of a Mesh; adds its own reference to the mesh. */
@@ -966,6 +1143,47 @@ SK_KEEP bool sk_model_set_tint(sk_handle_t handle, sk_handle_t color)
     if (model_ptr == NULL) return false;
     model_ptr->tint = color;
     return true;
+}
+
+static void set_material_slot(sk_model_t *model_ptr, int slot, sk_handle_t material)
+{
+    if (model_ptr->materials[slot] != material) {
+        sk_material_retain(material); /* no-op for 0 */
+        sk_material_release(model_ptr->materials[slot]);
+        model_ptr->materials[slot] = material;
+    }
+}
+
+SK_KEEP bool sk_model_set_material(sk_handle_t handle, int slot, sk_handle_t material)
+{
+    sk_model_t *model_ptr = resolve(handle);
+    if (model_ptr == NULL) return false;
+    if (material != 0 && sk_material_get(material) == NULL) {
+        log_warn("sk_model_set_material: invalid material handle (%u)", (unsigned int)material);
+        return false;
+    }
+    if (slot == -1) {
+        for (int m = 0; m < SK_MAX_MATERIAL_SLOTS; m++) set_material_slot(model_ptr, m, material);
+        return true;
+    }
+    if (slot < 0 || slot >= SK_MAX_MATERIAL_SLOTS) {
+        log_warn("sk_model_set_material: slot %d out of range (0..%d)", slot, SK_MAX_MATERIAL_SLOTS - 1);
+        return false;
+    }
+    set_material_slot(model_ptr, slot, material);
+    return true;
+}
+
+SK_KEEP sk_handle_t sk_model_get_material(sk_handle_t handle, int slot)
+{
+    sk_model_t *model_ptr = resolve(handle);
+    sk_mesh_t *mesh_ptr;
+    if (model_ptr == NULL || slot < 0) return 0;
+    if (slot < SK_MAX_MATERIAL_SLOTS && sk_material_get(model_ptr->materials[slot]) != NULL) {
+        return model_ptr->materials[slot];
+    }
+    mesh_ptr = model_ptr->mesh != 0 ? resolve_mesh(model_ptr->mesh) : NULL;
+    return mesh_ptr != NULL && slot < mesh_ptr->material_count ? mesh_ptr->materials[slot] : 0;
 }
 
 SK_KEEP bool sk_model_set_visible(sk_handle_t handle, bool visible)
@@ -1098,26 +1316,53 @@ static bool model_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4
     return true;
 }
 
+/* The material a model draws a primitive with: the model's override for the
+ * primitive's slot, else the mesh's material, else glTF's default material. */
+static const sk_material_t *prim_material(const sk_model_t *model_ptr, const sk_mesh_t *mesh_ptr,
+                                          const sk_primitive_t *prim)
+{
+    static const sk_material_t fallback = {
+        .shading = SK_MATERIAL_PBR,
+        .alpha_cutoff = 0.5f,
+        .base_color = {1.0f, 1.0f, 1.0f, 1.0f},
+        .metallic = 1.0f,
+        .roughness = 1.0f,
+        .normal_scale = 1.0f,
+        .occlusion_strength = 1.0f,
+    };
+    const sk_material_t *material = NULL;
+
+    if (prim->material >= 0 && prim->material < SK_MAX_MATERIAL_SLOTS) {
+        material = sk_material_get(model_ptr->materials[prim->material]);
+    }
+    if (material == NULL && prim->material >= 0 && prim->material < mesh_ptr->material_count) {
+        material = sk_material_get(mesh_ptr->materials[prim->material]);
+    }
+    return material != NULL ? material : &fallback;
+}
+
 /* Whether a hit at barycentric (u, v) on triangle (i0, i1, i2) lands on a visible
  * part of the material. Opaque materials always do. MASK uses its cutoff; BLEND
  * counts as solid where the material is at least half opaque. Tint is ignored:
  * fading a model doesn't make it unpickable. */
-static bool is_solid_at(const sk_primitive_t *prim, uint32_t i0, uint32_t i1, uint32_t i2, float u, float v)
+static bool is_solid_at(const sk_primitive_t *prim, const sk_material_t *material, uint32_t i0, uint32_t i1,
+                        uint32_t i2, float u, float v)
 {
-    float alpha = prim->base_color[3];
-    float threshold;
+    float alpha = material->base_color[3];
+    const unsigned char *mask;
+    int width, height;
 
-    if (prim->alpha_mode == ALPHA_MODE_OPAQUE) {
+    if (material->alpha_mode == SK_MATERIAL_ALPHA_OPAQUE) {
         return true;
     }
-    if (prim->pick_uvs != NULL && prim->pick_alpha != NULL) {
+    if (prim->pick_uvs != NULL &&
+        sk_texture_get_alpha_mask(material->textures[SK_MATERIAL_TEXTURE_BASE_COLOR], &mask, &width, &height)) {
         const float w0 = 1.0f - u - v;
         const float tu = prim->pick_uvs[i0 * 2] * w0 + prim->pick_uvs[i1 * 2] * u + prim->pick_uvs[i2 * 2] * v;
         const float tv = prim->pick_uvs[i0 * 2 + 1] * w0 + prim->pick_uvs[i1 * 2 + 1] * u + prim->pick_uvs[i2 * 2 + 1] * v;
-        alpha *= sk_model_sample_alpha(prim->pick_alpha, prim->pick_alpha_width, prim->pick_alpha_height, tu, tv);
+        alpha *= sk_model_sample_alpha(mask, width, height, tu, tv);
     }
-    threshold = prim->alpha_mode == ALPHA_MODE_MASK ? prim->alpha_cutoff : 0.5f;
-    return alpha >= threshold;
+    return alpha >= (material->alpha_mode == SK_MATERIAL_ALPHA_MASK ? material->alpha_cutoff : 0.5f);
 }
 
 static bool model_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_result_t *out)
@@ -1148,6 +1393,7 @@ static bool model_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_re
      * materials. */
     for (int p = 0; p < mesh_ptr->prim_count; p++) {
         sk_primitive_t *prim = &mesh_ptr->prims[p];
+        const sk_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
         const float *positions = prim->pick_positions;
         if (posed && prim->skinned && prim->pick_joints != NULL) {
             positions = &model_ptr->posed_positions[posed_offset * 3];
@@ -1167,7 +1413,7 @@ static bool model_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_re
             vec3_t v2 = {positions[i2 * 3], positions[i2 * 3 + 1], positions[i2 * 3 + 2]};
             sk_ray_hit_t th = {0};
             if (sk_pick_ray_triangle(local, v0, v1, v2, &th) && (!best.hit || th.t < best.t) &&
-                is_solid_at(prim, i0, i1, i2, th.u, th.v)) {
+                is_solid_at(prim, material, i0, i1, i2, th.u, th.v)) {
                 best = th;
             }
         }
@@ -1202,9 +1448,9 @@ static color_t model_tint(const sk_model_t *model_ptr)
 
 /* A primitive is transparent if its material blends, or if the model's tint
  * makes it translucent (e.g. fading a model out). */
-static bool is_blended(color_t tint, const sk_primitive_t *prim)
+static bool is_blended(color_t tint, const sk_material_t *material)
 {
-    return prim->alpha_mode == ALPHA_MODE_BLEND || tint.a < 1.0f;
+    return material->alpha_mode == SK_MATERIAL_ALPHA_BLEND || tint.a < 1.0f;
 }
 
 static vec3_t prim_center(const sk_primitive_t *prim)
@@ -1258,6 +1504,8 @@ static int begin_draw(sk_handle_t handle, sk_model_t *model_ptr)
     e->mvp = sk_mat4_mul(sk_mat4_mul(proj, view), model_mat);
     e->model_mat = model_mat;
     e->model_view = sk_mat4_mul(view, model_mat);
+    e->normal_mat = sk_mat4_transpose(sk_mat4_inverse(model_mat));
+    e->camera_pos = cam.position;
     e->tint = model_tint(model_ptr);
 
     /* choose this placement's lights once, from its world bounds */
@@ -1307,7 +1555,7 @@ static void draw_immediate(sk_handle_t handle)
     first = sk_model_item_count;
     for (int p = 0; p < mesh_ptr->prim_count; p++) {
         sk_primitive_t *prim = &mesh_ptr->prims[p];
-        if (!is_blended(sk_model_draws[draw].tint, prim)) {
+        if (!is_blended(sk_model_draws[draw].tint, prim_material(model_ptr, mesh_ptr, prim))) {
             push_item(draw, p, false);
         } else if (blend_count < MAX_BLEND_PRIMS) {
             sk_blend_prims[blend_count++] = (sk_blend_prim_t){
@@ -1336,7 +1584,7 @@ static void draw_opaque(sk_handle_t handle)
     }
     tint = model_tint(model_ptr);
     for (int p = 0; p < mesh_ptr->prim_count; p++) {
-        if (is_blended(tint, &mesh_ptr->prims[p])) {
+        if (is_blended(tint, prim_material(model_ptr, mesh_ptr, &mesh_ptr->prims[p]))) {
             continue;
         }
         if (draw < 0 && (draw = begin_draw(handle, model_ptr)) < 0) {
@@ -1364,7 +1612,7 @@ static int collect_transparent(sk_handle_t handle, const sk_camera3d_t *cam,
     model_mat = sk_mat4_trs(model_ptr->position, model_ptr->rotation, model_ptr->scale);
     for (int p = 0; p < mesh_ptr->prim_count && count < max_items; p++) {
         const sk_primitive_t *prim = &mesh_ptr->prims[p];
-        if (!is_blended(tint, prim)) {
+        if (!is_blended(tint, prim_material(model_ptr, mesh_ptr, prim))) {
             continue;
         }
         out[count++] = (sk_transparent_item_t){
@@ -1391,23 +1639,36 @@ static void draw_transparent(sk_handle_t handle, int part)
     }
 }
 
-static void apply_fs(sk_model_draw_t *e, sk_primitive_t *prim)
+static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material)
 {
     fs_params_t fsp;
     const sk_light_env_t *env = sk_light_env_get(e->light_env);
+    const bool lit = env != NULL && material->shading == SK_MATERIAL_PBR;
 
     memset(&fsp, 0, sizeof(fsp));
-    fsp.u_tint[0] = e->tint.r * prim->base_color[0];
-    fsp.u_tint[1] = e->tint.g * prim->base_color[1];
-    fsp.u_tint[2] = e->tint.b * prim->base_color[2];
-    fsp.u_tint[3] = e->tint.a * prim->base_color[3];
-    fsp.u_material[0] = prim->alpha_mode == ALPHA_MODE_MASK ? prim->alpha_cutoff : 0.0f;
+    /* tint is an sRGB color like any color handle; alpha is linear */
+    fsp.u_base_color[0] = sk_srgb_to_linear(e->tint.r) * material->base_color[0];
+    fsp.u_base_color[1] = sk_srgb_to_linear(e->tint.g) * material->base_color[1];
+    fsp.u_base_color[2] = sk_srgb_to_linear(e->tint.b) * material->base_color[2];
+    fsp.u_base_color[3] = e->tint.a * material->base_color[3];
+    fsp.u_emissive[0] = material->emissive[0];
+    fsp.u_emissive[1] = material->emissive[1];
+    fsp.u_emissive[2] = material->emissive[2];
+    /* without a normal map the flat default texture must not tilt the normal */
+    fsp.u_emissive[3] = material->textures[SK_MATERIAL_TEXTURE_NORMAL] != 0 ? material->normal_scale : 0.0f;
+    fsp.u_pbr[0] = material->metallic;
+    fsp.u_pbr[1] = material->roughness;
+    fsp.u_pbr[2] = material->occlusion_strength;
+    fsp.u_pbr[3] = lit ? 1.0f : 0.0f;
+    fsp.u_material[0] = material->alpha_mode == SK_MATERIAL_ALPHA_MASK ? material->alpha_cutoff : 0.0f;
+    fsp.u_camera_pos[0] = e->camera_pos.x;
+    fsp.u_camera_pos[1] = e->camera_pos.y;
+    fsp.u_camera_pos[2] = e->camera_pos.z;
 
-    if (env != NULL) {
+    if (lit) {
         fsp.u_ambient[0] = env->ambient.x;
         fsp.u_ambient[1] = env->ambient.y;
         fsp.u_ambient[2] = env->ambient.z;
-        fsp.u_ambient[3] = 1.0f; /* lit */
         fsp.u_material[1] = (float)e->light_count;
         for (int i = 0; i < e->light_count; i++) {
             const sk_scene_light_t *light = &env->lights[e->lights[i]];
@@ -1429,10 +1690,21 @@ static void apply_fs(sk_model_draw_t *e, sk_primitive_t *prim)
     sg_apply_uniforms(UB_fs_params, &(sg_range){.ptr = &fsp, .size = sizeof(fsp)});
 }
 
-static void draw_primitive(sk_model_draw_t *e, sk_model_t *model_ptr, sk_primitive_t *prim,
-                           bool blended, sg_pipeline *cur_pip)
+static sg_view texture_view(sk_handle_t texture, sg_view fallback)
 {
-    sg_pipeline pip = sk_pips[prim->skinned ? 1 : 0][blended ? 1 : 0][prim->double_sided ? 1 : 0];
+    sg_view view = fallback;
+    if (texture != 0) {
+        sk_texture_get_binding(texture, &view, NULL, NULL, NULL);
+    }
+    return view;
+}
+
+static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr, const sk_mesh_t *mesh_ptr,
+                           const sk_primitive_t *prim, bool blended, sg_pipeline *cur_pip)
+{
+    const sk_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
+    const sk_handle_t *textures = material->textures;
+    sg_pipeline pip = sk_pips[prim->skinned ? 1 : 0][blended ? 1 : 0][material->double_sided ? 1 : 0];
     if (pip.id != cur_pip->id) {
         sg_apply_pipeline(pip);
         *cur_pip = pip;
@@ -1442,6 +1714,7 @@ static void draw_primitive(sk_model_draw_t *e, sk_model_t *model_ptr, sk_primiti
         vs_skin_params_t vsp;
         memcpy(vsp.mvp, e->mvp.m, sizeof(vsp.mvp));
         memcpy(vsp.model, e->model_mat.m, sizeof(vsp.model));
+        memcpy(vsp.normal_mat, e->normal_mat.m, sizeof(vsp.normal_mat));
         for (int j = 0; j < SK_MAX_JOINTS; j++) {
             memcpy(vsp.joints_mat[j], model_ptr->joint_matrices[j].m, 16 * sizeof(float));
         }
@@ -1450,16 +1723,22 @@ static void draw_primitive(sk_model_draw_t *e, sk_model_t *model_ptr, sk_primiti
         vs_params_t vsp;
         memcpy(vsp.mvp, e->mvp.m, sizeof(vsp.mvp));
         memcpy(vsp.model, e->model_mat.m, sizeof(vsp.model));
+        memcpy(vsp.normal_mat, e->normal_mat.m, sizeof(vsp.normal_mat));
         sg_apply_uniforms(UB_vs_params, &(sg_range){.ptr = &vsp, .size = sizeof(vsp)});
     }
 
     sg_apply_bindings(&(sg_bindings){
         .vertex_buffers[0] = prim->vbuf,
         .index_buffer = prim->ibuf,
-        .views[VIEW_tex] = prim->view,
-        .samplers[SMP_smp] = prim->sampler,
+        .views[VIEW_base_color_tex] = texture_view(textures[SK_MATERIAL_TEXTURE_BASE_COLOR], sk_model_white_view),
+        .views[VIEW_metallic_roughness_tex] =
+            texture_view(textures[SK_MATERIAL_TEXTURE_METALLIC_ROUGHNESS], sk_model_white_view),
+        .views[VIEW_normal_tex] = texture_view(textures[SK_MATERIAL_TEXTURE_NORMAL], sk_model_flat_normal_view),
+        .views[VIEW_occlusion_tex] = texture_view(textures[SK_MATERIAL_TEXTURE_OCCLUSION], sk_model_white_view),
+        .views[VIEW_emissive_tex] = texture_view(textures[SK_MATERIAL_TEXTURE_EMISSIVE], sk_model_white_view),
+        .samplers[SMP_smp] = sk_model_sampler,
     });
-    apply_fs(e, prim);
+    apply_fs(e, material);
     sg_draw(0, prim->index_count, 1);
 }
 
@@ -1475,7 +1754,7 @@ void sk_model_draw_items(int first, int count)
         if (mesh_ptr == NULL || item->prim >= mesh_ptr->prim_count) {
             continue; /* destroyed or re-meshed after it was queued */
         }
-        draw_primitive(e, model_ptr, &mesh_ptr->prims[item->prim], item->blended, &cur_pip);
+        draw_primitive(e, model_ptr, mesh_ptr, &mesh_ptr->prims[item->prim], item->blended, &cur_pip);
     }
 }
 
@@ -1506,6 +1785,9 @@ SK_KEEP void sk_model_destroy(sk_handle_t handle)
     sk_handle_t mesh;
     if (model_ptr == NULL) return;
     mesh = model_ptr->mesh;
+    for (int m = 0; m < SK_MAX_MATERIAL_SLOTS; m++) {
+        sk_material_release(model_ptr->materials[m]); /* no-op for 0 */
+    }
     free(model_ptr->posed_positions);
     memset(model_ptr, 0, sizeof(*model_ptr));
     sk_handle_pool_free(&sk_model_pool, handle);
@@ -1515,6 +1797,7 @@ SK_KEEP void sk_model_destroy(sk_handle_t handle)
 void sk_model_init(void)
 {
     static const unsigned char white[4] = {255, 255, 255, 255};
+    static const unsigned char flat_normal[4] = {128, 128, 255, 255};
     sg_pipeline_desc base;
 
     memset(sk_models, 0, sizeof(sk_models));
@@ -1544,9 +1827,10 @@ void sk_model_init(void)
                 d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
                 d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
                 d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2;
+                d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT4; /* tangent */
                 if (skinned) {
-                    d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT4;
                     d.layout.attrs[4].format = SG_VERTEXFORMAT_FLOAT4;
+                    d.layout.attrs[5].format = SG_VERTEXFORMAT_FLOAT4;
                 }
                 d.cull_mode = double_sided ? SG_CULLMODE_NONE : SG_CULLMODE_BACK;
                 if (blended) {
@@ -1572,6 +1856,10 @@ void sk_model_init(void)
         .width = 1, .height = 1, .pixel_format = SG_PIXELFORMAT_RGBA8,
         .data.mip_levels[0] = {.ptr = white, .size = sizeof(white)}});
     sk_model_white_view = sg_make_view(&(sg_view_desc){.texture.image = sk_model_white_img});
+    sk_model_flat_normal_img = sg_make_image(&(sg_image_desc){
+        .width = 1, .height = 1, .pixel_format = SG_PIXELFORMAT_RGBA8,
+        .data.mip_levels[0] = {.ptr = flat_normal, .size = sizeof(flat_normal)}});
+    sk_model_flat_normal_view = sg_make_view(&(sg_view_desc){.texture.image = sk_model_flat_normal_img});
 
     sk_scene_register_passes(SK_HANDLE_KIND_MODEL, draw_opaque, collect_transparent, draw_transparent);
     sk_scene_register_bounds(SK_HANDLE_KIND_MODEL, model_bounds);
@@ -1595,6 +1883,8 @@ void sk_model_deinit(void)
         }
     }
     sg_destroy_view(sk_model_white_view);
+    sg_destroy_view(sk_model_flat_normal_view);
+    sg_destroy_image(sk_model_flat_normal_img);
     sg_destroy_image(sk_model_white_img);
     sg_destroy_sampler(sk_model_sampler);
     for (int skinned = 0; skinned < 2; skinned++) {

@@ -76,12 +76,12 @@ static void init(void *user_data)
     g.sun = sk_light_create(SK_LIGHT_DIRECTIONAL);
     sk_light_set_direction(g.sun, -0.4f, -1.0f, -0.6f);
     sk_light_set_color(g.sun, sk_color_create(255, 210, 160, 255));
-    sk_light_set_intensity(g.sun, 0.35f);
+    sk_light_set_intensity(g.sun, 1.1f);
     sk_scene_add(g.scene, g.sun, 0);
 
     g.lamp = sk_light_create(SK_LIGHT_POINT);
     sk_light_set_color(g.lamp, sk_color_create(60, 220, 255, 255));
-    sk_light_set_intensity(g.lamp, 6.0f);
+    sk_light_set_intensity(g.lamp, 20.0f);
     sk_light_set_range(g.lamp, 5.0f);
     sk_scene_add(g.scene, g.lamp, 0);
     g.lamp_marker = sk_shape_create();
@@ -92,7 +92,7 @@ static void init(void *user_data)
     g.spot = sk_light_create(SK_LIGHT_SPOT);
     sk_light_set_position(g.spot, 0, 6, 2);
     sk_light_set_spot_cone(g.spot, 0.14f, 0.28f); /* radians: about 8 and 16 degrees */
-    sk_light_set_intensity(g.spot, 40.0f);
+    sk_light_set_intensity(g.spot, 125.0f);
     sk_scene_add(g.scene, g.spot, 0);
 
     sk_asset_add_task(sk_asset_ensure_async(MODEL_PATH, NULL, SK_ASSET_NONE), on_mesh_loaded, on_failed, NULL);

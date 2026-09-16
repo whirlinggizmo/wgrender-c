@@ -27,12 +27,16 @@ void test_light_falloff(void);
 void test_light_select(void);
 void test_light_api(void);
 
+void test_material_srgb(void);
+void test_material_api(void);
+
 void test_math_angles(void);
 void test_math_inverse(void);
 void test_math_trs(void);
 
 void test_model_skin_position(void);
 void test_model_sample_alpha(void);
+void test_model_generate_tangents(void);
 
 void test_pick_ray_sphere(void);
 void test_pick_ray_aabb(void);

@@ -55,6 +55,7 @@ transform / tint / volume / playback state and points at a shared resource via
 | `gumshoe.glb` / *gen* | **Mesh** (primitives + skin + clips)     | **Model** (`set_mesh`)           |
 | `ethernight_club.mp3` | **Audio** (decoded \| streamed)          | **Sound** (`set_audio`)          |
 | `JetBrainsMono`       | **Font**                                 | Text2d / Text3d (`set_font`)     |
+| *(code)* / `gumshoe.glb` | **Material** (shading + params + textures) | Model (`set_material`, per slot) |
 | *(none)*              | *(none)*                                 | **Light** (added to a Scene)     |
 
 Rule that disambiguates every row: **resource = the data noun, object = the
@@ -70,6 +71,11 @@ Naming notes / decisions:
   ever matters, clips can be split into their own resource later — not now.)
 - **Texture, not Image.** There is no separate public `Image` type; the Texture
   resource carries the optional CPU-side alpha mask used for picking.
+- **Material is a resource that objects use, not an object.** Meshes loaded from
+  glTF create one material per glTF material (the mesh's slots); models draw with
+  them unless they override a slot with `sk_model_set_material`. Materials are
+  created in code with `sk_material_create(shading)`, not from a path. See
+  [PLAN-materials.md](PLAN-materials.md).
 - **Light is an object with no resource.** Directional, point and spot lights are
   created with `sk_light_create(type)` and added to scenes; nothing is loaded.
   See [PLAN-lighting.md](PLAN-lighting.md).

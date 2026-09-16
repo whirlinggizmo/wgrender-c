@@ -21,9 +21,13 @@ extern "C" {
  * - Each model uses up to 8 lights: the ones contributing most to it (brightness,
  *   intensity and falloff at the model's bounds). Point and spot lights whose range
  *   doesn't reach a model are skipped for it.
- * - Parameters follow glTF KHR_lights_punctual. Intensity is a unitless
- *   multiplier. Point and spot lights fall off with the inverse square of distance
- *   and fade smoothly to zero at `range` (0 = no range limit).
+ * - Parameters follow glTF KHR_lights_punctual, and shading follows glTF
+ *   materials (sk_material.h), so lights exported from glTF tools look the same
+ *   here. Light colors are sRGB; lighting happens in linear space. A white
+ *   directional light with intensity pi (about 3) shows a white, rough, non-metal
+ *   surface facing it at full brightness. Point and spot lights fall off with the
+ *   inverse square of distance and fade smoothly to zero at `range` (0 = no range
+ *   limit).
  * - Setters store values even when they don't apply to the light's type (e.g.
  *   range on a directional light). */
 

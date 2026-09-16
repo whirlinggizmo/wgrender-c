@@ -15,6 +15,7 @@
 #include "sk_keys.h"    // IWYU pragma: keep
 #include "sk_light.h"   // IWYU pragma: keep
 #include "sk_logger.h"  // IWYU pragma: keep
+#include "sk_material.h" // IWYU pragma: keep
 #include "sk_model.h"   // IWYU pragma: keep
 #include "sk_render.h"  // IWYU pragma: keep
 #include "sk_scene.h"   // IWYU pragma: keep

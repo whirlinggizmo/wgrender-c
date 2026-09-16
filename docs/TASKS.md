@@ -141,10 +141,41 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 
 ## Roadmap features
 
-- [ ] Materials & shaders (handle-only uniform/material API)
+- [x] Materials, phase 1: material resource, glTF metallic-roughness and unlit
+      shading, normal/occlusion/emissive maps, sRGB-correct lighting, per-model
+      slot overrides ([PLAN-materials.md](PLAN-materials.md), `examples/materials.c`)
+- [ ] Materials, phase 2: custom shaders (`.skshader` packages from sokol-shdc)
+- [ ] Materials, phase 3: shapes and sprites on materials (with the batched renderer)
 - [ ] 2D / UI layer: screen space, draw ordering, 2D picking, pickable UI primitives
 - [ ] Particle emitters (batched/instanced)
 - [ ] Offscreen / render-to-texture (when the first consumer needs it)
+
+## Materials: not supported yet
+
+Wanted next:
+
+- [ ] Second texture coordinate set (TEXCOORD_1): glTF textures that use
+      `texCoord: 1` (common for occlusion/lightmaps) currently fall back to set 0
+      with a warning. Needs a second UV vertex attribute, a per-texture set index on
+      the material, and the shader choosing per texture.
+- [ ] glTF images in separate files (`.gltf` + `.png`/`.jpg`, and external `.bin`
+      buffers): only images and buffers embedded in `.glb` load today; others are
+      skipped with a warning. Needs the asset layer to ensure the referenced files
+      (relative to the `.gltf`) before `sk_mesh_create`, on web too.
+- [ ] Environment lighting (image-based lighting): without it metals only show
+      direct highlights and look dark. Scene environment map (prefiltered
+      specular + irradiance, BRDF lookup table), probably with HDR input and tone
+      mapping (below).
+
+Later:
+
+- [ ] glTF vertex colors (COLOR_0) multiplying base color
+- [ ] KHR_texture_transform (texture offset, rotation, scale)
+- [ ] glTF sampler modes (wrap, filter); today always linear + repeat
+- [ ] Mipmaps for material textures (distant textures shimmer)
+- [ ] Tone mapping / exposure (lit values above 1 clip)
+- [ ] Other glTF material extensions (clearcoat, transmission, sheen, specular, ior, ...)
+- [ ] Morph targets (animation weights are skipped)
 
 ## Lessons from librl to design for
 

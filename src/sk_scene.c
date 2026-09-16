@@ -306,8 +306,9 @@ static int push_lighting(const sk_scene_t *scene_ptr)
     color_t ambient = sk_color_get(scene_ptr->ambient_color);
 
     env.count = 0;
-    env.ambient = (vec3_t){ambient.r * scene_ptr->ambient_intensity, ambient.g * scene_ptr->ambient_intensity,
-                           ambient.b * scene_ptr->ambient_intensity};
+    env.ambient = (vec3_t){sk_srgb_to_linear(ambient.r) * scene_ptr->ambient_intensity,
+                           sk_srgb_to_linear(ambient.g) * scene_ptr->ambient_intensity,
+                           sk_srgb_to_linear(ambient.b) * scene_ptr->ambient_intensity};
     for (int i = 0; i < scene_ptr->count && env.count < SK_MAX_SCENE_LIGHTS; i++) {
         if (sk_handle_get_kind(scene_ptr->items[i].drawable) == SK_HANDLE_KIND_LIGHT &&
             sk_light_get_scene_light(scene_ptr->items[i].drawable, &env.lights[env.count])) {

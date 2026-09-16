@@ -26,6 +26,12 @@ extern "C" {
 sk_handle_t sk_mesh_create(const char *path);
 void        sk_mesh_destroy(sk_handle_t mesh);
 
+/* The mesh's materials, one slot per glTF material (see sk_material.h). The
+ * returned handle is borrowed: it stays valid while the mesh lives, and changing
+ * it changes every model using the mesh. */
+int         sk_mesh_get_material_count(sk_handle_t mesh);
+sk_handle_t sk_mesh_get_material(sk_handle_t mesh, int slot);
+
 /* Model object: a drawable instance of a Mesh (kind MODEL). `mesh` may be 0 to
  * create an empty model now (placed/animated immediately) and attach the mesh
  * later with sk_model_set_mesh — draw/animate no-op until then. */
@@ -37,6 +43,13 @@ bool sk_model_set_transform(sk_handle_t handle,
                             float rotation_x, float rotation_y, float rotation_z, /* radians */
                             float scale_x, float scale_y, float scale_z);
 bool sk_model_set_tint(sk_handle_t handle, sk_handle_t color);
+/* Draw this model's material slot `slot` (a mesh material slot, 0..31) with
+ * `material` instead of the mesh's; -1 sets every slot. 0 restores the mesh's
+ * material. Overrides stay when the mesh changes. The model holds its own
+ * reference. */
+bool sk_model_set_material(sk_handle_t handle, int slot, sk_handle_t material);
+/* The material the model draws slot `slot` with (borrowed), or 0. */
+sk_handle_t sk_model_get_material(sk_handle_t handle, int slot);
 bool sk_model_set_visible(sk_handle_t handle, bool visible);
 bool sk_model_is_visible(sk_handle_t handle);
 void sk_model_draw(sk_handle_t handle);

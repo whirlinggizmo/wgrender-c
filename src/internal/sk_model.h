@@ -28,4 +28,10 @@ vec3_t sk_model_skin_position(const sk_mat4_t *joints, int joint_count, vec3_t p
  * texel, repeating outside 0..1 like the model sampler. */
 float sk_model_sample_alpha(const uint8_t *alpha, int width, int height, float u, float v);
 
+/* Per-vertex tangents (4 floats: xyz, w = bitangent sign) for normal mapping,
+ * from positions (3), normals (3, unit) and texture coordinates (2) of an
+ * indexed triangle list. Pure; exposed for tests. */
+void sk_model_generate_tangents(const float *positions, const float *normals, const float *uvs, int vertex_count,
+                                const uint32_t *indices, int index_count, float *tangents);
+
 #endif // SK_INTERNAL_MODEL_H

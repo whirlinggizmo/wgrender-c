@@ -7,7 +7,8 @@ that lean on them. Items with a design doc link there.
 
 ## Now / next (recommended order)
 
-1. **Materials & shaders** — a **handle-only uniform/material API**
+1. **Materials & shaders** (phase 1 done 2026-09-16: built-in materials; see
+   [PLAN-materials.md](PLAN-materials.md)) — a **handle-only uniform/material API**
    (`sk_material_set_float/vec4/texture(...)`, no struct/pointer across the public
    boundary) on top of the sokol-shdc pipeline we already have. *Enabler:*
    user shaders, particle looks, UI styling. The work is API shape, not plumbing

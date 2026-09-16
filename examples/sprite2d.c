@@ -90,6 +90,7 @@ static void init(void *user_data)
     sk_scene_set_active_camera(g.scene, g.camera);
     sk_handle_t sun = sk_light_create(SK_LIGHT_DIRECTIONAL);
     sk_light_set_direction(sun, -0.5f, -1.0f, -0.7f);
+    sk_light_set_intensity(sun, 3.0f);
     sk_scene_add(g.scene, sun, 0);
     sk_scene_set_ambient(g.scene, 0, 0.35f);
 

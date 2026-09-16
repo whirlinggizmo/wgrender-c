@@ -215,6 +215,40 @@ static sk_handle_t create_texture_from_memory(const unsigned char *data, int siz
     return handle;
 }
 
+sk_handle_t sk_texture_create_rgba(const unsigned char *rgba, int width, int height)
+{
+    sk_handle_t handle = create_texture_from_rgba(rgba, width, height, NULL);
+    sk_texture_t *texture_ptr = resolve(handle);
+    bool translucent = false;
+
+    if (texture_ptr == NULL) {
+        return 0;
+    }
+    for (int i = 0; i < width * height && !translucent; i++) {
+        translucent = rgba[i * 4 + 3] != 255;
+    }
+    if (translucent) {
+        extract_alpha_mask(texture_ptr, rgba); /* no source to re-read later */
+    }
+    texture_ptr->ref_count = 1;
+    return handle;
+}
+
+bool sk_texture_get_alpha_mask(sk_handle_t handle, const unsigned char **alpha, int *width, int *height)
+{
+    sk_texture_t *texture_ptr = resolve(handle);
+    if (texture_ptr == NULL) {
+        return false;
+    }
+    if (texture_ptr->alpha == NULL && (!texture_ptr->has_path || !sk_texture_ensure_alpha_mask(handle))) {
+        return false;
+    }
+    *alpha = texture_ptr->alpha;
+    *width = texture_ptr->width;
+    *height = texture_ptr->height;
+    return true;
+}
+
 void sk_texture_retain(sk_handle_t handle)
 {
     sk_texture_t *texture_ptr = resolve(handle);

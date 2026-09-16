@@ -90,6 +90,7 @@ static void on_init(void *user_data)
     /* scenes start unlit: a sun and some ambient so the model is visible */
     sk_handle_t sun = sk_light_create(SK_LIGHT_DIRECTIONAL);
     sk_light_set_direction(sun, -0.6f, -1.0f, -0.5f);
+    sk_light_set_intensity(sun, 3.0f);
     sk_scene_add(g_scene, sun, 0);
     sk_scene_set_ambient(g_scene, 0, 0.3f);
 

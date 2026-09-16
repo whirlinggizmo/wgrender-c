@@ -26,7 +26,8 @@ typedef enum sk_handle_kind_t {
     SK_HANDLE_KIND_TEXT3D = 14,
     SK_HANDLE_KIND_AUDIO = 15, /* resource: decoded PCM shared by Sound/Music */
     SK_HANDLE_KIND_LIGHT = 16, /* object: directional / point / spot light */
-    /* 17-31 reserved for future drawable / presentation / resource kinds */
+    SK_HANDLE_KIND_MATERIAL = 17, /* resource: shading model + parameters + textures */
+    /* 18-31 reserved for future drawable / presentation / resource kinds */
     SK_HANDLE_KIND_ASSET_TASK = 32,
 } sk_handle_kind_t;
 

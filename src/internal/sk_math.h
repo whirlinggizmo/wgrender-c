@@ -61,6 +61,8 @@ static inline sk_mat4_t sk_mat4_ortho(float l, float r, float b, float t, float 
 }
 
 static inline vec3_t sk_v3_sub(vec3_t a, vec3_t b) { return (vec3_t){a.x - b.x, a.y - b.y, a.z - b.z}; }
+static inline vec3_t sk_v3_scale(vec3_t a, float s) { return (vec3_t){a.x * s, a.y * s, a.z * s}; }
+static inline float sk_v3_dot(vec3_t a, vec3_t b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
 static inline vec3_t sk_v3_cross(vec3_t a, vec3_t b)
 {
     return (vec3_t){a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
@@ -180,6 +182,25 @@ static inline quat_t sk_quat_slerp(quat_t a, quat_t b, float t)
 }
 
 /* Transform a point (w=1, perspective divide) by a column-major matrix. */
+/* Transform a direction (ignores translation). */
+static inline vec3_t sk_mat4_mul_dir(sk_mat4_t m, vec3_t d)
+{
+    return (vec3_t){m.m[0] * d.x + m.m[4] * d.y + m.m[8] * d.z,
+                    m.m[1] * d.x + m.m[5] * d.y + m.m[9] * d.z,
+                    m.m[2] * d.x + m.m[6] * d.y + m.m[10] * d.z};
+}
+
+static inline sk_mat4_t sk_mat4_transpose(sk_mat4_t m)
+{
+    sk_mat4_t r;
+    for (int col = 0; col < 4; col++) {
+        for (int row = 0; row < 4; row++) {
+            r.m[col * 4 + row] = m.m[row * 4 + col];
+        }
+    }
+    return r;
+}
+
 static inline vec3_t sk_mat4_mul_point(sk_mat4_t m, vec3_t p)
 {
     float x = m.m[0] * p.x + m.m[4] * p.y + m.m[8] * p.z + m.m[12];
@@ -230,6 +251,20 @@ static inline sk_mat4_t sk_mat4_trs(vec3_t pos, vec3_t rot, vec3_t scale)
     m = sk_mat4_mul(m, sk_mat4_rotate(rot.x, 1, 0, 0));
     m = sk_mat4_mul(m, sk_mat4_scale(scale.x, scale.y, scale.z));
     return m;
+}
+
+/* sRGB transfer function (IEC 61966-2-1). Colors authored as 8-bit sRGB (color
+ * handles, textures) are converted to linear for lighting, and back for output.
+ * The model shader has matching GLSL versions. */
+static inline float sk_srgb_to_linear(float c)
+{
+    return c <= 0.04045f ? c / 12.92f : powf((c + 0.055f) / 1.055f, 2.4f);
+}
+
+static inline float sk_linear_to_srgb(float c)
+{
+    if (c <= 0.0f) return 0.0f;
+    return c <= 0.0031308f ? c * 12.92f : 1.055f * powf(c, 1.0f / 2.4f) - 0.055f;
 }
 
 #endif // SK_INTERNAL_MATH_H

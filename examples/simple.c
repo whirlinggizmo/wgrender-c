@@ -135,6 +135,7 @@ static void on_init(void *user_data)
     /* same lighting as librl's c-simple: a directional light plus ambient 0.25 */
     sk_handle_t sun = sk_light_create(SK_LIGHT_DIRECTIONAL);
     sk_light_set_direction(sun, -0.6f, -1.0f, -0.5f);
+    sk_light_set_intensity(sun, 3.0f);
     sk_scene_add(g.scene, sun, 0);
     sk_scene_set_ambient(g.scene, 0, 0.25f);
     g.background_color = sk_color_create(245, 245, 245, 255);
