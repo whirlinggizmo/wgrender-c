@@ -13,6 +13,7 @@
 #   make shaders    regenerate shdc shader headers
 #   make check      naming / backend-leak guardrails
 #   make deps       install system build deps (ALSA/GL/X11 dev packages)
+#   make parity     librl -> libsk API parity report (LIBRL_DIR=../librl)
 #   make clean
 
 UNAME_S := $(shell uname -s)
@@ -37,7 +38,7 @@ LIB     := $(LIBDIR)/libsk.a
 SRCS    := $(wildcard src/*.c)
 OBJS    := $(patsubst src/%.c,$(BUILD)/%.o,$(SRCS))
 
-.PHONY: all examples run clean check wasm wasm-all serve shaders deps deps-check
+.PHONY: all examples run clean check wasm wasm-all serve shaders deps deps-check parity
 
 all: $(LIB)
 
@@ -94,6 +95,13 @@ shaders:
 check:
 	@tools/check_no_backend_leak.sh
 	@tools/check_naming.sh
+
+# librl -> libsk API parity: every librl function is matched, mapped as ported /
+# dropped / todo in tools/parity.map, or the report fails. PARITY_FLAGS=--strict
+# also fails on remaining todos. Needs a librl checkout (LIBRL_DIR, default ../librl).
+LIBRL_DIR ?= ../librl
+parity:
+	@LIBRL_DIR=$(LIBRL_DIR) tools/parity.sh $(PARITY_FLAGS)
 
 clean:
 	rm -rf $(BUILD) $(LIBDIR)

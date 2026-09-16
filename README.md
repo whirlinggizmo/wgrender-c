@@ -22,8 +22,10 @@ As of 2026-09-16, **libsk is where new work happens**; librl is in maintenance m
   covers must be written or pulled in (preferably as single-header libraries).
 - **librl's role:** fixes only when needed; a reference for behavior and the
   baseline for parity tests. Archive it once parity is reached.
-- **Parity scope:** port what future work needs, not every librl function. Roadmap
-  items may come before some parity items.
+- **Parity means functional parity, not a 1:1 API.** Anything you could build with
+  librl should be buildable with libsk, but each feature gets a fresh design using
+  what librl taught us, rather than a copy of its functions. Port what future work
+  needs first; roadmap items may come before some parity items.
 
 ## Build (desktop, Linux GL)
 

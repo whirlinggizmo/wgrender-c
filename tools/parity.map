@@ -1,0 +1,219 @@
+# librl -> libsk API parity map. Checked by tools/parity.sh (`make parity`).
+#
+# The goal is functional parity, not a 1:1 API: this file accounts for every librl
+# function so nothing is forgotten, but a todo is resolved by designing the libsk
+# way to do the same thing, not by copying the signature. One librl function may
+# map to a differently shaped libsk function, be covered by another design, or be
+# dropped once we decide it was a mistake.
+#
+# One line per librl public function that does NOT exist in libsk under the same
+# suffix (rl_foo -> sk_foo is matched automatically and needs no entry):
+#
+#   rl_name  ported   sk_name   [note]   capability exists in libsk (sk_name covers it)
+#   rl_name  dropped  reason             left out on purpose
+#   rl_name  todo     [note]             not covered yet; needs a design decision
+#
+# Keep entries grouped by header. Everything must fit the handle-only public API
+# (see AGENTS.md).
+
+# --- rl.h (core / lifecycle) ---
+rl_deinit                               ported   sk_request_quit      sokol owns the loop; cleanup runs in the sk_set_cleanup callback
+rl_init_values_async                    dropped  sk_run owns startup; async setup happens before the first frame
+rl_tick                                 ported   sk_set_frame         callback-driven loop instead of polling
+
+# --- rl_asset.h ---
+rl_asset_ensure                         dropped  synchronous fetch needs JSPI on wasm; use sk_asset_ensure_async
+rl_asset_ensure_many_async              todo     batch ensure (handle-only: no path array)
+rl_asset_ensure_many_from_scratch_async dropped  scratch buffer
+rl_asset_finish_task                    dropped  managed task queue fires callbacks (sk_asset_add_task)
+rl_asset_free_task                      dropped  managed task queue frees tasks
+rl_asset_get_host                       todo
+rl_asset_get_task_path                  dropped  path is passed to the callback
+rl_asset_ping_host                      todo
+rl_asset_poll_task                      dropped  managed task queue; callbacks instead of polling
+rl_asset_tick                           dropped  runtime ticks the asset queue each frame (internal sk_asset_tick)
+
+# --- rl_font.h ---
+rl_font_get_default                     todo     handle for the built-in font
+
+# --- rl_fs.h (filesystem is internal in libsk; see docs/PLAN-sk_fs.md) ---
+rl_fs_clear                             dropped  sk_fs is internal
+rl_fs_deinit                            dropped  sk_fs is internal
+rl_fs_deinit_async                      dropped  sk_fs is internal
+rl_fs_exists                            dropped  sk_fs is internal
+rl_fs_flush                             dropped  sk_fs is internal
+rl_fs_get_root_dir                      dropped  sk_fs is internal
+rl_fs_init                              dropped  sk_fs is internal
+rl_fs_init_async                        dropped  sk_fs is internal
+rl_fs_is_initialized                    dropped  sk_fs is internal
+rl_fs_is_ready                          dropped  sk_fs is internal
+rl_fs_mkdir                             dropped  sk_fs is internal
+rl_fs_normalize_path                    dropped  sk_fs is internal
+rl_fs_read                              dropped  sk_fs is internal; bytes never cross into user code
+rl_fs_read_free                         dropped  sk_fs is internal
+rl_fs_remove                            dropped  sk_fs is internal
+rl_fs_restore_async                     dropped  sk_fs is internal
+rl_fs_rmdir                             dropped  sk_fs is internal
+rl_fs_write                             dropped  sk_fs is internal; bytes never cross into user code
+
+# --- rl_input.h ---
+rl_input_poll_events                    dropped  sokol_app delivers events via callbacks
+
+# --- lighting (rl.h / rl_render.h) ---
+rl_disable_lighting                     todo
+rl_enable_lighting                      todo
+rl_is_lighting_enabled                  todo
+rl_set_light_ambient                    todo
+rl_set_light_direction                  todo     currently hardcoded in src/sk_model.c
+
+# --- rl_model.h ---
+rl_model_create_from_file               dropped  objects are created from handles (sk_mesh_create + sk_model_create)
+rl_model_destroy_asset                  ported   sk_mesh_destroy
+rl_model_get_animation_frame_count      todo
+rl_model_get_default_asset              todo     placeholder mesh handle
+rl_model_is_pickable                    todo
+rl_model_is_valid                       todo
+rl_model_is_valid_strict                todo
+rl_model_load_asset                     ported   sk_mesh_create
+rl_model_set_asset                      ported   sk_model_set_mesh
+rl_model_set_pickable                   todo
+rl_model_update_animation               todo     set an explicit frame (sk_model_animate only advances by time)
+
+# --- rl_music.h (music is a looping Sound over an Audio) ---
+rl_music_create                         dropped  sk_audio_create + sk_sound_create
+rl_music_destroy                        dropped  sk_sound_destroy
+rl_music_is_playing                     dropped  sk_sound_is_playing
+rl_music_pause                          dropped  sk_sound_pause
+rl_music_play                           dropped  sk_sound_play
+rl_music_set_loop                       dropped  sk_sound_set_loop
+rl_music_set_volume                     dropped  sk_sound_set_volume
+rl_music_stop                           dropped  sk_sound_stop
+rl_music_update                         dropped  audio is mixed by the runtime; no per-stream update
+rl_music_update_all                     dropped  audio is mixed by the runtime; no per-stream update
+
+# --- rl_pick.h ---
+rl_pick_get_broadphase_rejects          todo     pick stats
+rl_pick_get_broadphase_tests            todo     pick stats
+rl_pick_get_narrowphase_hits            todo     pick stats
+rl_pick_get_narrowphase_tests           todo     pick stats
+rl_pick_model                           todo
+rl_pick_model_to_scratch                dropped  scratch buffer; value returns instead
+rl_pick_reset_stats                     todo     pick stats
+rl_pick_shape                           todo
+rl_pick_shape_to_scratch                dropped  scratch buffer; value returns instead
+rl_pick_sprite3d                        todo
+rl_pick_sprite3d_to_scratch             dropped  scratch buffer; value returns instead
+rl_pick_text3d                          todo
+rl_pick_text3d_to_scratch               dropped  scratch buffer; value returns instead
+
+# --- rl_scene.h ---
+rl_scene_pick_to_scratch                dropped  scratch buffer; value returns instead
+
+# --- rl_scratch.h (marshalling buffer for bindings; replaced by value returns) ---
+rl_scratch_clear                        dropped  scratch buffer
+rl_scratch_deinit                       dropped  scratch buffer
+rl_scratch_get_base                     dropped  scratch buffer
+rl_scratch_get_color                    dropped  scratch buffer
+rl_scratch_get_gamepad                  dropped  scratch buffer (gamepad input is a separate todo in docs/TASKS.md)
+rl_scratch_get_gamepads                 dropped  scratch buffer (gamepad input is a separate todo in docs/TASKS.md)
+rl_scratch_get_keyboard                 dropped  scratch buffer; use sk_input_get_keyboard_state
+rl_scratch_get_matrix                   dropped  scratch buffer
+rl_scratch_get_offsets                  dropped  scratch buffer
+rl_scratch_get_mouse                    dropped  scratch buffer; use sk_input_get_mouse_state
+rl_scratch_get_pick_result              dropped  scratch buffer; pick functions return values
+rl_scratch_get_quaternion               dropped  scratch buffer
+rl_scratch_get_rect                     dropped  scratch buffer
+rl_scratch_get_touchpoint               dropped  scratch buffer (touch input is a separate todo in docs/TASKS.md)
+rl_scratch_get_touchpoints              dropped  scratch buffer (touch input is a separate todo in docs/TASKS.md)
+rl_scratch_get_vector2                  dropped  scratch buffer
+rl_scratch_get_vector3                  dropped  scratch buffer
+rl_scratch_get_vector4                  dropped  scratch buffer
+rl_scratch_init                         dropped  scratch buffer
+rl_scratch_refresh                      dropped  scratch buffer
+rl_scratch_set_color                    dropped  scratch buffer
+rl_scratch_set_gamepad_axis             dropped  scratch buffer
+rl_scratch_set_gamepad_button           dropped  scratch buffer
+rl_scratch_set_keyboard_key             dropped  scratch buffer
+rl_scratch_set_matrix                   dropped  scratch buffer
+rl_scratch_set_mouse                    dropped  scratch buffer
+rl_scratch_set_pick_result              dropped  scratch buffer
+rl_scratch_set_quaternion               dropped  scratch buffer
+rl_scratch_set_rect                     dropped  scratch buffer
+rl_scratch_set_touchpoint               dropped  scratch buffer
+rl_scratch_set_vector2                  dropped  scratch buffer
+rl_scratch_set_vector3                  dropped  scratch buffer
+rl_scratch_set_vector4                  dropped  scratch buffer
+
+# --- rl_shape.h ---
+rl_shape_draw_circle_3d                 todo
+rl_shape_draw_line_strip_3d             todo     librl takes a point array; needs a handle-only design
+rl_shape_draw_rectangle_3d              todo
+rl_shape_set_circle_3d                  todo
+rl_shape_set_line_3d                    todo
+rl_shape_set_line_strip_3d              todo     librl takes a point array; needs a handle-only design
+rl_shape_set_rectangle_3d               todo
+rl_shape_set_stroke_color               ported   sk_shape_set_color   librl shapes only have a stroke color
+
+# --- rl_sound.h ---
+rl_sound_set_pan                        todo
+
+# --- rl_sprite2d.h ---
+rl_sprite2d_create                      todo
+rl_sprite2d_create_from_file            dropped  objects are created from handles (sk_texture_create + sk_sprite2d_create)
+rl_sprite2d_destroy                     todo
+rl_sprite2d_draw                        todo
+rl_sprite2d_get_default_texture         dropped  use sk_texture_get_default
+rl_sprite2d_is_pickable                 todo
+rl_sprite2d_is_visible                  todo
+rl_sprite2d_set_pickable                todo
+rl_sprite2d_set_texture                 todo
+rl_sprite2d_set_tint                    todo
+rl_sprite2d_set_transform               todo
+rl_sprite2d_set_visible                 todo
+
+# --- rl_sprite3d.h ---
+rl_sprite3d_create_from_file            dropped  objects are created from handles (sk_texture_create + sk_sprite3d_create)
+rl_sprite3d_get_default_texture         dropped  use sk_texture_get_default
+rl_sprite3d_get_transform               todo     librl uses out-pointers; return values instead
+rl_sprite3d_is_pickable                 todo
+rl_sprite3d_set_pickable                todo
+
+# --- rl_text.h ---
+rl_text_draw_fps_ex                     todo
+
+# --- rl_text2d.h ---
+rl_text2d_is_pickable                   todo
+rl_text2d_set_content                   ported   sk_text2d_set_text
+rl_text2d_set_pickable                  todo
+
+# --- rl_text3d.h ---
+rl_text3d_create                        todo
+rl_text3d_destroy                       todo
+rl_text3d_draw                          todo
+rl_text3d_draw_text                     todo
+rl_text3d_get_bounds                    todo
+rl_text3d_get_bounds_to_scratch         dropped  scratch buffer; value returns instead
+rl_text3d_is_pickable                   todo
+rl_text3d_is_visible                    todo
+rl_text3d_set_color                     todo
+rl_text3d_set_content                   todo
+rl_text3d_set_facing                    todo
+rl_text3d_set_font                      todo
+rl_text3d_set_pickable                  todo
+rl_text3d_set_size                      todo
+rl_text3d_set_transform                 todo
+rl_text3d_set_visible                   todo
+
+# --- rl_texture.h ---
+rl_texture_draw_ex                      todo     screen-space draw with scale
+rl_texture_draw_ground                  todo
+
+# --- rl_window.h ---
+rl_window_get_current_monitor           todo
+rl_window_get_monitor_count             todo
+rl_window_get_monitor_height            todo
+rl_window_get_monitor_position          todo
+rl_window_get_monitor_width             todo
+rl_window_set_monitor                   todo
+rl_window_set_position                  todo
+rl_window_set_size                      todo

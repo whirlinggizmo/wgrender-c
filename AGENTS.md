@@ -23,6 +23,10 @@ Keep this file short and rule-shaped. The authoritative design doc is
 - **libsk is the primary library; librl is maintenance-only** (see "Direction" in
   README.md). New features go into libsk. Treat librl as a behavior reference and
   parity baseline, not a place to add features.
+- **Parity is functional, not 1:1.** Before porting a librl feature, check what it
+  does and what went wrong with its design, then propose the libsk design (it may
+  be fewer, different, or merged functions). Don't mirror librl signatures by
+  default. Record the outcome in `tools/parity.map`.
 
 ## Resource / Object model
 

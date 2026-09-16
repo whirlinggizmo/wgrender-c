@@ -23,11 +23,22 @@ that lean on them. Items with a design doc link there.
 
 ## librl parity
 
-Features librl (`rl_*`) has that libsk doesn't yet, in suggested order. libsk is
-the primary library (see "Direction" in the README), so port what future work
-needs rather than every function; items above may jump ahead of these. Port the
-*capability*, not the signature: everything must still fit the handle-only public
-API (see AGENTS.md).
+Capabilities librl (`rl_*`) has that libsk doesn't yet, in suggested order. The
+goal is **functional parity, not a 1:1 API**: each item starts with a short design
+review (what librl did, what we learned from it, what libsk should do), and the
+result may be fewer, different or merged functions. Everything must fit the
+handle-only public API (see AGENTS.md). libsk is the primary library (see
+"Direction" in the README), so port what future work needs first; items above may
+jump ahead of these.
+
+Tracking: `tools/parity.map` (`make parity`) accounts for every librl function;
+[TASKS.md](TASKS.md) is the checklist.
+
+Lessons from librl already applied: the scratch buffer (value returns instead),
+synchronous asset fetch (needed JSPI on the web), `*_create_from_file` shortcuts
+(blurred resource vs object), separate Music and Sound (one Sound with a loop
+flag), a poll-driven loop (sokol callbacks), and a public filesystem API (internal
+`sk_fs`).
 
 1. **`sprite2d` + screen-space texture draw** (`rl_texture_draw_ex`) — overlaps
    item 2 above; land them together.
@@ -35,8 +46,8 @@ API (see AGENTS.md).
    facing, visible, pickable, bounds) plus a one-shot draw. Mirrors `text2d` +
    `sprite3d` facing.
 3. **Remaining 3D shapes** — `rectangle_3d`, `circle_3d`, `line_strip_3d` (immediate
-   and retained), and a separate stroke color. `line_strip_3d` takes a point array
-   in librl, so it needs a handle-only shape (e.g. a builder: `add_point`).
+   and retained). `line_strip_3d` takes a point array in librl, so it needs a
+   handle-only shape (e.g. a builder: `add_point`).
 4. **Per-object picking** — `pick_model` / `pick_sprite3d` / `pick_shape` /
    `pick_text3d` alongside `sk_scene_pick`; `set_pickable` / `is_pickable` on
    model, sprite3d, sprite2d, text2d, text3d (only shape has it today); pick stats
