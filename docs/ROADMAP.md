@@ -40,6 +40,27 @@ synchronous asset fetch (needed JSPI on the web), `*_create_from_file` shortcuts
 flag), a poll-driven loop (sokol callbacks), and a public filesystem API (internal
 `sk_fs`).
 
+Lessons from librl not yet addressed (design for these; don't repeat them):
+
+- **Networking and async vs sync got convoluted.** librl grew sync and async
+  variants side by side, with fetching mixed into asset loading. For libsk: one
+  async model (callbacks through the managed task queue, no sync twins), and all
+  network I/O behind a single module (`sk_net`, see Future) that `sk_asset` calls.
+  Settle that design before adding desktop HTTP fetch.
+- **No way to leave out subsystems to shrink the wasm build.** libsk has the same
+  problem today: `src/sk.c` calls every subsystem's init/tick/deinit directly, and
+  the web build compiles every `src/*.c` into each bundle, so audio, models
+  (cgltf), fonts (fontstash) and friends are always linked. Needs a build-time way
+  to exclude modules (e.g. `SK_WITH_AUDIO=0`) plus lifecycle registration instead
+  of hard-coded calls, and a size report per example to keep it honest.
+- **Scripting and language bindings got mixed into the core.** librl carried
+  script hosts, hot-reload plumbing (`rt_boot` / `rt_tick` hosts, reload counters)
+  and four bindings in its own repo. For libsk: the core stays a plain C library;
+  scripting is a separate module/repo on top of the public API, and each language
+  bridge (Haxe, Nim, Lua, JS, and maybe Beef) is its own module/repo. The
+  handle-only API is what makes that cheap; core changes shouldn't need binding
+  changes in the same repo.
+
 1. **`sprite2d` + screen-space texture draw** (`rl_texture_draw_ex`) — overlaps
    item 2 above; land them together.
 2. **`text3d`** — world-space text object (font/size/content/transform/color,
@@ -63,7 +84,8 @@ flag), a poll-driven loop (sokol callbacks), and a public filesystem API (intern
 
 Not a code gap, but part of parity: **gamepad and touch input** (librl only
 exposed these through scratch), **language bindings** (librl has Haxe, JS, Lua
-and Nim; start with one), and a **test suite** (librl has unit, smoke, regression,
+and Nim; each becomes its own module/repo outside libsk, and Beef is a candidate),
+**scripting** (also its own module/repo), and a **test suite** (librl has unit, smoke, regression,
 headless and bindings tests; pairs with the headless renderer below).
 
 **Left out on purpose** (not gaps): the scratch buffer and `_to_scratch`

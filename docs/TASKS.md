@@ -22,6 +22,20 @@ tick the box in the same commit.
 - [ ] Gate on parity: add `make parity` to `make check` once librl is no longer needed
       locally, or run `--strict` in CI once todos reach zero
 
+## Found by porting librl's c-simple (`examples/simple.c`)
+
+- [ ] Bug: models ignore glTF `alphaMode` (BLEND/MASK). gumshoe's `blobShadow`
+      (BLEND, alpha 0.2) draws as a solid black quad. Needs a blended pass drawn
+      after opaque geometry, back to front, without depth writes
+- [ ] Bug: `sk_set_target_fps` does nothing (swap interval is always 1; see `sk_run`)
+- [ ] Decide: frame `dt` comes from `sapp_frame_duration()`, which is smoothed and
+      capped at 0.1s, so time accumulated from `dt` runs slow when frames stall
+      (e.g. a hidden window). Document it, or also expose unsmoothed time
+- [ ] Decide: asset callbacks run on the main thread, so creating a resource
+      blocks the frame (the MP3 decode takes ~0.22s). Related to audio streaming
+- [ ] Remove the `PARITY:` notes in `examples/simple.c` as lighting control and
+      FPS drawing in a custom font land
+
 ## librl parity (functional, not 1:1; see `make parity` for function-level status)
 
 Each item starts with a short design review: what librl did, what went wrong or
@@ -47,7 +61,8 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 
 - [ ] Gamepad input (`sk_input_*`)
 - [ ] Touch input (`sk_input_*`)
-- [ ] First language binding (decide which one)
+- [ ] First language binding, as its own module/repo (decide which; Beef is a candidate)
+- [ ] Scripting, as its own module/repo on top of the public API
 
 ## Roadmap features
 
@@ -55,6 +70,13 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 - [ ] 2D / UI layer: screen space, draw ordering, 2D picking, pickable UI primitives
 - [ ] Particle emitters (batched/instanced)
 - [ ] Offscreen / render-to-texture (when the first consumer needs it)
+
+## Lessons from librl to design for
+
+- [ ] Networking: one async model and a single `sk_net` module under `sk_asset`
+- [ ] Optional subsystems: exclude modules at build time to shrink wasm, with a
+      per-example size report
+- [x] Scripting and language bindings stay out of the core repo (decided; see ROADMAP)
 
 ## Open decisions
 
