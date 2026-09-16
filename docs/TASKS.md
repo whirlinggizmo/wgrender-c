@@ -50,6 +50,16 @@ tick the box in the same commit.
       default; the target caps below that (desktop sleeps, web skips early browser
       frames); `SK_WINDOW_FLAG_VSYNC_OFF` (was `_VSYNC_HINT`) unlocks on desktop.
       Measured: desktop vsync off at 144/20 fps, web at 30 and capped at 60
+- [ ] Bug (platform): vsync doesn't hold on NVIDIA (RTX 4080 laptop, driver 580) +
+      COSMIC/XWayland with sokol's GL backend. Swaps block only every other frame:
+      ~120 frames/s on a 59.88 Hz display, intervals alternating ~16.7 ms and <4 ms,
+      half the frames never shown. `__GL_SYNC_TO_VBLANK=1` doesn't help. Target caps
+      are unaffected. Options: sokol's Vulkan backend on Linux (FIFO present), pacing
+      to the display refresh ourselves (refresh via XRandR), native Wayland (sokol
+      has none). Checking vsync needs a monitor that is on
+- [x] Frame `dt` came from sokol's smoothed frame duration, which drifted under the
+      irregular swaps above (summed dt was 0.88 of wall time). Now measured from our
+      own clock: summed dt matches wall time with vsync on/off, capped or not
 - [ ] Window flags accepted but ignored: `RESIZABLE`, `UNDECORATED`, `TRANSPARENT`,
       `HIDDEN`, `ALWAYS_RUN` (only fullscreen, high-DPI, MSAA and vsync-off work)
 - [ ] Bug: orthographic cameras only affect sokol_gl content. Models

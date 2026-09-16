@@ -252,13 +252,17 @@ static double update_frame_timing(void)
     double elapsed = sk_rt.last_frame_time > 0.0 ? now - sk_rt.last_frame_time : 0.0;
     double dt;
 
-    if (sk_frame_pace_enabled(&sk_rt.pace)) {
-        /* measured between frames that actually ran, clamped like sokol's */
-        dt = sk_rt.last_frame_time > 0.0 ? now - sk_rt.last_frame_time : sk_rt.pace.period;
-        dt = dt < 0.000001 ? 0.000001 : (dt > 0.1 ? 0.1 : dt);
+    /* Measured from our own clock between frames that ran, not sokol's smoothed
+     * frame duration: when swap timing is irregular (e.g. vsync blocking only every
+     * other swap on NVIDIA + XWayland) the smoothed value drifts, and summed dt no
+     * longer matches wall time. Clamped like sokol's raw delta. The first frame
+     * assumes the target period, or 60 Hz. */
+    if (sk_rt.last_frame_time > 0.0) {
+        dt = elapsed;
     } else {
-        dt = sapp_frame_duration();
+        dt = sk_frame_pace_enabled(&sk_rt.pace) ? sk_rt.pace.period : 1.0 / 60.0;
     }
+    dt = dt < 0.000001 ? 0.000001 : (dt > 0.1 ? 0.1 : dt);
     sk_rt.last_frame_time = now;
     sk_rt.delta_time = dt;
     sk_rt.fps_delta = sk_rt.fps_delta > 0.0 ? sk_rt.fps_delta + 0.05 * (dt - sk_rt.fps_delta) : dt;
