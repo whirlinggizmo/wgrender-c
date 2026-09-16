@@ -235,7 +235,11 @@ static sg_view decode_image_view(const cgltf_image *img)
     return sg_make_view(&(sg_view_desc){.texture.image = image});
 }
 
-static bool build_primitive(const cgltf_primitive *prim, bool skinned, sk_primitive_t *out)
+/* Build a GPU primitive. For static primitives `node_world` (when non-NULL) is
+ * baked into positions and normals: glTF places them with their node's world
+ * transform. Skinned primitives ignore it; their joints place them. */
+static bool build_primitive(const cgltf_primitive *prim, bool skinned, const sk_mat4_t *node_world,
+                            sk_primitive_t *out)
 {
     const cgltf_accessor *pos = NULL, *nrm = NULL, *uv = NULL, *jnt = NULL, *wgt = NULL;
     cgltf_size vcount, icount, i;
@@ -257,6 +261,7 @@ static bool build_primitive(const cgltf_primitive *prim, bool skinned, sk_primit
     }
     if (pos == NULL) return false;
     if (skinned && (jnt == NULL || wgt == NULL)) skinned = false, stride = 8;
+    if (skinned) node_world = NULL; /* joints place skinned vertices */
 
     vcount = pos->count;
     verts = (float *)calloc(vcount * stride, sizeof(float));
@@ -270,10 +275,24 @@ static bool build_primitive(const cgltf_primitive *prim, bool skinned, sk_primit
     out->pmin = (vec3_t){1e30f, 1e30f, 1e30f};
     out->pmax = (vec3_t){-1e30f, -1e30f, -1e30f};
 
+    /* normals transform by the inverse transpose of the node matrix */
+    sk_mat4_t normal_mat = node_world ? sk_mat4_inverse(*node_world) : sk_mat4_identity();
+    bool flip_winding = false;
+    if (node_world) {
+        const float *m = node_world->m;
+        float det = m[0] * (m[5] * m[10] - m[9] * m[6]) - m[4] * (m[1] * m[10] - m[9] * m[2]) +
+                    m[8] * (m[1] * m[6] - m[5] * m[2]);
+        flip_winding = det < 0.0f; /* mirrored node: keep front faces CCW */
+    }
+
     for (i = 0; i < vcount; i++) {
         float p[3] = {0}, n[3] = {0, 1, 0}, t[2] = {0}, j[4] = {0}, w[4] = {0};
         float *v = &verts[i * stride];
         cgltf_accessor_read_float(pos, i, p, 3);
+        if (node_world) {
+            vec3_t wp = sk_mat4_mul_point(*node_world, (vec3_t){p[0], p[1], p[2]});
+            p[0] = wp.x; p[1] = wp.y; p[2] = wp.z;
+        }
         positions[i * 3 + 0] = p[0];
         positions[i * 3 + 1] = p[1];
         positions[i * 3 + 2] = p[2];
@@ -284,6 +303,14 @@ static bool build_primitive(const cgltf_primitive *prim, bool skinned, sk_primit
         if (p[1] > out->pmax.y) out->pmax.y = p[1];
         if (p[2] > out->pmax.z) out->pmax.z = p[2];
         if (nrm) cgltf_accessor_read_float(nrm, i, n, 3);
+        if (node_world) {
+            /* transpose(inverse) applied as rows of the inverse */
+            const float *im = normal_mat.m;
+            vec3_t wn = sk_v3_norm((vec3_t){im[0] * n[0] + im[1] * n[1] + im[2] * n[2],
+                                            im[4] * n[0] + im[5] * n[1] + im[6] * n[2],
+                                            im[8] * n[0] + im[9] * n[1] + im[10] * n[2]});
+            n[0] = wn.x; n[1] = wn.y; n[2] = wn.z;
+        }
         if (uv) cgltf_accessor_read_float(uv, i, t, 2);
         v[0] = p[0]; v[1] = p[1]; v[2] = p[2];
         v[3] = n[0]; v[4] = n[1]; v[5] = n[2];
@@ -304,6 +331,13 @@ static bool build_primitive(const cgltf_primitive *prim, bool skinned, sk_primit
         icount = vcount;
         indices = (uint32_t *)malloc(icount * sizeof(uint32_t));
         for (i = 0; i < icount; i++) indices[i] = (uint32_t)i;
+    }
+    if (flip_winding) {
+        for (i = 0; i + 2 < icount; i += 3) {
+            uint32_t tmp = indices[i + 1];
+            indices[i + 1] = indices[i + 2];
+            indices[i + 2] = tmp;
+        }
     }
 
     out->vbuf = sg_make_buffer(&(sg_buffer_desc){
@@ -491,16 +525,19 @@ static bool load_model(sk_mesh_t *mesh, const unsigned char *data, int size)
         const cgltf_node *node = &g->nodes[n];
         if (node->mesh == NULL) continue;
         bool node_skinned = (node->skin != NULL) && mesh->has_skin;
+        sk_mat4_t node_world;
+        cgltf_node_transform_world(node, node_world.m);
         for (cgltf_size p = 0; p < node->mesh->primitives_count; p++) {
             if (node->mesh->primitives[p].type != cgltf_primitive_type_triangles) continue;
-            if (build_primitive(&node->mesh->primitives[p], node_skinned, &mesh->prims[idx])) idx++;
+            if (build_primitive(&node->mesh->primitives[p], node_skinned, &node_world,
+                                &mesh->prims[idx])) idx++;
         }
     }
     if (idx == 0) { /* no node-meshes: load meshes directly (static) */
         for (cgltf_size m = 0; m < g->meshes_count; m++) {
             for (cgltf_size p = 0; p < g->meshes[m].primitives_count; p++) {
                 if (g->meshes[m].primitives[p].type != cgltf_primitive_type_triangles) continue;
-                if (build_primitive(&g->meshes[m].primitives[p], false, &mesh->prims[idx])) idx++;
+                if (build_primitive(&g->meshes[m].primitives[p], false, NULL, &mesh->prims[idx])) idx++;
             }
         }
     }

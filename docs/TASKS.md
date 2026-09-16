@@ -35,9 +35,9 @@ tick the box in the same commit.
       across sokol_gl and model draws (frame command list in `sk_render`)
 - [ ] 2D scene drawables (sprite2d, text2d in a scene) draw after all 3D layers
       once they exist
-- [ ] Bug: static (unskinned) glTF primitives ignore their node transform
-      (gumshoe's `blobShadow` node is scaled 0.66 and offset). Bake node world
-      transforms into positions, normals, pick data and bounds at load
+- [x] Bug: static (unskinned) glTF primitives ignored their node transform
+      (gumshoe's `blobShadow` node is scaled 0.66 and offset). Fixed: node world
+      transforms are baked into positions, normals, pick data and bounds at load
 - [ ] Bug: `sk_set_target_fps` does nothing (swap interval is always 1; see `sk_run`)
 - [ ] Decide: frame `dt` comes from `sapp_frame_duration()`, which is smoothed and
       capped at 0.1s, so time accumulated from `dt` runs slow when frames stall
