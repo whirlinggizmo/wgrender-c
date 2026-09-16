@@ -8,6 +8,23 @@ Still early, but past the first vertical slice: desktop GL and web (WebGL2 /
 WebGPU) builds, 2D shapes and text, TTF fonts, textures, 3D sprites, glTF
 models with GPU skinning, a scene graph with picking, audio, and async assets.
 
+## Direction: libsk is the primary library
+
+As of 2026-09-16, **libsk is where new work happens**; librl is in maintenance mode.
+
+- **Why:** the roadmap (materials and shaders, batched 2D, particles, render
+  targets, GPU residency) needs direct control of the GPU pipeline, which sokol
+  gives and raylib hides behind rlgl. sokol's callback loop and WebGL2/WebGPU
+  backends make the web a first-class target instead of a JSPI special case. The
+  handle-only API (enforced by `make check`) keeps language bindings cheap.
+- **Cost:** libsk is an engine we build, not one we wrap. Loaders, audio formats,
+  gamepad mappings, gestures, collision helpers and platform quirks that raylib
+  covers must be written or pulled in (preferably as single-header libraries).
+- **librl's role:** fixes only when needed; a reference for behavior and the
+  baseline for parity tests. Archive it once parity is reached.
+- **Parity scope:** port what future work needs, not every librl function. Roadmap
+  items may come before some parity items.
+
 ## Build (desktop, Linux GL)
 
 sokol links against the system's audio, GL and X11 libraries, so their dev

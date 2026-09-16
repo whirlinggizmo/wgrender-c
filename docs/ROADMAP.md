@@ -23,7 +23,9 @@ that lean on them. Items with a design doc link there.
 
 ## librl parity
 
-Features librl (`rl_*`) has that libsk doesn't yet, in suggested order. Port the
+Features librl (`rl_*`) has that libsk doesn't yet, in suggested order. libsk is
+the primary library (see "Direction" in the README), so port what future work
+needs rather than every function; items above may jump ahead of these. Port the
 *capability*, not the signature: everything must still fit the handle-only public
 API (see AGENTS.md).
 

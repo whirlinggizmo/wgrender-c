@@ -20,6 +20,9 @@ Keep this file short and rule-shaped. The authoritative design doc is
 - For feature work or non-trivial fixes, **outline the plan first** and wait for
   the go-ahead, unless already told to implement.
 - Read-only tasks (questions, reviews) need no approval.
+- **libsk is the primary library; librl is maintenance-only** (see "Direction" in
+  README.md). New features go into libsk. Treat librl as a behavior reference and
+  parity baseline, not a place to add features.
 
 ## Resource / Object model
 
