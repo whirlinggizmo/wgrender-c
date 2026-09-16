@@ -75,6 +75,9 @@ tick the box in the same commit.
       hit UV x base color alpha, tint ignored) at or above the MASK cutoff, or 0.5
       for BLEND. The shadow (at most 20% opaque) is no longer pickable at all.
       Pick-grid check after the fix: no picked-but-not-drawn points on any object
+- [ ] Light selection uses rest-pose bounds for animated models, so a limb far
+      outside the rest pose can miss a nearby point light's range check. Minor;
+      could reuse the posed bounds when they're already cached
 - [ ] Window flags accepted but ignored: `RESIZABLE`, `UNDECORATED`, `TRANSPARENT`,
       `HIDDEN`, `ALWAYS_RUN` (only fullscreen, high-DPI, MSAA and vsync-off work)
 - [x] Bug: orthographic cameras only affected sokol_gl content; models and
