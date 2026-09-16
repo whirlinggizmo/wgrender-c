@@ -103,12 +103,14 @@ bool sk_pick_ray_aabb(sk_ray_t ray, vec3_t bmin, vec3_t bmax, sk_ray_hit_t *out)
             float inv = 1.0f / dd[i];
             float t1 = (lo[i] - od[i]) * inv;
             float t2 = (hi[i] - od[i]) * inv;
+            /* a ray moving in +axis enters through the low face (normal -1), in
+             * -axis through the high face (+1). The swap below happens exactly
+             * when the ray moves in -axis, so it must not flip the sign again. */
             int sign = dd[i] > 0.0f ? -1 : 1;
             if (t1 > t2) {
                 float tmp = t1;
                 t1 = t2;
                 t2 = tmp;
-                sign = -sign;
             }
             if (t1 > tmin) {
                 tmin = t1;
@@ -172,6 +174,11 @@ bool sk_pick_ray_sphere(sk_ray_t ray, vec3_t center, float radius, sk_ray_hit_t 
     out->t = t;
     out->point = v3_add(ray.origin, v3_scale(ray.dir, t));
     out->normal = sk_v3_norm(sk_v3_sub(out->point, center));
+    if (v3_dot(out->normal, ray.dir) > 0.0f) {
+        /* ray started inside: the exit point's outward normal faces along the
+         * ray; flip it to face against the ray like every other hit */
+        out->normal = v3_scale(out->normal, -1.0f);
+    }
     return true;
 }
 
