@@ -133,14 +133,11 @@ functions (value returns instead), public `fs_*` (internal; see
 
 ## Infrastructure / testing
 
-- **Null / headless renderer** — run the full stack without a window or GPU, for
-  CI tests (asset loading, scene graph, picking math, animation sampling),
-  headless tools/asset validation, and benchmarking. sokol_gfx's
-  `SOKOL_DUMMY_BACKEND` no-ops the `sg_*` side (and `backend_name()` already maps
-  `SG_BACKEND_DUMMY`). The real work is a **run path that bypasses `sapp_run`** —
-  sokol_app always makes a window, so headless needs our own tick loop +
-  `sg_setup` with the dummy backend + null audio. Same "sapp owns the loop" seam
-  as the JSPI finding. Pairs naturally with a test suite.
+- ~~**Null / headless renderer**~~ — done: `make HEADLESS=1` (sokol dummy GPU
+  backend, a headless run loop behind the internal `sk_platform` layer, no audio
+  device) and `make smoke`. Unit tests link the headless library, so they need no
+  GL/X11/ALSA. Next steps when needed: CI running `make test` and `make smoke`, and
+  benchmarks / asset-validation tools on the headless build.
 - **Test suite (features + librl parity)** — build it in layers, cheapest first:
   1. **API parity report** (`make parity`): diff librl's public `rl_*` symbols
      against `sk_*` using a checked-in map file that marks each librl function as
@@ -157,11 +154,11 @@ functions (value returns instead), public `fs_*` (internal; see
      and one for libsk, then run on both and compared with tolerances. Anything
      that depends on rasterization (e.g. text metrics from raylib vs fontstash)
      gets a loose tolerance or is marked as expected to differ.
-  4. **Headless smoke**: the web half exists (`make webcheck`, `tools/webcheck.mjs`:
-     every example in a Chromium-based browser over the DevTools protocol, no npm
-     dependencies). Desktop needs the null renderer above: run every example for
-     N frames under the dummy backend and require exit 0 and no error logs. Move
-     to Playwright if Firefox/WebKit (Safari) coverage becomes important.
+  4. **Smoke tests**: both halves exist. Desktop: `make smoke` (headless build,
+     every example for 180 frames, exit 0 and no error logs). Web: `make webcheck`
+     (`tools/webcheck.mjs`, every example in a Chromium-based browser over the
+     DevTools protocol, no npm dependencies). Move to Playwright if Firefox/WebKit
+     (Safari) coverage becomes important.
   5. **Image comparison** (later, optional): render fixed scenes to offscreen
      targets and compare with a per-pixel tolerance. Needs render-to-texture;
      prone to flakiness across GPUs, so keep it out of the default `make test`.

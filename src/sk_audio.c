@@ -11,7 +11,16 @@
 #include "sk_handle.h"
 #include "sk_logger.h"
 
+#if defined(SK_HEADLESS)
+/* No audio device in headless builds: audio still decodes and mixes nothing. */
+static bool saudio_isvalid(void) { return false; }
+static int saudio_expect(void) { return 0; }
+static int saudio_sample_rate(void) { return 44100; }
+static void saudio_push(const float *frames, int count) { (void)frames; (void)count; }
+static void saudio_shutdown(void) {}
+#else
 #include "sokol_audio.h"
+#endif
 
 /* decoders */
 #define DR_MP3_IMPLEMENTATION
@@ -365,6 +374,9 @@ void sk_audio_init(void)
     sk_handle_pool_init(&sk_audio_pool, SK_HANDLE_KIND_AUDIO, MAX_AUDIO,
                         sk_audio_free_indices, MAX_AUDIO,
                         sk_audio_generations, sk_audio_occupied);
+#if defined(SK_HEADLESS)
+    log_info("audio: headless build, no playback");
+#else
     saudio_setup(&(saudio_desc){
         .num_channels = 2,
         .logger.func = 0,
@@ -372,6 +384,7 @@ void sk_audio_init(void)
     if (!saudio_isvalid()) {
         log_warn("audio device unavailable; playback disabled");
     }
+#endif
 }
 
 void sk_audio_deinit(void)

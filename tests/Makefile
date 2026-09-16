@@ -5,7 +5,7 @@
 #   make clean
 #
 # Unit tests (tests/unit/) call library internals directly and link against
-# lib/libsk.a, with no stubs. They don't open a window or touch the GPU.
+# lib/libsk_headless.a, with no stubs. They don't open a window or touch the GPU.
 
 ROOT := ..
 
@@ -13,13 +13,14 @@ CC      ?= cc
 STD     := -std=gnu11
 WARN    := -Wall -Wextra -Wno-unused-parameter
 OPT     := -O1 -g
-DEFS    := -DSOKOL_GLCORE
+DEFS    := -DSK_HEADLESS -DSOKOL_DUMMY_BACKEND
 INCS    := -I$(ROOT)/include -I$(ROOT)/src -Iunit -isystem $(ROOT)/deps/sokol
 CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
-LIB     := $(ROOT)/lib/libsk.a
-# platform link flags: single source of truth in examples/Makefile
-LDLIBS_PLATFORM := $(shell $(MAKE) --no-print-directory -s -C $(ROOT)/examples print-ldlibs)
+# Unit tests link the headless library: no window, GPU, audio device, or
+# GL/X11/ALSA libraries needed (runs in CI and with no display).
+LIB     := $(ROOT)/lib/libsk_headless.a
+LDLIBS_PLATFORM := -ldl -lm -lpthread
 
 BUILD      := build
 UNIT_BIN   := $(BUILD)/unit_tests
@@ -35,7 +36,7 @@ unit: $(UNIT_BIN)
 
 # Keep the library current (the root build is a cheap no-op when nothing changed).
 $(LIB): FORCE
-	@$(MAKE) --no-print-directory -C $(ROOT)
+	@$(MAKE) --no-print-directory -C $(ROOT) HEADLESS=1
 
 $(BUILD):
 	mkdir -p $(BUILD)

@@ -11,12 +11,12 @@
 #include "internal/sk_math.h"
 #include "internal/sk_model.h"
 #include "internal/sk_pick.h"
+#include "internal/sk_platform.h"
 #include "internal/sk_render.h"
 #include "internal/sk_scene.h"
 #include "sk_logger.h"
 
 #include "cgltf.h"
-#include "sokol_app.h"
 #include "sokol_gfx.h"
 #include "stb_image.h"
 
@@ -216,14 +216,23 @@ static void free_mesh_cpu(sk_mesh_t *mesh);
  * selected at runtime via sg_query_backend(). Edit src/shaders/sk_model.glsl
  * and regenerate with `make shaders`. */
 
+/* sokol-shdc generates shader descriptions for real backends only. The dummy
+ * backend (headless builds) never compiles source but still validates the layout
+ * (attributes, uniform blocks, textures), so give it the GL description. */
+static sg_backend shader_backend(void)
+{
+    const sg_backend backend = sg_query_backend();
+    return backend == SG_BACKEND_DUMMY ? SG_BACKEND_GLCORE : backend;
+}
+
 static sg_shader make_static_shader(void)
 {
-    return sg_make_shader(model_static_shader_desc(sg_query_backend()));
+    return sg_make_shader(model_static_shader_desc(shader_backend()));
 }
 
 static sg_shader make_skinned_shader(void)
 {
-    return sg_make_shader(model_skinned_shader_desc(sg_query_backend()));
+    return sg_make_shader(model_skinned_shader_desc(shader_backend()));
 }
 
 /* ----------------------------------------------------------- gltf load ----- */
@@ -1239,7 +1248,7 @@ static int begin_draw(sk_handle_t handle, sk_model_t *model_ptr)
         return -1;
     }
 
-    aspect = sapp_height() > 0 ? (float)sapp_width() / (float)sapp_height() : 1.0f;
+    aspect = sk_platform_height() > 0 ? (float)sk_platform_width() / (float)sk_platform_height() : 1.0f;
     model_mat = sk_mat4_trs(model_ptr->position, model_ptr->rotation, model_ptr->scale);
     view = sk_camera3d_view(&cam);
     proj = sk_camera3d_projection(&cam, aspect);

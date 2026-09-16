@@ -11,6 +11,7 @@
 #   make wasm WASM_EXAMPLE=model
 #   make wasm-all              build every example for web
 #   make serve                 static-serve build/web at :8000
+#   make smoke                 build every example headless and run each briefly
 #   make webcheck              build all for web, load each in a browser, fail on errors
 #   make webcheck BACKEND=wgpu (WebGPU runs in a visible browser window)
 #   make clean
@@ -44,7 +45,7 @@ BUILD_DESKTOP := build/desktop
 SRCS          := $(wildcard *.c)
 BINS          := $(patsubst %.c,$(BUILD_DESKTOP)/%,$(SRCS))
 
-.PHONY: all run clean wasm wasm-all serve webcheck print-ldlibs FORCE
+.PHONY: all run clean wasm wasm-all serve webcheck smoke headless print-ldlibs FORCE
 
 all: $(BINS)
 
@@ -65,6 +66,29 @@ run: $(BUILD_DESKTOP)/hello
 
 print-ldlibs:
 	@echo $(LDLIBS_PLATFORM)
+
+# --- headless (no window, GPU or audio device) -------------------------------
+# Same example sources linked against lib/libsk_headless.a; runs anywhere, e.g.
+# CI or with the displays asleep. tools/smoke.sh runs each for SMOKE_FRAMES frames.
+BUILD_HEADLESS  := build/headless
+HEADLESS_LIB    := $(ROOT)/lib/libsk_headless.a
+HEADLESS_BINS   := $(patsubst %.c,$(BUILD_HEADLESS)/%,$(SRCS))
+LDLIBS_HEADLESS := -ldl -lm -lpthread
+SMOKE_FRAMES    ?= 180
+
+$(HEADLESS_LIB): FORCE
+	@$(MAKE) --no-print-directory -C $(ROOT) HEADLESS=1
+
+$(BUILD_HEADLESS):
+	mkdir -p $(BUILD_HEADLESS)
+
+$(BUILD_HEADLESS)/%: %.c $(HEADLESS_LIB) | $(BUILD_HEADLESS)
+	$(CC) $(STD) $(WARN) $(OPT) $(INCS) $< -o $@ $(HEADLESS_LIB) $(LDLIBS_HEADLESS)
+
+headless: $(HEADLESS_BINS)
+
+smoke: headless
+	@$(ROOT)/tools/smoke.sh $(SMOKE_FRAMES) $(HEADLESS_BINS)
 
 # --- wasm (emscripten; WebGL2 or WebGPU) ------------------------------------
 # Requires emcc on PATH (source your emsdk_env.sh first). The whole lib is

@@ -5,7 +5,8 @@
 #include "internal/exports.h"
 #include "internal/sk_internal.h"
 
-#include "sokol_app.h"
+#include "internal/sk_platform.h"
+#include "sokol_app.h" /* event types only */
 
 /* Edge model
  * ----------
@@ -179,13 +180,13 @@ void sk_input_handle_event(const sapp_event *ev)
 SK_KEEP
 void sk_input_capture_cursor(void)
 {
-    sapp_lock_mouse(true);
+    sk_platform_lock_mouse(true);
 }
 
 SK_KEEP
 void sk_input_release_cursor(void)
 {
-    sapp_lock_mouse(false);
+    sk_platform_lock_mouse(false);
 }
 
 vec2_t sk_input_get_mouse_position(void)

@@ -7,14 +7,13 @@
 #include "internal/sk_internal.h"
 #include "internal/sk_light.h"
 #include "internal/sk_model.h"
+#include "internal/sk_platform.h"
 #include "internal/sk_render.h"
 #include "sk_camera3d.h"
 #include "sk_logger.h"
 #include "sk_window.h"
 
-#include "sokol_app.h"
 #include "sokol_gfx.h"
-#include "sokol_glue.h"
 #include "util/sokol_gl.h"
 
 #define MAX_RENDER_CMDS 1024
@@ -220,7 +219,7 @@ void sk_render_end(void)
                                 sk_clear_color.b, sk_clear_color.a},
             },
         },
-        .swapchain = sglue_swapchain(),
+        .swapchain = sk_platform_swapchain(),
     };
 
     sk_debug_draw();
@@ -264,8 +263,8 @@ SK_KEEP
 void sk_render_begin_mode_3d(void)
 {
     sk_camera3d_t cam;
-    const float w = (float)sapp_width();
-    const float h = (float)sapp_height();
+    const float w = (float)sk_platform_width();
+    const float h = (float)sk_platform_height();
     const float aspect = h > 0.0f ? w / h : 1.0f;
 
     if (!sk_camera3d_get_active_data(&cam)) {

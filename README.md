@@ -45,7 +45,11 @@ make            # build lib/libsk.a
 make examples   # build examples/build/*
 make run        # build + run the hello example
 make check      # enforce the "no backend leakage" invariant
-make test       # unit tests (tests/unit/)
+make test       # unit tests (tests/unit/; links the headless library)
+make smoke      # run every example headless (no window, GPU or audio) for ~3 s each
+make HEADLESS=1 # build lib/libsk_headless.a: sokol dummy GPU backend, no window or audio
+                # headless apps run frames at 60/s until sk_request_quit(), or for
+                # SK_HEADLESS_FRAMES frames when that environment variable is set
 make clean
 ```
 

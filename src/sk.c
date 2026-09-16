@@ -12,15 +12,14 @@
 #include "internal/sk_frame_pace.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_light.h"
+#include "internal/sk_platform.h"
 #include "internal/sk_render.h"
 #include "internal/sk_sprite2d.h"
 #include "internal/sk_tick_clock.h"
 #include "sk_logger.h"
 #include "sk_version.h"
 
-#include "sokol_app.h"
 #include "sokol_gfx.h"
-#include "sokol_glue.h"
 #include "sokol_log.h"
 #include "sokol_time.h"
 
@@ -146,7 +145,7 @@ static const char *backend_name(sg_backend b)
 static void on_init(void)
 {
     sg_setup(&(sg_desc){
-        .environment = sglue_environment(),
+        .environment = sk_platform_environment(),
         .logger.func = slog_func,
     });
     sk_logger_info("libsk: %s backend", backend_name(sg_query_backend()));
@@ -225,17 +224,22 @@ static void wait_until(double deadline)
  * keeps showing the last drawn frame). */
 static bool pace_frame(void)
 {
+    static sk_frame_pace_t headless_vsync = {.period = 1.0 / 60.0};
+    sk_frame_pace_t *pace = &sk_rt.pace;
     double now = sk_get_time();
     double wait;
 
-    if (!sk_frame_pace_enabled(&sk_rt.pace)) {
-        return true;
+    if (!sk_frame_pace_enabled(pace)) {
+        if (!sk_platform_is_headless()) {
+            return true; /* the display's vsync paces frames */
+        }
+        pace = &headless_vsync; /* no display: stand in for 60 Hz so async loads get real time */
     }
-    wait = sk_frame_pace_wait(&sk_rt.pace, now);
+    wait = sk_frame_pace_wait(pace, now);
 #if defined(__EMSCRIPTEN__)
     /* run a frame that's due within half a display frame, so e.g. 30 fps on a
      * 60 Hz display runs every other frame instead of drifting */
-    if (wait > 0.5 * sapp_frame_duration_unfiltered()) {
+    if (wait > 0.5 * sk_platform_frame_duration()) {
         return false;
     }
 #else
@@ -244,7 +248,7 @@ static bool pace_frame(void)
         now = sk_get_time();
     }
 #endif
-    sk_frame_pace_mark(&sk_rt.pace, now);
+    sk_frame_pace_mark(pace, now);
     return true;
 }
 
@@ -314,9 +318,9 @@ static void on_frame(void)
     sk_input_end_frame();
 }
 
-static void on_event(const sapp_event *ev)
+static void on_event(const void *ev)
 {
-    sk_input_handle_event(ev);
+    sk_input_handle_event((const struct sapp_event *)ev);
 }
 
 static void on_cleanup(void)
@@ -366,20 +370,18 @@ int sk_run(void)
     /* vsync is on unless explicitly turned off; sk_set_target_fps() caps below it */
     bool disable_vsync = (sk_rt.window_flags & SK_WINDOW_FLAG_VSYNC_OFF) != 0;
 
-    sapp_run(&(sapp_desc){
-        .init_cb = on_init,
-        .frame_cb = on_frame,
-        .event_cb = on_event,
-        .cleanup_cb = on_cleanup,
+    sk_platform_run(&(sk_platform_desc_t){
+        .init = on_init,
+        .frame = on_frame,
+        .event = on_event,
+        .cleanup = on_cleanup,
         .width = sk_rt.window_width,
         .height = sk_rt.window_height,
-        .window_title = sk_rt.window_title,
+        .title = sk_rt.window_title,
         .fullscreen = fullscreen,
         .high_dpi = high_dpi,
         .sample_count = sample_count,
-        .swap_interval = 1,
         .disable_vsync = disable_vsync,
-        .logger.func = slog_func,
     });
     return 0;
 }
@@ -387,7 +389,7 @@ int sk_run(void)
 SK_KEEP
 void sk_request_quit(void)
 {
-    sapp_request_quit();
+    sk_platform_request_quit();
 }
 
 SK_KEEP

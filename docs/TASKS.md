@@ -19,12 +19,16 @@ tick the box in the same commit.
       merging
 - [ ] Later: `SANITIZE=1` (ASan/UBSan) test build; wasm-side unit tests when
       web-only code needs them
-- [ ] Null / headless renderer (dummy sokol backend + own tick loop)
+- [x] Null / headless renderer: `make HEADLESS=1` builds `lib/libsk_headless.a`
+      (sokol dummy GPU backend, no window or audio device, no GL/X11/ALSA link
+      deps) behind an internal `sk_platform` layer; frames run paced at 60/s
+      until `sk_request_quit` or `SK_HEADLESS_FRAMES`. Unit tests link it
 - [x] Web smoke: `make webcheck` loads every example in a browser (WebGL2 headless,
       WebGPU headed), fails on console errors/exceptions/panics/wrong backend,
       saves screenshots
-- [ ] Desktop headless smoke: run every example for N frames under the null
-      renderer, require exit 0 and no errors
+- [x] Desktop headless smoke: `make smoke` runs every example headless for 180
+      frames and fails on a non-zero exit, a timeout, or error-level logs
+      (tools/smoke.sh). Needs no display, so it works with monitors asleep
 - [ ] Shared behavior tests: scenarios run against librl and libsk via an adapter
       header, compared with tolerances
 - [ ] Gate on parity: add `make parity` to `make check` once librl is no longer needed

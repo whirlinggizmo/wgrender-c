@@ -16,6 +16,8 @@
 #   make test       build and run unit tests        (-> tests/Makefile)
 #   make deps       install system build deps (ALSA/GL/X11 dev packages)
 #   make parity     librl -> libsk API parity report (LIBRL_DIR=../librl)
+#   make HEADLESS=1 headless lib (lib/libsk_headless.a): no window, GPU or audio
+#   make smoke      run every example headless for a few seconds (-> examples)
 #   make clean
 
 UNAME_S := $(shell uname -s)
@@ -25,7 +27,14 @@ AR      ?= ar
 STD     := -std=gnu11
 WARN    := -Wall -Wextra -Wno-unused-parameter
 OPT     := -O2 # -g  # use -g for debug build.  TODO:  Flag for release/debug? 
-DEFS    := -DSOKOL_GLCORE
+# HEADLESS=1: sokol's dummy GPU backend, no sokol_app window, no audio device, no
+# GL/X11/ALSA link dependencies (see src/sk_platform.c). For tests, CI and tools.
+HEADLESS ?= 0
+ifeq ($(HEADLESS),1)
+  DEFS  := -DSK_HEADLESS -DSOKOL_DUMMY_BACKEND
+else
+  DEFS  := -DSOKOL_GLCORE
+endif
 # Our headers use -I (full warnings); vendored single-header libs use -isystem so
 # their warnings (stb/fontstash/dr/cgltf/sokol) don't drown out ours.
 INCS    := -Iinclude -Isrc
@@ -33,14 +42,21 @@ INCS    += -isystem deps/sokol -isystem deps/stb -isystem deps/fontstash \
            -isystem deps/dr -isystem deps/cgltf
 CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
-BUILD   := build
 LIBDIR  := lib
-LIB     := $(LIBDIR)/libsk.a
+ifeq ($(HEADLESS),1)
+  BUILD := build/headless
+  LIB   := $(LIBDIR)/libsk_headless.a
+  DEPS_CHECK :=
+else
+  BUILD := build
+  LIB   := $(LIBDIR)/libsk.a
+  DEPS_CHECK := deps-check
+endif
 
 SRCS    := $(wildcard src/*.c)
 OBJS    := $(patsubst src/%.c,$(BUILD)/%.o,$(SRCS))
 
-.PHONY: all examples run clean check test wasm wasm-all serve webcheck shaders deps deps-check parity
+.PHONY: all examples run clean check test smoke wasm wasm-all serve webcheck shaders deps deps-check parity
 
 all: $(LIB)
 
@@ -50,7 +66,7 @@ $(BUILD):
 $(LIBDIR):
 	mkdir -p $(LIBDIR)
 
-$(BUILD)/%.o: src/%.c | $(BUILD) deps-check
+$(BUILD)/%.o: src/%.c | $(BUILD) $(DEPS_CHECK)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(LIB): $(OBJS) | $(LIBDIR)
@@ -73,7 +89,7 @@ deps:
 # (BACKEND=, WASM_EXAMPLE=) propagate to the sub-make automatically.
 examples:
 	@$(MAKE) -C examples
-run wasm wasm-all serve webcheck:
+run wasm wasm-all serve webcheck smoke:
 	@$(MAKE) -C examples $@
 
 # --- tests (delegated to tests/Makefile) -------------------------------------
