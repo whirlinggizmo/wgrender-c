@@ -16,7 +16,18 @@ that lean on them. Items with a design doc link there.
    but-unimplemented object), 2D draw ordering, **2D picking** (mouse → rect/AABB
    hit-test; far cheaper than the existing 3D ray path in `sk_pick`), and pickable
    UI primitives. `text2d` already exists and slots in here. Broadly useful —
-   every game needs HUD/UI.
+   every game needs HUD/UI. sprite2d design: [PLAN-sprite2d.md](PLAN-sprite2d.md).
+
+   **GUI direction (decided 2026-09-16): don't build a GUI toolkit.** Two jobs, two
+   tools, both outside the core as optional modules (like scripting and bindings):
+   - *Developer/debug UI* (inspectors, sliders, stats): **Dear ImGui** via sokol's
+     `sokol_imgui.h` (and `sokol_gfx_imgui.h`). Its API isn't handle-only, so users
+     call ImGui directly; libsk provides a small C extension hook (input events in,
+     drawing inside the render pass). Optional, so wasm builds that don't use it
+     don't pay its size.
+   - *In-game UI/HUD* (styled, animated menus and bars): built from sprite2d +
+     text2d + shapes, with layout from a small renderer-agnostic library such as
+     **Clay** (C99, flexbox-like, emits rectangles/text/images to draw). Later.
 3. **Particle emitters** — emitter object + **batched/instanced** quad rendering
    (rides the 2D batch path + materials from 1–2). High visual payoff; doing it
    right is what finally justifies a real batched renderer over sokol_gl immediate.

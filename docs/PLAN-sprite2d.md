@@ -1,0 +1,107 @@
+# Plan: sprite2d (screen-space sprites)
+
+Status: **proposed — awaiting decisions.** No code changed yet.
+Builds on the Resource/Object model ([ARCHITECTURE.md](ARCHITECTURE.md)), scene render
+passes, and picking. Related: GUI direction in [ROADMAP.md](ROADMAP.md).
+
+## Why
+
+HUD icons, 2D games, and in-game UI all need textured quads in screen space. The
+`sprite2d` handle kind is reserved but unimplemented, and `rl_texture_draw_ex`
+(one-off screen-space texture draws) has no libsk equivalent.
+
+## What librl had, and what it taught us
+
+`rl_sprite2d_create(texture)`, `set_texture`, `set_transform(x, y, scale, rotation)`,
+`set_tint`, `set_visible`, `set_pickable`, `draw`, `destroy` (plus
+`create_from_file` and a default texture, both already dropped on purpose).
+
+Gaps that forced workarounds:
+
+- **No source rectangle.** Sprite sheets and atlases needed one texture per frame.
+- **No pivot/origin.** Rotation and positioning were always around one corner.
+- **Uniform scale only, no flip.** Mirroring a character meant a second texture.
+- Picking was rectangle-only, so transparent corners of icons were clickable.
+
+## Proposed API
+
+```c
+/* include/sk_sprite2d.h */
+sk_handle_t sk_sprite2d_create(sk_handle_t texture);          /* texture may be 0, set later */
+void        sk_sprite2d_destroy(sk_handle_t sprite);
+
+bool sk_sprite2d_set_texture(sk_handle_t sprite, sk_handle_t texture);
+bool sk_sprite2d_set_source(sk_handle_t sprite, float x, float y, float width, float height);
+                                   /* texture pixels; default: whole texture */
+bool sk_sprite2d_set_position(sk_handle_t sprite, float x, float y);
+bool sk_sprite2d_set_rotation(sk_handle_t sprite, float angle);   /* see decision 5 (units) */
+bool sk_sprite2d_set_scale(sk_handle_t sprite, float x, float y); /* negative = flip */
+bool sk_sprite2d_set_size(sk_handle_t sprite, float width, float height);
+                                   /* on-screen size in pixels; default: source size */
+bool sk_sprite2d_set_pivot(sk_handle_t sprite, float x, float y);
+                                   /* 0..1 within the sprite; default (0.5, 0.5) */
+bool sk_sprite2d_set_tint(sk_handle_t sprite, sk_handle_t color);
+bool sk_sprite2d_set_visible(sk_handle_t sprite, bool visible);
+bool sk_sprite2d_is_visible(sk_handle_t sprite);
+bool sk_sprite2d_set_pickable(sk_handle_t sprite, bool pickable);
+bool sk_sprite2d_set_pick_alpha_test(sk_handle_t sprite, bool enable, float threshold);
+
+void sk_sprite2d_draw(sk_handle_t sprite);   /* immediate, outside a scene */
+
+/* include/sk_texture.h: one-off draw without an object (replaces rl_texture_draw_ex) */
+void sk_texture_draw(sk_handle_t texture, float x, float y, float width, float height,
+                     sk_handle_t tint);
+```
+
+- **Flip** is negative scale, not a separate flag: one concept, no conflicting state.
+- **Size vs scale:** size sets the base on-screen size in pixels (UI layouts think in
+  pixels); scale multiplies it (animation, flipping). Both default to "texture as-is".
+- Handle-only rules hold: handles, floats, bools.
+
+## Decisions
+
+1. **Where 2D objects live.** *Recommend: in scenes.* A scene draws all 3D layers
+   first, then its 2D members by layer (ascending) and insertion order, with no depth
+   test. `sk_scene_pick` tests 2D members first, topmost first, since they're drawn on
+   top of 3D. One ordering system and one picking API. The alternative, a separate
+   "canvas" object for 2D, duplicates layers, picking and membership for little gain.
+   Scenes without 2D members are unaffected.
+2. **Coordinates.** *Recommend: logical pixels, top-left origin, y down,* matching
+   today's 2D drawing. On high-DPI displays, logical pixels = framebuffer pixels /
+   DPI scale, so UI doesn't shrink on a 4K laptop. Virtual resolution (design at
+   1920x1080, scale to the window) is a separate camera2d concern, left for the 2D/UI
+   layer work, not sprite2d.
+3. **Immediate drawing.** *Recommend both:* `sk_sprite2d_draw(handle)` for a sprite
+   outside a scene (like `sk_model_draw`), and `sk_texture_draw(...)` for one-off
+   draws without creating an object. Both follow call order (frame command list).
+4. **Batching.** *Recommend: sokol_gl textured quads for now,* consecutive sprites
+   sharing a texture batched automatically by sokol_gl. The batched renderer on the
+   roadmap replaces the internals later without an API change.
+5. **Angle units across the public API.** Transform rotations today
+   (`sk_model/shape/sprite3d_set_transform`) take **radians**; camera `fovy` and the
+   light spot cone take **degrees**. sprite2d adds another rotation, so this is the
+   moment to pick one convention for the whole public API. *Recommend: degrees
+   everywhere* (what people type and read in editors and glTF tools; conversion is
+   internal via `SK_DEG2RAD`), changing the existing transform setters in the same
+   work. The alternative is radians everywhere, changing `fovy` and the spot cone.
+
+## Picking
+
+- Rotated rectangle test in the sprite's local space (inverse of pivot, scale,
+  rotation, position), then UV from the local point for the optional alpha test,
+  reusing the texture alpha mask sprite3d already builds.
+- 2D hits return `point_world` as screen pixels and the sprite handle; `distance` 0.
+  (Documented: 2D hits have no depth.)
+
+## Verification
+
+- Unit tests: local transform (pivot, rotation, scale, flip), source-rect UVs,
+  rotated-rect hit test, alpha test, pick order (2D before 3D, topmost 2D first).
+- Visual test: an atlas-driven animated sprite, rotated/scaled/flipped sprites with
+  pivots, a HUD over a 3D scene, click-picking with alpha test.
+- `examples/sprite2d.c`; `make test`, `make check`, `make parity`, `make webcheck`.
+
+## Out of scope
+
+Text layout, 9-slice panels, UI widgets, virtual resolution / camera2d, render
+targets. Those belong to the 2D/UI layer (and a Clay-style layout module, see ROADMAP).

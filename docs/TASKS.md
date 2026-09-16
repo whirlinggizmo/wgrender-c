@@ -63,6 +63,18 @@ tick the box in the same commit.
 - [x] Frame `dt` came from sokol's smoothed frame duration, which drifted under the
       irregular swaps above (summed dt was 0.88 of wall time). Now measured from our
       own clock: summed dt matches wall time with vsync on/off, capped or not
+- [x] Verified picking against rendering under transforms (pick-grid vs screenshot:
+      a 4 px grid over 960x540): rotated + non-uniformly scaled box and ellipsoid,
+      a scaled sprite with alpha test, and a rotated/scaled static model all match
+      except anti-aliased edges
+- [ ] Bug: animated models are picked against their rest (T) pose, not their
+      current pose: posed limbs can't be picked, and a ghost of the T-pose arms
+      can. Needs posed pick geometry (CPU-skin the pick positions with the current
+      joint matrices on demand, cached per frame) and posed bounds for broadphase
+- [ ] Bug: invisible parts of transparent materials are pickable. gumshoe's blob
+      shadow (BLEND quad fading to alpha 0) makes empty floor around the feet pick
+      the model. Pick MASK/BLEND primitives with an alpha test on base color
+      texture alpha x base color alpha at the hit UV (MASK: its cutoff)
 - [ ] Window flags accepted but ignored: `RESIZABLE`, `UNDECORATED`, `TRANSPARENT`,
       `HIDDEN`, `ALWAYS_RUN` (only fullscreen, high-DPI, MSAA and vsync-off work)
 - [x] Bug: orthographic cameras only affected sokol_gl content; models and
