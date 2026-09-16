@@ -17,6 +17,7 @@ typedef struct {
 } test_case_t;
 
 static const test_case_t TESTS[] = {
+    {"asset_join_relative", test_asset_join_relative},
     {"camera_api", test_camera_api},
     {"camera_projection", test_camera_projection},
     {"pick_ray_from_screen_ortho", test_pick_ray_from_screen_ortho},
@@ -36,6 +37,7 @@ static const test_case_t TESTS[] = {
     {"light_api", test_light_api},
     {"material_srgb", test_material_srgb},
     {"material_api", test_material_api},
+    {"material_uv_matrix", test_material_uv_matrix},
     {"math_angles", test_math_angles},
     {"math_inverse", test_math_inverse},
     {"math_trs", test_math_trs},

@@ -1,5 +1,6 @@
 #include "sk_material.h"
 
+#include <math.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -22,7 +23,9 @@ static unsigned char sk_material_occupied[MAX_MATERIALS];
 /* ------------------------------------------------------------ parameters ---- */
 
 typedef enum {
+    PARAM_INT,
     PARAM_FLOAT,
+    PARAM_VEC2,
     PARAM_VEC3,
     PARAM_VEC4,
     PARAM_TEXTURE,
@@ -34,18 +37,25 @@ typedef struct {
     size_t offset; /* into sk_material_t, or the texture slot for PARAM_TEXTURE */
 } param_t;
 
+#define TEXTURE_PARAMS(prefix, slot)                                                                    \
+    {prefix, PARAM_TEXTURE, slot},                                                                      \
+    {prefix "_texcoord", PARAM_INT, offsetof(sk_material_t, textures[slot].texcoord)},                 \
+    {prefix "_offset", PARAM_VEC2, offsetof(sk_material_t, textures[slot].offset)},                    \
+    {prefix "_rotation", PARAM_FLOAT, offsetof(sk_material_t, textures[slot].rotation)},               \
+    {prefix "_scale", PARAM_VEC2, offsetof(sk_material_t, textures[slot].scale)}
+
 static const param_t PARAMS[] = {
     {"base_color", PARAM_VEC4, offsetof(sk_material_t, base_color)},
-    {"base_color_texture", PARAM_TEXTURE, SK_MATERIAL_TEXTURE_BASE_COLOR},
+    TEXTURE_PARAMS("base_color_texture", SK_MATERIAL_TEXTURE_BASE_COLOR),
     {"metallic", PARAM_FLOAT, offsetof(sk_material_t, metallic)},
     {"roughness", PARAM_FLOAT, offsetof(sk_material_t, roughness)},
-    {"metallic_roughness_texture", PARAM_TEXTURE, SK_MATERIAL_TEXTURE_METALLIC_ROUGHNESS},
-    {"normal_texture", PARAM_TEXTURE, SK_MATERIAL_TEXTURE_NORMAL},
+    TEXTURE_PARAMS("metallic_roughness_texture", SK_MATERIAL_TEXTURE_METALLIC_ROUGHNESS),
+    TEXTURE_PARAMS("normal_texture", SK_MATERIAL_TEXTURE_NORMAL),
     {"normal_scale", PARAM_FLOAT, offsetof(sk_material_t, normal_scale)},
-    {"occlusion_texture", PARAM_TEXTURE, SK_MATERIAL_TEXTURE_OCCLUSION},
+    TEXTURE_PARAMS("occlusion_texture", SK_MATERIAL_TEXTURE_OCCLUSION),
     {"occlusion_strength", PARAM_FLOAT, offsetof(sk_material_t, occlusion_strength)},
     {"emissive", PARAM_VEC3, offsetof(sk_material_t, emissive)},
-    {"emissive_texture", PARAM_TEXTURE, SK_MATERIAL_TEXTURE_EMISSIVE},
+    TEXTURE_PARAMS("emissive_texture", SK_MATERIAL_TEXTURE_EMISSIVE),
 };
 
 static sk_material_t *resolve(sk_handle_t handle)
@@ -106,12 +116,23 @@ static float *lookup_values(sk_handle_t material, const char *name, param_kind_t
 static void clear_textures(sk_material_t *material_ptr)
 {
     for (int i = 0; i < SK_MATERIAL_TEXTURE_COUNT; i++) {
-        sk_texture_release(material_ptr->textures[i]); /* no-op for 0 */
-        material_ptr->textures[i] = 0;
+        sk_texture_release(material_ptr->textures[i].texture); /* no-op for 0 */
+        material_ptr->textures[i].texture = 0;
     }
 }
 
 /* -------------------------------------------------------------- internal ---- */
+
+void sk_material_uv_matrix(const sk_material_texture_t *texture, float m[6])
+{
+    const float c = cosf(texture->rotation), s = sinf(texture->rotation);
+    m[0] = c * texture->scale[0];
+    m[1] = s * texture->scale[1];
+    m[2] = texture->offset[0];
+    m[3] = -s * texture->scale[0];
+    m[4] = c * texture->scale[1];
+    m[5] = texture->offset[1];
+}
 
 const sk_material_t *sk_material_get(sk_handle_t material)
 {
@@ -162,6 +183,17 @@ void sk_material_deinit(void)
     sk_handle_pool_reset(&sk_material_pool);
 }
 
+bool sk_material_set_texture_mipmaps(sk_handle_t material, const char *name, bool mipmaps)
+{
+    sk_material_t *material_ptr = NULL;
+    const param_t *param = lookup(material, name, PARAM_TEXTURE, PARAM_TEXTURE, &material_ptr);
+    if (param == NULL) {
+        return false;
+    }
+    material_ptr->textures[param->offset].mipmaps = mipmaps;
+    return true;
+}
+
 /* ------------------------------------------------------------ public API ---- */
 
 SK_KEEP
@@ -191,6 +223,9 @@ sk_handle_t sk_material_create(sk_material_shading_t shading)
         .occlusion_strength = 1.0f,
         .ref_count = 1,
     };
+    for (int i = 0; i < SK_MATERIAL_TEXTURE_COUNT; i++) {
+        sk_materials[index].textures[i] = (sk_material_texture_t){.scale = {1.0f, 1.0f}, .mipmaps = true};
+    }
     return handle;
 }
 
@@ -253,6 +288,34 @@ bool sk_material_is_double_sided(sk_handle_t material)
 {
     sk_material_t *material_ptr = resolve(material);
     return material_ptr != NULL && material_ptr->double_sided;
+}
+
+SK_KEEP
+bool sk_material_set_int(sk_handle_t material, const char *name, int value)
+{
+    sk_material_t *material_ptr = NULL;
+    const param_t *param = lookup(material, name, PARAM_INT, PARAM_INT, &material_ptr);
+    if (param == NULL) {
+        return false;
+    }
+    if (value < 0 || value > 1) { /* the only int parameters are texture coordinate sets */
+        log_warn("material: '%s' must be 0 or 1 (got %d)", name, value);
+        return false;
+    }
+    *(int *)((char *)material_ptr + param->offset) = value;
+    return true;
+}
+
+SK_KEEP
+bool sk_material_set_vec2(sk_handle_t material, const char *name, float x, float y)
+{
+    float *values = lookup_values(material, name, PARAM_VEC2);
+    if (values == NULL) {
+        return false;
+    }
+    values[0] = x;
+    values[1] = y;
+    return true;
 }
 
 SK_KEEP
@@ -328,11 +391,34 @@ bool sk_material_set_texture(sk_handle_t material, const char *name, sk_handle_t
         log_warn("material: '%s' needs a texture handle", name);
         return false;
     }
-    slot = &material_ptr->textures[param->offset];
+    slot = &material_ptr->textures[param->offset].texture;
     if (*slot != texture) {
         sk_texture_retain(texture); /* before releasing, in case they're the same resource */
         sk_texture_release(*slot);
         *slot = texture;
     }
+    return true;
+}
+
+SK_KEEP
+bool sk_material_set_texture_sampling(sk_handle_t material, const char *name, sk_texture_wrap_t wrap_u,
+                                      sk_texture_wrap_t wrap_v, sk_texture_filter_t filter)
+{
+    sk_material_t *material_ptr = NULL;
+    const param_t *param = lookup(material, name, PARAM_TEXTURE, PARAM_TEXTURE, &material_ptr);
+    sk_material_texture_t *texture;
+
+    if (param == NULL) {
+        return false;
+    }
+    if (wrap_u < SK_TEXTURE_WRAP_REPEAT || wrap_u > SK_TEXTURE_WRAP_MIRROR || wrap_v < SK_TEXTURE_WRAP_REPEAT ||
+        wrap_v > SK_TEXTURE_WRAP_MIRROR || filter < SK_TEXTURE_FILTER_LINEAR || filter > SK_TEXTURE_FILTER_NEAREST) {
+        log_warn("material: invalid sampling for '%s'", name);
+        return false;
+    }
+    texture = &material_ptr->textures[param->offset];
+    texture->wrap_u = wrap_u;
+    texture->wrap_v = wrap_v;
+    texture->filter = filter;
     return true;
 }

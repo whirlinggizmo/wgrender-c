@@ -1,9 +1,11 @@
 #include "sk_model.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "internal/exports.h"
+#include "internal/sk_asset.h"
 #include "internal/sk_camera3d.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
@@ -51,8 +53,9 @@ typedef struct {
     /* skinned primitives: joints and weights, to pose pick geometry like the shader */
     uint8_t *pick_joints;  /* 4 per vertex */
     float *pick_weights;   /* 4 per vertex */
-    /* texture coordinates, for alpha-tested picking of MASK / BLEND materials */
-    float *pick_uvs;       /* 2 per vertex; NULL = no texture coordinates */
+    /* for alpha-tested picking of MASK / BLEND materials */
+    float *pick_uvs[2];    /* texture coordinate sets 0 and 1, 2 per vertex; NULL = absent */
+    float *pick_alpha;     /* vertex color alpha, 1 per vertex; NULL = absent or all opaque */
 } sk_primitive_t;
 
 /* node transform (base from glTF + per-frame working copy) */
@@ -184,7 +187,8 @@ static unsigned char sk_model_occupied[MAX_MODELS];
 static sg_pipeline sk_pips[2][2][2];
 static sg_shader sk_shd_static;
 static sg_shader sk_shd_skinned;
-static sg_sampler sk_model_sampler;
+/* material texture samplers, made on first use: [wrap_u][wrap_v][filter][mipmaps] */
+static sg_sampler sk_model_samplers[3][3][2][2];
 static sg_image sk_model_white_img;
 static sg_view sk_model_white_view;
 static sg_image sk_model_flat_normal_img;
@@ -208,6 +212,7 @@ static sk_model_t *resolve(sk_handle_t handle);
 static sk_mesh_t *resolve_mesh(sk_handle_t handle);
 static void release_mesh(sk_handle_t mesh_handle);
 static void free_mesh_cpu(sk_mesh_t *mesh);
+static unsigned char *read_file_bytes(const char *path, int *out_size);
 
 /* ------------------------------------------------------------- shaders ----- */
 
@@ -241,16 +246,53 @@ static sg_shader make_skinned_shader(void)
  * created yet). The loader holds one reference to each; materials add their own. */
 typedef struct {
     const cgltf_data *gltf;
+    const char *path; /* the glTF file, for images in files next to it */
     sk_handle_t *images;
     bool texcoord_warned;
 } sk_gltf_textures_t;
 
-/* Decode a glTF image embedded in the file into a texture (cached per image). */
+/* The encoded bytes of a glTF image: from a buffer view, a data: URI, or a file
+ * relative to the glTF file. `*owned` is set when the caller must free them. */
+static const unsigned char *image_bytes(const sk_gltf_textures_t *cache, const cgltf_image *img, int *size,
+                                        void **owned)
+{
+    const cgltf_buffer_view *bv = img->buffer_view;
+    const char *base64;
+    char path[512];
+
+    *owned = NULL;
+    if (bv != NULL) {
+        if (bv->buffer == NULL || bv->buffer->data == NULL) return NULL;
+        *size = (int)bv->size;
+        return (const unsigned char *)bv->buffer->data + bv->offset;
+    }
+    if (img->uri == NULL) return NULL;
+    if (strncmp(img->uri, "data:", 5) == 0) {
+        size_t len, padding = 0;
+        cgltf_options options = {0};
+        base64 = strstr(img->uri, ";base64,");
+        if (base64 == NULL) return NULL;
+        base64 += 8;
+        len = strlen(base64);
+        while (len > 0 && base64[len - 1] == '=') len--, padding++;
+        *size = (int)((len + padding) / 4 * 3 - padding);
+        if (cgltf_load_buffer_base64(&options, (cgltf_size)*size, base64, owned) != cgltf_result_success) return NULL;
+        return (const unsigned char *)*owned;
+    }
+    if (!sk_asset_is_relative_uri(img->uri) || cache->path == NULL ||
+        !sk_asset_join_relative(cache->path, img->uri, path, sizeof(path))) {
+        return NULL;
+    }
+    *owned = read_file_bytes(path, size);
+    return (const unsigned char *)*owned;
+}
+
+/* Decode a glTF image into a texture (cached per image). */
 static sk_handle_t load_image(sk_gltf_textures_t *cache, const cgltf_image *img)
 {
-    const cgltf_buffer_view *bv;
     const unsigned char *bytes;
-    int w = 0, h = 0, comp = 0;
+    void *owned = NULL;
+    int w = 0, h = 0, comp = 0, size = 0;
     stbi_uc *pixels;
     size_t index;
 
@@ -261,13 +303,13 @@ static sk_handle_t load_image(sk_gltf_textures_t *cache, const cgltf_image *img)
     if (cache->images[index] != 0) {
         return cache->images[index];
     }
-    if (img->buffer_view == NULL || img->buffer_view->buffer == NULL || img->buffer_view->buffer->data == NULL) {
-        log_warn("model: image %zu isn't embedded in the file; ignored", index);
+    bytes = image_bytes(cache, img, &size, &owned);
+    if (bytes == NULL) {
+        log_warn("model: image %zu (%s) couldn't be read; ignored", index, img->uri != NULL ? img->uri : "buffer");
         return 0;
     }
-    bv = img->buffer_view;
-    bytes = (const unsigned char *)bv->buffer->data + bv->offset;
-    pixels = stbi_load_from_memory(bytes, (int)bv->size, &w, &h, &comp, 4);
+    pixels = stbi_load_from_memory(bytes, size, &w, &h, &comp, 4);
+    free(owned);
     if (pixels == NULL) {
         log_warn("model: failed to decode image %zu (%s)", index, stbi_failure_reason());
         return 0;
@@ -277,18 +319,61 @@ static sk_handle_t load_image(sk_gltf_textures_t *cache, const cgltf_image *img)
     return cache->images[index];
 }
 
+static sk_texture_wrap_t gltf_wrap(cgltf_wrap_mode mode)
+{
+    switch (mode) {
+        case cgltf_wrap_mode_clamp_to_edge: return SK_TEXTURE_WRAP_CLAMP;
+        case cgltf_wrap_mode_mirrored_repeat: return SK_TEXTURE_WRAP_MIRROR;
+        default: return SK_TEXTURE_WRAP_REPEAT;
+    }
+}
+
+/* Assign a glTF texture to material parameter `name`, with its texture coordinate
+ * set, KHR_texture_transform and sampler. */
 static void set_texture(sk_gltf_textures_t *cache, sk_handle_t material, const char *name,
                         const cgltf_texture_view *view)
 {
+    const cgltf_sampler *sampler;
+    char param[64];
+    int texcoord;
+
     if (view->texture == NULL) {
         return;
     }
-    if (view->texcoord != 0 && !cache->texcoord_warned) {
-        log_warn("model: textures using texture coordinate set %d aren't supported; set 0 is used",
-                 (int)view->texcoord);
-        cache->texcoord_warned = true;
-    }
     sk_material_set_texture(material, name, load_image(cache, view->texture->image));
+
+    texcoord = view->has_transform && view->transform.has_texcoord ? view->transform.texcoord : view->texcoord;
+    snprintf(param, sizeof(param), "%s_texcoord", name);
+    if (texcoord > 1) {
+        if (!cache->texcoord_warned) {
+            log_warn("model: texture coordinate set %d isn't supported (0 and 1 are); set 0 is used", texcoord);
+            cache->texcoord_warned = true;
+        }
+        texcoord = 0;
+    }
+    sk_material_set_int(material, param, texcoord);
+
+    if (view->has_transform) {
+        snprintf(param, sizeof(param), "%s_offset", name);
+        sk_material_set_vec2(material, param, view->transform.offset[0], view->transform.offset[1]);
+        snprintf(param, sizeof(param), "%s_rotation", name);
+        sk_material_set_float(material, param, view->transform.rotation);
+        snprintf(param, sizeof(param), "%s_scale", name);
+        sk_material_set_vec2(material, param, view->transform.scale[0], view->transform.scale[1]);
+    }
+
+    sampler = view->texture->sampler;
+    if (sampler != NULL) {
+        const cgltf_filter_type min = sampler->min_filter, mag = sampler->mag_filter;
+        const bool nearest_min = min == cgltf_filter_type_nearest || min == cgltf_filter_type_nearest_mipmap_nearest ||
+                                 min == cgltf_filter_type_nearest_mipmap_linear;
+        /* one filter for both: magnification decides when given (it's what shows up close) */
+        const bool nearest = mag == cgltf_filter_type_nearest || (mag == cgltf_filter_type_undefined && nearest_min);
+        sk_material_set_texture_sampling(material, name, gltf_wrap(sampler->wrap_s), gltf_wrap(sampler->wrap_t),
+                                         nearest ? SK_TEXTURE_FILTER_NEAREST : SK_TEXTURE_FILTER_LINEAR);
+        sk_material_set_texture_mipmaps(material, name,
+                                        min != cgltf_filter_type_nearest && min != cgltf_filter_type_linear);
+    }
 }
 
 /* Create a material from a glTF material; NULL gives glTF's default material. */
@@ -402,9 +487,12 @@ void sk_model_generate_tangents(const float *positions, const float *normals, co
 static bool build_primitive(const cgltf_data *g, const cgltf_primitive *prim, bool skinned,
                             const sk_mat4_t *node_world, int default_material, sk_primitive_t *out)
 {
-    const cgltf_accessor *pos = NULL, *nrm = NULL, *uv = NULL, *tan = NULL, *jnt = NULL, *wgt = NULL;
+    const cgltf_accessor *pos = NULL, *nrm = NULL, *uv[2] = {NULL, NULL}, *tan = NULL, *col = NULL, *jnt = NULL,
+                         *wgt = NULL;
     cgltf_size vcount, icount, i;
-    float *verts = NULL, *positions = NULL, *normals = NULL, *uvs = NULL, *tangents = NULL;
+    float *verts = NULL, *positions = NULL, *normals = NULL, *uvs[2] = {NULL, NULL}, *tangents = NULL,
+          *colors = NULL;
+    bool translucent = false;
     uint32_t *indices = NULL;
     size_t stride;
     bool ok = false;
@@ -415,7 +503,8 @@ static bool build_primitive(const cgltf_data *g, const cgltf_primitive *prim, bo
             case cgltf_attribute_type_position: pos = attr->data; break;
             case cgltf_attribute_type_normal: nrm = attr->data; break;
             case cgltf_attribute_type_tangent: tan = attr->data; break;
-            case cgltf_attribute_type_texcoord: if (attr->index == 0) uv = attr->data; break;
+            case cgltf_attribute_type_texcoord: if (attr->index < 2) uv[attr->index] = attr->data; break;
+            case cgltf_attribute_type_color: if (attr->index == 0) col = attr->data; break;
             case cgltf_attribute_type_joints: if (attr->index == 0) jnt = attr->data; break;
             case cgltf_attribute_type_weights: if (attr->index == 0) wgt = attr->data; break;
             default: break;
@@ -424,13 +513,16 @@ static bool build_primitive(const cgltf_data *g, const cgltf_primitive *prim, bo
     if (pos == NULL) return false;
     if (skinned && (jnt == NULL || wgt == NULL)) skinned = false;
     if (skinned) node_world = NULL; /* joints place skinned vertices */
-    stride = skinned ? 20 : 12;
+    /* position 3, normal 3, texcoord0 2, texcoord1 2, tangent 4, color 4 [, joints 4, weights 4] */
+    stride = skinned ? 26 : 18;
 
     vcount = pos->count;
     memset(out, 0, sizeof(*out));
     positions = (float *)calloc(vcount * 3, sizeof(float));
     normals = (float *)calloc(vcount * 3, sizeof(float));
-    uvs = (float *)calloc(vcount * 2, sizeof(float));
+    uvs[0] = (float *)calloc(vcount * 2, sizeof(float));
+    uvs[1] = (float *)calloc(vcount * 2, sizeof(float));
+    colors = (float *)malloc(vcount * 4 * sizeof(float));
     tangents = (float *)calloc(vcount * 4, sizeof(float));
     verts = (float *)calloc(vcount * stride, sizeof(float));
     icount = prim->indices != NULL ? prim->indices->count : vcount;
@@ -439,7 +531,8 @@ static bool build_primitive(const cgltf_data *g, const cgltf_primitive *prim, bo
         out->pick_joints = (uint8_t *)calloc(vcount * 4, 1);
         out->pick_weights = (float *)calloc(vcount * 4, sizeof(float));
     }
-    if (positions == NULL || normals == NULL || uvs == NULL || tangents == NULL || verts == NULL || indices == NULL ||
+    if (positions == NULL || normals == NULL || uvs[0] == NULL || uvs[1] == NULL || colors == NULL ||
+        tangents == NULL || verts == NULL || indices == NULL ||
         (skinned && (out->pick_joints == NULL || out->pick_weights == NULL))) {
         goto done;
     }
@@ -480,13 +573,22 @@ static bool build_primitive(const cgltf_data *g, const cgltf_primitive *prim, bo
             n[0] = wn.x; n[1] = wn.y; n[2] = wn.z;
         }
         memcpy(&normals[i * 3], n, sizeof(n));
-        if (uv) cgltf_accessor_read_float(uv, i, &uvs[i * 2], 2);
+        for (int set = 0; set < 2; set++) {
+            if (uv[set]) cgltf_accessor_read_float(uv[set], i, &uvs[set][i * 2], 2);
+        }
+        {
+            /* linear rgba; normalized integer colors are read as 0..1 */
+            float c[4] = {1, 1, 1, 1};
+            if (col) cgltf_accessor_read_float(col, i, c, col->type == cgltf_type_vec4 ? 4 : 3);
+            memcpy(&colors[i * 4], c, sizeof(c));
+            translucent = translucent || c[3] < 1.0f;
+        }
         if (skinned) {
             float j[4] = {0}, w[4] = {0};
             cgltf_accessor_read_float(jnt, i, j, 4);
             cgltf_accessor_read_float(wgt, i, w, 4);
-            memcpy(&verts[i * stride + 12], j, sizeof(j));
-            memcpy(&verts[i * stride + 16], w, sizeof(w));
+            memcpy(&verts[i * stride + 18], j, sizeof(j));
+            memcpy(&verts[i * stride + 22], w, sizeof(w));
             for (int k = 0; k < 4; k++) {
                 out->pick_joints[i * 4 + k] = (uint8_t)(j[k] < 255.0f ? j[k] : 255.0f);
                 out->pick_weights[i * 4 + k] = w[k];
@@ -517,16 +619,19 @@ static bool build_primitive(const cgltf_data *g, const cgltf_primitive *prim, bo
             memcpy(&tangents[i * 4], t, sizeof(t));
         }
     } else {
-        /* after baking and winding fixes, so the generated frame matches what's drawn */
-        sk_model_generate_tangents(positions, normals, uvs, (int)vcount, indices, (int)icount, tangents);
+        /* after baking and winding fixes, so the generated frame matches what's drawn.
+         * From texture coordinate set 0: normal maps using set 1 need tangents in the file. */
+        sk_model_generate_tangents(positions, normals, uvs[0], (int)vcount, indices, (int)icount, tangents);
     }
 
     for (i = 0; i < vcount; i++) {
         float *v = &verts[i * stride];
         memcpy(v, &positions[i * 3], 3 * sizeof(float));
         memcpy(v + 3, &normals[i * 3], 3 * sizeof(float));
-        memcpy(v + 6, &uvs[i * 2], 2 * sizeof(float));
-        memcpy(v + 8, &tangents[i * 4], 4 * sizeof(float));
+        memcpy(v + 6, &uvs[0][i * 2], 2 * sizeof(float));
+        memcpy(v + 8, &uvs[1][i * 2], 2 * sizeof(float));
+        memcpy(v + 10, &tangents[i * 4], 4 * sizeof(float));
+        memcpy(v + 14, &colors[i * 4], 4 * sizeof(float));
     }
 
     out->vbuf = sg_make_buffer(&(sg_buffer_desc){
@@ -542,9 +647,15 @@ static bool build_primitive(const cgltf_data *g, const cgltf_primitive *prim, bo
     out->pick_positions = positions;
     out->pick_indices = indices;
     out->pick_vertex_count = (int)vcount;
-    if (uv != NULL) {
-        out->pick_uvs = uvs;
-        uvs = NULL;
+    for (int set = 0; set < 2; set++) {
+        if (uv[set] != NULL) {
+            out->pick_uvs[set] = uvs[set];
+            uvs[set] = NULL;
+        }
+    }
+    if (translucent) {
+        out->pick_alpha = (float *)malloc(vcount * sizeof(float));
+        for (i = 0; out->pick_alpha != NULL && i < vcount; i++) out->pick_alpha[i] = colors[i * 4 + 3];
     }
     positions = NULL;
     indices = NULL;
@@ -558,7 +669,9 @@ done:
     }
     free(positions);
     free(normals);
-    free(uvs);
+    free(uvs[0]);
+    free(uvs[1]);
+    free(colors);
     free(tangents);
     free(verts);
     free(indices);
@@ -685,9 +798,9 @@ static void parse_animations(sk_mesh_t *mesh, const cgltf_data *g)
 
 /* One material per glTF material, plus glTF's default material if a primitive
  * uses it. Textures are shared between materials that use the same image. */
-static void load_materials(sk_mesh_t *mesh, const cgltf_data *g)
+static void load_materials(sk_mesh_t *mesh, const cgltf_data *g, const char *path)
 {
-    sk_gltf_textures_t cache = {.gltf = g};
+    sk_gltf_textures_t cache = {.gltf = g, .path = path};
     bool uses_default = false;
 
     for (int p = 0; p < mesh->prim_count; p++) {
@@ -713,14 +826,19 @@ static void load_materials(sk_mesh_t *mesh, const cgltf_data *g)
     free(cache.images);
 }
 
-static bool load_model(sk_mesh_t *mesh, const unsigned char *data, int size)
+static bool load_model(sk_mesh_t *mesh, const unsigned char *data, int size, const char *path)
 {
     cgltf_options options = {0};
     cgltf_data *g = NULL;
     int total = 0, idx = 0;
 
     if (cgltf_parse(&options, data, (cgltf_size)size, &g) != cgltf_result_success) return false;
-    if (cgltf_load_buffers(&options, g, NULL) != cgltf_result_success) { cgltf_free(g); return false; }
+    /* `path` lets buffers in files next to a .gltf load (sk_asset ensured them) */
+    if (cgltf_load_buffers(&options, g, path) != cgltf_result_success) {
+        log_error("model: buffers of %s couldn't be loaded", path != NULL ? path : "(memory)");
+        cgltf_free(g);
+        return false;
+    }
 
     parse_skeleton(mesh, g);
     parse_animations(mesh, g);
@@ -761,7 +879,7 @@ static bool load_model(sk_mesh_t *mesh, const unsigned char *data, int size)
         }
     }
     mesh->prim_count = idx;
-    if (idx > 0) load_materials(mesh, g);
+    if (idx > 0) load_materials(mesh, g, path);
 
     /* merged local-space AABB for broadphase/picking */
     mesh->lmin = (vec3_t){1e30f, 1e30f, 1e30f};
@@ -949,7 +1067,9 @@ static void free_mesh_data(sk_mesh_t *mesh)
         free(mesh->prims[p].pick_indices);
         free(mesh->prims[p].pick_joints);
         free(mesh->prims[p].pick_weights);
-        free(mesh->prims[p].pick_uvs);
+        free(mesh->prims[p].pick_uvs[0]);
+        free(mesh->prims[p].pick_uvs[1]);
+        free(mesh->prims[p].pick_alpha);
     }
     free(mesh->prims);
     for (int m = 0; m < mesh->material_count; m++) {
@@ -995,7 +1115,7 @@ static sk_handle_t create_mesh(const unsigned char *data, int size, const char *
     uint16_t index = 0;
     sk_mesh_t mesh = {0};
 
-    if (!load_model(&mesh, data, size)) {
+    if (!load_model(&mesh, data, size, path)) {
         log_error("failed to load model");
         free_mesh_data(&mesh);
         return 0;
@@ -1220,14 +1340,30 @@ vec3_t sk_model_skin_position(const sk_mat4_t *joints, int joint_count, vec3_t p
     return out;
 }
 
-float sk_model_sample_alpha(const uint8_t *alpha, int width, int height, float u, float v)
+/* A texture coordinate wrapped into 0..1 like the GPU sampler does. */
+static float wrap_coord(float c, sk_texture_wrap_t wrap)
+{
+    switch (wrap) {
+        case SK_TEXTURE_WRAP_CLAMP:
+            return c < 0.0f ? 0.0f : (c > 1.0f ? 1.0f : c);
+        case SK_TEXTURE_WRAP_MIRROR: {
+            float t = c - 2.0f * floorf(c * 0.5f); /* 0..2 */
+            return t > 1.0f ? 2.0f - t : t;
+        }
+        default:
+            return c - floorf(c);
+    }
+}
+
+float sk_model_sample_alpha(const uint8_t *alpha, int width, int height, float u, float v,
+                            sk_texture_wrap_t wrap_u, sk_texture_wrap_t wrap_v)
 {
     int x, y;
     if (alpha == NULL || width <= 0 || height <= 0) {
         return 1.0f;
     }
-    u -= floorf(u); /* repeat */
-    v -= floorf(v);
+    u = wrap_coord(u, wrap_u);
+    v = wrap_coord(v, wrap_v);
     x = (int)(u * (float)width);
     y = (int)(v * (float)height);
     x = x >= width ? width - 1 : x;
@@ -1348,6 +1484,9 @@ static const sk_material_t *prim_material(const sk_model_t *model_ptr, const sk_
 static bool is_solid_at(const sk_primitive_t *prim, const sk_material_t *material, uint32_t i0, uint32_t i1,
                         uint32_t i2, float u, float v)
 {
+    const sk_material_texture_t *base = &material->textures[SK_MATERIAL_TEXTURE_BASE_COLOR];
+    const float *uvs = prim->pick_uvs[base->texcoord == 1 ? 1 : 0];
+    const float w0 = 1.0f - u - v;
     float alpha = material->base_color[3];
     const unsigned char *mask;
     int width, height;
@@ -1355,12 +1494,17 @@ static bool is_solid_at(const sk_primitive_t *prim, const sk_material_t *materia
     if (material->alpha_mode == SK_MATERIAL_ALPHA_OPAQUE) {
         return true;
     }
-    if (prim->pick_uvs != NULL &&
-        sk_texture_get_alpha_mask(material->textures[SK_MATERIAL_TEXTURE_BASE_COLOR], &mask, &width, &height)) {
-        const float w0 = 1.0f - u - v;
-        const float tu = prim->pick_uvs[i0 * 2] * w0 + prim->pick_uvs[i1 * 2] * u + prim->pick_uvs[i2 * 2] * v;
-        const float tv = prim->pick_uvs[i0 * 2 + 1] * w0 + prim->pick_uvs[i1 * 2 + 1] * u + prim->pick_uvs[i2 * 2 + 1] * v;
-        alpha *= sk_model_sample_alpha(mask, width, height, tu, tv);
+
+    if (prim->pick_alpha != NULL) {
+        alpha *= prim->pick_alpha[i0] * w0 + prim->pick_alpha[i1] * u + prim->pick_alpha[i2] * v;
+    }
+    if (uvs != NULL && sk_texture_get_alpha_mask(base->texture, &mask, &width, &height)) {
+        float m[6];
+        const float su = uvs[i0 * 2] * w0 + uvs[i1 * 2] * u + uvs[i2 * 2] * v;
+        const float sv = uvs[i0 * 2 + 1] * w0 + uvs[i1 * 2 + 1] * u + uvs[i2 * 2 + 1] * v;
+        sk_material_uv_matrix(base, m);
+        alpha *= sk_model_sample_alpha(mask, width, height, m[0] * su + m[1] * sv + m[2], m[3] * su + m[4] * sv + m[5],
+                                       base->wrap_u, base->wrap_v);
     }
     return alpha >= (material->alpha_mode == SK_MATERIAL_ALPHA_MASK ? material->alpha_cutoff : 0.5f);
 }
@@ -1655,7 +1799,7 @@ static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material)
     fsp.u_emissive[1] = material->emissive[1];
     fsp.u_emissive[2] = material->emissive[2];
     /* without a normal map the flat default texture must not tilt the normal */
-    fsp.u_emissive[3] = material->textures[SK_MATERIAL_TEXTURE_NORMAL] != 0 ? material->normal_scale : 0.0f;
+    fsp.u_emissive[3] = material->textures[SK_MATERIAL_TEXTURE_NORMAL].texture != 0 ? material->normal_scale : 0.0f;
     fsp.u_pbr[0] = material->metallic;
     fsp.u_pbr[1] = material->roughness;
     fsp.u_pbr[2] = material->occlusion_strength;
@@ -1664,6 +1808,17 @@ static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material)
     fsp.u_camera_pos[0] = e->camera_pos.x;
     fsp.u_camera_pos[1] = e->camera_pos.y;
     fsp.u_camera_pos[2] = e->camera_pos.z;
+    for (int t = 0; t < SK_MATERIAL_TEXTURE_COUNT; t++) {
+        float m[6];
+        sk_material_uv_matrix(&material->textures[t], m);
+        fsp.u_uv_row0[t][0] = m[0];
+        fsp.u_uv_row0[t][1] = m[1];
+        fsp.u_uv_row0[t][2] = m[2];
+        fsp.u_uv_row0[t][3] = (float)material->textures[t].texcoord;
+        fsp.u_uv_row1[t][0] = m[3];
+        fsp.u_uv_row1[t][1] = m[4];
+        fsp.u_uv_row1[t][2] = m[5];
+    }
 
     if (lit) {
         fsp.u_ambient[0] = env->ambient.x;
@@ -1690,20 +1845,51 @@ static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material)
     sg_apply_uniforms(UB_fs_params, &(sg_range){.ptr = &fsp, .size = sizeof(fsp)});
 }
 
-static sg_view texture_view(sk_handle_t texture, sg_view fallback)
+static sg_view texture_view(const sk_material_texture_t *texture, sg_view fallback)
 {
     sg_view view = fallback;
-    if (texture != 0) {
-        sk_texture_get_binding(texture, &view, NULL, NULL, NULL);
+    if (texture->texture != 0) {
+        sk_texture_get_binding(texture->texture, &view, NULL, NULL, NULL);
     }
     return view;
+}
+
+static sg_wrap sampler_wrap(sk_texture_wrap_t wrap)
+{
+    switch (wrap) {
+        case SK_TEXTURE_WRAP_CLAMP: return SG_WRAP_CLAMP_TO_EDGE;
+        case SK_TEXTURE_WRAP_MIRROR: return SG_WRAP_MIRRORED_REPEAT;
+        default: return SG_WRAP_REPEAT;
+    }
+}
+
+static sg_sampler texture_sampler(const sk_material_texture_t *texture)
+{
+    const int u = texture->wrap_u >= 0 && texture->wrap_u < 3 ? (int)texture->wrap_u : 0;
+    const int v = texture->wrap_v >= 0 && texture->wrap_v < 3 ? (int)texture->wrap_v : 0;
+    const int nearest = texture->filter == SK_TEXTURE_FILTER_NEAREST ? 1 : 0;
+    const int mipmaps = texture->mipmaps ? 1 : 0;
+    sg_sampler *smp = &sk_model_samplers[u][v][nearest][mipmaps];
+
+    if (smp->id == SG_INVALID_ID) {
+        const sg_filter filter = nearest ? SG_FILTER_NEAREST : SG_FILTER_LINEAR;
+        *smp = sg_make_sampler(&(sg_sampler_desc){
+            .min_filter = filter,
+            .mag_filter = filter,
+            .mipmap_filter = filter,
+            .max_lod = mipmaps ? 1000.0f : 0.0f, /* 0: base level only */
+            .wrap_u = sampler_wrap(texture->wrap_u),
+            .wrap_v = sampler_wrap(texture->wrap_v),
+        });
+    }
+    return *smp;
 }
 
 static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr, const sk_mesh_t *mesh_ptr,
                            const sk_primitive_t *prim, bool blended, sg_pipeline *cur_pip)
 {
     const sk_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
-    const sk_handle_t *textures = material->textures;
+    const sk_material_texture_t *textures = material->textures;
     sg_pipeline pip = sk_pips[prim->skinned ? 1 : 0][blended ? 1 : 0][material->double_sided ? 1 : 0];
     if (pip.id != cur_pip->id) {
         sg_apply_pipeline(pip);
@@ -1730,13 +1916,17 @@ static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr
     sg_apply_bindings(&(sg_bindings){
         .vertex_buffers[0] = prim->vbuf,
         .index_buffer = prim->ibuf,
-        .views[VIEW_base_color_tex] = texture_view(textures[SK_MATERIAL_TEXTURE_BASE_COLOR], sk_model_white_view),
+        .views[VIEW_base_color_tex] = texture_view(&textures[SK_MATERIAL_TEXTURE_BASE_COLOR], sk_model_white_view),
         .views[VIEW_metallic_roughness_tex] =
-            texture_view(textures[SK_MATERIAL_TEXTURE_METALLIC_ROUGHNESS], sk_model_white_view),
-        .views[VIEW_normal_tex] = texture_view(textures[SK_MATERIAL_TEXTURE_NORMAL], sk_model_flat_normal_view),
-        .views[VIEW_occlusion_tex] = texture_view(textures[SK_MATERIAL_TEXTURE_OCCLUSION], sk_model_white_view),
-        .views[VIEW_emissive_tex] = texture_view(textures[SK_MATERIAL_TEXTURE_EMISSIVE], sk_model_white_view),
-        .samplers[SMP_smp] = sk_model_sampler,
+            texture_view(&textures[SK_MATERIAL_TEXTURE_METALLIC_ROUGHNESS], sk_model_white_view),
+        .views[VIEW_normal_tex] = texture_view(&textures[SK_MATERIAL_TEXTURE_NORMAL], sk_model_flat_normal_view),
+        .views[VIEW_occlusion_tex] = texture_view(&textures[SK_MATERIAL_TEXTURE_OCCLUSION], sk_model_white_view),
+        .views[VIEW_emissive_tex] = texture_view(&textures[SK_MATERIAL_TEXTURE_EMISSIVE], sk_model_white_view),
+        .samplers[SMP_base_color_smp] = texture_sampler(&textures[SK_MATERIAL_TEXTURE_BASE_COLOR]),
+        .samplers[SMP_metallic_roughness_smp] = texture_sampler(&textures[SK_MATERIAL_TEXTURE_METALLIC_ROUGHNESS]),
+        .samplers[SMP_normal_smp] = texture_sampler(&textures[SK_MATERIAL_TEXTURE_NORMAL]),
+        .samplers[SMP_occlusion_smp] = texture_sampler(&textures[SK_MATERIAL_TEXTURE_OCCLUSION]),
+        .samplers[SMP_emissive_smp] = texture_sampler(&textures[SK_MATERIAL_TEXTURE_EMISSIVE]),
     });
     apply_fs(e, material);
     sg_draw(0, prim->index_count, 1);
@@ -1794,6 +1984,25 @@ SK_KEEP void sk_model_destroy(sk_handle_t handle)
     release_mesh(mesh); /* frees the mesh once its last model/owner is gone */
 }
 
+/* sk_asset: the buffer and image files a glTF file references. */
+static void list_gltf_dependencies(const unsigned char *data, int size, sk_asset_add_dependency_fn add,
+                                   void *context)
+{
+    cgltf_options options = {0};
+    cgltf_data *g = NULL;
+
+    if (cgltf_parse(&options, data, (cgltf_size)size, &g) != cgltf_result_success) {
+        return; /* sk_mesh_create reports the broken file */
+    }
+    for (cgltf_size i = 0; i < g->buffers_count; i++) {
+        if (g->buffers[i].uri != NULL) add(g->buffers[i].uri, context);
+    }
+    for (cgltf_size i = 0; i < g->images_count; i++) {
+        if (g->images[i].uri != NULL && g->images[i].buffer_view == NULL) add(g->images[i].uri, context);
+    }
+    cgltf_free(g);
+}
+
 void sk_model_init(void)
 {
     static const unsigned char white[4] = {255, 255, 255, 255};
@@ -1826,11 +2035,13 @@ void sk_model_init(void)
                 d.shader = skinned ? sk_shd_skinned : sk_shd_static;
                 d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
                 d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
-                d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2;
-                d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT4; /* tangent */
+                d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2; /* texcoord0 */
+                d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2; /* texcoord1 */
+                d.layout.attrs[4].format = SG_VERTEXFORMAT_FLOAT4; /* tangent */
+                d.layout.attrs[5].format = SG_VERTEXFORMAT_FLOAT4; /* color0 */
                 if (skinned) {
-                    d.layout.attrs[4].format = SG_VERTEXFORMAT_FLOAT4;
-                    d.layout.attrs[5].format = SG_VERTEXFORMAT_FLOAT4;
+                    d.layout.attrs[6].format = SG_VERTEXFORMAT_FLOAT4; /* joints */
+                    d.layout.attrs[7].format = SG_VERTEXFORMAT_FLOAT4; /* weights */
                 }
                 d.cull_mode = double_sided ? SG_CULLMODE_NONE : SG_CULLMODE_BACK;
                 if (blended) {
@@ -1849,9 +2060,6 @@ void sk_model_init(void)
         }
     }
 
-    sk_model_sampler = sg_make_sampler(&(sg_sampler_desc){
-        .min_filter = SG_FILTER_LINEAR, .mag_filter = SG_FILTER_LINEAR,
-        .mipmap_filter = SG_FILTER_LINEAR, .wrap_u = SG_WRAP_REPEAT, .wrap_v = SG_WRAP_REPEAT});
     sk_model_white_img = sg_make_image(&(sg_image_desc){
         .width = 1, .height = 1, .pixel_format = SG_PIXELFORMAT_RGBA8,
         .data.mip_levels[0] = {.ptr = white, .size = sizeof(white)}});
@@ -1864,6 +2072,8 @@ void sk_model_init(void)
     sk_scene_register_passes(SK_HANDLE_KIND_MODEL, draw_opaque, collect_transparent, draw_transparent);
     sk_scene_register_bounds(SK_HANDLE_KIND_MODEL, model_bounds);
     sk_scene_register_pick(SK_HANDLE_KIND_MODEL, model_pick);
+    sk_asset_register_dependencies(".gltf", list_gltf_dependencies);
+    sk_asset_register_dependencies(".glb", list_gltf_dependencies);
 }
 
 void sk_model_deinit(void)
@@ -1886,7 +2096,11 @@ void sk_model_deinit(void)
     sg_destroy_view(sk_model_flat_normal_view);
     sg_destroy_image(sk_model_flat_normal_img);
     sg_destroy_image(sk_model_white_img);
-    sg_destroy_sampler(sk_model_sampler);
+    for (int i = 0; i < 3 * 3 * 2 * 2; i++) {
+        sg_sampler *smp = &((sg_sampler *)sk_model_samplers)[i];
+        if (smp->id != SG_INVALID_ID) sg_destroy_sampler(*smp);
+        *smp = (sg_sampler){0};
+    }
     for (int skinned = 0; skinned < 2; skinned++) {
         for (int blended = 0; blended < 2; blended++) {
             for (int double_sided = 0; double_sided < 2; double_sided++) {

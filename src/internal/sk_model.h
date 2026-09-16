@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "internal/sk_math.h"
+#include <sk_texture.h> /* public; "" would find internal/sk_texture.h */
 
 void sk_model_init(void);
 void sk_model_deinit(void);
@@ -25,8 +26,9 @@ vec3_t sk_model_skin_position(const sk_mat4_t *joints, int joint_count, vec3_t p
                               const uint8_t joint_index[4], const float weights[4]);
 
 /* Alpha (0..1) of an 8-bit alpha image at texture coordinate (u, v), nearest
- * texel, repeating outside 0..1 like the model sampler. */
-float sk_model_sample_alpha(const uint8_t *alpha, int width, int height, float u, float v);
+ * texel, wrapped outside 0..1 like the GPU sampler (repeat, clamp or mirror). */
+float sk_model_sample_alpha(const uint8_t *alpha, int width, int height, float u, float v,
+                            sk_texture_wrap_t wrap_u, sk_texture_wrap_t wrap_v);
 
 /* Per-vertex tangents (4 floats: xyz, w = bitangent sign) for normal mapping,
  * from positions (3), normals (3, unit) and texture coordinates (2) of an

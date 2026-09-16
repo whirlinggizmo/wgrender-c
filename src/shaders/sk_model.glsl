@@ -2,6 +2,8 @@
  * Authored once in annotated (Vulkan-style) GLSL; sokol-shdc generates
  * sk_model.glsl.h with GL core / WebGL2 / WebGPU variants. Regen: `make shaders`.
  *
+ * Vertex colors (glTF COLOR_0, linear rgba; white when absent) multiply the base color.
+ *
  * Uniform blocks mirror the C structs in sk_model.c (std140):
  *   vs_params      = mvp, model, normal_mat
  *   vs_skin_params = mvp, model, normal_mat, joints_mat[128]
@@ -19,6 +21,9 @@
  *   u_material        x alpha cutoff (0 = no alpha test), y number of lights (0..8)
  *   u_camera_pos      xyz camera position, world space
  *   u_ambient         rgb ambient color * intensity (linear)
+ *   u_uv_row0[i], u_uv_row1[i]  texture slot i (base color, metallic-roughness,
+ *                     normal, occlusion, emissive): xyz the rows of its 2x3 texture
+ *                     transform, u_uv_row0[i].w its texture coordinate set (0 or 1)
  *   u_light_pos_range[i]  xyz position, w range (0 = unlimited)
  *   u_light_dir_type[i]   xyz direction the light travels, w type (0 dir, 1 point, 2 spot)
  *   u_light_radiance[i]   rgb color * intensity (linear)
@@ -38,16 +43,22 @@ layout(binding=0) uniform vs_params {
 in vec3 position;
 in vec3 normal;
 in vec2 texcoord0;
+in vec2 texcoord1;
 in vec4 tangent;
+in vec4 color0;
 out vec3 v_normal;
 out vec4 v_tangent;
-out vec2 v_uv;
+out vec2 v_uv0;
+out vec2 v_uv1;
+out vec4 v_color;
 out vec3 v_world_pos;
 void main() {
     gl_Position = mvp * vec4(position, 1.0);
     v_normal = mat3(normal_mat) * normal;
     v_tangent = vec4(mat3(model) * tangent.xyz, tangent.w);
-    v_uv = texcoord0;
+    v_uv0 = texcoord0;
+    v_uv1 = texcoord1;
+    v_color = color0;
     v_world_pos = (model * vec4(position, 1.0)).xyz;
 }
 @end
@@ -62,12 +73,16 @@ layout(binding=0) uniform vs_skin_params {
 in vec3 position;
 in vec3 normal;
 in vec2 texcoord0;
+in vec2 texcoord1;
 in vec4 tangent;
+in vec4 color0;
 in vec4 joints;
 in vec4 weights;
 out vec3 v_normal;
 out vec4 v_tangent;
-out vec2 v_uv;
+out vec2 v_uv0;
+out vec2 v_uv1;
+out vec4 v_color;
 out vec3 v_world_pos;
 void main() {
     mat4 skin = weights.x * joints_mat[int(joints.x)]
@@ -79,7 +94,9 @@ void main() {
     /* joints are rigid transforms (plus uniform scale), so mat3(skin) keeps normals perpendicular */
     v_normal = mat3(normal_mat) * (mat3(skin) * normal);
     v_tangent = vec4(mat3(model) * (mat3(skin) * tangent.xyz), tangent.w);
-    v_uv = texcoord0;
+    v_uv0 = texcoord0;
+    v_uv1 = texcoord1;
+    v_color = color0;
     v_world_pos = (model * sp).xyz;
 }
 @end
@@ -92,6 +109,8 @@ layout(binding=1) uniform fs_params {
     vec4 u_material;
     vec4 u_camera_pos;
     vec4 u_ambient;
+    vec4 u_uv_row0[5];
+    vec4 u_uv_row1[5];
     vec4 u_light_pos_range[8];
     vec4 u_light_dir_type[8];
     vec4 u_light_radiance[8];
@@ -102,10 +121,16 @@ layout(binding=1) uniform texture2D metallic_roughness_tex;
 layout(binding=2) uniform texture2D normal_tex;
 layout(binding=3) uniform texture2D occlusion_tex;
 layout(binding=4) uniform texture2D emissive_tex;
-layout(binding=0) uniform sampler smp;
+layout(binding=0) uniform sampler base_color_smp;
+layout(binding=1) uniform sampler metallic_roughness_smp;
+layout(binding=2) uniform sampler normal_smp;
+layout(binding=3) uniform sampler occlusion_smp;
+layout(binding=4) uniform sampler emissive_smp;
 in vec3 v_normal;
 in vec4 v_tangent;
-in vec2 v_uv;
+in vec2 v_uv0;
+in vec2 v_uv1;
+in vec4 v_color;
 in vec3 v_world_pos;
 out vec4 frag_color;
 
@@ -122,6 +147,12 @@ vec3 linear_to_srgb(vec3 c) {
     vec3 lo = c * 12.92;
     vec3 hi = 1.055 * pow(max(c, vec3(0.0031308)), vec3(1.0 / 2.4)) - 0.055;
     return mix(lo, hi, step(vec3(0.0031308), c));
+}
+
+/* Texture coordinates for texture slot i: its coordinate set, then its transform. */
+vec2 tex_uv(int i) {
+    vec3 uv = vec3(u_uv_row0[i].w < 0.5 ? v_uv0 : v_uv1, 1.0);
+    return vec2(dot(u_uv_row0[i].xyz, uv), dot(u_uv_row1[i].xyz, uv));
 }
 
 float attenuation(float d, float range) {
@@ -142,8 +173,8 @@ float spot_factor(float cos_angle, float cos_inner, float cos_outer) {
 }
 
 void main() {
-    vec4 base_sample = texture(sampler2D(base_color_tex, smp), v_uv);
-    vec4 base = vec4(srgb_to_linear(base_sample.rgb), base_sample.a) * u_base_color;
+    vec4 base_sample = texture(sampler2D(base_color_tex, base_color_smp), tex_uv(0));
+    vec4 base = vec4(srgb_to_linear(base_sample.rgb), base_sample.a) * u_base_color * v_color;
     if (base.a < u_material.x) {
         discard;
     }
@@ -159,13 +190,13 @@ void main() {
     if (dot(t, t) > 1e-8) {
         t = normalize(t);
         vec3 b = cross(n, t) * v_tangent.w;
-        vec3 tn = texture(sampler2D(normal_tex, smp), v_uv).xyz * 2.0 - 1.0;
+        vec3 tn = texture(sampler2D(normal_tex, normal_smp), tex_uv(2)).xyz * 2.0 - 1.0;
         tn.xy *= u_emissive.w;
         n = normalize(mat3(t, b, n) * tn);
     }
     n *= face;
 
-    vec3 mr = texture(sampler2D(metallic_roughness_tex, smp), v_uv).rgb;
+    vec3 mr = texture(sampler2D(metallic_roughness_tex, metallic_roughness_smp), tex_uv(1)).rgb;
     float metallic = clamp(u_pbr.x * mr.b, 0.0, 1.0);
     float roughness = clamp(u_pbr.y * mr.g, 0.03, 1.0);
     float alpha = roughness * roughness;
@@ -176,7 +207,7 @@ void main() {
     vec3 v = normalize(u_camera_pos.xyz - v_world_pos);
     float n_dot_v = clamp(abs(dot(n, v)), 1e-4, 1.0);
 
-    float ao = 1.0 + u_pbr.z * (texture(sampler2D(occlusion_tex, smp), v_uv).r - 1.0);
+    float ao = 1.0 + u_pbr.z * (texture(sampler2D(occlusion_tex, occlusion_smp), tex_uv(3)).r - 1.0);
     vec3 color = u_ambient.rgb * (c_diff + f0) * ao;
 
     int count = int(u_material.y);
@@ -220,7 +251,7 @@ void main() {
         color += u_light_radiance[i].rgb * falloff * n_dot_l * (diffuse + specular);
     }
 
-    color += u_emissive.rgb * srgb_to_linear(texture(sampler2D(emissive_tex, smp), v_uv).rgb);
+    color += u_emissive.rgb * srgb_to_linear(texture(sampler2D(emissive_tex, emissive_smp), tex_uv(4)).rgb);
     frag_color = vec4(linear_to_srgb(color), base.a);
 }
 @end

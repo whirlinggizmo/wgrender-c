@@ -1,10 +1,12 @@
 #include "sk_asset.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "internal/exports.h"
+#include "internal/sk_asset.h"
 #include "internal/sk_fs.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
@@ -28,9 +30,10 @@
  * Either way the callback receives a path the sync sk_*_create(path) creators
  * can fopen. */
 
-#define MAX_ASSET_TASKS 64
+#define MAX_ASSET_TASKS 256
+#define MAX_DEPENDENCY_FORMATS 8
 
-enum { TASK_NEW = 0, TASK_FETCHING };
+enum { TASK_NEW = 0, TASK_FETCHING, TASK_WAITING /* on its dependencies */ };
 enum { FETCH_PENDING = 0, FETCH_OK, FETCH_FAILED };
 
 typedef struct {
@@ -47,7 +50,17 @@ typedef struct {
     unsigned char *acc;       /* web: accumulated file bytes across chunks */
     size_t acc_len;
     bool acc_error;           /* web: a chunk realloc failed mid-stream */
+    /* dependencies (files this file references; see internal/sk_asset.h) */
+    uint16_t parent;          /* slot of the task this one is a dependency of; 0 = none */
+    int pending;              /* dependencies not finished yet */
+    bool dependency_failed;
+    bool dependencies_started;
 } sk_asset_task_t;
+
+typedef struct {
+    char extension[16];
+    sk_asset_dependencies_fn list;
+} sk_asset_format_t;
 
 static sk_asset_task_t sk_asset_tasks[MAX_ASSET_TASKS];
 static sk_handle_pool_t sk_asset_pool;
@@ -56,6 +69,8 @@ static uint16_t sk_asset_generations[MAX_ASSET_TASKS];
 static unsigned char sk_asset_occupied[MAX_ASSET_TASKS];
 static bool sk_asset_ready = false;
 static char sk_asset_host[256] = "";
+static sk_asset_format_t sk_asset_formats[MAX_DEPENDENCY_FORMATS];
+static int sk_asset_format_count;
 
 static sk_asset_task_t *resolve(sk_handle_t handle)
 {
@@ -150,6 +165,186 @@ static void start_fetch(uint16_t slot)
 }
 #endif
 
+/* ------------------------------------------------------------ dependencies */
+
+void sk_asset_register_dependencies(const char *extension, sk_asset_dependencies_fn list)
+{
+    if (extension == NULL || list == NULL || sk_asset_format_count >= MAX_DEPENDENCY_FORMATS) {
+        return;
+    }
+    snprintf(sk_asset_formats[sk_asset_format_count].extension, sizeof(sk_asset_formats[0].extension), "%s",
+             extension);
+    sk_asset_formats[sk_asset_format_count++].list = list;
+}
+
+bool sk_asset_is_relative_uri(const char *uri)
+{
+    if (uri == NULL || uri[0] == '\0' || uri[0] == '/' || strncmp(uri, "data:", 5) == 0) {
+        return false;
+    }
+    for (const char *c = uri; *c != '\0' && *c != '/'; c++) {
+        if (*c == ':') {
+            return false; /* scheme (http:, file:, ...) */
+        }
+    }
+    return true;
+}
+
+static int hex_value(char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+bool sk_asset_join_relative(const char *base_path, const char *uri, char *out, size_t out_size)
+{
+    char buffer[1024];
+    const char *segments[128];
+    size_t lengths[128];
+    int count = 0;
+    size_t n = 0, pos = 0;
+    const char *last_slash;
+    const bool rooted = base_path != NULL && base_path[0] == '/';
+
+    if (base_path == NULL || uri == NULL || out == NULL || out_size == 0) {
+        return false;
+    }
+    /* base directory, then the decoded uri, as one '/'-separated string */
+    last_slash = strrchr(base_path, '/');
+    if (last_slash != NULL) {
+        n = (size_t)(last_slash - base_path) + 1;
+        if (n >= sizeof(buffer)) return false;
+        memcpy(buffer, base_path, n);
+    }
+    for (const char *c = uri; *c != '\0'; c++) {
+        char ch = *c;
+        if (ch == '%' && hex_value(c[1]) >= 0 && hex_value(c[2]) >= 0) {
+            ch = (char)(hex_value(c[1]) * 16 + hex_value(c[2]));
+            c += 2;
+        }
+        if (n + 1 >= sizeof(buffer)) return false;
+        buffer[n++] = ch;
+    }
+    buffer[n] = '\0';
+
+    for (size_t start = 0; start <= n;) {
+        size_t end = start;
+        while (end < n && buffer[end] != '/') end++;
+        const size_t len = end - start;
+        if (len == 0 || (len == 1 && buffer[start] == '.')) {
+            /* empty or "." */
+        } else if (len == 2 && buffer[start] == '.' && buffer[start + 1] == '.') {
+            if (count == 0) return false; /* above the top directory */
+            count--;
+        } else {
+            if (count >= (int)(sizeof(segments) / sizeof(segments[0]))) return false;
+            segments[count] = &buffer[start];
+            lengths[count++] = len;
+        }
+        start = end + 1;
+    }
+
+    if (rooted) {
+        if (pos + 1 >= out_size) return false;
+        out[pos++] = '/';
+    }
+    for (int i = 0; i < count; i++) {
+        if (pos + lengths[i] + (i > 0 ? 1 : 0) >= out_size) return false;
+        if (i > 0) out[pos++] = '/';
+        memcpy(out + pos, segments[i], lengths[i]);
+        pos += lengths[i];
+    }
+    out[pos] = '\0';
+    return count > 0;
+}
+
+static sk_asset_dependencies_fn lookup_format(const char *path)
+{
+    const size_t path_len = strlen(path);
+    for (int f = 0; f < sk_asset_format_count; f++) {
+        const size_t ext_len = strlen(sk_asset_formats[f].extension);
+        if (path_len < ext_len) continue;
+        bool match = true;
+        for (size_t k = 0; k < ext_len && match; k++) {
+            match = tolower((unsigned char)path[path_len - ext_len + k]) ==
+                    tolower((unsigned char)sk_asset_formats[f].extension[k]);
+        }
+        if (match) return sk_asset_formats[f].list;
+    }
+    return NULL;
+}
+
+/* Queue one dependency of the task in `context` (a uint16_t slot). */
+static void add_dependency(const char *uri, void *context)
+{
+    const uint16_t parent = *(const uint16_t *)context;
+    sk_asset_task_t *parent_task = &sk_asset_tasks[parent];
+    char path[512], url[1024];
+    sk_handle_t handle;
+    sk_asset_task_t *task;
+
+    if (!sk_asset_is_relative_uri(uri)) {
+        return;
+    }
+    if (!sk_asset_join_relative(parent_task->path, uri, path, sizeof(path))) {
+        log_warn("Asset %s: can't use dependency '%s' (outside the asset root or too long)", parent_task->path, uri);
+        parent_task->dependency_failed = true;
+        return;
+    }
+    for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) { /* referenced twice: ensure once */
+        if (sk_asset_occupied[i] && sk_asset_tasks[i].parent == parent && strcmp(sk_asset_tasks[i].path, path) == 0) {
+            return;
+        }
+    }
+    handle = sk_handle_pool_alloc(&sk_asset_pool);
+    if (handle == 0) {
+        log_error("MAX_ASSET_TASKS reached (%d) ensuring dependencies of %s", MAX_ASSET_TASKS, parent_task->path);
+        parent_task->dependency_failed = true;
+        return;
+    }
+    task = resolve(handle);
+    *task = (sk_asset_task_t){0};
+    snprintf(task->path, sizeof(task->path), "%s", path);
+    /* a file fetched from an explicit URL finds its dependencies next to that URL
+     * (the browser resolves any "..") */
+    if (parent_task->fetch_url[0] != '\0') {
+        const char *slash = strrchr(parent_task->fetch_url, '/');
+        const int dir_len = slash != NULL ? (int)(slash - parent_task->fetch_url) + 1 : 0;
+        if (snprintf(url, sizeof(url), "%.*s%s", dir_len, parent_task->fetch_url, uri) < (int)sizeof(url)) {
+            snprintf(task->fetch_url, sizeof(task->fetch_url), "%s", url);
+        }
+    }
+    task->flags = parent_task->flags;
+    task->parent = parent;
+    task->armed = true;
+    parent_task->pending++;
+}
+
+/* Queue the dependencies of a task whose own file is now local. */
+static void start_dependencies(uint16_t slot)
+{
+    sk_asset_task_t *task = &sk_asset_tasks[slot];
+    const sk_asset_dependencies_fn list = lookup_format(task->path);
+    unsigned char *data = NULL;
+    int size = 0;
+    uint16_t context = slot;
+
+    task->dependencies_started = true;
+    if (list == NULL) {
+        return;
+    }
+    if (!sk_fs_read(task->path, &data, &size)) {
+        return; /* the resource creator reports the unreadable file */
+    }
+    list(data, size, add_dependency, &context);
+    sk_fs_read_free(data);
+    if (task->pending > 0) {
+        task->state = TASK_WAITING;
+    }
+}
+
 SK_KEEP
 sk_handle_t sk_asset_ensure_async(const char *path, const char *fetch_url,
                                   unsigned int flags)
@@ -208,20 +403,48 @@ void sk_asset_init(void)
     sk_asset_ready = true;
 }
 
-/* Free a finished task slot before firing its callback (which may queue more). */
-static void finish(uint16_t i, bool ok, const char *local_path,
-                   sk_asset_callback_fn on_success, sk_asset_callback_fn on_failure,
-                   void *user_data)
+/* Free a finished task slot before firing its callback (which may queue more),
+ * then tell the task it's a dependency of, if any. */
+static void finish(uint16_t i, bool ok)
 {
     sk_handle_t handle = sk_handle_pool_handle_from_index(&sk_asset_pool, i);
+    const sk_asset_task_t task = sk_asset_tasks[i];
+    char local[512];
+
+    sk_fs_resolve(task.path, local, sizeof(local));
     sk_asset_tasks[i] = (sk_asset_task_t){0};
     sk_handle_pool_free(&sk_asset_pool, handle);
     if (ok) {
-        if (on_success) on_success(local_path, user_data);
+        if (task.on_success) task.on_success(local, task.user_data);
     } else {
-        log_error("Asset not found: %s", local_path);
-        if (on_failure) on_failure(local_path, user_data);
+        if (task.dependency_failed) {
+            log_error("Asset dependencies missing: %s", local);
+        } else {
+            log_error("Asset not found: %s", local);
+        }
+        if (task.on_failure) task.on_failure(local, task.user_data);
     }
+    if (task.parent != 0) {
+        sk_asset_task_t *parent = &sk_asset_tasks[task.parent];
+        parent->pending--;
+        parent->dependency_failed = parent->dependency_failed || !ok;
+        if (parent->pending <= 0) {
+            finish(task.parent, !parent->dependency_failed);
+        }
+    }
+}
+
+/* A task's own file is local (ok) or unavailable: ensure its dependencies, or finish. */
+static void resolved(uint16_t i, bool ok)
+{
+    sk_asset_task_t *task = &sk_asset_tasks[i];
+    if (ok && !task->dependencies_started) {
+        start_dependencies(i);
+        if (task->state == TASK_WAITING) {
+            return; /* finishes when its last dependency does */
+        }
+    }
+    finish(i, ok && !task->dependency_failed);
 }
 
 void sk_asset_tick(void)
@@ -236,33 +459,27 @@ void sk_asset_tick(void)
 #endif
     for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) {
         sk_asset_task_t *task = &sk_asset_tasks[i];
-        char local[512];
 
-        if (!sk_asset_occupied[i] || !task->armed) {
+        if (!sk_asset_occupied[i] || !task->armed || task->state == TASK_WAITING) {
             continue;
         }
 
 #ifdef __EMSCRIPTEN__
         if (task->state == TASK_FETCHING) {
             if (task->fetch_result == FETCH_PENDING) continue; /* still downloading */
-            sk_fs_resolve(task->path, local, sizeof(local));
-            finish(i, task->fetch_result == FETCH_OK, local,
-                   task->on_success, task->on_failure, task->user_data);
+            resolved(i, task->fetch_result == FETCH_OK);
             continue;
         }
         /* FORCE_FETCH re-downloads; otherwise serve the cache when present. */
         if (!(task->flags & SK_ASSET_FORCE_FETCH) && sk_fs_exists(task->path)) {
-            sk_fs_resolve(task->path, local, sizeof(local));
-            finish(i, true, local, task->on_success, task->on_failure, task->user_data);
+            resolved(i, true);
             continue;
         }
         start_fetch(i); /* miss (or forced): download, cache, resolve on later ticks */
 #else
         /* Desktop has no network fetcher yet, so FORCE_FETCH is a no-op: resolve
          * from the jailed local fs (miss = failure). Network fallback is TODO. */
-        sk_fs_resolve(task->path, local, sizeof(local));
-        finish(i, sk_fs_exists(task->path), local,
-               task->on_success, task->on_failure, task->user_data);
+        resolved(i, sk_fs_exists(task->path));
 #endif
     }
 }

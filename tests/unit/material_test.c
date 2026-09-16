@@ -78,6 +78,31 @@ void test_material_api(void)
     CHECK_NEAR(data->emissive[1], sk_srgb_to_linear(128.0f / 255.0f), EPS);
     CHECK(!sk_material_set_color(material, "roughness", gray));
 
+    /* per-texture coordinate set, transform and sampling */
+    const sk_material_texture_t *base = &data->textures[SK_MATERIAL_TEXTURE_BASE_COLOR];
+    CHECK(base->texcoord == 0 && base->wrap_u == SK_TEXTURE_WRAP_REPEAT && base->filter == SK_TEXTURE_FILTER_LINEAR);
+    CHECK_NEAR(base->scale[0], 1, EPS);
+    CHECK(base->mipmaps);
+    CHECK(sk_material_set_int(material, "base_color_texture_texcoord", 1));
+    CHECK(!sk_material_set_int(material, "base_color_texture_texcoord", 2)); /* only sets 0 and 1 */
+    CHECK(!sk_material_set_int(material, "metallic", 1));                    /* wrong kind */
+    CHECK(sk_material_set_vec2(material, "normal_texture_scale", 4, 2));
+    CHECK(sk_material_set_vec2(material, "normal_texture_offset", 0.5f, 0.25f));
+    CHECK(sk_material_set_float(material, "normal_texture_rotation", 1.0f));
+    CHECK(!sk_material_set_vec2(material, "normal_texture_rotation", 1, 1));
+    CHECK(base->texcoord == 1);
+    CHECK_NEAR(data->textures[SK_MATERIAL_TEXTURE_NORMAL].scale[0], 4, EPS);
+    CHECK_NEAR(data->textures[SK_MATERIAL_TEXTURE_NORMAL].offset[1], 0.25f, EPS);
+    CHECK(sk_material_set_texture_sampling(material, "emissive_texture", SK_TEXTURE_WRAP_CLAMP, SK_TEXTURE_WRAP_MIRROR,
+                                           SK_TEXTURE_FILTER_NEAREST));
+    CHECK(data->textures[SK_MATERIAL_TEXTURE_EMISSIVE].wrap_u == SK_TEXTURE_WRAP_CLAMP);
+    CHECK(data->textures[SK_MATERIAL_TEXTURE_EMISSIVE].wrap_v == SK_TEXTURE_WRAP_MIRROR);
+    CHECK(data->textures[SK_MATERIAL_TEXTURE_EMISSIVE].filter == SK_TEXTURE_FILTER_NEAREST);
+    CHECK(!sk_material_set_texture_sampling(material, "emissive", SK_TEXTURE_WRAP_CLAMP, SK_TEXTURE_WRAP_CLAMP,
+                                            SK_TEXTURE_FILTER_LINEAR)); /* not a texture */
+    CHECK(!sk_material_set_texture_sampling(material, "emissive_texture", (sk_texture_wrap_t)7, SK_TEXTURE_WRAP_CLAMP,
+                                            SK_TEXTURE_FILTER_LINEAR));
+
     /* textures: 0 clears, other handle kinds are rejected */
     CHECK(sk_material_set_texture(material, "normal_texture", 0));
     CHECK(!sk_material_set_texture(material, "normal_texture", gray));
@@ -142,4 +167,28 @@ void test_model_generate_tangents(void)
         CHECK_NEAR(sk_v3_dot(t, t), 1.0f, EPS);
         CHECK_NEAR(t.z, 0.0f, EPS);
     }
+}
+
+void test_material_uv_matrix(void)
+{
+    sk_material_texture_t texture = {.scale = {1, 1}};
+    float m[6];
+
+    sk_material_uv_matrix(&texture, m); /* identity */
+    CHECK_NEAR(m[0], 1, EPS);
+    CHECK_NEAR(m[1], 0, EPS);
+    CHECK_NEAR(m[2], 0, EPS);
+    CHECK_NEAR(m[3], 0, EPS);
+    CHECK_NEAR(m[4], 1, EPS);
+    CHECK_NEAR(m[5], 0, EPS);
+
+    /* glTF KHR_texture_transform: translation * rotation * scale */
+    texture = (sk_material_texture_t){.offset = {0.5f, 0.25f}, .rotation = 1.5707963f, .scale = {2, 3}};
+    sk_material_uv_matrix(&texture, m);
+    /* uv (1, 0): scaled (2, 0), rotated by the glTF matrix [c s; -s c] to (0, -2), offset (0.5, -1.75) */
+    CHECK_NEAR(m[0] * 1 + m[1] * 0 + m[2], 0.5f, EPS);
+    CHECK_NEAR(m[3] * 1 + m[4] * 0 + m[5], -1.75f, EPS);
+    /* uv (0, 1): scaled (0, 3), rotated to (3, 0), offset (3.5, 0.25) */
+    CHECK_NEAR(m[0] * 0 + m[1] * 1 + m[2], 3.5f, EPS);
+    CHECK_NEAR(m[3] * 0 + m[4] * 1 + m[5], 0.25f, EPS);
 }

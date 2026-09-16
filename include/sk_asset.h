@@ -14,7 +14,11 @@ extern "C" {
  *   2. CREATE the resource synchronously from that local path inside the ready
  *      callback: sk_texture_create(path), sk_mesh_create(path), etc.
  *
- * The callback receives a PATH, never bytes — user code stays pointer-free. */
+ * The callback receives a PATH, never bytes — user code stays pointer-free.
+ *
+ * Files that reference other files are ensured together: ensuring a .gltf (or
+ * .glb) also ensures the buffers and images it references, relative to it, and the
+ * callback fires once all of them are local (failure if any is missing). */
 
 typedef void (*sk_asset_callback_fn)(const char *path, void *user_data);
 

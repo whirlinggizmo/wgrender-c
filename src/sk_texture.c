@@ -121,6 +121,50 @@ static sk_handle_t alloc_texture_slot(sk_texture_t *out)
     return handle;
 }
 
+/* Make an RGBA8 image with a full mipmap chain. Each level averages 2x2 texels
+ * of the previous one (the last row or column repeats for odd sizes), in the
+ * stored color space. */
+static sg_image make_mipmapped_image(const unsigned char *rgba, int w, int h)
+{
+    sg_image_desc desc = {.width = w, .height = h, .pixel_format = SG_PIXELFORMAT_RGBA8};
+    unsigned char *levels[SG_MAX_MIPMAPS] = {NULL};
+    int lw = w, lh = h, count = 1;
+    sg_image image;
+
+    desc.data.mip_levels[0] = (sg_range){.ptr = rgba, .size = (size_t)(w * h * 4)};
+    while ((lw > 1 || lh > 1) && count < SG_MAX_MIPMAPS) {
+        const unsigned char *src = count == 1 ? rgba : levels[count - 1];
+        const int sw = lw, sh = lh;
+        unsigned char *dst;
+        lw = lw > 1 ? lw / 2 : 1;
+        lh = lh > 1 ? lh / 2 : 1;
+        dst = (unsigned char *)malloc((size_t)(lw * lh * 4));
+        if (dst == NULL) {
+            break;
+        }
+        for (int y = 0; y < lh; y++) {
+            const int y0 = y * 2 < sh ? y * 2 : sh - 1, y1 = y * 2 + 1 < sh ? y * 2 + 1 : sh - 1;
+            for (int x = 0; x < lw; x++) {
+                const int x0 = x * 2 < sw ? x * 2 : sw - 1, x1 = x * 2 + 1 < sw ? x * 2 + 1 : sw - 1;
+                for (int c = 0; c < 4; c++) {
+                    const int sum = src[(y0 * sw + x0) * 4 + c] + src[(y0 * sw + x1) * 4 + c] +
+                                    src[(y1 * sw + x0) * 4 + c] + src[(y1 * sw + x1) * 4 + c];
+                    dst[(y * lw + x) * 4 + c] = (unsigned char)((sum + 2) / 4);
+                }
+            }
+        }
+        levels[count] = dst;
+        desc.data.mip_levels[count] = (sg_range){.ptr = dst, .size = (size_t)(lw * lh * 4)};
+        count++;
+    }
+    desc.num_mipmaps = count;
+    image = sg_make_image(&desc);
+    for (int i = 1; i < count; i++) {
+        free(levels[i]);
+    }
+    return image;
+}
+
 static sk_handle_t create_texture_from_rgba(const unsigned char *rgba, int w, int h,
                                             const char *path)
 {
@@ -150,12 +194,7 @@ static sk_handle_t create_texture_from_rgba(const unsigned char *rgba, int w, in
         t.path[n] = '\0';
         t.has_path = true;
     }
-    t.image = sg_make_image(&(sg_image_desc){
-        .width = w,
-        .height = h,
-        .pixel_format = SG_PIXELFORMAT_RGBA8,
-        .data.mip_levels[0] = {.ptr = rgba, .size = (size_t)(w * h * 4)},
-    });
+    t.image = make_mipmapped_image(rgba, w, h);
     t.view = sg_make_view(&(sg_view_desc){.texture.image = t.image});
     sk_textures[index] = t;
     return handle;
@@ -438,6 +477,7 @@ void sk_texture_init(void)
     sk_default_sampler = sg_make_sampler(&(sg_sampler_desc){
         .min_filter = SG_FILTER_LINEAR,
         .mag_filter = SG_FILTER_LINEAR,
+        .mipmap_filter = SG_FILTER_LINEAR,
         .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
         .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
     });

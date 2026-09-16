@@ -7,6 +7,7 @@ extern "C" {
 
 #include <stdbool.h>
 
+#include "sk_texture.h"
 #include "sk_types.h"
 
 /* Materials (resources): how a surface is shaded. See docs/PLAN-materials.md.
@@ -40,7 +41,20 @@ extern "C" {
  *   emissive                      vec3     0,0,0      linear rgb, may exceed 1
  *   emissive_texture              texture  none       sRGB rgb
  *
- * sk_material_set_color accepts vec3 and vec4 parameters (vec3 ignores alpha). */
+ * Each texture <t> above (e.g. base_color_texture) also has:
+ *
+ *   <t>_texcoord                  int      0          texture coordinate set: 0 or 1
+ *   <t>_offset                    vec2     0,0        texture transform (glTF
+ *   <t>_rotation                  float    0          KHR_texture_transform):
+ *   <t>_scale                     vec2     1,1        uv' = offset + rotate(scale * uv)
+ *
+ * Scale tiles the texture (2,2 repeats it twice each way); rotation is radians,
+ * counterclockwise in texture space. Textures repeat, sample smoothly and use
+ * mipmaps unless sk_material_set_texture_sampling says otherwise.
+ *
+ * sk_material_set_color accepts vec3 and vec4 parameters (vec3 ignores alpha).
+ *
+ * glTF vertex colors (COLOR_0) multiply the base color of models that have them. */
 
 typedef enum {
     SK_MATERIAL_PBR = 0,   /* glTF metallic-roughness, lit by scene lights */
@@ -66,12 +80,17 @@ sk_material_alpha_t sk_material_get_alpha_mode(sk_handle_t material);
 bool sk_material_set_double_sided(sk_handle_t material, bool double_sided);
 bool sk_material_is_double_sided(sk_handle_t material);
 
+bool sk_material_set_int(sk_handle_t material, const char *name, int value);
 bool sk_material_set_float(sk_handle_t material, const char *name, float value);
+bool sk_material_set_vec2(sk_handle_t material, const char *name, float x, float y);
 bool sk_material_set_vec3(sk_handle_t material, const char *name, float x, float y, float z);
 bool sk_material_set_vec4(sk_handle_t material, const char *name, float x, float y, float z, float w);
 bool sk_material_set_color(sk_handle_t material, const char *name, sk_handle_t color);
 /* The material holds its own reference to the texture. 0 clears it. */
 bool sk_material_set_texture(sk_handle_t material, const char *name, sk_handle_t texture);
+/* How texture `name` (e.g. "base_color_texture") is sampled. Default: repeat, linear. */
+bool sk_material_set_texture_sampling(sk_handle_t material, const char *name, sk_texture_wrap_t wrap_u,
+                                      sk_texture_wrap_t wrap_v, sk_texture_filter_t filter);
 
 #ifdef __cplusplus
 }

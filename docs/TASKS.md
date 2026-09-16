@@ -150,38 +150,38 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 - [ ] Particle emitters (batched/instanced)
 - [ ] Offscreen / render-to-texture (when the first consumer needs it)
 
-## Materials: not supported yet
+## Materials: glTF coverage
 
-Wanted next:
+Done (2026-09-16, verified against Khronos TextureTransformTest, MultiUVTest,
+VertexColorTest, TextureSettingsTest and BoxTextured on desktop, WebGL2, WebGPU):
 
-- [ ] Second texture coordinate set (TEXCOORD_1): glTF textures that use
-      `texCoord: 1` (common for occlusion/lightmaps) currently fall back to set 0
-      with a warning. Needs a second UV vertex attribute, a per-texture set index on
-      the material, and the shader choosing per texture.
-- [ ] glTF images in separate files (`.gltf` + `.png`/`.jpg`, and external `.bin`
-      buffers): only images and buffers embedded in `.glb` load today; others are
-      skipped with a warning. Needs the asset layer to ensure the referenced files
-      (relative to the `.gltf`) before `sk_mesh_create`, on web too.
-- [ ] Environment lighting (image-based lighting): without it metals only show
-      direct highlights and look dark. Scene environment map (prefiltered
+- [x] Second texture coordinate set (TEXCOORD_1), chosen per texture
+- [x] glTF files with separate buffers and images (`.gltf` + `.bin`/`.png`), and
+      `data:` URIs. Ensuring a `.gltf`/`.glb` also ensures the files it references
+      (sk_asset dependency listers), so it works on web.
+- [x] Texture transforms per texture (glTF `KHR_texture_transform`, or `<t>_offset`,
+      `_rotation`, `_scale` by name); picking applies them
+- [x] Vertex colors (COLOR_0) multiply base color (and alpha, for picking)
+- [x] Sampler modes per texture: wrap (repeat, clamp, mirror) and filter, from glTF
+      or `sk_material_set_texture_sampling`
+- [x] Mipmaps for all textures (generated at load)
+
+Not supported yet:
+
+- [ ] Environment lighting (image-based lighting), wanted next: without it metals
+      only show direct highlights and look dark. Scene environment map (prefiltered
       specular + irradiance, BRDF lookup table), probably with HDR input and tone
       mapping (below).
-- [ ] Texture transforms (tiling, offset, rotation) per material texture:
-      loaded from glTF `KHR_texture_transform`, and settable in code by name (e.g.
-      `base_color_texture_scale` / `_offset` / `_rotation`; needs
-      `sk_material_set_vec2`). Today UVs outside 0..1 tile (textures repeat), but
-      the extension is ignored and code-created materials can't tile. Alpha-tested
-      picking must apply the same transform. Also enables scrolling textures and
-      flipbooks.
-
-Later:
-
-- [ ] glTF vertex colors (COLOR_0) multiplying base color
-- [ ] glTF sampler modes (wrap, filter); today always linear + repeat
-- [ ] Mipmaps for material textures (distant textures shimmer)
+- [ ] Decide: missing or broken referenced images. Today a missing dependency fails
+      the whole mesh's ensure; a placeholder texture (and/or a way to redirect where
+      dependencies load from) may be better. See discussion 2026-09-16.
 - [ ] Tone mapping / exposure (lit values above 1 clip)
+- [ ] Generated tangents come from texture coordinate set 0; normal maps on set 1
+      need tangents in the file
+- [ ] Mipmaps average in stored (sRGB) space and don't renormalize normal maps
 - [ ] Other glTF material extensions (clearcoat, transmission, sheen, specular, ior, ...)
 - [ ] Morph targets (animation weights are skipped)
+- [ ] Compressed / other image formats (KTX2/Basis, WebP)
 
 ## Lessons from librl to design for
 

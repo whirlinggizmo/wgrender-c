@@ -3,6 +3,8 @@
 
 /* Every unit test; add new ones here and to the table in main.c. */
 
+void test_asset_join_relative(void);
+
 void test_camera_api(void);
 void test_camera_projection(void);
 void test_pick_ray_from_screen_ortho(void);
@@ -29,6 +31,7 @@ void test_light_api(void);
 
 void test_material_srgb(void);
 void test_material_api(void);
+void test_material_uv_matrix(void);
 
 void test_math_angles(void);
 void test_math_inverse(void);

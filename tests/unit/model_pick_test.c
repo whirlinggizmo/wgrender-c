@@ -35,10 +35,21 @@ void test_model_sample_alpha(void)
     /* 2x2: top row opaque, bottom row transparent */
     const uint8_t alpha[4] = {255, 255, 0, 0};
 
-    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 0.25f, 0.25f), 1.0f, EPS);
-    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 0.75f, 0.75f), 0.0f, EPS);
-    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 1.0f, 0.99f), 0.0f, EPS);   /* u = 1 wraps to 0 */
-    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 0.25f, 1.25f), 1.0f, EPS);  /* repeats past 1 */
-    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, -0.25f, -0.25f), 0.0f, EPS); /* repeats below 0: (0.75, 0.75) */
-    CHECK_NEAR(sk_model_sample_alpha(NULL, 0, 0, 0.5f, 0.5f), 1.0f, EPS);     /* no texture: opaque */
+    const sk_texture_wrap_t R = SK_TEXTURE_WRAP_REPEAT, C = SK_TEXTURE_WRAP_CLAMP, M = SK_TEXTURE_WRAP_MIRROR;
+
+    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 0.25f, 0.25f, R, R), 1.0f, EPS);
+    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 0.75f, 0.75f, R, R), 0.0f, EPS);
+    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 1.0f, 0.99f, R, R), 0.0f, EPS);   /* u = 1 wraps to 0 */
+    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 0.25f, 1.25f, R, R), 1.0f, EPS);  /* repeats past 1 */
+    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, -0.25f, -0.25f, R, R), 0.0f, EPS); /* repeats below 0: (0.75, 0.75) */
+    CHECK_NEAR(sk_model_sample_alpha(NULL, 0, 0, 0.5f, 0.5f, R, R), 1.0f, EPS);     /* no texture: opaque */
+
+    /* clamp: past the edge stays on the edge row */
+    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 0.25f, 1.25f, R, C), 0.0f, EPS);
+    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 0.25f, -3.0f, R, C), 1.0f, EPS);
+    /* mirror: 1.25 reflects to 0.75, 1.75 to 0.25, 2.25 repeats to 0.25 */
+    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 0.25f, 1.25f, R, M), 0.0f, EPS);
+    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 0.25f, 1.75f, R, M), 1.0f, EPS);
+    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 0.25f, 2.25f, R, M), 1.0f, EPS);
+    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 0.25f, -0.25f, R, M), 1.0f, EPS); /* reflects to 0.25 */
 }

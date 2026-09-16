@@ -151,10 +151,16 @@ sk_handle_t sk_material_create_custom(sk_handle_t shader);
 - **Textures:** glTF images become unnamed texture resources shared between the
   mesh's materials; materials hold references. Picking uses the material the model
   actually draws with (override included), and the base color texture's alpha.
-- **Not yet:** texture coordinate set 1, images in external files, environment
-  lighting and texture transforms (wanted next), then vertex colors, glTF sampler
-  modes (always linear + repeat), mipmaps, tone mapping. Tracked in TASKS.md
-  under "Materials: not supported yet".
+- **glTF coverage (follow-up the same day):** texture coordinate set 1, texture
+  transforms (KHR_texture_transform, also settable by name), vertex colors,
+  per-texture samplers (wrap, filter), mipmaps for all textures, and `.gltf` files
+  with separate buffers/images or `data:` URIs. The asset layer ensures a glTF
+  file's referenced files through a per-extension dependency lister (registered by
+  sk_model), so the public ensure-then-create flow is unchanged and works on web.
+  Verified against the Khronos TextureTransformTest, MultiUVTest, VertexColorTest,
+  TextureSettingsTest and BoxTextured models.
+- **Not yet:** environment lighting (wanted next), tone mapping, and others tracked
+  in TASKS.md under "Materials: glTF coverage".
 
 ## Decisions
 

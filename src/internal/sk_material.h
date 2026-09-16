@@ -18,6 +18,19 @@ typedef enum {
     SK_MATERIAL_TEXTURE_COUNT,
 } sk_material_texture_slot_t;
 
+/* A material texture and how it's sampled. */
+typedef struct {
+    sk_handle_t texture; /* referenced; 0 = none */
+    int texcoord;        /* texture coordinate set, 0 or 1 */
+    float offset[2];     /* texture transform (KHR_texture_transform) */
+    float rotation;
+    float scale[2];
+    sk_texture_wrap_t wrap_u;
+    sk_texture_wrap_t wrap_v;
+    sk_texture_filter_t filter;
+    bool mipmaps; /* false only for glTF samplers whose min filter has no mipmaps */
+} sk_material_texture_t;
+
 typedef struct {
     sk_material_shading_t shading;
     sk_material_alpha_t alpha_mode;
@@ -29,7 +42,7 @@ typedef struct {
     float roughness;
     float normal_scale;
     float occlusion_strength;
-    sk_handle_t textures[SK_MATERIAL_TEXTURE_COUNT]; /* referenced; 0 = none */
+    sk_material_texture_t textures[SK_MATERIAL_TEXTURE_COUNT];
     int ref_count;
 } sk_material_t;
 
@@ -38,6 +51,14 @@ void sk_material_deinit(void);
 
 /* Resolve without logging; NULL for 0 or a stale handle. */
 const sk_material_t *sk_material_get(sk_handle_t material);
+
+/* The texture transform as a 2x3 matrix, rows (m[0] m[1] m[2]) and
+ * (m[3] m[4] m[5]): u' = m[0] u + m[1] v + m[2], v' = m[3] u + m[4] v + m[5].
+ * Same as glTF KHR_texture_transform: translation * rotation * scale. Pure. */
+void sk_material_uv_matrix(const sk_material_texture_t *texture, float m[6]);
+
+/* Whether texture `name` uses its mipmaps (glTF samplers can turn them off). */
+bool sk_material_set_texture_mipmaps(sk_handle_t material, const char *name, bool mipmaps);
 
 /* Reference counting (meshes and models hold references). */
 void sk_material_retain(sk_handle_t material);

@@ -11,6 +11,18 @@ extern "C" {
  * from a source asset (path). Many Sprite objects may reference one Texture.
  * See docs/ARCHITECTURE.md. */
 
+/* How a texture is sampled where it's used (e.g. per material texture). */
+typedef enum {
+    SK_TEXTURE_WRAP_REPEAT = 0, /* tile */
+    SK_TEXTURE_WRAP_CLAMP = 1,  /* stretch the edge texels */
+    SK_TEXTURE_WRAP_MIRROR = 2, /* tile, flipping every other copy */
+} sk_texture_wrap_t;
+
+typedef enum {
+    SK_TEXTURE_FILTER_LINEAR = 0,  /* smooth; blends mipmap levels when minified */
+    SK_TEXTURE_FILTER_NEAREST = 1, /* sharp texels (pixel art) */
+} sk_texture_filter_t;
+
 sk_handle_t sk_texture_get_default(void);
 sk_handle_t sk_texture_create(const char *path);
 vec2_t      sk_texture_get_size(sk_handle_t handle);
