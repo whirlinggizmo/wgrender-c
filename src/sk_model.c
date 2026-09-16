@@ -245,9 +245,14 @@ static sg_shader make_skinned_shader(void)
 /* Textures created while loading one glTF file, one per glTF image (0 = not
  * created yet). The loader holds one reference to each; materials add their own. */
 typedef struct {
+    sk_handle_t texture; /* 0 = not loaded yet */
+    bool failed;         /* couldn't be read or decoded (warned once) */
+} sk_gltf_image_t;
+
+typedef struct {
     const cgltf_data *gltf;
     const char *path; /* the glTF file, for images in files next to it */
-    sk_handle_t *images;
+    sk_gltf_image_t *images;
     bool texcoord_warned;
 } sk_gltf_textures_t;
 
@@ -287,7 +292,8 @@ static const unsigned char *image_bytes(const sk_gltf_textures_t *cache, const c
     return (const unsigned char *)*owned;
 }
 
-/* Decode a glTF image into a texture (cached per image). */
+/* Decode a glTF image into a texture (cached per image). 0 when it can't be
+ * loaded (warned once per image). */
 static sk_handle_t load_image(sk_gltf_textures_t *cache, const cgltf_image *img)
 {
     const unsigned char *bytes;
@@ -300,23 +306,27 @@ static sk_handle_t load_image(sk_gltf_textures_t *cache, const cgltf_image *img)
         return 0;
     }
     index = (size_t)(img - cache->gltf->images);
-    if (cache->images[index] != 0) {
-        return cache->images[index];
+    if (cache->images[index].texture != 0 || cache->images[index].failed) {
+        return cache->images[index].texture;
     }
+    cache->images[index].failed = true; /* until it loads */
     bytes = image_bytes(cache, img, &size, &owned);
     if (bytes == NULL) {
-        log_warn("model: image %zu (%s) couldn't be read; ignored", index, img->uri != NULL ? img->uri : "buffer");
+        log_warn("model: %s: image %zu (%s) couldn't be read; using the placeholder texture", cache->path,
+                 index, img->uri != NULL && strncmp(img->uri, "data:", 5) != 0 ? img->uri : "embedded");
         return 0;
     }
     pixels = stbi_load_from_memory(bytes, size, &w, &h, &comp, 4);
     free(owned);
     if (pixels == NULL) {
-        log_warn("model: failed to decode image %zu (%s)", index, stbi_failure_reason());
+        log_warn("model: %s: image %zu couldn't be decoded (%s); using the placeholder texture", cache->path, index,
+                 stbi_failure_reason());
         return 0;
     }
-    cache->images[index] = sk_texture_create_rgba(pixels, w, h);
+    cache->images[index].texture = sk_texture_create_rgba(pixels, w, h);
+    cache->images[index].failed = cache->images[index].texture == 0;
     stbi_image_free(pixels);
-    return cache->images[index];
+    return cache->images[index].texture;
 }
 
 static sk_texture_wrap_t gltf_wrap(cgltf_wrap_mode mode)
@@ -334,13 +344,28 @@ static void set_texture(sk_gltf_textures_t *cache, sk_handle_t material, const c
                         const cgltf_texture_view *view)
 {
     const cgltf_sampler *sampler;
+    sk_handle_t texture;
     char param[64];
     int texcoord;
 
     if (view->texture == NULL) {
         return;
     }
-    sk_material_set_texture(material, name, load_image(cache, view->texture->image));
+    if (view->texture->image == NULL) {
+        log_warn("model: %s: a texture has no image in a supported format (PNG, JPEG); using the placeholder texture",
+                 cache->path);
+    }
+    texture = load_image(cache, view->texture->image);
+    if (texture == 0) {
+        /* Color textures show the placeholder so the problem is visible. Data
+         * textures (normal, metallic-roughness, occlusion) stay empty: a checker
+         * there would only distort the lighting. */
+        if (strcmp(name, "base_color_texture") != 0 && strcmp(name, "emissive_texture") != 0) {
+            return;
+        }
+        texture = sk_texture_get_placeholder();
+    }
+    sk_material_set_texture(material, name, texture);
 
     texcoord = view->has_transform && view->transform.has_texcoord ? view->transform.texcoord : view->texcoord;
     snprintf(param, sizeof(param), "%s_texcoord", name);
@@ -811,7 +836,7 @@ static void load_materials(sk_mesh_t *mesh, const cgltf_data *g, const char *pat
         return;
     }
     mesh->materials = (sk_handle_t *)calloc((size_t)mesh->material_count, sizeof(sk_handle_t));
-    cache.images = (sk_handle_t *)calloc(g->images_count + 1, sizeof(sk_handle_t));
+    cache.images = (sk_gltf_image_t *)calloc(g->images_count + 1, sizeof(sk_gltf_image_t));
     if (mesh->materials == NULL || cache.images == NULL) {
         free(cache.images);
         mesh->material_count = 0;
@@ -821,7 +846,7 @@ static void load_materials(sk_mesh_t *mesh, const cgltf_data *g, const char *pat
         mesh->materials[i] = create_gltf_material(&cache, i < (int)g->materials_count ? &g->materials[i] : NULL);
     }
     for (cgltf_size i = 0; i < g->images_count; i++) {
-        sk_texture_release(cache.images[i]); /* materials hold what they use */
+        sk_texture_release(cache.images[i].texture); /* materials hold what they use */
     }
     free(cache.images);
 }
@@ -1173,8 +1198,7 @@ static unsigned char *read_file_bytes(const char *path, int *out_size)
 
     *out_size = 0;
     if (path == NULL || (f = fopen(path, "rb")) == NULL) {
-        log_error("failed to open model: %s", path ? path : "(null)");
-        return NULL;
+        return NULL; /* callers report it */
     }
     fseek(f, 0, SEEK_END); size = ftell(f); fseek(f, 0, SEEK_SET);
     if (size <= 0) { fclose(f); return NULL; }
@@ -1197,7 +1221,10 @@ sk_handle_t sk_mesh_create(const char *path)
 
     if (mesh != 0) { retain_mesh(mesh); return mesh; }
     bytes = read_file_bytes(path, &size);
-    if (bytes == NULL) return 0;
+    if (bytes == NULL) {
+        log_error("failed to open model: %s", path != NULL ? path : "(null)");
+        return 0;
+    }
     mesh = create_mesh(bytes, size, path);
     free(bytes);
     if (mesh == 0) return 0;
@@ -1995,10 +2022,11 @@ static void list_gltf_dependencies(const unsigned char *data, int size, sk_asset
         return; /* sk_mesh_create reports the broken file */
     }
     for (cgltf_size i = 0; i < g->buffers_count; i++) {
-        if (g->buffers[i].uri != NULL) add(g->buffers[i].uri, context);
+        if (g->buffers[i].uri != NULL) add(g->buffers[i].uri, true, context);
     }
     for (cgltf_size i = 0; i < g->images_count; i++) {
-        if (g->images[i].uri != NULL && g->images[i].buffer_view == NULL) add(g->images[i].uri, context);
+        /* optional: a missing image gets the placeholder texture */
+        if (g->images[i].uri != NULL && g->images[i].buffer_view == NULL) add(g->images[i].uri, false, context);
     }
     cgltf_free(g);
 }

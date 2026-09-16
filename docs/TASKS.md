@@ -165,6 +165,12 @@ VertexColorTest, TextureSettingsTest and BoxTextured on desktop, WebGL2, WebGPU)
 - [x] Sampler modes per texture: wrap (repeat, clamp, mirror) and filter, from glTF
       or `sk_material_set_texture_sampling`
 - [x] Mipmaps for all textures (generated at load)
+- [x] Missing or broken glTF images: the model still loads (warning); color
+      textures use the placeholder texture (built-in magenta checker,
+      `sk_texture_set_placeholder`), data textures stay empty. Missing buffers still
+      fail. Ensured dependencies can be optional.
+- [ ] Redirect where assets and their dependencies load from (CDN, mods, localized
+      files), e.g. `sk_asset_set_redirect(fn)`; design with the `sk_net` rework
 
 Not supported yet:
 
@@ -172,9 +178,6 @@ Not supported yet:
       only show direct highlights and look dark. Scene environment map (prefiltered
       specular + irradiance, BRDF lookup table), probably with HDR input and tone
       mapping (below).
-- [ ] Decide: missing or broken referenced images. Today a missing dependency fails
-      the whole mesh's ensure; a placeholder texture (and/or a way to redirect where
-      dependencies load from) may be better. See discussion 2026-09-16.
 - [ ] Tone mapping / exposure (lit values above 1 clip)
 - [ ] Generated tangents come from texture coordinate set 0; normal maps on set 1
       need tangents in the file

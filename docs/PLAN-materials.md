@@ -159,6 +159,11 @@ sk_handle_t sk_material_create_custom(sk_handle_t shader);
   sk_model), so the public ensure-then-create flow is unchanged and works on web.
   Verified against the Khronos TextureTransformTest, MultiUVTest, VertexColorTest,
   TextureSettingsTest and BoxTextured models.
+- **Missing images:** a glTF image that is missing (optional dependency), broken or
+  in an unsupported format doesn't fail the model. Base color and emissive slots get
+  the placeholder texture (`sk_texture_get/set_placeholder`, default a magenta
+  checker); normal, metallic-roughness and occlusion slots stay empty so lighting
+  isn't distorted. Missing buffers still fail the ensure.
 - **Not yet:** environment lighting (wanted next), tone mapping, and others tracked
   in TASKS.md under "Materials: glTF coverage".
 

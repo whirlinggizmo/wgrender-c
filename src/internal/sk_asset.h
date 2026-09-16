@@ -10,7 +10,10 @@
  * and ensures each of those (relative to the file's directory) before firing the
  * file's callbacks. The asset layer knows nothing about the formats. */
 
-typedef void (*sk_asset_add_dependency_fn)(const char *uri, void *context);
+/* `required`: whether the file is unusable without it. A missing required
+ * dependency fails the file's ensure; a missing optional one only logs a warning
+ * (e.g. an image, which the loader replaces with a placeholder). */
+typedef void (*sk_asset_add_dependency_fn)(const char *uri, bool required, void *context);
 
 /* Report every URI the file references by calling `add`, as written in the file
  * (non-relative URIs such as data: are skipped by the caller). `data` is the whole

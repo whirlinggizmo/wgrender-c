@@ -55,6 +55,7 @@ typedef struct {
     int pending;              /* dependencies not finished yet */
     bool dependency_failed;
     bool dependencies_started;
+    bool optional;            /* a dependency its parent can do without */
 } sk_asset_task_t;
 
 typedef struct {
@@ -277,7 +278,7 @@ static sk_asset_dependencies_fn lookup_format(const char *path)
 }
 
 /* Queue one dependency of the task in `context` (a uint16_t slot). */
-static void add_dependency(const char *uri, void *context)
+static void add_dependency(const char *uri, bool required, void *context)
 {
     const uint16_t parent = *(const uint16_t *)context;
     sk_asset_task_t *parent_task = &sk_asset_tasks[parent];
@@ -318,6 +319,7 @@ static void add_dependency(const char *uri, void *context)
     }
     task->flags = parent_task->flags;
     task->parent = parent;
+    task->optional = !required;
     task->armed = true;
     parent_task->pending++;
 }
@@ -419,6 +421,8 @@ static void finish(uint16_t i, bool ok)
     } else {
         if (task.dependency_failed) {
             log_error("Asset dependencies missing: %s", local);
+        } else if (task.optional) {
+            log_warn("Asset not found (optional, dependency of %s): %s", sk_asset_tasks[task.parent].path, local);
         } else {
             log_error("Asset not found: %s", local);
         }
@@ -427,7 +431,7 @@ static void finish(uint16_t i, bool ok)
     if (task.parent != 0) {
         sk_asset_task_t *parent = &sk_asset_tasks[task.parent];
         parent->pending--;
-        parent->dependency_failed = parent->dependency_failed || !ok;
+        parent->dependency_failed = parent->dependency_failed || (!ok && !task.optional);
         if (parent->pending <= 0) {
             finish(task.parent, !parent->dependency_failed);
         }

@@ -18,7 +18,9 @@
 #include "stb_image.h"
 
 #define MAX_TEXTURES 1024
-#define SK_TEXTURE_BUILTIN_COUNT 1 /* index 1 = default white */
+#define SK_TEXTURE_BUILTIN_COUNT 2 /* index 1 = default white, 2 = missing-texture checker */
+#define CHECKER_SIZE 64
+#define CHECKER_SQUARE 8
 
 /* Texture resource: shared, refcounted, deduped GPU image (+ optional CPU alpha
  * mask for picking, generated lazily). Many Sprite objects may reference one
@@ -43,6 +45,8 @@ static unsigned char sk_texture_occupied[MAX_TEXTURES];
 static sg_sampler sk_default_sampler;
 
 static const sk_handle_t SK_TEXTURE_DEFAULT = SK_HANDLE_MAKE(SK_HANDLE_KIND_TEXTURE, 1, 1);
+static const sk_handle_t SK_TEXTURE_CHECKER = SK_HANDLE_MAKE(SK_HANDLE_KIND_TEXTURE, 2, 1);
+static sk_handle_t sk_texture_placeholder; /* referenced unless built in */
 
 static sk_texture_t *resolve(sk_handle_t handle)
 {
@@ -361,6 +365,28 @@ sk_handle_t sk_texture_get_default(void)
 }
 
 SK_KEEP
+sk_handle_t sk_texture_get_placeholder(void)
+{
+    return sk_texture_placeholder;
+}
+
+SK_KEEP
+bool sk_texture_set_placeholder(sk_handle_t texture)
+{
+    if (texture == 0) {
+        texture = SK_TEXTURE_CHECKER;
+    } else if (resolve(texture) == NULL) {
+        return false;
+    }
+    if (texture != sk_texture_placeholder) {
+        sk_texture_retain(texture); /* before releasing, in case they're the same resource */
+        sk_texture_release(sk_texture_placeholder);
+        sk_texture_placeholder = texture;
+    }
+    return true;
+}
+
+SK_KEEP
 sk_handle_t sk_texture_create(const char *path)
 {
     sk_handle_t tex = find_texture_by_path(path);
@@ -497,6 +523,30 @@ void sk_texture_init(void)
     });
     sk_textures[index].view = sg_make_view(&(sg_view_desc){.texture.image = sk_textures[index].image});
     sk_textures[index].sampler = sk_default_sampler;
+
+    /* built-in placeholder at index 2: magenta and black checks, hard to miss */
+    {
+        unsigned char checker[CHECKER_SIZE * CHECKER_SIZE * 4];
+        for (int y = 0; y < CHECKER_SIZE; y++) {
+            for (int x = 0; x < CHECKER_SIZE; x++) {
+                const bool magenta = ((x / CHECKER_SQUARE) + (y / CHECKER_SQUARE)) % 2 == 0;
+                unsigned char *p = &checker[(y * CHECKER_SIZE + x) * 4];
+                p[0] = magenta ? 255 : 20;
+                p[1] = 0;
+                p[2] = magenta ? 255 : 20;
+                p[3] = 255;
+            }
+        }
+        sk_texture_generations[2] = 1;
+        sk_texture_occupied[2] = 1;
+        sk_handle_pool_resolve(&sk_texture_pool, SK_TEXTURE_CHECKER, &index);
+        sk_textures[index].width = CHECKER_SIZE;
+        sk_textures[index].height = CHECKER_SIZE;
+        sk_textures[index].image = make_mipmapped_image(checker, CHECKER_SIZE, CHECKER_SIZE);
+        sk_textures[index].view = sg_make_view(&(sg_view_desc){.texture.image = sk_textures[index].image});
+        sk_textures[index].sampler = sk_default_sampler;
+    }
+    sk_texture_placeholder = SK_TEXTURE_CHECKER;
 }
 
 void sk_texture_deinit(void)
@@ -508,5 +558,6 @@ void sk_texture_deinit(void)
         }
     }
     sg_destroy_sampler(sk_default_sampler);
+    sk_texture_placeholder = 0;
     sk_handle_pool_reset(&sk_texture_pool);
 }

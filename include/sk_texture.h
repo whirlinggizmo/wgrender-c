@@ -24,6 +24,14 @@ typedef enum {
 } sk_texture_filter_t;
 
 sk_handle_t sk_texture_get_default(void);
+
+/* The texture used in place of one that couldn't be loaded, e.g. an image a glTF
+ * file references that is missing or broken (the model still loads, with a
+ * warning). Default: a built-in magenta and black checker. Set your own (the
+ * placeholder holds a reference), or 0 to restore the built-in one. Affects
+ * resources loaded after the call. */
+sk_handle_t sk_texture_get_placeholder(void);
+bool        sk_texture_set_placeholder(sk_handle_t texture);
 sk_handle_t sk_texture_create(const char *path);
 vec2_t      sk_texture_get_size(sk_handle_t handle);
 

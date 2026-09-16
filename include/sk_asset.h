@@ -18,7 +18,9 @@ extern "C" {
  *
  * Files that reference other files are ensured together: ensuring a .gltf (or
  * .glb) also ensures the buffers and images it references, relative to it, and the
- * callback fires once all of them are local (failure if any is missing). */
+ * callback fires once all of them are local. A missing buffer fails; a missing
+ * image only warns, and the model uses the placeholder texture
+ * (sk_texture_set_placeholder) in its place. */
 
 typedef void (*sk_asset_callback_fn)(const char *path, void *user_data);
 
