@@ -12,6 +12,7 @@
 #   make serve      static-serve the web build     (-> examples/Makefile)
 #   make shaders    regenerate shdc shader headers
 #   make check      naming / backend-leak guardrails
+#   make deps       install system build deps (ALSA/GL/X11 dev packages)
 #   make clean
 
 UNAME_S := $(shell uname -s)
@@ -36,7 +37,7 @@ LIB     := $(LIBDIR)/libsk.a
 SRCS    := $(wildcard src/*.c)
 OBJS    := $(patsubst src/%.c,$(BUILD)/%.o,$(SRCS))
 
-.PHONY: all examples run clean check wasm wasm-all serve shaders
+.PHONY: all examples run clean check wasm wasm-all serve shaders deps deps-check
 
 all: $(LIB)
 
@@ -46,12 +47,22 @@ $(BUILD):
 $(LIBDIR):
 	mkdir -p $(LIBDIR)
 
-$(BUILD)/%.o: src/%.c | $(BUILD)
+$(BUILD)/%.o: src/%.c | $(BUILD) deps-check
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(LIB): $(OBJS) | $(LIBDIR)
 	$(AR) rcs $@ $(OBJS)
 	@echo "built $@"
+
+# --- system dependencies -----------------------------------------------------
+# sokol needs the platform's ALSA/GL/X11 dev packages (not vendorable). Check up
+# front so a missing one fails with the package to install, not a compiler error
+# deep inside a sokol header. Order-only prereq above: never forces a rebuild.
+deps-check:
+	@tools/deps.sh check
+
+deps:
+	@tools/deps.sh install
 
 # --- examples (delegated to examples/Makefile) ------------------------------
 # Those targets depend on the lib and recurse back here to keep it current, so

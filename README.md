@@ -9,6 +9,17 @@ slice**: window, clear, 2D shapes, text, and input.
 
 ## Build (desktop, Linux GL)
 
+sokol links against the system's audio, GL and X11 libraries, so their dev
+packages must be installed (the build checks and names any that are missing):
+
+```sh
+make deps       # install them via apt / dnf / pacman (uses sudo)
+# or manually, e.g. Debian/Ubuntu:
+#   sudo apt install libasound2-dev libgl-dev libx11-dev libxi-dev libxcursor-dev
+```
+
+Then:
+
 ```sh
 make            # build lib/libsk.a
 make examples   # build examples/build/*
