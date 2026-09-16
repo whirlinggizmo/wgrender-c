@@ -10,6 +10,7 @@
 #   make run        build + run the hello example  (-> examples/Makefile)
 #   make wasm[-all] build the web examples         (-> examples/Makefile)
 #   make serve      static-serve the web build     (-> examples/Makefile)
+#   make webcheck   web build + browser smoke check (-> examples/Makefile)
 #   make shaders    regenerate shdc shader headers
 #   make check      naming / backend-leak guardrails
 #   make deps       install system build deps (ALSA/GL/X11 dev packages)
@@ -38,7 +39,7 @@ LIB     := $(LIBDIR)/libsk.a
 SRCS    := $(wildcard src/*.c)
 OBJS    := $(patsubst src/%.c,$(BUILD)/%.o,$(SRCS))
 
-.PHONY: all examples run clean check wasm wasm-all serve shaders deps deps-check parity
+.PHONY: all examples run clean check wasm wasm-all serve webcheck shaders deps deps-check parity
 
 all: $(LIB)
 
@@ -71,7 +72,7 @@ deps:
 # (BACKEND=, WASM_EXAMPLE=) propagate to the sub-make automatically.
 examples:
 	@$(MAKE) -C examples
-run wasm wasm-all serve:
+run wasm wasm-all serve webcheck:
 	@$(MAKE) -C examples $@
 
 # --- shaders (sokol-shdc) ---------------------------------------------------

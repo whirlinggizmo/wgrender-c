@@ -11,6 +11,8 @@
 #   make wasm WASM_EXAMPLE=model
 #   make wasm-all              build every example for web
 #   make serve                 static-serve build/web at :8000
+#   make webcheck              build all for web, load each in a browser, fail on errors
+#   make webcheck BACKEND=wgpu (WebGPU runs in a visible browser window)
 #   make clean
 
 UNAME_S := $(shell uname -s)
@@ -42,7 +44,7 @@ BUILD_DESKTOP := build/desktop
 SRCS          := $(wildcard *.c)
 BINS          := $(patsubst %.c,$(BUILD_DESKTOP)/%,$(SRCS))
 
-.PHONY: all run clean wasm wasm-all serve print-ldlibs FORCE
+.PHONY: all run clean wasm wasm-all serve webcheck print-ldlibs FORCE
 
 all: $(BINS)
 
@@ -115,6 +117,13 @@ wasm-all: | $(BUILD_WEB)
 
 serve:
 	@python3 $(ROOT)/tools/serve.py 8000
+
+# Web smoke check (tools/webcheck.mjs): needs Node >= 22 and a Chromium-based
+# browser (Brave/Chrome/Chromium). Extra options: WEBCHECK_FLAGS="--headed pick".
+# resolve via the shell: make's direct exec can hit a node/ directory on PATH (emsdk)
+NODE ?= $(shell command -v node 2>/dev/null || echo node)
+webcheck: wasm-all
+	@$(NODE) $(ROOT)/tools/webcheck.mjs --backend=$(BACKEND) $(WEBCHECK_FLAGS)
 
 clean:
 	rm -rf build

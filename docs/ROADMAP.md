@@ -145,9 +145,11 @@ functions (value returns instead), public `fs_*` (internal; see
      and one for libsk, then run on both and compared with tolerances. Anything
      that depends on rasterization (e.g. text metrics from raylib vs fontstash)
      gets a loose tolerance or is marked as expected to differ.
-  4. **Headless smoke** (needs the null renderer above): run every example for N
-     frames under the dummy backend and require exit 0 and no error logs. Web
-     equivalent later (Node/Chromium, as librl does).
+  4. **Headless smoke**: the web half exists (`make webcheck`, `tools/webcheck.mjs`:
+     every example in a Chromium-based browser over the DevTools protocol, no npm
+     dependencies). Desktop needs the null renderer above: run every example for
+     N frames under the dummy backend and require exit 0 and no error logs. Move
+     to Playwright if Firefox/WebKit (Safari) coverage becomes important.
   5. **Image comparison** (later, optional): render fixed scenes to offscreen
      targets and compare with a per-pixel tolerance. Needs render-to-texture;
      prone to flakiness across GPUs, so keep it out of the default `make test`.

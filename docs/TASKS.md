@@ -16,7 +16,11 @@ tick the box in the same commit.
 - [ ] Unit tests: `sk_fs` / asset bookkeeping, scene layers and ordering, sprite
       alpha-test picking, animation sampling, text2d state
 - [ ] Null / headless renderer (dummy sokol backend + own tick loop)
-- [ ] Headless smoke: run every example for N frames, require exit 0 and no errors
+- [x] Web smoke: `make webcheck` loads every example in a browser (WebGL2 headless,
+      WebGPU headed), fails on console errors/exceptions/panics/wrong backend,
+      saves screenshots
+- [ ] Desktop headless smoke: run every example for N frames under the null
+      renderer, require exit 0 and no errors
 - [ ] Shared behavior tests: scenarios run against librl and libsk via an adapter
       header, compared with tolerances
 - [ ] Gate on parity: add `make parity` to `make check` once librl is no longer needed

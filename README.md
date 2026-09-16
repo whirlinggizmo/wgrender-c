@@ -48,6 +48,26 @@ make check      # enforce the "no backend leakage" invariant
 make clean
 ```
 
+## Build (web: WebGL2 / WebGPU)
+
+Needs Emscripten on `PATH` (`source <emsdk>/emsdk_env.sh`).
+
+```sh
+make wasm WASM_EXAMPLE=simple      # one example, WebGL2 (BACKEND=wgpu for WebGPU)
+make wasm-all                      # every example
+make serve                         # http://localhost:8000/ (assets mounted at /assets/)
+make webcheck                      # build all, load each in a browser, fail on errors
+make webcheck BACKEND=wgpu         # same for WebGPU (opens a visible browser window)
+```
+
+`make webcheck` (`tools/webcheck.mjs`) needs Node >= 22 and a Chromium-based
+browser (Brave, Chrome or Chromium; override with `WEBCHECK_BROWSER`). It fails an
+example on console errors, exceptions, sokol panics, or a wrong/missing backend,
+and saves a screenshot of each to `examples/build/webcheck/<backend>/`. WebGL2
+runs headless; WebGPU needs a visible window because headless browsers have no
+GPU adapter. It catches crashes and errors, not missing content, so glance at the
+screenshots (slow assets like the 6 MB MP3 may still be loading).
+
 ## Invariant: no backend leakage
 
 sokol is an implementation detail. The public API (`include/*.h`) and example

@@ -2,7 +2,7 @@
  * `fetch_url` (per-call source override) and SK_ASSET_FORCE_FETCH.
  *
  * The asset KEY is a bogus path (nothing exists at host + key, so a plain ensure
- * would just fail), while `fetch_url` points at an explicit absolute source and
+ * would just fail), while `fetch_url` points at an explicit source URL and
  * FORCE_FETCH bypasses the cache. On web the bytes are pulled from that URL and
  * cached under the key; on desktop (no network fetcher yet) it falls back to
  * loading the real file locally so the example still plays.
@@ -15,7 +15,10 @@
 
 #define MUSIC_PATH "music/ethernight_club.mp3"
 #define INVALID_MUSIC_PATH "music/ethernight_club_invalid.mp3" /* intentionally invalid to demonstrate force_fetch */
-#define MUSIC_FORCE_FETCH_PATH "http://localhost:8000/assets/music/ethernight_club.mp3" /* absolute (external-style) source; matches `make serve` */
+/* explicit source URL, used verbatim. Root-relative so it works on whatever host
+ * and port serves the page (make serve, make webcheck); an absolute
+ * https://cdn.example/... URL is passed through the same way. */
+#define MUSIC_FORCE_FETCH_PATH "/assets/music/ethernight_club.mp3"
 
 static sk_handle_t g_bg;
 static sk_handle_t g_music;
@@ -43,8 +46,8 @@ static void on_init(void *user_data)
 
     if (strcmp(sk_get_platform(), "web") == 0) {
         /* Web: demonstrate fetch_url + FORCE_FETCH. The key (INVALID_MUSIC_PATH)
-         * is a bogus path, so the bytes can only come from the explicit absolute
-         * source URL — proving the override is honored and cached under the key. */
+         * is a bogus path, so the bytes can only come from the explicit
+         * source URL, proving the override is honored and cached under the key. */
         sk_asset_add_task(sk_asset_ensure_async(INVALID_MUSIC_PATH, MUSIC_FORCE_FETCH_PATH,
                                                 SK_ASSET_FORCE_FETCH),
                           on_music_loaded, on_failed, NULL);
