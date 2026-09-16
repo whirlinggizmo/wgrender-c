@@ -17,6 +17,9 @@ typedef struct {
 } test_case_t;
 
 static const test_case_t TESTS[] = {
+    {"frame_pace_unpaced", test_frame_pace_unpaced},
+    {"frame_pace_schedule", test_frame_pace_schedule},
+    {"frame_pace_web_skip", test_frame_pace_web_skip},
     {"handle_pool", test_handle_pool},
     {"handle_pool_reuse", test_handle_pool_reuse},
     {"math_inverse", test_math_inverse},

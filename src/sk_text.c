@@ -70,7 +70,7 @@ void sk_text_draw(const char *text, int x, int y, int font_size, sk_handle_t col
 SK_KEEP
 void sk_text_draw_fps(int x, int y)
 {
-    double dt = sapp_frame_duration();
+    double dt = sk_get_fps_delta(); /* frames that ran, not display refreshes */
     int fps = dt > 0.0 ? (int)(1.0 / dt + 0.5) : 0;
     char buf[32];
     snprintf(buf, sizeof(buf), "%d FPS", fps);

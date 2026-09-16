@@ -71,6 +71,13 @@ void sk_request_quit(void);
 bool sk_is_initialized(void);
 const char *sk_get_platform(void);
 
+/* Frame rate.
+ * Frames are locked to the display's vsync by default. sk_set_target_fps(fps)
+ * caps the rate: fps <= 0 means no cap (vsync rate, or as fast as possible with
+ * SK_WINDOW_FLAG_VSYNC_OFF). With vsync on, a cap can only lower the rate. On
+ * desktop the runtime sleeps until each frame is due; on the web it skips browser
+ * frames that come too early. Can be called at any time.
+ * sk_get_delta_time() is the time since the previous frame ran, in seconds. */
 void sk_set_target_fps(int fps);
 float sk_get_delta_time(void);
 double sk_get_time(void);

@@ -2,8 +2,14 @@
 
 #include <stddef.h>
 #include <string.h>
+#if defined(_WIN32)
+#  include <windows.h>
+#elif !defined(__EMSCRIPTEN__)
+#  include <time.h>
+#endif
 
 #include "internal/exports.h"
+#include "internal/sk_frame_pace.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_render.h"
 #include "sk_logger.h"
@@ -31,9 +37,12 @@ typedef struct {
     void *cleanup_user_data;
 
     int target_fps;
+    sk_frame_pace_t pace;
 
     uint64_t start_ticks;
-    double delta_time;
+    double delta_time;      /* this frame's delta (seconds), see sk_get_delta_time */
+    double last_frame_time; /* sk_get_time() when the previous user frame ran */
+    double fps_delta;       /* smoothed delta for the FPS counter */
 } sk_runtime_t;
 
 static sk_runtime_t sk_rt;
@@ -51,8 +60,9 @@ static void apply_defaults(sk_runtime_t *rt)
         strncpy(rt->window_title, "libsk", sizeof(rt->window_title) - 1);
     }
     if (rt->target_fps == 0) {
-        rt->target_fps = -1; /* -1: follow vsync */
+        rt->target_fps = -1; /* -1: unpaced (vsync, or uncapped with SK_WINDOW_FLAG_VSYNC_OFF) */
     }
+    sk_frame_pace_set_fps(&rt->pace, rt->target_fps);
 }
 
 SK_KEEP
@@ -156,14 +166,98 @@ static void on_init(void)
     }
 }
 
+#if !defined(__EMSCRIPTEN__)
+/* Wait until `deadline` (seconds on the sk_get_time clock). Sleeps in short slices
+ * so audio keeps being fed during long waits (low target fps), then yields for
+ * the last moment because OS sleeps overshoot by up to a millisecond or two. */
+static void wait_until(double deadline)
+{
+    const double spin = 0.002;
+    for (;;) {
+        double remaining = deadline - sk_get_time();
+        if (remaining <= 0.0) {
+            return;
+        }
+        if (remaining > spin) {
+            double slice = remaining - spin;
+            if (slice > 0.005) {
+                slice = 0.005;
+            }
+#  if defined(_WIN32)
+            Sleep((DWORD)(slice * 1000.0));
+#  else
+            struct timespec ts = {0, (long)(slice * 1e9)};
+            nanosleep(&ts, NULL);
+#  endif
+            sk_audio_tick();
+        } else {
+#  if defined(_WIN32)
+            Sleep(0);
+#  else
+            struct timespec ts = {0, 0};
+            nanosleep(&ts, NULL);
+#  endif
+        }
+    }
+}
+#endif
+
+/* Pace the frame for sk_set_target_fps(). Returns false if this frame should be
+ * skipped (web only: the browser drives frames at display rate, and the canvas
+ * keeps showing the last drawn frame). */
+static bool pace_frame(void)
+{
+    double now = sk_get_time();
+    double wait;
+
+    if (!sk_frame_pace_enabled(&sk_rt.pace)) {
+        return true;
+    }
+    wait = sk_frame_pace_wait(&sk_rt.pace, now);
+#if defined(__EMSCRIPTEN__)
+    /* run a frame that's due within half a display frame, so e.g. 30 fps on a
+     * 60 Hz display runs every other frame instead of drifting */
+    if (wait > 0.5 * sapp_frame_duration_unfiltered()) {
+        return false;
+    }
+#else
+    if (wait > 0.0) {
+        wait_until(now + wait);
+        now = sk_get_time();
+    }
+#endif
+    sk_frame_pace_mark(&sk_rt.pace, now);
+    return true;
+}
+
+static void update_delta_time(void)
+{
+    double now = sk_get_time();
+    double dt;
+
+    if (sk_frame_pace_enabled(&sk_rt.pace)) {
+        /* measured between frames that actually ran, clamped like sokol's */
+        dt = sk_rt.last_frame_time > 0.0 ? now - sk_rt.last_frame_time : sk_rt.pace.period;
+        dt = dt < 0.000001 ? 0.000001 : (dt > 0.1 ? 0.1 : dt);
+    } else {
+        dt = sapp_frame_duration();
+    }
+    sk_rt.last_frame_time = now;
+    sk_rt.delta_time = dt;
+    sk_rt.fps_delta = sk_rt.fps_delta > 0.0 ? sk_rt.fps_delta + 0.05 * (dt - sk_rt.fps_delta) : dt;
+}
+
 static void on_frame(void)
 {
-    sk_rt.delta_time = sapp_frame_duration();
-
     /* pump async asset loads; completion callbacks fire here (main thread) */
     sk_asset_tick();
-    /* mix + push one audio block */
+    /* mix + push one audio block (also on skipped frames, or audio underruns) */
     sk_audio_tick();
+
+    if (!pace_frame()) {
+        return;
+    }
+    update_delta_time();
 
     if (sk_rt.frame_fn != NULL) {
         sk_rt.frame_fn(sk_rt.frame_user_data);
@@ -221,7 +315,8 @@ int sk_run(void)
     bool fullscreen = (sk_rt.window_flags & SK_WINDOW_FLAG_FULLSCREEN_MODE) != 0;
     bool high_dpi = (sk_rt.window_flags & SK_WINDOW_FLAG_WINDOW_HIGHDPI) != 0;
     int sample_count = (sk_rt.window_flags & SK_WINDOW_FLAG_MSAA_4X_HINT) != 0 ? 4 : 1;
-    int swap_interval = (sk_rt.target_fps == 0) ? 1 : 1; /* vsync; arbitrary fps TBD */
+    /* vsync is on unless explicitly turned off; sk_set_target_fps() caps below it */
+    bool disable_vsync = (sk_rt.window_flags & SK_WINDOW_FLAG_VSYNC_OFF) != 0;
 
     sapp_run(&(sapp_desc){
         .init_cb = on_init,
@@ -234,7 +329,8 @@ int sk_run(void)
         .fullscreen = fullscreen,
         .high_dpi = high_dpi,
         .sample_count = sample_count,
-        .swap_interval = swap_interval,
+        .swap_interval = 1,
+        .disable_vsync = disable_vsync,
         .logger.func = slog_func,
     });
     return 0;
@@ -266,6 +362,12 @@ SK_KEEP
 void sk_set_target_fps(int fps)
 {
     sk_rt.target_fps = fps;
+    sk_frame_pace_set_fps(&sk_rt.pace, fps);
+}
+
+double sk_get_fps_delta(void)
+{
+    return sk_rt.fps_delta;
 }
 
 SK_KEEP

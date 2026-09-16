@@ -46,7 +46,12 @@ tick the box in the same commit.
 - [x] Bug: static (unskinned) glTF primitives ignored their node transform
       (gumshoe's `blobShadow` node is scaled 0.66 and offset). Fixed: node world
       transforms are baked into positions, normals, pick data and bounds at load
-- [ ] Bug: `sk_set_target_fps` does nothing (swap interval is always 1; see `sk_run`)
+- [x] Bug: `sk_set_target_fps` did nothing. Fixed: frames are vsync-locked by
+      default; the target caps below that (desktop sleeps, web skips early browser
+      frames); `SK_WINDOW_FLAG_VSYNC_OFF` (was `_VSYNC_HINT`) unlocks on desktop.
+      Measured: desktop vsync off at 144/20 fps, web at 30 and capped at 60
+- [ ] Window flags accepted but ignored: `RESIZABLE`, `UNDECORATED`, `TRANSPARENT`,
+      `HIDDEN`, `ALWAYS_RUN` (only fullscreen, high-DPI, MSAA and vsync-off work)
 - [ ] Bug: orthographic cameras only affect sokol_gl content. Models
       (`begin_draw` in `src/sk_model.c`) and picking (`sk_pick_ray_from_screen`)
       always use a perspective projection

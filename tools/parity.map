@@ -14,8 +14,7 @@
 #   rl_name  todo     [note]             not covered yet; needs a design decision
 #
 # Same-name matching only proves the function exists, not that it behaves the
-# same. Known case where it doesn't: sk_set_target_fps (no-op). See
-# docs/TASKS.md.
+# same; docs/TASKS.md tracks known behavior gaps.
 #
 # Keep entries grouped by header. Everything must fit the handle-only public API
 # (see AGENTS.md).

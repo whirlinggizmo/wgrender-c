@@ -3,6 +3,10 @@
 
 /* Every unit test; add new ones here and to the table in main.c. */
 
+void test_frame_pace_unpaced(void);
+void test_frame_pace_schedule(void);
+void test_frame_pace_web_skip(void);
+
 void test_handle_pool(void);
 void test_handle_pool_reuse(void);
 

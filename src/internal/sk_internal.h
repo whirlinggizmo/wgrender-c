@@ -10,6 +10,9 @@
 
 extern bool sk_initialized;
 
+/* smoothed seconds per frame that actually ran (FPS counter) */
+double sk_get_fps_delta(void);
+
 /* logger */
 void sk_logger_init(void);
 void sk_logger_deinit(void);
