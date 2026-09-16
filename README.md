@@ -45,6 +45,7 @@ make            # build lib/libsk.a
 make examples   # build examples/build/*
 make run        # build + run the hello example
 make check      # enforce the "no backend leakage" invariant
+make test       # unit tests (tests/unit/)
 make clean
 ```
 

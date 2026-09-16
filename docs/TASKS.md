@@ -11,10 +11,14 @@ tick the box in the same commit.
 ## Infrastructure
 
 - [x] `make parity`: librl → libsk API parity report (`tools/parity.sh`, `tools/parity.map`)
-- [ ] Unit test setup: `make test`, `tests/unit/` layout mirroring librl, first
-      tests for the handle pool and ray-vs-cube/sphere picking math
+- [x] Unit test setup: `make test`, `tests/unit/` (no stubs, links lib/libsk.a);
+      first tests cover the handle pool, matrix math, picking math and the
+      transparent sort. They found two pick-normal bugs (fixed)
 - [ ] Unit tests: `sk_fs` / asset bookkeeping, scene layers and ordering, sprite
-      alpha-test picking, animation sampling, text2d state
+      alpha-test picking, animation sampling, text2d state, render command-list
+      merging
+- [ ] Later: `SANITIZE=1` (ASan/UBSan) test build; wasm-side unit tests when
+      web-only code needs them
 - [ ] Null / headless renderer (dummy sokol backend + own tick loop)
 - [x] Web smoke: `make webcheck` loads every example in a browser (WebGL2 headless,
       WebGPU headed), fails on console errors/exceptions/panics/wrong backend,
@@ -43,6 +47,9 @@ tick the box in the same commit.
       (gumshoe's `blobShadow` node is scaled 0.66 and offset). Fixed: node world
       transforms are baked into positions, normals, pick data and bounds at load
 - [ ] Bug: `sk_set_target_fps` does nothing (swap interval is always 1; see `sk_run`)
+- [ ] Bug: orthographic cameras only affect sokol_gl content. Models
+      (`begin_draw` in `src/sk_model.c`) and picking (`sk_pick_ray_from_screen`)
+      always use a perspective projection
 - [ ] Decide: frame `dt` comes from `sapp_frame_duration()`, which is smoothed and
       capped at 0.1s, so time accumulated from `dt` runs slow when frames stall
       (e.g. a hidden window). Document it, or also expose unsmoothed time

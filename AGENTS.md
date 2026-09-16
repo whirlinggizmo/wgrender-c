@@ -10,7 +10,14 @@ Keep this file short and rule-shaped. The authoritative design doc is
 - `make examples` — build everything in `examples/`.
 - `make check` — guardrails; currently enforces that `include/` and `examples/`
   stay **backend-free** (no sokol/GL leakage into the public surface).
-- Build clean (lib + examples + `make check`) before calling a change done.
+- `make test` — unit tests (`tests/unit/`, link against `lib/libsk.a`, no stubs,
+  no GPU). Add or update tests alongside code changes; new tests go in
+  `tests/unit/tests.h` and the table in `tests/unit/main.c`.
+- `make parity` — librl → libsk parity report (needs `../librl`).
+- `make webcheck [BACKEND=wgpu]` — web build smoke test in a browser (needs
+  Emscripten, Node >= 22, a Chromium-based browser).
+- Build clean (lib + examples + `make check` + `make test`) before calling a change
+  done; run `make webcheck` too when touching rendering, assets or web code.
 
 ## Process
 

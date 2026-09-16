@@ -13,6 +13,7 @@
 #   make webcheck   web build + browser smoke check (-> examples/Makefile)
 #   make shaders    regenerate shdc shader headers
 #   make check      naming / backend-leak guardrails
+#   make test       build and run unit tests        (-> tests/Makefile)
 #   make deps       install system build deps (ALSA/GL/X11 dev packages)
 #   make parity     librl -> libsk API parity report (LIBRL_DIR=../librl)
 #   make clean
@@ -39,7 +40,7 @@ LIB     := $(LIBDIR)/libsk.a
 SRCS    := $(wildcard src/*.c)
 OBJS    := $(patsubst src/%.c,$(BUILD)/%.o,$(SRCS))
 
-.PHONY: all examples run clean check wasm wasm-all serve webcheck shaders deps deps-check parity
+.PHONY: all examples run clean check test wasm wasm-all serve webcheck shaders deps deps-check parity
 
 all: $(LIB)
 
@@ -75,6 +76,10 @@ examples:
 run wasm wasm-all serve webcheck:
 	@$(MAKE) -C examples $@
 
+# --- tests (delegated to tests/Makefile) -------------------------------------
+test:
+	@$(MAKE) --no-print-directory -C tests test
+
 # --- shaders (sokol-shdc) ---------------------------------------------------
 # Regenerates the committed *.glsl.h (GL core, WebGL2, WebGPU) from annotated
 # GLSL. The binary is gitignored; fetch it once:
@@ -107,3 +112,4 @@ parity:
 clean:
 	rm -rf $(BUILD) $(LIBDIR)
 	@$(MAKE) -C examples clean
+	@$(MAKE) -C tests clean
