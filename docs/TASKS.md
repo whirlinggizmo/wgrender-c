@@ -53,7 +53,10 @@ tick the box in the same commit.
 - [ ] Bug (platform): vsync doesn't hold on NVIDIA (RTX 4080 laptop, driver 580) +
       COSMIC/XWayland with sokol's GL backend. Swaps block only every other frame:
       ~120 frames/s on a 59.88 Hz display, intervals alternating ~16.7 ms and <4 ms,
-      half the frames never shown. `__GL_SYNC_TO_VBLANK=1` doesn't help. Target caps
+      half the frames never shown. Not a libsk/sokol timing bug: a raw GLX program
+      (no sokol) reproduces it with GLX_SWAP_INTERVAL=1 confirmed, the interval set
+      before or after mapping, with or without glFinish, and with
+      `__GL_SYNC_TO_VBLANK=1` or `__GL_MaxFramesAllowed=1`. Target caps
       are unaffected. Options: sokol's Vulkan backend on Linux (FIFO present), pacing
       to the display refresh ourselves (refresh via XRandR), native Wayland (sokol
       has none). Checking vsync needs a monitor that is on

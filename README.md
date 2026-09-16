@@ -67,7 +67,9 @@ example on console errors, exceptions, sokol panics, or a wrong/missing backend,
 and saves a screenshot of each to `examples/build/webcheck/<backend>/`. WebGL2
 runs headless; WebGPU needs a visible window because headless browsers have no
 GPU adapter. It catches crashes and errors, not missing content, so glance at the
-screenshots (slow assets like the 6 MB MP3 may still be loading).
+screenshots (slow assets like the 6 MB MP3 may still be loading). The browser and
+server it starts are always stopped, even if Node crashes or is killed (process
+groups, a sweep by the run's unique profile directory, and a watchdog).
 
 ## Invariant: no backend leakage
 
