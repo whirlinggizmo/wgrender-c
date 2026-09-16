@@ -78,6 +78,9 @@ tick the box in the same commit.
 - [ ] Light selection uses rest-pose bounds for animated models, so a limb far
       outside the rest pose can miss a nearby point light's range check. Minor;
       could reuse the posed bounds when they're already cached
+- [ ] Colors are immutable (no public `sk_color_set`), so animating a tint means
+      pre-creating a palette (see `examples/sprite2d.c`). Decide whether color
+      handles should be settable
 - [ ] Window flags accepted but ignored: `RESIZABLE`, `UNDECORATED`, `TRANSPARENT`,
       `HIDDEN`, `ALWAYS_RUN` (only fullscreen, high-DPI, MSAA and vsync-off work)
 - [x] Bug: orthographic cameras only affected sokol_gl content; models and
@@ -109,7 +112,10 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 - [ ] Small leftovers: sound pan, read back the asset host, animation frame
       count and seeking to a frame, FPS readout with a custom font, a handle for
       the built-in font
-- [ ] 2D sprites and screen-space texture drawing (with the 2D/UI roadmap item)
+- [x] 2D sprites and screen-space texture drawing: `sk_sprite2d_*` (source rect,
+      pivot, rotation, x/y scale with flip, size, alpha-tested picking) and
+      `sk_texture_draw`; scenes draw 2D after 3D and pick it first; 2D, mouse and
+      screen size are in logical pixels (docs/PLAN-sprite2d.md, examples/sprite2d.c)
 - [ ] 3D text
 - [ ] 3D shapes: rectangles and circles (immediate + retained), retained lines
 - [ ] 3D line strips: needs a handle-only way to pass points

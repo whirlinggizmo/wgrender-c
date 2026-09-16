@@ -10,6 +10,7 @@
 #include "internal/sk_render.h"
 #include "sk_camera3d.h"
 #include "sk_logger.h"
+#include "sk_window.h"
 
 #include "sokol_app.h"
 #include "sokol_gfx.h"
@@ -182,8 +183,9 @@ void sk_render_deinit(void)
 
 static void setup_2d_projection(void)
 {
-    const float w = (float)sapp_width();
-    const float h = (float)sapp_height();
+    const vec2_t size = sk_window_get_screen_size(); /* logical pixels */
+    const float w = size.x;
+    const float h = size.y;
 
     sgl_defaults();
     sgl_load_pipeline(sk_pip_2d);

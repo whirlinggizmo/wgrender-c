@@ -14,6 +14,9 @@ void test_frame_pace_web_skip(void);
 void test_input_tick_edges(void);
 void test_input_tick_deltas(void);
 
+void test_sprite2d_corners(void);
+void test_sprite2d_screen_to_unit(void);
+
 void test_tick_clock_rate(void);
 void test_tick_clock_stall(void);
 

@@ -25,6 +25,8 @@ static const test_case_t TESTS[] = {
     {"frame_pace_web_skip", test_frame_pace_web_skip},
     {"input_tick_edges", test_input_tick_edges},
     {"input_tick_deltas", test_input_tick_deltas},
+    {"sprite2d_corners", test_sprite2d_corners},
+    {"sprite2d_screen_to_unit", test_sprite2d_screen_to_unit},
     {"tick_clock_rate", test_tick_clock_rate},
     {"tick_clock_stall", test_tick_clock_stall},
     {"handle_pool", test_handle_pool},

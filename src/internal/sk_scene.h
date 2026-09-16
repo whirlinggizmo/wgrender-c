@@ -41,6 +41,14 @@ void sk_scene_register_passes(sk_handle_kind_t kind,
                               sk_drawable_collect_transparent_fn collect_transparent,
                               sk_drawable_draw_transparent_fn draw_transparent);
 
+/* 2D drawables (screen space). A scene draws them after all 3D layers, in layer
+ * then member order, and picks them before 3D, topmost first. `pick` returns true
+ * and fills `out` when (screen_x, screen_y), in logical pixels, hits the drawable. */
+typedef void (*sk_drawable_draw_2d_fn)(sk_handle_t handle);
+typedef bool (*sk_drawable_pick_2d_fn)(sk_handle_t handle, float screen_x, float screen_y,
+                                       sk_pick_result_t *out);
+void sk_scene_register_2d(sk_handle_kind_t kind, sk_drawable_draw_2d_fn draw, sk_drawable_pick_2d_fn pick);
+
 /* Distance of a world-space point along the camera's view direction. */
 float sk_scene_view_depth(const sk_camera3d_t *cam, vec3_t world_point);
 

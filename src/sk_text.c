@@ -6,6 +6,7 @@
 #include "internal/exports.h"
 #include "internal/sk_font.h"
 #include "internal/sk_internal.h"
+#include "sk_window.h"
 
 #include "fontstash.h"
 #include "sokol_app.h"
@@ -50,7 +51,7 @@ static void draw_at(const char *text, int x, int y, int font_size, color_t c)
     const float scale = size_to_scale(font_size);
     const float fs = scale * SK_TEXT_GLYPH_BASE; /* pixel height of a glyph */
 
-    sdtx_canvas((float)sapp_width() / scale, (float)sapp_height() / scale);
+    sdtx_canvas(sk_window_get_screen_size().x / scale, sk_window_get_screen_size().y / scale); /* logical pixels */
     sdtx_font(0);
     /* pixel position -> character grid: 1 char == fs pixels */
     sdtx_pos((float)x / fs, (float)y / fs);

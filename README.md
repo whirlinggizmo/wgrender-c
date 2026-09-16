@@ -161,6 +161,10 @@ reference/librl the raylib library this evolves from (read-only reference)
   on), then transparent parts (blended or faded model primitives, sprites,
   translucent shapes) sorted back to front with depth writes off. Direct
   `sk_*_draw()` calls outside a scene are not sorted against each other.
+- 2D uses logical pixels (top-left origin, y down): 2D drawing, sprites, mouse
+  positions and `sk_window_get_screen_size` all divide out the DPI scale, so layouts
+  keep their size on high-DPI displays. Sprites (`sk_sprite2d_*`) in a scene draw
+  after all 3D and are picked first; see `examples/sprite2d.c`.
 - Lighting is explicit: models in a scene are lit only by lights added to that
   scene (`sk_light_create`, `sk_scene_add`) plus its ambient
   (`sk_scene_set_ambient`); a new scene is dark. Models drawn outside a scene are
@@ -171,7 +175,7 @@ reference/librl the raylib library this evolves from (read-only reference)
 
 ## Not yet ported from librl
 
-Main gaps: `sprite2d`, `text3d`, the remaining 3D shapes, per-object picking,
+Main gaps: `text3d`, the remaining 3D shapes, per-object picking,
 window/monitor control, language bindings and tests. See the
 **librl parity** section of [docs/ROADMAP.md](docs/ROADMAP.md) for the full list,
 the suggested order, and what was left out on purpose.

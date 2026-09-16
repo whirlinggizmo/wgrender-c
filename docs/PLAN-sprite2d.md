@@ -1,6 +1,6 @@
 # Plan: sprite2d (screen-space sprites)
 
-Status: **proposed — awaiting decisions.** No code changed yet.
+Status: **implemented (2026-09-16).** See `include/sk_sprite2d.h` and `examples/sprite2d.c`.
 Builds on the Resource/Object model ([ARCHITECTURE.md](ARCHITECTURE.md)), scene render
 passes, and picking. Related: GUI direction in [ROADMAP.md](ROADMAP.md).
 
@@ -59,6 +59,8 @@ void sk_texture_draw(sk_handle_t texture, float x, float y, float width, float h
 - Handle-only rules hold: handles, floats, bools.
 
 ## Decisions
+
+Decisions 1–4 were accepted as recommended.
 
 1. **Where 2D objects live.** *Recommend: in scenes.* A scene draws all 3D layers
    first, then its 2D members by layer (ascending) and insertion order, with no depth

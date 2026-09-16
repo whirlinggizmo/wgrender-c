@@ -13,6 +13,7 @@
 #include "internal/sk_internal.h"
 #include "internal/sk_light.h"
 #include "internal/sk_render.h"
+#include "internal/sk_sprite2d.h"
 #include "internal/sk_tick_clock.h"
 #include "sk_logger.h"
 #include "sk_version.h"
@@ -158,6 +159,7 @@ static void on_init(void)
     sk_shape_init();
     sk_texture_init();
     sk_sprite3d_init();
+    sk_sprite2d_init();
     sk_light_init();
     sk_model_init();
     sk_font_init();
@@ -338,6 +340,7 @@ static void on_cleanup(void)
     sk_font_deinit();
     sk_model_deinit();
     sk_light_deinit();
+    sk_sprite2d_deinit();
     sk_sprite3d_deinit();
     sk_texture_deinit();
     sk_shape_deinit();

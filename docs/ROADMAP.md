@@ -72,8 +72,8 @@ Lessons from librl not yet addressed (design for these; don't repeat them):
   handle-only API is what makes that cheap; core changes shouldn't need binding
   changes in the same repo.
 
-1. **`sprite2d` + screen-space texture draw** (`rl_texture_draw_ex`) — overlaps
-   item 2 above; land them together.
+1. ~~**`sprite2d` + screen-space texture draw**~~ — done. See
+   [PLAN-sprite2d.md](PLAN-sprite2d.md).
 2. **`text3d`** — world-space text object (font/size/content/transform/color,
    facing, visible, pickable, bounds) plus a one-shot draw. Mirrors `text2d` +
    `sprite3d` facing.

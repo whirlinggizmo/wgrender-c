@@ -164,19 +164,10 @@ rl_shape_set_stroke_color               ported   sk_shape_set_color   librl shap
 # --- rl_sound.h ---
 rl_sound_set_pan                        todo
 
-# --- rl_sprite2d.h ---
-rl_sprite2d_create                      todo
+# --- rl_sprite2d.h (docs/PLAN-sprite2d.md) ---
 rl_sprite2d_create_from_file            dropped  objects are created from handles (sk_texture_create + sk_sprite2d_create)
-rl_sprite2d_destroy                     todo
-rl_sprite2d_draw                        todo
 rl_sprite2d_get_default_texture         dropped  use sk_texture_get_default
-rl_sprite2d_is_pickable                 todo
-rl_sprite2d_is_visible                  todo
-rl_sprite2d_set_pickable                todo
-rl_sprite2d_set_texture                 todo
-rl_sprite2d_set_tint                    todo
-rl_sprite2d_set_transform               todo
-rl_sprite2d_set_visible                 todo
+rl_sprite2d_set_transform               ported   sk_sprite2d_set_position  plus set_rotation (radians), set_scale (x/y, negative flips), set_pivot, set_size, set_source
 
 # --- rl_sprite3d.h ---
 rl_sprite3d_create_from_file            dropped  objects are created from handles (sk_texture_create + sk_sprite3d_create)
@@ -212,7 +203,7 @@ rl_text3d_set_transform                 todo
 rl_text3d_set_visible                   todo
 
 # --- rl_texture.h ---
-rl_texture_draw_ex                      todo     screen-space draw with scale
+rl_texture_draw_ex                      ported   sk_texture_draw       explicit size instead of scale; sprite2d for rotation/source regions
 rl_texture_draw_ground                  todo
 
 # --- rl_window.h ---

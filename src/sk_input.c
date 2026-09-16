@@ -92,8 +92,8 @@ static void add_edges(sk_input_edges_t *edges, const sapp_event *ev, bool key_wa
 {
     switch (ev->type) {
         case SAPP_EVENTTYPE_MOUSE_MOVE:
-            edges->dx += (int)ev->mouse_dx;
-            edges->dy += (int)ev->mouse_dy;
+            edges->dx += (int)(ev->mouse_dx / sk_window_dpi_scale()); /* logical pixels */
+            edges->dy += (int)(ev->mouse_dy / sk_window_dpi_scale());
             break;
         case SAPP_EVENTTYPE_MOUSE_DOWN:
             edges->pressed[ev->mouse_button] = true;
@@ -156,8 +156,8 @@ void sk_input_handle_event(const sapp_event *ev)
     /* held state */
     switch (ev->type) {
         case SAPP_EVENTTYPE_MOUSE_MOVE:
-            sk_input.x = (int)ev->mouse_x;
-            sk_input.y = (int)ev->mouse_y;
+            sk_input.x = (int)(ev->mouse_x / sk_window_dpi_scale()); /* logical pixels */
+            sk_input.y = (int)(ev->mouse_y / sk_window_dpi_scale());
             break;
         case SAPP_EVENTTYPE_MOUSE_DOWN:
             sk_input.down[ev->mouse_button] = true;

@@ -45,6 +45,8 @@ typedef struct {
     sk_drawable_draw_opaque_fn draw_opaque;
     sk_drawable_collect_transparent_fn collect_transparent;
     sk_drawable_draw_transparent_fn draw_transparent;
+    sk_drawable_draw_2d_fn draw_2d;
+    sk_drawable_pick_2d_fn pick_2d;
 } sk_drawable_passes_t;
 
 static sk_drawable_passes_t sk_passes_registry[SK_DRAWABLE_KIND_COUNT];
@@ -63,11 +65,18 @@ void sk_scene_register_passes(sk_handle_kind_t kind,
     if ((int)kind < 0 || (int)kind >= SK_DRAWABLE_KIND_COUNT) {
         return;
     }
-    sk_passes_registry[kind] = (sk_drawable_passes_t){
-        .draw_opaque = draw_opaque,
-        .collect_transparent = collect_transparent,
-        .draw_transparent = draw_transparent,
-    };
+    sk_passes_registry[kind].draw_opaque = draw_opaque;
+    sk_passes_registry[kind].collect_transparent = collect_transparent;
+    sk_passes_registry[kind].draw_transparent = draw_transparent;
+}
+
+void sk_scene_register_2d(sk_handle_kind_t kind, sk_drawable_draw_2d_fn draw, sk_drawable_pick_2d_fn pick)
+{
+    if ((int)kind < 0 || (int)kind >= SK_DRAWABLE_KIND_COUNT) {
+        return;
+    }
+    sk_passes_registry[kind].draw_2d = draw;
+    sk_passes_registry[kind].pick_2d = pick;
 }
 
 static const sk_drawable_passes_t *lookup_passes(sk_handle_t handle)
@@ -308,6 +317,20 @@ static int push_lighting(const sk_scene_t *scene_ptr)
     return sk_light_env_push(&env);
 }
 
+/* Stable insertion sort by layer, ascending (member order breaks ties). */
+static void sort_by_layer(sk_scene_t *scene_ptr)
+{
+    for (int i = 1; i < scene_ptr->count; i++) {
+        sk_scene_entry_t key = scene_ptr->items[i];
+        int j = i - 1;
+        while (j >= 0 && scene_ptr->items[j].layer > key.layer) {
+            scene_ptr->items[j + 1] = scene_ptr->items[j];
+            j--;
+        }
+        scene_ptr->items[j + 1] = key;
+    }
+}
+
 /* One layer: opaque parts first, then transparent parts sorted back to front
  * across all drawable kinds. Consecutive parts of the same kind stay batched
  * (the render command list merges adjacent sokol_gl and model runs). */
@@ -372,16 +395,7 @@ void sk_scene_draw(sk_handle_t scene)
         sk_camera3d_set_active(scene_ptr->camera);
     }
 
-    /* insertion sort by layer ascending (stable, small lists) */
-    for (int i = 1; i < scene_ptr->count; i++) {
-        sk_scene_entry_t key = scene_ptr->items[i];
-        int j = i - 1;
-        while (j >= 0 && scene_ptr->items[j].layer > key.layer) {
-            scene_ptr->items[j + 1] = scene_ptr->items[j];
-            j--;
-        }
-        scene_ptr->items[j + 1] = key;
-    }
+    sort_by_layer(scene_ptr);
 
     if (!sk_camera3d_get_active_data(&cam)) {
         return;
@@ -400,6 +414,14 @@ void sk_scene_draw(sk_handle_t scene)
     }
     sk_render_end_mode_3d();
     sk_light_env_set_current(-1); /* models drawn outside a scene are unlit */
+
+    /* 2D members on top of all 3D, in layer then member order */
+    for (int i = 0; i < scene_ptr->count; i++) {
+        const sk_drawable_passes_t *passes = lookup_passes(scene_ptr->items[i].drawable);
+        if (passes != NULL && passes->draw_2d != NULL) {
+            passes->draw_2d(scene_ptr->items[i].drawable);
+        }
+    }
 }
 
 /* ---- picking ----------------------------------------------------------- */
@@ -418,6 +440,19 @@ sk_pick_result_t sk_scene_pick(sk_handle_t scene, sk_handle_t camera,
     if (scene_ptr == NULL) {
         return result;
     }
+
+    /* 2D members are drawn on top of 3D, so they're hit first: topmost (last
+     * drawn) first */
+    sort_by_layer(scene_ptr);
+    for (int i = scene_ptr->count - 1; i >= 0; i--) {
+        const sk_drawable_passes_t *passes = lookup_passes(scene_ptr->items[i].drawable);
+        if (passes != NULL && passes->pick_2d != NULL &&
+            passes->pick_2d(scene_ptr->items[i].drawable, mouse_x, mouse_y, &result)) {
+            result.handle = scene_ptr->items[i].drawable;
+            return result;
+        }
+    }
+    result = (sk_pick_result_t){0};
 
     if (camera == 0) {
         camera = scene_ptr->camera;

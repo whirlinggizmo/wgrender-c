@@ -13,6 +13,9 @@ extern bool sk_initialized;
 /* smoothed seconds per frame that actually ran (FPS counter) */
 double sk_get_fps_delta(void);
 
+/* framebuffer pixels per logical pixel (1 unless high-DPI); see sk_window_get_screen_size */
+float sk_window_dpi_scale(void);
+
 /* logger */
 void sk_logger_init(void);
 void sk_logger_deinit(void);
