@@ -35,6 +35,8 @@ static const test_case_t TESTS[] = {
     {"math_angles", test_math_angles},
     {"math_inverse", test_math_inverse},
     {"math_trs", test_math_trs},
+    {"model_skin_position", test_model_skin_position},
+    {"model_sample_alpha", test_model_sample_alpha},
     {"pick_ray_sphere", test_pick_ray_sphere},
     {"pick_ray_aabb", test_pick_ray_aabb},
     {"pick_ray_triangle", test_pick_ray_triangle},

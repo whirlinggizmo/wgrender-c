@@ -28,6 +28,9 @@ void test_math_angles(void);
 void test_math_inverse(void);
 void test_math_trs(void);
 
+void test_model_skin_position(void);
+void test_model_sample_alpha(void);
+
 void test_pick_ray_sphere(void);
 void test_pick_ray_aabb(void);
 void test_pick_ray_triangle(void);

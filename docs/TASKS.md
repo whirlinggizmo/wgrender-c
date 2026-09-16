@@ -67,14 +67,14 @@ tick the box in the same commit.
       a 4 px grid over 960x540): rotated + non-uniformly scaled box and ellipsoid,
       a scaled sprite with alpha test, and a rotated/scaled static model all match
       except anti-aliased edges
-- [ ] Bug: animated models are picked against their rest (T) pose, not their
-      current pose: posed limbs can't be picked, and a ghost of the T-pose arms
-      can. Needs posed pick geometry (CPU-skin the pick positions with the current
-      joint matrices on demand, cached per frame) and posed bounds for broadphase
-- [ ] Bug: invisible parts of transparent materials are pickable. gumshoe's blob
-      shadow (BLEND quad fading to alpha 0) makes empty floor around the feet pick
-      the model. Pick MASK/BLEND primitives with an alpha test on base color
-      texture alpha x base color alpha at the hit UV (MASK: its cutoff)
+- [x] Bug: animated models were picked against their rest (T) pose. Fixed: pick
+      geometry is skinned on the CPU with the current joint matrices when a pick
+      needs it (cached per pose), and the broadphase uses the posed bounds
+- [x] Bug: invisible parts of transparent materials were pickable (gumshoe's blob
+      shadow). Fixed: MASK/BLEND hits need material alpha (texture alpha at the
+      hit UV x base color alpha, tint ignored) at or above the MASK cutoff, or 0.5
+      for BLEND. The shadow (at most 20% opaque) is no longer pickable at all.
+      Pick-grid check after the fix: no picked-but-not-drawn points on any object
 - [ ] Window flags accepted but ignored: `RESIZABLE`, `UNDECORATED`, `TRANSPARENT`,
       `HIDDEN`, `ALWAYS_RUN` (only fullscreen, high-DPI, MSAA and vsync-off work)
 - [x] Bug: orthographic cameras only affected sokol_gl content; models and

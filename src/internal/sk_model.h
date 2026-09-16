@@ -1,6 +1,10 @@
 #ifndef SK_INTERNAL_MODEL_H
 #define SK_INTERNAL_MODEL_H
 
+#include <stdint.h>
+
+#include "internal/sk_math.h"
+
 void sk_model_init(void);
 void sk_model_deinit(void);
 
@@ -11,5 +15,17 @@ void sk_model_draw_items(int first, int count);
 
 /* Clear the model draw queue after the frame has been drawn. */
 void sk_model_end_frame(void);
+
+/* Picking helpers (pure; exposed for tests). */
+
+/* Linear blend skinning of one position, as the skinned vertex shader does:
+ * sum of weights[i] * (joints[joint_index[i]] * position). Joint indices at or
+ * past joint_count are ignored. */
+vec3_t sk_model_skin_position(const sk_mat4_t *joints, int joint_count, vec3_t position,
+                              const uint8_t joint_index[4], const float weights[4]);
+
+/* Alpha (0..1) of an 8-bit alpha image at texture coordinate (u, v), nearest
+ * texel, repeating outside 0..1 like the model sampler. */
+float sk_model_sample_alpha(const uint8_t *alpha, int width, int height, float u, float v);
 
 #endif // SK_INTERNAL_MODEL_H

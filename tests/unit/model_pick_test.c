@@ -1,0 +1,44 @@
+#include "internal/sk_model.h"
+#include "test.h"
+#include "tests.h"
+
+#define EPS 1e-4f
+
+void test_model_skin_position(void)
+{
+    sk_mat4_t joints[3] = {
+        sk_mat4_identity(),
+        sk_mat4_translate(0, 2, 0),
+        sk_mat4_trs((vec3_t){0, 0, 0}, (vec3_t){0, 0, 1.5707963f}, (vec3_t){1, 1, 1}), /* +90 degrees about z */
+    };
+    const vec3_t p = {1, 0, 0};
+
+    /* single joint, full weight */
+    vec3_t out = sk_model_skin_position(joints, 3, p, (const uint8_t[4]){1, 0, 0, 0}, (const float[4]){1, 0, 0, 0});
+    CHECK_VEC3_NEAR(out, 1, 2, 0, EPS);
+
+    /* blend of two joints: halfway between translated (1,2,0) and rotated (0,1,0) */
+    out = sk_model_skin_position(joints, 3, p, (const uint8_t[4]){1, 2, 0, 0}, (const float[4]){0.5f, 0.5f, 0, 0});
+    CHECK_VEC3_NEAR(out, 0.5f, 1.5f, 0, EPS);
+
+    /* identity joints leave the bind pose unchanged */
+    out = sk_model_skin_position(joints, 3, (vec3_t){3, -4, 5}, (const uint8_t[4]){0, 0, 0, 0}, (const float[4]){1, 0, 0, 0});
+    CHECK_VEC3_NEAR(out, 3, -4, 5, EPS);
+
+    /* joint indices past the skin are ignored rather than read out of bounds */
+    out = sk_model_skin_position(joints, 3, p, (const uint8_t[4]){1, 200, 0, 0}, (const float[4]){0.5f, 0.5f, 0, 0});
+    CHECK_VEC3_NEAR(out, 0.5f, 1.0f, 0, EPS);
+}
+
+void test_model_sample_alpha(void)
+{
+    /* 2x2: top row opaque, bottom row transparent */
+    const uint8_t alpha[4] = {255, 255, 0, 0};
+
+    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 0.25f, 0.25f), 1.0f, EPS);
+    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 0.75f, 0.75f), 0.0f, EPS);
+    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 1.0f, 0.99f), 0.0f, EPS);   /* u = 1 wraps to 0 */
+    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, 0.25f, 1.25f), 1.0f, EPS);  /* repeats past 1 */
+    CHECK_NEAR(sk_model_sample_alpha(alpha, 2, 2, -0.25f, -0.25f), 0.0f, EPS); /* repeats below 0: (0.75, 0.75) */
+    CHECK_NEAR(sk_model_sample_alpha(NULL, 0, 0, 0.5f, 0.5f), 1.0f, EPS);     /* no texture: opaque */
+}

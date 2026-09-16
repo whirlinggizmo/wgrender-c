@@ -53,9 +53,16 @@ typedef struct {
     bool skinned;
     vec3_t pmin, pmax; /* local-space AABB (for picking) */
     /* CPU-side bind-pose geometry retained for narrow-phase triangle picking */
-    float *pick_positions; /* 3 floats per vertex, mesh-local space */
+    float *pick_positions; /* 3 floats per vertex, mesh-local space (bind pose) */
     uint32_t *pick_indices;
     int pick_vertex_count;
+    /* skinned primitives: joints and weights, to pose pick geometry like the shader */
+    uint8_t *pick_joints;  /* 4 per vertex */
+    float *pick_weights;   /* 4 per vertex */
+    /* MASK / BLEND primitives: for alpha-tested picking */
+    float *pick_uvs;       /* 2 per vertex */
+    uint8_t *pick_alpha;   /* base color texture alpha; NULL = no texture (alpha 1) */
+    int pick_alpha_width, pick_alpha_height;
 } sk_primitive_t;
 
 /* node transform (base from glTF + per-frame working copy) */
@@ -125,6 +132,14 @@ typedef struct {
     float anim_speed;
     bool anim_loop;
     sk_mat4_t joint_matrices[SK_MAX_JOINTS];
+    unsigned pose_version; /* bumped when joint_matrices change; 0 = bind pose */
+
+    /* posed pick geometry, built on demand when a pick needs it */
+    float *posed_positions;  /* skinned primitives' vertices in the current pose */
+    int posed_capacity;      /* vertices allocated */
+    unsigned posed_version;  /* pose_version the cache was built for (0 = none) */
+    sk_handle_t posed_mesh;  /* mesh the cache was built for */
+    vec3_t posed_min, posed_max;
 } sk_model_t;
 
 /* One model placement queued this frame (matrices and tint captured at submit). */
@@ -213,7 +228,9 @@ static sg_shader make_skinned_shader(void)
 
 /* ----------------------------------------------------------- gltf load ----- */
 
-static sg_view decode_image_view(const cgltf_image *img)
+/* Decode a glTF image into a GPU texture view. With `alpha_out`, also keep a copy
+ * of its alpha channel (for alpha-tested picking). */
+static sg_view decode_image_view(const cgltf_image *img, uint8_t **alpha_out, int *width_out, int *height_out)
 {
     const cgltf_buffer_view *bv;
     const unsigned char *bytes;
@@ -235,6 +252,16 @@ static sg_view decode_image_view(const cgltf_image *img)
         .width = w, .height = h, .pixel_format = SG_PIXELFORMAT_RGBA8,
         .data.mip_levels[0] = {.ptr = pixels, .size = (size_t)(w * h * 4)},
     });
+    if (alpha_out != NULL) {
+        *alpha_out = (uint8_t *)malloc((size_t)(w * h));
+        if (*alpha_out != NULL) {
+            for (int i = 0; i < w * h; i++) {
+                (*alpha_out)[i] = pixels[i * 4 + 3];
+            }
+            *width_out = w;
+            *height_out = h;
+        }
+    }
     stbi_image_free(pixels);
     return sg_make_view(&(sg_view_desc){.texture.image = image});
 }
@@ -274,6 +301,15 @@ static bool build_primitive(const cgltf_primitive *prim, bool skinned, const sk_
     if (positions == NULL) {
         free(verts);
         return false;
+    }
+    memset(out, 0, sizeof(*out));
+    if (skinned) {
+        out->pick_joints = (uint8_t *)calloc(vcount * 4, 1);
+        out->pick_weights = (float *)calloc(vcount * 4, sizeof(float));
+    }
+    if (prim->material != NULL && (prim->material->alpha_mode == cgltf_alpha_mode_mask ||
+                                   prim->material->alpha_mode == cgltf_alpha_mode_blend)) {
+        out->pick_uvs = (float *)calloc(vcount * 2, sizeof(float));
     }
 
     out->pmin = (vec3_t){1e30f, 1e30f, 1e30f};
@@ -316,6 +352,10 @@ static bool build_primitive(const cgltf_primitive *prim, bool skinned, const sk_
             n[0] = wn.x; n[1] = wn.y; n[2] = wn.z;
         }
         if (uv) cgltf_accessor_read_float(uv, i, t, 2);
+        if (out->pick_uvs != NULL) {
+            out->pick_uvs[i * 2] = t[0];
+            out->pick_uvs[i * 2 + 1] = t[1];
+        }
         v[0] = p[0]; v[1] = p[1]; v[2] = p[2];
         v[3] = n[0]; v[4] = n[1]; v[5] = n[2];
         v[6] = t[0]; v[7] = t[1];
@@ -324,6 +364,12 @@ static bool build_primitive(const cgltf_primitive *prim, bool skinned, const sk_
             cgltf_accessor_read_float(wgt, i, w, 4);
             v[8] = j[0]; v[9] = j[1]; v[10] = j[2]; v[11] = j[3];
             v[12] = w[0]; v[13] = w[1]; v[14] = w[2]; v[15] = w[3];
+            if (out->pick_joints != NULL && out->pick_weights != NULL) {
+                for (int k = 0; k < 4; k++) {
+                    out->pick_joints[i * 4 + k] = (uint8_t)(j[k] < 255.0f ? j[k] : 255.0f);
+                    out->pick_weights[i * 4 + k] = w[k];
+                }
+            }
         }
     }
 
@@ -375,7 +421,9 @@ static bool build_primitive(const cgltf_primitive *prim, bool skinned, const sk_
         const cgltf_pbr_metallic_roughness *pbr = &prim->material->pbr_metallic_roughness;
         memcpy(out->base_color, pbr->base_color_factor, sizeof(out->base_color));
         if (pbr->base_color_texture.texture != NULL && pbr->base_color_texture.texture->image != NULL) {
-            out->view = decode_image_view(pbr->base_color_texture.texture->image);
+            out->view = decode_image_view(pbr->base_color_texture.texture->image,
+                                          out->pick_uvs != NULL ? &out->pick_alpha : NULL,
+                                          &out->pick_alpha_width, &out->pick_alpha_height);
         }
     }
 
@@ -661,6 +709,7 @@ bool sk_model_animate(sk_handle_t handle, float delta_seconds)
         sk_mat4_t gjoint = global_of(mesh_ptr, ct, cr, cs, cache, done, jn);
         model_ptr->joint_matrices[j] = sk_mat4_mul(gjoint, mesh_ptr->inverse_bind[j]);
     }
+    model_ptr->pose_version++;
 
     free(ct); free(cr); free(cs); free(cache); free(done);
     return true;
@@ -731,6 +780,10 @@ static void free_mesh_data(sk_mesh_t *mesh)
         if (mesh->prims[p].view.id != sk_model_white_view.id) sg_destroy_view(mesh->prims[p].view);
         free(mesh->prims[p].pick_positions);
         free(mesh->prims[p].pick_indices);
+        free(mesh->prims[p].pick_joints);
+        free(mesh->prims[p].pick_weights);
+        free(mesh->prims[p].pick_uvs);
+        free(mesh->prims[p].pick_alpha);
     }
     free(mesh->prims);
     free_mesh_cpu(mesh);
@@ -881,6 +934,7 @@ SK_KEEP bool sk_model_set_mesh(sk_handle_t handle, sk_handle_t mesh)
     retain_mesh(mesh);             /* no-op when 0 */
     /* old skeleton no longer valid; animate() rebuilds these next tick */
     for (int j = 0; j < SK_MAX_JOINTS; j++) model_ptr->joint_matrices[j] = sk_mat4_identity();
+    model_ptr->pose_version = 0; /* bind pose until animated */
     return true;
 }
 
@@ -921,6 +975,102 @@ SK_KEEP bool sk_model_is_visible(sk_handle_t handle)
 
 SK_KEEP void sk_model_draw(sk_handle_t handle) { draw_immediate(handle); }
 
+vec3_t sk_model_skin_position(const sk_mat4_t *joints, int joint_count, vec3_t p,
+                              const uint8_t joint_index[4], const float weights[4])
+{
+    vec3_t out = {0.0f, 0.0f, 0.0f};
+    for (int k = 0; k < 4; k++) {
+        const float w = weights[k];
+        const sk_mat4_t *m;
+        if (w == 0.0f || joint_index[k] >= joint_count) {
+            continue;
+        }
+        m = &joints[joint_index[k]];
+        out.x += w * (m->m[0] * p.x + m->m[4] * p.y + m->m[8] * p.z + m->m[12]);
+        out.y += w * (m->m[1] * p.x + m->m[5] * p.y + m->m[9] * p.z + m->m[13]);
+        out.z += w * (m->m[2] * p.x + m->m[6] * p.y + m->m[10] * p.z + m->m[14]);
+    }
+    return out;
+}
+
+float sk_model_sample_alpha(const uint8_t *alpha, int width, int height, float u, float v)
+{
+    int x, y;
+    if (alpha == NULL || width <= 0 || height <= 0) {
+        return 1.0f;
+    }
+    u -= floorf(u); /* repeat */
+    v -= floorf(v);
+    x = (int)(u * (float)width);
+    y = (int)(v * (float)height);
+    x = x >= width ? width - 1 : x;
+    y = y >= height ? height - 1 : y;
+    return (float)alpha[y * width + x] / 255.0f;
+}
+
+/* Pose the skinned primitives' pick geometry with the model's current joint
+ * matrices, cached until the pose changes. Returns false when the bind pose
+ * applies (not animated, or no skin), in which case pick_positions are used. */
+static bool update_posed_geometry(sk_model_t *model_ptr, sk_mesh_t *mesh_ptr)
+{
+    int total = 0, offset = 0;
+    const int joint_count = mesh_ptr->joint_count < SK_MAX_JOINTS ? mesh_ptr->joint_count : SK_MAX_JOINTS;
+
+    if (model_ptr->pose_version == 0 || !mesh_ptr->has_skin) {
+        return false;
+    }
+    if (model_ptr->posed_version == model_ptr->pose_version && model_ptr->posed_mesh == model_ptr->mesh) {
+        return true;
+    }
+    for (int p = 0; p < mesh_ptr->prim_count; p++) {
+        if (mesh_ptr->prims[p].skinned) {
+            total += mesh_ptr->prims[p].pick_vertex_count;
+        }
+    }
+    if (total > model_ptr->posed_capacity) {
+        float *grown = (float *)realloc(model_ptr->posed_positions, (size_t)total * 3 * sizeof(float));
+        if (grown == NULL) {
+            return false;
+        }
+        model_ptr->posed_positions = grown;
+        model_ptr->posed_capacity = total;
+    }
+
+    model_ptr->posed_min = (vec3_t){1e30f, 1e30f, 1e30f};
+    model_ptr->posed_max = (vec3_t){-1e30f, -1e30f, -1e30f};
+    for (int p = 0; p < mesh_ptr->prim_count; p++) {
+        const sk_primitive_t *prim = &mesh_ptr->prims[p];
+        if (!prim->skinned || prim->pick_joints == NULL || prim->pick_weights == NULL) {
+            /* static primitive: its bind bounds are its bounds */
+            vec3_t lo = prim->pmin, hi = prim->pmax;
+            model_ptr->posed_min = (vec3_t){lo.x < model_ptr->posed_min.x ? lo.x : model_ptr->posed_min.x,
+                                            lo.y < model_ptr->posed_min.y ? lo.y : model_ptr->posed_min.y,
+                                            lo.z < model_ptr->posed_min.z ? lo.z : model_ptr->posed_min.z};
+            model_ptr->posed_max = (vec3_t){hi.x > model_ptr->posed_max.x ? hi.x : model_ptr->posed_max.x,
+                                            hi.y > model_ptr->posed_max.y ? hi.y : model_ptr->posed_max.y,
+                                            hi.z > model_ptr->posed_max.z ? hi.z : model_ptr->posed_max.z};
+            continue;
+        }
+        for (int v = 0; v < prim->pick_vertex_count; v++) {
+            vec3_t bind = {prim->pick_positions[v * 3], prim->pick_positions[v * 3 + 1], prim->pick_positions[v * 3 + 2]};
+            vec3_t posed = sk_model_skin_position(model_ptr->joint_matrices, joint_count, bind,
+                                                  &prim->pick_joints[v * 4], &prim->pick_weights[v * 4]);
+            float *dst = &model_ptr->posed_positions[(offset + v) * 3];
+            dst[0] = posed.x; dst[1] = posed.y; dst[2] = posed.z;
+            if (posed.x < model_ptr->posed_min.x) model_ptr->posed_min.x = posed.x;
+            if (posed.y < model_ptr->posed_min.y) model_ptr->posed_min.y = posed.y;
+            if (posed.z < model_ptr->posed_min.z) model_ptr->posed_min.z = posed.z;
+            if (posed.x > model_ptr->posed_max.x) model_ptr->posed_max.x = posed.x;
+            if (posed.y > model_ptr->posed_max.y) model_ptr->posed_max.y = posed.y;
+            if (posed.z > model_ptr->posed_max.z) model_ptr->posed_max.z = posed.z;
+        }
+        offset += prim->pick_vertex_count;
+    }
+    model_ptr->posed_version = model_ptr->pose_version;
+    model_ptr->posed_mesh = model_ptr->mesh;
+    return true;
+}
+
 static bool model_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model_mat)
 {
     sk_model_t *model_ptr = resolve(handle);
@@ -928,10 +1078,37 @@ static bool model_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4
     if (model_ptr == NULL || mesh_ptr == NULL || !model_ptr->visible || mesh_ptr->prim_count == 0) {
         return false;
     }
-    *lmin = mesh_ptr->lmin;
-    *lmax = mesh_ptr->lmax;
+    if (update_posed_geometry(model_ptr, mesh_ptr)) {
+        *lmin = model_ptr->posed_min; /* animated: bounds of the current pose */
+        *lmax = model_ptr->posed_max;
+    } else {
+        *lmin = mesh_ptr->lmin;
+        *lmax = mesh_ptr->lmax;
+    }
     *model_mat = sk_mat4_trs(model_ptr->position, model_ptr->rotation, model_ptr->scale);
     return true;
+}
+
+/* Whether a hit at barycentric (u, v) on triangle (i0, i1, i2) lands on a visible
+ * part of the material. Opaque materials always do. MASK uses its cutoff; BLEND
+ * counts as solid where the material is at least half opaque. Tint is ignored:
+ * fading a model doesn't make it unpickable. */
+static bool is_solid_at(const sk_primitive_t *prim, uint32_t i0, uint32_t i1, uint32_t i2, float u, float v)
+{
+    float alpha = prim->base_color[3];
+    float threshold;
+
+    if (prim->alpha_mode == ALPHA_MODE_OPAQUE) {
+        return true;
+    }
+    if (prim->pick_uvs != NULL && prim->pick_alpha != NULL) {
+        const float w0 = 1.0f - u - v;
+        const float tu = prim->pick_uvs[i0 * 2] * w0 + prim->pick_uvs[i1 * 2] * u + prim->pick_uvs[i2 * 2] * v;
+        const float tv = prim->pick_uvs[i0 * 2 + 1] * w0 + prim->pick_uvs[i1 * 2 + 1] * u + prim->pick_uvs[i2 * 2 + 1] * v;
+        alpha *= sk_model_sample_alpha(prim->pick_alpha, prim->pick_alpha_width, prim->pick_alpha_height, tu, tv);
+    }
+    threshold = prim->alpha_mode == ALPHA_MODE_MASK ? prim->alpha_cutoff : 0.5f;
+    return alpha >= threshold;
 }
 
 static bool model_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_result_t *out)
@@ -942,42 +1119,46 @@ static bool model_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_re
     sk_ray_t world, local;
     sk_ray_hit_t best = {0};
     vec3_t lmin, lmax;
+    bool posed;
+    int posed_offset = 0;
 
     if (out == NULL || model_ptr == NULL || mesh_ptr == NULL || !model_ptr->visible || mesh_ptr->prim_count == 0) {
         return false;
     }
-
     if (!model_bounds(handle, &lmin, &lmax, &model_mat)) {
         return false;
     }
+    posed = update_posed_geometry(model_ptr, mesh_ptr);
 
     world.origin = origin;
     world.dir = dir;
     local = sk_pick_ray_to_local(model_mat, world);
 
-    /* Narrow phase: exact ray/triangle against retained bind-pose geometry.
-     * Skinned meshes are tested against the bind pose (matches raylib). */
+    /* Narrow phase: ray/triangle against the geometry as drawn: the current pose
+     * for animated skinned primitives, skipping see-through parts of MASK/BLEND
+     * materials. */
     for (int p = 0; p < mesh_ptr->prim_count; p++) {
         sk_primitive_t *prim = &mesh_ptr->prims[p];
-        if (prim->pick_positions == NULL || prim->pick_indices == NULL) {
+        const float *positions = prim->pick_positions;
+        if (posed && prim->skinned && prim->pick_joints != NULL) {
+            positions = &model_ptr->posed_positions[posed_offset * 3];
+        }
+        if (prim->skinned) {
+            posed_offset += prim->pick_vertex_count;
+        }
+        if (positions == NULL || prim->pick_indices == NULL) {
             continue;
         }
         for (int k = 0; k + 2 < prim->index_count; k += 3) {
             uint32_t i0 = prim->pick_indices[k];
             uint32_t i1 = prim->pick_indices[k + 1];
             uint32_t i2 = prim->pick_indices[k + 2];
-            vec3_t v0 = {prim->pick_positions[i0 * 3 + 0],
-                         prim->pick_positions[i0 * 3 + 1],
-                         prim->pick_positions[i0 * 3 + 2]};
-            vec3_t v1 = {prim->pick_positions[i1 * 3 + 0],
-                         prim->pick_positions[i1 * 3 + 1],
-                         prim->pick_positions[i1 * 3 + 2]};
-            vec3_t v2 = {prim->pick_positions[i2 * 3 + 0],
-                         prim->pick_positions[i2 * 3 + 1],
-                         prim->pick_positions[i2 * 3 + 2]};
+            vec3_t v0 = {positions[i0 * 3], positions[i0 * 3 + 1], positions[i0 * 3 + 2]};
+            vec3_t v1 = {positions[i1 * 3], positions[i1 * 3 + 1], positions[i1 * 3 + 2]};
+            vec3_t v2 = {positions[i2 * 3], positions[i2 * 3 + 1], positions[i2 * 3 + 2]};
             sk_ray_hit_t th = {0};
-            if (sk_pick_ray_triangle(local, v0, v1, v2, &th) &&
-                (!best.hit || th.t < best.t)) {
+            if (sk_pick_ray_triangle(local, v0, v1, v2, &th) && (!best.hit || th.t < best.t) &&
+                is_solid_at(prim, i0, i1, i2, th.u, th.v)) {
                 best = th;
             }
         }
@@ -1316,6 +1497,7 @@ SK_KEEP void sk_model_destroy(sk_handle_t handle)
     sk_handle_t mesh;
     if (model_ptr == NULL) return;
     mesh = model_ptr->mesh;
+    free(model_ptr->posed_positions);
     memset(model_ptr, 0, sizeof(*model_ptr));
     sk_handle_pool_free(&sk_model_pool, handle);
     release_mesh(mesh); /* frees the mesh once its last model/owner is gone */
