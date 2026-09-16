@@ -26,6 +26,11 @@ Keep this file short and rule-shaped. The authoritative design doc is
   refactors with no behavioral impact don't need that step.
 - For feature work or non-trivial fixes, **outline the plan first** and wait for
   the go-ahead, unless already told to implement.
+- **Correct over compatible.** libsk is pre-1.0: when the right design or default
+  breaks existing code or examples, choose the right one and update the callers.
+  Don't add implicit fallbacks just to keep old behavior working. Still ask before
+  changing public API or observable behavior (above), but recommend the correct
+  option.
 - Read-only tasks (questions, reviews) need no approval.
 - **libsk is the primary library; librl is maintenance-only** (see "Direction" in
   README.md). New features go into libsk. Treat librl as a behavior reference and
