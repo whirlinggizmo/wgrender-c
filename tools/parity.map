@@ -22,7 +22,8 @@
 # --- rl.h (core / lifecycle) ---
 rl_deinit                               ported   sk_request_quit      sokol owns the loop; cleanup runs in the sk_set_cleanup callback
 rl_init_values_async                    dropped  sk_run owns startup; async setup happens before the first frame
-rl_tick                                 ported   sk_set_frame         callback-driven loop instead of polling
+rl_get_delta_time                       dropped  timing is passed to the frame/tick callbacks (dt, tick_fraction)
+rl_tick                                 ported   sk_set_frame         callback-driven loop instead of polling; sk_set_tick adds fixed-rate simulation
 
 # --- rl_asset.h ---
 rl_asset_ensure                         dropped  synchronous fetch needs JSPI on wasm; use sk_asset_ensure_async

@@ -7,6 +7,12 @@ void test_frame_pace_unpaced(void);
 void test_frame_pace_schedule(void);
 void test_frame_pace_web_skip(void);
 
+void test_input_tick_edges(void);
+void test_input_tick_deltas(void);
+
+void test_tick_clock_rate(void);
+void test_tick_clock_stall(void);
+
 void test_handle_pool(void);
 void test_handle_pool_reuse(void);
 

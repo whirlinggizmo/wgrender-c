@@ -9,29 +9,42 @@
 
 /* Edge model
  * ----------
- * sokol_app delivers all pending events (event_cb) before each frame_cb, so we
- * accumulate down/pressed/released and per-frame deltas as events arrive, expose
- * them during the user frame, then clear the per-frame edge state at the END of
- * the frame (sk_input_new_frame, called after the user callback). */
+ * sokol_app delivers all pending events (event_cb) before each frame_cb. Held
+ * state (buttons/keys down, mouse position) is shared. Edges (pressed/released,
+ * mouse and wheel deltas, typed keys and chars) are tracked twice, because they
+ * are relative to the callback reading them (docs/PLAN-tick.md):
+ *
+ *   frame edges: since the previous frame callback; cleared after it runs.
+ *   tick edges:  since the previous tick; cleared after each tick. A frame that
+ *                runs no ticks carries them over, so every press is seen by
+ *                exactly one tick.
+ *
+ * The runtime sets the context before each callback; getters read the matching
+ * edge set. */
 
 #define SK_MOUSE_BUTTONS 3
 
 typedef struct {
-    int x, y;
     int dx, dy;
     int wheel;
-    bool down[SK_MOUSE_BUTTONS];
     bool pressed[SK_MOUSE_BUTTONS];
     bool released[SK_MOUSE_BUTTONS];
-
-    bool key_down[SK_KEYBOARD_MAX_KEYS];
     bool key_pressed[SK_KEYBOARD_MAX_KEYS];
     bool key_released[SK_KEYBOARD_MAX_KEYS];
-
     int pressed_keys[SK_KEYBOARD_MAX_PRESSED_KEYS];
     int num_pressed_keys;
     int pressed_chars[SK_KEYBOARD_MAX_PRESSED_CHARS];
     int num_pressed_chars;
+} sk_input_edges_t;
+
+typedef struct {
+    int x, y;
+    bool down[SK_MOUSE_BUTTONS];
+    bool key_down[SK_KEYBOARD_MAX_KEYS];
+
+    sk_input_edges_t frame_edges;
+    sk_input_edges_t tick_edges;
+    sk_input_context_t context;
 } sk_input_state_t;
 
 static sk_input_state_t sk_input;
@@ -46,6 +59,26 @@ void sk_input_deinit(void)
     memset(&sk_input, 0, sizeof(sk_input));
 }
 
+void sk_input_set_context(sk_input_context_t context)
+{
+    sk_input.context = context;
+}
+
+void sk_input_end_tick(void)
+{
+    memset(&sk_input.tick_edges, 0, sizeof(sk_input.tick_edges));
+}
+
+void sk_input_end_frame(void)
+{
+    memset(&sk_input.frame_edges, 0, sizeof(sk_input.frame_edges));
+}
+
+static const sk_input_edges_t *current_edges(void)
+{
+    return sk_input.context == SK_INPUT_CONTEXT_TICK ? &sk_input.tick_edges : &sk_input.frame_edges;
+}
+
 static int button_state(bool down, bool pressed, bool released)
 {
     if (pressed) return SK_BUTTON_PRESSED;
@@ -54,54 +87,37 @@ static int button_state(bool down, bool pressed, bool released)
     return SK_BUTTON_UP;
 }
 
-void sk_input_handle_event(const sapp_event *ev)
+/* Record one event's edges into an edge set. */
+static void add_edges(sk_input_edges_t *edges, const sapp_event *ev, bool key_was_down)
 {
-    if (ev == NULL) {
-        return;
-    }
-
     switch (ev->type) {
         case SAPP_EVENTTYPE_MOUSE_MOVE:
-            sk_input.x = (int)ev->mouse_x;
-            sk_input.y = (int)ev->mouse_y;
-            sk_input.dx += (int)ev->mouse_dx;
-            sk_input.dy += (int)ev->mouse_dy;
+            edges->dx += (int)ev->mouse_dx;
+            edges->dy += (int)ev->mouse_dy;
             break;
         case SAPP_EVENTTYPE_MOUSE_DOWN:
-            if (ev->mouse_button >= 0 && ev->mouse_button < SK_MOUSE_BUTTONS) {
-                sk_input.down[ev->mouse_button] = true;
-                sk_input.pressed[ev->mouse_button] = true;
-            }
+            edges->pressed[ev->mouse_button] = true;
             break;
         case SAPP_EVENTTYPE_MOUSE_UP:
-            if (ev->mouse_button >= 0 && ev->mouse_button < SK_MOUSE_BUTTONS) {
-                sk_input.down[ev->mouse_button] = false;
-                sk_input.released[ev->mouse_button] = true;
-            }
+            edges->released[ev->mouse_button] = true;
             break;
         case SAPP_EVENTTYPE_MOUSE_SCROLL:
-            sk_input.wheel += (int)ev->scroll_y;
+            edges->wheel += (int)ev->scroll_y;
             break;
         case SAPP_EVENTTYPE_KEY_DOWN:
-            if (ev->key_code >= 0 && ev->key_code < SK_KEYBOARD_MAX_KEYS) {
-                if (!ev->key_repeat && !sk_input.key_down[ev->key_code]) {
-                    sk_input.key_pressed[ev->key_code] = true;
-                    if (sk_input.num_pressed_keys < SK_KEYBOARD_MAX_PRESSED_KEYS) {
-                        sk_input.pressed_keys[sk_input.num_pressed_keys++] = ev->key_code;
-                    }
+            if (!ev->key_repeat && !key_was_down) {
+                edges->key_pressed[ev->key_code] = true;
+                if (edges->num_pressed_keys < SK_KEYBOARD_MAX_PRESSED_KEYS) {
+                    edges->pressed_keys[edges->num_pressed_keys++] = ev->key_code;
                 }
-                sk_input.key_down[ev->key_code] = true;
             }
             break;
         case SAPP_EVENTTYPE_KEY_UP:
-            if (ev->key_code >= 0 && ev->key_code < SK_KEYBOARD_MAX_KEYS) {
-                sk_input.key_down[ev->key_code] = false;
-                sk_input.key_released[ev->key_code] = true;
-            }
+            edges->key_released[ev->key_code] = true;
             break;
         case SAPP_EVENTTYPE_CHAR:
-            if (sk_input.num_pressed_chars < SK_KEYBOARD_MAX_PRESSED_CHARS) {
-                sk_input.pressed_chars[sk_input.num_pressed_chars++] = (int)ev->char_code;
+            if (edges->num_pressed_chars < SK_KEYBOARD_MAX_PRESSED_CHARS) {
+                edges->pressed_chars[edges->num_pressed_chars++] = (int)ev->char_code;
             }
             break;
         default:
@@ -109,20 +125,55 @@ void sk_input_handle_event(const sapp_event *ev)
     }
 }
 
-void sk_input_new_frame(void)
+void sk_input_handle_event(const sapp_event *ev)
 {
-    /* clear per-frame edges + deltas (called after the user frame callback) */
-    sk_input.dx = 0;
-    sk_input.dy = 0;
-    sk_input.wheel = 0;
-    for (int i = 0; i < SK_MOUSE_BUTTONS; i++) {
-        sk_input.pressed[i] = false;
-        sk_input.released[i] = false;
+    bool key_was_down = false;
+
+    if (ev == NULL) {
+        return;
     }
-    memset(sk_input.key_pressed, 0, sizeof(sk_input.key_pressed));
-    memset(sk_input.key_released, 0, sizeof(sk_input.key_released));
-    sk_input.num_pressed_keys = 0;
-    sk_input.num_pressed_chars = 0;
+    switch (ev->type) {
+        case SAPP_EVENTTYPE_MOUSE_DOWN:
+        case SAPP_EVENTTYPE_MOUSE_UP:
+            if (ev->mouse_button < 0 || ev->mouse_button >= SK_MOUSE_BUTTONS) {
+                return;
+            }
+            break;
+        case SAPP_EVENTTYPE_KEY_DOWN:
+        case SAPP_EVENTTYPE_KEY_UP:
+            if (ev->key_code < 0 || ev->key_code >= SK_KEYBOARD_MAX_KEYS) {
+                return;
+            }
+            key_was_down = sk_input.key_down[ev->key_code];
+            break;
+        default:
+            break;
+    }
+
+    add_edges(&sk_input.frame_edges, ev, key_was_down);
+    add_edges(&sk_input.tick_edges, ev, key_was_down);
+
+    /* held state */
+    switch (ev->type) {
+        case SAPP_EVENTTYPE_MOUSE_MOVE:
+            sk_input.x = (int)ev->mouse_x;
+            sk_input.y = (int)ev->mouse_y;
+            break;
+        case SAPP_EVENTTYPE_MOUSE_DOWN:
+            sk_input.down[ev->mouse_button] = true;
+            break;
+        case SAPP_EVENTTYPE_MOUSE_UP:
+            sk_input.down[ev->mouse_button] = false;
+            break;
+        case SAPP_EVENTTYPE_KEY_DOWN:
+            sk_input.key_down[ev->key_code] = true;
+            break;
+        case SAPP_EVENTTYPE_KEY_UP:
+            sk_input.key_down[ev->key_code] = false;
+            break;
+        default:
+            break;
+    }
 }
 
 SK_KEEP
@@ -144,13 +195,13 @@ vec2_t sk_input_get_mouse_position(void)
 
 vec2_t sk_input_get_mouse_delta(void)
 {
-    return (vec2_t){(float)sk_input.dx, (float)sk_input.dy};
+    return (vec2_t){(float)current_edges()->dx, (float)current_edges()->dy};
 }
 
 SK_KEEP
 int sk_input_get_mouse_wheel(void)
 {
-    return sk_input.wheel;
+    return current_edges()->wheel;
 }
 
 SK_KEEP
@@ -159,53 +210,55 @@ int sk_input_get_mouse_button(int button)
     if (button < 0 || button >= SK_MOUSE_BUTTONS) {
         return SK_BUTTON_UP;
     }
-    return button_state(sk_input.down[button], sk_input.pressed[button],
-                        sk_input.released[button]);
+    return button_state(sk_input.down[button], current_edges()->pressed[button],
+                        current_edges()->released[button]);
 }
 
 SK_KEEP
 sk_mouse_state_t sk_input_get_mouse_state(void)
 {
+    const sk_input_edges_t *edges = current_edges();
     sk_mouse_state_t state = {0};
     state.x = sk_input.x;
     state.y = sk_input.y;
-    state.wheel = sk_input.wheel;
+    state.wheel = edges->wheel;
     state.left = sk_input_get_mouse_button(0);
     state.right = sk_input_get_mouse_button(1);
     state.middle = sk_input_get_mouse_button(2);
     state.buttons[0] = state.left;
     state.buttons[1] = state.right;
     state.buttons[2] = state.middle;
-    state.dx = sk_input.dx;
-    state.dy = sk_input.dy;
+    state.dx = edges->dx;
+    state.dy = edges->dy;
     return state;
 }
 
 SK_KEEP
 sk_keyboard_state_t sk_input_get_keyboard_state(void)
 {
+    const sk_input_edges_t *edges = current_edges();
     sk_keyboard_state_t state = {0};
 
     state.max_num_keys = SK_KEYBOARD_MAX_KEYS;
     for (int i = 0; i < SK_KEYBOARD_MAX_KEYS; i++) {
-        state.keys[i] = button_state(sk_input.key_down[i], sk_input.key_pressed[i],
-                                     sk_input.key_released[i]);
+        state.keys[i] = button_state(sk_input.key_down[i], edges->key_pressed[i],
+                                     edges->key_released[i]);
     }
 
-    state.num_pressed_keys = sk_input.num_pressed_keys;
-    for (int i = 0; i < sk_input.num_pressed_keys; i++) {
-        state.pressed_keys[i] = sk_input.pressed_keys[i];
+    state.num_pressed_keys = edges->num_pressed_keys;
+    for (int i = 0; i < edges->num_pressed_keys; i++) {
+        state.pressed_keys[i] = edges->pressed_keys[i];
     }
-    if (sk_input.num_pressed_keys > 0) {
-        state.pressed_key = sk_input.pressed_keys[sk_input.num_pressed_keys - 1];
+    if (edges->num_pressed_keys > 0) {
+        state.pressed_key = edges->pressed_keys[edges->num_pressed_keys - 1];
     }
 
-    state.num_pressed_chars = sk_input.num_pressed_chars;
-    for (int i = 0; i < sk_input.num_pressed_chars; i++) {
-        state.pressed_chars[i] = sk_input.pressed_chars[i];
+    state.num_pressed_chars = edges->num_pressed_chars;
+    for (int i = 0; i < edges->num_pressed_chars; i++) {
+        state.pressed_chars[i] = edges->pressed_chars[i];
     }
-    if (sk_input.num_pressed_chars > 0) {
-        state.pressed_char = sk_input.pressed_chars[sk_input.num_pressed_chars - 1];
+    if (edges->num_pressed_chars > 0) {
+        state.pressed_char = edges->pressed_chars[edges->num_pressed_chars - 1];
     }
 
     return state;

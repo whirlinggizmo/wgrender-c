@@ -213,12 +213,12 @@ static void draw_overlay(sk_mouse_state_t mouse)
     sk_text_draw_fps(10, 10);
 }
 
-static void frame(void *user_data)
+static void frame(float dt, float tick_fraction, void *user_data)
 {
     (void)user_data;
     sk_mouse_state_t mouse = sk_input_get_mouse_state();
 
-    update((float)sk_get_delta_time());
+    update(dt);
     update_pick_message(mouse);
 
     sk_render_begin();

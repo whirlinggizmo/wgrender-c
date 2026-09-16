@@ -61,7 +61,7 @@ static void on_init(void *user_data)
     sk_debug_enable_fps(12, 10, 16);
 }
 
-static void frame(void *user_data)
+static void frame(float dt, float tick_fraction, void *user_data)
 {
     (void)user_data;
     float t = (float)sk_get_time();

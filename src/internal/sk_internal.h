@@ -94,6 +94,15 @@ void sk_input_init(void);
 void sk_input_deinit(void);
 struct sapp_event; /* fwd decl from sokol_app */
 void sk_input_handle_event(const struct sapp_event *ev);
-void sk_input_new_frame(void); /* clear per-frame edge state at frame start */
+/* Input edges are relative to the running callback (docs/PLAN-tick.md). The
+ * runtime sets the context before each tick/frame callback and clears that
+ * context's edges after it. */
+typedef enum {
+    SK_INPUT_CONTEXT_FRAME = 0,
+    SK_INPUT_CONTEXT_TICK = 1,
+} sk_input_context_t;
+void sk_input_set_context(sk_input_context_t context);
+void sk_input_end_tick(void);  /* clear tick edges (after each tick) */
+void sk_input_end_frame(void); /* clear frame edges (after the frame callback) */
 
 #endif // SK_INTERNAL_H

@@ -40,7 +40,7 @@ static void on_init(void *user_data)
     sk_asset_add_task(sk_asset_ensure_async(KOMIKA_PATH, NULL, 0), on_komika_loaded, on_failed, NULL);
 }
 
-static void frame(void *user_data)
+static void frame(float dt, float tick_fraction, void *user_data)
 {
     (void)user_data;
     vec2_t screen = sk_window_get_screen_size();

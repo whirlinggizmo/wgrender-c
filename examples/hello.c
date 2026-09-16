@@ -6,7 +6,7 @@
 
 #include "sk.h"
 
-static void frame(void *user_data)
+static void frame(float dt, float tick_fraction, void *user_data)
 {
     (void)user_data;
 

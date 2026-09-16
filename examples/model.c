@@ -61,7 +61,7 @@ static void on_init(void *user_data) {
   sk_scene_add(g_scene, g_model, 0);
 }
 
-static void frame(void *user_data) {
+static void frame(float dt, float tick_fraction, void *user_data) {
   (void)user_data;
   float t = (float)sk_get_time();
 
@@ -77,7 +77,7 @@ static void frame(void *user_data) {
     sk_model_set_transform(g_model, 0, 0, 0, 0, t * 0.5f, 0, 1, 1,
                            1); /* slow spin */
   }
-  sk_model_animate(g_model, sk_get_delta_time()); /* skeletal anim */
+  sk_model_animate(g_model, dt); /* skeletal anim */
 
   sk_render_begin();
   sk_render_clear_background(g_bg);

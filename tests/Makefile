@@ -14,7 +14,7 @@ STD     := -std=gnu11
 WARN    := -Wall -Wextra -Wno-unused-parameter
 OPT     := -O1 -g
 DEFS    := -DSOKOL_GLCORE
-INCS    := -I$(ROOT)/include -I$(ROOT)/src -Iunit
+INCS    := -I$(ROOT)/include -I$(ROOT)/src -Iunit -isystem $(ROOT)/deps/sokol
 CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
 LIB     := $(ROOT)/lib/libsk.a

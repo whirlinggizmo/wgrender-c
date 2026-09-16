@@ -61,7 +61,7 @@ static void on_init(void *user_data)
     }
 }
 
-static void frame(void *user_data)
+static void frame(float dt, float tick_fraction, void *user_data)
 {
     (void)user_data;
     sk_keyboard_state_t kb = sk_input_get_keyboard_state();

@@ -55,9 +55,13 @@ tick the box in the same commit.
 - [ ] Bug: orthographic cameras only affect sokol_gl content. Models
       (`begin_draw` in `src/sk_model.c`) and picking (`sk_pick_ray_from_screen`)
       always use a perspective projection
-- [ ] Decide: frame `dt` comes from `sapp_frame_duration()`, which is smoothed and
-      capped at 0.1s, so time accumulated from `dt` runs slow when frames stall
-      (e.g. a hidden window). Document it, or also expose unsmoothed time
+- [x] Fixed-rate tick (`sk_set_tick`) + timing passed to callbacks (`dt`,
+      `tick_fraction`); `sk_get_delta_time` removed; input edges relative to the
+      running callback. Resolves the frame-timing decision below
+      (docs/PLAN-tick.md, examples/tick.c)
+- [x] Decided (by the tick design): time accumulated from frame `dt` runs slow
+      when frames stall, because `dt` is capped at 0.1 s. Simulation belongs in a
+      tick, which uses real elapsed time and catches up (up to 5 ticks per frame)
 - [ ] Decide: asset callbacks run on the main thread, so creating a resource
       blocks the frame (the MP3 decode takes ~0.22s). Related to audio streaming
 - [ ] Remove the `PARITY:` notes in `examples/simple.c` as lighting control and

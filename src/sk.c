@@ -12,6 +12,7 @@
 #include "internal/sk_frame_pace.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_render.h"
+#include "internal/sk_tick_clock.h"
 #include "sk_logger.h"
 #include "sk_version.h"
 
@@ -31,6 +32,10 @@ typedef struct {
 
     sk_frame_fn frame_fn;
     void *frame_user_data;
+    sk_tick_fn tick_fn;
+    void *tick_user_data;
+    sk_tick_clock_t tick_clock;
+    unsigned tick_generation; /* bumped by sk_set_tick, to notice changes made inside a tick */
     sk_lifecycle_fn init_fn;
     void *init_user_data;
     sk_lifecycle_fn cleanup_fn;
@@ -40,8 +45,8 @@ typedef struct {
     sk_frame_pace_t pace;
 
     uint64_t start_ticks;
-    double delta_time;      /* this frame's delta (seconds), see sk_get_delta_time */
-    double last_frame_time; /* sk_get_time() when the previous user frame ran */
+    double delta_time;      /* this frame's delta (seconds), passed to the frame callback */
+    double last_frame_time; /* sk_get_time() when the previous frame ran; 0 before the first */
     double fps_delta;       /* smoothed delta for the FPS counter */
 } sk_runtime_t;
 
@@ -96,6 +101,15 @@ void sk_set_frame(sk_frame_fn frame_fn, void *user_data)
 {
     sk_rt.frame_fn = frame_fn;
     sk_rt.frame_user_data = user_data;
+}
+
+SK_KEEP
+void sk_set_tick(sk_tick_fn tick_fn, void *user_data, int hz)
+{
+    sk_rt.tick_fn = hz > 0 ? tick_fn : NULL;
+    sk_rt.tick_user_data = user_data;
+    sk_tick_clock_set_rate(&sk_rt.tick_clock, tick_fn != NULL ? hz : 0);
+    sk_rt.tick_generation++;
 }
 
 SK_KEEP
@@ -230,9 +244,12 @@ static bool pace_frame(void)
     return true;
 }
 
-static void update_delta_time(void)
+/* Update this frame's delta and FPS smoothing. Returns the real elapsed time
+ * since the previous frame (0 for the first), which drives the tick clock. */
+static double update_frame_timing(void)
 {
     double now = sk_get_time();
+    double elapsed = sk_rt.last_frame_time > 0.0 ? now - sk_rt.last_frame_time : 0.0;
     double dt;
 
     if (sk_frame_pace_enabled(&sk_rt.pace)) {
@@ -245,6 +262,26 @@ static void update_delta_time(void)
     sk_rt.last_frame_time = now;
     sk_rt.delta_time = dt;
     sk_rt.fps_delta = sk_rt.fps_delta > 0.0 ? sk_rt.fps_delta + 0.05 * (dt - sk_rt.fps_delta) : dt;
+    return elapsed;
+}
+
+/* Run the ticks that are due (docs/PLAN-tick.md). Input edges seen by a tick are
+ * those since the previous tick. */
+static void run_ticks(double elapsed)
+{
+    const unsigned generation = sk_rt.tick_generation;
+    const float step = (float)sk_rt.tick_clock.step;
+    int ticks = sk_tick_clock_advance(&sk_rt.tick_clock, elapsed, SK_MAX_TICKS_PER_FRAME);
+
+    sk_input_set_context(SK_INPUT_CONTEXT_TICK);
+    for (int i = 0; i < ticks; i++) {
+        if (sk_rt.tick_fn == NULL || sk_rt.tick_generation != generation) {
+            break; /* the tick was changed or removed from inside a tick */
+        }
+        sk_rt.tick_fn(step, sk_rt.tick_user_data);
+        sk_input_end_tick();
+    }
+    sk_input_set_context(SK_INPUT_CONTEXT_FRAME);
 }
 
 static void on_frame(void)
@@ -257,15 +294,16 @@ static void on_frame(void)
     if (!pace_frame()) {
         return;
     }
-    update_delta_time();
+    run_ticks(update_frame_timing());
 
     if (sk_rt.frame_fn != NULL) {
-        sk_rt.frame_fn(sk_rt.frame_user_data);
+        sk_rt.frame_fn((float)sk_rt.delta_time, sk_tick_clock_fraction(&sk_rt.tick_clock),
+                       sk_rt.frame_user_data);
     }
 
-    /* clear per-frame input edges/deltas after the user frame; sokol delivers
-     * the next frame's events before the next frame_cb */
-    sk_input_new_frame();
+    /* clear frame input edges after the frame; sokol delivers the next frame's
+     * events before the next frame_cb */
+    sk_input_end_frame();
 }
 
 static void on_event(const sapp_event *ev)
@@ -368,12 +406,6 @@ void sk_set_target_fps(int fps)
 double sk_get_fps_delta(void)
 {
     return sk_rt.fps_delta;
-}
-
-SK_KEEP
-float sk_get_delta_time(void)
-{
-    return (float)sk_rt.delta_time;
 }
 
 SK_KEEP

@@ -85,29 +85,50 @@ because input is indexed straight from sokol key codes. That is an internal
 detail — code to the `SK_KEY_*` names; a backend swap would remap in
 `src/sk_input.c`, not in consumer code.
 
-## The loop model (important difference from librl)
+## The loop model
 
-librl was poll-driven: `while (rl_tick()) { ... }`. sokol_app owns the frame
-loop and (on web) must drive it via requestAnimationFrame, so there is **no
-`sk_tick()`**. libsk is callback-driven:
+sokol_app owns the frame loop (on the web the browser drives it with
+requestAnimationFrame), so libsk is callback-driven. Two callbacks, for two rates:
+
+- **tick** (`sk_set_tick(fn, user, hz)`): simulation at a fixed rate. Runs 0..N
+  times before each frame with the same `dt` every time. Physics and gameplay go
+  here. It never draws.
+- **frame** (`sk_set_frame(fn, user)`): once per rendered frame. Variable update
+  and drawing. `dt` is the time since the previous frame; `tick_fraction` (0..1)
+  is how far this frame is into the next tick, for drawing tick state smoothly.
 
 ```c
 #include "sk.h"
 
-static void frame(void *user_data) {
+static float prev_x, x;
+
+static void tick(float dt, void *user_data) {
+    prev_x = x;
+    x += 120.0f * dt;                      // deterministic: dt is always 1/60 here
+}
+
+static void frame(float dt, float tick_fraction, void *user_data) {
+    float draw_x = prev_x + (x - prev_x) * tick_fraction;   // smooth at any frame rate
     sk_render_begin();
     sk_render_clear_background(SK_COLOR_RAYWHITE);
-    sk_shape_draw_rectangle(40, 40, 200, 120, SK_COLOR_SKYBLUE);
-    sk_text_draw("hello", 40, 200, 24, SK_COLOR_DARKGRAY);
+    sk_shape_draw_rectangle((int)draw_x, 40, 200, 120, SK_COLOR_SKYBLUE);
     sk_render_end();
 }
 
 int main(void) {
     sk_init_values(800, 600, "libsk", 0);  // configure (does not open window)
-    sk_set_frame(frame, NULL);             // register per-frame callback
+    sk_set_tick(tick, NULL, 60);           // optional: fixed-rate simulation
+    sk_set_frame(frame, NULL);             // required: per-frame update + draw
     return sk_run();                       // open window + run loop (blocks on desktop)
 }
 ```
+
+- Frames are vsync-locked by default. `sk_set_target_fps` is a power/heat cap on
+  frames, not a simulation rate; use a tick for that.
+- After a stall at most 5 ticks run per frame and the backlog is dropped.
+- Input edges (pressed/released, mouse deltas) are relative to the callback
+  reading them, so every key press is seen by exactly one tick.
+- See `examples/tick.c` and [docs/PLAN-tick.md](docs/PLAN-tick.md).
 
 The consumer owns `main()` and calls `sk_run()`; the sokol implementation TU is
 compiled with `SOKOL_NO_ENTRY` so sokol does not generate its own entry point.
