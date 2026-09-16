@@ -13,6 +13,11 @@
 #   rl_name  dropped  reason             left out on purpose
 #   rl_name  todo     [note]             not covered yet; needs a design decision
 #
+# Same-name matching only proves the function exists, not that it behaves the
+# same. Known cases where it doesn't: sk_set_target_fps (no-op) and
+# sk_scene_add / sk_scene_set_layer / sk_scene_draw (no render passes; layers
+# don't order models against sokol_gl content). See docs/TASKS.md.
+#
 # Keep entries grouped by header. Everything must fit the handle-only public API
 # (see AGENTS.md).
 

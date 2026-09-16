@@ -26,8 +26,16 @@
 #define MAX_MESHES 256
 #define MAX_DRAW_QUEUE 512
 #define SK_MAX_JOINTS 128
+#define MAX_BLEND_DRAWS 1024 /* transparent primitives sorted per frame */
 
 /* ----------------------------------------------------------- data types ---- */
+
+/* glTF material alphaMode */
+typedef enum {
+    ALPHA_MODE_OPAQUE = 0,
+    ALPHA_MODE_MASK,  /* alpha test: discard below alpha_cutoff, no blending */
+    ALPHA_MODE_BLEND, /* alpha blended, drawn after opaque, back to front */
+} sk_alpha_mode_t;
 
 typedef struct {
     sg_buffer vbuf;
@@ -36,6 +44,9 @@ typedef struct {
     sg_view view;
     sg_sampler sampler;
     float base_color[4];
+    sk_alpha_mode_t alpha_mode;
+    float alpha_cutoff; /* used when alpha_mode is MASK */
+    bool double_sided;  /* no back-face culling */
     bool skinned;
     vec3_t pmin, pmax; /* local-space AABB (for picking) */
     /* CPU-side bind-pose geometry retained for narrow-phase triangle picking */
@@ -117,8 +128,16 @@ typedef struct {
     sk_handle_t model;
     sk_mat4_t mvp;
     sk_mat4_t model_mat;
+    sk_mat4_t model_view; /* for view-space depth when sorting transparent draws */
     color_t tint;
 } sk_model_draw_t;
+
+/* One transparent primitive to draw in the blended pass. */
+typedef struct {
+    int draw;    /* index into sk_draw_queue */
+    int prim;    /* index into the mesh's primitives */
+    float depth; /* view-space distance along the view direction */
+} sk_blend_draw_t;
 
 /* vs_params_t / vs_skin_params_t / fs_params_t are generated into
  * shaders/sk_model.glsl.h (included above) and mirror the shader uniform blocks. */
@@ -135,8 +154,8 @@ static uint16_t sk_model_free_indices[MAX_MODELS];
 static uint16_t sk_model_generations[MAX_MODELS];
 static unsigned char sk_model_occupied[MAX_MODELS];
 
-static sg_pipeline sk_pip_static;
-static sg_pipeline sk_pip_skinned;
+/* [skinned][blended][double_sided] */
+static sg_pipeline sk_pips[2][2][2];
 static sg_shader sk_shd_static;
 static sg_shader sk_shd_skinned;
 static sg_sampler sk_model_sampler;
@@ -145,6 +164,7 @@ static sg_view sk_model_white_view;
 
 static sk_model_draw_t sk_draw_queue[MAX_DRAW_QUEUE];
 static int sk_draw_count;
+static sk_blend_draw_t sk_blend_draws[MAX_BLEND_DRAWS];
 
 static void enqueue(sk_handle_t handle);
 static bool model_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model_mat);
@@ -284,7 +304,19 @@ static bool build_primitive(const cgltf_primitive *prim, bool skinned, sk_primit
     out->view = sk_model_white_view;
     out->skinned = skinned;
     out->base_color[0] = out->base_color[1] = out->base_color[2] = out->base_color[3] = 1.0f;
+    out->alpha_mode = ALPHA_MODE_OPAQUE;
+    out->alpha_cutoff = 0.5f;
+    out->double_sided = false;
 
+    if (prim->material != NULL) {
+        switch (prim->material->alpha_mode) {
+            case cgltf_alpha_mode_mask: out->alpha_mode = ALPHA_MODE_MASK; break;
+            case cgltf_alpha_mode_blend: out->alpha_mode = ALPHA_MODE_BLEND; break;
+            default: out->alpha_mode = ALPHA_MODE_OPAQUE; break;
+        }
+        out->alpha_cutoff = prim->material->alpha_cutoff;
+        out->double_sided = prim->material->double_sided;
+    }
     if (prim->material != NULL && prim->material->has_pbr_metallic_roughness) {
         const cgltf_pbr_metallic_roughness *pbr = &prim->material->pbr_metallic_roughness;
         memcpy(out->base_color, pbr->base_color_factor, sizeof(out->base_color));
@@ -925,6 +957,7 @@ static void enqueue(sk_handle_t handle)
     e->model = handle;
     e->mvp = sk_mat4_mul(vp, model_mat);
     e->model_mat = model_mat;
+    e->model_view = sk_mat4_mul(view, model_mat);
     e->tint = sk_color_get(model_ptr->tint != 0 ? model_ptr->tint : 0);
 }
 
@@ -937,12 +970,68 @@ static void apply_fs(sk_model_draw_t *e, sk_primitive_t *prim)
     fsp.u_tint[2] = e->tint.b * prim->base_color[2];
     fsp.u_tint[3] = e->tint.a * prim->base_color[3];
     fsp.u_ambient[0] = 0.3f; fsp.u_ambient[1] = fsp.u_ambient[2] = fsp.u_ambient[3] = 0.0f;
+    fsp.u_material[0] = prim->alpha_mode == ALPHA_MODE_MASK ? prim->alpha_cutoff : 0.0f;
+    fsp.u_material[1] = fsp.u_material[2] = fsp.u_material[3] = 0.0f;
     sg_apply_uniforms(UB_fs_params, &(sg_range){.ptr = &fsp, .size = sizeof(fsp)});
 }
 
+/* A primitive goes in the blended pass if its material blends, or if the model's
+ * tint makes it translucent (e.g. fading a model out). */
+static bool is_blended(const sk_model_draw_t *e, const sk_primitive_t *prim)
+{
+    return prim->alpha_mode == ALPHA_MODE_BLEND || e->tint.a < 1.0f;
+}
+
+/* Sort transparent draws back to front (largest view-space depth first). */
+static int compare_blend_draws(const void *a, const void *b)
+{
+    float da = ((const sk_blend_draw_t *)a)->depth;
+    float db = ((const sk_blend_draw_t *)b)->depth;
+    return (da < db) - (da > db);
+}
+
+static void draw_primitive(sk_model_draw_t *e, sk_model_t *model_ptr, sk_primitive_t *prim,
+                           bool blended, sg_pipeline *cur_pip)
+{
+    sg_pipeline pip = sk_pips[prim->skinned ? 1 : 0][blended ? 1 : 0][prim->double_sided ? 1 : 0];
+    if (pip.id != cur_pip->id) {
+        sg_apply_pipeline(pip);
+        *cur_pip = pip;
+    }
+
+    if (prim->skinned) {
+        vs_skin_params_t vsp;
+        memcpy(vsp.mvp, e->mvp.m, sizeof(vsp.mvp));
+        memcpy(vsp.model, e->model_mat.m, sizeof(vsp.model));
+        for (int j = 0; j < SK_MAX_JOINTS; j++) {
+            memcpy(vsp.joints_mat[j], model_ptr->joint_matrices[j].m, 16 * sizeof(float));
+        }
+        sg_apply_uniforms(UB_vs_skin_params, &(sg_range){.ptr = &vsp, .size = sizeof(vsp)});
+    } else {
+        vs_params_t vsp;
+        memcpy(vsp.mvp, e->mvp.m, sizeof(vsp.mvp));
+        memcpy(vsp.model, e->model_mat.m, sizeof(vsp.model));
+        sg_apply_uniforms(UB_vs_params, &(sg_range){.ptr = &vsp, .size = sizeof(vsp)});
+    }
+
+    sg_apply_bindings(&(sg_bindings){
+        .vertex_buffers[0] = prim->vbuf,
+        .index_buffer = prim->ibuf,
+        .views[VIEW_tex] = prim->view,
+        .samplers[SMP_smp] = prim->sampler,
+    });
+    apply_fs(e, prim);
+    sg_draw(0, prim->index_count, 1);
+}
+
+/* Draw queued models: opaque and alpha-tested primitives first (depth writes on),
+ * then blended primitives sorted back to front (depth test on, writes off).
+ * Limitation: blended model primitives are not sorted against sokol_gl content
+ * (sprites, shapes), which is drawn after this. */
 void sk_model_flush(void)
 {
-    int cur_pip = 0; /* 0 none, 1 static, 2 skinned */
+    sg_pipeline cur_pip = {0};
+    int blend_count = 0;
 
     for (int i = 0; i < sk_draw_count; i++) {
         sk_model_draw_t *e = &sk_draw_queue[i];
@@ -952,36 +1041,31 @@ void sk_model_flush(void)
 
         for (int p = 0; p < mesh_ptr->prim_count; p++) {
             sk_primitive_t *prim = &mesh_ptr->prims[p];
-            int want = prim->skinned ? 2 : 1;
-            if (want != cur_pip) {
-                sg_apply_pipeline(prim->skinned ? sk_pip_skinned : sk_pip_static);
-                cur_pip = want;
-            }
-
-            if (prim->skinned) {
-                vs_skin_params_t vsp;
-                memcpy(vsp.mvp, e->mvp.m, sizeof(vsp.mvp));
-                memcpy(vsp.model, e->model_mat.m, sizeof(vsp.model));
-                for (int j = 0; j < SK_MAX_JOINTS; j++) {
-                    memcpy(vsp.joints_mat[j], model_ptr->joint_matrices[j].m, 16 * sizeof(float));
-                }
-                sg_apply_uniforms(UB_vs_skin_params, &(sg_range){.ptr = &vsp, .size = sizeof(vsp)});
+            if (!is_blended(e, prim)) {
+                draw_primitive(e, model_ptr, prim, false, &cur_pip);
+            } else if (blend_count < MAX_BLEND_DRAWS) {
+                vec3_t center = {(prim->pmin.x + prim->pmax.x) * 0.5f,
+                                 (prim->pmin.y + prim->pmax.y) * 0.5f,
+                                 (prim->pmin.z + prim->pmax.z) * 0.5f};
+                sk_blend_draws[blend_count++] = (sk_blend_draw_t){
+                    .draw = i,
+                    .prim = p,
+                    .depth = -sk_mat4_mul_point(e->model_view, center).z,
+                };
             } else {
-                vs_params_t vsp;
-                memcpy(vsp.mvp, e->mvp.m, sizeof(vsp.mvp));
-                memcpy(vsp.model, e->model_mat.m, sizeof(vsp.model));
-                sg_apply_uniforms(UB_vs_params, &(sg_range){.ptr = &vsp, .size = sizeof(vsp)});
+                /* over budget: draw unsorted rather than drop it */
+                draw_primitive(e, model_ptr, prim, true, &cur_pip);
             }
-
-            sg_apply_bindings(&(sg_bindings){
-                .vertex_buffers[0] = prim->vbuf,
-                .index_buffer = prim->ibuf,
-                .views[VIEW_tex] = prim->view,
-                .samplers[SMP_smp] = prim->sampler,
-            });
-            apply_fs(e, prim);
-            sg_draw(0, prim->index_count, 1);
         }
+    }
+
+    qsort(sk_blend_draws, (size_t)blend_count, sizeof(sk_blend_draws[0]), compare_blend_draws);
+    for (int b = 0; b < blend_count; b++) {
+        sk_model_draw_t *e = &sk_draw_queue[sk_blend_draws[b].draw];
+        sk_model_t *model_ptr = resolve(e->model);
+        sk_mesh_t *mesh_ptr = model_ptr ? resolve_mesh(model_ptr->mesh) : NULL;
+        if (model_ptr == NULL || mesh_ptr == NULL) continue;
+        draw_primitive(e, model_ptr, &mesh_ptr->prims[sk_blend_draws[b].prim], true, &cur_pip);
     }
     sk_draw_count = 0;
 }
@@ -1032,30 +1116,37 @@ void sk_model_init(void)
 
     base = (sg_pipeline_desc){
         .index_type = SG_INDEXTYPE_UINT32,
-        .cull_mode = SG_CULLMODE_BACK,
         .face_winding = SG_FACEWINDING_CCW,
         .depth = {.compare = SG_COMPAREFUNC_LESS_EQUAL, .write_enabled = true},
     };
 
-    {
-        sg_pipeline_desc d = base;
-        d.shader = sk_shd_static;
-        d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
-        d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
-        d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2;
-        d.label = "sk-model-pip-static";
-        sk_pip_static = sg_make_pipeline(&d);
-    }
-    {
-        sg_pipeline_desc d = base;
-        d.shader = sk_shd_skinned;
-        d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
-        d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
-        d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2;
-        d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT4;
-        d.layout.attrs[4].format = SG_VERTEXFORMAT_FLOAT4;
-        d.label = "sk-model-pip-skinned";
-        sk_pip_skinned = sg_make_pipeline(&d);
+    for (int skinned = 0; skinned < 2; skinned++) {
+        for (int blended = 0; blended < 2; blended++) {
+            for (int double_sided = 0; double_sided < 2; double_sided++) {
+                sg_pipeline_desc d = base;
+                d.shader = skinned ? sk_shd_skinned : sk_shd_static;
+                d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+                d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
+                d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2;
+                if (skinned) {
+                    d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT4;
+                    d.layout.attrs[4].format = SG_VERTEXFORMAT_FLOAT4;
+                }
+                d.cull_mode = double_sided ? SG_CULLMODE_NONE : SG_CULLMODE_BACK;
+                if (blended) {
+                    d.depth.write_enabled = false;
+                    d.colors[0].blend = (sg_blend_state){
+                        .enabled = true,
+                        .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+                        .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                        .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                        .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                    };
+                }
+                d.label = "sk-model-pip";
+                sk_pips[skinned][blended][double_sided] = sg_make_pipeline(&d);
+            }
+        }
     }
 
     sk_model_sampler = sg_make_sampler(&(sg_sampler_desc){
@@ -1090,8 +1181,13 @@ void sk_model_deinit(void)
     sg_destroy_view(sk_model_white_view);
     sg_destroy_image(sk_model_white_img);
     sg_destroy_sampler(sk_model_sampler);
-    sg_destroy_pipeline(sk_pip_static);
-    sg_destroy_pipeline(sk_pip_skinned);
+    for (int skinned = 0; skinned < 2; skinned++) {
+        for (int blended = 0; blended < 2; blended++) {
+            for (int double_sided = 0; double_sided < 2; double_sided++) {
+                sg_destroy_pipeline(sk_pips[skinned][blended][double_sided]);
+            }
+        }
+    }
     sg_destroy_shader(sk_shd_static);
     sg_destroy_shader(sk_shd_skinned);
     sk_handle_pool_reset(&sk_model_pool);

@@ -5,7 +5,10 @@
  * Uniform blocks mirror the C structs in sk_model.c (std140):
  *   vs_params      = mvp, model
  *   vs_skin_params = mvp, model, joints_mat[128]
- *   fs_params      = u_light_dir, u_tint, u_ambient
+ *   fs_params      = u_light_dir, u_tint, u_ambient, u_material
+ *
+ * u_material.x is the alpha cutoff: fragments with alpha below it are discarded
+ * (glTF alphaMode MASK). 0 for OPAQUE and BLEND, so nothing is discarded.
  */
 
 @vs vs_static
@@ -55,6 +58,7 @@ layout(binding=1) uniform fs_params {
     vec4 u_light_dir;
     vec4 u_tint;
     vec4 u_ambient;
+    vec4 u_material;
 };
 layout(binding=0) uniform texture2D tex;
 layout(binding=0) uniform sampler smp;
@@ -68,6 +72,9 @@ void main() {
     float a = u_ambient.x;
     float lit = a + (1.0 - a) * d;
     vec4 base = texture(sampler2D(tex, smp), v_uv) * u_tint;
+    if (base.a < u_material.x) {
+        discard;
+    }
     frag_color = vec4(base.rgb * lit, base.a);
 }
 @end
