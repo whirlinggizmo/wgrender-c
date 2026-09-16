@@ -151,8 +151,8 @@ sk_handle_t sk_material_create_custom(sk_handle_t shader);
 - **Textures:** glTF images become unnamed texture resources shared between the
   mesh's materials; materials hold references. Picking uses the material the model
   actually draws with (override included), and the base color texture's alpha.
-- **Not yet:** texture coordinate set 1, images in external files and environment
-  lighting (wanted next), then vertex colors, KHR_texture_transform, glTF sampler
+- **Not yet:** texture coordinate set 1, images in external files, environment
+  lighting and texture transforms (wanted next), then vertex colors, glTF sampler
   modes (always linear + repeat), mipmaps, tone mapping. Tracked in TASKS.md
   under "Materials: not supported yet".
 

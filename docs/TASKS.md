@@ -166,11 +166,17 @@ Wanted next:
       direct highlights and look dark. Scene environment map (prefiltered
       specular + irradiance, BRDF lookup table), probably with HDR input and tone
       mapping (below).
+- [ ] Texture transforms (tiling, offset, rotation) per material texture:
+      loaded from glTF `KHR_texture_transform`, and settable in code by name (e.g.
+      `base_color_texture_scale` / `_offset` / `_rotation`; needs
+      `sk_material_set_vec2`). Today UVs outside 0..1 tile (textures repeat), but
+      the extension is ignored and code-created materials can't tile. Alpha-tested
+      picking must apply the same transform. Also enables scrolling textures and
+      flipbooks.
 
 Later:
 
 - [ ] glTF vertex colors (COLOR_0) multiplying base color
-- [ ] KHR_texture_transform (texture offset, rotation, scale)
 - [ ] glTF sampler modes (wrap, filter); today always linear + repeat
 - [ ] Mipmaps for material textures (distant textures shimmer)
 - [ ] Tone mapping / exposure (lit values above 1 clip)
