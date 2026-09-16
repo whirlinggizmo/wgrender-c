@@ -4,8 +4,9 @@ A small game/graphics runtime built on [sokol](https://github.com/floooh/sokol),
 evolving the ideas from `librl` (the raylib-backed `rl_*` library) rather than
 porting it 1:1. Public symbols use the `sk_` prefix.
 
-This is an early experiment. The first milestone is a **desktop GL vertical
-slice**: window, clear, 2D shapes, text, and input.
+Still early, but past the first vertical slice: desktop GL and web (WebGL2 /
+WebGPU) builds, 2D shapes and text, TTF fonts, textures, 3D sprites, glTF
+models with GPU skinning, a scene graph with picking, audio, and async assets.
 
 ## Build (desktop, Linux GL)
 
@@ -90,12 +91,13 @@ reference/librl the raylib library this evolves from (read-only reference)
   `sk_render_end()`, so `sk_render_clear_background()` works in librl's
   begin → clear → draw → end order even though sokol clears via the pass
   load-action.
-- Text uses `sokol_debugtext` (built-in 8x8 bitmap fonts) for now — no font
-  handle yet. Real TTF/fontstash fonts come later.
+- `sk_text_draw` without a font uses `sokol_debugtext` (built-in 8x8 bitmap
+  font). TTF fonts (`sk_font_create`, `sk_text_draw_ex`, `text2d`) go through
+  fontstash.
 
-## Not yet ported (next phases)
+## Not yet ported from librl
 
-3D (camera3d, 3D shapes, scene, picking), textures/sprites, models + skeletal
-animation, audio (sound/music), the scratch buffer + `_to_scratch` marshalling,
-filesystem/asset loading, the web (wasm) build, and language bindings (trimmed
-to a single binding until the API stabilizes).
+Main gaps: `sprite2d`, `text3d`, the remaining 3D shapes, per-object picking,
+lighting controls, window/monitor control, language bindings and tests. See the
+**librl parity** section of [docs/ROADMAP.md](docs/ROADMAP.md) for the full list,
+the suggested order, and what was left out on purpose.

@@ -21,6 +21,45 @@ that lean on them. Items with a design doc link there.
    (rides the 2D batch path + materials from 1–2). High visual payoff; doing it
    right is what finally justifies a real batched renderer over sokol_gl immediate.
 
+## librl parity
+
+Features librl (`rl_*`) has that libsk doesn't yet, in suggested order. Port the
+*capability*, not the signature: everything must still fit the handle-only public
+API (see AGENTS.md).
+
+1. **`sprite2d` + screen-space texture draw** (`rl_texture_draw_ex`) — overlaps
+   item 2 above; land them together.
+2. **`text3d`** — world-space text object (font/size/content/transform/color,
+   facing, visible, pickable, bounds) plus a one-shot draw. Mirrors `text2d` +
+   `sprite3d` facing.
+3. **Remaining 3D shapes** — `rectangle_3d`, `circle_3d`, `line_strip_3d` (immediate
+   and retained), and a separate stroke color. `line_strip_3d` takes a point array
+   in librl, so it needs a handle-only shape (e.g. a builder: `add_point`).
+4. **Per-object picking** — `pick_model` / `pick_sprite3d` / `pick_shape` /
+   `pick_text3d` alongside `sk_scene_pick`; `set_pickable` / `is_pickable` on
+   model, sprite3d, sprite2d, text2d, text3d (only shape has it today); pick stats
+   (broadphase/narrowphase counters) under `sk_debug`.
+5. **Lighting controls** — `enable` / `disable` / `is_enabled`, `set_light_direction`,
+   `set_light_ambient`. The light is currently hardcoded in `src/sk_model.c`.
+6. **Window / monitor** — `set_size`, `set_position`, monitor count / current /
+   set / width / height / position. Check what sokol_app exposes per platform;
+   some may be desktop-only no-ops on web.
+7. **Small leftovers** — `sk_sound_set_pan`, `sk_model_get_animation_frame_count`,
+   FPS / `text_draw_fps` with a custom font, `texture_draw_ground`,
+   `sk_asset_ensure_many` (batch ensure). Maybe `*_is_valid` handle checks.
+
+Not a code gap, but part of parity: **gamepad and touch input** (librl only
+exposed these through scratch), **language bindings** (librl has Haxe, JS, Lua
+and Nim; start with one), and a **test suite** (librl has unit, smoke, regression,
+headless and bindings tests; pairs with the headless renderer below).
+
+**Left out on purpose** (not gaps): the scratch buffer and `_to_scratch`
+functions (value returns instead), public `fs_*` (internal; see
+[PLAN-sk_fs.md](PLAN-sk_fs.md)), `music_*` (a looping Sound), `*_create_from_file`
+(objects come from handles), `window_open` / `input_poll_events` /
+`init_values_async` (sokol owns the loop; see `sk_run`), and
+`model_set_asset` / `load_asset` (Mesh resource + `sk_model_set_mesh`).
+
 ## Supporting / cross-cutting (slot in when an item above needs it)
 
 - **Offscreen / render-to-texture** — `sk_render` has no render targets yet.
@@ -55,6 +94,28 @@ that lean on them. Items with a design doc link there.
   sokol_app always makes a window, so headless needs our own tick loop +
   `sg_setup` with the dummy backend + null audio. Same "sapp owns the loop" seam
   as the JSPI finding. Pairs naturally with a test suite.
+- **Test suite (features + librl parity)** — build it in layers, cheapest first:
+  1. **API parity report** (`make parity`): diff librl's public `rl_*` symbols
+     against `sk_*` using a checked-in map file that marks each librl function as
+     *ported* (with its new name), *dropped on purpose* (with the reason), or
+     *todo*. Unknown symbols fail, so new librl API can't be missed. Starts as a
+     report, then gates once parity is reached. No GPU needed.
+  2. **Unit tests** (plain C, no window): handle pool, `sk_fs` / asset
+     bookkeeping, scene layers and ordering, ray-vs-cube/sphere/sprite math
+     (including alpha test), animation sampling, text2d state. Follow librl's
+     `tests/unit` layout so the two suites look alike.
+  3. **Shared behavior tests** (the real parity check): each scenario (build a
+     scene, pick at pixel X, measure text, count animation frames, sample a joint)
+     is written once against a small adapter header with one version for librl
+     and one for libsk, then run on both and compared with tolerances. Anything
+     that depends on rasterization (e.g. text metrics from raylib vs fontstash)
+     gets a loose tolerance or is marked as expected to differ.
+  4. **Headless smoke** (needs the null renderer above): run every example for N
+     frames under the dummy backend and require exit 0 and no error logs. Web
+     equivalent later (Node/Chromium, as librl does).
+  5. **Image comparison** (later, optional): render fixed scenes to offscreen
+     targets and compare with a per-pixel tolerance. Needs render-to-texture;
+     prone to flakiness across GPUs, so keep it out of the default `make test`.
 
 ## Dev ergonomics / nice-to-have
 
