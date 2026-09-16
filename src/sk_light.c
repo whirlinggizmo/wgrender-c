@@ -10,7 +10,6 @@
 #include "sk_logger.h"
 
 #define MAX_LIGHTS 256
-#define DEG2RAD 0.01745329251994329577f
 
 /* Light object: parameters as set through the API. Resolved into
  * sk_scene_light_t (world-space, radiance, cone cosines) when a scene draws. */
@@ -214,8 +213,8 @@ bool sk_light_get_scene_light(sk_handle_t light, sk_scene_light_t *out)
         .position = light_ptr->position,
         .direction = light_ptr->direction,
         .range = light_ptr->range,
-        .cos_inner = cosf(light_ptr->inner_degrees * DEG2RAD),
-        .cos_outer = cosf(light_ptr->outer_degrees * DEG2RAD),
+        .cos_inner = cosf(light_ptr->inner_degrees * SK_DEG2RAD),
+        .cos_outer = cosf(light_ptr->outer_degrees * SK_DEG2RAD),
     };
     return true;
 }

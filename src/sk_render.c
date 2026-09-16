@@ -16,7 +16,6 @@
 #include "sokol_glue.h"
 #include "util/sokol_gl.h"
 
-#define SK_DEG2RAD 0.01745329251994329577f
 #define MAX_RENDER_CMDS 1024
 
 /* Render model
@@ -274,21 +273,11 @@ void sk_render_begin_mode_3d(void)
     sgl_defaults();
     sgl_load_pipeline(sk_pip_3d);
 
+    /* same matrices as models and picking (sk_camera3d_projection / _view) */
     sgl_matrix_mode_projection();
-    sgl_load_identity();
-    if (cam.projection == SK_CAMERA3D_ORTHOGRAPHIC) {
-        const float top = cam.fovy * 0.5f;
-        const float right = top * aspect;
-        sgl_ortho(-right, right, -top, top, -1000.0f, 1000.0f);
-    } else {
-        sgl_perspective(cam.fovy * SK_DEG2RAD, aspect, 0.01f, 1000.0f);
-    }
-
+    sgl_load_matrix(sk_camera3d_projection(&cam, aspect).m);
     sgl_matrix_mode_modelview();
-    sgl_load_identity();
-    sgl_lookat(cam.position.x, cam.position.y, cam.position.z,
-               cam.target.x, cam.target.y, cam.target.z,
-               cam.up.x, cam.up.y, cam.up.z);
+    sgl_load_matrix(sk_camera3d_view(&cam).m);
 }
 
 SK_KEEP

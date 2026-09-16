@@ -41,8 +41,8 @@ sk_ray_t sk_pick_ray_from_screen(const sk_camera3d_t *cam,
     }
 
     aspect = screen_h > 0.0f ? screen_w / screen_h : 1.0f;
-    view = sk_mat4_lookat(cam->position, cam->target, cam->up);
-    proj = sk_mat4_perspective(cam->fovy * 0.01745329252f, aspect, 0.01f, 1000.0f);
+    view = sk_camera3d_view(cam);
+    proj = sk_camera3d_projection(cam, aspect);
     inv_vp = sk_mat4_inverse(sk_mat4_mul(proj, view));
 
     ndc_x = 2.0f * mouse_x / screen_w - 1.0f;

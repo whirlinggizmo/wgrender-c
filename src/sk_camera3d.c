@@ -133,6 +133,26 @@ bool sk_camera3d_ensure_active(void)
     return resolve(sk_active_camera, &index);
 }
 
+sk_mat4_t sk_camera3d_projection(const sk_camera3d_t *cam, float aspect)
+{
+    if (aspect <= 0.0f) {
+        aspect = 1.0f;
+    }
+    if (cam->projection == SK_CAMERA3D_ORTHOGRAPHIC) {
+        const float top = cam->fovy * 0.5f;
+        const float right = top * aspect;
+        return sk_mat4_ortho(-right, right, -top, top, SK_CAMERA3D_ORTHOGRAPHIC_NEAR,
+                             SK_CAMERA3D_ORTHOGRAPHIC_FAR);
+    }
+    return sk_mat4_perspective(cam->fovy * SK_DEG2RAD, aspect, SK_CAMERA3D_PERSPECTIVE_NEAR,
+                               SK_CAMERA3D_PERSPECTIVE_FAR);
+}
+
+sk_mat4_t sk_camera3d_view(const sk_camera3d_t *cam)
+{
+    return sk_mat4_lookat(cam->position, cam->target, cam->up);
+}
+
 bool sk_camera3d_get_active_data(sk_camera3d_t *out)
 {
     uint16_t index = 0;

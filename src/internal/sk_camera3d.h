@@ -3,7 +3,15 @@
 
 #include <stdbool.h>
 
+#include "internal/sk_math.h"
 #include "sk_types.h"
+
+/* Clip planes shared by every 3D path. Orthographic uses a symmetric range so
+ * content behind the camera position still shows, as sokol_gl did before. */
+#define SK_CAMERA3D_PERSPECTIVE_NEAR 0.01f
+#define SK_CAMERA3D_PERSPECTIVE_FAR 1000.0f
+#define SK_CAMERA3D_ORTHOGRAPHIC_NEAR -1000.0f
+#define SK_CAMERA3D_ORTHOGRAPHIC_FAR 1000.0f
 
 typedef struct {
     vec3_t position;
@@ -21,5 +29,12 @@ bool sk_camera3d_ensure_active(void);
 
 /* Fetch the parameters of the currently active camera. */
 bool sk_camera3d_get_active_data(sk_camera3d_t *out);
+
+/* The single source of truth for camera matrices: sokol_gl 3D mode, models and
+ * picking all use these, so they can't disagree about projection or view.
+ * Perspective: fovy is the vertical field of view in degrees. Orthographic: fovy
+ * is the visible height in world units. */
+sk_mat4_t sk_camera3d_projection(const sk_camera3d_t *cam, float aspect);
+sk_mat4_t sk_camera3d_view(const sk_camera3d_t *cam);
 
 #endif // SK_INTERNAL_CAMERA3D_H

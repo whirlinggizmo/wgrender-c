@@ -17,6 +17,8 @@ typedef struct {
 } test_case_t;
 
 static const test_case_t TESTS[] = {
+    {"camera_projection", test_camera_projection},
+    {"pick_ray_from_screen_ortho", test_pick_ray_from_screen_ortho},
     {"frame_pace_unpaced", test_frame_pace_unpaced},
     {"frame_pace_schedule", test_frame_pace_schedule},
     {"frame_pace_web_skip", test_frame_pace_web_skip},
@@ -29,6 +31,7 @@ static const test_case_t TESTS[] = {
     {"light_falloff", test_light_falloff},
     {"light_select", test_light_select},
     {"light_api", test_light_api},
+    {"math_angles", test_math_angles},
     {"math_inverse", test_math_inverse},
     {"math_trs", test_math_trs},
     {"pick_ray_sphere", test_pick_ray_sphere},

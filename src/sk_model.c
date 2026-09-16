@@ -1060,8 +1060,8 @@ static int begin_draw(sk_handle_t handle, sk_model_t *model_ptr)
 
     aspect = sapp_height() > 0 ? (float)sapp_width() / (float)sapp_height() : 1.0f;
     model_mat = sk_mat4_trs(model_ptr->position, model_ptr->rotation, model_ptr->scale);
-    view = sk_mat4_lookat(cam.position, cam.target, cam.up);
-    proj = sk_mat4_perspective(cam.fovy * 0.01745329252f, aspect, 0.01f, 1000.0f);
+    view = sk_camera3d_view(&cam);
+    proj = sk_camera3d_projection(&cam, aspect);
 
     e = &sk_model_draws[sk_model_draw_count];
     e->model = handle;

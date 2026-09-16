@@ -5,6 +5,9 @@
 
 #include "sk_types.h"
 
+#define SK_DEG2RAD 0.01745329251994329577f /* degrees -> radians (pi / 180) */
+#define SK_RAD2DEG 57.2957795130823208768f /* radians -> degrees (180 / pi) */
+
 /* Column-major 4x4 matrices (OpenGL convention), matching sokol_gl's
  * perspective/lookat so custom-pipeline meshes line up with sokol_gl shapes. */
 typedef struct {
@@ -41,6 +44,20 @@ static inline sk_mat4_t sk_mat4_perspective(float fovy_rad, float aspect, float 
     r.m[11] = -1.0f;
     r.m[14] = (2.0f * f * n) / (n - f);
     return r;
+}
+
+/* glOrtho / sgl_ortho convention (column-major). */
+static inline sk_mat4_t sk_mat4_ortho(float l, float r, float b, float t, float n, float f)
+{
+    sk_mat4_t m = {{0}};
+    m.m[0] = 2.0f / (r - l);
+    m.m[5] = 2.0f / (t - b);
+    m.m[10] = -2.0f / (f - n);
+    m.m[12] = -(r + l) / (r - l);
+    m.m[13] = -(t + b) / (t - b);
+    m.m[14] = -(f + n) / (f - n);
+    m.m[15] = 1.0f;
+    return m;
 }
 
 static inline vec3_t sk_v3_sub(vec3_t a, vec3_t b) { return (vec3_t){a.x - b.x, a.y - b.y, a.z - b.z}; }

@@ -45,3 +45,10 @@ void test_math_trs(void)
     p = sk_mat4_mul_point(sk_mat4_trs(origin, (vec3_t){0, HALF_PI, HALF_PI}, unit), (vec3_t){0, 0, 1});
     CHECK_VEC3_NEAR(p, 0, 1, 0, EPS);
 }
+
+void test_math_angles(void)
+{
+    CHECK_NEAR(180.0f * SK_DEG2RAD, 3.14159265f, 1e-6f);
+    CHECK_NEAR(0.5f * SK_RAD2DEG, 28.6478898f, 1e-4f);
+    CHECK_NEAR(37.0f * SK_DEG2RAD * SK_RAD2DEG, 37.0f, 1e-4f);
+}

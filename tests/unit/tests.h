@@ -3,6 +3,9 @@
 
 /* Every unit test; add new ones here and to the table in main.c. */
 
+void test_camera_projection(void);
+void test_pick_ray_from_screen_ortho(void);
+
 void test_frame_pace_unpaced(void);
 void test_frame_pace_schedule(void);
 void test_frame_pace_web_skip(void);
@@ -20,6 +23,7 @@ void test_light_falloff(void);
 void test_light_select(void);
 void test_light_api(void);
 
+void test_math_angles(void);
 void test_math_inverse(void);
 void test_math_trs(void);
 

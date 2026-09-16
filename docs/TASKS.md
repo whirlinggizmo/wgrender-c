@@ -65,9 +65,11 @@ tick the box in the same commit.
       own clock: summed dt matches wall time with vsync on/off, capped or not
 - [ ] Window flags accepted but ignored: `RESIZABLE`, `UNDECORATED`, `TRANSPARENT`,
       `HIDDEN`, `ALWAYS_RUN` (only fullscreen, high-DPI, MSAA and vsync-off work)
-- [ ] Bug: orthographic cameras only affect sokol_gl content. Models
-      (`begin_draw` in `src/sk_model.c`) and picking (`sk_pick_ray_from_screen`)
-      always use a perspective projection
+- [x] Bug: orthographic cameras only affected sokol_gl content; models and
+      picking always used perspective (fovy 6 world units became a 6 degree FOV,
+      so models drew hugely magnified and picks missed). Fixed: one
+      `sk_camera3d_projection` / `sk_camera3d_view` used by sokol_gl 3D mode,
+      models and picking
 - [x] Fixed-rate tick (`sk_set_tick`) + timing passed to callbacks (`dt`,
       `tick_fraction`); `sk_get_delta_time` removed; input edges relative to the
       running callback. Resolves the frame-timing decision below
