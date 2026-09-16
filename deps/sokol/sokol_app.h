@@ -73,7 +73,7 @@
         - with SOKOL_WGPU: a WebGPU implementation library (tested with webgpu_dawn)
     - on iOS:
         - all backends: Foundation, UIKit, QuartzCore
-        - with SOKOL_METAL: Metal
+        - with SOKOL_METAL: Metal, CoreGraphics
         - with SOKOL_GLES3: OpenGLES, GLKit
     - on Linux:
         - all backends: X11, Xi, Xcursor, dl, pthread, m
@@ -127,55 +127,57 @@
 
     FEATURE/PLATFORM MATRIX
     =======================
-                        | Windows | macOS | Linux |  iOS  | Android |  HTML5
-    --------------------+---------+-------+-------+-------+---------+--------
-    gl 4.x              | YES     | YES   | YES   | ---   | ---     |  ---
-    gles3/webgl2        | ---     | ---   | YES(2)| YES   | YES     |  YES
-    metal               | ---     | YES   | ---   | YES   | ---     |  ---
-    d3d11               | YES     | ---   | ---   | ---   | ---     |  ---
-    webgpu              | YES(4)  | YES(4)| YES(4)| NO    | NO      |  YES
-    noapi               | YES     | TODO  | TODO  | ---   | TODO    |  ---
-    KEY_DOWN            | YES     | YES   | YES   | SOME  | TODO    |  YES
-    KEY_UP              | YES     | YES   | YES   | SOME  | TODO    |  YES
-    CHAR                | YES     | YES   | YES   | YES   | TODO    |  YES
-    MOUSE_DOWN          | YES     | YES   | YES   | ---   | ---     |  YES
-    MOUSE_UP            | YES     | YES   | YES   | ---   | ---     |  YES
-    MOUSE_SCROLL        | YES     | YES   | YES   | ---   | ---     |  YES
-    MOUSE_MOVE          | YES     | YES   | YES   | ---   | ---     |  YES
-    MOUSE_ENTER         | YES     | YES   | YES   | ---   | ---     |  YES
-    MOUSE_LEAVE         | YES     | YES   | YES   | ---   | ---     |  YES
-    TOUCHES_BEGAN       | ---     | ---   | ---   | YES   | YES     |  YES
-    TOUCHES_MOVED       | ---     | ---   | ---   | YES   | YES     |  YES
-    TOUCHES_ENDED       | ---     | ---   | ---   | YES   | YES     |  YES
-    TOUCHES_CANCELLED   | ---     | ---   | ---   | YES   | YES     |  YES
-    RESIZED             | YES     | YES   | YES   | YES   | YES     |  YES
-    ICONIFIED           | YES     | YES   | YES   | ---   | ---     |  ---
-    RESTORED            | YES     | YES   | YES   | ---   | ---     |  ---
-    FOCUSED             | YES     | YES   | YES   | ---   | ---     |  YES
-    UNFOCUSED           | YES     | YES   | YES   | ---   | ---     |  YES
-    SUSPENDED           | ---     | ---   | ---   | YES   | YES     |  TODO
-    RESUMED             | ---     | ---   | ---   | YES   | YES     |  TODO
-    QUIT_REQUESTED      | YES     | YES   | YES   | ---   | ---     |  YES
-    IME                 | TODO    | TODO? | TODO  | ???   | TODO    |  ???
-    key repeat flag     | YES     | YES   | YES   | ---   | ---     |  YES
-    windowed            | YES     | YES   | YES   | ---   | ---     |  YES
-    fullscreen          | YES     | YES   | YES   | YES   | YES     |  YES(3)
-    mouse hide          | YES     | YES   | YES   | ---   | ---     |  YES
-    mouse lock          | YES     | YES   | YES   | ---   | ---     |  YES
-    set cursor type     | YES     | YES   | YES   | ---   | ---     |  YES
-    screen keyboard     | ---     | ---   | ---   | YES   | TODO    |  YES
-    swap interval       | YES     | YES   | YES   | YES   | TODO    |  YES
-    high-dpi            | YES     | YES   | TODO  | YES   | YES     |  YES
-    clipboard           | YES     | YES   | YES   | ---   | ---     |  YES
-    MSAA                | YES     | YES   | YES   | YES   | YES     |  YES
-    drag'n'drop         | YES     | YES   | YES   | ---   | ---     |  YES
-    window icon         | YES     | YES(1)| YES   | ---   | ---     |  YES
+                        | Windows | macOS | Linux  |  iOS  | Android | HTML5
+    --------------------+---------+-------+--------+-------+---------+-------
+    gl 4.x              | YES     | YES   | YES    | ---   | ---     | ---
+    gles3/webgl2        | ---     | ---   | YES(2) | YES   | YES     | YES
+    metal               | ---     | YES   | ---    | YES   | ---     | ---
+    d3d11               | YES     | ---   | ---    | ---   | ---     | ---
+    webgpu              | YES(4)  | YES(4)| YES(4) | ---   | ---     | YES
+    vulkan              | YES(7)  | ---   | YES(7) | ---   | ---     | ---
+    noapi               | YES     | TODO  | TODO   | ---   | ---     | ---
+    key+char events     | YES     | YES   | YES    | ---   | ---     | YES
+    mouse events        | YES     | YES   | YES    | ---   | ---     | YES
+    touch events        | ---     | ---   | ---    | YES   | YES     | TES
+    resized event       | YES     | YES   | YES    | YES   | YES     | YES
+    iconifed/restored   | YES     | YES   | YES    | ---   | ---     | ---
+    focused/unfocused   | YES     | YES   | YES    | ---   | ---     | YES
+    suspended/resumed   | ---     | ---   | ---    | YES   | YES     | TODO
+    programmatic quit   | YES     | YES   | YES    | ---   | ---     | YES
+    key repeat flag     | YES     | YES   | YES    | ---   | ---     | YES
+    windowed            | YES     | YES   | YES    | ---   | ---     | YES
+    fullscreen          | YES     | YES   | YES    | YES   | YES     | YES(3)
+    depth format        | YES     | YES   | YES    | YES   | YES     | YES
+    mouse hide          | YES     | YES   | YES    | ---   | ---     | YES
+    mouse lock          | YES     | YES   | YES    | ---   | ---     | YES
+    set cursor type     | YES     | YES   | YES    | ---   | ---     | YES
+    screen keyboard     | ---     | ---   | ---    | YES   | ---     | YES
+    high-dpi            | YES     | YES   | TODO   | YES   | YES     | YES
+    clipboard           | YES     | YES   | YES    | ---   | ---     | YES
+    MSAA                | YES     | YES   | YES    | YES   | YES     | YES
+    drag'n'drop         | YES     | YES   | YES    | ---   | ---     | YES
+    window icon         | YES     | YES(1)| YES    | ---   | ---     | YES
+    srgb framebuffer    | YES     | YES   | YES    | YES   | YES     | YES(5)
+    hdr framebuffer     | ---     | YES(6)| ---    | YES(6)| ---     | YES(5)
+    composite mode      | ---     | YES(6)| ---    | ---   | ---     | YES
+    disable vsync       | YES     | ---(8)| YES    | ---   | ---     | ---
+    swap interval       | YES(10) | YES(9)| YES(10)| YES   | ---     |
 
     (1) macOS has no regular window icons, instead the dock icon is changed
     (2) supported with EGL only (not GLX)
     (3) fullscreen in the browser not supported on iphones
     (4) WebGPU on native desktop platforms should be considered experimental
         and mainly useful for debugging and benchmarking
+    (5) only supported on WebGPU, but not WebGL2
+    (6) only supported on Metal, but not GL/GLES3
+    (7) Vulkan support is highly experimental and has serious frame pacing
+        issues on Windows+NVIDIA with FIFO presentation mode
+    (8) on macOS+Metal, rendering is currently always vsync-throttled
+        because CADisplayLink drives the frame loop, and this doesn't allow
+        running faster than vsync, on macOS+GL, setting the swap interval
+        has no effect since macOS 13
+    (9) on macOS+GL, setting the swap interval has no effect since macOS 13
+    (10) swap interval not supported on Vulkan
 
     STEP BY STEP
     ============
@@ -408,9 +410,9 @@
         forwarded for further handling to the operating system, call
         sapp_consume_event() from inside the event handler (NOTE that
         this behaviour is currently only implemented for some HTML5
-        events, support for other platforms and event types will
-        be added as needed, please open a GitHub ticket and/or provide
-        a PR if needed).
+        events and for tvOS key events (to allow menu button passthrough).
+        Support for other platforms and event types will be added as needed,
+        please open a GitHub ticket and/or provide a PR if needed).
 
         NOTE: Do *not* call any 3D API rendering functions in the event
         callback function, since the 3D API context may not be active when the
@@ -1403,7 +1405,7 @@ typedef enum sapp_event_type {
     SAPP_EVENTTYPE_CLIPBOARD_PASTED,
     SAPP_EVENTTYPE_FILES_DROPPED,
     _SAPP_EVENTTYPE_NUM,
-    _SAPP_EVENTTYPE_FORCE_U32 = 0x7FFFFFFF
+    _SAPP_EVENTTYPE_FORCE_U32 = 0x7FFFFFFF,
 } sapp_event_type;
 
 /*
@@ -1536,6 +1538,7 @@ typedef enum sapp_keycode {
     SAPP_KEYCODE_RIGHT_ALT        = 346,
     SAPP_KEYCODE_RIGHT_SUPER      = 347,
     SAPP_KEYCODE_MENU             = 348,
+    _SAPP_KEYCODE_FORCE_U32 = 0x7FFFFFFF,
 } sapp_keycode;
 
 /*
@@ -1553,6 +1556,7 @@ typedef enum sapp_android_tooltype {
     SAPP_ANDROIDTOOLTYPE_FINGER = 1,    // TOOL_TYPE_FINGER
     SAPP_ANDROIDTOOLTYPE_STYLUS = 2,    // TOOL_TYPE_STYLUS
     SAPP_ANDROIDTOOLTYPE_MOUSE = 3,     // TOOL_TYPE_MOUSE
+    _SAPP_ANDROIDTOOLTYPE_FORCE_U32 = 0x7FFFFFFF,
 } sapp_android_tooltype;
 
 /*
@@ -1583,6 +1587,7 @@ typedef enum sapp_mousebutton {
     SAPP_MOUSEBUTTON_RIGHT = 0x1,
     SAPP_MOUSEBUTTON_MIDDLE = 0x2,
     SAPP_MOUSEBUTTON_INVALID = 0x100,
+    _SAPP_MOUSEBUTTON_FORCE_U32 = 0x7FFFFFFF,
 } sapp_mousebutton;
 
 /*
@@ -1716,6 +1721,7 @@ typedef struct sapp_allocator {
 #define _SAPP_LOG_ITEMS \
     _SAPP_LOGITEM_XMACRO(OK, "Ok") \
     _SAPP_LOGITEM_XMACRO(MALLOC_FAILED, "memory allocation failed") \
+    _SAPP_LOGITEM_XMACRO(SWAPCHAIN_DEPTHFORMAT_INVALID, "sapp_desc.swapchain.depth_format must be zero, SAPP_PIXELFORMAT_NONE, SAPP_PIXELFORMAT_DEPTH or SAPP_PIXELFORMAT_DEPTH_STENCIL") \
     _SAPP_LOGITEM_XMACRO(MACOS_INVALID_NSOPENGL_PROFILE, "macos: invalid NSOpenGLProfile (valid choices are 1.0 and 4.1)") \
     _SAPP_LOGITEM_XMACRO(METAL_CREATE_SWAPCHAIN_DEPTH_TEXTURE_FAILED, "metal: failed to create swapchain depth-buffer texture") \
     _SAPP_LOGITEM_XMACRO(METAL_CREATE_SWAPCHAIN_MSAA_TEXTURE_FAILED, "metal: failed to create swapchain msaa texture") \
@@ -1819,6 +1825,9 @@ typedef struct sapp_allocator {
     _SAPP_LOGITEM_XMACRO(WGPU_REQUEST_ADAPTER_STATUS_ERROR, "wgpu: requesting adapter failed with status 'error'") \
     _SAPP_LOGITEM_XMACRO(WGPU_REQUEST_ADAPTER_STATUS_UNKNOWN, "wgpu: requesting adapter failed with status 'unknown'") \
     _SAPP_LOGITEM_XMACRO(WGPU_CREATE_INSTANCE_FAILED, "wgpu: failed to create instance") \
+    _SAPP_LOGITEM_XMACRO(VULKAN_DEBUG_GENERAL, "") \
+    _SAPP_LOGITEM_XMACRO(VULKAN_DEBUG_VALIDATION, "") \
+    _SAPP_LOGITEM_XMACRO(VULKAN_DEBUG_PERFORMANCE, "") \
     _SAPP_LOGITEM_XMACRO(VULKAN_REQUIRED_INSTANCE_EXTENSION_FUNCTION_MISSING, "vulkan: could not lookup a required instance extension function pointer") \
     _SAPP_LOGITEM_XMACRO(VULKAN_ALLOC_DEVICE_MEMORY_NO_SUITABLE_MEMORY_TYPE, "vulkan: could not find suitable memory type") \
     _SAPP_LOGITEM_XMACRO(VULKAN_ALLOCATE_MEMORY_FAILED, "vulkan: vkAllocateMemory() failed!") \
@@ -1845,6 +1854,7 @@ typedef struct sapp_allocator {
 #define _SAPP_LOGITEM_XMACRO(item,msg) SAPP_LOGITEM_##item,
 typedef enum sapp_log_item {
     _SAPP_LOG_ITEMS
+    _SAPP_LOGITEM_FORCE_U32 = 0x7FFFFFFF,
 } sapp_log_item;
 #undef _SAPP_LOGITEM_XMACRO
 
@@ -1853,9 +1863,8 @@ typedef enum sapp_log_item {
 
     Defines the pixel format for swapchain surfaces.
 
-    NOTE: when using sokol_gfx.h do not assume that the underlying
-    values are compatible with sg_pixel_format!
-
+    NOTE: DO NOT directly cast this enum to sokol_gfx.h's sg_pixel_format,
+    the enum values are totally different!
 */
 typedef enum sapp_pixel_format {
     _SAPP_PIXELFORMAT_DEFAULT,
@@ -1863,10 +1872,11 @@ typedef enum sapp_pixel_format {
     SAPP_PIXELFORMAT_RGBA8,
     SAPP_PIXELFORMAT_SRGB8A8,
     SAPP_PIXELFORMAT_BGRA8,
-    SAPP_PIXELFORMAT_SBGRA8,
+    SAPP_PIXELFORMAT_SBGR8A8,
+    SAPP_PIXELFORMAT_RGBA16F,
     SAPP_PIXELFORMAT_DEPTH,
     SAPP_PIXELFORMAT_DEPTH_STENCIL,
-    _SAPP_PIXELFORMAT_FORCE_U32 = 0x7FFFFFFF
+    _SAPP_PIXELFORMAT_FORCE_U32 = 0x7FFFFFFF,
 } sapp_pixel_format;
 
 /*
@@ -1919,11 +1929,12 @@ typedef struct sapp_environment {
 /*
     sapp_swapchain
 
-    Provides swapchain information for the current frame to the outside
-    world via a call to sapp_get_swapchain().
+    Provides swapchain information for the next swapchain render pass,
+    result of sapp_acquire_swapchain()
 
-    NOTE: sapp_get_swapchain() must be called exactly once per frame since
-    on some backends it will also acquire the next swapchain image.
+    NOTE: sapp_acquire_swapchain() must be called exactly once per frame,
+    and ideally right before the swapchain render pass (e.g. not earlier
+    in the frame).
 
     NOTE: when using sokol_gfx.h, don't assume that the sapp_swapchain struct
     has the same memory layout as sg_swapchain! Use the sokol_log.h helper
@@ -1978,6 +1989,20 @@ typedef struct sapp_swapchain {
 } sapp_swapchain;
 
 /*
+    sapp_composite_mode
+
+    Preferred composition mode for the framebuffer surface with background.
+    This is a highly optional feature and may only be fully implemented
+    on the web APIs (WebGL2 and WebGPU)
+*/
+typedef enum sapp_composite_mode {
+    _SAPP_COMPOSITEMODE_DEFAULT,        // default is OPAQUE
+    SAPP_COMPOSITEMODE_OPAQUE,          // no blending with background
+    SAPP_COMPOSITEMODE_PREMULTIPLIED,   // premultiplied alpha-blending with background
+    _SAPP_COMPOSITEMODE_FORCE_U32 = 0x7FFFFFFF,
+} sapp_composite_mode;
+
+/*
     sapp_logger
 
     Used in sapp_desc to provide a logging function. Please be aware that
@@ -2003,35 +2028,42 @@ typedef struct sapp_logger {
     or sapp_run() argument.
 */
 typedef struct sapp_gl_desc {
-    int major_version;            // override GL/GLES major and minor version (defaults: GL4.1 (macOS) or GL4.3, GLES3.1 (Android) or GLES3.0
+    int major_version;          // override GL/GLES major and minor version (defaults: GL4.1 (macOS) or GL4.3, GLES3.1 (Android) or GLES3.0
     int minor_version;
 } sapp_gl_desc;
 
 typedef struct sapp_win32_desc {
-    bool console_utf8;            // if true, set the output console codepage to UTF-8
-    bool console_create;          // if true, attach stdout/stderr to a new console window
-    bool console_attach;          // if true, attach stdout/stderr to parent process
+    bool console_utf8;          // if true, set the output console codepage to UTF-8
+    bool console_create;        // if true, attach stdout/stderr to a new console window
+    bool console_attach;        // if true, attach stdout/stderr to parent process
 } sapp_win32_desc;
 
 typedef struct sapp_html5_desc {
-    const char* canvas_selector;  // css selector of the HTML5 canvas element, default is "#canvas"
-    bool canvas_resize;           // if true, the HTML5 canvas size is set to sapp_desc.width/height, otherwise canvas size is tracked
-    bool preserve_drawing_buffer; // HTML5 only: whether to preserve default framebuffer content between frames
-    bool premultiplied_alpha;     // HTML5 only: whether the rendered pixels use premultiplied alpha convention
-    bool ask_leave_site;          // initial state of the internal html5_ask_leave_site flag (see sapp_html5_ask_leave_site())
-    bool update_document_title;   // if true, update the HTML document.title with sapp_desc.window_title
-    bool bubble_mouse_events;     // if true, mouse events will bubble up to the web page
-    bool bubble_touch_events;     // same for touch events
-    bool bubble_wheel_events;     // same for wheel events
-    bool bubble_key_events;       // if true, bubble up *all* key events to browser, not just key events that represent characters
-    bool bubble_char_events;      // if true, bubble up character events to browser
-    bool use_emsc_set_main_loop;  // if true, use emscripten_set_main_loop() instead of emscripten_request_animation_frame_loop()
+    const char* canvas_selector;    // css selector of the HTML5 canvas element, default is "#canvas"
+    bool canvas_resize;             // if true, the HTML5 canvas size is set to sapp_desc.width/height, otherwise canvas size is tracked
+    bool preserve_drawing_buffer;   // WebGL2 only: whether to preserve default framebuffer content between frames
+    bool ask_leave_site;            // initial state of the internal html5_ask_leave_site flag (see sapp_html5_ask_leave_site())
+    bool update_document_title;     // if true, update the HTML document.title with sapp_desc.window_title
+    bool bubble_mouse_events;       // if true, mouse events will bubble up to the web page
+    bool bubble_touch_events;       // same for touch events
+    bool bubble_wheel_events;       // same for wheel events
+    bool bubble_key_events;         // if true, bubble up *all* key events to browser, not just key events that represent characters
+    bool bubble_char_events;        // if true, bubble up character events to browser
+    bool use_emsc_set_main_loop;    // if true, use emscripten_set_main_loop() instead of emscripten_request_animation_frame_loop()
     bool emsc_set_main_loop_simulate_infinite_loop;   // this will be passed as the simulate_infinite_loop arg to emscripten_set_main_loop()
 } sapp_html5_desc;
 
 typedef struct sapp_ios_desc {
-    bool keyboard_resizes_canvas; // if true, showing the iOS keyboard shrinks the canvas
+    bool keyboard_resizes_canvas;   // if true, showing the iOS keyboard shrinks the canvas
 } sapp_ios_desc;
+
+typedef struct sapp_metal_desc {
+    bool disable_display_sync;      // feeds into CAMetalLayer.displaySyncEnabled
+} sapp_metal_desc;
+
+typedef struct sapp_android_desc {
+    bool (*native_event_cb)(const void* native_event);
+} sapp_android_desc;
 
 typedef struct sapp_desc {
     void (*init_cb)(void);                  // these are the user-provided callbacks without user data
@@ -2047,11 +2079,15 @@ typedef struct sapp_desc {
 
     int width;                          // the preferred width of the window / canvas
     int height;                         // the preferred height of the window / canvas
-    int sample_count;                   // MSAA sample count
-    int swap_interval;                  // the preferred swap interval (ignored on some platforms)
+    sapp_pixel_format depth_format;     // SAPP_PIXELFORMAT_NONE, _DEPTH or _DEPTH_STENCIL, default: SAPP_PIXELFORMAT_DEPTH
+    sapp_composite_mode composite_mode; // default: SAPP_COMPOSITEMODE_OPAQUE
+    int sample_count;                   // MSAA sample count, default: 1
+    int swap_interval;                  // the preferred swap interval (ignored on some platforms), default: 1
+    bool srgb;                          // request sRGB framebuffer (not supported on WebGL)
+    bool hdr;                           // request HDR framebuffer (highly experimental, only supported on macOS+Metal and WebGPU)
+    bool disable_vsync;                 // optional and with differing behaviour, consider this a debugging feature!
     bool high_dpi;                      // whether the rendering canvas is full-resolution on HighDPI displays
     bool fullscreen;                    // whether the window should be created in fullscreen mode
-    bool alpha;                         // whether the framebuffer should have an alpha channel (ignored on some platforms)
     const char* window_title;           // the window title as UTF-8 encoded string
     bool enable_clipboard;              // enable clipboard access, default is false
     int clipboard_size;                 // max size of clipboard content in bytes
@@ -2062,11 +2098,13 @@ typedef struct sapp_desc {
     sapp_allocator allocator;           // optional memory allocation overrides (default: malloc/free)
     sapp_logger logger;                 // logging callback override (default: NO LOGGING!)
 
-    // backend-specific options
+    // backend- and platform-specific options
     sapp_gl_desc gl;
+    sapp_metal_desc metal;
     sapp_win32_desc win32;
     sapp_html5_desc html5;
     sapp_ios_desc ios;
+    sapp_android_desc android;
 } sapp_desc;
 
 /* HTML5 specific: request and response structs for
@@ -2076,6 +2114,7 @@ typedef enum sapp_html5_fetch_error {
     SAPP_HTML5_FETCH_ERROR_NO_ERROR,
     SAPP_HTML5_FETCH_ERROR_BUFFER_TOO_SMALL,
     SAPP_HTML5_FETCH_ERROR_OTHER,
+    _SAPP_HTML5_FORCE_U32 = 0x7FFFFFFF,
 } sapp_html5_fetch_error;
 
 typedef struct sapp_html5_fetch_response {
@@ -2128,10 +2167,16 @@ typedef enum sapp_mouse_cursor {
     SAPP_MOUSECURSOR_CUSTOM_14,
     SAPP_MOUSECURSOR_CUSTOM_15,
     _SAPP_MOUSECURSOR_NUM,
+    _SAPP_MOUSECURSOR_FORCE_U32 = 0x7FFFFFFF,
 } sapp_mouse_cursor;
 
 /* user-provided functions */
 extern sapp_desc sokol_main(int argc, char* argv[]);
+
+/* get runtime environment information */
+SOKOL_APP_API_DECL sapp_environment sapp_get_environment(void);
+/* acquire swapchain info for the next swapchain render pass, call exactly once per frame */
+SOKOL_APP_API_DECL sapp_swapchain sapp_acquire_swapchain(void);
 
 /* returns true after sokol-app has been initialized */
 SOKOL_APP_API_DECL bool sapp_isvalid(void);
@@ -2210,11 +2255,6 @@ SOKOL_APP_API_DECL const char* sapp_get_dropped_file_path(int index);
 
 /* special run-function for SOKOL_NO_ENTRY (in standard mode this is an empty stub) */
 SOKOL_APP_API_DECL void sapp_run(const sapp_desc* desc);
-
-/* get runtime environment information */
-SOKOL_APP_API_DECL sapp_environment sapp_get_environment(void);
-/* get current frame's swapchain information (call once per frame!) */
-SOKOL_APP_API_DECL sapp_swapchain sapp_get_swapchain(void);
 
 /* EGL: get EGLDisplay object */
 SOKOL_APP_API_DECL const void* sapp_egl_get_display(void);
@@ -2721,12 +2761,13 @@ typedef struct {
     WGPUAdapter adapter;
     WGPUDevice device;
     WGPUSurface surface;
-    WGPUTextureFormat render_format;
+    WGPUTextureFormat surface_format;
     WGPUTexture msaa_tex;
     WGPUTextureView msaa_view;
     WGPUTexture depth_stencil_tex;
     WGPUTextureView depth_stencil_view;
     WGPUTextureView swapchain_view;
+    WGPUTextureFormat swapchain_view_format;
     bool init_done;
 } _sapp_wgpu_t;
 #endif
@@ -2742,6 +2783,9 @@ typedef struct {
 
 typedef struct {
     VkInstance instance;
+    #if defined(SOKOL_DEBUG)
+        VkDebugUtilsMessengerEXT debug_utils_messenger;
+    #endif
     VkSurfaceKHR surface;
     VkSurfaceFormatKHR surface_format;
     VkPhysicalDevice physical_device;
@@ -2764,8 +2808,29 @@ typedef struct {
     } sync[_SAPP_VK_MAX_SWAPCHAIN_IMAGES];
     struct {
         PFN_vkSetDebugUtilsObjectNameEXT set_debug_utils_object_name_ext;
+        PFN_vkCreateDebugUtilsMessengerEXT create_debug_utils_messenger_ext;
+        PFN_vkDestroyDebugUtilsMessengerEXT destroy_debug_utils_messenger_ext;
     } ext;
 } _sapp_vk_t;
+#endif
+
+#if defined(SOKOL_METAL)
+typedef struct {
+    id<MTLDevice> device;
+    CAMetalLayer* layer;
+    CADisplayLink* display_link;
+    id<MTLTexture> depth_tex;
+    id<MTLTexture> msaa_tex;
+    // NOTE: CADisplayLink.timestamp seems to be very stable, so we'll use
+    // this instead of the generic measured+filtered frame timing code
+    struct {
+        CFTimeInterval timestamp;
+        CFTimeInterval frame_duration_sec;
+    } timing;
+    #if defined(_SAPP_MACOS)
+    NSTimer* obscured_timer;
+    #endif
+} _sapp_metal_t;
 #endif
 
 #if defined(_SAPP_MACOS)
@@ -2778,7 +2843,7 @@ typedef struct {
 #if defined(SOKOL_METAL) || defined(SOKOL_WGPU)
     @interface _sapp_macos_view : NSView
     - (void)displayLinkFired:(id)sender;
-    - (void)fallbackTimerFired:(NSTimer*)timer;
+    - (void)obscuredTimerFired:(NSTimer*)timer;
     @end
 #elif defined(SOKOL_GLCORE)
     @interface _sapp_macos_view : NSOpenGLView
@@ -2797,22 +2862,6 @@ typedef struct {
     _sapp_macos_view* view;
     NSCursor* standard_cursors[_SAPP_MOUSECURSOR_NUM];
     NSCursor* custom_cursors[_SAPP_MOUSECURSOR_NUM];
-    #if defined(SOKOL_METAL)
-    struct {
-        id<MTLDevice> device;
-        CAMetalLayer* layer;
-        CADisplayLink* display_link;
-        NSTimer* fallback_timer;
-        id<MTLTexture> depth_tex;
-        id<MTLTexture> msaa_tex;
-        // NOTE: CADisplayLink.timestamp seems to be very stable, so we'll use
-        // this instead of the generic measured+filtered frame timing code
-        struct {
-            CFTimeInterval timestamp;
-            CFTimeInterval frame_duration_sec;
-        } timing;
-    } mtl;
-    #endif
     #if defined(SOKOL_WGPU)
     struct {
         CAMetalLayer* mtl_layer;
@@ -2850,21 +2899,7 @@ typedef struct {
         UIViewController* view_ctrl;
     #else
         GLKViewController* view_ctrl;
-    #endif
-    #if defined(SOKOL_METAL)
-    struct {
-        id<MTLDevice> device;
-        CAMetalLayer* layer;
-        CADisplayLink* display_link;
-        id<MTLTexture> depth_tex;
-        id<MTLTexture> msaa_tex;
-        struct {
-            CFTimeInterval timestamp;
-            CFTimeInterval frame_duration_sec;
-        } timing;
-    } mtl;
-    #else
-    EAGLContext* eagl_ctx;
+        EAGLContext* eagl_ctx;
     #endif
     bool suspended;
 } _sapp_ios_t;
@@ -2898,8 +2933,7 @@ typedef struct {
 #if defined(_SAPP_WIN32)
 
 #ifndef DPI_ENUMS_DECLARED
-typedef enum PROCESS_DPI_AWARENESS
-{
+typedef enum PROCESS_DPI_AWARENESS {
     PROCESS_DPI_UNAWARE = 0,
     PROCESS_SYSTEM_DPI_AWARE = 1,
     PROCESS_PER_MONITOR_DPI_AWARE = 2
@@ -2969,6 +3003,7 @@ typedef struct {
 #define WGL_STENCIL_BITS_ARB 0x2023
 #define WGL_DOUBLE_BUFFER_ARB 0x2011
 #define WGL_SAMPLES_ARB 0x2042
+#define WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB 0x20a9
 #define WGL_CONTEXT_DEBUG_BIT_ARB 0x00000001
 #define WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB 0x00000002
 #define WGL_CONTEXT_PROFILE_MASK_ARB 0x9126
@@ -3010,6 +3045,7 @@ typedef struct {
     bool arb_pixel_format;
     bool arb_create_context;
     bool arb_create_context_profile;
+    bool arb_framebuffer_srgb;
     HWND msg_hwnd;
     HDC msg_dc;
 } _sapp_wgl_t;
@@ -3084,6 +3120,7 @@ typedef struct {
 #define GLX_DEPTH_SIZE 12
 #define GLX_STENCIL_SIZE 13
 #define GLX_SAMPLES 0x186a1
+#define GLX_FRAMEBUFFER_SRGB_CAPABLE_ARB 0x20B2
 #define GLX_CONTEXT_CORE_PROFILE_BIT_ARB 0x00000001
 #define GLX_CONTEXT_PROFILE_MASK_ARB 0x9126
 #define GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB 0x00000002
@@ -3147,11 +3184,13 @@ typedef struct {
     Window root;
     Colormap colormap;
     Window window;
+    bool window_focused;
     Cursor hidden_cursor;
     Cursor standard_cursors[_SAPP_MOUSECURSOR_NUM];
     Cursor custom_cursors[_SAPP_MOUSECURSOR_NUM];
     int window_state;
     float dpi;
+    bool requested_mouse_lock;
     unsigned char error_code;
     Atom UTF8_STRING;
     Atom CLIPBOARD;
@@ -3210,6 +3249,7 @@ typedef struct {
     bool EXT_swap_control;
     bool MESA_swap_control;
     bool ARB_multisample;
+    bool ARB_framebuffer_srgb;
     bool ARB_create_context;
     bool ARB_create_context_profile;
 } _sapp_glx_t;
@@ -3257,7 +3297,7 @@ typedef struct {
 typedef struct {
     sapp_desc desc;
     bool valid;
-    bool fullscreen;
+    bool fullscreen;            // current(!) fullscreen state
     bool first_frame;
     bool init_called;
     bool cleanup_called;
@@ -3270,8 +3310,6 @@ typedef struct {
     int window_height;
     int framebuffer_width;
     int framebuffer_height;
-    int sample_count;
-    int swap_interval;
     float dpi_scale;
     uint64_t frame_count;
     sapp_event event;
@@ -3286,6 +3324,9 @@ typedef struct {
     #endif
     #if defined(SOKOL_VULKAN)
         _sapp_vk_t vk;
+    #endif
+    #if defined(SOKOL_METAL)
+        _sapp_metal_t mtl;
     #endif
     #if defined(_SAPP_MACOS)
         _sapp_macos_t macos;
@@ -3514,8 +3555,10 @@ _SOKOL_PRIVATE bool _sapp_strcpy(const char* src, char* dst, size_t dst_buf_len)
 }
 
 _SOKOL_PRIVATE sapp_desc _sapp_desc_defaults(const sapp_desc* desc) {
-    SOKOL_ASSERT((desc->allocator.alloc_fn && desc->allocator.free_fn) || (!desc->allocator.alloc_fn && !desc->allocator.free_fn));
+    SOKOL_ASSERT(desc && ((desc->allocator.alloc_fn && desc->allocator.free_fn) || (!desc->allocator.alloc_fn && !desc->allocator.free_fn)));
     sapp_desc res = *desc;
+    res.depth_format = _sapp_def(res.depth_format, SAPP_PIXELFORMAT_DEPTH);
+    res.composite_mode = _sapp_def(res.composite_mode, SAPP_COMPOSITEMODE_OPAQUE);
     res.sample_count = _sapp_def(res.sample_count, 1);
     res.swap_interval = _sapp_def(res.swap_interval, 1);
     if (0 == res.gl.major_version) {
@@ -3543,6 +3586,17 @@ _SOKOL_PRIVATE sapp_desc _sapp_desc_defaults(const sapp_desc* desc) {
     return res;
 }
 
+_SOKOL_PRIVATE void _sapp_assert_desc(const sapp_desc* desc) {
+    switch (desc->depth_format) {
+        case SAPP_PIXELFORMAT_NONE:
+        case SAPP_PIXELFORMAT_DEPTH:
+        case SAPP_PIXELFORMAT_DEPTH_STENCIL:
+            break;
+        default:
+            _SAPP_PANIC(SWAPCHAIN_DEPTHFORMAT_INVALID);
+    }
+}
+
 _SOKOL_PRIVATE void _sapp_init_state(const sapp_desc* desc) {
     SOKOL_ASSERT(desc);
     SOKOL_ASSERT(desc->width >= 0);
@@ -3554,14 +3608,13 @@ _SOKOL_PRIVATE void _sapp_init_state(const sapp_desc* desc) {
     SOKOL_ASSERT(desc->max_dropped_file_path_length >= 0);
     _SAPP_CLEAR_ARC_STRUCT(_sapp_t, _sapp);
     _sapp.desc = _sapp_desc_defaults(desc);
+    _sapp_assert_desc(&_sapp.desc);
     _sapp.first_frame = true;
     // NOTE: _sapp.desc.width/height may be 0! Platform backends need to deal with this
     _sapp.window_width = _sapp.desc.width;
     _sapp.window_height = _sapp.desc.height;
     _sapp.framebuffer_width = _sapp.window_width;
     _sapp.framebuffer_height = _sapp.window_height;
-    _sapp.sample_count = _sapp.desc.sample_count;
-    _sapp.swap_interval = _sapp.desc.swap_interval;
     _sapp_strcpy(_sapp.desc.html5.canvas_selector, _sapp.html5_canvas_selector, sizeof(_sapp.html5_canvas_selector));
     _sapp.desc.html5.canvas_selector = _sapp.html5_canvas_selector;
     _sapp.html5_ask_leave_site = _sapp.desc.html5.ask_leave_site;
@@ -3713,9 +3766,9 @@ _SOKOL_PRIVATE void _sapp_setup_default_icon(void) {
     // initialize default_icon_desc struct
     uint32_t* dst = _sapp.default_icon_pixels;
     const uint32_t* dst_end = dst + all_num_pixels;
-    (void)dst_end; // silence unused warning in release mode
+    _SOKOL_UNUSED(dst_end);
     for (int i = 0; i < num_icons; i++) {
-        const int dim = (int) icon_sizes[i];
+        const int dim = icon_sizes[i];
         const int num_pixels = dim * dim;
         sapp_image_desc* img_desc = &_sapp.default_icon_desc.images[i];
         img_desc->width = dim;
@@ -3755,13 +3808,13 @@ _SOKOL_PRIVATE void _sapp_setup_default_icon(void) {
         const int dim = icon_sizes[i];
         SOKOL_ASSERT((dim % 8) == 0);
         const int scale = dim / 8;
-        for (int ty = 0, y = 0; ty < 8; ty++) {
+        for (int ty = 0; ty < 8; ty++) {
             const uint32_t color = colors[ty];
-            for (int sy = 0; sy < scale; sy++, y++) {
+            for (int sy = 0; sy < scale; sy++) {
                 uint8_t bits = tile[ty];
-                for (int tx = 0, x = 0; tx < 8; tx++, bits<<=1) {
+                for (int tx = 0; tx < 8; tx++, bits<<=1) {
                     uint32_t pixel = (0 == (bits & 0x80)) ? blank : color;
-                    for (int sx = 0; sx < scale; sx++, x++) {
+                    for (int sx = 0; sx < scale; sx++) {
                         SOKOL_ASSERT(dst < dst_end);
                         *dst++ = pixel;
                     }
@@ -3854,8 +3907,15 @@ _SOKOL_PRIVATE void _sapp_wgpu_await(WGPUFuture future) {
 }
 
 _SOKOL_PRIVATE WGPUTextureFormat _sapp_wgpu_pick_render_format(size_t count, const WGPUTextureFormat* formats) {
-    // NOTE: only accept non-SRGB formats until sokol_app.h gets proper SRGB support
     SOKOL_ASSERT((count > 0) && formats);
+    if (_sapp.desc.hdr) {
+        for (size_t i = 0; i < count; i++) {
+            const WGPUTextureFormat fmt = formats[i];
+            if (fmt == WGPUTextureFormat_RGBA16Float) {
+                return fmt;
+            }
+        }
+    }
     for (size_t i = 0; i < count; i++) {
         const WGPUTextureFormat fmt = formats[i];
         switch (fmt) {
@@ -3865,8 +3925,28 @@ _SOKOL_PRIVATE WGPUTextureFormat _sapp_wgpu_pick_render_format(size_t count, con
             default: break;
         }
     }
-    // FIXME: fallback might still return an SRGB format
+    // fallback
     return formats[0];
+}
+
+_SOKOL_PRIVATE WGPUTextureFormat _sapp_wgpu_pick_swapchain_view_format(WGPUTextureFormat surface_format) {
+    if (_sapp.desc.srgb) {
+        switch (surface_format) {
+            case WGPUTextureFormat_RGBA8Unorm:
+                return WGPUTextureFormat_RGBA8UnormSrgb;
+            case WGPUTextureFormat_BGRA8Unorm:
+                return WGPUTextureFormat_BGRA8UnormSrgb;
+            default: break;
+        }
+    }
+    return surface_format;
+}
+
+_SOKOL_PRIVATE WGPUCompositeAlphaMode _sapp_wgpu_composite_alpha_mode(sapp_composite_mode m) {
+    switch (m) {
+        case SAPP_COMPOSITEMODE_OPAQUE: return WGPUCompositeAlphaMode_Opaque;
+        default: return WGPUCompositeAlphaMode_Premultiplied;
+    }
 }
 
 _SOKOL_PRIVATE void _sapp_wgpu_create_swapchain(bool called_from_resize) {
@@ -3876,6 +3956,11 @@ _SOKOL_PRIVATE void _sapp_wgpu_create_swapchain(bool called_from_resize) {
     SOKOL_ASSERT(0 == _sapp.wgpu.msaa_view);
     SOKOL_ASSERT(0 == _sapp.wgpu.depth_stencil_tex);
     SOKOL_ASSERT(0 == _sapp.wgpu.depth_stencil_view);
+
+    const sapp_pixel_format depth_fmt = _sapp.desc.depth_format;
+    const uint32_t sample_count = (uint32_t)_sapp.desc.sample_count;
+    const bool hdr = _sapp.desc.hdr;
+    const bool srgb = _sapp.desc.srgb;
 
     if (!called_from_resize) {
         SOKOL_ASSERT(0 == _sapp.wgpu.surface);
@@ -3914,54 +3999,66 @@ _SOKOL_PRIVATE void _sapp_wgpu_create_swapchain(bool called_from_resize) {
         if (caps_status != WGPUStatus_Success) {
             _SAPP_PANIC(WGPU_SWAPCHAIN_SURFACE_GET_CAPABILITIES_FAILED);
         }
-        _sapp.wgpu.render_format = _sapp_wgpu_pick_render_format(surf_caps.formatCount, surf_caps.formats);
+        _sapp.wgpu.surface_format = _sapp_wgpu_pick_render_format(surf_caps.formatCount, surf_caps.formats);
+        _sapp.wgpu.swapchain_view_format = _sapp_wgpu_pick_swapchain_view_format(_sapp.wgpu.surface_format);
     }
 
     SOKOL_ASSERT(_sapp.wgpu.surface);
     _SAPP_STRUCT(WGPUSurfaceConfiguration, surf_conf);
     surf_conf.device = _sapp.wgpu.device;
-    surf_conf.format = _sapp.wgpu.render_format;
+    surf_conf.format = _sapp.wgpu.surface_format;
     surf_conf.usage = WGPUTextureUsage_RenderAttachment;
     surf_conf.width = (uint32_t)_sapp.framebuffer_width;
     surf_conf.height = (uint32_t)_sapp.framebuffer_height;
-    surf_conf.alphaMode = WGPUCompositeAlphaMode_Opaque;
-    #if defined(_SAPP_EMSCRIPTEN)
-        // FIXME: make this further configurable?
-        if (_sapp.desc.html5.premultiplied_alpha) {
-            surf_conf.alphaMode = WGPUCompositeAlphaMode_Premultiplied;
-        }
-    #endif
-    surf_conf.presentMode = WGPUPresentMode_Fifo;
+    surf_conf.alphaMode = _sapp_wgpu_composite_alpha_mode(_sapp.desc.composite_mode);
+    surf_conf.presentMode = _sapp.desc.disable_vsync ? WGPUPresentMode_Immediate : WGPUPresentMode_Fifo;
+    if (srgb) {
+        surf_conf.viewFormatCount = 1;
+        surf_conf.viewFormats = &_sapp.wgpu.swapchain_view_format;
+    }
+    _SAPP_STRUCT(WGPUSurfaceColorManagement, surf_cm);
+    if (hdr) {
+        surf_conf.nextInChain = &surf_cm.chain;
+        surf_cm.chain.sType = WGPUSType_SurfaceColorManagement;
+        surf_cm.colorSpace = WGPUPredefinedColorSpace_DisplayP3;
+        surf_cm.toneMappingMode = WGPUToneMappingMode_Extended;
+    }
     wgpuSurfaceConfigure(_sapp.wgpu.surface, &surf_conf);
 
-    _SAPP_STRUCT(WGPUTextureDescriptor, ds_desc);
-    ds_desc.usage = WGPUTextureUsage_RenderAttachment;
-    ds_desc.dimension = WGPUTextureDimension_2D;
-    ds_desc.size.width = (uint32_t)_sapp.framebuffer_width;
-    ds_desc.size.height = (uint32_t)_sapp.framebuffer_height;
-    ds_desc.size.depthOrArrayLayers = 1;
-    ds_desc.format = WGPUTextureFormat_Depth32FloatStencil8;
-    ds_desc.mipLevelCount = 1;
-    ds_desc.sampleCount = (uint32_t)_sapp.sample_count;
-    _sapp.wgpu.depth_stencil_tex = wgpuDeviceCreateTexture(_sapp.wgpu.device, &ds_desc);
-    if (0 == _sapp.wgpu.depth_stencil_tex) {
-        _SAPP_PANIC(WGPU_SWAPCHAIN_CREATE_DEPTH_STENCIL_TEXTURE_FAILED);
-    }
-    _sapp.wgpu.depth_stencil_view = wgpuTextureCreateView(_sapp.wgpu.depth_stencil_tex, 0);
-    if (0 == _sapp.wgpu.depth_stencil_view) {
-        _SAPP_PANIC(WGPU_SWAPCHAIN_CREATE_DEPTH_STENCIL_VIEW_FAILED);
+    if (depth_fmt != SAPP_PIXELFORMAT_NONE) {
+        _SAPP_STRUCT(WGPUTextureDescriptor, ds_desc);
+        ds_desc.usage = WGPUTextureUsage_RenderAttachment;
+        ds_desc.dimension = WGPUTextureDimension_2D;
+        ds_desc.size.width = (uint32_t)_sapp.framebuffer_width;
+        ds_desc.size.height = (uint32_t)_sapp.framebuffer_height;
+        ds_desc.size.depthOrArrayLayers = 1;
+        if (depth_fmt == SAPP_PIXELFORMAT_DEPTH) {
+            ds_desc.format = WGPUTextureFormat_Depth32Float;
+        } else {
+            ds_desc.format = WGPUTextureFormat_Depth32FloatStencil8;
+        }
+        ds_desc.mipLevelCount = 1;
+        ds_desc.sampleCount = sample_count;
+        _sapp.wgpu.depth_stencil_tex = wgpuDeviceCreateTexture(_sapp.wgpu.device, &ds_desc);
+        if (0 == _sapp.wgpu.depth_stencil_tex) {
+            _SAPP_PANIC(WGPU_SWAPCHAIN_CREATE_DEPTH_STENCIL_TEXTURE_FAILED);
+        }
+        _sapp.wgpu.depth_stencil_view = wgpuTextureCreateView(_sapp.wgpu.depth_stencil_tex, 0);
+        if (0 == _sapp.wgpu.depth_stencil_view) {
+            _SAPP_PANIC(WGPU_SWAPCHAIN_CREATE_DEPTH_STENCIL_VIEW_FAILED);
+        }
     }
 
-    if (_sapp.sample_count > 1) {
+    if (sample_count > 1) {
         _SAPP_STRUCT(WGPUTextureDescriptor, msaa_desc);
         msaa_desc.usage = WGPUTextureUsage_RenderAttachment;
         msaa_desc.dimension = WGPUTextureDimension_2D;
         msaa_desc.size.width = (uint32_t)_sapp.framebuffer_width;
         msaa_desc.size.height = (uint32_t)_sapp.framebuffer_height;
         msaa_desc.size.depthOrArrayLayers = 1;
-        msaa_desc.format = _sapp.wgpu.render_format;
+        msaa_desc.format = _sapp.wgpu.swapchain_view_format;
         msaa_desc.mipLevelCount = 1;
-        msaa_desc.sampleCount = (uint32_t)_sapp.sample_count;
+        msaa_desc.sampleCount = sample_count;
         _sapp.wgpu.msaa_tex = wgpuDeviceCreateTexture(_sapp.wgpu.device, &msaa_desc);
         if (0 == _sapp.wgpu.msaa_tex) {
             _SAPP_PANIC(WGPU_SWAPCHAIN_CREATE_MSAA_TEXTURE_FAILED);
@@ -3998,7 +4095,7 @@ _SOKOL_PRIVATE void _sapp_wgpu_discard_swapchain(bool called_from_resize) {
     }
 }
 
-_SOKOL_PRIVATE void _sapp_wgpu_swapchain_next(void) {
+_SOKOL_PRIVATE bool _sapp_wgpu_swapchain_next(void) {
     SOKOL_ASSERT(0 == _sapp.wgpu.swapchain_view);
     _SAPP_STRUCT(WGPUSurfaceTexture, surf_tex);
     wgpuSurfaceGetCurrentTexture(_sapp.wgpu.surface, &surf_tex);
@@ -4015,15 +4112,27 @@ _SOKOL_PRIVATE void _sapp_wgpu_swapchain_next(void) {
             }
             _sapp_wgpu_discard_swapchain(false);
             _sapp_wgpu_create_swapchain(false);
-            // FIXME: currently this will assert in the caller
-            return;
+            return false;
         case WGPUSurfaceGetCurrentTextureStatus_Error:
         default:
-            _SAPP_PANIC(WGPU_SWAPCHAIN_GETCURRENTTEXTURE_FAILED);
+            _SAPP_ERROR(WGPU_SWAPCHAIN_GETCURRENTTEXTURE_FAILED);
             break;
     }
-    _sapp.wgpu.swapchain_view = wgpuTextureCreateView(surf_tex.texture, 0);
+    if (_sapp.wgpu.surface_format == _sapp.wgpu.swapchain_view_format) {
+        _sapp.wgpu.swapchain_view = wgpuTextureCreateView(surf_tex.texture, 0);
+    } else {
+        _SAPP_STRUCT(WGPUTextureViewDescriptor, view_desc);
+        view_desc.format = _sapp.wgpu.swapchain_view_format;
+        view_desc.mipLevelCount = 1;
+        view_desc.arrayLayerCount = 1;
+        view_desc.dimension = WGPUTextureViewDimension_2D;
+        view_desc.aspect = WGPUTextureAspect_All;
+        _sapp.wgpu.swapchain_view = wgpuTextureCreateView(surf_tex.texture, &view_desc);
+
+    }
+    wgpuTextureRelease(surf_tex.texture);
     SOKOL_ASSERT(_sapp.wgpu.swapchain_view);
+    return true;
 }
 
 _SOKOL_PRIVATE void _sapp_wgpu_swapchain_size_changed(void) {
@@ -4282,6 +4391,14 @@ _SOKOL_PRIVATE void _sapp_vk_load_instance_ext_funcs(void) {
         if (0 == _sapp.vk.ext.set_debug_utils_object_name_ext) {
             _SAPP_PANIC(VULKAN_REQUIRED_INSTANCE_EXTENSION_FUNCTION_MISSING);
         }
+        _sapp.vk.ext.create_debug_utils_messenger_ext = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(_sapp.vk.instance, "vkCreateDebugUtilsMessengerEXT");
+        if (0 == _sapp.vk.ext.create_debug_utils_messenger_ext) {
+            _SAPP_PANIC(VULKAN_REQUIRED_INSTANCE_EXTENSION_FUNCTION_MISSING);
+        }
+        _sapp.vk.ext.destroy_debug_utils_messenger_ext = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(_sapp.vk.instance, "vkDestroyDebugUtilsMessengerEXT");
+        if (0 == _sapp.vk.ext.destroy_debug_utils_messenger_ext) {
+            _SAPP_PANIC(VULKAN_REQUIRED_INSTANCE_EXTENSION_FUNCTION_MISSING);
+        }
     #endif
 }
 
@@ -4367,6 +4484,73 @@ _SOKOL_PRIVATE void _sapp_vk_destroy_instance(void) {
     vkDestroyInstance(_sapp.vk.instance, 0);
     _sapp.vk.instance = 0;
 }
+
+#if defined(SOKOL_DEBUG)
+_SOKOL_PRIVATE VkBool32 _sapp_vk_debug_utils_messenger_cb(
+    VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
+    VkDebugUtilsMessageTypeFlagsEXT message_types,
+    const VkDebugUtilsMessengerCallbackDataEXT* cb_data,
+    void* user_data)
+{
+    SOKOL_ASSERT(cb_data);
+    _SOKOL_UNUSED(user_data);
+    uint32_t log_level;
+    if (message_severity > VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+        log_level = 1; // error
+    } else if (message_severity > VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
+        log_level = 2; // warn
+    } else {
+        log_level = 3; // info
+    }
+    sapp_log_item log_item;
+    if (0 != (message_types & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT)) {
+        log_item = SAPP_LOGITEM_VULKAN_DEBUG_VALIDATION;
+    } else if (0 != (message_types & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)) {
+        log_item = SAPP_LOGITEM_VULKAN_DEBUG_PERFORMANCE;
+    } else {
+        log_item = SAPP_LOGITEM_VULKAN_DEBUG_GENERAL;
+    }
+    // only show warnings, errors, and all validation layer messages
+    if ((log_level < 3) || (log_item == SAPP_LOGITEM_VULKAN_DEBUG_VALIDATION)) {
+        if (cb_data->pMessage) {
+            _sapp_log(log_item, log_level, cb_data->pMessage, __LINE__);
+        } else {
+            _sapp_log(log_item, log_level, "no message (cb_data->pMessage is 0)", __LINE__);
+        }
+    }
+    // "The application should always return VK_FALSE. The VK_TRUE value
+    // is reserved for layer development"
+    return VK_FALSE;
+}
+
+_SOKOL_PRIVATE void _sapp_vk_create_debug_utils_messenger(void) {
+    SOKOL_ASSERT(_sapp.vk.instance);
+    SOKOL_ASSERT(0 == _sapp.vk.debug_utils_messenger);
+    SOKOL_ASSERT(_sapp.vk.ext.create_debug_utils_messenger_ext);
+
+    _SAPP_STRUCT(VkDebugUtilsMessengerCreateInfoEXT, create_info);
+    create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    create_info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
+        | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
+        | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+        | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    create_info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+        | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+        | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    create_info.pfnUserCallback = _sapp_vk_debug_utils_messenger_cb;
+    VkResult res = _sapp.vk.ext.create_debug_utils_messenger_ext(_sapp.vk.instance, &create_info, 0, &_sapp.vk.debug_utils_messenger);
+    SOKOL_ASSERT(res == VK_SUCCESS);
+    SOKOL_ASSERT(_sapp.vk.debug_utils_messenger);
+}
+
+_SOKOL_PRIVATE void _sapp_vk_destroy_debug_utils_messenger(void) {
+    SOKOL_ASSERT(_sapp.vk.instance);
+    SOKOL_ASSERT(_sapp.vk.debug_utils_messenger);
+    SOKOL_ASSERT(_sapp.vk.ext.destroy_debug_utils_messenger_ext);
+    _sapp.vk.ext.destroy_debug_utils_messenger_ext(_sapp.vk.instance, _sapp.vk.debug_utils_messenger, 0);
+    _sapp.vk.debug_utils_messenger = 0;
+}
+#endif // SOKOL_DEBUG
 
 _SOKOL_PRIVATE uint32_t _sapp_vk_required_device_extensions(const char** out_names, uint32_t max_count) {
     SOKOL_ASSERT(out_names && (max_count > 0));
@@ -4594,14 +4778,25 @@ _SOKOL_PRIVATE void _sapp_vk_destroy_surface(void) {
     _sapp.vk.surface = 0;
 }
 
-_SOKOL_PRIVATE VkSurfaceFormatKHR _sapp_vk_pick_surface_format(void) {
+_SOKOL_PRIVATE VkSurfaceFormatKHR _sapp_vk_pick_surface_format(bool wants_srgb) {
     SOKOL_ASSERT(_sapp.vk.instance);
     SOKOL_ASSERT(_sapp.vk.surface);
     _SAPP_VK_MAX_COUNT_AND_ARRAY(64, VkSurfaceFormatKHR, fmt_count, formats);
     VkResult res = vkGetPhysicalDeviceSurfaceFormatsKHR(_sapp.vk.physical_device, _sapp.vk.surface, &fmt_count, formats);
     SOKOL_ASSERT((res == VK_SUCCESS) || (res == VK_INCOMPLETE)); _SOKOL_UNUSED(res);
     SOKOL_ASSERT(fmt_count > 0);
-    // FIXME: only accept non-SRGB formats until sokol_app.h gets proper SRGB support
+    // first try to find SRGB format if requested
+    if (wants_srgb) {
+        for (uint32_t i = 0; i < fmt_count; i++) {
+            switch (formats[i].format) {
+                case VK_FORMAT_B8G8R8A8_SRGB:
+                case VK_FORMAT_R8G8B8A8_SRGB:
+                    return formats[i];
+                default: break;
+            }
+        }
+    }
+    // fallthrough or no srgb format requested
     for (uint32_t i = 0; i < fmt_count; i++) {
         switch (formats[i].format) {
             case VK_FORMAT_B8G8R8A8_UNORM:
@@ -4610,7 +4805,7 @@ _SOKOL_PRIVATE VkSurfaceFormatKHR _sapp_vk_pick_surface_format(void) {
             default: break;
         }
     }
-    // FIXME: fallback might still return an SRGB format
+    // fallthrough: just take whatever's offered
     return formats[0];
 }
 
@@ -4704,9 +4899,6 @@ _SOKOL_PRIVATE void _sapp_vk_swapchain_create_surface(
     SOKOL_ASSERT(_sapp.vk.physical_device);
     SOKOL_ASSERT(_sapp.vk.device);
     SOKOL_ASSERT(surf);
-    if (surf->img) {
-        _sapp_vk_swapchain_destroy_surface(surf);
-    }
     SOKOL_ASSERT(0 == surf->img);
     SOKOL_ASSERT(0 == surf->mem);
     SOKOL_ASSERT(0 == surf->view);
@@ -4805,7 +4997,7 @@ _SOKOL_PRIVATE void _sapp_vk_destroy_swapchain_image_view(uint32_t image_index) 
     _sapp.vk.swapchain_views[image_index] = 0;
 }
 
-_SOKOL_PRIVATE void _sapp_vk_destroy_swapchain(void) {
+_SOKOL_PRIVATE void _sapp_vk_destroy_associated_swapchain_resources(void) {
     SOKOL_ASSERT(_sapp.vk.device);
     if (_sapp.vk.msaa.img) {
         _sapp_vk_swapchain_destroy_surface(&_sapp.vk.msaa);
@@ -4817,13 +5009,33 @@ _SOKOL_PRIVATE void _sapp_vk_destroy_swapchain(void) {
         _sapp_vk_destroy_swapchain_image_view(i);
         _sapp.vk.swapchain_images[i] = 0;
     }
+    _sapp_vk_destroy_sync_objects();
+}
+
+_SOKOL_PRIVATE void _sapp_vk_destroy_swapchain(void) {
+    SOKOL_ASSERT(_sapp.vk.device);
+    _sapp_vk_destroy_associated_swapchain_resources();
     if (_sapp.vk.swapchain) {
         vkDestroySwapchainKHR(_sapp.vk.device, _sapp.vk.swapchain, 0);
         _sapp.vk.swapchain = 0;
     }
-    _sapp_vk_destroy_sync_objects();
     _sapp.vk.num_swapchain_images = 0;
     _sapp.vk.swapchain_valid = false;
+}
+
+_SOKOL_PRIVATE bool _sapp_vk_has_present_mode(VkPresentModeKHR mode) {
+    SOKOL_ASSERT(_sapp.vk.physical_device);
+    SOKOL_ASSERT(_sapp.vk.surface);
+    _SAPP_VK_MAX_COUNT_AND_ARRAY(32, VkPresentModeKHR, present_mode_count, present_modes);
+    VkResult res = vkGetPhysicalDeviceSurfacePresentModesKHR(_sapp.vk.physical_device, _sapp.vk.surface, &present_mode_count, present_modes);
+    if (VK_SUCCESS == res) {
+        for (uint32_t i = 0; i < present_mode_count; i++) {
+            if (present_modes[i] == mode) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 _SOKOL_PRIVATE void _sapp_vk_create_swapchain(void) {
@@ -4841,6 +5053,11 @@ _SOKOL_PRIVATE void _sapp_vk_create_swapchain(void) {
         SOKOL_ASSERT(0 == _sapp.vk.swapchain_images[0]);
         SOKOL_ASSERT(0 == _sapp.vk.swapchain_views[0]);
     }
+
+    const bool wants_msaa = _sapp.desc.sample_count > 1;
+    const bool wants_depth = _sapp.desc.depth_format != SAPP_PIXELFORMAT_NONE;
+    const bool wants_stencil = _sapp.desc.depth_format == SAPP_PIXELFORMAT_DEPTH_STENCIL;
+    const bool wants_srgb = _sapp.desc.srgb;
 
     _SAPP_STRUCT(VkSurfaceCapabilitiesKHR, surf_caps);
     VkResult res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_sapp.vk.physical_device, _sapp.vk.surface, &surf_caps);
@@ -4861,8 +5078,11 @@ _SOKOL_PRIVATE void _sapp_vk_create_swapchain(void) {
     }
 
     VkSwapchainKHR old_swapchain = _sapp.vk.swapchain;
-    _sapp.vk.surface_format = _sapp_vk_pick_surface_format();
-    const VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
+    _sapp.vk.surface_format = _sapp_vk_pick_surface_format(wants_srgb);
+    VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
+    if (_sapp.desc.disable_vsync && _sapp_vk_has_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)) {
+        present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+    }
 
     _SAPP_STRUCT(VkSwapchainCreateInfoKHR, create_info);
     create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -4877,6 +5097,7 @@ _SOKOL_PRIVATE void _sapp_vk_create_swapchain(void) {
     create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     create_info.preTransform = surf_caps.currentTransform;
+    // FIXME: composite mode
     create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     create_info.presentMode = present_mode;
     create_info.clipped = true;
@@ -4888,13 +5109,8 @@ _SOKOL_PRIVATE void _sapp_vk_create_swapchain(void) {
     SOKOL_ASSERT(_sapp.vk.swapchain);
 
     if (old_swapchain) {
-        // NOTE: destroying the depth- and msaa-surfaces happens
-        // down in the respective _sapp_vk_swapchain_create_surface() calls!
-        for (uint32_t i = 0; i < _sapp.vk.num_swapchain_images; i++) {
-            _sapp_vk_destroy_swapchain_image_view(i);
-        }
+        _sapp_vk_destroy_associated_swapchain_resources();
         vkDestroySwapchainKHR(_sapp.vk.device, old_swapchain, 0);
-        _sapp_vk_destroy_sync_objects();
     }
 
     _sapp.vk.num_swapchain_images = _SAPP_VK_MAX_SWAPCHAIN_IMAGES;
@@ -4910,23 +5126,31 @@ _SOKOL_PRIVATE void _sapp_vk_create_swapchain(void) {
     }
 
     // create depth-stencil buffer
-    _sapp_vk_swapchain_create_surface(&_sapp.vk.depth,
-        VK_FORMAT_D32_SFLOAT_S8_UINT,
-        fb_width,
-        fb_height,
-        (VkSampleCountFlagBits)_sapp.sample_count,
-        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
-        "swapchain_depthstencil_image",
-        "swapchain_depthstencil_view");
+    if (wants_depth) {
+        VkFormat format = VK_FORMAT_D32_SFLOAT;
+        VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        if (wants_stencil) {
+            format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+            aspect_mask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+        }
+        _sapp_vk_swapchain_create_surface(&_sapp.vk.depth,
+            format,
+            fb_width,
+            fb_height,
+            (VkSampleCountFlagBits)_sapp.desc.sample_count,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            aspect_mask,
+            "swapchain_depthstencil_image",
+            "swapchain_depthstencil_view");
+    }
 
     // optionally create MSAA surface
-    if (_sapp.sample_count > 1) {
+    if (wants_msaa) {
         _sapp_vk_swapchain_create_surface(&_sapp.vk.msaa,
             _sapp.vk.surface_format.format,
             fb_width,
             fb_height,
-            (VkSampleCountFlagBits)_sapp.sample_count,
+            (VkSampleCountFlagBits)_sapp.desc.sample_count,
             VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             VK_IMAGE_ASPECT_COLOR_BIT,
             "swapchain_msaa_image",
@@ -4969,6 +5193,9 @@ _SOKOL_PRIVATE void _sapp_vk_recreate_swapchain(void) {
 _SOKOL_PRIVATE void _sapp_vk_init(void) {
     _sapp_vk_create_instance();
     _sapp_vk_load_instance_ext_funcs();
+    #if defined(SOKOL_DEBUG)
+    _sapp_vk_create_debug_utils_messenger();
+    #endif
     _sapp_vk_create_surface();
     _sapp_vk_pick_physical_device();
     _sapp_vk_create_device();
@@ -4981,21 +5208,27 @@ _SOKOL_PRIVATE void _sapp_vk_discard(void) {
     _sapp_vk_destroy_swapchain();
     _sapp_vk_destroy_device();
     _sapp_vk_destroy_surface();
+    #if defined(SOKOL_DEBUG)
+    _sapp_vk_destroy_debug_utils_messenger();
+    #endif
     _sapp_vk_destroy_instance();
 }
 
 _SOKOL_PRIVATE void _sapp_vk_swapchain_next(void) {
     SOKOL_ASSERT(_sapp.vk.device);
+    // swapchain_acquired flag should always be false at this point
+    // since it's reset by _sapp_vk_present()
+    SOKOL_ASSERT(!_sapp.vk.swapchain_acquired);
     if (!_sapp.vk.swapchain_valid) {
         // try to re-create swapchain and resume normal operation when succeeded
+        // (the failure path may be triggered on Windows with NVIDIA while the
+        // application window is minimized)
         _sapp_vk_recreate_swapchain();
         if (!_sapp.vk.swapchain_valid) {
-            _sapp.vk.swapchain_acquired = false;
             return;
         }
     }
     SOKOL_ASSERT(_sapp.vk.swapchain);
-    _sapp.vk.swapchain_acquired = true;
     VkResult res = vkAcquireNextImageKHR(
         _sapp.vk.device,
         _sapp.vk.swapchain,
@@ -5003,14 +5236,30 @@ _SOKOL_PRIVATE void _sapp_vk_swapchain_next(void) {
         _sapp.vk.sync[_sapp.vk.sync_slot].present_complete_sem, // semaphore to signal
         0,  // fence to signal
         &_sapp.vk.cur_swapchain_image_index);
-    if ((res != VK_NOT_READY) && (res != VK_SUBOPTIMAL_KHR) && (res != VK_SUCCESS) && (res != VK_TIMEOUT)) {
-        _SAPP_WARN(VULKAN_ACQUIRE_NEXT_IMAGE_FAILED);
+    // NOTE: on some configs (e.g. Linux+Intel, Windows+Intel, Windows+NVIDIA) vkAcquireNextImageKHR
+    // never returns with VK_ERROR_OUT_OF_DATE, and essentially always succeeds.
+    // This makes the following error handling hard to test reliably, we're basically
+    // doing the same here as in the SaschaWillems samples: when vkAcquireNextImage returns
+    // with VK_ERROR_OUT_OF_DATE, we just recreate the swapchain but don't attempt to
+    // re-acquire and instead skip the next frame (via sapp_acquire_swapchain returning
+    // an 'invalid' swapchain which then causes sokol-gfx to skip rendering and presentation)
+    //
+    // also see ticket: https://github.com/floooh/sokol/issues/1564
+    //
+    if ((res == VK_SUCCESS) || (res == VK_SUBOPTIMAL_KHR)) {
+        // only place where the swapchain_acquired flag is set to true
+        _sapp.vk.swapchain_acquired = true;
+    } else if (res == VK_ERROR_OUT_OF_DATE_KHR) {
+        _sapp_vk_recreate_swapchain();
+    } else {
+        _SAPP_ERROR(VULKAN_ACQUIRE_NEXT_IMAGE_FAILED);
     }
 }
 
 _SOKOL_PRIVATE void _sapp_vk_present(void) {
     SOKOL_ASSERT(_sapp.vk.queue);
     if (_sapp.vk.swapchain_acquired) {
+        // only place where swapchain_acquired flag is set to false
         _sapp.vk.swapchain_acquired = false;
         _SAPP_STRUCT(VkPresentInfoKHR, present_info);
         present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -5022,6 +5271,9 @@ _SOKOL_PRIVATE void _sapp_vk_present(void) {
         present_info.pSwapchains = &_sapp.vk.swapchain;
         present_info.pImageIndices = &_sapp.vk.cur_swapchain_image_index;
         VkResult res = vkQueuePresentKHR(_sapp.vk.queue, &present_info);
+        // NOTE: the different behaviour for VK_SUBOPTIMAL_KHR here compared to
+        // to the acquire-swapchain code is intended, it's the same as in the
+        // SaschaWillems Vulkan samples
         if ((res == VK_ERROR_OUT_OF_DATE_KHR) || (res == VK_SUBOPTIMAL_KHR)) {
             _sapp_vk_recreate_swapchain();
         } else if (res != VK_SUCCESS) {
@@ -5056,6 +5308,104 @@ _SOKOL_PRIVATE void _sapp_vk_frame(void) {
 #define _SAPP_OBJC_RELEASE(obj) { [obj release]; obj = nil; }
 #endif
 
+#if defined(SOKOL_METAL)
+_SOKOL_PRIVATE id<MTLTexture> _sapp_mtl_create_texture(int width, int height, MTLPixelFormat fmt, int sample_count, const char* label) {
+    MTLTextureDescriptor* mtl_desc = [[MTLTextureDescriptor alloc] init];
+    if (sample_count > 1) {
+        mtl_desc.textureType = MTLTextureType2DMultisample;
+    } else {
+        mtl_desc.textureType = MTLTextureType2D;
+    }
+    mtl_desc.pixelFormat = fmt;
+    mtl_desc.width = (NSUInteger)width;
+    mtl_desc.height = (NSUInteger)height;
+    mtl_desc.depth = 1;
+    mtl_desc.mipmapLevelCount = 1;
+    mtl_desc.arrayLength = 1;
+    mtl_desc.sampleCount = (NSUInteger)sample_count;
+    mtl_desc.usage = MTLTextureUsageRenderTarget;
+    mtl_desc.resourceOptions = MTLResourceStorageModePrivate;
+    id<MTLTexture> mtl_tex = [_sapp.mtl.device newTextureWithDescriptor:mtl_desc];
+    _SAPP_OBJC_RELEASE(mtl_desc);
+    #if defined(SOKOL_DEBUG)
+    if (mtl_tex) {
+        mtl_tex.label = [NSString stringWithUTF8String:label];
+    }
+    #else
+        _SOKOL_UNUSED(label);
+    #endif
+    return mtl_tex;
+}
+
+_SOKOL_PRIVATE MTLPixelFormat _sapp_mtl_depth_format(void) {
+    switch (_sapp.desc.depth_format) {
+        case SAPP_PIXELFORMAT_DEPTH: return MTLPixelFormatDepth32Float;
+        case SAPP_PIXELFORMAT_DEPTH_STENCIL: return MTLPixelFormatDepth32Float_Stencil8;
+        default: SOKOL_UNREACHABLE; return MTLPixelFormatInvalid;
+    }
+}
+
+_SOKOL_PRIVATE MTLPixelFormat _sapp_mtl_color_format(void) {
+    if (_sapp.desc.hdr) {
+        return MTLPixelFormatRGBA16Float;
+    } else {
+        if (_sapp.desc.srgb) {
+            return MTLPixelFormatBGRA8Unorm_sRGB;
+        } else {
+            return MTLPixelFormatBGRA8Unorm;
+        }
+    }
+}
+
+_SOKOL_PRIVATE CFStringRef _sapp_mtl_color_space(void) {
+    if (_sapp.desc.hdr) {
+        return kCGColorSpaceExtendedLinearDisplayP3;
+    } else {
+        return kCGColorSpaceSRGB;
+    }
+}
+
+_SOKOL_PRIVATE void _sapp_mtl_swapchain_create(int width, int height) {
+    const int sample_count = _sapp.desc.sample_count;
+    if (_sapp.desc.depth_format != SAPP_PIXELFORMAT_NONE) {
+        MTLPixelFormat format = _sapp_mtl_depth_format();
+        _sapp.mtl.depth_tex =_sapp_mtl_create_texture(width, height, format, sample_count, "swapchain_depth_tex");
+        if (nil == _sapp.mtl.depth_tex) {
+            _SAPP_PANIC(METAL_CREATE_SWAPCHAIN_DEPTH_TEXTURE_FAILED);
+        }
+    }
+    if (_sapp.desc.sample_count > 1) {
+        MTLPixelFormat format = _sapp_mtl_color_format();
+        _sapp.mtl.msaa_tex = _sapp_mtl_create_texture(width, height, format, sample_count, "swapchain_msaa_tex");
+        if (nil == _sapp.mtl.msaa_tex) {
+            _SAPP_PANIC(METAL_CREATE_SWAPCHAIN_MSAA_TEXTURE_FAILED);
+        }
+    }
+}
+
+_SOKOL_PRIVATE void _sapp_mtl_swapchain_destroy(void) {
+    if (_sapp.mtl.depth_tex) {
+        _SAPP_OBJC_RELEASE(_sapp.mtl.depth_tex);
+    }
+    if (_sapp.mtl.msaa_tex) {
+        _SAPP_OBJC_RELEASE(_sapp.mtl.msaa_tex);
+    }
+}
+
+_SOKOL_PRIVATE void _sapp_mtl_swapchain_resize(int width, int height) {
+    _sapp_mtl_swapchain_destroy();
+    _sapp_mtl_swapchain_create(width, height);
+}
+
+_SOKOL_PRIVATE id<CAMetalDrawable> _sapp_mtl_swapchain_next(void) {
+    id<CAMetalDrawable> drawable = [_sapp.mtl.layer nextDrawable];
+    SOKOL_ASSERT(drawable != nil);
+    return drawable;
+}
+
+#endif
+
+
 // ███    ███  █████   ██████  ██████  ███████
 // ████  ████ ██   ██ ██      ██    ██ ██
 // ██ ████ ██ ███████ ██      ██    ██ ███████
@@ -5072,193 +5422,145 @@ _SOKOL_PRIVATE NSInteger _sapp_macos_max_fps(void) {
 }
 
 #if defined(SOKOL_METAL)
-_SOKOL_PRIVATE id<MTLTexture> _sapp_macos_mtl_create_texture(int width, int height, MTLPixelFormat fmt, int sample_count, const char* label) {
-    MTLTextureDescriptor* mtl_desc = [[MTLTextureDescriptor alloc] init];
-    if (sample_count > 1) {
-        mtl_desc.textureType = MTLTextureType2DMultisample;
-    } else {
-        mtl_desc.textureType = MTLTextureType2D;
-    }
-    mtl_desc.pixelFormat = fmt;
-    mtl_desc.width = (NSUInteger)width;
-    mtl_desc.height = (NSUInteger)height;
-    mtl_desc.depth = 1;
-    mtl_desc.mipmapLevelCount = 1;
-    mtl_desc.arrayLength = 1;
-    mtl_desc.sampleCount = (NSUInteger)sample_count;
-    mtl_desc.usage = MTLTextureUsageRenderTarget;
-    mtl_desc.resourceOptions = MTLResourceStorageModePrivate;
-    id<MTLTexture> mtl_tex = [_sapp.macos.mtl.device newTextureWithDescriptor:mtl_desc];
-    _SAPP_OBJC_RELEASE(mtl_desc);
-    #if defined(SOKOL_DEBUG)
-    if (mtl_tex) {
-        mtl_tex.label = [NSString stringWithUTF8String:label];
-    }
-    #else
-        _SOKOL_UNUSED(label);
-    #endif
-    return mtl_tex;
-}
-
-_SOKOL_PRIVATE void _sapp_macos_mtl_swapchain_create(int width, int height) {
-    _sapp.macos.mtl.depth_tex =_sapp_macos_mtl_create_texture(width, height, MTLPixelFormatDepth32Float_Stencil8, _sapp.sample_count, "swapchain_depth_tex");
-    if (nil == _sapp.macos.mtl.depth_tex) {
-        _SAPP_PANIC(METAL_CREATE_SWAPCHAIN_DEPTH_TEXTURE_FAILED);
-    }
-    if (_sapp.sample_count > 1) {
-        _sapp.macos.mtl.msaa_tex = _sapp_macos_mtl_create_texture(width, height, MTLPixelFormatBGRA8Unorm, _sapp.sample_count, "swapchain_msaa_tex");
-        if (nil == _sapp.macos.mtl.msaa_tex) {
-            _SAPP_PANIC(METAL_CREATE_SWAPCHAIN_MSAA_TEXTURE_FAILED);
-        }
-    }
-}
-
-_SOKOL_PRIVATE void _sapp_macos_mtl_swapchain_destroy(void) {
-    if (_sapp.macos.mtl.depth_tex) {
-        _SAPP_OBJC_RELEASE(_sapp.macos.mtl.depth_tex);
-    }
-    if (_sapp.macos.mtl.msaa_tex) {
-        _SAPP_OBJC_RELEASE(_sapp.macos.mtl.msaa_tex);
-    }
-}
-
-_SOKOL_PRIVATE void _sapp_macos_mtl_swapchain_resize(int width, int height) {
-    _sapp_macos_mtl_swapchain_destroy();
-    _sapp_macos_mtl_swapchain_create(width, height);
-}
-
-_SOKOL_PRIVATE id<CAMetalDrawable> _sapp_macos_mtl_swapchain_next(void) {
-    id<CAMetalDrawable> drawable = [_sapp.macos.mtl.layer nextDrawable];
-    SOKOL_ASSERT(drawable != nil);
-    return drawable;
-}
 
 _SOKOL_PRIVATE bool _sapp_macos_mtl_display_link_active(void) {
-    return (nil != _sapp.macos.mtl.display_link) && (!_sapp.macos.mtl.display_link.paused);
+    return (nil != _sapp.mtl.display_link) && (!_sapp.mtl.display_link.paused);
 }
 
 _SOKOL_PRIVATE void _sapp_macos_mtl_timing_init(void) {
-    _sapp.macos.mtl.timing.timestamp = 0.0;
-    _sapp.macos.mtl.timing.frame_duration_sec = 1.0 / _sapp_macos_max_fps();
+    _sapp.mtl.timing.timestamp = 0.0;
+    _sapp.mtl.timing.frame_duration_sec = 1.0 / _sapp_macos_max_fps();
 }
 
 _SOKOL_PRIVATE void _sapp_macos_mtl_timing_update(void) {
     // NOTE: if display link is not active, frame duration will be provided
     // by the regular platform-agnostic timing code
     if (_sapp_macos_mtl_display_link_active()) {
-        CFTimeInterval cur_timestamp = _sapp.macos.mtl.display_link.timestamp;
+        CFTimeInterval cur_timestamp = _sapp.mtl.display_link.timestamp;
         // skip first frame (frame_duration had been initialized to display refresh rate)
-        if (_sapp.macos.mtl.timing.timestamp > 0.0) {
-            const double dt = cur_timestamp - _sapp.macos.mtl.timing.timestamp;
-            _sapp.macos.mtl.timing.frame_duration_sec = _sapp_timing_clamp(&_sapp.timing, dt);
+        if (_sapp.mtl.timing.timestamp > 0.0) {
+            const double dt = cur_timestamp - _sapp.mtl.timing.timestamp;
+            _sapp.mtl.timing.frame_duration_sec = _sapp_timing_clamp(&_sapp.timing, dt);
         } else {
-            SOKOL_ASSERT(_sapp.macos.mtl.timing.frame_duration_sec > 0.0);
+            SOKOL_ASSERT(_sapp.mtl.timing.frame_duration_sec > 0.0);
         }
-        _sapp.macos.mtl.timing.timestamp = cur_timestamp;
+        _sapp.mtl.timing.timestamp = cur_timestamp;
     }
 }
 
 _SOKOL_PRIVATE double _sapp_macos_mtl_timing_frame_duration(void) {
     if (_sapp_macos_mtl_display_link_active()) {
-        SOKOL_ASSERT(_sapp.macos.mtl.timing.frame_duration_sec > 0.0);
-        return _sapp.macos.mtl.timing.frame_duration_sec;
+        SOKOL_ASSERT(_sapp.mtl.timing.frame_duration_sec > 0.0);
+        return _sapp.mtl.timing.frame_duration_sec;
     } else {
         return _sapp_timing_get(&_sapp.timing);
     }
 }
 
 _SOKOL_PRIVATE void _sapp_macos_mtl_start_display_link(void) {
-    if (nil != _sapp.macos.mtl.display_link) {
-        _sapp.macos.mtl.display_link.paused = false;
+    if (nil != _sapp.mtl.display_link) {
+        _sapp.mtl.display_link.paused = false;
         return;
     }
     // NOTE: CADisplayLink is only available since macOS 14.0
-    SOKOL_ASSERT(nil == _sapp.macos.mtl.display_link);
-    SOKOL_ASSERT(nil == _sapp.macos.mtl.fallback_timer);
+    SOKOL_ASSERT(nil == _sapp.mtl.display_link);
+    SOKOL_ASSERT(nil == _sapp.mtl.obscured_timer);
     SOKOL_ASSERT(nil != _sapp.macos.view);
     NSInteger max_fps = _sapp_macos_max_fps();
-    _sapp.macos.mtl.display_link = [_sapp.macos.view displayLinkWithTarget:_sapp.macos.view selector:@selector(displayLinkFired:)];
-    const float preferred_fps = max_fps / _sapp.swap_interval;
+    _sapp.mtl.display_link = [_sapp.macos.view displayLinkWithTarget:_sapp.macos.view selector:@selector(displayLinkFired:)];
+    const float preferred_fps = max_fps / _sapp.desc.swap_interval;
     const CAFrameRateRange frame_rate_range = { preferred_fps, preferred_fps, preferred_fps };
-    _sapp.macos.mtl.display_link.preferredFrameRateRange = frame_rate_range;
-    [_sapp.macos.mtl.display_link addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
+    _sapp.mtl.display_link.preferredFrameRateRange = frame_rate_range;
+    [_sapp.mtl.display_link addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
 }
 
 _SOKOL_PRIVATE void _sapp_macos_mtl_stop_display_link(void) {
-    if (nil != _sapp.macos.mtl.display_link) {
-        _sapp.macos.mtl.display_link.paused = true;
+    if (nil != _sapp.mtl.display_link) {
+        _sapp.mtl.display_link.paused = true;
     }
 }
 
-_SOKOL_PRIVATE void _sapp_macos_mtl_start_fallback_timer(void) {
-    SOKOL_ASSERT(nil == _sapp.macos.mtl.fallback_timer);
-    _sapp.macos.mtl.fallback_timer = [NSTimer
-        timerWithTimeInterval: _SAPP_MACOS_MTL_OBSCURED_FRAME_DURATION_IN_SECONDS
-        target: _sapp.macos.view
-        selector: @selector(fallbackTimerFired:)
-        userInfo: nil
-        repeats: YES];
-    [[NSRunLoop currentRunLoop] addTimer:_sapp.macos.mtl.fallback_timer forMode:NSRunLoopCommonModes];
+_SOKOL_PRIVATE bool _sapp_macos_mtl_is_obscured(void) {
+    return nil != _sapp.mtl.obscured_timer;
 }
 
-_SOKOL_PRIVATE void _sapp_macos_mtl_stop_fallback_timer(void) {
-    if (nil != _sapp.macos.mtl.fallback_timer) {
-        [_sapp.macos.mtl.fallback_timer invalidate];
-        _sapp.macos.mtl.fallback_timer = nil;
+_SOKOL_PRIVATE void _sapp_macos_mtl_start_obscured_timer(void) {
+    SOKOL_ASSERT(nil == _sapp.mtl.obscured_timer);
+    _sapp.mtl.obscured_timer = [NSTimer
+        timerWithTimeInterval: _SAPP_MACOS_MTL_OBSCURED_FRAME_DURATION_IN_SECONDS
+        target: _sapp.macos.view
+        selector: @selector(obscuredTimerFired:)
+        userInfo: nil
+        repeats: YES];
+    [[NSRunLoop currentRunLoop] addTimer:_sapp.mtl.obscured_timer forMode:NSRunLoopCommonModes];
+}
+
+_SOKOL_PRIVATE void _sapp_macos_mtl_stop_obscured_timer(void) {
+    if (nil != _sapp.mtl.obscured_timer) {
+        [_sapp.mtl.obscured_timer invalidate];
+        _sapp.mtl.obscured_timer = nil;
     }
 }
 
 _SOKOL_PRIVATE void _sapp_macos_mtl_transition_to_occluded(void) {
     if (_sapp_macos_mtl_display_link_active()) {
         _sapp_macos_mtl_stop_display_link();
-        _sapp_macos_mtl_start_fallback_timer();
+        _sapp_macos_mtl_start_obscured_timer();
     }
 }
 
 _SOKOL_PRIVATE void _sapp_macos_mtl_transition_to_visible(void) {
     if (!_sapp_macos_mtl_display_link_active()) {
-        _sapp_macos_mtl_stop_fallback_timer();
+        _sapp_macos_mtl_stop_obscured_timer();
         _sapp_macos_mtl_start_display_link();
     }
 }
 
 _SOKOL_PRIVATE void _sapp_macos_mtl_init(void) {
-    _sapp.macos.mtl.device = MTLCreateSystemDefaultDevice();
-    _sapp.macos.mtl.layer = [CAMetalLayer layer];
-    _sapp.macos.mtl.layer.device = _sapp.macos.mtl.device;
-    _sapp.macos.mtl.layer.magnificationFilter = kCAFilterNearest;
-    _sapp.macos.mtl.layer.opaque = true;
-    _sapp.macos.mtl.layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    _sapp.macos.mtl.layer.framebufferOnly = true;
+    _sapp.mtl.device = MTLCreateSystemDefaultDevice();
+    _sapp.mtl.layer = [CAMetalLayer layer];
+    _sapp.mtl.layer.device = _sapp.mtl.device;
+    _sapp.mtl.layer.magnificationFilter = kCAFilterNearest;
+    _sapp.mtl.layer.opaque = _sapp.desc.composite_mode == SAPP_COMPOSITEMODE_OPAQUE;
+    _sapp.mtl.layer.pixelFormat = _sapp_mtl_color_format();
+    _sapp.mtl.layer.framebufferOnly = true;
+    CGColorSpaceRef colorspace = CGColorSpaceCreateWithName(_sapp_mtl_color_space());
+    _sapp.mtl.layer.colorspace = colorspace;
+    CGColorSpaceRelease(colorspace);
+    if (_sapp.desc.hdr) {
+        _sapp.mtl.layer.wantsExtendedDynamicRangeContent = YES;
+    }
+    if (_sapp.desc.metal.disable_display_sync) {
+        _sapp.mtl.layer.displaySyncEnabled = false;
+    }
     //NOTE: default is 3: _sapp.macos.mtl.layer.maximumDrawableCount = 2;
-    // FIXME: _sapp.macos.mtl.layer.colorspace = ...;
     _sapp.macos.view = [[_sapp_macos_view alloc] init];
     [_sapp.macos.view updateTrackingAreas];
     _sapp.macos.view.wantsLayer = YES;
-    _sapp.macos.view.layer = _sapp.macos.mtl.layer;
+    _sapp.macos.view.layer = _sapp.mtl.layer;
     _sapp_macos_mtl_start_display_link();
     _sapp_macos_mtl_timing_init();
 }
 
 _SOKOL_PRIVATE void _sapp_macos_mtl_discard_state(void) {
     _sapp_macos_mtl_stop_display_link();
-    _sapp_macos_mtl_stop_fallback_timer();
-    _sapp_macos_mtl_swapchain_destroy();
-    _SAPP_OBJC_RELEASE(_sapp.macos.mtl.layer);
-    _SAPP_OBJC_RELEASE(_sapp.macos.mtl.device);
+    _sapp_macos_mtl_stop_obscured_timer();
+    _sapp_mtl_swapchain_destroy();
+    _SAPP_OBJC_RELEASE(_sapp.mtl.layer);
+    _SAPP_OBJC_RELEASE(_sapp.mtl.device);
 }
 
 _SOKOL_PRIVATE bool _sapp_macos_mtl_update_framebuffer_dimensions(NSRect view_bounds) {
     _sapp.framebuffer_width = _sapp_roundf_gzero(view_bounds.size.width * _sapp.dpi_scale);
     _sapp.framebuffer_height = _sapp_roundf_gzero(view_bounds.size.height * _sapp.dpi_scale);
-    const CGSize cur_fb_size = _sapp.macos.mtl.layer.drawableSize;
+    const CGSize cur_fb_size = _sapp.mtl.layer.drawableSize;
     int cur_fb_width = _sapp_roundf_gzero(cur_fb_size.width);
     int cur_fb_height = _sapp_roundf_gzero(cur_fb_size.height);
     bool dim_changed = (_sapp.framebuffer_width != cur_fb_width) || (_sapp.framebuffer_height != cur_fb_height);
     if (dim_changed) {
         const CGSize drawable_size = { (CGFloat) _sapp.framebuffer_width, (CGFloat) _sapp.framebuffer_height };
-        _sapp.macos.mtl.layer.drawableSize = drawable_size;
-        _sapp_macos_mtl_swapchain_resize(_sapp.framebuffer_width, _sapp.framebuffer_height);
+        _sapp.mtl.layer.drawableSize = drawable_size;
+        _sapp_mtl_swapchain_resize(_sapp.framebuffer_width, _sapp.framebuffer_height);
     }
     return dim_changed;
 }
@@ -5308,6 +5610,8 @@ _SOKOL_PRIVATE bool _sapp_macos_wgpu_update_framebuffer_dimensions(NSRect view_b
 
 #if defined(SOKOL_GLCORE)
 _SOKOL_PRIVATE void _sapp_macos_gl_init(NSRect window_rect) {
+    const int sample_count = _sapp.desc.sample_count;
+    const sapp_pixel_format dfmt = _sapp.desc.depth_format;
     NSOpenGLPixelFormatAttribute attrs[32];
     int i = 0;
     attrs[i++] = NSOpenGLPFAAccelerated;
@@ -5323,12 +5627,16 @@ _SOKOL_PRIVATE void _sapp_macos_gl_init(NSRect window_rect) {
     }
     attrs[i++] = NSOpenGLPFAColorSize; attrs[i++] = 24;
     attrs[i++] = NSOpenGLPFAAlphaSize; attrs[i++] = 8;
-    attrs[i++] = NSOpenGLPFADepthSize; attrs[i++] = 24;
-    attrs[i++] = NSOpenGLPFAStencilSize; attrs[i++] = 8;
-    if (_sapp.sample_count > 1) {
+    if (dfmt != SAPP_PIXELFORMAT_NONE) {
+        attrs[i++] = NSOpenGLPFADepthSize; attrs[i++] = 24;
+    }
+    if (dfmt == SAPP_PIXELFORMAT_DEPTH_STENCIL) {
+        attrs[i++] = NSOpenGLPFAStencilSize; attrs[i++] = 8;
+    }
+    if (sample_count > 1) {
         attrs[i++] = NSOpenGLPFAMultisample;
         attrs[i++] = NSOpenGLPFASampleBuffers; attrs[i++] = 1;
-        attrs[i++] = NSOpenGLPFASamples; attrs[i++] = (NSOpenGLPixelFormatAttribute)_sapp.sample_count;
+        attrs[i++] = NSOpenGLPFASamples; attrs[i++] = (NSOpenGLPixelFormatAttribute)sample_count;
     } else {
         attrs[i++] = NSOpenGLPFASampleBuffers; attrs[i++] = 0;
     }
@@ -5907,7 +6215,11 @@ _SOKOL_PRIVATE void _sapp_macos_frame(void) {
     _sapp.macos.window.title = [NSString stringWithUTF8String:_sapp.window_title];
     _sapp.macos.window.acceptsMouseMovedEvents = YES;
     _sapp.macos.window.restorable = YES;
-
+    if (_sapp.desc.composite_mode != SAPP_COMPOSITEMODE_OPAQUE) {
+        _sapp.macos.window.opaque = NO;
+        _sapp.macos.window.backgroundColor = [NSColor clearColor];
+        _sapp.macos.window.hasShadow = NO;
+    }
     _sapp.macos.win_dlg = [[_sapp_macos_window_delegate alloc] init];
     _sapp.macos.window.delegate = _sapp.macos.win_dlg;
     #if defined(SOKOL_METAL)
@@ -6115,9 +6427,17 @@ _SOKOL_PRIVATE void _sapp_macos_frame(void) {
 }
 - (void)prepareOpenGL {
     [super prepareOpenGL];
-    GLint swapInt = 1;
+    // NOTE: NSOpenGLContext swap interval is broken/ignored since macOS 13
+    GLint swap_interval = _sapp.desc.swap_interval;
+    if (_sapp.desc.disable_vsync) {
+        swap_interval = 0;
+    }
     NSOpenGLContext* ctx = [_sapp.macos.view openGLContext];
-    [ctx setValues:&swapInt forParameter:NSOpenGLContextParameterSwapInterval];
+    [ctx setValues:&swap_interval forParameter:NSOpenGLContextParameterSwapInterval];
+    if (_sapp.desc.composite_mode != SAPP_COMPOSITEMODE_OPAQUE) {
+        GLint opacity = 0;
+        [ctx setValues:&opacity forParameter:NSOpenGLContextParameterSurfaceOpacity];
+    }
     [ctx makeCurrentContext];
 }
 - (void)drawRect:(NSRect)rect {
@@ -6127,16 +6447,20 @@ _SOKOL_PRIVATE void _sapp_macos_frame(void) {
 #elif defined(SOKOL_METAL) || defined(SOKOL_WGPU)
 - (void)displayLinkFired:(id)sender {
     _SOKOL_UNUSED(sender);
-    _sapp_macos_frame();
+    if (!_sapp_macos_mtl_is_obscured()) {
+        _sapp_macos_frame();
+    }
 }
-- (void)fallbackTimerFired:(NSTimer*)timer {
+- (void)obscuredTimerFired:(NSTimer*)timer {
     _SOKOL_UNUSED(timer);
-    _sapp_macos_frame();
+    if (_sapp_macos_mtl_is_obscured()) {
+        _sapp_macos_frame();
+    }
 }
 #endif
 
 - (BOOL)isOpaque {
-    return YES;
+    return _sapp.desc.composite_mode == SAPP_COMPOSITEMODE_OPAQUE;
 }
 - (BOOL)canBecomeKeyView {
     return YES;
@@ -6383,109 +6707,48 @@ _SOKOL_PRIVATE NSInteger _sapp_ios_max_fps(void) {
 
 #if defined(SOKOL_METAL)
 
-_SOKOL_PRIVATE id<MTLTexture> _sapp_ios_mtl_create_texture(int width, int height, MTLPixelFormat fmt, int sample_count, const char* label) {
-    MTLTextureDescriptor* mtl_desc = [[MTLTextureDescriptor alloc] init];
-    if (sample_count > 1) {
-        mtl_desc.textureType = MTLTextureType2DMultisample;
-    } else {
-        mtl_desc.textureType = MTLTextureType2D;
-    }
-    mtl_desc.pixelFormat = fmt;
-    mtl_desc.width = (NSUInteger)width;
-    mtl_desc.height = (NSUInteger)height;
-    mtl_desc.depth = 1;
-    mtl_desc.mipmapLevelCount = 1;
-    mtl_desc.arrayLength = 1;
-    mtl_desc.sampleCount = (NSUInteger)sample_count;
-    mtl_desc.usage = MTLTextureUsageRenderTarget;
-    mtl_desc.resourceOptions = MTLResourceStorageModePrivate;
-    id<MTLTexture> mtl_tex = [_sapp.ios.mtl.device newTextureWithDescriptor:mtl_desc];
-    _SAPP_OBJC_RELEASE(mtl_desc);
-    #if defined(SOKOL_DEBUG)
-    if (mtl_tex) {
-        mtl_tex.label = [NSString stringWithUTF8String:label];
-    }
-    #else
-        _SOKOL_UNUSED(label);
-    #endif
-    return mtl_tex;
-}
-
-_SOKOL_PRIVATE void _sapp_ios_mtl_swapchain_create(int width, int height) {
-    _sapp.ios.mtl.depth_tex =_sapp_ios_mtl_create_texture(width, height, MTLPixelFormatDepth32Float_Stencil8, _sapp.sample_count, "swapchain_depth_tex");
-    if (nil == _sapp.ios.mtl.depth_tex) {
-        _SAPP_PANIC(METAL_CREATE_SWAPCHAIN_DEPTH_TEXTURE_FAILED);
-    }
-    if (_sapp.sample_count > 1) {
-        _sapp.ios.mtl.msaa_tex = _sapp_ios_mtl_create_texture(width, height, MTLPixelFormatBGRA8Unorm, _sapp.sample_count, "swapchain_msaa_tex");
-        if (nil == _sapp.ios.mtl.msaa_tex) {
-            _SAPP_PANIC(METAL_CREATE_SWAPCHAIN_MSAA_TEXTURE_FAILED);
-        }
-    }
-}
-
-_SOKOL_PRIVATE void _sapp_ios_mtl_swapchain_destroy(void) {
-    if (_sapp.ios.mtl.depth_tex) {
-        _SAPP_OBJC_RELEASE(_sapp.ios.mtl.depth_tex);
-    }
-    if (_sapp.ios.mtl.msaa_tex) {
-        _SAPP_OBJC_RELEASE(_sapp.ios.mtl.msaa_tex);
-    }
-}
-
-_SOKOL_PRIVATE void _sapp_ios_mtl_swapchain_resize(int width, int height) {
-    _sapp_ios_mtl_swapchain_destroy();
-    _sapp_ios_mtl_swapchain_create(width, height);
-}
-
-_SOKOL_PRIVATE id<CAMetalDrawable> _sapp_ios_mtl_swapchain_next(void) {
-    id<CAMetalDrawable> drawable = [_sapp.ios.mtl.layer nextDrawable];
-    SOKOL_ASSERT(drawable != nil);
-    return drawable;
-}
-
 _SOKOL_PRIVATE void _sapp_ios_mtl_timing_init(void) {
-    _sapp.ios.mtl.timing.timestamp = 0.0;
-    _sapp.ios.mtl.timing.frame_duration_sec = 1.0 / _sapp_ios_max_fps();
+    _sapp.mtl.timing.timestamp = 0.0;
+    _sapp.mtl.timing.frame_duration_sec = 1.0 / _sapp_ios_max_fps();
 }
 
 _SOKOL_PRIVATE void _sapp_ios_mtl_timing_update(void) {
-    const CFTimeInterval cur_timestamp = _sapp.ios.mtl.display_link.timestamp;
+    const CFTimeInterval cur_timestamp = _sapp.mtl.display_link.timestamp;
     // skip first frame (frame_duration had been initialized to display refresh rate)
-    if (_sapp.ios.mtl.timing.timestamp > 0.0) {
-        const double dt = cur_timestamp - _sapp.ios.mtl.timing.timestamp;
-        _sapp.ios.mtl.timing.frame_duration_sec = _sapp_timing_clamp(&_sapp.timing, dt);
+    if (_sapp.mtl.timing.timestamp > 0.0) {
+        const double dt = cur_timestamp - _sapp.mtl.timing.timestamp;
+        _sapp.mtl.timing.frame_duration_sec = _sapp_timing_clamp(&_sapp.timing, dt);
     } else {
-        SOKOL_ASSERT(_sapp.ios.mtl.timing.frame_duration_sec > 0.0);
+        SOKOL_ASSERT(_sapp.mtl.timing.frame_duration_sec > 0.0);
     }
-    _sapp.ios.mtl.timing.timestamp = cur_timestamp;
+    _sapp.mtl.timing.timestamp = cur_timestamp;
 }
 
 _SOKOL_PRIVATE double _sapp_ios_mtl_timing_frame_duration(void) {
-    SOKOL_ASSERT(_sapp.ios.mtl.timing.frame_duration_sec > 0.0);
-    return _sapp.ios.mtl.timing.frame_duration_sec;
+    SOKOL_ASSERT(_sapp.mtl.timing.frame_duration_sec > 0.0);
+    return _sapp.mtl.timing.frame_duration_sec;
 }
 
 _SOKOL_PRIVATE void _sapp_ios_mtl_start_display_link(void) {
-    SOKOL_ASSERT(nil == _sapp.ios.mtl.display_link);
+    SOKOL_ASSERT(nil == _sapp.mtl.display_link);
     SOKOL_ASSERT(nil != _sapp.ios.view);
-    _sapp.ios.mtl.display_link = [CADisplayLink displayLinkWithTarget:_sapp.ios.view selector:@selector(displayLinkFired:)];
-    const float preferred_fps = _sapp_ios_max_fps() / _sapp.swap_interval;
+    _sapp.mtl.display_link = [CADisplayLink displayLinkWithTarget:_sapp.ios.view selector:@selector(displayLinkFired:)];
+    const float preferred_fps = _sapp_ios_max_fps() / _sapp.desc.swap_interval;
     const CAFrameRateRange frame_rate_range = { preferred_fps, preferred_fps, preferred_fps };
-    _sapp.ios.mtl.display_link.preferredFrameRateRange = frame_rate_range;
-    [_sapp.ios.mtl.display_link addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
+    _sapp.mtl.display_link.preferredFrameRateRange = frame_rate_range;
+    [_sapp.mtl.display_link addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
 }
 
 _SOKOL_PRIVATE void _sapp_ios_mtl_stop_display_link(void) {
-    if (nil != _sapp.ios.mtl.display_link) {
-        [_sapp.ios.mtl.display_link invalidate];
+    if (nil != _sapp.mtl.display_link) {
+        [_sapp.mtl.display_link invalidate];
         // NOTE: the run-loop held the only string reference to the display link
-        _sapp.ios.mtl.display_link = nil;
+        _sapp.mtl.display_link = nil;
     }
 }
 
 _SOKOL_PRIVATE void _sapp_ios_mtl_init(UIWindowScene* windowScene) {
-    _sapp.ios.mtl.device = MTLCreateSystemDefaultDevice();
+    _sapp.mtl.device = MTLCreateSystemDefaultDevice();
 
     _sapp.ios.view = [[_sapp_ios_view alloc] initWithFrame:windowScene.screen.bounds];
     _sapp.ios.view.userInteractionEnabled = YES;
@@ -6493,14 +6756,25 @@ _SOKOL_PRIVATE void _sapp_ios_mtl_init(UIWindowScene* windowScene) {
         _sapp.ios.view.multipleTouchEnabled = YES;
     #endif
 
-    _sapp.ios.mtl.layer = [CAMetalLayer layer];
-    _sapp.ios.mtl.layer.device = _sapp.ios.mtl.device;
-    _sapp.ios.mtl.layer.opaque = true;
-    _sapp.ios.mtl.layer.framebufferOnly = true;
-    _sapp.ios.mtl.layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    _sapp.ios.mtl.layer.frame = _sapp.ios.view.layer.frame;
+    _sapp.mtl.layer = [CAMetalLayer layer];
+    _sapp.mtl.layer.device = _sapp.mtl.device;
+    // NOTE: hardwired to opaque is intended on iOS
+    _sapp.mtl.layer.opaque = YES;
+    _sapp.mtl.layer.framebufferOnly = YES;
+    _sapp.mtl.layer.pixelFormat = _sapp_mtl_color_format();
+    CGColorSpaceRef colorspace = CGColorSpaceCreateWithName(_sapp_mtl_color_space());
+    _sapp.mtl.layer.colorspace = colorspace;
+    CGColorSpaceRelease(colorspace);
+    #if !defined(_SAPP_TVOS)
+    if (_sapp.desc.hdr) {
+        // NOTE: CAMetalLayer.wantsExtendedDynamicRangeContent not available on tvOS
+        _sapp.mtl.layer.wantsExtendedDynamicRangeContent = YES;
+    }
+    #endif
+    // NOTE: CAMetalLayer.displaySyncEnabled doesn't exist on iOS
+    _sapp.mtl.layer.frame = _sapp.ios.view.layer.frame;
 
-    [_sapp.ios.view.layer addSublayer:_sapp.ios.mtl.layer];
+    [_sapp.ios.view.layer addSublayer:_sapp.mtl.layer];
 
     _sapp.ios.view_ctrl = [[UIViewController alloc] init];
     _sapp.ios.view_ctrl.modalPresentationStyle = UIModalPresentationFullScreen;
@@ -6513,25 +6787,25 @@ _SOKOL_PRIVATE void _sapp_ios_mtl_init(UIWindowScene* windowScene) {
 
 _SOKOL_PRIVATE void _sapp_ios_mtl_discard_state(void) {
     _sapp_ios_mtl_stop_display_link();
-    _sapp_ios_mtl_swapchain_destroy();
-    _SAPP_OBJC_RELEASE(_sapp.ios.mtl.layer);
+    _sapp_mtl_swapchain_destroy();
+    _SAPP_OBJC_RELEASE(_sapp.mtl.layer);
     _SAPP_OBJC_RELEASE(_sapp.ios.view_ctrl);
-    _SAPP_OBJC_RELEASE(_sapp.ios.mtl.device);
+    _SAPP_OBJC_RELEASE(_sapp.mtl.device);
 }
 
 _SOKOL_PRIVATE bool _sapp_ios_mtl_update_framebuffer_dimensions(CGRect screen_rect) {
     // get current screen size and if it changed, update the MTKView drawable size
     _sapp.framebuffer_width = _sapp_roundf_gzero(screen_rect.size.width * _sapp.dpi_scale);
     _sapp.framebuffer_height = _sapp_roundf_gzero(screen_rect.size.height * _sapp.dpi_scale);
-    const CGSize cur_size = _sapp.ios.mtl.layer.drawableSize;
+    const CGSize cur_size = _sapp.mtl.layer.drawableSize;
     const int cur_width = _sapp_roundf_gzero(cur_size.width);
     const int cur_height = _sapp_roundf_gzero(cur_size.height);
     const bool dim_changed = (_sapp.framebuffer_width != cur_width) || (_sapp.framebuffer_height != cur_height);
     if (dim_changed) {
         const CGSize drawable_size = { (CGFloat) _sapp.framebuffer_width, (CGFloat) _sapp.framebuffer_height };
-        _sapp.ios.mtl.layer.drawableSize = drawable_size;
-        _sapp.ios.mtl.layer.frame = screen_rect;
-        _sapp_ios_mtl_swapchain_resize(_sapp.framebuffer_width, _sapp.framebuffer_height);
+        _sapp.mtl.layer.drawableSize = drawable_size;
+        _sapp.mtl.layer.frame = screen_rect;
+        _sapp_mtl_swapchain_resize(_sapp.framebuffer_width, _sapp.framebuffer_height);
     }
     return dim_changed;
 }
@@ -6540,13 +6814,33 @@ _SOKOL_PRIVATE bool _sapp_ios_mtl_update_framebuffer_dimensions(CGRect screen_re
 #if defined(SOKOL_GLES3)
 _SOKOL_PRIVATE void _sapp_ios_gles3_init(UIWindowScene* windowScene) {
     const CGRect screen_rect = windowScene.screen.bounds;
+    const bool msaa_requested = _sapp.desc.sample_count > 1;
+    const bool srgb_requested = _sapp.desc.srgb;
+    const bool depth_requested = _sapp.desc.depth_format != SAPP_PIXELFORMAT_NONE;
+    const bool stencil_requested = _sapp.desc.depth_format == SAPP_PIXELFORMAT_DEPTH_STENCIL;
+    _sapp.ios.eagl_ctx = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES3];
     _sapp.ios.eagl_ctx = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES3];
     _sapp.ios.view = [[_sapp_ios_view alloc] initWithFrame:screen_rect];
-    _sapp.ios.view.drawableColorFormat = GLKViewDrawableColorFormatRGBA8888;
-    _sapp.ios.view.drawableDepthFormat = GLKViewDrawableDepthFormat24;
-    _sapp.ios.view.drawableStencilFormat = GLKViewDrawableStencilFormatNone;
-    GLKViewDrawableMultisample msaa = _sapp.sample_count > 1 ? GLKViewDrawableMultisample4X : GLKViewDrawableMultisampleNone;
-    _sapp.ios.view.drawableMultisample = msaa;
+    if (srgb_requested) {
+        _sapp.ios.view.drawableColorFormat = GLKViewDrawableColorFormatSRGBA8888;
+    } else {
+        _sapp.ios.view.drawableColorFormat = GLKViewDrawableColorFormatRGBA8888;
+    }
+    if (depth_requested) {
+        _sapp.ios.view.drawableDepthFormat = GLKViewDrawableDepthFormat24;
+    } else {
+        _sapp.ios.view.drawableDepthFormat = GLKViewDrawableDepthFormatNone;
+    }
+    if (stencil_requested) {
+        _sapp.ios.view.drawableStencilFormat = GLKViewDrawableStencilFormat8;
+    } else {
+        _sapp.ios.view.drawableStencilFormat = GLKViewDrawableStencilFormatNone;
+    }
+    if (msaa_requested) {
+        _sapp.ios.view.drawableMultisample = GLKViewDrawableMultisample4X;
+    } else {
+        _sapp.ios.view.drawableMultisample = GLKViewDrawableMultisampleNone;
+    }
     _sapp.ios.view.context = _sapp.ios.eagl_ctx;
     _sapp.ios.view.enableSetNeedsDisplay = NO;
     _sapp.ios.view.userInteractionEnabled = YES;
@@ -6559,7 +6853,7 @@ _SOKOL_PRIVATE void _sapp_ios_gles3_init(UIWindowScene* windowScene) {
     }
     _sapp.ios.view_ctrl = [[GLKViewController alloc] init];
     _sapp.ios.view_ctrl.view = _sapp.ios.view;
-    _sapp.ios.view_ctrl.preferredFramesPerSecond = _sapp_ios_max_fps() / _sapp.swap_interval;
+    _sapp.ios.view_ctrl.preferredFramesPerSecond = _sapp_ios_max_fps() / _sapp.desc.swap_interval;
     _sapp.ios.window.rootViewController = _sapp.ios.view_ctrl;
 }
 
@@ -6613,7 +6907,9 @@ _SOKOL_PRIVATE void _sapp_ios_app_event(sapp_event_type type) {
     }
 }
 
-_SOKOL_PRIVATE void _sapp_tvos_press_event(sapp_event_type type, NSSet<UIPress *>* presses) {
+/* tvOS requires that the menu button goes to home screen when app navigation reaches its root */
+_SOKOL_PRIVATE bool _sapp_tvos_press_event(sapp_event_type type, NSSet<UIPress *>* presses) {
+    bool consume_event = false;
     if (_sapp_events_enabled()) {
         for (UIPress *press in presses) {
             sapp_keycode key = SAPP_KEYCODE_INVALID;
@@ -6632,10 +6928,11 @@ _SOKOL_PRIVATE void _sapp_tvos_press_event(sapp_event_type type, NSSet<UIPress *
                 _sapp.event.key_code = key;
                 _sapp.event.key_repeat = false;
                 _sapp.event.modifiers = 0;
-                _sapp_call_event(&_sapp.event);
+                consume_event |= _sapp_call_event(&_sapp.event);
             }
         }
     }
+    return consume_event;
 }
 
 _SOKOL_PRIVATE void _sapp_ios_touch_event(sapp_event_type type, NSSet<UITouch *>* touches, UIEvent* event) {
@@ -6762,8 +7059,8 @@ _SOKOL_PRIVATE void _sapp_ios_show_keyboard(bool shown) {
     if (!_sapp.ios.suspended) {
         _sapp.ios.suspended = true;
         #if defined(SOKOL_METAL)
-        if (nil != _sapp.ios.mtl.display_link) {
-            _sapp.ios.mtl.display_link.paused = YES;
+        if (nil != _sapp.mtl.display_link) {
+            _sapp.mtl.display_link.paused = YES;
         }
         #endif
         _sapp_ios_app_event(SAPP_EVENTTYPE_SUSPENDED);
@@ -6774,8 +7071,8 @@ _SOKOL_PRIVATE void _sapp_ios_show_keyboard(bool shown) {
     if (_sapp.ios.suspended) {
         _sapp.ios.suspended = false;
         #if defined(SOKOL_METAL)
-        if (nil != _sapp.ios.mtl.display_link) {
-            _sapp.ios.mtl.display_link.paused = NO;
+        if (nil != _sapp.mtl.display_link) {
+            _sapp.mtl.display_link.paused = NO;
         }
         #endif
         _sapp_ios_app_event(SAPP_EVENTTYPE_RESUMED);
@@ -6884,19 +7181,22 @@ _SOKOL_PRIVATE void _sapp_ios_show_keyboard(bool shown) {
 }
 #endif
 
-- (BOOL)isOpaque {
-    return YES;
-}
 - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
-    _sapp_tvos_press_event(SAPP_EVENTTYPE_KEY_DOWN, presses);
+    if (!_sapp_tvos_press_event(SAPP_EVENTTYPE_KEY_DOWN, presses)) {
+        [super pressesBegan:presses withEvent:event];
+    }
 }
 - (void)pressesChanged:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
 }
 - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
-    _sapp_tvos_press_event(SAPP_EVENTTYPE_KEY_UP, presses);
+    if (!_sapp_tvos_press_event(SAPP_EVENTTYPE_KEY_UP, presses)) {
+        [super pressesEnded:presses withEvent:event];
+    }
 }
 - (void)pressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
-    _sapp_tvos_press_event(SAPP_EVENTTYPE_KEY_UP, presses);
+    if (!_sapp_tvos_press_event(SAPP_EVENTTYPE_KEY_UP, presses)) {
+        [super pressesCancelled:presses withEvent:event];
+    }
 }
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent*)event {
     _sapp_ios_touch_event(SAPP_EVENTTYPE_TOUCHES_BEGAN, touches, event);
@@ -7059,7 +7359,8 @@ EM_JS(void, sapp_js_remove_clipboard_listener, (void), {
 })
 
 EM_JS(void, sapp_js_write_clipboard, (const char* c_str), {
-    const str = UTF8ToString(c_str);
+    // NOTE: wasm64 compatibility (see: https://github.com/floooh/sokol/pull/1590)
+    const str = UTF8ToString(Number(c_str));
     const ta = document.createElement('textarea');
     ta.setAttribute('autocomplete', 'off');
     ta.setAttribute('autocorrect', 'off');
@@ -7164,9 +7465,11 @@ EM_JS(void, sapp_js_remove_dragndrop_listeners, (void), {
 
 EM_JS(void, sapp_js_init, (const char* c_str_target_selector, const char* c_str_document_title), {
     if (c_str_document_title !== 0) {
-        document.title = UTF8ToString(c_str_document_title);
+        // NOTE: wasm64 compatibility (see: https://github.com/floooh/sokol/pull/1590)
+        document.title = UTF8ToString(Number(c_str_document_title));
     }
-    const target_selector_str = UTF8ToString(c_str_target_selector);
+    // NOTE: wasm64 compatibility (see: https://github.com/floooh/sokol/pull/1590)
+    const target_selector_str = UTF8ToString(Number(c_str_target_selector));
     if (Module['canvas'] !== undefined) {
         if (typeof Module['canvas'] === 'object') {
             specialHTMLTargets[target_selector_str] = Module['canvas'];
@@ -7915,13 +8218,18 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_webgl_context_cb(int emsc_type, const void* re
 }
 
 _SOKOL_PRIVATE void _sapp_emsc_webgl_init(void) {
+    const sapp_pixel_format depth_fmt = _sapp.desc.depth_format;
+    const bool wants_alpha = _sapp.desc.composite_mode != SAPP_COMPOSITEMODE_OPAQUE;
+    const bool wants_premul_alpha = _sapp.desc.composite_mode == SAPP_COMPOSITEMODE_PREMULTIPLIED;
+    const bool wants_depth = depth_fmt != SAPP_PIXELFORMAT_NONE;
+    const bool wants_stencil = depth_fmt == SAPP_PIXELFORMAT_DEPTH_STENCIL;
     EmscriptenWebGLContextAttributes attrs;
     emscripten_webgl_init_context_attributes(&attrs);
-    attrs.alpha = _sapp.desc.alpha;
-    attrs.depth = true;
-    attrs.stencil = true;
-    attrs.antialias = _sapp.sample_count > 1;
-    attrs.premultipliedAlpha = _sapp.desc.html5.premultiplied_alpha;
+    attrs.alpha = wants_alpha;
+    attrs.depth = wants_depth;
+    attrs.stencil = wants_stencil;
+    attrs.antialias = _sapp.desc.sample_count > 1;
+    attrs.premultipliedAlpha = wants_premul_alpha;
     attrs.preserveDrawingBuffer = _sapp.desc.html5.preserve_drawing_buffer;
     attrs.enableExtensionsByDefault = true;
     attrs.majorVersion = 2;
@@ -8105,6 +8413,7 @@ typedef struct {
     int         stencil_bits;
     int         samples;
     bool        doublebuffer;
+    bool        srgb_capable;
     uintptr_t   handle;
 } _sapp_gl_fbconfig;
 
@@ -8139,6 +8448,9 @@ _SOKOL_PRIVATE void _sapp_gl_init_fbselect(_sapp_gl_fbselect* fbselect) {
 _SOKOL_PRIVATE bool _sapp_gl_select_fbconfig(_sapp_gl_fbselect* fbselect, const _sapp_gl_fbconfig* desired, const _sapp_gl_fbconfig* current) {
     int missing = 0;
     if (desired->doublebuffer != current->doublebuffer) {
+        return false;
+    }
+    if (desired->srgb_capable != current->srgb_capable) {
         return false;
     }
 
@@ -8222,6 +8534,9 @@ _SOKOL_PRIVATE const _sapp_gl_fbconfig* _sapp_gl_choose_fbconfig(const _sapp_gl_
     for (int i = 0;  i < count;  i++) {
         current = alternatives + i;
         if (desired->doublebuffer != current->doublebuffer) {
+            continue;
+        }
+        if (desired->srgb_capable != current->srgb_capable) {
             continue;
         }
         missing = 0;
@@ -8563,11 +8878,47 @@ static inline HRESULT _sapp_dxgi_MakeWindowAssociation(IDXGIFactory* self, HWND 
     #endif
 }
 
+_SOKOL_PRIVATE DXGI_FORMAT _sapp_d3d11_swapchain_color_format(void) {
+    if (_sapp.desc.hdr) {
+        return DXGI_FORMAT_R16G16B16A16_FLOAT;
+    } else {
+        return DXGI_FORMAT_B8G8R8A8_UNORM;
+    }
+}
+
+_SOKOL_PRIVATE DXGI_FORMAT _sapp_d3d11_msaatex_color_format(void) {
+    if (_sapp.desc.hdr) {
+        return DXGI_FORMAT_R16G16B16A16_TYPELESS;
+    } else {
+        return DXGI_FORMAT_B8G8R8A8_TYPELESS;
+    }
+}
+
+_SOKOL_PRIVATE DXGI_FORMAT _sapp_d3d11_view_color_format(void) {
+    if (_sapp.desc.hdr) {
+        return DXGI_FORMAT_R16G16B16A16_FLOAT;
+    } else {
+        if (_sapp.desc.srgb) {
+            return DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+        } else {
+            return DXGI_FORMAT_B8G8R8A8_UNORM;
+        }
+    }
+}
+
+_SOKOL_PRIVATE DXGI_FORMAT _sapp_d3d11_depth_format(void) {
+    switch (_sapp.desc.depth_format) {
+        case SAPP_PIXELFORMAT_DEPTH: return DXGI_FORMAT_D32_FLOAT;
+        case SAPP_PIXELFORMAT_DEPTH_STENCIL: return DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
+        default: SOKOL_UNREACHABLE; return DXGI_FORMAT_UNKNOWN;
+    }
+}
+
 _SOKOL_PRIVATE void _sapp_d3d11_create_device_and_swapchain(void) {
     DXGI_SWAP_CHAIN_DESC* sc_desc = &_sapp.d3d11.swap_chain_desc;
     sc_desc->BufferDesc.Width = (UINT)_sapp.framebuffer_width;
     sc_desc->BufferDesc.Height = (UINT)_sapp.framebuffer_height;
-    sc_desc->BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    sc_desc->BufferDesc.Format = _sapp_d3d11_swapchain_color_format();
     sc_desc->BufferDesc.RefreshRate.Numerator = 60;
     sc_desc->BufferDesc.RefreshRate.Denominator = 1;
     sc_desc->OutputWindow = _sapp.win32.hwnd;
@@ -8673,39 +9024,55 @@ _SOKOL_PRIVATE void _sapp_d3d11_create_default_render_target(void) {
 
     HRESULT hr; _SOKOL_UNUSED(hr);
 
-    /* view for the swapchain-created framebuffer */
+    bool wants_msaa = _sapp.desc.sample_count > 1;
+    bool wants_depth = _sapp.desc.depth_format != SAPP_PIXELFORMAT_NONE;
+
+    // view for the swapchain-created framebuffer
     hr = _sapp_dxgi_GetBuffer(_sapp.d3d11.swap_chain, 0, _sapp_win32_refiid(_sapp_IID_ID3D11Texture2D), (void**)&_sapp.d3d11.rt);
     SOKOL_ASSERT(SUCCEEDED(hr) && _sapp.d3d11.rt);
-    hr = _sapp_d3d11_CreateRenderTargetView(_sapp.d3d11.device, (ID3D11Resource*)_sapp.d3d11.rt, NULL, &_sapp.d3d11.rtv);
+
+    // when SRGB is requested, the view needs a different format than the surface
+    _SAPP_STRUCT(D3D11_RENDER_TARGET_VIEW_DESC, d3d11_rtv_desc);
+    d3d11_rtv_desc.Format = _sapp_d3d11_view_color_format();
+    if (wants_msaa) {
+        d3d11_rtv_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DMS;
+    } else {
+        d3d11_rtv_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+    }
+    hr = _sapp_d3d11_CreateRenderTargetView(_sapp.d3d11.device, (ID3D11Resource*)_sapp.d3d11.rt, &d3d11_rtv_desc, &_sapp.d3d11.rtv);
     SOKOL_ASSERT(SUCCEEDED(hr) && _sapp.d3d11.rtv);
 
-    /* common desc for MSAA and depth-stencil texture */
-    _SAPP_STRUCT(D3D11_TEXTURE2D_DESC, tex_desc);
-    tex_desc.Width = (UINT)_sapp.framebuffer_width;
-    tex_desc.Height = (UINT)_sapp.framebuffer_height;
-    tex_desc.MipLevels = 1;
-    tex_desc.ArraySize = 1;
-    tex_desc.Usage = D3D11_USAGE_DEFAULT;
-    tex_desc.BindFlags = D3D11_BIND_RENDER_TARGET;
-    tex_desc.SampleDesc.Count = (UINT) _sapp.sample_count;
-    tex_desc.SampleDesc.Quality = (UINT) (_sapp.sample_count > 1 ? D3D11_STANDARD_MULTISAMPLE_PATTERN : 0);
+    // common desc for MSAA and depth-stencil texture
+    if (wants_depth || wants_msaa) {
+        _SAPP_STRUCT(D3D11_TEXTURE2D_DESC, tex_desc);
+        tex_desc.Width = (UINT)_sapp.framebuffer_width;
+        tex_desc.Height = (UINT)_sapp.framebuffer_height;
+        tex_desc.MipLevels = 1;
+        tex_desc.ArraySize = 1;
+        tex_desc.Usage = D3D11_USAGE_DEFAULT;
+        tex_desc.BindFlags = D3D11_BIND_RENDER_TARGET;
+        tex_desc.SampleDesc.Count = (UINT) _sapp.desc.sample_count;
+        tex_desc.SampleDesc.Quality = (UINT) wants_msaa ? D3D11_STANDARD_MULTISAMPLE_PATTERN : 0;
 
-    /* create MSAA texture and view if antialiasing requested */
-    if (_sapp.sample_count > 1) {
-        tex_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-        hr = _sapp_d3d11_CreateTexture2D(_sapp.d3d11.device, &tex_desc, NULL, &_sapp.d3d11.msaa_rt);
-        SOKOL_ASSERT(SUCCEEDED(hr) && _sapp.d3d11.msaa_rt);
-        hr = _sapp_d3d11_CreateRenderTargetView(_sapp.d3d11.device, (ID3D11Resource*)_sapp.d3d11.msaa_rt, NULL, &_sapp.d3d11.msaa_rtv);
-        SOKOL_ASSERT(SUCCEEDED(hr) && _sapp.d3d11.msaa_rtv);
+        // create MSAA texture and view if antialiasing requested
+        if (wants_msaa) {
+            tex_desc.Format = _sapp_d3d11_msaatex_color_format();
+            hr = _sapp_d3d11_CreateTexture2D(_sapp.d3d11.device, &tex_desc, NULL, &_sapp.d3d11.msaa_rt);
+            SOKOL_ASSERT(SUCCEEDED(hr) && _sapp.d3d11.msaa_rt);
+            hr = _sapp_d3d11_CreateRenderTargetView(_sapp.d3d11.device, (ID3D11Resource*)_sapp.d3d11.msaa_rt, &d3d11_rtv_desc, &_sapp.d3d11.msaa_rtv);
+            SOKOL_ASSERT(SUCCEEDED(hr) && _sapp.d3d11.msaa_rtv);
+        }
+
+        // texture and view for the depth-stencil-surface
+        if (wants_depth) {
+            tex_desc.Format = _sapp_d3d11_depth_format();
+            tex_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+            hr = _sapp_d3d11_CreateTexture2D(_sapp.d3d11.device, &tex_desc, NULL, &_sapp.d3d11.ds);
+            SOKOL_ASSERT(SUCCEEDED(hr) && _sapp.d3d11.ds);
+            hr = _sapp_d3d11_CreateDepthStencilView(_sapp.d3d11.device, (ID3D11Resource*)_sapp.d3d11.ds, NULL, &_sapp.d3d11.dsv);
+            SOKOL_ASSERT(SUCCEEDED(hr) && _sapp.d3d11.dsv);
+        }
     }
-
-    /* texture and view for the depth-stencil-surface */
-    tex_desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    tex_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-    hr = _sapp_d3d11_CreateTexture2D(_sapp.d3d11.device, &tex_desc, NULL, &_sapp.d3d11.ds);
-    SOKOL_ASSERT(SUCCEEDED(hr) && _sapp.d3d11.ds);
-    hr = _sapp_d3d11_CreateDepthStencilView(_sapp.d3d11.device, (ID3D11Resource*)_sapp.d3d11.ds, NULL, &_sapp.d3d11.dsv);
-    SOKOL_ASSERT(SUCCEEDED(hr) && _sapp.d3d11.dsv);
 }
 
 _SOKOL_PRIVATE void _sapp_d3d11_destroy_default_render_target(void) {
@@ -8725,16 +9092,20 @@ _SOKOL_PRIVATE void _sapp_d3d11_resize_default_render_target(void) {
     }
 }
 
-_SOKOL_PRIVATE void _sapp_d3d11_present(bool do_not_wait) {
+_SOKOL_PRIVATE void _sapp_d3d11_present(bool from_winproc) {
     UINT flags = 0;
-    if (_sapp.win32.is_win10_or_greater && do_not_wait) {
-        /* this hack/workaround somewhat improves window-movement and -sizing
-            responsiveness when rendering is controlled via WM_TIMER during window
-            move and resize on NVIDIA cards on Win10 with recent drivers.
-        */
-        flags = DXGI_PRESENT_DO_NOT_WAIT;
+    UINT swap_interval = (UINT)_sapp.desc.swap_interval;
+    // DXGI_PRESENT_DO_NOT_WAIT isn't supported on Win7
+    if (_sapp.win32.is_win10_or_greater) {
+        if (_sapp.desc.disable_vsync || from_winproc) {
+            // NOTE: disabled vsync-throttling when called from the winproc modal window
+            // resize/movement loop avoids window system stuttering on some drivers
+            // (notably: NVIDIA)
+            flags |= DXGI_PRESENT_DO_NOT_WAIT;
+            swap_interval = 0;
+        }
     }
-    _sapp_dxgi_Present(_sapp.d3d11.swap_chain, (UINT)_sapp.swap_interval, flags);
+    _sapp_dxgi_Present(_sapp.d3d11.swap_chain, swap_interval, flags);
 }
 
 #endif /* SOKOL_D3D11 */
@@ -8857,6 +9228,7 @@ _SOKOL_PRIVATE void _sapp_wgl_load_extensions(void) {
     _sapp.wgl.arb_create_context_profile = _sapp_wgl_ext_supported("WGL_ARB_create_context_profile");
     _sapp.wgl.ext_swap_control = _sapp_wgl_ext_supported("WGL_EXT_swap_control");
     _sapp.wgl.arb_pixel_format = _sapp_wgl_ext_supported("WGL_ARB_pixel_format");
+    _sapp.wgl.arb_framebuffer_srgb = _sapp_wgl_ext_supported("WGL_ARB_framebuffer_sRGB");
     _sapp.wgl.MakeCurrent(_sapp.wgl.msg_dc, 0);
     _sapp.wgl.DeleteContext(rc);
 }
@@ -8881,43 +9253,37 @@ _SOKOL_PRIVATE int _sapp_wgl_find_pixel_format(void) {
     SOKOL_ASSERT(_sapp.win32.dc);
     SOKOL_ASSERT(_sapp.wgl.arb_pixel_format);
 
-    #define _sapp_wgl_num_query_tags (12)
-    const int query_tags[_sapp_wgl_num_query_tags] = {
-        WGL_SUPPORT_OPENGL_ARB,
-        WGL_DRAW_TO_WINDOW_ARB,
-        WGL_PIXEL_TYPE_ARB,
-        WGL_ACCELERATION_ARB,
-        WGL_DOUBLE_BUFFER_ARB,
-        WGL_RED_BITS_ARB,
-        WGL_GREEN_BITS_ARB,
-        WGL_BLUE_BITS_ARB,
-        WGL_ALPHA_BITS_ARB,
-        WGL_DEPTH_BITS_ARB,
-        WGL_STENCIL_BITS_ARB,
-        WGL_SAMPLES_ARB,
-    };
-    const int result_support_opengl_index = 0;
-    const int result_draw_to_window_index = 1;
-    const int result_pixel_type_index = 2;
-    const int result_acceleration_index = 3;
-    const int result_double_buffer_index = 4;
-    const int result_red_bits_index = 5;
-    const int result_green_bits_index = 6;
-    const int result_blue_bits_index = 7;
-    const int result_alpha_bits_index = 8;
-    const int result_depth_bits_index = 9;
-    const int result_stencil_bits_index = 10;
-    const int result_samples_index = 11;
-
-    int query_results[_sapp_wgl_num_query_tags] = {0};
-    // Drop the last item if multisample extension is not supported.
-    //  If in future querying with multiple extensions, will have to shuffle index values to have active extensions on the end.
-    int query_count = _sapp_wgl_num_query_tags;
-    if (!_sapp.wgl.arb_multisample) {
-        query_count = _sapp_wgl_num_query_tags - 1;
+    #define _SAPP_WGL_MAX_QUERY_TAGS (13)
+    #define _SAPP_WGL_ADD(tag, count, idx) SOKOL_ASSERT(count<_SAPP_WGL_MAX_QUERY_TAGS);query_tags[count]=tag;idx=count++;
+    int query_tags[_SAPP_WGL_MAX_QUERY_TAGS] = {0};
+    int query_results[_SAPP_WGL_MAX_QUERY_TAGS] = {0};
+    int query_count = 0;
+    int support_opengl_idx = -1, draw_to_window_idx = -1, pixel_type_idx = -1, acceleration_idx = -1, double_buffer_idx = -1;
+    int red_bits_idx = -1, green_bits_idx = -1, blue_bits_idx = -1, alpha_bits_idx = -1;
+    int depth_bits_idx = -1, stencil_bits_idx = -1;
+    int samples_idx = -1, framebuffer_srgb_capable_idx = -1;
+    _SAPP_WGL_ADD(WGL_SUPPORT_OPENGL_ARB, query_count, support_opengl_idx);
+    _SAPP_WGL_ADD(WGL_DRAW_TO_WINDOW_ARB, query_count, draw_to_window_idx);
+    _SAPP_WGL_ADD(WGL_PIXEL_TYPE_ARB, query_count, pixel_type_idx);
+    _SAPP_WGL_ADD(WGL_ACCELERATION_ARB, query_count, acceleration_idx);
+    _SAPP_WGL_ADD(WGL_DOUBLE_BUFFER_ARB, query_count, double_buffer_idx);
+    _SAPP_WGL_ADD(WGL_RED_BITS_ARB, query_count, red_bits_idx);
+    _SAPP_WGL_ADD(WGL_GREEN_BITS_ARB, query_count, green_bits_idx);
+    _SAPP_WGL_ADD(WGL_BLUE_BITS_ARB, query_count, blue_bits_idx);
+    _SAPP_WGL_ADD(WGL_ALPHA_BITS_ARB, query_count, alpha_bits_idx);
+    _SAPP_WGL_ADD(WGL_DEPTH_BITS_ARB, query_count, depth_bits_idx);
+    _SAPP_WGL_ADD(WGL_STENCIL_BITS_ARB, query_count, stencil_bits_idx);
+    if (_sapp.wgl.arb_multisample) {
+        _SAPP_WGL_ADD(WGL_SAMPLES_ARB, query_count, samples_idx);
+    }
+    if (_sapp.wgl.arb_framebuffer_srgb) {
+        _SAPP_WGL_ADD(WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB, query_count, framebuffer_srgb_capable_idx);
     }
 
-    int native_count = _sapp_wgl_attrib(1, WGL_NUMBER_PIXEL_FORMATS_ARB);
+    bool wants_depth = _sapp.desc.depth_format != SAPP_PIXELFORMAT_NONE;
+    bool wants_stencil = _sapp.desc.depth_format == SAPP_PIXELFORMAT_DEPTH_STENCIL;
+    bool wants_msaa = (_sapp.desc.sample_count > 1) && _sapp.wgl.arb_multisample;
+    bool wants_srgb = _sapp.desc.srgb && _sapp.wgl.arb_framebuffer_srgb;
 
     _sapp_gl_fbconfig desired;
     _sapp_gl_init_fbconfig(&desired);
@@ -8925,36 +9291,57 @@ _SOKOL_PRIVATE int _sapp_wgl_find_pixel_format(void) {
     desired.green_bits = 8;
     desired.blue_bits = 8;
     desired.alpha_bits = 8;
-    desired.depth_bits = 24;
-    desired.stencil_bits = 8;
+    if (wants_depth) {
+        desired.depth_bits = 24;
+    } else {
+        desired.depth_bits = 0;
+    }
+    if (wants_stencil) {
+        desired.stencil_bits = 8;
+    } else {
+        desired.stencil_bits = 0;
+    }
     desired.doublebuffer = true;
-    desired.samples = (_sapp.sample_count > 1) ? _sapp.sample_count : 0;
+    if (wants_msaa) {
+        desired.samples = _sapp.desc.sample_count;
+    } else {
+        desired.samples = 0;
+    }
+    desired.srgb_capable = wants_srgb;
 
     int pixel_format = 0;
-
     _sapp_gl_fbselect fbselect;
     _sapp_gl_init_fbselect(&fbselect);
+    const int native_count = _sapp_wgl_attrib(1, WGL_NUMBER_PIXEL_FORMATS_ARB);
     for (int i = 0; i < native_count; i++) {
         const int n = i + 1;
         _sapp_wgl_attribiv(n, query_count, query_tags, query_results);
 
-        if (query_results[result_support_opengl_index] == 0
-            || query_results[result_draw_to_window_index] == 0
-            || query_results[result_pixel_type_index] != WGL_TYPE_RGBA_ARB
-            || query_results[result_acceleration_index] == WGL_NO_ACCELERATION_ARB)
+        if (query_results[support_opengl_idx] == 0
+            || query_results[draw_to_window_idx] == 0
+            || query_results[pixel_type_idx] != WGL_TYPE_RGBA_ARB
+            || query_results[acceleration_idx] == WGL_NO_ACCELERATION_ARB)
         {
             continue;
         }
 
         _SAPP_STRUCT(_sapp_gl_fbconfig, u);
-        u.red_bits     = query_results[result_red_bits_index];
-        u.green_bits   = query_results[result_green_bits_index];
-        u.blue_bits    = query_results[result_blue_bits_index];
-        u.alpha_bits   = query_results[result_alpha_bits_index];
-        u.depth_bits   = query_results[result_depth_bits_index];
-        u.stencil_bits = query_results[result_stencil_bits_index];
-        u.doublebuffer = 0 != query_results[result_double_buffer_index];
-        u.samples = query_results[result_samples_index]; // NOTE: If arb_multisample is not supported  - just takes the default 0
+        u.red_bits     = query_results[red_bits_idx];
+        u.green_bits   = query_results[green_bits_idx];
+        u.blue_bits    = query_results[blue_bits_idx];
+        u.alpha_bits   = query_results[alpha_bits_idx];
+        u.depth_bits   = query_results[depth_bits_idx];
+        u.stencil_bits = query_results[stencil_bits_idx];
+        u.doublebuffer = 0 != query_results[double_buffer_idx];
+
+        if (_sapp.wgl.arb_multisample) {
+            SOKOL_ASSERT(samples_idx);
+            u.samples = query_results[samples_idx];
+        }
+        if (_sapp.wgl.arb_framebuffer_srgb) {
+            SOKOL_ASSERT(framebuffer_srgb_capable_idx);
+            u.srgb_capable = 0 != query_results[framebuffer_srgb_capable_idx];
+        }
 
         // Test if this pixel format is better than the previous one
         if (_sapp_gl_select_fbconfig(&fbselect, &desired, &u)) {
@@ -8966,7 +9353,6 @@ _SOKOL_PRIVATE int _sapp_wgl_find_pixel_format(void) {
             }
         }
     }
-
     return pixel_format;
 }
 
@@ -9014,8 +9400,13 @@ _SOKOL_PRIVATE void _sapp_wgl_create_context(void) {
     }
     _sapp.wgl.MakeCurrent(_sapp.win32.dc, _sapp.wgl.gl_ctx);
     if (_sapp.wgl.ext_swap_control) {
-        /* FIXME: DwmIsCompositionEnabled() (see GLFW) */
-        _sapp.wgl.SwapIntervalEXT(_sapp.swap_interval);
+        if (_sapp.desc.disable_vsync) {
+            _sapp.wgl.SwapIntervalEXT(0);
+        } else {
+            // NOTE: Intel GL SwapIntervalEXT seems to be broken (only 0 and 1 is accepted)
+            // values greater 1 disable vsync but still return true. We'll simply ignore that bug.
+            _sapp.wgl.SwapIntervalEXT(_sapp.desc.swap_interval);
+        }
     }
     const uint32_t gl_framebuffer_binding = 0x8CA6;
     _sapp.wgl.GetIntegerv(gl_framebuffer_binding, (int32_t*)&_sapp.gl.framebuffer);
@@ -9524,15 +9915,14 @@ _SOKOL_PRIVATE void _sapp_win32_frame(bool from_winproc) {
         _sapp_frame();
     #endif
     #if defined(SOKOL_D3D11)
-        bool do_not_wait = from_winproc;
-        _sapp_d3d11_present(do_not_wait);
+        _sapp_d3d11_present(from_winproc);
     #endif
     #if defined(SOKOL_GLCORE)
         _sapp_wgl_swap_buffers();
     #endif
     if (!from_winproc) {
         if (IsIconic(_sapp.win32.hwnd)) {
-            Sleep((DWORD)(16 * _sapp.swap_interval));
+            Sleep((DWORD)(16 * _sapp.desc.swap_interval));
         }
     }
 }
@@ -10300,8 +10690,18 @@ _SOKOL_PRIVATE bool _sapp_android_init_egl(void) {
     if (eglInitialize(display, NULL, NULL) == EGL_FALSE) {
         return false;
     }
-    EGLint sample_count = _sapp.desc.sample_count > 1 ? _sapp.desc.sample_count : 0;
-    EGLint alpha_size = _sapp.desc.alpha ? 8 : 0;
+
+    // FIXME: composite mode is not fully supported yet
+    bool wants_alpha = _sapp.desc.composite_mode != SAPP_COMPOSITEMODE_OPAQUE;
+    bool wants_msaa = _sapp.desc.sample_count > 1;
+    bool wants_depth = _sapp.desc.depth_format != SAPP_PIXELFORMAT_NONE;
+    bool wants_stencil = _sapp.desc.depth_format == SAPP_PIXELFORMAT_DEPTH_STENCIL;
+
+    EGLint sample_buffers = wants_msaa ? 1 : 0;
+    EGLint sample_count = wants_msaa ? _sapp.desc.sample_count : 0;
+    EGLint alpha_size = wants_alpha ? 8 : 0;
+    EGLint depth_size = wants_depth ? 24 : 0;
+    EGLint stencil_size = wants_stencil ? 8 : 0;
     const EGLint cfg_attributes[] = {
         EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
         EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
@@ -10309,9 +10709,9 @@ _SOKOL_PRIVATE bool _sapp_android_init_egl(void) {
         EGL_GREEN_SIZE, 8,
         EGL_BLUE_SIZE, 8,
         EGL_ALPHA_SIZE, alpha_size,
-        EGL_DEPTH_SIZE, 24,
-        EGL_STENCIL_SIZE, 8,
-        EGL_SAMPLE_BUFFERS, _sapp.desc.sample_count > 1 ? 1 : 0,
+        EGL_DEPTH_SIZE, depth_size,
+        EGL_STENCIL_SIZE, stencil_size,
+        EGL_SAMPLE_BUFFERS, sample_buffers,
         EGL_SAMPLES, sample_count,
         EGL_NONE,
     };
@@ -10322,8 +10722,7 @@ _SOKOL_PRIVATE bool _sapp_android_init_egl(void) {
     SOKOL_ASSERT(cfg_count <= 32);
 
     /* find config with 8-bit rgb buffer if available, ndk sample does not trust egl spec */
-    EGLConfig config;
-    bool exact_cfg_found = false;
+    EGLConfig config = available_cfgs[0];
     for (int i = 0; i < cfg_count; ++i) {
         EGLConfig c = available_cfgs[i];
         EGLint r, g, b, a, d, s, n;
@@ -10334,14 +10733,15 @@ _SOKOL_PRIVATE bool _sapp_android_init_egl(void) {
             eglGetConfigAttrib(display, c, EGL_DEPTH_SIZE, &d) == EGL_TRUE &&
             eglGetConfigAttrib(display, c, EGL_STENCIL_SIZE, &s) == EGL_TRUE &&
             eglGetConfigAttrib(display, c, EGL_SAMPLES, &n) == EGL_TRUE &&
-            (r == 8) && (g == 8) && (b == 8) && (a == alpha_size) && (d == 24) && (s == 8) && (n == sample_count)) {
-            exact_cfg_found = true;
+            (r == 8) && (g == 8) && (b == 8) &&
+            (a == alpha_size) &&
+            (d == depth_size) &&
+            (s == stencil_size) &&
+            (n == sample_count))
+        {
             config = c;
             break;
         }
-    }
-    if (!exact_cfg_found) {
-        config = available_cfgs[0];
     }
 
     EGLint ctx_attributes[] = {
@@ -10386,7 +10786,13 @@ _SOKOL_PRIVATE bool _sapp_android_init_egl_surface(ANativeWindow* window) {
     /* ANativeActivity_setWindowFlags(activity, AWINDOW_FLAG_KEEP_SCREEN_ON, 0); */
 
     /* create egl surface and make it current */
-    EGLSurface surface = eglCreateWindowSurface(_sapp.android.display, _sapp.android.config, window, NULL);
+    bool wants_srgb = _sapp.desc.srgb;
+    EGLint srgb_surface_attrs[] = {
+        EGL_GL_COLORSPACE, EGL_GL_COLORSPACE_SRGB,
+        EGL_NONE,
+    };
+    const EGLint* surf_attrs = wants_srgb ? srgb_surface_attrs : 0;
+    EGLSurface surface = eglCreateWindowSurface(_sapp.android.display, _sapp.android.config, window, surf_attrs);
     if (surface == EGL_NO_SURFACE) {
         return false;
     }
@@ -10573,7 +10979,10 @@ _SOKOL_PRIVATE int _sapp_android_input_cb(int fd, int events, void* data) {
             continue;
         }
         int32_t handled = 0;
-        if (_sapp_android_touch_event(event) || _sapp_android_key_event(event)) {
+        if (_sapp.desc.android.native_event_cb && _sapp.desc.android.native_event_cb(event)) {
+            handled = 1;
+        }
+        if (!handled && (_sapp_android_touch_event(event) || _sapp_android_key_event(event))) {
             handled = 1;
         }
         AInputQueue_finishEvent(_sapp.android.current.input, event, handled);
@@ -12373,6 +12782,7 @@ _SOKOL_PRIVATE void _sapp_glx_init(void) {
         _sapp.glx.MESA_swap_control = 0 != _sapp.glx.SwapIntervalMESA;
     }
     _sapp.glx.ARB_multisample = _sapp_glx_extsupported("GLX_ARB_multisample", exts);
+    _sapp.glx.ARB_framebuffer_srgb = _sapp_glx_extsupported("GLX_ARB_framebuffer_sRGB", exts);
     if (_sapp_glx_extsupported("GLX_ARB_create_context", exts)) {
         _sapp.glx.CreateContextAttribsARB = (PFNGLXCREATECONTEXTATTRIBSARBPROC) _sapp_glx_getprocaddr("glXCreateContextAttribsARB");
         _sapp.glx.ARB_create_context = 0 != _sapp.glx.CreateContextAttribsARB;
@@ -12430,25 +12840,46 @@ _SOKOL_PRIVATE GLXFBConfig _sapp_glx_choosefbconfig(void) {
         u->alpha_bits = _sapp_glx_attrib(n, GLX_ALPHA_SIZE);
         u->depth_bits = _sapp_glx_attrib(n, GLX_DEPTH_SIZE);
         u->stencil_bits = _sapp_glx_attrib(n, GLX_STENCIL_SIZE);
-        if (_sapp_glx_attrib(n, GLX_DOUBLEBUFFER)) {
-            u->doublebuffer = true;
-        }
         if (_sapp.glx.ARB_multisample) {
             u->samples = _sapp_glx_attrib(n, GLX_SAMPLES);
+        }
+        u->doublebuffer = (bool)_sapp_glx_attrib(n, GLX_DOUBLEBUFFER);
+        if (_sapp.glx.ARB_framebuffer_srgb) {
+            u->srgb_capable = (bool)_sapp_glx_attrib(n, GLX_FRAMEBUFFER_SRGB_CAPABLE_ARB);
         }
         u->handle = (uintptr_t) n;
         usable_count++;
     }
+
+    bool wants_depth = _sapp.desc.depth_format != SAPP_PIXELFORMAT_NONE;
+    bool wants_stencil = _sapp.desc.depth_format == SAPP_PIXELFORMAT_DEPTH_STENCIL;
+    bool wants_msaa = (_sapp.desc.sample_count > 1) && _sapp.glx.ARB_multisample;
+    bool wants_srgb = _sapp.desc.srgb && _sapp.glx.ARB_framebuffer_srgb;
+
     _sapp_gl_fbconfig desired;
     _sapp_gl_init_fbconfig(&desired);
     desired.red_bits = 8;
     desired.green_bits = 8;
     desired.blue_bits = 8;
     desired.alpha_bits = 8;
-    desired.depth_bits = 24;
-    desired.stencil_bits = 8;
+    if (wants_depth) {
+        desired.depth_bits = 24;
+    } else {
+        desired.depth_bits = 0;
+    }
+    if (wants_stencil) {
+        desired.stencil_bits = 8;
+    } else {
+        desired.stencil_bits = 0;
+    }
     desired.doublebuffer = true;
-    desired.samples = _sapp.sample_count > 1 ? _sapp.sample_count : 0;
+    if (wants_msaa) {
+        desired.samples = _sapp.desc.sample_count;
+    } else {
+        desired.samples = 0;
+    }
+    desired.srgb_capable = wants_srgb;
+
     closest = _sapp_gl_choose_fbconfig(&desired, usable_configs, usable_count);
     GLXFBConfig result = 0;
     if (closest) {
@@ -12732,47 +13163,6 @@ _SOKOL_PRIVATE void _sapp_x11_update_cursor(sapp_mouse_cursor cursor, bool shown
     XFlush(_sapp.x11.display);
 }
 
-_SOKOL_PRIVATE void _sapp_x11_lock_mouse(bool lock) {
-    if (lock == _sapp.mouse.locked) {
-        return;
-    }
-    _sapp.mouse.dx = 0.0f;
-    _sapp.mouse.dy = 0.0f;
-    _sapp.mouse.locked = lock;
-    if (_sapp.mouse.locked) {
-        if (_sapp.x11.xi.available) {
-            XIEventMask em;
-            unsigned char mask[XIMaskLen(XI_RawMotion)] = { 0 }; // XIMaskLen is a macro
-            em.deviceid = XIAllMasterDevices;
-            em.mask_len = sizeof(mask);
-            em.mask = mask;
-            XISetMask(mask, XI_RawMotion);
-            XISelectEvents(_sapp.x11.display, _sapp.x11.root, &em, 1);
-        }
-        XGrabPointer(_sapp.x11.display, // display
-            _sapp.x11.window,           // grab_window
-            True,                       // owner_events
-            ButtonPressMask | ButtonReleaseMask | PointerMotionMask,    // event_mask
-            GrabModeAsync,              // pointer_mode
-            GrabModeAsync,              // keyboard_mode
-            _sapp.x11.window,           // confine_to
-            _sapp.x11.hidden_cursor,    // cursor
-            CurrentTime);               // time
-    } else {
-        if (_sapp.x11.xi.available) {
-            XIEventMask em;
-            unsigned char mask[] = { 0 };
-            em.deviceid = XIAllMasterDevices;
-            em.mask_len = sizeof(mask);
-            em.mask = mask;
-            XISelectEvents(_sapp.x11.display, _sapp.x11.root, &em, 1);
-        }
-        XWarpPointer(_sapp.x11.display, None, _sapp.x11.window, 0, 0, 0, 0, (int) _sapp.mouse.x, _sapp.mouse.y);
-        XUngrabPointer(_sapp.x11.display, CurrentTime);
-    }
-    XFlush(_sapp.x11.display);
-}
-
 _SOKOL_PRIVATE void _sapp_x11_set_clipboard_string(const char* str) {
     SOKOL_ASSERT(_sapp.clipboard.enabled && _sapp.clipboard.buffer);
     _sapp.clipboard.buffer[0] = 0;
@@ -13022,6 +13412,84 @@ _SOKOL_PRIVATE int _sapp_x11_get_window_state(void) {
         XFree(state);
     }
     return result;
+}
+
+_SOKOL_PRIVATE bool _sapp_x11_window_focused(void) {
+    return _sapp.x11.window_focused;
+}
+
+_SOKOL_PRIVATE void _sapp_x11_lock_mouse(bool lock) {
+    _sapp.x11.requested_mouse_lock = lock;
+}
+
+_SOKOL_PRIVATE void _sapp_x11_do_lock_mouse(void) {
+    int result = XGrabPointer(
+        _sapp.x11.display,          // display
+        _sapp.x11.window,           // grab_window
+        True,                       // owner_events
+        ButtonPressMask | ButtonReleaseMask | PointerMotionMask,    // event_mask
+        GrabModeAsync,              // pointer_mode
+        GrabModeAsync,              // keyboard_mode
+        _sapp.x11.window,           // confine_to
+        _sapp.x11.hidden_cursor,    // cursor
+        CurrentTime);               // time
+    if (result == GrabSuccess) {
+        _sapp.mouse.locked = true;
+        _sapp.mouse.dx = 0.0f;
+        _sapp.mouse.dy = 0.0f;
+        if (_sapp.x11.xi.available) {
+            XIEventMask em;
+            unsigned char mask[XIMaskLen(XI_RawMotion)] = { 0 }; // XIMaskLen is a macro
+            em.deviceid = XIAllMasterDevices;
+            em.mask_len = sizeof(mask);
+            em.mask = mask;
+            XISetMask(mask, XI_RawMotion);
+            XISelectEvents(_sapp.x11.display, _sapp.x11.root, &em, 1);
+        }
+    }
+}
+
+_SOKOL_PRIVATE void _sapp_x11_do_unlock_mouse(void) {
+    if (_sapp.x11.xi.available) {
+        XIEventMask em;
+        unsigned char mask[] = { 0 };
+        em.deviceid = XIAllMasterDevices;
+        em.mask_len = sizeof(mask);
+        em.mask = mask;
+        XISelectEvents(_sapp.x11.display, _sapp.x11.root, &em, 1);
+    }
+
+    _sapp.mouse.dx = 0.0f;
+    _sapp.mouse.dy = 0.0f;
+    _sapp.mouse.locked = false;
+
+    XWarpPointer(_sapp.x11.display, None, _sapp.x11.window, 0, 0, 0, 0, (int)_sapp.mouse.x, (int)_sapp.mouse.y);
+    XUngrabPointer(_sapp.x11.display, CurrentTime);
+}
+
+_SOKOL_PRIVATE void _sapp_x11_update_mouse_lock(void) {
+    // mouse lock can only be active when we're the active window
+    if (!_sapp_x11_window_focused()) {
+        // unlock mouse if currently locked
+        if (_sapp.mouse.locked) {
+            _sapp_x11_do_unlock_mouse();
+        }
+        return;
+    }
+
+    // nothing to do if requested lock state matches current lock state
+    const bool lock = _sapp.x11.requested_mouse_lock;
+    if (lock == _sapp.mouse.locked) {
+        return;
+    }
+
+    // otherwise change into desired state
+    if (lock) {
+        _sapp_x11_do_lock_mouse();
+    } else {
+        _sapp_x11_do_unlock_mouse();
+    }
+    // XFlush will be called right after this function
 }
 
 _SOKOL_PRIVATE uint32_t _sapp_x11_key_modifier_bit(sapp_keycode key) {
@@ -13307,17 +13775,15 @@ _SOKOL_PRIVATE void _sapp_x11_on_genericevent(XEvent* event) {
 _SOKOL_PRIVATE void _sapp_x11_on_focusin(XEvent* event) {
     // NOTE: ignoring NotifyGrab and NotifyUngrab is same behaviour as GLFW
     if ((event->xfocus.mode != NotifyGrab) && (event->xfocus.mode != NotifyUngrab)) {
+        _sapp.x11.window_focused = true;
         _sapp_x11_app_event(SAPP_EVENTTYPE_FOCUSED);
     }
 }
 
 _SOKOL_PRIVATE void _sapp_x11_on_focusout(XEvent* event) {
-    // if focus is lost for any reason, and we're in mouse locked mode, disable mouse lock
-    if (_sapp.mouse.locked) {
-        _sapp_x11_lock_mouse(false);
-    }
     // NOTE: ignoring NotifyGrab and NotifyUngrab is same behaviour as GLFW
     if ((event->xfocus.mode != NotifyGrab) && (event->xfocus.mode != NotifyUngrab)) {
+        _sapp.x11.window_focused = false;
         _sapp_x11_app_event(SAPP_EVENTTYPE_UNFOCUSED);
     }
 }
@@ -13661,8 +14127,18 @@ _SOKOL_PRIVATE void _sapp_egl_init(void) {
         _SAPP_PANIC(LINUX_EGL_INITIALIZE_FAILED);
     }
 
-    EGLint sample_count = _sapp.desc.sample_count > 1 ? _sapp.desc.sample_count : 0;
-    EGLint alpha_size = _sapp.desc.alpha ? 8 : 0;
+    // FIXME: composite mode is not fully supported yet
+    bool wants_alpha = _sapp.desc.composite_mode != SAPP_COMPOSITEMODE_OPAQUE;
+    bool wants_msaa = _sapp.desc.sample_count > 1;
+    bool wants_depth = _sapp.desc.depth_format != SAPP_PIXELFORMAT_NONE;
+    bool wants_stencil = _sapp.desc.depth_format == SAPP_PIXELFORMAT_DEPTH_STENCIL;
+    bool wants_srgb = _sapp.desc.srgb;
+
+    EGLint sample_buffers = wants_msaa ? 1 : 0;
+    EGLint sample_count = wants_msaa ? _sapp.desc.sample_count : 0;
+    EGLint alpha_size = wants_alpha ? 8 : 0;
+    EGLint depth_size = wants_depth ? 24 : 0;
+    EGLint stencil_size = wants_stencil ? 8 : 0;
     const EGLint config_attrs[] = {
         EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
         #if defined(SOKOL_GLCORE)
@@ -13674,9 +14150,9 @@ _SOKOL_PRIVATE void _sapp_egl_init(void) {
         EGL_GREEN_SIZE, 8,
         EGL_BLUE_SIZE, 8,
         EGL_ALPHA_SIZE, alpha_size,
-        EGL_DEPTH_SIZE, 24,
-        EGL_STENCIL_SIZE, 8,
-        EGL_SAMPLE_BUFFERS, _sapp.desc.sample_count > 1 ? 1 : 0,
+        EGL_DEPTH_SIZE, depth_size,
+        EGL_STENCIL_SIZE, stencil_size,
+        EGL_SAMPLE_BUFFERS, sample_buffers,
         EGL_SAMPLES, sample_count,
         EGL_NONE,
     };
@@ -13698,7 +14174,12 @@ _SOKOL_PRIVATE void _sapp_egl_init(void) {
             eglGetConfigAttrib(_sapp.egl.display, c, EGL_DEPTH_SIZE, &d) &&
             eglGetConfigAttrib(_sapp.egl.display, c, EGL_STENCIL_SIZE, &s) &&
             eglGetConfigAttrib(_sapp.egl.display, c, EGL_SAMPLES, &n) &&
-            (r == 8) && (g == 8) && (b == 8) && (a == alpha_size) && (d == 24) && (s == 8) && (n == sample_count)) {
+            (r == 8) && (g == 8) && (b == 8) &&
+            (a == alpha_size) &&
+            (d == depth_size) &&
+            (s == stencil_size) &&
+            (n == sample_count))
+        {
             config = c;
             break;
         }
@@ -13721,7 +14202,12 @@ _SOKOL_PRIVATE void _sapp_egl_init(void) {
     _sapp_x11_create_window(visual_info->visual, visual_info->depth);
     XFree(visual_info);
 
-    _sapp.egl.surface = eglCreateWindowSurface(_sapp.egl.display, config, (EGLNativeWindowType)_sapp.x11.window, NULL);
+    EGLint srgb_surface_attribs[] = {
+        EGL_GL_COLORSPACE, EGL_GL_COLORSPACE_SRGB,
+        EGL_NONE,
+    };
+    const EGLint* surf_attrs = wants_srgb ? srgb_surface_attribs : 0;
+    _sapp.egl.surface = eglCreateWindowSurface(_sapp.egl.display, config, (EGLNativeWindowType)_sapp.x11.window, surf_attrs);
     if (EGL_NO_SURFACE == _sapp.egl.surface) {
         _SAPP_PANIC(LINUX_EGL_CREATE_WINDOW_SURFACE_FAILED);
     }
@@ -13745,7 +14231,11 @@ _SOKOL_PRIVATE void _sapp_egl_init(void) {
     }
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&_sapp.gl.framebuffer);
 
-    eglSwapInterval(_sapp.egl.display, _sapp.swap_interval);
+    if (_sapp.desc.disable_vsync) {
+        eglSwapInterval(_sapp.egl.display, 0);
+    } else {
+        eglSwapInterval(_sapp.egl.display, _sapp.desc.swap_interval);
+    }
 }
 
 _SOKOL_PRIVATE void _sapp_egl_destroy(void) {
@@ -13819,7 +14309,11 @@ _SOKOL_PRIVATE void _sapp_linux_run(const sapp_desc* desc) {
         _sapp_glx_choose_visual(&visual, &depth);
         _sapp_x11_create_window(visual, depth);
         _sapp_glx_create_context();
-        _sapp_glx_swapinterval(_sapp.swap_interval);
+        if (_sapp.desc.disable_vsync) {
+            _sapp_glx_swapinterval(0);
+        } else {
+            _sapp_glx_swapinterval(_sapp.desc.swap_interval);
+        }
     #elif defined(_SAPP_EGL)
         _sapp_egl_init();
     #elif defined(SOKOL_WGPU)
@@ -13846,6 +14340,7 @@ _SOKOL_PRIVATE void _sapp_linux_run(const sapp_desc* desc) {
             _sapp_x11_process_event(&event);
         }
         _sapp_linux_frame();
+        _sapp_x11_update_mouse_lock();
         XFlush(_sapp.x11.display);
         // handle quit-requested, either from window or from sapp_request_quit()
         if (_sapp.quit_requested && !_sapp.quit_ordered) {
@@ -13938,13 +14433,20 @@ SOKOL_API_IMPL uint64_t sapp_frame_count(void) {
 }
 
 SOKOL_API_IMPL double sapp_frame_duration(void) {
-    #if defined(_SAPP_MACOS) && defined(SOKOL_METAL)
-        return _sapp_macos_mtl_timing_frame_duration();
-    #elif defined(_SAPP_IOS) && defined(SOKOL_METAL)
-        return _sapp_ios_mtl_timing_frame_duration();
-    #else
-        return _sapp_timing_get(&_sapp.timing);
-    #endif
+    // when vsync is disabled, always return unfiltered frame duration,
+    // this is because frame pacing on some platforms is entirely
+    // unpredictable with vsync disabled
+    if (_sapp.desc.disable_vsync) {
+        return _sapp.timing.dt;
+    } else {
+        #if defined(_SAPP_MACOS) && defined(SOKOL_METAL)
+            return _sapp_macos_mtl_timing_frame_duration();
+        #elif defined(_SAPP_IOS) && defined(SOKOL_METAL)
+            return _sapp_ios_mtl_timing_frame_duration();
+        #else
+            return _sapp_timing_get(&_sapp.timing);
+        #endif
+    }
 }
 
 SOKOL_API_IMPL double sapp_frame_duration_unfiltered(void) {
@@ -13969,11 +14471,17 @@ SOKOL_API_IMPL float sapp_heightf(void) {
 
 SOKOL_API_IMPL sapp_pixel_format sapp_color_format(void) {
     #if defined(SOKOL_WGPU)
-        switch (_sapp.wgpu.render_format) {
+        switch (_sapp.wgpu.swapchain_view_format) {
             case WGPUTextureFormat_RGBA8Unorm:
                 return SAPP_PIXELFORMAT_RGBA8;
+            case WGPUTextureFormat_RGBA8UnormSrgb:
+                return SAPP_PIXELFORMAT_SRGB8A8;
             case WGPUTextureFormat_BGRA8Unorm:
                 return SAPP_PIXELFORMAT_BGRA8;
+            case WGPUTextureFormat_BGRA8UnormSrgb:
+                return SAPP_PIXELFORMAT_SBGR8A8;
+            case WGPUTextureFormat_RGBA16Float:
+                return SAPP_PIXELFORMAT_RGBA16F;
             default:
                 SOKOL_UNREACHABLE;
                 return SAPP_PIXELFORMAT_NONE;
@@ -13982,26 +14490,60 @@ SOKOL_API_IMPL sapp_pixel_format sapp_color_format(void) {
         switch (_sapp.vk.surface_format.format) {
             case VK_FORMAT_R8G8B8A8_UNORM:
                 return SAPP_PIXELFORMAT_RGBA8;
+            case VK_FORMAT_R8G8B8A8_SRGB:
+                return SAPP_PIXELFORMAT_SRGB8A8;
             case VK_FORMAT_B8G8R8A8_UNORM:
                 return SAPP_PIXELFORMAT_BGRA8;
+            case VK_FORMAT_B8G8R8A8_SRGB:
+                return SAPP_PIXELFORMAT_SBGR8A8;
+            case VK_FORMAT_R16G16B16A16_SFLOAT:
+                return SAPP_PIXELFORMAT_RGBA16F;
             default:
-                // FIXME!
                 SOKOL_UNREACHABLE;
                 return SAPP_PIXELFORMAT_NONE;
         }
-    #elif defined(SOKOL_METAL) || defined(SOKOL_D3D11)
-        return SAPP_PIXELFORMAT_BGRA8;
-    #else
+    #elif defined(SOKOL_METAL)
+        switch (_sapp_mtl_color_format()) {
+            case MTLPixelFormatBGRA8Unorm:
+                return SAPP_PIXELFORMAT_BGRA8;
+            case MTLPixelFormatBGRA8Unorm_sRGB:
+                return SAPP_PIXELFORMAT_SBGR8A8;
+            case MTLPixelFormatRGBA16Float:
+                return SAPP_PIXELFORMAT_RGBA16F;
+            default:
+                SOKOL_UNREACHABLE;
+                return SAPP_PIXELFORMAT_NONE;
+        }
+    #elif defined(SOKOL_D3D11)
+        switch (_sapp_d3d11_view_color_format()) {
+            case DXGI_FORMAT_B8G8R8A8_UNORM:
+                return SAPP_PIXELFORMAT_BGRA8;
+            case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+                return SAPP_PIXELFORMAT_SBGR8A8;
+            case DXGI_FORMAT_R16G16B16A16_FLOAT:
+                return SAPP_PIXELFORMAT_RGBA16F;
+            default:
+                SOKOL_UNREACHABLE;
+                return SAPP_PIXELFORMAT_NONE;
+        }
+    #elif defined(_SAPP_EMSCRIPTEN)
+        // Emscripten + WebGL2: no SRGB framebuffer support
         return SAPP_PIXELFORMAT_RGBA8;
+    #else
+        if (_sapp.desc.srgb) {
+            return SAPP_PIXELFORMAT_SRGB8A8;
+        } else {
+            return SAPP_PIXELFORMAT_RGBA8;
+        }
     #endif
 }
 
 SOKOL_API_IMPL sapp_pixel_format sapp_depth_format(void) {
-    return SAPP_PIXELFORMAT_DEPTH_STENCIL;
+    return _sapp.desc.depth_format;
 }
 
 SOKOL_API_IMPL int sapp_sample_count(void) {
-    return _sapp.sample_count;
+    return _sapp.desc.sample_count;
 }
 
 SOKOL_API_IMPL bool sapp_high_dpi(void) {
@@ -14342,11 +14884,7 @@ SOKOL_API_IMPL sapp_environment sapp_get_environment(void) {
     res.defaults.depth_format = sapp_depth_format();
     res.defaults.sample_count = sapp_sample_count();
     #if defined(SOKOL_METAL)
-        #if defined(_SAPP_MACOS)
-            res.metal.device = (__bridge const void*) _sapp.macos.mtl.device;
-        #else
-            res.metal.device = (__bridge const void*) _sapp.ios.mtl.device;
-        #endif
+        res.metal.device = (__bridge const void*) _sapp.mtl.device;
     #endif
     #if defined(SOKOL_D3D11)
         res.d3d11.device = (const void*) _sapp.d3d11.device;
@@ -14365,23 +14903,23 @@ SOKOL_API_IMPL sapp_environment sapp_get_environment(void) {
     return res;
 }
 
-SOKOL_API_IMPL sapp_swapchain sapp_get_swapchain(void) {
+SOKOL_API_IMPL sapp_swapchain sapp_acquire_swapchain(void) {
     SOKOL_ASSERT(_sapp.valid);
     _SAPP_STRUCT(sapp_swapchain, res);
     #if defined(SOKOL_METAL)
         #if defined(_SAPP_MACOS)
-            res.metal.current_drawable = (__bridge const void*) _sapp_macos_mtl_swapchain_next();
-            res.metal.depth_stencil_texture = (__bridge const void*) _sapp.macos.mtl.depth_tex;
-            res.metal.msaa_color_texture = (__bridge const void*) _sapp.macos.mtl.msaa_tex;
-        #else
-            res.metal.current_drawable = (__bridge const void*) _sapp_ios_mtl_swapchain_next();
-            res.metal.depth_stencil_texture = (__bridge const void*) _sapp.ios.mtl.depth_tex;
-            res.metal.msaa_color_texture = (__bridge const void*) _sapp.ios.mtl.msaa_tex;
+            if (_sapp_macos_mtl_is_obscured()) {
+                res.invalid = true;
+                return res;
+            }
         #endif
+        res.metal.current_drawable = (__bridge const void*) _sapp_mtl_swapchain_next();
+        res.metal.depth_stencil_texture = (__bridge const void*) _sapp.mtl.depth_tex;
+        res.metal.msaa_color_texture = (__bridge const void*) _sapp.mtl.msaa_tex;
     #endif
     #if defined(SOKOL_D3D11)
         SOKOL_ASSERT(_sapp.d3d11.rtv);
-        if (_sapp.sample_count > 1) {
+        if (_sapp.desc.sample_count > 1) {
             SOKOL_ASSERT(_sapp.d3d11.msaa_rtv);
             res.d3d11.render_view = (const void*) _sapp.d3d11.msaa_rtv;
             res.d3d11.resolve_view = (const void*) _sapp.d3d11.rtv;
@@ -14392,10 +14930,11 @@ SOKOL_API_IMPL sapp_swapchain sapp_get_swapchain(void) {
     #endif
     #if defined(SOKOL_WGPU)
         SOKOL_ASSERT(0 == _sapp.wgpu.swapchain_view);
-        _sapp_wgpu_swapchain_next();
-        // FIXME: swapchain_view being null must be allowed and should skip the frame
-        SOKOL_ASSERT(_sapp.wgpu.swapchain_view);
-        if (_sapp.sample_count > 1) {
+        if (!_sapp_wgpu_swapchain_next()) {
+            res.invalid = true;
+            return res;
+        }
+        if (_sapp.desc.sample_count > 1) {
             SOKOL_ASSERT(_sapp.wgpu.msaa_view);
             res.wgpu.render_view = (const void*) _sapp.wgpu.msaa_view;
             res.wgpu.resolve_view = (const void*) _sapp.wgpu.swapchain_view;
@@ -14406,12 +14945,12 @@ SOKOL_API_IMPL sapp_swapchain sapp_get_swapchain(void) {
     #endif
     #if defined(SOKOL_VULKAN)
         _sapp_vk_swapchain_next();
-        res.invalid = !_sapp.vk.swapchain_valid;
+        res.invalid = !_sapp.vk.swapchain_acquired;
         if (res.invalid) {
             return res;
         }
         uint32_t img_idx = _sapp.vk.cur_swapchain_image_index;
-        if (_sapp.sample_count > 1) {
+        if (_sapp.desc.sample_count > 1) {
             SOKOL_ASSERT(_sapp.vk.msaa.img && _sapp.vk.msaa.view);
             res.vulkan.render_image = (const void*) _sapp.vk.msaa.img;
             res.vulkan.render_view = (const void*) _sapp.vk.msaa.view;
