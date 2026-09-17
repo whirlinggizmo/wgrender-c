@@ -54,6 +54,10 @@ typedef void (*sk_drawable_draw_2d_fn)(sk_handle_t handle);
 typedef bool (*sk_drawable_pick_2d_fn)(sk_handle_t handle, float screen_x, float screen_y,
                                        sk_pick_result_t *out);
 void sk_scene_register_2d(sk_handle_kind_t kind, sk_drawable_draw_2d_fn draw, sk_drawable_pick_2d_fn pick);
+/* For kinds with both 2D and 3D objects (shapes): whether this object is 2D. Kinds
+ * that register 2D functions without it are always 2D. */
+typedef bool (*sk_drawable_is_2d_fn)(sk_handle_t handle);
+void sk_scene_register_is_2d(sk_handle_kind_t kind, sk_drawable_is_2d_fn is_2d);
 
 /* Distance of a world-space point along the camera's view direction. */
 float sk_scene_view_depth(const sk_camera3d_t *cam, vec3_t world_point);

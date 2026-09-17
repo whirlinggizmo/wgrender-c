@@ -1,7 +1,7 @@
 # Plan: 2D / UI layer
 
-Status: **in progress.** Step 1 (enabled, pointer interaction, touch as pointer)
-implemented 2026-09-17; see "As built". Steps 2–4 to do.
+Status: **in progress.** Steps 1 (enabled, pointer interaction, touch as pointer)
+and 2 (retained 2D shapes) implemented 2026-09-17; see "As built". Steps 3–4 to do.
 
 ## What exists
 
@@ -182,6 +182,23 @@ void sk_render_end_clip(void);
   enabled/disabled, the gumshoe as a 3D member (hover highlight, click to animate), and
   a camera orbit that ignores drags starting on UI. Checked in the browser with real
   (CDP) mouse events: hover, press and capture.
+
+### Step 2: retained 2D shapes
+
+- New shape kinds with `sk_shape_set_rectangle_2d` (rounded corners, radius clamped to
+  half the shorter side), `sk_shape_set_circle_2d`, `sk_shape_set_line_2d` (thickness,
+  butt ends), `sk_shape_set_transform_2d` and `sk_shape_set_outline` (rectangles and
+  circles). **A 2D rectangle's origin is its top-left corner**, like the immediate
+  `sk_shape_draw_rectangle(x, y, w, h)` and how UI is laid out; circles are centered.
+  Picked by exact area (rounded corners, outline rings, distance to the line).
+- One shape handle kind now holds 2D and 3D shapes, so kinds can register
+  `sk_scene_register_is_2d`: scenes draw and pick each member through exactly one of
+  the 2D or 3D paths, `sk_pick_object` routes the same way (it previously used the 2D
+  pick for any kind that had one), and pick statistics are unchanged for 3D shapes.
+- `examples/ui.c` is built from 2D shapes: a rounded translucent panel (pickable, so
+  presses on it don't orbit), rounded buttons, a divider line, an outlined progress
+  bar with a filled part and a circle tip. Checked in the browser with CDP clicks
+  (counting, disabling, hover).
 
 ## Verification
 

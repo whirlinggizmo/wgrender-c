@@ -59,6 +59,7 @@ void test_parity_asset_host(void);
 
 void test_window_headless(void);
 void test_interaction(void);
+void test_shape2d(void);
 void test_text_default_font(void);
 void test_text_font_refcount(void);
 

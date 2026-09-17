@@ -55,6 +55,20 @@ bool sk_shape_set_line(sk_handle_t shape, float x0, float y0, float z0, float x1
 bool sk_shape_set_line_strip(sk_handle_t shape);
 bool sk_shape_add_point(sk_handle_t shape, float x, float y, float z);
 int  sk_shape_get_point_count(sk_handle_t shape);
+/* 2D shapes (screen space, logical pixels): drawn over 3D as scene 2D members, or with
+ * sk_shape_draw in 2D mode, and picked by their exact area (pointer interaction).
+ * - rectangle: from its origin (top-left) to (width, height), corners rounded by
+ *   corner_radius (clamped to half the shorter side);
+ * - circle: centered on its origin;
+ * - line: from (x0, y0) to (x1, y1), thickness pixels wide (butt ends).
+ * Placed with sk_shape_set_transform_2d: position, rotation (radians, around the
+ * origin), scale. Rectangles and circles are filled unless an outline is set. */
+bool sk_shape_set_rectangle_2d(sk_handle_t shape, float width, float height, float corner_radius);
+bool sk_shape_set_circle_2d(sk_handle_t shape, float radius);
+bool sk_shape_set_line_2d(sk_handle_t shape, float x0, float y0, float x1, float y1, float thickness);
+bool sk_shape_set_transform_2d(sk_handle_t shape, float x, float y, float rotation, float scale_x, float scale_y);
+bool sk_shape_set_outline(sk_handle_t shape, float thickness); /* 2D rectangles and circles; 0 = filled (default) */
+
 bool sk_shape_set_transform(sk_handle_t shape,
                             float position_x, float position_y, float position_z,
                             float rotation_x, float rotation_y, float rotation_z, /* radians */

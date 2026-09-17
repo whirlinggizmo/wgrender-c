@@ -87,6 +87,7 @@ static bool sk_transparent_overflow_logged;
 static sk_drawable_bounds_fn sk_bounds_registry[SK_DRAWABLE_KIND_COUNT];
 static sk_drawable_pick_fn sk_pick_registry[SK_DRAWABLE_KIND_COUNT];
 static sk_drawable_enabled_fn sk_enabled_registry[SK_DRAWABLE_KIND_COUNT];
+static sk_drawable_is_2d_fn sk_is_2d_registry[SK_DRAWABLE_KIND_COUNT];
 static bool sk_scene_capture_releasing; /* the capturing press was released last frame */
 
 /* ---- drawable dispatch registry --------------------------------------- */
@@ -178,6 +179,25 @@ void sk_scene_register_enabled(sk_handle_kind_t kind, sk_drawable_enabled_fn ena
         return;
     }
     sk_enabled_registry[kind] = enabled;
+}
+
+void sk_scene_register_is_2d(sk_handle_kind_t kind, sk_drawable_is_2d_fn is_2d)
+{
+    if ((int)kind < 0 || (int)kind >= SK_DRAWABLE_KIND_COUNT) {
+        return;
+    }
+    sk_is_2d_registry[kind] = is_2d;
+}
+
+/* A 2D member: its kind draws/picks in 2D and, for kinds that can be either
+ * (shapes), this object is 2D. */
+static bool is_2d_member(sk_handle_t handle)
+{
+    const sk_handle_kind_t kind = sk_handle_get_kind(handle);
+    if ((int)kind < 0 || (int)kind >= SK_DRAWABLE_KIND_COUNT || sk_passes_registry[kind].pick_2d == NULL) {
+        return false;
+    }
+    return sk_is_2d_registry[kind] == NULL || sk_is_2d_registry[kind](handle);
 }
 
 static bool is_enabled(sk_handle_t handle)
@@ -583,7 +603,7 @@ void sk_scene_draw(sk_handle_t scene)
     /* 2D members on top of all 3D, in layer then member order */
     for (int i = 0; i < scene_ptr->count; i++) {
         const sk_drawable_passes_t *passes = lookup_passes(scene_ptr->items[i].drawable);
-        if (passes != NULL && passes->draw_2d != NULL) {
+        if (passes != NULL && passes->draw_2d != NULL && is_2d_member(scene_ptr->items[i].drawable)) {
             passes->draw_2d(scene_ptr->items[i].drawable);
         }
     }
@@ -611,7 +631,7 @@ sk_pick_result_t sk_scene_pick(sk_handle_t scene, sk_handle_t camera,
     sort_by_layer(scene_ptr);
     for (int i = scene_ptr->count - 1; i >= 0; i--) {
         const sk_drawable_passes_t *passes = lookup_passes(scene_ptr->items[i].drawable);
-        if (passes != NULL && passes->pick_2d != NULL &&
+        if (is_2d_member(scene_ptr->items[i].drawable) &&
             pick_2d(scene_ptr->items[i].drawable, passes, mouse_x, mouse_y, &result)) {
             return result;
         }
@@ -633,7 +653,8 @@ sk_pick_result_t sk_scene_pick(sk_handle_t scene, sk_handle_t camera,
 
     for (int i = 0; i < scene_ptr->count; i++) {
         sk_pick_result_t hit = {0};
-        if (pick_3d(scene_ptr->items[i].drawable, ray, &hit) && hit.distance < best_t) {
+        if (!is_2d_member(scene_ptr->items[i].drawable) && pick_3d(scene_ptr->items[i].drawable, ray, &hit) &&
+            hit.distance < best_t) {
             best_t = hit.distance;
             result = hit;
         }
@@ -652,7 +673,7 @@ sk_pick_result_t sk_pick_object(sk_handle_t object, sk_handle_t camera, float x,
     if (object == 0) {
         return result;
     }
-    if (passes != NULL && passes->pick_2d != NULL) {
+    if (is_2d_member(object)) {
         pick_2d(object, passes, x, y, &result);
         return result;
     }
@@ -696,7 +717,7 @@ static sk_handle_t pick_member(sk_scene_t *scene_ptr, float x, float y, bool *is
     sort_by_layer(scene_ptr);
     for (int i = scene_ptr->count - 1; i >= 0 && hit == 0; i--) {
         const sk_drawable_passes_t *passes = lookup_passes(scene_ptr->items[i].drawable);
-        if (passes != NULL && passes->pick_2d != NULL &&
+        if (is_2d_member(scene_ptr->items[i].drawable) &&
             pick_2d(scene_ptr->items[i].drawable, passes, x, y, &result)) {
             hit = scene_ptr->items[i].drawable;
             *is_2d = true;
@@ -707,7 +728,8 @@ static sk_handle_t pick_member(sk_scene_t *scene_ptr, float x, float y, bool *is
         const sk_ray_t ray = sk_pick_ray_from_screen(&cam, x, y, screen.x, screen.y);
         for (int i = 0; i < scene_ptr->count; i++) {
             sk_pick_result_t candidate = {0};
-            if (pick_3d(scene_ptr->items[i].drawable, ray, &candidate) && candidate.distance < best_t) {
+            if (!is_2d_member(scene_ptr->items[i].drawable) && pick_3d(scene_ptr->items[i].drawable, ray, &candidate) &&
+                candidate.distance < best_t) {
                 best_t = candidate.distance;
                 hit = scene_ptr->items[i].drawable;
             }
@@ -884,6 +906,7 @@ void sk_scene_init(void)
     memset(sk_bounds_registry, 0, sizeof(sk_bounds_registry));
     memset(sk_pick_registry, 0, sizeof(sk_pick_registry));
     memset(sk_enabled_registry, 0, sizeof(sk_enabled_registry));
+    memset(sk_is_2d_registry, 0, sizeof(sk_is_2d_registry));
     sk_scene_capture_releasing = false;
     sk_handle_pool_init(&sk_scene_pool,
                         SK_HANDLE_KIND_SCENE,
