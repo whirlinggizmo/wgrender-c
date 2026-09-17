@@ -6,6 +6,7 @@
 #include "internal/exports.h"
 #include "internal/sk_font.h"
 #include "internal/sk_handle_pool.h"
+#include "internal/sk_scene.h"
 #include "sk_handle.h"
 #include "sk_logger.h"
 #include "sk_text.h" /* draw/measure delegate (handles the bitmap fallback) */
@@ -26,6 +27,7 @@ typedef struct {
     float size;
     sk_handle_t color;
     bool visible;
+    bool pickable;
 } sk_text2d_t;
 
 static sk_text2d_t sk_texts[MAX_TEXT2D];
@@ -49,12 +51,39 @@ static bool font_ready(sk_handle_t font)
     return sk_font_fons_id(font) != FONS_INVALID;
 }
 
+/* Scene 2D pass: drawn over 3D; picked by its text's rectangle (top-left at x, y). */
+static void draw_2d(sk_handle_t handle)
+{
+    sk_text2d_draw(handle);
+}
+
+static bool pick_2d(sk_handle_t handle, float x, float y, sk_pick_result_t *out)
+{
+    const sk_text2d_t *text_ptr = resolve(handle);
+    float width, height;
+    if (text_ptr == NULL || !text_ptr->visible || !text_ptr->pickable || text_ptr->text == NULL) {
+        return false;
+    }
+    width = sk_text2d_measure_width(handle);
+    height = sk_text2d_measure_height(handle);
+    if (x < text_ptr->x || y < text_ptr->y || x > text_ptr->x + width || y > text_ptr->y + height) {
+        return false;
+    }
+    *out = (sk_pick_result_t){
+        .hit = true,
+        .point_local = {x - text_ptr->x, y - text_ptr->y, 0},
+        .point_world = {x, y, 0},
+    };
+    return true;
+}
+
 void sk_text2d_init(void)
 {
     memset(sk_texts, 0, sizeof(sk_texts));
     sk_handle_pool_init(&sk_text2d_pool, SK_HANDLE_KIND_TEXT2D, MAX_TEXT2D,
                         sk_text2d_free_indices, MAX_TEXT2D,
                         sk_text2d_generations, sk_text2d_occupied);
+    sk_scene_register_2d(SK_HANDLE_KIND_TEXT2D, draw_2d, pick_2d);
 }
 
 void sk_text2d_deinit(void)
@@ -82,6 +111,7 @@ sk_handle_t sk_text2d_create(sk_handle_t font)
         .size = 16.0f,
         .color = 0,
         .visible = true,
+        .pickable = true,
     };
     return handle;
 }
@@ -176,6 +206,22 @@ float sk_text2d_measure_height(sk_handle_t handle)
         return sk_text_measure_ex(text_ptr->font, text_ptr->text, text_ptr->size).y;
     }
     return text_ptr->size; /* bitmap glyph height tracks the requested size */
+}
+
+SK_KEEP
+bool sk_text2d_set_pickable(sk_handle_t handle, bool pickable)
+{
+    sk_text2d_t *text_ptr = resolve(handle);
+    if (text_ptr == NULL) return false;
+    text_ptr->pickable = pickable;
+    return true;
+}
+
+SK_KEEP
+bool sk_text2d_is_pickable(sk_handle_t handle)
+{
+    const sk_text2d_t *text_ptr = resolve(handle);
+    return text_ptr != NULL && text_ptr->pickable;
 }
 
 SK_KEEP

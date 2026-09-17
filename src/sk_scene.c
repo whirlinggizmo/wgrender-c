@@ -14,6 +14,7 @@
 #include "internal/sk_pick.h"
 #include "internal/sk_render.h"
 #include "sk_camera3d.h"
+#include "sk_pick.h"
 #include "sk_logger.h"
 #include "sk_render.h"
 #include "sk_window.h"
@@ -154,6 +155,64 @@ bool sk_drawable_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_res
         return sk_pick_registry[kind](handle, origin, dir, out);
     }
     return false;
+}
+
+/* ---- picking one drawable ---------------------------------------------- */
+
+static sk_pick_stats_t sk_pick_stats;
+
+/* A 2D drawable at a screen point (logical pixels). */
+static bool pick_2d(sk_handle_t drawable, const sk_drawable_passes_t *passes, float x, float y,
+                    sk_pick_result_t *out)
+{
+    sk_pick_stats.narrowphase_tests++;
+    if (!passes->pick_2d(drawable, x, y, out)) {
+        *out = (sk_pick_result_t){0};
+        return false;
+    }
+    sk_pick_stats.narrowphase_hits++;
+    out->hit = true;
+    out->handle = drawable;
+    return true;
+}
+
+/* A 3D drawable along a world ray: bounding box first, then the kind's exact test.
+ * Kinds without an exact test count a bounding box hit. */
+static bool pick_3d(sk_handle_t drawable, sk_ray_t ray, sk_pick_result_t *out)
+{
+    const sk_handle_kind_t kind = sk_handle_get_kind(drawable);
+    const bool has_exact = (int)kind >= 0 && (int)kind < SK_DRAWABLE_KIND_COUNT && sk_pick_registry[kind] != NULL;
+    vec3_t lmin, lmax;
+    sk_mat4_t model;
+    float broad_t;
+
+    *out = (sk_pick_result_t){0};
+    if (!sk_drawable_bounds(drawable, &lmin, &lmax, &model)) {
+        return false; /* not a 3D drawable, or nothing loaded yet */
+    }
+    sk_pick_stats.broadphase_tests++;
+    if (!sk_pick_ray_world_aabb(ray, lmin, lmax, model, &broad_t)) {
+        sk_pick_stats.broadphase_rejects++;
+        return false;
+    }
+    if (has_exact) {
+        sk_pick_stats.narrowphase_tests++;
+        /* false: hidden or not pickable; no hit: missed */
+        if (!sk_pick_registry[kind](drawable, ray.origin, ray.dir, out) || !out->hit) {
+            *out = (sk_pick_result_t){0};
+            return false;
+        }
+        sk_pick_stats.narrowphase_hits++;
+    } else {
+        const vec3_t wp = {ray.origin.x + ray.dir.x * broad_t, ray.origin.y + ray.dir.y * broad_t,
+                           ray.origin.z + ray.dir.z * broad_t};
+        out->hit = true;
+        out->distance = broad_t;
+        out->point_world = wp;
+        out->point_local = sk_mat4_mul_point(sk_mat4_inverse(model), wp);
+    }
+    out->handle = drawable;
+    return true;
 }
 
 /* ---- scene store ------------------------------------------------------- */
@@ -511,8 +570,7 @@ sk_pick_result_t sk_scene_pick(sk_handle_t scene, sk_handle_t camera,
     for (int i = scene_ptr->count - 1; i >= 0; i--) {
         const sk_drawable_passes_t *passes = lookup_passes(scene_ptr->items[i].drawable);
         if (passes != NULL && passes->pick_2d != NULL &&
-            passes->pick_2d(scene_ptr->items[i].drawable, mouse_x, mouse_y, &result)) {
-            result.handle = scene_ptr->items[i].drawable;
+            pick_2d(scene_ptr->items[i].drawable, passes, mouse_x, mouse_y, &result)) {
             return result;
         }
     }
@@ -532,42 +590,51 @@ sk_pick_result_t sk_scene_pick(sk_handle_t scene, sk_handle_t camera,
     ray = sk_pick_ray_from_screen(&cam, mouse_x, mouse_y, screen.x, screen.y);
 
     for (int i = 0; i < scene_ptr->count; i++) {
-        sk_handle_t drawable = scene_ptr->items[i].drawable;
-        vec3_t lmin, lmax;
-        sk_mat4_t model;
         sk_pick_result_t hit = {0};
-        float broad_t;
-
-        if (!sk_drawable_bounds(drawable, &lmin, &lmax, &model)) {
-            continue;
+        if (pick_3d(scene_ptr->items[i].drawable, ray, &hit) && hit.distance < best_t) {
+            best_t = hit.distance;
+            result = hit;
         }
-        if (!sk_pick_ray_world_aabb(ray, lmin, lmax, model, &broad_t)) {
-            continue;
-        }
-
-        if (sk_drawable_pick(drawable, ray.origin, ray.dir, &hit)) {
-            if (!hit.hit || hit.distance >= best_t) {
-                continue;
-            }
-        } else {
-            /* No narrow-phase handler: keep the broadphase (world AABB) hit. */
-            vec3_t wp = {ray.origin.x + ray.dir.x * broad_t,
-                         ray.origin.y + ray.dir.y * broad_t,
-                         ray.origin.z + ray.dir.z * broad_t};
-            hit.hit = true;
-            hit.distance = broad_t;
-            hit.point_world = wp;
-            hit.point_local = sk_mat4_mul_point(sk_mat4_inverse(model), wp);
-            if (hit.distance >= best_t) {
-                continue;
-            }
-        }
-
-        best_t = hit.distance;
-        result = hit;
-        result.handle = drawable;
     }
     return result;
+}
+
+SK_KEEP
+sk_pick_result_t sk_pick_object(sk_handle_t object, sk_handle_t camera, float x, float y)
+{
+    sk_pick_result_t result = {0};
+    const sk_drawable_passes_t *passes = lookup_passes(object);
+    sk_camera3d_t cam;
+    vec2_t screen;
+
+    if (object == 0) {
+        return result;
+    }
+    if (passes != NULL && passes->pick_2d != NULL) {
+        pick_2d(object, passes, x, y, &result);
+        return result;
+    }
+    if (camera != 0) {
+        sk_camera3d_set_active(camera);
+    }
+    if (!sk_camera3d_get_active_data(&cam)) {
+        return result;
+    }
+    screen = sk_window_get_screen_size();
+    pick_3d(object, sk_pick_ray_from_screen(&cam, x, y, screen.x, screen.y), &result);
+    return result;
+}
+
+SK_KEEP
+sk_pick_stats_t sk_pick_get_stats(void)
+{
+    return sk_pick_stats;
+}
+
+SK_KEEP
+void sk_pick_reset_stats(void)
+{
+    sk_pick_stats = (sk_pick_stats_t){0};
 }
 
 void sk_scene_init(void)

@@ -95,6 +95,12 @@ void sk_asset_set_host(const char *host)
 #endif
 }
 
+SK_KEEP
+const char *sk_asset_get_host(void)
+{
+    return sk_asset_host;
+}
+
 #ifdef __EMSCRIPTEN__
 /* sokol_fetch delivers chunks on the main thread when sfetch_dowork() (called in
  * sk_asset_tick) pumps it. We grow `acc` chunk by chunk; on the final chunk we

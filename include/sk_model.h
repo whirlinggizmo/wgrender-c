@@ -52,6 +52,8 @@ bool sk_model_set_material(sk_handle_t handle, int slot, sk_handle_t material);
 sk_handle_t sk_model_get_material(sk_handle_t handle, int slot);
 bool sk_model_set_visible(sk_handle_t handle, bool visible);
 bool sk_model_is_visible(sk_handle_t handle);
+bool sk_model_set_pickable(sk_handle_t handle, bool pickable); /* default: pickable */
+bool sk_model_is_pickable(sk_handle_t handle);
 void sk_model_draw(sk_handle_t handle);
 void sk_model_destroy(sk_handle_t handle);
 
@@ -60,8 +62,19 @@ int  sk_model_get_animation_count(sk_handle_t handle);
 bool sk_model_set_animation(sk_handle_t handle, int animation_index);
 bool sk_model_set_animation_speed(sk_handle_t handle, float speed);
 bool sk_model_set_animation_loop(sk_handle_t handle, bool loop);
-/* Advance the active animation by delta_seconds and recompute joint matrices. */
+/* Advance the active animation by delta_seconds (times its speed) and recompute
+ * joint matrices. */
 bool sk_model_animate(sk_handle_t handle, float delta_seconds);
+/* Pose the active animation at `seconds` (wrapped when looping, else clamped). glTF
+ * animations are timed in seconds, not frames. Set before the mesh arrives, it
+ * applies once it does. */
+bool  sk_model_set_animation_time(sk_handle_t handle, float seconds);
+float sk_model_get_animation_time(sk_handle_t handle);
+/* Length of an animation in seconds (0 for no such animation or no mesh yet). */
+float sk_model_get_animation_duration(sk_handle_t handle, int animation_index);
+
+/* True once the model has a loaded mesh to draw. */
+bool sk_model_is_ready(sk_handle_t handle);
 
 #ifdef __cplusplus
 }

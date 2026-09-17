@@ -30,15 +30,31 @@ void sk_shape_draw_cube_wires(float cx, float cy, float cz,
                               float width, float height, float length, sk_handle_t color);
 void sk_shape_draw_sphere(float cx, float cy, float cz, float radius, sk_handle_t color);
 void sk_shape_draw_grid(int slices, float spacing, sk_handle_t color);
+/* A filled rectangle / circle outline in their local XY plane, centered at
+ * (cx, cy, cz) and turned by euler rotation (radians). */
+void sk_shape_draw_rectangle_3d(float cx, float cy, float cz, float width, float height,
+                                float rx, float ry, float rz, sk_handle_t color);
+void sk_shape_draw_circle_3d(float cx, float cy, float cz, float radius,
+                             float rx, float ry, float rz, sk_handle_t color);
 
 /* Retained 3D shapes — handle-based drawables that can be added to a scene.
- * A shape has a kind (cube/sphere), a transform, a color, and a visibility
- * flag. Draw directly with sk_shape_draw() inside 3D mode, or add it to a scene
+ * A shape has a kind (cube, sphere, rectangle, circle, line, line strip) with
+ * local geometry, a transform, a color, and visibility and pickable flags.
+ * Rectangles and circles lie in the local XY plane; picks hit rectangles and the
+ * inside of circles; lines and strips have no area and aren't hit. Draw directly with sk_shape_draw() inside 3D mode, or add it to a scene
  * via sk_scene_add(). */
 sk_handle_t sk_shape_create(void);
 void sk_shape_destroy(sk_handle_t shape);
 bool sk_shape_set_cube(sk_handle_t shape, float width, float height, float length);
 bool sk_shape_set_sphere(sk_handle_t shape, float radius);
+bool sk_shape_set_rectangle(sk_handle_t shape, float width, float height); /* filled */
+bool sk_shape_set_circle(sk_handle_t shape, float radius);                 /* outline */
+bool sk_shape_set_line(sk_handle_t shape, float x0, float y0, float z0, float x1, float y1, float z1);
+/* A line strip is built point by point: set_line_strip empties it, add_point
+ * appends (in local space). Rebuild it the same way to change it. */
+bool sk_shape_set_line_strip(sk_handle_t shape);
+bool sk_shape_add_point(sk_handle_t shape, float x, float y, float z);
+int  sk_shape_get_point_count(sk_handle_t shape);
 bool sk_shape_set_transform(sk_handle_t shape,
                             float position_x, float position_y, float position_z,
                             float rotation_x, float rotation_y, float rotation_z, /* radians */

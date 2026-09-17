@@ -87,6 +87,10 @@ void sk_text_flush(int pass);    /* emit pass `pass`'s debugtext into the open s
 void sk_text2d_init(void);
 void sk_text2d_deinit(void);
 
+/* text3d (TrueType text in the 3D world) */
+void sk_text3d_init(void);
+void sk_text3d_deinit(void);
+
 /* debug overlay */
 void sk_debug_init(void);
 void sk_debug_deinit(void);

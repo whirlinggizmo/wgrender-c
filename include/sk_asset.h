@@ -42,6 +42,8 @@ enum {
  * ("/assets/") that missing files are downloaded from and then cached. Pass the
  * same logical paths on both platforms; only the base differs. */
 void sk_asset_set_host(const char *host);
+/* The asset base set with sk_asset_set_host (without a trailing slash), or "". */
+const char *sk_asset_get_host(void);
 
 /* Ensure an asset is locally available, then fire the callback with a directly
  * openable local path.

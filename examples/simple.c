@@ -6,9 +6,8 @@
  * a centered message that reports what the mouse is over (scene picking), and a
  * debug overlay with timers, mouse state and the platform name.
  *
- * Differences from librl are marked PARITY below. Left out on purpose: the
- * rt_boot/rt_init/rt_tick host loop (sokol owns the loop) and the reload
- * counter (scripting hot reload lives outside the core). */
+ * Left out on purpose: the rt_boot/rt_init/rt_tick host loop (sokol owns the
+ * loop) and the reload counter (scripting hot reload lives outside the core). */
 #include <math.h>
 #include <stdio.h>
 
@@ -37,6 +36,7 @@ static struct {
     float elapsed;
     float countdown_timer;
     sk_handle_t debug_font;
+    sk_handle_t grey_alpha;
     sk_handle_t komika_font;
     sk_handle_t sprite;
     sk_handle_t model;
@@ -80,8 +80,7 @@ static void on_sprite_ready(const char *path, void *user)
     (void)user;
     g.sprite = sk_sprite3d_create(texture);
     sk_texture_destroy(texture); /* the sprite holds its own reference */
-    /* PARITY: librl's default facing is FREE (uses the transform's rotation);
-     * libsk has no FREE facing, so the sprite uses the default (faces camera). */
+    sk_sprite3d_set_facing(g.sprite, SK_SPRITE3D_FACING_FREE); /* librl's default: oriented by its rotation */
     sk_sprite3d_set_transform(g.sprite, 0, SPRITE_Y_OFFSET, 0, 0, 0, 0, 1, 1, 1);
     sk_sprite3d_set_tint(g.sprite, SK_COLOR_RAYWHITE);
     sk_scene_add(g.scene, g.sprite, 0);
@@ -139,6 +138,7 @@ static void on_init(void *user_data)
     sk_scene_add(g.scene, sun, 0);
     sk_scene_set_ambient(g.scene, 0, 0.25f);
     g.background_color = sk_color_create(245, 245, 245, 255);
+    g.grey_alpha = sk_color_create(0, 0, 0, 128);
 
     load(BGM_PATH, on_bgm_ready);
     load(MODEL_PATH, on_model_ready);
@@ -212,9 +212,7 @@ static void draw_overlay(sk_mouse_state_t mouse)
     draw_text(g.debug_font, line, 10, 76, DEBUG_FONT_SIZE, SK_COLOR_BLACK);
     draw_text(g.debug_font, g.platform_text, 10, 96, DEBUG_FONT_SIZE, SK_COLOR_BLACK);
 
-    /* PARITY: librl draws the FPS in the debug font, translucent grey. libsk can
-     * only draw it in the built-in font for now. */
-    sk_text_draw_fps(10, 10);
+    sk_text_draw_fps_ex(g.debug_font, 10, 10, DEBUG_FONT_SIZE, g.grey_alpha);
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)

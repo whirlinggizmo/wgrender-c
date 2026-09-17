@@ -12,6 +12,8 @@ extern "C" {
  * to an integer glyph scale. */
 
 void sk_text_draw_fps(int x, int y);
+/* The FPS counter in a TrueType font (0 = built-in), size in pixels, and color. */
+void sk_text_draw_fps_ex(sk_handle_t font, float x, float y, float size, sk_handle_t color);
 void sk_text_draw(const char *text, int x, int y, int font_size, sk_handle_t color);
 int sk_text_measure(const char *text, int font_size);
 

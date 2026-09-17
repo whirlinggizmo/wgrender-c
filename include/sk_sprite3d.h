@@ -15,6 +15,7 @@ typedef enum {
     SK_SPRITE3D_FACING_CAMERA = 0,         /* fully faces the camera        */
     SK_SPRITE3D_FACING_CAMERA_FIXED_Y = 1, /* faces camera, world up locked */
     SK_SPRITE3D_FACING_Y_UP = 2,           /* flat in XZ plane, normal +Y   */
+    SK_SPRITE3D_FACING_FREE = 3,           /* its own rotation: the local XY plane, facing +Z */
 } sk_sprite3d_facing_t;
 
 sk_handle_t sk_sprite3d_create(sk_handle_t texture);
@@ -24,10 +25,15 @@ bool sk_sprite3d_set_transform(sk_handle_t handle,
                                float rotation_x, float rotation_y, float rotation_z, /* radians */
                                float scale_x, float scale_y, float scale_z);
 bool sk_sprite3d_set_size(sk_handle_t handle, float size);
-bool sk_sprite3d_set_facing(sk_handle_t handle, int facing);
+bool sk_sprite3d_set_facing(sk_handle_t handle, sk_sprite3d_facing_t facing);
+vec3_t sk_sprite3d_get_position(sk_handle_t handle);
+vec3_t sk_sprite3d_get_rotation(sk_handle_t handle); /* radians */
+vec3_t sk_sprite3d_get_scale(sk_handle_t handle);
 bool sk_sprite3d_set_tint(sk_handle_t handle, sk_handle_t color);
 bool sk_sprite3d_set_visible(sk_handle_t handle, bool visible);
 bool sk_sprite3d_is_visible(sk_handle_t handle);
+bool sk_sprite3d_set_pickable(sk_handle_t handle, bool pickable); /* default: pickable */
+bool sk_sprite3d_is_pickable(sk_handle_t handle);
 /* When enabled, picking ignores hits on texels whose alpha is below `threshold`
  * (0..1). Builds a CPU alpha mask from the texture's source path on demand. */
 bool sk_sprite3d_set_pick_alpha_test(sk_handle_t handle, bool enable, float threshold);

@@ -56,8 +56,7 @@ tick the box in the same commit.
       front across model primitives, sprites and translucent shapes (runs stay
       batched, unlike librl's per-item flush). Draw order follows call order
       across sokol_gl and model draws (frame command list in `sk_render`)
-- [ ] 2D scene drawables (sprite2d, text2d in a scene) draw after all 3D layers
-      once they exist
+- [x] 2D scene drawables (sprite2d, text2d in a scene) draw after all 3D layers
 - [x] Bug: static (unskinned) glTF primitives ignored their node transform
       (gumshoe's `blobShadow` node is scaled 0.66 and offset). Fixed: node world
       transforms are baked into positions, normals, pick data and bounds at load
@@ -127,24 +126,23 @@ tick the box in the same commit.
 Each item starts with a short design review: what librl did, what went wrong or
 felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 
-- [ ] Small leftovers: sound pan, read back the asset host, animation frame
-      count and seeking to a frame, FPS readout with a custom font, a handle for
-      the built-in font
+- [x] Parity batch (2026-09-16, [PLAN-parity.md](PLAN-parity.md), `examples/text3d.c`):
+      `sk_pick_object` + pick stats + pickable flags everywhere; `sk_text3d_*` and
+      `sk_text_draw_3d`; 3D rectangles, circles, lines and point-by-point line
+      strips; animation duration/time in seconds and `sk_model_is_ready`;
+      `sk_sound_set_pan`; sprite3d getters and FREE facing; `sk_text_draw_fps_ex`;
+      `sk_asset_get_host`. Dropped: built-in font handle, placeholder model, ground
+      texture drawing. `make parity`: 95%, 10 todos, all deferred on purpose
 - [x] 2D sprites and screen-space texture drawing: `sk_sprite2d_*` (source rect,
       pivot, rotation, x/y scale with flip, size, alpha-tested picking) and
       `sk_texture_draw`; scenes draw 2D after 3D and pick it first; 2D, mouse and
       screen size are in logical pixels (docs/PLAN-sprite2d.md, examples/sprite2d.c)
-- [ ] 3D text
-- [ ] 3D shapes: rectangles and circles (immediate + retained), retained lines
-- [ ] 3D line strips: needs a handle-only way to pass points
-- [ ] Per-object picking and pickable flags on every pickable object; read back
-      a sprite's transform
-- [ ] Pick statistics for debugging
 - [x] Lighting controls: redesigned as light objects in scenes (see above)
-- [ ] Window and monitor control: size, position, monitor queries (check web)
-- [ ] Assets: ensure many files at once (handle-only), host reachability check
-- [ ] Models: handle validity checks, a default placeholder mesh
-- [ ] Ground-plane texture drawing
+- [ ] Window and monitor control: size, position, monitor queries. Deferred:
+      sokol_app has no API for them, so it needs native code per platform (X11,
+      Win32, Cocoa; canvas size on web), together with the ignored window flags
+- [ ] Assets: ensure many files at once (with the loading pipeline), host ping
+      (with the `sk_net` rework)
 
 ## Parity outside the API
 
@@ -217,5 +215,7 @@ Not supported yet:
 
 ## Open decisions
 
-- [ ] Handle-only API for point lists (`line_strip_3d`, batch asset ensure)
+- [x] Handle-only API for point lists: line strips are built point by point on a
+      retained shape (`sk_shape_set_line_strip` + `sk_shape_add_point`); batch
+      asset ensure is designed with the loading pipeline
 - [ ] Which language binding comes first

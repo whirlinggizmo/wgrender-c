@@ -28,6 +28,10 @@ bool sk_text2d_set_size(sk_handle_t handle, float size);
 bool sk_text2d_set_color(sk_handle_t handle, sk_handle_t color);
 bool sk_text2d_set_visible(sk_handle_t handle, bool visible);
 bool sk_text2d_is_visible(sk_handle_t handle);
+/* Picked by its text's rectangle (sk_pick_object, or sk_scene_pick when in a
+ * scene, where it's drawn over 3D like sprite2d). Default: pickable. */
+bool sk_text2d_set_pickable(sk_handle_t handle, bool pickable);
+bool sk_text2d_is_pickable(sk_handle_t handle);
 
 /* Rendered extent of the current text at the current size (0 if no text). Uses
  * TTF metrics when the font is ready, else the bitmap fallback's. */

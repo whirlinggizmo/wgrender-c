@@ -123,6 +123,7 @@ typedef struct {
     vec3_t scale;
     sk_handle_t tint;
     bool visible;
+    bool pickable;
     sk_handle_t materials[SK_MAX_MATERIAL_SLOTS]; /* per-slot overrides (referenced); 0 = mesh's */
 
     /* animation playback */
@@ -975,44 +976,52 @@ static sk_mat4_t global_of(sk_mesh_t *mesh, vec3_t *ct, quat_t *cr, vec3_t *cs,
     return cache[i];
 }
 
-SK_KEEP
-bool sk_model_animate(sk_handle_t handle, float delta_seconds)
+/* The model's current animation, or NULL when it has none to play. */
+static sk_animation_t *current_animation(sk_model_t *model_ptr, sk_mesh_t **mesh_out)
 {
-    sk_model_t *model_ptr = resolve(handle);
-    sk_mesh_t *mesh_ptr;
-    sk_animation_t *anim;
-    vec3_t *ct, *cs;
-    quat_t *cr;
-    sk_mat4_t *cache;
-    bool *done;
-
-    if (model_ptr == NULL) return false;
-    mesh_ptr = resolve_mesh(model_ptr->mesh);
-    if (mesh_ptr == NULL) return false;
-    if (!mesh_ptr->has_skin || model_ptr->cur_anim < 0 || model_ptr->cur_anim >= mesh_ptr->animation_count) return false;
-    anim = &mesh_ptr->animations[model_ptr->cur_anim];
-
-    model_ptr->anim_time += delta_seconds * model_ptr->anim_speed;
-    if (anim->duration > 0.0f) {
-        if (model_ptr->anim_loop) {
-            model_ptr->anim_time = fmodf(model_ptr->anim_time, anim->duration);
-            if (model_ptr->anim_time < 0.0f) model_ptr->anim_time += anim->duration;
-        } else if (model_ptr->anim_time > anim->duration) {
-            model_ptr->anim_time = anim->duration;
-        }
+    sk_mesh_t *mesh_ptr = resolve_mesh(model_ptr->mesh);
+    if (mesh_ptr == NULL || !mesh_ptr->has_skin || model_ptr->cur_anim < 0 ||
+        model_ptr->cur_anim >= mesh_ptr->animation_count) {
+        return NULL;
     }
+    *mesh_out = mesh_ptr;
+    return &mesh_ptr->animations[model_ptr->cur_anim];
+}
 
-    ct = (vec3_t *)malloc((size_t)mesh_ptr->node_count * sizeof(vec3_t));
-    cr = (quat_t *)malloc((size_t)mesh_ptr->node_count * sizeof(quat_t));
-    cs = (vec3_t *)malloc((size_t)mesh_ptr->node_count * sizeof(vec3_t));
-    cache = (sk_mat4_t *)malloc((size_t)mesh_ptr->node_count * sizeof(sk_mat4_t));
-    done = (bool *)calloc((size_t)mesh_ptr->node_count, sizeof(bool));
+/* Wrap (looping) or clamp the model's animation time into the clip. */
+static void wrap_time(sk_model_t *model_ptr, const sk_animation_t *anim)
+{
+    if (anim->duration <= 0.0f) {
+        return;
+    }
+    if (model_ptr->anim_loop) {
+        model_ptr->anim_time = fmodf(model_ptr->anim_time, anim->duration);
+        if (model_ptr->anim_time < 0.0f) model_ptr->anim_time += anim->duration;
+    } else if (model_ptr->anim_time > anim->duration) {
+        model_ptr->anim_time = anim->duration;
+    } else if (model_ptr->anim_time < 0.0f) {
+        model_ptr->anim_time = 0.0f;
+    }
+}
 
+/* Recompute the joint matrices for the animation at the model's anim_time. */
+static void pose(sk_model_t *model_ptr, sk_mesh_t *mesh_ptr, const sk_animation_t *anim)
+{
+    vec3_t *ct = (vec3_t *)malloc((size_t)mesh_ptr->node_count * sizeof(vec3_t));
+    quat_t *cr = (quat_t *)malloc((size_t)mesh_ptr->node_count * sizeof(quat_t));
+    vec3_t *cs = (vec3_t *)malloc((size_t)mesh_ptr->node_count * sizeof(vec3_t));
+    sk_mat4_t *cache = (sk_mat4_t *)malloc((size_t)mesh_ptr->node_count * sizeof(sk_mat4_t));
+    bool *done = (bool *)calloc((size_t)mesh_ptr->node_count, sizeof(bool));
+
+    if (ct == NULL || cr == NULL || cs == NULL || cache == NULL || done == NULL) {
+        free(ct); free(cr); free(cs); free(cache); free(done);
+        return;
+    }
     for (int i = 0; i < mesh_ptr->node_count; i++) {
         ct[i] = mesh_ptr->nodes[i].t; cr[i] = mesh_ptr->nodes[i].r; cs[i] = mesh_ptr->nodes[i].s;
     }
     for (int c = 0; c < anim->channel_count; c++) {
-        sk_anim_channel_t *ch = &anim->channels[c];
+        const sk_anim_channel_t *ch = &anim->channels[c];
         if (ch->node < 0 || ch->node >= mesh_ptr->node_count) continue;
         sample_channel(ch, model_ptr->anim_time, &ct[ch->node], &cr[ch->node], &cs[ch->node]);
     }
@@ -1022,9 +1031,63 @@ bool sk_model_animate(sk_handle_t handle, float delta_seconds)
         model_ptr->joint_matrices[j] = sk_mat4_mul(gjoint, mesh_ptr->inverse_bind[j]);
     }
     model_ptr->pose_version++;
-
     free(ct); free(cr); free(cs); free(cache); free(done);
+}
+
+SK_KEEP
+bool sk_model_animate(sk_handle_t handle, float delta_seconds)
+{
+    sk_model_t *model_ptr = resolve(handle);
+    sk_mesh_t *mesh_ptr = NULL;
+    const sk_animation_t *anim = model_ptr != NULL ? current_animation(model_ptr, &mesh_ptr) : NULL;
+
+    if (anim == NULL) return false;
+    model_ptr->anim_time += delta_seconds * model_ptr->anim_speed;
+    wrap_time(model_ptr, anim);
+    pose(model_ptr, mesh_ptr, anim);
     return true;
+}
+
+SK_KEEP
+bool sk_model_set_animation_time(sk_handle_t handle, float seconds)
+{
+    sk_model_t *model_ptr = resolve(handle);
+    sk_mesh_t *mesh_ptr = NULL;
+    const sk_animation_t *anim;
+
+    if (model_ptr == NULL) return false;
+    model_ptr->anim_time = seconds;
+    anim = current_animation(model_ptr, &mesh_ptr);
+    if (anim != NULL) { /* no mesh or clip yet: the time applies when they arrive */
+        wrap_time(model_ptr, anim);
+        pose(model_ptr, mesh_ptr, anim);
+    }
+    return true;
+}
+
+SK_KEEP
+float sk_model_get_animation_time(sk_handle_t handle)
+{
+    sk_model_t *model_ptr = resolve(handle);
+    return model_ptr != NULL ? model_ptr->anim_time : 0.0f;
+}
+
+SK_KEEP
+float sk_model_get_animation_duration(sk_handle_t handle, int animation_index)
+{
+    sk_model_t *model_ptr = resolve(handle);
+    sk_mesh_t *mesh_ptr = model_ptr != NULL ? resolve_mesh(model_ptr->mesh) : NULL;
+    if (mesh_ptr == NULL || animation_index < 0 || animation_index >= mesh_ptr->animation_count) return 0.0f;
+    return mesh_ptr->animations[animation_index].duration;
+}
+
+SK_KEEP
+bool sk_model_is_ready(sk_handle_t handle)
+{
+    sk_model_t *model_ptr = resolve(handle);
+    uint16_t index = 0;
+    return model_ptr != NULL && model_ptr->mesh != 0 && sk_handle_pool_resolve(&sk_mesh_pool, model_ptr->mesh, &index) &&
+           sk_meshes[index].prim_count > 0;
 }
 
 SK_KEEP int sk_model_get_animation_count(sk_handle_t handle)
@@ -1181,6 +1244,7 @@ static sk_handle_t create_model(sk_handle_t mesh_handle)
     model.mesh = mesh_handle;
     model.scale = (vec3_t){1, 1, 1};
     model.visible = true;
+    model.pickable = true;
     model.cur_anim = -1;
     model.anim_speed = 1.0f;
     model.anim_loop = true;
@@ -1346,6 +1410,20 @@ SK_KEEP bool sk_model_is_visible(sk_handle_t handle)
 {
     sk_model_t *model_ptr = resolve(handle);
     return model_ptr != NULL && model_ptr->visible;
+}
+
+SK_KEEP bool sk_model_set_pickable(sk_handle_t handle, bool pickable)
+{
+    sk_model_t *model_ptr = resolve(handle);
+    if (model_ptr == NULL) return false;
+    model_ptr->pickable = pickable;
+    return true;
+}
+
+SK_KEEP bool sk_model_is_pickable(sk_handle_t handle)
+{
+    sk_model_t *model_ptr = resolve(handle);
+    return model_ptr != NULL && model_ptr->pickable;
 }
 
 SK_KEEP void sk_model_draw(sk_handle_t handle) { draw_immediate(handle); }
@@ -1548,7 +1626,8 @@ static bool model_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_re
     bool posed;
     int posed_offset = 0;
 
-    if (out == NULL || model_ptr == NULL || mesh_ptr == NULL || !model_ptr->visible || mesh_ptr->prim_count == 0) {
+    if (out == NULL || model_ptr == NULL || mesh_ptr == NULL || !model_ptr->visible || !model_ptr->pickable ||
+        mesh_ptr->prim_count == 0) {
         return false;
     }
     if (!model_bounds(handle, &lmin, &lmax, &model_mat)) {

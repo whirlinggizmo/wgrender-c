@@ -1,6 +1,7 @@
 #include "sk_shape.h"
 
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "internal/exports.h"
@@ -17,16 +18,24 @@
 #define SK_CIRCLE_SEGMENTS 36
 
 #define MAX_SHAPES 1024
+#define MAX_STRIP_POINTS 65536
 
 typedef enum {
     SK_SHAPE_NONE = 0,
     SK_SHAPE_CUBE = 1,
     SK_SHAPE_SPHERE = 2,
+    SK_SHAPE_RECTANGLE = 3,  /* filled, XY plane */
+    SK_SHAPE_CIRCLE = 4,     /* outline, XY plane */
+    SK_SHAPE_LINE = 5,
+    SK_SHAPE_LINE_STRIP = 6,
 } sk_shape_kind_t;
 
 typedef struct {
     sk_shape_kind_t kind;
-    float dim[3];   /* cube: w,h,l   sphere: radius in dim[0] */
+    float dim[6];   /* cube: w,h,l; sphere/circle: radius; rectangle: w,h; line: x0,y0,z0,x1,y1,z1 */
+    vec3_t *points; /* line strip */
+    int point_count;
+    int point_capacity;
     vec3_t position;
     vec3_t rotation; /* radians */
     vec3_t scale;
@@ -66,6 +75,10 @@ void sk_shape_init(void)
 
 void sk_shape_deinit(void)
 {
+    for (int i = 0; i < MAX_SHAPES; i++) {
+        free(sk_shapes[i].points);
+    }
+    memset(sk_shapes, 0, sizeof(sk_shapes));
     sk_handle_pool_reset(&sk_shape_pool);
 }
 
@@ -263,6 +276,54 @@ void sk_shape_draw_sphere(float cx, float cy, float cz, float radius, sk_handle_
     sgl_end();
 }
 
+/* Local transform for an immediate 3D primitive: center, then euler radians. */
+static void push_placement(float cx, float cy, float cz, float rx, float ry, float rz)
+{
+    sgl_push_matrix();
+    sgl_translate(cx, cy, cz);
+    sgl_rotate(rz, 0.0f, 0.0f, 1.0f);
+    sgl_rotate(ry, 0.0f, 1.0f, 0.0f);
+    sgl_rotate(rx, 1.0f, 0.0f, 0.0f);
+}
+
+static void rectangle_xy(float width, float height, sk_handle_t color)
+{
+    const float hw = width * 0.5f, hh = height * 0.5f;
+    sgl_begin_quads();
+    set_color(color);
+    sgl_v3f(-hw, -hh, 0.0f); sgl_v3f(hw, -hh, 0.0f); sgl_v3f(hw, hh, 0.0f); sgl_v3f(-hw, hh, 0.0f);
+    sgl_end();
+}
+
+static void circle_xy(float radius, sk_handle_t color)
+{
+    sgl_begin_line_strip();
+    set_color(color);
+    for (int i = 0; i <= SK_CIRCLE_SEGMENTS; i++) {
+        const float a = (float)(2.0 * M_PI * i / SK_CIRCLE_SEGMENTS);
+        sgl_v3f(cosf(a) * radius, sinf(a) * radius, 0.0f);
+    }
+    sgl_end();
+}
+
+SK_KEEP
+void sk_shape_draw_rectangle_3d(float cx, float cy, float cz, float width, float height,
+                                float rx, float ry, float rz, sk_handle_t color)
+{
+    push_placement(cx, cy, cz, rx, ry, rz);
+    rectangle_xy(width, height, color);
+    sgl_pop_matrix();
+}
+
+SK_KEEP
+void sk_shape_draw_circle_3d(float cx, float cy, float cz, float radius,
+                             float rx, float ry, float rz, sk_handle_t color)
+{
+    push_placement(cx, cy, cz, rx, ry, rz);
+    circle_xy(radius, color);
+    sgl_pop_matrix();
+}
+
 SK_KEEP
 void sk_shape_draw_grid(int slices, float spacing, sk_handle_t color)
 {
@@ -323,6 +384,7 @@ void sk_shape_destroy(sk_handle_t shape)
     if (shape_ptr == NULL) {
         return;
     }
+    free(shape_ptr->points);
     *shape_ptr = (sk_shape_t){0};
     sk_handle_pool_free(&sk_shape_pool, shape);
 }
@@ -351,6 +413,88 @@ bool sk_shape_set_sphere(sk_handle_t shape, float radius)
     shape_ptr->kind = SK_SHAPE_SPHERE;
     shape_ptr->dim[0] = radius;
     return true;
+}
+
+SK_KEEP
+bool sk_shape_set_rectangle(sk_handle_t shape, float width, float height)
+{
+    sk_shape_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL) {
+        return false;
+    }
+    shape_ptr->kind = SK_SHAPE_RECTANGLE;
+    shape_ptr->dim[0] = width;
+    shape_ptr->dim[1] = height;
+    return true;
+}
+
+SK_KEEP
+bool sk_shape_set_circle(sk_handle_t shape, float radius)
+{
+    sk_shape_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL) {
+        return false;
+    }
+    shape_ptr->kind = SK_SHAPE_CIRCLE;
+    shape_ptr->dim[0] = radius;
+    return true;
+}
+
+SK_KEEP
+bool sk_shape_set_line(sk_handle_t shape, float x0, float y0, float z0, float x1, float y1, float z1)
+{
+    sk_shape_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL) {
+        return false;
+    }
+    shape_ptr->kind = SK_SHAPE_LINE;
+    shape_ptr->dim[0] = x0; shape_ptr->dim[1] = y0; shape_ptr->dim[2] = z0;
+    shape_ptr->dim[3] = x1; shape_ptr->dim[4] = y1; shape_ptr->dim[5] = z1;
+    return true;
+}
+
+SK_KEEP
+bool sk_shape_set_line_strip(sk_handle_t shape)
+{
+    sk_shape_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL) {
+        return false;
+    }
+    shape_ptr->kind = SK_SHAPE_LINE_STRIP;
+    shape_ptr->point_count = 0; /* keeps the allocation for rebuilding */
+    return true;
+}
+
+SK_KEEP
+bool sk_shape_add_point(sk_handle_t shape, float x, float y, float z)
+{
+    sk_shape_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL || shape_ptr->kind != SK_SHAPE_LINE_STRIP) {
+        if (shape_ptr != NULL) log_warn("sk_shape_add_point: shape isn't a line strip (sk_shape_set_line_strip)");
+        return false;
+    }
+    if (shape_ptr->point_count >= MAX_STRIP_POINTS) {
+        log_warn("sk_shape_add_point: line strip is full (%d points)", MAX_STRIP_POINTS);
+        return false;
+    }
+    if (shape_ptr->point_count == shape_ptr->point_capacity) {
+        const int capacity = shape_ptr->point_capacity > 0 ? shape_ptr->point_capacity * 2 : 16;
+        vec3_t *grown = (vec3_t *)realloc(shape_ptr->points, (size_t)capacity * sizeof(vec3_t));
+        if (grown == NULL) {
+            return false;
+        }
+        shape_ptr->points = grown;
+        shape_ptr->point_capacity = capacity;
+    }
+    shape_ptr->points[shape_ptr->point_count++] = (vec3_t){x, y, z};
+    return true;
+}
+
+SK_KEEP
+int sk_shape_get_point_count(sk_handle_t shape)
+{
+    const sk_shape_t *shape_ptr = resolve(shape);
+    return shape_ptr != NULL && shape_ptr->kind == SK_SHAPE_LINE_STRIP ? shape_ptr->point_count : 0;
 }
 
 SK_KEEP
@@ -430,10 +574,35 @@ static void draw_handle(sk_handle_t shape)
     sgl_rotate(shape_ptr->rotation.x, 1.0f, 0.0f, 0.0f);
     sgl_scale(shape_ptr->scale.x, shape_ptr->scale.y, shape_ptr->scale.z);
 
-    if (shape_ptr->kind == SK_SHAPE_CUBE) {
-        sk_shape_draw_cube(0.0f, 0.0f, 0.0f, shape_ptr->dim[0], shape_ptr->dim[1], shape_ptr->dim[2], shape_ptr->color);
-    } else if (shape_ptr->kind == SK_SHAPE_SPHERE) {
-        sk_shape_draw_sphere(0.0f, 0.0f, 0.0f, shape_ptr->dim[0], shape_ptr->color);
+    switch (shape_ptr->kind) {
+        case SK_SHAPE_CUBE:
+            sk_shape_draw_cube(0.0f, 0.0f, 0.0f, shape_ptr->dim[0], shape_ptr->dim[1], shape_ptr->dim[2], shape_ptr->color);
+            break;
+        case SK_SHAPE_SPHERE:
+            sk_shape_draw_sphere(0.0f, 0.0f, 0.0f, shape_ptr->dim[0], shape_ptr->color);
+            break;
+        case SK_SHAPE_RECTANGLE:
+            rectangle_xy(shape_ptr->dim[0], shape_ptr->dim[1], shape_ptr->color);
+            break;
+        case SK_SHAPE_CIRCLE:
+            circle_xy(shape_ptr->dim[0], shape_ptr->color);
+            break;
+        case SK_SHAPE_LINE:
+            sk_shape_draw_line_3d(shape_ptr->dim[0], shape_ptr->dim[1], shape_ptr->dim[2],
+                                  shape_ptr->dim[3], shape_ptr->dim[4], shape_ptr->dim[5], shape_ptr->color);
+            break;
+        case SK_SHAPE_LINE_STRIP:
+            if (shape_ptr->point_count >= 2) {
+                sgl_begin_line_strip();
+                set_color(shape_ptr->color);
+                for (int i = 0; i < shape_ptr->point_count; i++) {
+                    sgl_v3f(shape_ptr->points[i].x, shape_ptr->points[i].y, shape_ptr->points[i].z);
+                }
+                sgl_end();
+            }
+            break;
+        default:
+            break;
     }
 
     sgl_pop_matrix();
@@ -488,10 +657,35 @@ static bool shape_bounds(sk_handle_t shape, vec3_t *lmin, vec3_t *lmax, sk_mat4_
     if (shape_ptr == NULL || !shape_ptr->visible || shape_ptr->kind == SK_SHAPE_NONE) {
         return false;
     }
-    if (shape_ptr->kind == SK_SHAPE_CUBE) {
-        hx = shape_ptr->dim[0] * 0.5f; hy = shape_ptr->dim[1] * 0.5f; hz = shape_ptr->dim[2] * 0.5f;
-    } else { /* sphere: dim[0] = radius */
-        hx = hy = hz = shape_ptr->dim[0];
+    switch (shape_ptr->kind) {
+        case SK_SHAPE_CUBE:
+            hx = shape_ptr->dim[0] * 0.5f; hy = shape_ptr->dim[1] * 0.5f; hz = shape_ptr->dim[2] * 0.5f;
+            break;
+        case SK_SHAPE_RECTANGLE:
+            hx = shape_ptr->dim[0] * 0.5f; hy = shape_ptr->dim[1] * 0.5f; hz = 0.0f;
+            break;
+        case SK_SHAPE_CIRCLE:
+            hx = hy = shape_ptr->dim[0]; hz = 0.0f;
+            break;
+        case SK_SHAPE_LINE:
+        case SK_SHAPE_LINE_STRIP: {
+            const int count = shape_ptr->kind == SK_SHAPE_LINE ? 2 : shape_ptr->point_count;
+            if (count == 0) return false;
+            *lmin = (vec3_t){1e30f, 1e30f, 1e30f};
+            *lmax = (vec3_t){-1e30f, -1e30f, -1e30f};
+            for (int i = 0; i < count; i++) {
+                const vec3_t p = shape_ptr->kind == SK_SHAPE_LINE
+                                     ? (vec3_t){shape_ptr->dim[i * 3], shape_ptr->dim[i * 3 + 1], shape_ptr->dim[i * 3 + 2]}
+                                     : shape_ptr->points[i];
+                lmin->x = fminf(lmin->x, p.x); lmin->y = fminf(lmin->y, p.y); lmin->z = fminf(lmin->z, p.z);
+                lmax->x = fmaxf(lmax->x, p.x); lmax->y = fmaxf(lmax->y, p.y); lmax->z = fmaxf(lmax->z, p.z);
+            }
+            *model = sk_mat4_trs(shape_ptr->position, shape_ptr->rotation, shape_ptr->scale);
+            return true;
+        }
+        default: /* sphere: dim[0] = radius */
+            hx = hy = hz = shape_ptr->dim[0];
+            break;
     }
     *lmin = (vec3_t){-hx, -hy, -hz};
     *lmax = (vec3_t){hx, hy, hz};
@@ -524,8 +718,25 @@ static bool shape_pick(sk_handle_t shape, vec3_t origin, vec3_t dir, sk_pick_res
         lmin = (vec3_t){-hx, -hy, -hz};
         lmax = (vec3_t){hx, hy, hz};
         hit = sk_pick_ray_aabb(local, lmin, lmax, &h);
-    } else {
+    } else if (shape_ptr->kind == SK_SHAPE_RECTANGLE || shape_ptr->kind == SK_SHAPE_CIRCLE) {
+        /* the XY plane (both sides); circles are picked anywhere inside the outline */
+        hit = false;
+        if (fabsf(local.dir.z) > 1e-6f) { /* parallel (edge-on): no area to hit */
+            const float t = -local.origin.z / local.dir.z;
+            const float px = local.origin.x + local.dir.x * t, py = local.origin.y + local.dir.y * t;
+            const bool inside = shape_ptr->kind == SK_SHAPE_RECTANGLE
+                                    ? fabsf(px) <= shape_ptr->dim[0] * 0.5f && fabsf(py) <= shape_ptr->dim[1] * 0.5f
+                                    : px * px + py * py <= shape_ptr->dim[0] * shape_ptr->dim[0];
+            if (t >= 0.0f && inside) {
+                h = (sk_ray_hit_t){.hit = true, .t = t, .point = {px, py, 0.0f},
+                                   .normal = {0.0f, 0.0f, local.dir.z < 0.0f ? 1.0f : -1.0f}};
+                hit = true;
+            }
+        }
+    } else if (shape_ptr->kind == SK_SHAPE_SPHERE) {
         hit = sk_pick_ray_sphere(local, (vec3_t){0, 0, 0}, shape_ptr->dim[0], &h);
+    } else {
+        return false; /* lines have no area to hit */
     }
 
     if (hit) {

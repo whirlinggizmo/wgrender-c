@@ -525,6 +525,9 @@ static void mix_sound(sk_sound_t *sound, const sk_audio_t *audio, float *buf, in
 {
     const double step = ((double)audio->sample_rate / (double)out_rate) * (double)sound->pitch;
     const double length = (double)audio->frame_count;
+    /* balance: centered plays both channels at full volume; panning fades the other side */
+    const float gain_left = sound->volume * (sound->pan > 0.0f ? 1.0f - sound->pan : 1.0f);
+    const float gain_right = sound->volume * (sound->pan < 0.0f ? 1.0f + sound->pan : 1.0f);
 
     for (int i = 0; i < frames && sound->playing; i++) {
         float l, r;
@@ -540,8 +543,8 @@ static void mix_sound(sk_sound_t *sound, const sk_audio_t *audio, float *buf, in
             sound->playing = false;
             break;
         }
-        buf[i * 2 + 0] += l * sound->volume;
-        buf[i * 2 + 1] += r * sound->volume;
+        buf[i * 2 + 0] += l * gain_left;
+        buf[i * 2 + 1] += r * gain_right;
         sound->pos += step;
     }
 }

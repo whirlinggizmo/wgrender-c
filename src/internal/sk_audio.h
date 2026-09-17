@@ -21,6 +21,7 @@ typedef struct {
     double pos;                /* playback cursor in source frames */
     float volume;
     float pitch;
+    float pan;                 /* -1 left .. 0 center .. 1 right (balance) */
     bool loop;
     bool playing;
     sk_audio_stream_t *stream; /* decoder, created by the mixer for streamed Audio */

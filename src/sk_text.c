@@ -87,6 +87,16 @@ void sk_text_draw_fps(int x, int y)
 }
 
 SK_KEEP
+void sk_text_draw_fps_ex(sk_handle_t font, float x, float y, float size, sk_handle_t color)
+{
+    double dt = sk_get_fps_delta();
+    int fps = dt > 0.0 ? (int)(1.0 / dt + 0.5) : 0;
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%d FPS", fps);
+    sk_text_draw_ex(font, buf, x, y, size, color);
+}
+
+SK_KEEP
 int sk_text_measure(const char *text, int font_size)
 {
     int len = text != NULL ? (int)strlen(text) : 0;

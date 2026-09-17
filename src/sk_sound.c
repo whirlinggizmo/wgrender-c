@@ -142,6 +142,13 @@ bool sk_sound_set_volume(sk_handle_t handle, float volume)
 }
 
 SK_KEEP
+bool sk_sound_set_pan(sk_handle_t handle, float pan)
+{
+    pan = pan < -1.0f ? -1.0f : (pan > 1.0f ? 1.0f : pan);
+    WITH_SOUND(handle, sound_ptr->pan = pan);
+}
+
+SK_KEEP
 bool sk_sound_set_pitch(sk_handle_t handle, float pitch)
 {
     WITH_SOUND(handle, sound_ptr->pitch = pitch);

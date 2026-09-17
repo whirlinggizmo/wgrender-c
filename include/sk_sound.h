@@ -21,6 +21,8 @@ bool sk_sound_stop(sk_handle_t handle);    /* stop and rewind              */
 bool sk_sound_set_loop(sk_handle_t handle, bool loop);
 bool sk_sound_set_volume(sk_handle_t handle, float volume);
 bool sk_sound_set_pitch(sk_handle_t handle, float pitch);
+/* -1 = left only, 0 = centered (default), 1 = right only: the other side fades (balance). */
+bool sk_sound_set_pan(sk_handle_t handle, float pan);
 bool sk_sound_is_playing(sk_handle_t handle);
 
 #ifdef __cplusplus

@@ -168,6 +168,7 @@ static void on_init(void)
     sk_font_init();
     sk_text_init();
     sk_text2d_init(); /* retained text; delegates to the text layer */
+    sk_text3d_init();
 
     /* CPU-side stores */
     sk_color_init();
@@ -337,6 +338,7 @@ static void on_cleanup(void)
     sk_camera3d_deinit();
     sk_color_deinit();
 
+    sk_text3d_deinit();
     sk_text2d_deinit();
     sk_text_deinit();
     sk_font_deinit();

@@ -51,6 +51,14 @@ void test_model_skin_position(void);
 void test_model_sample_alpha(void);
 void test_model_generate_tangents(void);
 
+void test_parity_text3d(void);
+void test_parity_sprite3d(void);
+void test_parity_model(void);
+void test_parity_sound_pan(void);
+void test_parity_asset_host(void);
+
+void test_pick_object(void);
+void test_shape_3d(void);
 void test_pick_ray_sphere(void);
 void test_pick_ray_aabb(void);
 void test_pick_ray_triangle(void);
