@@ -126,8 +126,17 @@ tick the box in the same commit.
       prepares a whole glTF in one frame (~1 s for FlightHelmet); `.glb` dependency
       listing reads the whole file on the main thread; Windows threads are written
       but untested
-- [ ] Bug: `sk_request_quit` on web aborts in sokol_audio (the audio node keeps
-      pulling after shutdown)
+- [x] Bug: `sk_request_quit` on web aborted in sokol_audio when the main thread
+      had been busy: audioprocess events queued meanwhile ran after shutdown and
+      asserted on the freed buffer. Fixed in libsk's sokol fork
+      (github.com/robknopf/sokol: the handler is cleared on shutdown); sokol is now
+      vendored from the fork with `tools/update_sokol.sh`. `examples/quit.c` (music,
+      loads in flight, a busy frame, quit) keeps webcheck on this path
+- [x] Web quit no longer blocks the page waiting for asset workers ("Blocking on the
+      main thread"): they're detached and end on their own
+- [x] Bug: the library builds had no header dependency tracking (desktop and
+      headless not at all, web not for the vendored `-isystem` headers), so header
+      changes left stale objects. Both now use `-MD -MP`
 - [ ] Bug: `[` and `]` draw as boxes in the built-in text font
 - [x] webcheck: WebGPU runs occasionally failed the first four examples (started
       after ~20 s or never). Cause: with autoplay allowed, the pages open the real

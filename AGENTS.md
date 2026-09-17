@@ -21,6 +21,10 @@ Keep this file short and rule-shaped. The authoritative design doc is
   frames; fails on crashes, timeouts or error logs. Needs no display. Add or update tests alongside code changes; new tests go in
   `tests/unit/tests.h` and the table in `tests/unit/main.c`.
 - `make parity` — librl → libsk parity report (needs `../librl`).
+- `tools/update_sokol.sh [ref]` — update the vendored sokol headers from libsk's sokol
+  fork (github.com/robknopf/sokol: upstream plus fixes libsk needs; sync the fork
+  with floooh/sokol there first). Records the fork and upstream commits in
+  `deps/sokol/VERSION`.
 - `make loadbench [DESKTOP=1]` — worst frame while loading large glTF models in the
   background vs synchronously (downloads them on first use).
 - `make webcheck [BACKEND=webgpu] [WEB_THREADS=0]` — web build smoke test in a

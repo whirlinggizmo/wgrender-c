@@ -26,6 +26,8 @@ int sk_thread_cpu_count(void);
 
 bool sk_thread_create(sk_thread_t *thread, sk_thread_fn fn, void *arg);
 void sk_thread_join(sk_thread_t *thread);
+/* Let the thread end on its own; its resources are freed when it does. */
+void sk_thread_detach(sk_thread_t *thread);
 
 void sk_mutex_init(sk_mutex_t *mutex);
 void sk_mutex_destroy(sk_mutex_t *mutex);

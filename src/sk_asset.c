@@ -128,6 +128,7 @@ static struct {
     sk_thread_t threads[MAX_WORKERS];
     int worker_count;
     bool stop;
+    bool lock_live;
     sk_asset_job_t queue[MAX_ASSET_TASKS];
     int queue_head, queue_count;
     sk_asset_job_t done[MAX_ASSET_TASKS];
@@ -570,14 +571,20 @@ static void start_workers(int count)
     }
 }
 
-static void stop_workers(void)
+/* `wait`: join the workers (running prepares finish first). Otherwise they're
+ * detached and end on their own; the job lock must then stay alive. */
+static void stop_workers(bool wait)
 {
     sk_mutex_lock(&sk_asset_jobs.lock);
     sk_asset_jobs.stop = true;
     sk_cond_broadcast(&sk_asset_jobs.wake);
     sk_mutex_unlock(&sk_asset_jobs.lock);
     for (int i = 0; i < sk_asset_jobs.worker_count; i++) {
-        sk_thread_join(&sk_asset_jobs.threads[i]); /* running prepares finish first */
+        if (wait) {
+            sk_thread_join(&sk_asset_jobs.threads[i]);
+        } else {
+            sk_thread_detach(&sk_asset_jobs.threads[i]);
+        }
     }
     sk_asset_jobs.worker_count = 0;
 }
@@ -586,7 +593,7 @@ void sk_asset_set_worker_count(int count)
 {
     sk_asset_worker_request = count;
     if (sk_asset_ready) {
-        stop_workers();
+        stop_workers(true);
         start_workers(count >= 0 ? count : default_worker_count());
     }
 }
@@ -700,8 +707,11 @@ void sk_asset_init(void)
         .num_lanes = 4,
     });
 #endif
-    sk_mutex_init(&sk_asset_jobs.lock);
-    sk_cond_init(&sk_asset_jobs.wake);
+    if (!sk_asset_jobs.lock_live) { /* still alive after a web shutdown (workers detached) */
+        sk_mutex_init(&sk_asset_jobs.lock);
+        sk_cond_init(&sk_asset_jobs.wake);
+        sk_asset_jobs.lock_live = true;
+    }
     sk_asset_jobs.queue_head = sk_asset_jobs.queue_count = 0;
     sk_asset_jobs.done_head = sk_asset_jobs.done_count = 0;
     start_workers(sk_asset_worker_request >= 0 ? sk_asset_worker_request : default_worker_count());
@@ -966,12 +976,23 @@ void sk_asset_deinit(void)
 
     sk_asset_ready = false;
     /* Loads still in progress are dropped: queued jobs, prepared data, and resources
-     * partly finished (their loader's discard releases what it created). */
-    stop_workers();
+     * partly finished (their loader's discard releases what it created).
+     * On web this runs on the browser's main thread when the app quits, where
+     * waiting for a worker blocks the page (for as long as a prepare takes), so the
+     * workers are detached instead: they end on their own, and whatever they finish
+     * preparing afterwards is dropped with the page. */
+#ifdef __EMSCRIPTEN__
+    const bool wait = false;
+#else
+    const bool wait = true;
+#endif
+    stop_workers(wait);
+    sk_mutex_lock(&sk_asset_jobs.lock);
     sk_asset_jobs.queue_count = 0;
     while (pop_job(sk_asset_jobs.done, &sk_asset_jobs.done_head, &sk_asset_jobs.done_count, &job)) {
         if (job.prepared != NULL) job.loader->discard(job.prepared);
     }
+    sk_mutex_unlock(&sk_asset_jobs.lock);
     for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) {
         sk_asset_task_t *task = &sk_asset_tasks[i];
         if (!sk_asset_occupied[i]) continue;
@@ -986,8 +1007,11 @@ void sk_asset_deinit(void)
         task->held = NULL;
         task->held_count = 0;
     }
-    sk_cond_destroy(&sk_asset_jobs.wake);
-    sk_mutex_destroy(&sk_asset_jobs.lock);
+    if (wait) {
+        sk_cond_destroy(&sk_asset_jobs.wake);
+        sk_mutex_destroy(&sk_asset_jobs.lock);
+        sk_asset_jobs.lock_live = false;
+    }
 #ifdef __EMSCRIPTEN__
     sfetch_shutdown();
 #endif

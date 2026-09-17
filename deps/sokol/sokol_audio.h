@@ -1869,12 +1869,19 @@ EM_JS(int, saudio_js_init, (int sample_rate, int num_channels, int buffer_size),
     }
 })
 
-/* shutdown the WebAudioContext and ScriptProcessorNode */
+/* shutdown the WebAudioContext and ScriptProcessorNode
+
+    Remove the onaudioprocess handler before disconnecting: audioprocess
+    events that are already queued still run after shutdown (e.g. after the
+    main thread was busy), and _saudio_emsc_pull() would then assert on
+    the freed buffer. Without a handler, those events do nothing.
+*/
 EM_JS(void, saudio_js_shutdown, (void), {
     \x2F\x2A\x2A @suppress {missingProperties} \x2A\x2F
     const ctx = Module._saudio_context;
     if (ctx !== null) {
         if (Module._saudio_node) {
+            Module._saudio_node.onaudioprocess = null;
             Module._saudio_node.disconnect();
         }
         ctx.close();

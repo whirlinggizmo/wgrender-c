@@ -59,6 +59,8 @@ void sk_thread_join(sk_thread_t *thread)
     CloseHandle((HANDLE)thread->handle);
 }
 
+void sk_thread_detach(sk_thread_t *thread) { CloseHandle((HANDLE)thread->handle); }
+
 void sk_mutex_init(sk_mutex_t *mutex) { InitializeCriticalSection((CRITICAL_SECTION *)mutex); }
 void sk_mutex_destroy(sk_mutex_t *mutex) { DeleteCriticalSection((CRITICAL_SECTION *)mutex); }
 void sk_mutex_lock(sk_mutex_t *mutex) { EnterCriticalSection((CRITICAL_SECTION *)mutex); }
@@ -127,6 +129,7 @@ bool sk_thread_create(sk_thread_t *thread, sk_thread_fn fn, void *arg)
 }
 
 void sk_thread_join(sk_thread_t *thread) { pthread_join(thread->handle, NULL); }
+void sk_thread_detach(sk_thread_t *thread) { pthread_detach(thread->handle); }
 
 void sk_mutex_init(sk_mutex_t *mutex) { pthread_mutex_init(&mutex->handle, NULL); }
 void sk_mutex_destroy(sk_mutex_t *mutex) { pthread_mutex_destroy(&mutex->handle); }

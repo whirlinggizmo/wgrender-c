@@ -66,8 +66,12 @@ all: $(LIB)
 $(BUILD)/obj:
 	mkdir -p $(BUILD)/obj
 
+# -MD (not -MMD): also track the vendored headers in deps/, which are included
+# with -isystem, so updating one rebuilds what uses it.
 $(BUILD)/obj/%.o: src/%.c | $(BUILD)/obj $(DEPS_CHECK)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -MD -MP -c $< -o $@
+
+-include $(OBJS:.o=.d)
 
 $(LIB): $(OBJS)
 	$(AR) rcs $@ $(OBJS)
