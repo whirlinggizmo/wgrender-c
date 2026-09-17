@@ -13,7 +13,7 @@
 #   make serve [BACKEND=...]   static-serve build/<backend> at :8000
 #   make smoke                 build every example headless and run each briefly
 #   make webcheck              build all for web, load each in a browser, fail on errors
-#   make webcheck BACKEND=webgpu (WebGPU runs in a visible browser window)
+#   make webcheck BACKEND=webgpu (on a virtual X display when Xvfb is installed)
 #
 # Outputs, one directory per target: build/desktop, build/headless, and the web
 # sites build/webgl2, build/webgpu and build/<backend>-nothreads (each with obj/

@@ -68,6 +68,8 @@ SOKOL_APP_UTILS_API_DECL int sapp_current_display(void);
 SOKOL_APP_UTILS_API_DECL void sapp_set_display(int index);
 /* get the display name by index (only on desktop platforms) */
 SOKOL_APP_UTILS_API_DECL const char* sapp_display_name(int index);
+/* [libsk] top-left corner of a display in desktop coordinates (like the window position) */
+SOKOL_APP_UTILS_API_DECL void sapp_display_position(int index, int *x, int *y);
 /* sets fullscreen mode (wrapper around platform specific logic) */
 SOKOL_APP_UTILS_API_DECL void sapp_set_fullscreen(bool enable);
 /* set the swap interval:
@@ -243,6 +245,19 @@ _SOKOL_PRIVATE void _sapp_macos_set_display(int index) {
         _sapp_macos_toggle_fullscreen();
       }
     }
+  }
+}
+
+/* [libsk] display position, y flipped to top-down like the window position */
+_SOKOL_PRIVATE void _sapp_macos_display_position(int index, int *x, int *y) {
+  NSArray *screens = [NSScreen screens];
+  *x = 0;
+  *y = 0;
+  if (screens && index >= 0 && (NSUInteger)index < [screens count]) {
+    NSRect primary_frame = [[screens objectAtIndex:0] frame];
+    NSRect frame = [[screens objectAtIndex:(NSUInteger)index] frame];
+    *x = (int)frame.origin.x;
+    *y = (int)(primary_frame.size.height - frame.origin.y - frame.size.height);
   }
 }
 
@@ -491,6 +506,16 @@ _SOKOL_PRIVATE int _sapp_win32_display_height(int index) {
   return 0;
 }
 
+/* [libsk] display position */
+_SOKOL_PRIVATE void _sapp_win32_display_position(int index, int *x, int *y) {
+  _sapp_win32_display_enum_t data;
+  ZeroMemory(&data, sizeof(data));
+  data.target_index = index;
+  EnumDisplayMonitors(NULL, NULL, _sapp_win32_display_enum_proc, (LPARAM)&data);
+  *x = data.found ? (int)data.rect.left : 0;
+  *y = data.found ? (int)data.rect.top : 0;
+}
+
 _SOKOL_PRIVATE int _sapp_win32_current_display(void) {
   if (_sapp.win32.hwnd) {
     HMONITOR hDisplay =
@@ -649,6 +674,22 @@ _SOKOL_PRIVATE int _sapp_x11_display_height(int index) {
     height = DisplayHeight(_sapp.x11.display, DefaultScreen(_sapp.x11.display));
   }
   return height;
+}
+
+/* [libsk] display position */
+_SOKOL_PRIVATE void _sapp_x11_display_position(int index, int *x, int *y) {
+  int num_displays = 0;
+  XRRMonitorInfo *displays = XRRGetMonitors(
+      _sapp.x11.display, DefaultRootWindow(_sapp.x11.display), True, &num_displays);
+  *x = 0;
+  *y = 0;
+  if (displays) {
+    if (index >= 0 && index < num_displays) {
+      *x = displays[index].x;
+      *y = displays[index].y;
+    }
+    XRRFreeMonitors(displays);
+  }
 }
 
 _SOKOL_PRIVATE int _sapp_x11_num_displays(void) {
@@ -899,6 +940,21 @@ SOKOL_API_IMPL const char* sapp_display_name(int index) {
 #else
   (void)index;
   return "";
+#endif
+}
+
+/* [libsk] */
+SOKOL_API_IMPL void sapp_display_position(int index, int *x, int *y) {
+#if defined(_SAPP_MACOS)
+  _sapp_macos_display_position(index, x, y);
+#elif defined(_SAPP_WIN32)
+  _sapp_win32_display_position(index, x, y);
+#elif defined(_SAPP_LINUX)
+  _sapp_x11_display_position(index, x, y);
+#else
+  (void)index;
+  *x = 0;
+  *y = 0;
 #endif
 }
 

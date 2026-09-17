@@ -8,3 +8,4 @@ sokol_utils https://github.com/squk/sokol_utils 65cbd2a6fbc2bd9a9eb716f1f478b6dc
 # - _sapp_linux_set_swap_interval() uses sokol_app's _sapp_glx_swapinterval(): the
 #   original called an undeclared glXGetProcAddress and passed the X11 window as the
 #   GLX drawable
+# - added sapp_display_position() (X11, Win32, macOS): librl had monitor positions

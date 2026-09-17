@@ -57,6 +57,8 @@ void test_parity_model(void);
 void test_parity_sound_pan(void);
 void test_parity_asset_host(void);
 
+void test_window_headless(void);
+
 void test_pipeline_gpu_pools(void);
 void test_pipeline_mesh_textures(void);
 void test_pipeline_async(void);

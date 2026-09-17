@@ -14,8 +14,11 @@
 //
 //   --backend=webgl2|webgpu  backend to check (default webgl2); the site is
 //                       examples/build/<backend>
-//   --headed            show the browser window. WebGPU always runs headed:
-//                       headless browsers have no GPU adapter.
+//   --headed            show the browser window on the real screen. Otherwise WebGL2
+//                       runs headless, and WebGPU (which gets no working GPU device
+//                       headless) runs on a private virtual X display (Xvfb, ANGLE on
+//                       Vulkan), so it never shows a window or wakes the monitors. Without
+//                       Xvfb installed, WebGPU falls back to the real screen.
 //   --settle=MS         longest an example runs before it is checked (default 20000). An
 //                       example is checked once it has started, has no asset tasks
 //                       pending (libsk's queue) and no network requests in flight, and
@@ -66,11 +69,34 @@ function parseArgs(argv) {
         }
     }
     if (!(opts.backend in BACKEND_LOG)) throw new Error(`--backend must be webgl2 or webgpu, got '${opts.backend}'`);
-    if (opts.backend === "webgpu") opts.headed = true;
+    /* where the browser shows its windows: "headless", "xvfb" or "screen" */
+    opts.display = opts.headed ? "screen" : opts.backend === "webgpu" ? (findXvfb() ? "xvfb" : "screen") : "headless";
     opts.site = join(ROOT, "examples", "build", opts.threads ? opts.backend : `${opts.backend}-nothreads`);
     if (!(opts.jobs >= 1)) opts.jobs = 4;
     opts.out ??= join(opts.site, "webcheck");
     return opts;
+}
+
+function findXvfb() {
+    try {
+        return execFileSync("sh", ["-c", "command -v Xvfb"], { encoding: "utf8" }).trim() || null;
+    } catch {
+        return null;
+    }
+}
+
+// Start Xvfb on a free display number; resolves to ":<n>" once its socket exists.
+async function startXvfb(run) {
+    for (let n = 90; n < 200; n++) {
+        if (existsSync(`/tmp/.X11-unix/X${n}`) || existsSync(`/tmp/.X${n}-lock`)) continue;
+        run.spawn(findXvfb(), [`:${n}`, "-screen", "0", "1280x1024x24", "-nolisten", "tcp"]);
+        for (let i = 0; i < 100; i++) {
+            if (existsSync(`/tmp/.X11-unix/X${n}`)) return `:${n}`;
+            await sleep(50);
+        }
+        throw new Error(`Xvfb :${n} did not start`);
+    }
+    throw new Error("no free X display number for Xvfb");
 }
 
 function findBrowser(explicit) {
@@ -262,8 +288,8 @@ class RunProcesses {
     }
 
     // Start a child in its own process group and record the group for the watchdog.
-    spawn(command, args) {
-        const child = spawn(command, args, { stdio: "ignore", detached: true });
+    spawn(command, args, env = process.env) {
+        const child = spawn(command, args, { stdio: "ignore", detached: true, env });
         child.unref();
         if (child.pid) {
             this.groups.push(child.pid);
@@ -354,29 +380,38 @@ async function main() {
         const baseUrl = `http://127.0.0.1:${sitePort}`;
         await waitFor(`${baseUrl}/examples.json`, "tools/serve.py");
 
+        let browserEnv = process.env;
+        if (opts.display === "xvfb") {
+            const { WAYLAND_DISPLAY, ...env } = process.env; // X11 on the virtual display
+            browserEnv = { ...env, DISPLAY: await startXvfb(run), XDG_SESSION_TYPE: "x11" };
+        } else if (opts.backend === "webgpu" && !opts.headed) {
+            console.log("webcheck: Xvfb not found; WebGPU runs in a window on the real screen");
+        }
+
         const debugPort = await freePort();
         run.spawn(browserPath, [
-            ...(opts.headed ? [] : ["--headless=new"]),
+            ...(opts.display === "headless" ? ["--headless=new"] : []),
             `--remote-debugging-port=${debugPort}`,
             `--user-data-dir=${run.profile}`,
             "--no-first-run",
             "--no-default-browser-check",
             "--window-size=1024,900",
             "--autoplay-policy=no-user-gesture-required",
-            /* a fake audio device: examples start audio on load, and opening the real
-             * output can block every page's startup (~20 s when the default output is
-             * HDMI and the display is asleep: the link has to wake first). Audio still
-             * runs; nothing reaches PipeWire/PulseAudio or the speakers. */
+            /* a fake audio device: examples start audio on load; it still runs, but
+             * nothing reaches PipeWire/PulseAudio or the speakers */
             "--disable-audio-output",
-            ...(opts.headed ? [] : ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"]),
+            ...(opts.display === "headless" ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] : []),
+            ...(opts.display === "xvfb"
+                ? ["--ozone-platform=x11", "--enable-unsafe-webgpu", "--enable-features=Vulkan", "--use-angle=vulkan"]
+                : []),
             "about:blank",
-        ]);
+        ], browserEnv);
         const debugBase = `http://127.0.0.1:${debugPort}`;
         const version = await (await waitFor(`${debugBase}/json/version`, "browser")).json();
         const browser = await openSession(version.webSocketDebuggerUrl);
 
         console.log(`webcheck: ${examples.length} example(s), backend ${opts.backend}, ` +
-                    `${opts.headed ? "headed" : "headless"}, ${opts.jobs} at a time, ${browserPath}`);
+                    `${opts.display === "xvfb" ? "virtual display (Xvfb)" : opts.display}, ${opts.jobs} at a time, ${browserPath}`);
         /* check `jobs` examples at a time; report in order as results complete */
         const results = new Array(examples.length);
         let next = 0, reported = 0, failed = 0;

@@ -633,11 +633,22 @@ void sk_audio_mix(float *out, int frames, int sample_rate)
 }
 
 #if !defined(SK_HEADLESS)
+/* The device's sample rate, read once after saudio_setup (guarded by the lock). The
+ * callback must not call sokol_audio's API: saudio_shutdown clears its setup state
+ * before it stops the device thread, so a buffer requested during shutdown would
+ * assert in saudio_sample_rate. 0 until known: the callback writes silence. */
+static int sk_audio_device_rate;
+
 /* sokol_audio's device callback (audio thread on desktop). */
 static void stream_callback(float *buffer, int num_frames, int num_channels)
 {
-    if (num_channels == 2) {
-        sk_audio_mix(buffer, num_frames, saudio_sample_rate());
+    int sample_rate;
+
+    sk_audio_lock();
+    sample_rate = sk_audio_device_rate;
+    sk_audio_unlock();
+    if (num_channels == 2 && sample_rate > 0) {
+        sk_audio_mix(buffer, num_frames, sample_rate);
     } else {
         memset(buffer, 0, (size_t)num_frames * (size_t)num_channels * sizeof(float));
     }
@@ -665,6 +676,10 @@ void sk_audio_init(void)
     });
     if (!saudio_isvalid()) {
         log_warn("audio device unavailable; playback disabled");
+    } else {
+        sk_audio_lock();
+        sk_audio_device_rate = saudio_sample_rate();
+        sk_audio_unlock();
     }
 #endif
 }

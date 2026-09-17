@@ -1,7 +1,7 @@
 # Plan: Window and monitor control
 
-Status: **proposed — awaiting decisions.** `deps/sokol_utils` is vendored and
-builds; no API added yet.
+Status: **phase 1 implemented (2026-09-17)** with decisions 1–3 and 5 as
+recommended; window flags (decision 4) are phase 2. See "As built".
 
 ## Problem
 
@@ -107,6 +107,23 @@ window, so a visible window may flash in its default style first on some platfor
    the browser; Windows and macOS use sokol_utils' code untested by us. A unit test
    on the headless build checks the fallbacks; an example (`examples/window.c`)
    lists monitors and moves/resizes the window with keys. Recommend: yes.
+
+## As built (phase 1)
+
+- `sapp_display_position` added to the vendored header (`[libsk]`; X11 XRandR, Win32,
+  macOS with y flipped to top-down).
+- Tested with a scratch program calling each function over frames:
+  - **Desktop (XWayland on COSMIC, 2 monitors):** monitors, names and positions
+    correct (DP-3 1920x1080 at (1920, 0), HDMI-A-1 at (0, 0)); resizing and
+    fullscreen work; moving the window and `set_monitor` are ignored by the
+    compositor, as expected.
+  - **Xvfb (plain X11, no window manager):** moving works, `set_monitor` centers the
+    window; fullscreen does nothing without a window manager.
+  - **Web:** webcheck on WebGL2 and WebGPU (the `window` example starts cleanly);
+    keys aren't exercised automatically.
+  - Windows and macOS: sokol_utils' code, untested by us.
+- The same test found a desktop quit abort in sokol_audio (the device callback
+  called `saudio_sample_rate` during shutdown), fixed in `sk_audio.c`.
 
 ## Order
 

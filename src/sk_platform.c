@@ -8,8 +8,12 @@
 /* -------------------------------------------------------------- sokol_app ---- */
 
 #include "sokol_app.h"
+#include "sokol_app_utils.h"
 #include "sokol_glue.h"
 #include "sokol_log.h"
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#endif
 
 static void (*sk_platform_event_fn)(const void *);
 
@@ -56,6 +60,111 @@ float sk_platform_dpi_scale(void)
     return scale > 0.0f ? scale : 1.0f;
 }
 
+/* ---------------------------------------------------- window and monitors ---- */
+
+bool sk_platform_set_fullscreen(bool fullscreen)
+{
+    if (sapp_is_fullscreen() != fullscreen) {
+        sapp_toggle_fullscreen(); /* on web, only takes effect during a user gesture */
+    }
+    return true;
+}
+
+bool sk_platform_is_fullscreen(void) { return sapp_is_fullscreen(); }
+
+#if defined(__EMSCRIPTEN__)
+/* The canvas is the window: its CSS size is the logical size. sokol_app reads the
+ * canvas size on window resize events, so one is sent after changing it. */
+EM_JS(int, canvas_set_size, (int width, int height), {
+    const canvas = Module.canvas;
+    if (!canvas) return 0;
+    canvas.style.width = width + "px";
+    canvas.style.height = height + "px";
+    window.dispatchEvent(new Event("resize"));
+    const rect = canvas.getBoundingClientRect();
+    return Math.round(rect.width) === width && Math.round(rect.height) === height ? 1 : 0;
+});
+EM_JS(int, screen_width, (void), { return window.screen.width | 0; });
+EM_JS(int, screen_height, (void), { return window.screen.height | 0; });
+EM_JS(int, document_has_focus, (void), { return document.hasFocus() ? 1 : 0; });
+
+bool sk_platform_set_window_size(int width, int height) { return canvas_set_size(width, height) != 0; }
+bool sk_platform_set_window_position(int x, int y) { (void)x; (void)y; return false; }
+bool sk_platform_get_window_position(int *x, int *y) { *x = 0; *y = 0; return false; }
+bool sk_platform_is_focused(void) { return document_has_focus() != 0; }
+int sk_platform_monitor_count(void) { return 1; }
+int sk_platform_current_monitor(void) { return 0; }
+bool sk_platform_set_monitor(int monitor) { return monitor == 0; }
+const char *sk_platform_monitor_name(int monitor) { (void)monitor; return ""; }
+
+bool sk_platform_monitor_rect(int monitor, int *x, int *y, int *width, int *height)
+{
+    if (monitor != 0) return false;
+    *x = 0;
+    *y = 0;
+    *width = screen_width();
+    *height = screen_height();
+    return true;
+}
+
+#else
+/* Desktop, through deps/sokol_utils. Window and monitor sizes are in the OS's
+ * pixels, except on macOS where they're already points (logical). */
+static float desktop_scale(void)
+{
+#if defined(__APPLE__)
+    return 1.0f;
+#else
+    return sk_platform_dpi_scale();
+#endif
+}
+
+bool sk_platform_set_window_size(int width, int height)
+{
+    const float scale = desktop_scale();
+    sapp_set_window_size((int)((float)width * scale + 0.5f), (int)((float)height * scale + 0.5f));
+    return true;
+}
+
+bool sk_platform_set_window_position(int x, int y)
+{
+    sapp_set_window_position(x, y);
+    return true;
+}
+
+bool sk_platform_get_window_position(int *x, int *y)
+{
+    sapp_get_window_position(x, y);
+    return true;
+}
+
+bool sk_platform_is_focused(void) { return sapp_window_focused(); }
+int sk_platform_monitor_count(void) { return sapp_num_displays(); }
+int sk_platform_current_monitor(void) { return sapp_current_display(); }
+
+bool sk_platform_set_monitor(int monitor)
+{
+    if (monitor < 0 || monitor >= sapp_num_displays()) return false;
+    sapp_set_display(monitor);
+    return true;
+}
+
+bool sk_platform_monitor_rect(int monitor, int *x, int *y, int *width, int *height)
+{
+    const float scale = desktop_scale();
+    if (monitor < 0 || monitor >= sapp_num_displays()) return false;
+    sapp_display_position(monitor, x, y);
+    *width = (int)((float)sapp_display_width(monitor) / scale + 0.5f);
+    *height = (int)((float)sapp_display_height(monitor) / scale + 0.5f);
+    return true;
+}
+
+const char *sk_platform_monitor_name(int monitor)
+{
+    return monitor >= 0 && monitor < sapp_num_displays() ? sapp_display_name(monitor) : "";
+}
+#endif
+
 #else
 /* --------------------------------------------------------------- headless ---- */
 
@@ -95,6 +204,35 @@ void sk_platform_run(const sk_platform_desc_t *desc)
 
 void sk_platform_request_quit(void) { sk_headless.quit = true; }
 bool sk_platform_is_headless(void) { return true; }
+
+/* A headless "window" is its framebuffer size on one virtual monitor of the same
+ * size; resizing works, the rest has nothing to act on. */
+bool sk_platform_set_window_size(int width, int height)
+{
+    if (width <= 0 || height <= 0) return false;
+    sk_headless.desc.width = width;
+    sk_headless.desc.height = height;
+    return true;
+}
+bool sk_platform_set_window_position(int x, int y) { (void)x; (void)y; return false; }
+bool sk_platform_get_window_position(int *x, int *y) { *x = 0; *y = 0; return false; }
+bool sk_platform_set_fullscreen(bool fullscreen) { (void)fullscreen; return false; }
+bool sk_platform_is_fullscreen(void) { return false; }
+bool sk_platform_is_focused(void) { return true; }
+int sk_platform_monitor_count(void) { return 1; }
+int sk_platform_current_monitor(void) { return 0; }
+bool sk_platform_set_monitor(int monitor) { return monitor == 0; }
+const char *sk_platform_monitor_name(int monitor) { (void)monitor; return "headless"; }
+
+bool sk_platform_monitor_rect(int monitor, int *x, int *y, int *width, int *height)
+{
+    if (monitor != 0) return false;
+    *x = 0;
+    *y = 0;
+    *width = sk_platform_width();
+    *height = sk_platform_height();
+    return true;
+}
 float sk_platform_dpi_scale(void) { return 1.0f; }
 double sk_platform_frame_duration(void) { return sk_headless.frame_duration; }
 void sk_platform_set_title(const char *title) { (void)title; }

@@ -183,11 +183,6 @@ rl_texture_draw_ex                      ported   sk_texture_draw       explicit 
 rl_texture_draw_ground                  dropped  a sprite3d with SK_SPRITE3D_FACING_Y_UP is a placeable, pickable ground quad
 
 # --- rl_window.h ---
-rl_window_get_current_monitor           todo     deferred: sokol_app has no window size/position/monitor API; needs native code per platform (docs/PLAN-parity.md)
-rl_window_get_monitor_count             todo     deferred: sokol_app has no window size/position/monitor API; needs native code per platform (docs/PLAN-parity.md)
-rl_window_get_monitor_height            todo     deferred: sokol_app has no window size/position/monitor API; needs native code per platform (docs/PLAN-parity.md)
-rl_window_get_monitor_position          todo     deferred: sokol_app has no window size/position/monitor API; needs native code per platform (docs/PLAN-parity.md)
-rl_window_get_monitor_width             todo     deferred: sokol_app has no window size/position/monitor API; needs native code per platform (docs/PLAN-parity.md)
-rl_window_set_monitor                   todo     deferred: sokol_app has no window size/position/monitor API; needs native code per platform (docs/PLAN-parity.md)
-rl_window_set_position                  todo     deferred: sokol_app has no window size/position/monitor API; needs native code per platform (docs/PLAN-parity.md)
-rl_window_set_size                      todo     deferred: sokol_app has no window size/position/monitor API; needs native code per platform (docs/PLAN-parity.md)
+rl_window_get_current_monitor           ported   sk_window_get_monitor
+rl_window_get_monitor_height            ported   sk_window_get_monitor_size   (width and height together)
+rl_window_get_monitor_width             ported   sk_window_get_monitor_size   (width and height together)

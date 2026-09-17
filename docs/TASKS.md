@@ -138,13 +138,16 @@ tick the box in the same commit.
       headless not at all, web not for the vendored `-isystem` headers), so header
       changes left stale objects. Both now use `-MD -MP`
 - [ ] Bug: `[` and `]` draw as boxes in the built-in text font
-- [x] webcheck: WebGPU runs occasionally failed the first four examples (started
-      after ~20 s or never). Cause: with autoplay allowed, the pages open the real
-      audio output at startup; the default output here is HDMI on the NVIDIA GPU,
-      and when the display is asleep, opening it blocks ~20 s while the link wakes
-      (the compositor logs a modeset as the pages unblock). webcheck now uses a
-      fake audio device (`--disable-audio-output`), so it never touches
-      PipeWire, the speakers or the displays, and reports when a failing page started
+- [x] webcheck: WebGPU runs failed the first four examples (started after ~20 s or
+      never) when the monitors were asleep: WebGPU ran in a visible browser window,
+      and the pages waited for the compositor to wake the displays (cosmic-comp logs
+      a modeset as they continue). An earlier fix wrongly blamed HDMI audio (the fake
+      audio device stays: webcheck shouldn't play sound). Fixed: WebGPU runs on a
+      private Xvfb display (ANGLE on Vulkan), rendering correctly, no window, no
+      monitors involved; headless WebGPU loses its device immediately
+- [x] Bug: quitting a desktop program with audio could abort in
+      `saudio_sample_rate` (asserts once `saudio_shutdown` has begun, while the device
+      thread still asks for a buffer). The callback uses the rate cached at init
 - [x] Lighting: light objects (directional, point, spot), per-scene lights and
       ambient, up to 8 lights per model by contribution, nothing lit implicitly
       (docs/PLAN-lighting.md, examples/lights.c). `simple.c` lighting PARITY note
@@ -169,9 +172,11 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       `sk_texture_draw`; scenes draw 2D after 3D and pick it first; 2D, mouse and
       screen size are in logical pixels (docs/PLAN-sprite2d.md, examples/sprite2d.c)
 - [x] Lighting controls: redesigned as light objects in scenes (see above)
-- [ ] Window and monitor control: size, position, monitor queries, with the
-      ignored window flags. `deps/sokol_utils` (squk/sokol_utils, vendored with fixes)
-      provides the native code; API proposed in [PLAN-window.md](PLAN-window.md)
+- [x] Window and monitor control (2026-09-17, [PLAN-window.md](PLAN-window.md),
+      `examples/window.c`): size, position, fullscreen, focus, monitors, through
+      `deps/sokol_utils` (squk/sokol_utils, vendored with fixes)
+- [ ] Window flags: honor `RESIZABLE`, `UNDECORATED`, `HIDDEN`; remove `ALWAYS_RUN`;
+      `TRANSPARENT` web only (PLAN-window.md, phase 2)
 - [x] Assets: ensure many files at once: asset groups (`sk_asset_group_create`,
       `sk_asset_group_add`) with `sk_asset_get_progress`
 - [ ] Assets: host ping (with the `sk_net` rework)

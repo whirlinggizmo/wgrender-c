@@ -35,7 +35,8 @@ Keep this file short and rule-shaped. The authoritative design doc is
 - `make loadbench [DESKTOP=1]` — worst frame while loading large glTF models in the
   background vs synchronously (downloads them on first use).
 - `make webcheck [BACKEND=webgpu] [WEB_THREADS=0]` — web build smoke test in a
-  browser (needs Emscripten, Node >= 22, a Chromium-based browser). Web builds use
+  browser (needs Emscripten, Node >= 22, a Chromium-based browser; WebGPU runs on a
+  virtual X display when Xvfb is installed, else in a visible window). Web builds use
   threads by default, which need cross-origin isolation (`tools/serve.py` sends the
   headers); `WEB_THREADS=0` builds without.
 - Run `make verify` (lib + examples + `make check` + `make test` + `make smoke`,
