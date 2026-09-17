@@ -10,8 +10,10 @@ Keep this file short and rule-shaped. The authoritative design doc is
   in one directory per target: libraries in `build/{desktop,headless,webgl2,webgpu}`
   (`<backend>-nothreads` for `WEB_THREADS=0`), programs and web sites in
   `examples/build/<target>`.
-- `make web [BACKEND=webgpu] [WEB_THREADS=0]` — the web library
-  (`build/<backend>/libsk.a`); web settings live in `mk/web.mk`, shared with the
+- `make web [BACKEND=webgpu] [WEB_THREADS=0] [WEB_DEBUG=1]` — the web library
+  (`build/<backend>/libsk.a`; `-nothreads`/`-debug` suffixes). Web builds link at
+  `-O3` unless `WEB_DEBUG=1` (no optimization, assertions, debug info). Web
+  settings live in `mk/web.mk`, shared with the
   examples, which link it. `make print-web-flags` prints what a program needs to
   compile and link against it.
 - `make examples` — build everything in `examples/`.

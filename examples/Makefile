@@ -110,7 +110,7 @@ WEB_OBJ_DIR  := $(BUILD_WEB)/obj
 WEB_EX_OBJS  := $(patsubst %.c,$(WEB_OBJ_DIR)/examples/%.o,$(SRCS))
 WEB_BUNDLES  := $(patsubst %.c,$(BUILD_WEB)/%.js,$(SRCS))
 # -MD (not -MMD): also track the vendored -isystem headers in deps/
-WASM_CFLAGS := $(STD) $(WARN) $(OPT) $(WASM_CFLAGS_BACKEND) $(INCS) -MD -MP
+WASM_CFLAGS := $(STD) $(WARN) $(WEB_OPT) $(WASM_CFLAGS_BACKEND) $(INCS) -MD -MP
 
 # Per-example bundles (.js + .wasm) + one shared index.html switcher. The switcher
 # self-populates from examples.json (built examples only).

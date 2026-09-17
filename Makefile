@@ -19,7 +19,8 @@
 #   make parity     librl -> libsk API parity report (LIBRL_DIR=../librl)
 #   make HEADLESS=1 headless lib (build/headless/libsk.a): no window, GPU or audio
 #   make web        web lib (build/webgl2/libsk.a); BACKEND=webgpu, WEB_THREADS=0
-#                   (build/<backend>-nothreads); settings in mk/web.mk
+#                   (build/<backend>-nothreads), WEB_DEBUG=1 (-debug); settings in
+#                   mk/web.mk
 #   make print-web-flags  compile and link flags for a program using the web lib
 #
 # Build outputs live in one directory per target: build/{desktop,headless,webgl2,
@@ -44,6 +45,7 @@ ifeq ($(WEB),1)
   include mk/web.mk
   CC    := $(EMCC)
   AR    := $(EMAR)
+  OPT   := $(WEB_OPT)
   DEFS  := $(WASM_CFLAGS_BACKEND)
 else ifeq ($(HEADLESS),1)
   DEFS  := -DSK_HEADLESS -DSOKOL_DUMMY_BACKEND
@@ -169,7 +171,9 @@ endif
 
 # --- shaders (sokol-shdc) ---------------------------------------------------
 # Regenerates the committed *.glsl.h (GL core, WebGL2, WebGPU) from annotated
-# GLSL. The binary is gitignored; fetch it once:
+# GLSL, each backend behind #if defined(SOKOL_<backend>) (--ifdef) so a build only
+# carries its own; include them through src/internal/sk_shaders.h. The binary is
+# gitignored; fetch it once:
 #   curl -sSL -o tools/sokol-shdc \
 #     https://raw.githubusercontent.com/floooh/sokol-tools-bin/master/bin/linux/sokol-shdc \
 #     && chmod +x tools/sokol-shdc
@@ -180,7 +184,7 @@ SHADERS    := src/shaders/sk_model.glsl
 shaders:
 	@for s in $(SHADERS); do \
 	    echo "  shdc: $$s"; \
-	    $(SHDC) -i $$s -o $$s.h -l $(SHDC_SLANG) || exit 1; \
+	    $(SHDC) -i $$s -o $$s.h -l $(SHDC_SLANG) --ifdef || exit 1; \
 	done
 
 # Enforce project invariants: no backend (sokol) leakage into the public

@@ -6,9 +6,12 @@
 #   WEB_THREADS=1|0         asset decoding on worker threads (default 1). A threaded
 #                           build only starts on a cross-origin isolated page (COOP/
 #                           COEP headers; tools/serve.py sends them).
+#   WEB_DEBUG=0|1           1: no optimization, debug info and runtime assertions
+#                           (default 0: -O2 compile, -O3 link)
 #
-# Sets WEB_DIR (webgl2, webgpu, or <backend>-nothreads: the build directory name),
-# WASM_CFLAGS_BACKEND (defines and flags for compiling) and WASM_LINK (for linking).
+# Sets WEB_DIR (the build directory name: webgl2, webgpu, plus -nothreads and/or
+# -debug), WEB_OPT (compile optimization), WASM_CFLAGS_BACKEND (defines and flags for
+# compiling) and WASM_LINK (for linking).
 
 EMCC ?= emcc
 EMAR ?= emar
@@ -19,6 +22,10 @@ endif
 WEB_THREADS ?= 1
 ifeq ($(filter $(WEB_THREADS),0 1),)
   $(error WEB_THREADS must be 0 or 1 (got '$(WEB_THREADS)'))
+endif
+WEB_DEBUG ?= 0
+ifeq ($(filter $(WEB_DEBUG),0 1),)
+  $(error WEB_DEBUG must be 0 or 1 (got '$(WEB_DEBUG)'))
 endif
 
 ifeq ($(BACKEND),webgpu)
@@ -42,9 +49,20 @@ else
   WASM_THREADS_LINK :=
 endif
 
+# The link optimization is what shrinks the output: wasm-opt, minified JS glue, no
+# assertions (simple: 874 -> 737 KB wasm, 425 -> 190 KB JS).
+ifeq ($(WEB_DEBUG),1)
+  WEB_DIR           := $(WEB_DIR)-debug
+  WEB_OPT           := -O0 -g
+  WASM_OPT_LINK     := -O0 -g -sASSERTIONS=1
+else
+  WEB_OPT           := -O2
+  WASM_OPT_LINK     := -O3
+endif
+
 WASM_CFLAGS_BACKEND := $(WASM_DEFS) $(WASM_THREADS)
 # idbfs for persistent storage; FORCE_FILESYSTEM so the FS/IDBFS JS is linked;
 # grow memory for assets. (No -sJSPI: sapp_run owns the loop, so we can't suspend
 # in callbacks — sk_fs restore is a polled barrier, not an await. See PLAN-sk_fs.)
-WASM_LINK := $(WASM_BACKEND_LINK) $(WASM_THREADS_LINK) -sALLOW_MEMORY_GROWTH=1 \
+WASM_LINK := $(WASM_OPT_LINK) $(WASM_BACKEND_LINK) $(WASM_THREADS_LINK) -sALLOW_MEMORY_GROWTH=1 \
              -sFORCE_FILESYSTEM -lidbfs.js

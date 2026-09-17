@@ -241,6 +241,12 @@ Not supported yet:
 ## Lessons from librl to design for
 
 - [ ] Networking: one async model and a single `sk_net` module under `sk_asset`
+- [x] Web size (2026-09-17): web builds weren't link-optimized (no -O: no wasm-opt,
+      unminified JS, assertions) and carried all three backends' shader sources.
+      Now -O3 (WEB_DEBUG=1 for debug builds) and sokol-shdc --ifdef: simple went
+      from 874 KB wasm + 425 KB JS to 693 + 190 KB (323 KB gzipped; librl's c-simple
+      is 653 + 264 KB, 342 KB gzipped). The rest of the gap: every program links
+      every subsystem (below)
 - [ ] Optional subsystems: exclude modules at build time to shrink wasm, with a
       per-example size report
 - [x] Scripting and language bindings stay out of the core repo (decided; see ROADMAP)
