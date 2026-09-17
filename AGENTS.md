@@ -7,8 +7,13 @@ Keep this file short and rule-shaped. The authoritative design doc is
 ## Build & verify
 
 - `make` — build the static library (`build/desktop/libsk.a`). Build outputs live
-  in one directory per target: `build/{desktop,headless}` and
-  `examples/build/{desktop,headless,webgl2,webgpu}`.
+  in one directory per target: libraries in `build/{desktop,headless,webgl2,webgpu}`
+  (`<backend>-nothreads` for `WEB_THREADS=0`), programs and web sites in
+  `examples/build/<target>`.
+- `make web [BACKEND=webgpu] [WEB_THREADS=0]` — the web library
+  (`build/<backend>/libsk.a`); web settings live in `mk/web.mk`, shared with the
+  examples, which link it. `make print-web-flags` prints what a program needs to
+  compile and link against it.
 - `make examples` — build everything in `examples/`.
 - `make check` — guardrails; currently enforces that `include/` and `examples/`
   stay **backend-free** (no sokol/GL leakage into the public surface).

@@ -16,7 +16,8 @@
 #   make webcheck BACKEND=webgpu (WebGPU runs in a visible browser window)
 #
 # Outputs, one directory per target: build/desktop, build/headless, and the web
-# sites build/webgl2 and build/webgpu (each with obj/ and webcheck/ screenshots).
+# sites build/webgl2, build/webgpu and build/<backend>-nothreads (each with obj/
+# and webcheck/ screenshots). The libraries are in the root build/ directory.
 #   make clean
 
 UNAME_S := $(shell uname -s)
@@ -94,56 +95,22 @@ smoke: headless
 	@$(ROOT)/tools/smoke.sh $(SMOKE_FRAMES) $(HEADLESS_BINS)
 
 # --- wasm (emscripten; WebGL2 or WebGPU) ------------------------------------
-# Each backend has its own directory, build/webgl2 or build/webgpu: the site
-# (index.html, examples.json, <example>.js/.wasm), obj/ (the library compiled once,
-# with header dependency tracking, plus example objects) and webcheck/ screenshots.
-# Everything builds in parallel and only what changed rebuilds.
-EMCC         ?= emcc
-BACKEND      ?= webgl2
-ifeq ($(filter $(BACKEND),webgl2 webgpu),)
-  $(error BACKEND must be webgl2 or webgpu (got '$(BACKEND)'))
-endif
-# WEB_THREADS=1 (default): asset decoding on worker threads. The page must be
-# cross-origin isolated (COOP/COEP headers; tools/serve.py sends them), or the
-# build doesn't start. WEB_THREADS=0 builds without threads, into build/<backend>-nothreads.
-WEB_THREADS  ?= 1
-ifeq ($(filter $(WEB_THREADS),0 1),)
-  $(error WEB_THREADS must be 0 or 1 (got '$(WEB_THREADS)'))
-endif
-ifeq ($(WEB_THREADS),1)
-  BUILD_WEB    := build/$(BACKEND)
-  WASM_THREADS := -pthread
-  # workers are started up front, so starting a load never waits on one.
-  # Growable memory with threads makes JS glue re-check the heap view on access
-  # (emscripten warns about it); assets need the growth.
-  WASM_THREADS_LINK := -pthread -sPTHREAD_POOL_SIZE=4 -Wno-pthreads-mem-growth
-else
-  BUILD_WEB    := build/$(BACKEND)-nothreads
-  WASM_THREADS :=
-  WASM_THREADS_LINK :=
-endif
+# Each web target has its own site directory, build/<backend> (or
+# build/<backend>-nothreads): index.html, examples.json, <example>.js/.wasm, obj/
+# (example objects) and webcheck/ screenshots. The examples link the web library
+# the root Makefile builds (build/<backend>/libsk.a, `make web`); BACKEND and
+# WEB_THREADS are defined in mk/web.mk.
+include $(ROOT)/mk/web.mk
+BUILD_WEB    := build/$(WEB_DIR)
+WEB_LIB      := $(ROOT)/build/$(WEB_DIR)/libsk.a
 WEB_SHELL    := web/index.html
 WASM_EXAMPLE ?= hello
 NPROC        := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-LIB_SRCS     := $(wildcard $(ROOT)/src/*.c)
 WEB_OBJ_DIR  := $(BUILD_WEB)/obj
-WEB_LIB_OBJS := $(patsubst $(ROOT)/src/%.c,$(WEB_OBJ_DIR)/lib/%.o,$(LIB_SRCS))
 WEB_EX_OBJS  := $(patsubst %.c,$(WEB_OBJ_DIR)/examples/%.o,$(SRCS))
 WEB_BUNDLES  := $(patsubst %.c,$(BUILD_WEB)/%.js,$(SRCS))
-ifeq ($(BACKEND),webgpu)
-  WASM_DEFS         := -DSOKOL_WGPU --use-port=emdawnwebgpu # the port provides webgpu/webgpu.h
-  WASM_BACKEND_LINK := --use-port=emdawnwebgpu
-else
-  WASM_DEFS         := -DSOKOL_GLES3
-  WASM_BACKEND_LINK := -sUSE_WEBGL2=1
-endif
 # -MD (not -MMD): also track the vendored -isystem headers in deps/
-WASM_CFLAGS := $(STD) $(WARN) $(OPT) $(WASM_DEFS) $(WASM_THREADS) $(INCS) -MD -MP
-# idbfs for persistent storage; FORCE_FILESYSTEM so the FS/IDBFS JS is linked;
-# grow memory for assets. (No -sJSPI: sapp_run owns the loop, so we can't suspend
-# in callbacks — sk_fs restore is a polled barrier, not an await. See PLAN-sk_fs.)
-WASM_LINK := $(WASM_BACKEND_LINK) $(WASM_THREADS_LINK) -sALLOW_MEMORY_GROWTH=1 \
-             -sFORCE_FILESYSTEM -lidbfs.js
+WASM_CFLAGS := $(STD) $(WARN) $(OPT) $(WASM_CFLAGS_BACKEND) $(INCS) -MD -MP
 
 # Per-example bundles (.js + .wasm) + one shared index.html switcher. The switcher
 # self-populates from examples.json (built examples only).
@@ -158,26 +125,25 @@ endef
 $(BUILD_WEB):
 	mkdir -p $(BUILD_WEB)
 
-# Rebuild everything when the compile flags change (WEB_THREADS, OPT, ...).
+# Keep the web library current (like $(LIB) above), sharing this make's job slots.
+$(WEB_LIB): FORCE
+	@$(MAKE) --no-print-directory -C $(ROOT) all WEB=1
+
+# Rebuild the example objects when the compile flags change (WEB_THREADS, OPT, ...).
 WEB_FLAGS_STAMP := $(WEB_OBJ_DIR)/flags
 $(WEB_FLAGS_STAMP): FORCE
 	@mkdir -p $(dir $@)
 	@echo '$(WASM_CFLAGS)' | cmp -s - $@ || echo '$(WASM_CFLAGS)' > $@
 
-$(WEB_OBJ_DIR)/lib/%.o: $(ROOT)/src/%.c $(WEB_FLAGS_STAMP)
-	@mkdir -p $(dir $@)
-	@echo "  emcc[$(BACKEND)]: $<"
-	@$(EMCC) $(WASM_CFLAGS) -c $< -o $@
-
 $(WEB_OBJ_DIR)/examples/%.o: %.c $(WEB_FLAGS_STAMP)
 	@mkdir -p $(dir $@)
 	@$(EMCC) $(WASM_CFLAGS) -c $< -o $@
 
-$(BUILD_WEB)/%.js: $(WEB_OBJ_DIR)/examples/%.o $(WEB_LIB_OBJS)
-	@echo "  wasm[$(BACKEND)]: $*"
-	@$(EMCC) $(WEB_OBJ_DIR)/examples/$*.o $(WEB_LIB_OBJS) $(WASM_LINK) -o $@
+$(BUILD_WEB)/%.js: $(WEB_OBJ_DIR)/examples/%.o $(WEB_LIB)
+	@echo "  wasm[$(WEB_DIR)]: $*"
+	@$(EMCC) $(WEB_OBJ_DIR)/examples/$*.o $(WEB_LIB) $(WASM_LINK) -o $@
 
--include $(WEB_LIB_OBJS:.o=.d) $(WEB_EX_OBJS:.o=.d)
+-include $(WEB_EX_OBJS:.o=.d)
 
 wasm:
 	@$(MAKE) --no-print-directory -j$(NPROC) $(BUILD_WEB)/$(WASM_EXAMPLE).js

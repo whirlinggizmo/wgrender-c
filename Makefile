@@ -18,9 +18,13 @@
 #   make deps       install system build deps (ALSA/GL/X11 dev packages)
 #   make parity     librl -> libsk API parity report (LIBRL_DIR=../librl)
 #   make HEADLESS=1 headless lib (build/headless/libsk.a): no window, GPU or audio
+#   make web        web lib (build/webgl2/libsk.a); BACKEND=webgpu, WEB_THREADS=0
+#                   (build/<backend>-nothreads); settings in mk/web.mk
+#   make print-web-flags  compile and link flags for a program using the web lib
 #
-# Build outputs live in one directory per target: build/desktop, build/headless
-# (library objects + libsk.a) and examples/build/{desktop,headless,webgl2,webgpu}.
+# Build outputs live in one directory per target: build/{desktop,headless,webgl2,
+# webgpu,<backend>-nothreads} (library objects + libsk.a) and
+# examples/build/{desktop,headless,webgl2,webgpu,...} (programs, web sites).
 #   make smoke      run every example headless for a few seconds (-> examples)
 #   make clean
 
@@ -34,7 +38,14 @@ OPT     := -O2 # -g  # use -g for debug build.  TODO:  Flag for release/debug?
 # HEADLESS=1: sokol's dummy GPU backend, no sokol_app window, no audio device, no
 # GL/X11/ALSA link dependencies (see src/sk_platform.c). For tests, CI and tools.
 HEADLESS ?= 0
-ifeq ($(HEADLESS),1)
+# WEB=1 (set by `make web`): Emscripten, BACKEND and WEB_THREADS as in mk/web.mk.
+WEB ?= 0
+ifeq ($(WEB),1)
+  include mk/web.mk
+  CC    := $(EMCC)
+  AR    := $(EMAR)
+  DEFS  := $(WASM_CFLAGS_BACKEND)
+else ifeq ($(HEADLESS),1)
   DEFS  := -DSK_HEADLESS -DSOKOL_DUMMY_BACKEND
 else
   DEFS  := -DSOKOL_GLCORE
@@ -46,7 +57,10 @@ INCS    += -isystem deps/sokol -isystem deps/stb -isystem deps/fontstash \
            -isystem deps/dr -isystem deps/cgltf
 CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
-ifeq ($(HEADLESS),1)
+ifeq ($(WEB),1)
+  TARGET := $(WEB_DIR)
+  DEPS_CHECK :=
+else ifeq ($(HEADLESS),1)
   TARGET := headless
   DEPS_CHECK :=
 else
@@ -59,16 +73,22 @@ LIB     := $(BUILD)/libsk.a
 SRCS    := $(wildcard src/*.c)
 OBJS    := $(patsubst src/%.c,$(BUILD)/obj/%.o,$(SRCS))
 
-.PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check parity loadbench
+.PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check parity loadbench \
+        web print-web-flags FORCE
 
 all: $(LIB)
 
 $(BUILD)/obj:
 	mkdir -p $(BUILD)/obj
 
+# Rebuild everything when the compile flags change (OPT, WEB_THREADS, ...).
+FLAGS_STAMP := $(BUILD)/obj/flags
+$(FLAGS_STAMP): FORCE | $(BUILD)/obj
+	@echo '$(CC) $(CFLAGS)' | cmp -s - $@ || echo '$(CC) $(CFLAGS)' > $@
+
 # -MD (not -MMD): also track the vendored headers in deps/, which are included
 # with -isystem, so updating one rebuilds what uses it.
-$(BUILD)/obj/%.o: src/%.c | $(BUILD)/obj $(DEPS_CHECK)
+$(BUILD)/obj/%.o: src/%.c $(FLAGS_STAMP) | $(BUILD)/obj $(DEPS_CHECK)
 	$(CC) $(CFLAGS) -MD -MP -c $< -o $@
 
 -include $(OBJS:.o=.d)
@@ -76,6 +96,23 @@ $(BUILD)/obj/%.o: src/%.c | $(BUILD)/obj $(DEPS_CHECK)
 $(LIB): $(OBJS)
 	$(AR) rcs $@ $(OBJS)
 	@echo "built $@"
+
+# --- web library (Emscripten) -----------------------------------------------
+# build/<backend>/libsk.a. A program compiles and links against it with matching
+# settings; `make print-web-flags` prints them (the public headers need no backend
+# defines, but threads must match).
+web:
+	@$(MAKE) --no-print-directory -j$(NPROC) all WEB=1
+
+print-web-flags:
+	@$(MAKE) --no-print-directory -s WEB=1 print-web-flags-inner
+
+print-web-flags-inner:
+	@echo "lib:     build/$(WEB_DIR)/libsk.a"
+	@echo "cflags:  -Iinclude $(WASM_THREADS)"
+	@echo "ldflags: $(WASM_LINK)"
+
+FORCE:
 
 # --- system dependencies -----------------------------------------------------
 # sokol needs the platform's ALSA/GL/X11 dev packages (not vendorable). Check up
