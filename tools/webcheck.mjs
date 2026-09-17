@@ -157,6 +157,7 @@ async function checkExample(browser, debugBase, baseUrl, example, opts) {
     const session = await openSession(`ws://${new URL(debugBase).host}/devtools/page/${targetId}`);
     try {
         const inflight = new Set();
+        let navigated = Date.now();
         let lastActivity = Date.now();
         session.onEvent((msg) => {
             if (msg.method === "Network.requestWillBeSent") {
@@ -173,6 +174,7 @@ async function checkExample(browser, debugBase, baseUrl, example, opts) {
                 result.console.push(text.trim().split("\n")[0]);
                 if (text.includes("libsk:") && text.includes("backend")) {
                     result.started = true;
+                    result.startMs ??= Date.now() - navigated;
                     lastActivity = Date.now();
                     result.backendOk ||= text.includes(BACKEND_LOG[opts.backend]);
                 }
@@ -190,6 +192,7 @@ async function checkExample(browser, debugBase, baseUrl, example, opts) {
         await session.send("Page.enable");
         await session.send("Network.enable");
         const deadline = Date.now() + opts.settle;
+        navigated = Date.now();
         await session.send("Page.navigate", { url: `${baseUrl}/?ex=${encodeURIComponent(example)}` });
         /* Wait until the example has started, its asset downloads are done, and it has
          * run for a while since (errors from loading show up in that window), or until
@@ -360,6 +363,11 @@ async function main() {
             "--no-default-browser-check",
             "--window-size=1024,900",
             "--autoplay-policy=no-user-gesture-required",
+            /* a fake audio device: examples start audio on load, and opening the real
+             * output can block every page's startup (~20 s when the default output is
+             * HDMI and the display is asleep: the link has to wake first). Audio still
+             * runs; nothing reaches PipeWire/PulseAudio or the speakers. */
+            "--disable-audio-output",
             ...(opts.headed ? [] : ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"]),
             "about:blank",
         ]);
@@ -383,7 +391,8 @@ async function main() {
                 else if (r.pending !== 0) problems.push(`still loading after ${opts.settle} ms (${r.pending} asset task(s) pending)`);
                 else if (!r.backendOk) problems.push(`started on a different backend than '${opts.backend}' (stale build?)`);
                 if (problems.length) failed++;
-                console.log(`  ${problems.length ? "FAIL" : "ok  "}  ${r.example}`);
+                const start = r.startMs !== undefined ? ` (started after ${(r.startMs / 1000).toFixed(1)} s)` : "";
+                console.log(`  ${problems.length ? "FAIL" : "ok  "}  ${r.example}${problems.length ? start : ""}`);
                 for (const p of problems) console.log(`          ${p}`);
             }
         };

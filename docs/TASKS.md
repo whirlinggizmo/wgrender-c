@@ -129,8 +129,13 @@ tick the box in the same commit.
 - [ ] Bug: `sk_request_quit` on web aborts in sokol_audio (the audio node keeps
       pulling after shutdown)
 - [ ] Bug: `[` and `]` draw as boxes in the built-in text font
-- [ ] webcheck: WebGPU runs occasionally fail the first four examples (never
-      start within 20 s); not reproducible on rerun
+- [x] webcheck: WebGPU runs occasionally failed the first four examples (started
+      after ~20 s or never). Cause: with autoplay allowed, the pages open the real
+      audio output at startup; the default output here is HDMI on the NVIDIA GPU,
+      and when the display is asleep, opening it blocks ~20 s while the link wakes
+      (the compositor logs a modeset as the pages unblock). webcheck now uses a
+      fake audio device (`--disable-audio-output`), so it never touches
+      PipeWire, the speakers or the displays, and reports when a failing page started
 - [x] Lighting: light objects (directional, point, spot), per-scene lights and
       ambient, up to 8 lights per model by contribution, nothing lit implicitly
       (docs/PLAN-lighting.md, examples/lights.c). `simple.c` lighting PARITY note
