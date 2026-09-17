@@ -71,6 +71,9 @@ Naming notes / decisions:
   ever matters, clips can be split into their own resource later — not now.)
 - **Texture, not Image.** There is no separate public `Image` type; the Texture
   resource carries the optional CPU-side alpha mask used for picking.
+- **A render target is a Texture.** `sk_texture_create_target(w, h)` makes a texture
+  you can draw into (`sk_render_begin_texture`); everything that takes a texture
+  accepts it. See [PLAN-render-target.md](PLAN-render-target.md).
 - **Material is a resource that objects use, not an object.** Meshes loaded from
   glTF create one material per glTF material (the mesh's slots); models draw with
   them unless they override a slot with `sk_model_set_material`. Materials are

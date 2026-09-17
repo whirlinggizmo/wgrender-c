@@ -147,9 +147,13 @@ static bool resolve_placement(const sk_sprite2d_t *sprite_ptr, sg_view *view, sg
 
 /* Textured quad in the current (2D) sokol_gl projection. */
 static void draw_quad(sg_view view, sg_sampler smp, const float corners[8], float u0, float v0, float u1,
-                      float v1, sk_handle_t tint)
+                      float v1, bool flip_v, sk_handle_t tint)
 {
     const color_t c = sk_color_get(tint);
+    if (flip_v) { /* render target stored bottom-up (see sk_texture_is_flipped) */
+        v0 = 1.0f - v0;
+        v1 = 1.0f - v1;
+    }
     sgl_enable_texture();
     sgl_texture(view, smp);
     sgl_begin_quads();
@@ -177,7 +181,8 @@ static void draw_handle(sk_handle_t sprite)
     }
     sk_sprite2d_corners(&placement, corners);
     draw_quad(view, smp, corners, source[0] / (float)tw, source[1] / (float)th,
-              (source[0] + source[2]) / (float)tw, (source[1] + source[3]) / (float)th, sprite_ptr->tint);
+              (source[0] + source[2]) / (float)tw, (source[1] + source[3]) / (float)th,
+              sk_texture_is_flipped(sprite_ptr->texture), sprite_ptr->tint);
 }
 
 static bool pick_handle(sk_handle_t sprite, float screen_x, float screen_y, sk_pick_result_t *out)
@@ -438,5 +443,5 @@ void sk_texture_draw(sk_handle_t texture, float x, float y, float width, float h
     corners[2] = x + width; corners[3] = y;
     corners[4] = x + width; corners[5] = y + height;
     corners[6] = x;         corners[7] = y + height;
-    draw_quad(view, smp, corners, 0.0f, 0.0f, 1.0f, 1.0f, tint);
+    draw_quad(view, smp, corners, 0.0f, 0.0f, 1.0f, 1.0f, sk_texture_is_flipped(texture), tint);
 }

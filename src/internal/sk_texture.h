@@ -36,4 +36,18 @@ sk_handle_t sk_texture_create_rgba(const unsigned char *rgba, int width, int hei
  * fully opaque for textures created from pixels. */
 bool sk_texture_get_alpha_mask(sk_handle_t handle, const unsigned char **alpha, int *width, int *height);
 
+/* A render target's pass attachments and size. False when `handle` isn't a target
+ * (sk_texture_create_target). */
+bool sk_texture_get_target(sk_handle_t handle, sg_attachments *attachments, int *width, int *height);
+
+/* True when the texture's rows are stored bottom-up: render targets on backends
+ * whose framebuffer origin is bottom-left (GL, WebGL2). Whoever samples it maps
+ * v to 1 - v, so every texture reads top-down. */
+bool sk_texture_is_flipped(sk_handle_t handle);
+
+/* The target the GPU is drawing into (0 = the screen). sk_texture_get_binding
+ * refuses to bind it, since a pass can't sample its own target. Set by sk_render
+ * while recording and while replaying a target's pass. */
+void sk_texture_set_drawing_into(sk_handle_t handle);
+
 #endif // SK_INTERNAL_TEXTURE_H

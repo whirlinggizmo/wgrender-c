@@ -199,7 +199,7 @@ static void draw_handle(sk_handle_t handle)
     sg_sampler smp;
     color_t tint;
     vec3_t right, up;
-    float hw, hh;
+    float hw, hh, top_v;
 
     if (sprite_ptr == NULL || !sprite_ptr->visible) {
         return;
@@ -207,6 +207,7 @@ static void draw_handle(sk_handle_t handle)
     if (!sk_texture_get_binding(sprite_ptr->texture, &view, &smp, NULL, NULL)) {
         return;
     }
+    top_v = sk_texture_is_flipped(sprite_ptr->texture) ? 1.0f : 0.0f; /* render target stored bottom-up */
     if (!sk_camera3d_get_active_data(&cam)) {
         return;
     }
@@ -248,10 +249,10 @@ static void draw_handle(sk_handle_t handle)
         sgl_texture(view, smp);
         sgl_begin_quads();
         sgl_c4f(tint.r, tint.g, tint.b, tint.a);
-        sgl_v3f_t2f(tlx, tly, tlz, 0.0f, 0.0f);
-        sgl_v3f_t2f(trx, try_, trz, 1.0f, 0.0f);
-        sgl_v3f_t2f(brx, bry, brz, 1.0f, 1.0f);
-        sgl_v3f_t2f(blx, bly, blz, 0.0f, 1.0f);
+        sgl_v3f_t2f(tlx, tly, tlz, 0.0f, top_v);
+        sgl_v3f_t2f(trx, try_, trz, 1.0f, top_v);
+        sgl_v3f_t2f(brx, bry, brz, 1.0f, 1.0f - top_v);
+        sgl_v3f_t2f(blx, bly, blz, 0.0f, 1.0f - top_v);
         sgl_end();
         sgl_disable_texture();
     }

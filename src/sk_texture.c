@@ -26,9 +26,16 @@
  * mask for picking, generated lazily). Many Sprite objects may reference one
  * Texture. */
 typedef struct {
-    sg_image image;
+    sg_image image; /* sampled image (a target's resolve image when multisampled) */
     sg_view view;
     sg_sampler sampler;
+    /* render targets (sk_texture_create_target) */
+    bool target;
+    sg_image msaa_image;  /* multisampled color image, when the screen uses MSAA */
+    sg_image depth_image;
+    sg_view color_attachment;
+    sg_view resolve_attachment;
+    sg_view depth_attachment;
     int width;
     int height;
     unsigned char *alpha; /* lazy CPU alpha mask (w*h bytes) for picking */
@@ -43,6 +50,9 @@ static uint16_t sk_texture_free_indices[MAX_TEXTURES];
 static uint16_t sk_texture_generations[MAX_TEXTURES];
 static unsigned char sk_texture_occupied[MAX_TEXTURES];
 static sg_sampler sk_default_sampler;
+static sg_sampler sk_texture_samplers[3][3][2]; /* [wrap_u][wrap_v][filter], made on first use */
+static sk_handle_t sk_texture_drawing_into;       /* target being drawn into (render pass), 0 = screen */
+static bool sk_texture_self_use_logged;
 
 static const sk_handle_t SK_TEXTURE_DEFAULT = SK_HANDLE_MAKE(SK_HANDLE_KIND_TEXTURE, 1, 1);
 static const sk_handle_t SK_TEXTURE_CHECKER = SK_HANDLE_MAKE(SK_HANDLE_KIND_TEXTURE, 2, 1);
@@ -72,6 +82,13 @@ static void free_texture_data(sk_texture_t *texture_ptr)
     }
     if (texture_ptr->image.id != 0) {
         sg_destroy_image(texture_ptr->image);
+    }
+    if (texture_ptr->target) {
+        sg_destroy_view(texture_ptr->color_attachment);
+        sg_destroy_view(texture_ptr->resolve_attachment); /* invalid ids are ignored */
+        sg_destroy_view(texture_ptr->depth_attachment);
+        sg_destroy_image(texture_ptr->msaa_image);
+        sg_destroy_image(texture_ptr->depth_image);
     }
     free(texture_ptr->alpha);
 }
@@ -364,6 +381,109 @@ sk_handle_t sk_texture_get_default(void)
     return SK_TEXTURE_DEFAULT;
 }
 
+static sg_wrap to_sg_wrap(sk_texture_wrap_t wrap)
+{
+    switch (wrap) {
+        case SK_TEXTURE_WRAP_REPEAT: return SG_WRAP_REPEAT;
+        case SK_TEXTURE_WRAP_MIRROR: return SG_WRAP_MIRRORED_REPEAT;
+        default: return SG_WRAP_CLAMP_TO_EDGE;
+    }
+}
+
+SK_KEEP
+bool sk_texture_set_sampling(sk_handle_t texture, sk_texture_wrap_t wrap_u, sk_texture_wrap_t wrap_v,
+                             sk_texture_filter_t filter)
+{
+    sk_texture_t *texture_ptr = resolve(texture);
+    sg_sampler *smp;
+
+    if (texture_ptr == NULL) {
+        return false;
+    }
+    if (wrap_u < SK_TEXTURE_WRAP_REPEAT || wrap_u > SK_TEXTURE_WRAP_MIRROR || wrap_v < SK_TEXTURE_WRAP_REPEAT ||
+        wrap_v > SK_TEXTURE_WRAP_MIRROR || filter < SK_TEXTURE_FILTER_LINEAR || filter > SK_TEXTURE_FILTER_NEAREST) {
+        log_warn("sk_texture_set_sampling: invalid wrap or filter");
+        return false;
+    }
+    smp = &sk_texture_samplers[wrap_u][wrap_v][filter];
+    if (smp->id == SG_INVALID_ID) {
+        const sg_filter f = filter == SK_TEXTURE_FILTER_NEAREST ? SG_FILTER_NEAREST : SG_FILTER_LINEAR;
+        *smp = sg_make_sampler(&(sg_sampler_desc){
+            .min_filter = f,
+            .mag_filter = f,
+            .mipmap_filter = f,
+            .wrap_u = to_sg_wrap(wrap_u),
+            .wrap_v = to_sg_wrap(wrap_v),
+        });
+    }
+    texture_ptr->sampler = *smp;
+    return true;
+}
+
+SK_KEEP
+sk_handle_t sk_texture_create_target(int width, int height)
+{
+    const sg_environment_defaults env = sg_query_desc().environment.defaults;
+    const int samples = env.sample_count > 1 ? env.sample_count : 1;
+    const sg_pixel_format color_format = env.color_format != _SG_PIXELFORMAT_DEFAULT ? env.color_format
+                                                                                     : SG_PIXELFORMAT_RGBA8;
+    const sg_pixel_format depth_format = env.depth_format != _SG_PIXELFORMAT_DEFAULT ? env.depth_format
+                                                                                     : SG_PIXELFORMAT_DEPTH_STENCIL;
+    sk_texture_t t = {0};
+    sk_handle_t handle;
+    uint16_t index = 0;
+
+    if (width <= 0 || height <= 0 || width > 16384 || height > 16384) {
+        log_error("sk_texture_create_target: invalid size %dx%d", width, height);
+        return 0;
+    }
+    handle = alloc_texture_slot(&t);
+    if (handle == 0) {
+        return 0;
+    }
+    t.width = width;
+    t.height = height;
+    t.target = true;
+    t.ref_count = 1;
+    t.sampler = sk_default_sampler;
+    /* same format and MSAA as the screen, so every screen pipeline works in a target */
+    t.image = sg_make_image(&(sg_image_desc){
+        .usage = {.color_attachment = samples == 1, .resolve_attachment = samples > 1},
+        .width = width,
+        .height = height,
+        .pixel_format = color_format,
+        .sample_count = 1,
+        .label = "sk-target-color",
+    });
+    if (samples > 1) {
+        t.msaa_image = sg_make_image(&(sg_image_desc){
+            .usage.color_attachment = true,
+            .width = width,
+            .height = height,
+            .pixel_format = color_format,
+            .sample_count = samples,
+            .label = "sk-target-msaa",
+        });
+        t.color_attachment = sg_make_view(&(sg_view_desc){.color_attachment.image = t.msaa_image});
+        t.resolve_attachment = sg_make_view(&(sg_view_desc){.resolve_attachment.image = t.image});
+    } else {
+        t.color_attachment = sg_make_view(&(sg_view_desc){.color_attachment.image = t.image});
+    }
+    t.depth_image = sg_make_image(&(sg_image_desc){
+        .usage.depth_stencil_attachment = true,
+        .width = width,
+        .height = height,
+        .pixel_format = depth_format,
+        .sample_count = samples,
+        .label = "sk-target-depth",
+    });
+    t.depth_attachment = sg_make_view(&(sg_view_desc){.depth_stencil_attachment.image = t.depth_image});
+    t.view = sg_make_view(&(sg_view_desc){.texture.image = t.image});
+    sk_handle_pool_resolve(&sk_texture_pool, handle, &index);
+    sk_textures[index] = t;
+    return handle;
+}
+
 SK_KEEP
 sk_handle_t sk_texture_get_placeholder(void)
 {
@@ -465,6 +585,14 @@ bool sk_texture_get_binding(sk_handle_t handle, sg_view *view, sg_sampler *smp,
                             int *width, int *height)
 {
     sk_texture_t *texture_ptr = resolve(handle);
+    if (handle != 0 && handle == sk_texture_drawing_into) {
+        /* a pass can't sample the texture it renders into */
+        if (!sk_texture_self_use_logged) {
+            log_warn("texture: a render target can't be drawn into itself; the default texture is used");
+            sk_texture_self_use_logged = true;
+        }
+        texture_ptr = NULL;
+    }
     if (texture_ptr == NULL) {
         texture_ptr = resolve(SK_TEXTURE_DEFAULT);
         if (texture_ptr == NULL) {
@@ -507,6 +635,9 @@ void sk_texture_init(void)
         .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
         .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
     });
+    sk_texture_samplers[SK_TEXTURE_WRAP_CLAMP][SK_TEXTURE_WRAP_CLAMP][SK_TEXTURE_FILTER_LINEAR] = sk_default_sampler;
+    sk_texture_drawing_into = 0;
+    sk_texture_self_use_logged = false;
 
     /* reserve + populate the built-in 1x1 white default at index 1 */
     sk_texture_generations[1] = 1;
@@ -557,7 +688,40 @@ void sk_texture_deinit(void)
             sk_textures[i] = (sk_texture_t){0};
         }
     }
-    sg_destroy_sampler(sk_default_sampler);
+    for (int i = 0; i < 3 * 3 * 2; i++) {
+        sg_sampler *smp = &((sg_sampler *)sk_texture_samplers)[i];
+        if (smp->id != SG_INVALID_ID) sg_destroy_sampler(*smp); /* includes the default */
+        *smp = (sg_sampler){0};
+    }
+    sk_default_sampler = (sg_sampler){0};
     sk_texture_placeholder = 0;
     sk_handle_pool_reset(&sk_texture_pool);
+}
+
+bool sk_texture_get_target(sk_handle_t handle, sg_attachments *attachments, int *width, int *height)
+{
+    sk_texture_t *texture_ptr = resolve(handle);
+    if (texture_ptr == NULL || !texture_ptr->target) {
+        return false;
+    }
+    *attachments = (sg_attachments){
+        .colors[0] = texture_ptr->color_attachment,
+        .resolves[0] = texture_ptr->resolve_attachment,
+        .depth_stencil = texture_ptr->depth_attachment,
+    };
+    *width = texture_ptr->width;
+    *height = texture_ptr->height;
+    return true;
+}
+
+bool sk_texture_is_flipped(sk_handle_t handle)
+{
+    uint16_t index = 0;
+    return sk_handle_pool_resolve(&sk_texture_pool, handle, &index) && sk_textures[index].target &&
+           !sg_query_features().origin_top_left;
+}
+
+void sk_texture_set_drawing_into(sk_handle_t handle)
+{
+    sk_texture_drawing_into = handle;
 }

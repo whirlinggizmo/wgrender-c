@@ -81,7 +81,8 @@ void sk_font_flush(void); /* upload the font atlas (outside a render pass) */
 /* text (sokol_debugtext) */
 void sk_text_init(void);
 void sk_text_deinit(void);
-void sk_text_flush(void); /* emit recorded debugtext into the current pass */
+void sk_text_set_pass(int pass); /* record debugtext for render pass `pass` (0 = screen) */
+void sk_text_flush(int pass);    /* emit pass `pass`'s debugtext into the open sg pass */
 
 /* text2d (retained text object, built on the text layer) */
 void sk_text2d_init(void);

@@ -9,6 +9,7 @@
 #include "internal/sk_model.h"
 #include "internal/sk_platform.h"
 #include "internal/sk_render.h"
+#include "internal/sk_texture.h"
 #include "sk_camera3d.h"
 #include "sk_logger.h"
 #include "sk_window.h"
@@ -17,6 +18,7 @@
 #include "util/sokol_gl.h"
 
 #define MAX_RENDER_CMDS 1024
+#define MAX_RENDER_PASSES 17 /* the screen + 16 render target passes per frame */
 
 /* Render model
  * -----------
@@ -37,12 +39,23 @@ typedef enum {
 
 typedef struct {
     sk_render_cmd_kind_t kind;
+    int pass;  /* index into sk_render_passes */
     int layer; /* RENDER_CMD_SGL_LAYER */
     int first; /* RENDER_CMD_MODELS: item range in sk_model's queue */
     int count;
 } sk_render_cmd_t;
 
-static color_t sk_clear_color = {0.1f, 0.1f, 0.1f, 1.0f};
+/* A render pass recorded this frame: pass 0 is the screen, the rest are render
+ * targets in the order they were begun. */
+typedef struct {
+    sk_handle_t target; /* 0 = the screen */
+    color_t clear_color;
+} sk_render_pass_t;
+
+static sk_render_pass_t sk_render_passes[MAX_RENDER_PASSES];
+static int sk_render_pass_count;
+static int sk_render_current_pass_index; /* pass being recorded */
+static bool sk_render_pass_overflow_logged;
 static sgl_pipeline sk_pip_2d;
 static sgl_pipeline sk_pip_3d;
 static sgl_pipeline sk_pip_3d_transparent;
@@ -61,6 +74,7 @@ static void open_sgl_layer(void)
     sgl_layer(layer);
     sk_render_cmds[sk_render_cmd_count++] = (sk_render_cmd_t){
         .kind = RENDER_CMD_SGL_LAYER,
+        .pass = sk_render_current_pass_index,
         .layer = layer,
     };
     sk_layer_mark_vertices = sgl_num_vertices();
@@ -69,9 +83,30 @@ static void open_sgl_layer(void)
 
 static void reset_frame_commands(void)
 {
+    const color_t screen_clear = sk_render_passes[0].clear_color;
     sk_render_cmd_count = 0;
     sk_render_next_layer = 0;
+    sk_render_pass_count = 1;
+    sk_render_current_pass_index = 0;
+    sk_render_passes[0] = (sk_render_pass_t){.target = 0, .clear_color = screen_clear}; /* the screen keeps its clear color */
+    sk_texture_set_drawing_into(0);
     open_sgl_layer();
+}
+
+int sk_render_current_pass(void)
+{
+    return sk_render_current_pass_index;
+}
+
+vec2_t sk_render_target_size(void)
+{
+    const sk_handle_t target = sk_render_passes[sk_render_current_pass_index].target;
+    sg_attachments attachments;
+    int w = 0, h = 0;
+    if (target != 0 && sk_texture_get_target(target, &attachments, &w, &h)) {
+        return (vec2_t){(float)w, (float)h};
+    }
+    return (vec2_t){(float)sk_platform_width(), (float)sk_platform_height()};
 }
 
 void sk_render_submit_models(int first, int count)
@@ -84,7 +119,7 @@ void sk_render_submit_models(int first, int count)
 
     /* drop the current sgl layer if nothing was recorded into it */
     last = &sk_render_cmds[sk_render_cmd_count - 1];
-    if (sk_render_cmd_count > 1 && last->kind == RENDER_CMD_SGL_LAYER &&
+    if (sk_render_cmd_count > 1 && last->kind == RENDER_CMD_SGL_LAYER && last->pass == sk_render_current_pass_index &&
         sgl_num_vertices() == sk_layer_mark_vertices &&
         sgl_num_commands() == sk_layer_mark_commands) {
         sk_render_cmd_count--;
@@ -92,11 +127,13 @@ void sk_render_submit_models(int first, int count)
         last = &sk_render_cmds[sk_render_cmd_count - 1];
     }
 
-    if (last->kind == RENDER_CMD_MODELS && last->first + last->count == first) {
+    if (last->kind == RENDER_CMD_MODELS && last->pass == sk_render_current_pass_index &&
+        last->first + last->count == first) {
         last->count += count; /* extend the adjacent model run */
     } else if (sk_render_cmd_count < MAX_RENDER_CMDS - 1) {
         sk_render_cmds[sk_render_cmd_count++] = (sk_render_cmd_t){
             .kind = RENDER_CMD_MODELS,
+            .pass = sk_render_current_pass_index,
             .first = first,
             .count = count,
         };
@@ -107,7 +144,7 @@ void sk_render_submit_models(int first, int count)
             sk_render_overflow_logged = true;
         }
         for (int i = sk_render_cmd_count - 1; i >= 0; i--) {
-            if (sk_render_cmds[i].kind == RENDER_CMD_MODELS) {
+            if (sk_render_cmds[i].kind == RENDER_CMD_MODELS && sk_render_cmds[i].pass == sk_render_current_pass_index) {
                 sk_render_cmds[i].count = first + count - sk_render_cmds[i].first;
                 return;
             }
@@ -169,6 +206,7 @@ void sk_render_init(void)
         },
     });
 
+    sk_render_passes[0].clear_color = (color_t){0.1f, 0.1f, 0.1f, 1.0f};
     reset_frame_commands();
 }
 
@@ -182,7 +220,8 @@ void sk_render_deinit(void)
 
 static void setup_2d_projection(void)
 {
-    const vec2_t size = sk_window_get_screen_size(); /* logical pixels */
+    /* the screen in logical pixels, a render target in its pixels */
+    const vec2_t size = sk_render_current_pass_index == 0 ? sk_window_get_screen_size() : sk_render_target_size();
     const float w = size.x;
     const float h = size.y;
 
@@ -205,39 +244,125 @@ void sk_render_begin(void)
 SK_KEEP
 void sk_render_clear_background(sk_handle_t color)
 {
-    sk_clear_color = sk_color_get(color);
+    sk_render_passes[sk_render_current_pass_index].clear_color = sk_color_get(color);
 }
 
 SK_KEEP
-void sk_render_end(void)
+bool sk_render_begin_texture(sk_handle_t texture)
 {
-    sg_pass pass = {
-        .action = {
-            .colors[0] = {
-                .load_action = SG_LOADACTION_CLEAR,
-                .clear_value = {sk_clear_color.r, sk_clear_color.g,
-                                sk_clear_color.b, sk_clear_color.a},
-            },
-        },
-        .swapchain = sk_platform_swapchain(),
-    };
+    sg_attachments attachments;
+    int w = 0, h = 0;
 
-    sk_debug_draw();
+    if (sk_render_current_pass_index != 0) {
+        log_warn("sk_render_begin_texture: already drawing into a texture (call sk_render_end_texture first)");
+        return false;
+    }
+    if (!sk_texture_get_target(texture, &attachments, &w, &h)) {
+        log_warn("sk_render_begin_texture: not a render target texture (see sk_texture_create_target)");
+        return false;
+    }
+    if (sk_render_pass_count >= MAX_RENDER_PASSES || sk_render_cmd_count >= MAX_RENDER_CMDS - 2) {
+        if (!sk_render_pass_overflow_logged) {
+            log_warn("render: too many render target passes this frame (max %d)", MAX_RENDER_PASSES - 1);
+            sk_render_pass_overflow_logged = true;
+        }
+        return false;
+    }
+    sk_render_passes[sk_render_pass_count] = (sk_render_pass_t){.target = texture};
+    sk_render_current_pass_index = sk_render_pass_count++;
+    sk_texture_set_drawing_into(texture);
+    sk_text_set_pass(sk_render_current_pass_index);
+    open_sgl_layer();
+    setup_2d_projection();
+    return true;
+}
 
-    /* upload the font atlas before opening the pass (sg_update_image cannot run
-     * inside a render pass) */
-    sk_font_flush();
+SK_KEEP
+void sk_render_end_texture(void)
+{
+    if (sk_render_current_pass_index == 0) {
+        log_warn("sk_render_end_texture: not drawing into a texture");
+        return;
+    }
+    sk_render_current_pass_index = 0;
+    sk_texture_set_drawing_into(0);
+    sk_text_set_pass(0);
+    if (sk_render_cmd_count < MAX_RENDER_CMDS) {
+        open_sgl_layer();
+    }
+    setup_2d_projection();
+}
 
-    sg_begin_pass(&pass);
+/* Replay the commands recorded for pass `index` into the open sg pass. */
+static void replay_pass(int index)
+{
     for (int i = 0; i < sk_render_cmd_count; i++) {
         const sk_render_cmd_t *cmd = &sk_render_cmds[i];
+        if (cmd->pass != index) {
+            continue;
+        }
         if (cmd->kind == RENDER_CMD_SGL_LAYER) {
             sgl_draw_layer(cmd->layer); /* shapes / sprites / 2D / fontstash text */
         } else {
             sk_model_draw_items(cmd->first, cmd->count); /* custom-pipeline meshes */
         }
     }
-    sk_text_flush(); /* debugtext overlay */
+}
+
+/* Clear the pass, or keep what an earlier pass drew into the same target. */
+static sg_pass_action pass_action(int index)
+{
+    const color_t color = sk_render_passes[index].clear_color;
+    bool drawn_before = false;
+    for (int p = 1; p < index && !drawn_before; p++) {
+        drawn_before = sk_render_passes[p].target == sk_render_passes[index].target;
+    }
+    return (sg_pass_action){
+        .colors[0] = {
+            .load_action = drawn_before ? SG_LOADACTION_LOAD : SG_LOADACTION_CLEAR,
+            .clear_value = {color.r, color.g, color.b, color.a},
+        },
+        .depth = {.load_action = drawn_before ? SG_LOADACTION_LOAD : SG_LOADACTION_CLEAR, .clear_value = 1.0f},
+    };
+}
+
+SK_KEEP
+void sk_render_end(void)
+{
+    if (sk_render_current_pass_index != 0) {
+        log_warn("sk_render_end: still drawing into a texture (missing sk_render_end_texture)");
+        sk_render_end_texture();
+    }
+    sk_debug_draw();
+
+    /* upload the font atlas before opening the pass (sg_update_image cannot run
+     * inside a render pass) */
+    sk_font_flush();
+
+    /* render targets first, in the order they were begun, then the screen */
+    for (int p = 1; p < sk_render_pass_count; p++) {
+        sg_attachments attachments;
+        int w = 0, h = 0;
+        if (!sk_texture_get_target(sk_render_passes[p].target, &attachments, &w, &h)) {
+            continue; /* destroyed during the frame */
+        }
+        sk_texture_set_drawing_into(sk_render_passes[p].target);
+        sg_begin_pass(&(sg_pass){
+            .action = pass_action(p),
+            .attachments = attachments,
+            .label = "sk-render-target",
+        });
+        replay_pass(p);
+        sk_text_flush(p); /* bitmap text drawn into this target */
+        sg_end_pass();
+    }
+    sk_texture_set_drawing_into(0);
+    sg_begin_pass(&(sg_pass){
+        .action = pass_action(0),
+        .swapchain = sk_platform_swapchain(),
+    });
+    replay_pass(0);
+    sk_text_flush(0); /* bitmap text overlay */
     sg_end_pass();
     sg_commit();
 
@@ -263,9 +388,8 @@ SK_KEEP
 void sk_render_begin_mode_3d(void)
 {
     sk_camera3d_t cam;
-    const float w = (float)sk_platform_width();
-    const float h = (float)sk_platform_height();
-    const float aspect = h > 0.0f ? w / h : 1.0f;
+    const vec2_t size = sk_render_target_size();
+    const float aspect = size.y > 0.0f ? size.x / size.y : 1.0f;
 
     if (!sk_camera3d_get_active_data(&cam)) {
         return;

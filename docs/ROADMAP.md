@@ -110,9 +110,10 @@ functions (value returns instead), public `fs_*` (internal; see
 
 ## Supporting / cross-cutting (slot in when an item above needs it)
 
-- **Offscreen / render-to-texture** — `sk_render` has no render targets yet.
-  Foundational for post-effects, UI compositing, the text-bake idea, and
-  particle-to-buffer. Build when the first consumer needs it.
+- ~~**Offscreen / render-to-texture**~~ — done (2026-09-16): render targets are
+  textures (`sk_texture_create_target`, `sk_render_begin_texture`); see
+  [PLAN-render-target.md](PLAN-render-target.md). Still to come: persistent
+  (uncleared) targets, HDR formats and full-screen passes for post-effects.
 - **Mouse / pointer input + 2D hit-testing** — prerequisite for pickable UI;
   lands together with the 2D layer (confirm how much pointer input is exposed
   today).

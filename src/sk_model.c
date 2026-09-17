@@ -14,7 +14,6 @@
 #include "internal/sk_math.h"
 #include "internal/sk_model.h"
 #include "internal/sk_pick.h"
-#include "internal/sk_platform.h"
 #include "internal/sk_render.h"
 #include "internal/sk_scene.h"
 #include "internal/sk_texture.h"
@@ -144,6 +143,7 @@ typedef struct {
 /* One model placement queued this frame (matrices and tint captured at submit). */
 typedef struct {
     sk_handle_t model;
+    int pass;             /* render pass it was queued in (sk_render_current_pass) */
     sk_mat4_t mvp;
     sk_mat4_t model_mat;
     sk_mat4_t model_view; /* for view-space depth when sorting transparent parts */
@@ -1648,13 +1648,15 @@ static int begin_draw(sk_handle_t handle, sk_model_t *model_ptr)
     sk_mat4_t model_mat, view, proj;
     float aspect;
     sk_model_draw_t *e;
+    vec2_t target_size;
 
     const int light_env = sk_light_env_current();
     const sk_light_env_t *env = sk_light_env_get(light_env);
     sk_mesh_t *mesh_ptr = resolve_mesh(model_ptr->mesh);
 
     if (sk_model_draw_count > 0 && sk_model_draws[sk_model_draw_count - 1].model == handle &&
-        sk_model_draws[sk_model_draw_count - 1].light_env == light_env) {
+        sk_model_draws[sk_model_draw_count - 1].light_env == light_env &&
+        sk_model_draws[sk_model_draw_count - 1].pass == sk_render_current_pass()) {
         return sk_model_draw_count - 1;
     }
     if (sk_model_draw_count >= MAX_MODEL_DRAWS) {
@@ -1665,13 +1667,15 @@ static int begin_draw(sk_handle_t handle, sk_model_t *model_ptr)
         return -1;
     }
 
-    aspect = sk_platform_height() > 0 ? (float)sk_platform_width() / (float)sk_platform_height() : 1.0f;
+    target_size = sk_render_target_size(); /* the screen, or the render target being drawn into */
+    aspect = target_size.y > 0.0f ? target_size.x / target_size.y : 1.0f;
     model_mat = sk_mat4_trs(model_ptr->position, model_ptr->rotation, model_ptr->scale);
     view = sk_camera3d_view(&cam);
     proj = sk_camera3d_projection(&cam, aspect);
 
     e = &sk_model_draws[sk_model_draw_count];
     e->model = handle;
+    e->pass = sk_render_current_pass();
     e->mvp = sk_mat4_mul(sk_mat4_mul(proj, view), model_mat);
     e->model_mat = model_mat;
     e->model_view = sk_mat4_mul(view, model_mat);
@@ -1838,6 +1842,11 @@ static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material)
     for (int t = 0; t < SK_MATERIAL_TEXTURE_COUNT; t++) {
         float m[6];
         sk_material_uv_matrix(&material->textures[t], m);
+        if (sk_texture_is_flipped(material->textures[t].texture)) { /* render target stored bottom-up */
+            m[3] = -m[3];
+            m[4] = -m[4];
+            m[5] = 1.0f - m[5];
+        }
         fsp.u_uv_row0[t][0] = m[0];
         fsp.u_uv_row0[t][1] = m[1];
         fsp.u_uv_row0[t][2] = m[2];

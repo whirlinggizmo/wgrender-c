@@ -6,6 +6,7 @@
 #include "internal/exports.h"
 #include "internal/sk_font.h"
 #include "internal/sk_internal.h"
+#include "internal/sk_render.h"
 #include "sk_window.h"
 
 #include "fontstash.h"
@@ -35,9 +36,14 @@ void sk_text_deinit(void)
     sdtx_shutdown();
 }
 
-void sk_text_flush(void)
+void sk_text_set_pass(int pass)
 {
-    sdtx_draw();
+    sdtx_layer(pass);
+}
+
+void sk_text_flush(int pass)
+{
+    sdtx_draw_layer(pass);
 }
 
 static float size_to_scale(int font_size)
@@ -51,7 +57,9 @@ static void draw_at(const char *text, int x, int y, int font_size, color_t c)
     const float scale = size_to_scale(font_size);
     const float fs = scale * SK_TEXT_GLYPH_BASE; /* pixel height of a glyph */
 
-    sdtx_canvas(sk_window_get_screen_size().x / scale, sk_window_get_screen_size().y / scale); /* logical pixels */
+    /* the screen in logical pixels, a render target in its pixels */
+    const vec2_t canvas = sk_render_current_pass() == 0 ? sk_window_get_screen_size() : sk_render_target_size();
+    sdtx_canvas(canvas.x / scale, canvas.y / scale);
     sdtx_font(0);
     /* pixel position -> character grid: 1 char == fs pixels */
     sdtx_pos((float)x / fs, (float)y / fs);

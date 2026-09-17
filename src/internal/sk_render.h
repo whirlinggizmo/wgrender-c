@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 
+#include "sk_types.h"
+
 /* Frame command list
  * ------------------
  * sokol_gl content (shapes, sprites, 2D, fontstash text) is recorded into
@@ -25,5 +27,12 @@ void sk_render_submit_models(int first, int count);
 /* Switch the sokol_gl 3D pipeline between opaque (depth writes on) and
  * transparent (blended, depth writes off). Only valid inside 3D mode. */
 void sk_render_set_3d_transparent(bool transparent);
+
+/* The pass being recorded: 0 = the screen, >0 = a render target pass. */
+int sk_render_current_pass(void);
+
+/* Size of what's being drawn into, in framebuffer pixels: the current render
+ * target, else the screen. For aspect ratios. */
+vec2_t sk_render_target_size(void);
 
 #endif // SK_INTERNAL_RENDER_H

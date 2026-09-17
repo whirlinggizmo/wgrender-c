@@ -33,6 +33,19 @@ sk_handle_t sk_texture_get_default(void);
 sk_handle_t sk_texture_get_placeholder(void);
 bool        sk_texture_set_placeholder(sk_handle_t texture);
 sk_handle_t sk_texture_create(const char *path);
+
+/* A texture you can draw into (a render target): width x height pixels, cleared
+ * to transparent black each time it's drawn into. Draw into it between
+ * sk_render_begin_texture and sk_render_end_texture, then use it like any
+ * texture. It matches the screen's pixel format and anti-aliasing (MSAA) and has
+ * no mipmaps. See docs/PLAN-render-target.md. */
+sk_handle_t sk_texture_create_target(int width, int height);
+
+/* How the texture is sampled where it's drawn directly (sprites, sk_texture_draw).
+ * Materials set their own sampling per texture. Default: clamp, linear. Use
+ * SK_TEXTURE_FILTER_NEAREST for crisp scaled-up pixel art. */
+bool sk_texture_set_sampling(sk_handle_t texture, sk_texture_wrap_t wrap_u, sk_texture_wrap_t wrap_v,
+                             sk_texture_filter_t filter);
 vec2_t      sk_texture_get_size(sk_handle_t handle);
 
 /* Draw a texture once, axis-aligned, top-left at (x, y) in logical pixels (no

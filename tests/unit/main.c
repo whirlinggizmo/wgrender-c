@@ -50,6 +50,7 @@ static const test_case_t TESTS[] = {
     {"pick_ray_to_local", test_pick_ray_to_local},
     {"pick_world_aabb", test_pick_world_aabb},
     {"pick_ray_from_screen", test_pick_ray_from_screen},
+    {"render_targets", test_render_targets},
     {"scene_view_depth", test_scene_view_depth},
     {"scene_sort_transparent", test_scene_sort_transparent},
 };

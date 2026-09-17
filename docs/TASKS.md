@@ -154,7 +154,12 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 - [ ] Materials, phase 3: shapes and sprites on materials (with the batched renderer)
 - [ ] 2D / UI layer: screen space, draw ordering, 2D picking, pickable UI primitives
 - [ ] Particle emitters (batched/instanced)
-- [ ] Offscreen / render-to-texture (when the first consumer needs it)
+- [x] Render to texture: `sk_texture_create_target`, `sk_render_begin/end_texture`,
+      `sk_texture_set_sampling` ([PLAN-render-target.md](PLAN-render-target.md),
+      `examples/render_target.c`)
+- [ ] Render targets later: keep contents between frames (no clear), per-target
+      formats (HDR/float) for post-processing, full-screen shader passes, reading
+      pixels back / screenshots
 
 ## Materials: glTF coverage
 
