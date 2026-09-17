@@ -208,8 +208,10 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       slot overrides ([PLAN-materials.md](PLAN-materials.md), `examples/materials.c`)
 - [ ] Materials, phase 2: custom shaders (`.skshader` packages from sokol-shdc)
 - [ ] Materials, phase 3: shapes and sprites on materials (with the batched renderer)
-- [ ] 2D / UI layer: screen space, draw ordering, 2D picking, pickable UI primitives
-      ([PLAN-2d.md](PLAN-2d.md): steps 1–3 done; sprite3d for 2D worlds to do)
+- [x] 2D / UI layer: `enabled` and pointer interaction per scene member, touch as a
+      pointer, retained 2D shapes, nine-slice sprites, text alignment and wrapping,
+      per-layer clipping, and sprite3d source/extent/pivot for 2D worlds on an
+      orthographic camera ([PLAN-2d.md](PLAN-2d.md), `examples/ui.c`, `examples/2d.c`)
 - [ ] Particle emitters (batched/instanced)
 - [x] Render to texture: `sk_texture_create_target`, `sk_render_begin/end_texture`,
       `sk_texture_set_sampling` ([PLAN-render-target.md](PLAN-render-target.md),

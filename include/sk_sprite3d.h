@@ -24,7 +24,22 @@ bool sk_sprite3d_set_transform(sk_handle_t handle,
                                float position_x, float position_y, float position_z,
                                float rotation_x, float rotation_y, float rotation_z, /* radians */
                                float scale_x, float scale_y, float scale_z);
+/* World size of the quad before scale: set_size is the square shorthand for
+ * set_extent(size, size). Default 1x1; a width or height <= 0 is refused. */
 bool sk_sprite3d_set_size(sk_handle_t handle, float size);
+bool sk_sprite3d_set_extent(sk_handle_t handle, float width, float height);
+
+/* Region of the texture to show, in texture pixels (sprite sheets, atlases).
+ * Default: the whole texture; width or height <= 0 resets to that. */
+bool sk_sprite3d_set_source(sk_handle_t handle, float x, float y, float width, float height);
+
+/* The point of the quad that sits on the sprite's position and that it turns
+ * around, as a fraction of the quad: (0, 0) its top-left, (1, 1) its
+ * bottom-right, (0.5, 0.5) its center (the default). y runs down the texture, so
+ * (0.5, 1) puts the position at the bottom edge — what a sprite standing on the
+ * ground wants. */
+bool sk_sprite3d_set_pivot(sk_handle_t handle, float x, float y);
+
 bool sk_sprite3d_set_facing(sk_handle_t handle, sk_sprite3d_facing_t facing);
 vec3_t sk_sprite3d_get_position(sk_handle_t handle);
 vec3_t sk_sprite3d_get_rotation(sk_handle_t handle); /* radians */

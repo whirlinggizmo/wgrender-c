@@ -15,6 +15,8 @@
 #include "sk_scene.h"
 #include "sk_shape2d.h"
 #include "sk_sprite2d.h"
+#include "sk_sprite3d.h"
+#include "internal/sk_texture.h"
 #include "sk_text.h"
 #include "sk_text2d.h"
 #include "sk_texture.h"
@@ -209,6 +211,80 @@ void test_scene_clip(void)
     sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
     sk_scene_destroy(scene);
     sk_shape2d_deinit();
+    sk_camera3d_deinit();
+    sk_color_deinit();
+    sk_scene_deinit();
+    sk_render_deinit();
+    sg_shutdown();
+}
+
+/* sprite3d in a 2D world (docs/PLAN-2d.md step 4): the source rectangle, the world
+ * extent and the pivot, checked through picking — the quad picked is the quad drawn. */
+void test_sprite3d_2d_world(void)
+{
+    const vec2_t screen = sk_window_get_screen_size();
+
+    sg_setup(&(sg_desc){.environment = sk_platform_environment()});
+    sk_render_init();
+    sk_scene_init();
+    sk_color_init();
+    sk_camera3d_init();
+    sk_texture_init();
+    sk_sprite3d_init();
+    sk_logger_set_level(SK_LOGGER_LEVEL_ERROR);
+    CHECK(sk_window_set_size(800, 600));
+
+    /* looking down -Z at the XY plane, 8 world units tall: 600 px / 8 = 75 px per unit */
+    const sk_handle_t camera = sk_camera3d_create(SK_CAMERA3D_ORTHOGRAPHIC);
+    sk_camera3d_set_view(camera, 0, 0, 10, 0, 0, 0, 0, 1, 0);
+    sk_camera3d_set_ortho_height(camera, 8.0f);
+    sk_camera3d_set_active(camera);
+
+    const sk_handle_t sprite = sk_sprite3d_create(sk_texture_get_default());
+    sk_sprite3d_set_facing(sprite, SK_SPRITE3D_FACING_FREE);
+    sk_sprite3d_set_transform(sprite, 0, 0, 0, 0, 0, 0, 1, 1, 1);
+
+    /* 1x1 centered on the origin: the middle of the screen, 75 px across */
+    CHECK(sk_pick_object(sprite, camera, 400, 300).hit);
+    CHECK(sk_pick_object(sprite, camera, 400 + 30, 300).hit);
+    CHECK(!sk_pick_object(sprite, camera, 400 + 50, 300).hit);
+    CHECK(!sk_pick_object(sprite, camera, 400, 300 - 50).hit);
+
+    /* extent: 1 wide, 2 tall — a 16x32 sheet cell drawn with square pixels */
+    CHECK(sk_sprite3d_set_extent(sprite, 1.0f, 2.0f));
+    CHECK(sk_pick_object(sprite, camera, 400, 300 - 50).hit);   /* taller now */
+    CHECK(!sk_pick_object(sprite, camera, 400 + 50, 300).hit);  /* still 1 wide */
+    CHECK(!sk_sprite3d_set_extent(sprite, 0.0f, 2.0f));         /* refused */
+    CHECK(!sk_sprite3d_set_extent(sprite, 1.0f, -1.0f));
+
+    /* pivot at the bottom edge: the quad stands on the sprite's position */
+    CHECK(sk_sprite3d_set_pivot(sprite, 0.5f, 1.0f));
+    CHECK(sk_pick_object(sprite, camera, 400, 300 - 100).hit);  /* the quad is above it */
+    CHECK(!sk_pick_object(sprite, camera, 400, 300 + 20).hit);  /* nothing below */
+    CHECK(sk_sprite3d_set_pivot(sprite, 0.5f, 0.5f));
+    CHECK(sk_pick_object(sprite, camera, 400, 300 + 20).hit);   /* centered again */
+
+    /* the source rectangle doesn't move the quad, and an empty one means the whole
+       texture (defaults), so picking is unchanged */
+    CHECK(sk_sprite3d_set_source(sprite, 32, 16, 16, 16));
+    CHECK(sk_pick_object(sprite, camera, 400, 300).hit);
+    CHECK(sk_sprite3d_set_source(sprite, 0, 0, 0, 0));
+    CHECK(sk_pick_object(sprite, camera, 400, 300).hit);
+    CHECK(!sk_sprite3d_set_source(0, 0, 0, 16, 16));
+    CHECK(!sk_sprite3d_set_pivot(0, 0.5f, 0.5f));
+
+    /* set_size is the square shorthand */
+    CHECK(sk_sprite3d_set_size(sprite, 2.0f));
+    CHECK(sk_pick_object(sprite, camera, 400 + 50, 300).hit);
+    CHECK(sk_pick_object(sprite, camera, 400, 300 - 50).hit);
+
+    sk_sprite3d_draw(sprite); /* draws with a source rectangle without trouble */
+    sk_sprite3d_destroy(sprite);
+
+    CHECK(sk_window_set_size((int)screen.x, (int)screen.y));
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    sk_sprite3d_deinit();
+    sk_texture_deinit();
     sk_camera3d_deinit();
     sk_color_deinit();
     sk_scene_deinit();

@@ -395,9 +395,8 @@ void sk_render_end(void)
 }
 
 SK_KEEP
-void sk_render_begin_mode_2d(sk_handle_t camera)
+void sk_render_begin_mode_2d(void)
 {
-    (void)camera;
     setup_2d_projection();
 }
 

@@ -1,8 +1,8 @@
 # Plan: 2D / UI layer
 
-Status: **in progress.** Steps 1 (enabled, pointer interaction, touch as pointer),
-2 (retained 2D shapes) and 3 (UI essentials) implemented 2026-09-17; see "As built".
-Step 4 (sprite3d for 2D worlds) to do.
+Status: **done** (2026-09-17). All four steps are implemented — see "As built" for
+what shipped and how it differs from the proposal. Examples: `ui` (HUD over a 3D
+model) and `2d` (a scrolling, zooming 2D world).
 
 ## What exists
 
@@ -258,6 +258,28 @@ Default: the shape's own origin — a rectangle's top-left, a circle's center �
 nothing moves until it's set. Lines have explicit endpoints and ignore it. This is the
 same idea as `sk_sprite2d_set_pivot`, and text2d's alignment is its 9-point form; the
 three mechanisms now line up, with each noun's default documented where it belongs.
+
+### Step 4: sprite3d for 2D worlds
+
+- `sk_sprite3d_set_extent(width, height)` — the quad's world size; `set_size(s)` is now
+  the square shorthand for `set_extent(s, s)`, and a width or height <= 0 is refused.
+- `sk_sprite3d_set_source(x, y, width, height)` — the region of the texture to show, in
+  texture pixels, like sprite2d's; width or height <= 0 means the whole texture. The
+  pick's alpha test samples through the same region.
+- `sk_sprite3d_set_pivot(x, y)` — the point of the quad that sits on the position and
+  that it turns around; (0.5, 0.5) center by default, y running down the texture, so
+  (0.5, 1) stands a sprite on the ground. Bounds grow by the pivot offset, so a moved
+  quad still passes the broadphase.
+- `sk_render_begin_mode_2d()` lost its unused camera parameter.
+- `examples/2d.c`: 24x16 ground tiles and props from one 64x48 sheet
+  (`tools/gen_tiles.py`, 705 bytes) under an orthographic camera3d, with drag/arrow
+  scrolling, wheel zoom (the camera's ortho height), and coins that hover and collect
+  through the scene's interaction state with alpha-tested picks. Checked in the browser
+  on both backends with CDP events: hover, click to collect (coins 0 -> 1), wheel zoom
+  (12 -> 7.5 units) and a drag (center 12.0, 8.0 -> 13.2, 7.3).
+- Two practical notes the example records: **no MSAA** and **ground tiles a hair over
+  one unit**, because neighbouring sprites are blended separately and an edge landing
+  exactly on a pixel boundary otherwise lets the background through as a hairline seam.
 
 ## Verification
 

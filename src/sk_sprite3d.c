@@ -24,7 +24,9 @@ typedef struct {
     vec3_t position;
     vec3_t rotation;
     vec3_t scale;
-    float size;
+    float width, height;                                   /* world size before scale */
+    float source_x, source_y, source_width, source_height; /* texture pixels; width/height <= 0: all of it */
+    float pivot_x, pivot_y;                                /* 0..1 across the quad; (0.5, 0.5) is its center */
     int facing;
     sk_handle_t tint;
     bool visible;
@@ -46,6 +48,8 @@ static int collect_transparent(sk_handle_t handle, const sk_camera3d_t *cam,
 static void draw_transparent(sk_handle_t handle, int part);
 static bool sprite_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model);
 static bool sprite_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_result_t *out);
+static void pivot_offset(const sk_sprite3d_t *sprite_ptr, float *out_right, float *out_up);
+static void source_uv(const sk_sprite3d_t *sprite_ptr, int texture_width, int texture_height, float out[4]);
 static void sprite_quad_corners(const sk_sprite3d_t *sprite_ptr, const sk_camera3d_t *cam,
                                 vec3_t *tl, vec3_t *tr, vec3_t *br, vec3_t *bl);
 
@@ -87,7 +91,10 @@ static sk_handle_t create_sprite(sk_handle_t texture)
     sk_sprites[index] = (sk_sprite3d_t){
         .texture = texture,
         .scale = {1.0f, 1.0f, 1.0f},
-        .size = 1.0f,
+        .width = 1.0f,
+        .height = 1.0f,
+        .pivot_x = 0.5f,
+        .pivot_y = 0.5f,
         .facing = SK_SPRITE3D_FACING_CAMERA,
         .tint = 0,
         .visible = true,
@@ -143,9 +150,38 @@ bool sk_sprite3d_set_transform(sk_handle_t handle,
 SK_KEEP
 bool sk_sprite3d_set_size(sk_handle_t handle, float size)
 {
+    return sk_sprite3d_set_extent(handle, size, size);
+}
+
+SK_KEEP
+bool sk_sprite3d_set_extent(sk_handle_t handle, float width, float height)
+{
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    if (sprite_ptr == NULL || width <= 0.0f || height <= 0.0f) return false;
+    sprite_ptr->width = width;
+    sprite_ptr->height = height;
+    return true;
+}
+
+SK_KEEP
+bool sk_sprite3d_set_source(sk_handle_t handle, float x, float y, float width, float height)
+{
     sk_sprite3d_t *sprite_ptr = resolve(handle);
     if (sprite_ptr == NULL) return false;
-    sprite_ptr->size = size;
+    sprite_ptr->source_x = x;
+    sprite_ptr->source_y = y;
+    sprite_ptr->source_width = width;
+    sprite_ptr->source_height = height;
+    return true;
+}
+
+SK_KEEP
+bool sk_sprite3d_set_pivot(sk_handle_t handle, float x, float y)
+{
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    if (sprite_ptr == NULL) return false;
+    sprite_ptr->pivot_x = x;
+    sprite_ptr->pivot_y = y;
     return true;
 }
 
@@ -258,15 +294,20 @@ static void draw_handle(sk_handle_t handle)
     sg_view view;
     sg_sampler smp;
     color_t tint;
-    float top_v;
+    float uv[4];
+    int tw = 0, th = 0;
 
     if (sprite_ptr == NULL || !sprite_ptr->visible) {
         return;
     }
-    if (!sk_texture_get_binding(sprite_ptr->texture, &view, &smp, NULL, NULL)) {
+    if (!sk_texture_get_binding(sprite_ptr->texture, &view, &smp, &tw, &th)) {
         return;
     }
-    top_v = sk_texture_is_flipped(sprite_ptr->texture) ? 1.0f : 0.0f; /* render target stored bottom-up */
+    source_uv(sprite_ptr, tw, th, uv);
+    if (sk_texture_is_flipped(sprite_ptr->texture)) { /* render target stored bottom-up */
+        uv[1] = 1.0f - uv[1];
+        uv[3] = 1.0f - uv[3];
+    }
     if (!sk_camera3d_get_active_data(&cam)) {
         return;
     }
@@ -281,10 +322,10 @@ static void draw_handle(sk_handle_t handle)
         sgl_texture(view, smp);
         sgl_begin_quads();
         sgl_c4f(tint.r, tint.g, tint.b, tint.a);
-        sgl_v3f_t2f(tl.x, tl.y, tl.z, 0.0f, top_v);
-        sgl_v3f_t2f(tr.x, tr.y, tr.z, 1.0f, top_v);
-        sgl_v3f_t2f(br.x, br.y, br.z, 1.0f, 1.0f - top_v);
-        sgl_v3f_t2f(bl.x, bl.y, bl.z, 0.0f, 1.0f - top_v);
+        sgl_v3f_t2f(tl.x, tl.y, tl.z, uv[0], uv[1]);
+        sgl_v3f_t2f(tr.x, tr.y, tr.z, uv[2], uv[1]);
+        sgl_v3f_t2f(br.x, br.y, br.z, uv[2], uv[3]);
+        sgl_v3f_t2f(bl.x, bl.y, bl.z, uv[0], uv[3]);
         sgl_end();
         sgl_disable_texture();
     }
@@ -323,16 +364,17 @@ void sk_sprite3d_draw(sk_handle_t handle)
 static bool sprite_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model)
 {
     sk_sprite3d_t *sprite_ptr = resolve(handle);
-    float hw, hh, r;
+    float hw, hh, r, ox, oy;
     if (sprite_ptr == NULL || !sprite_ptr->visible) {
         return false;
     }
     /* The billboard rotates to face the camera, so use a conservative cube that
      * encloses the quad at any orientation (radius = half-diagonal). This keeps
      * the broadphase from rejecting a glancing hit on the rotated quad. */
-    hw = 0.5f * sprite_ptr->size * sprite_ptr->scale.x;
-    hh = 0.5f * sprite_ptr->size * sprite_ptr->scale.y;
-    r = sqrtf(hw * hw + hh * hh);
+    hw = 0.5f * sprite_ptr->width * sprite_ptr->scale.x;
+    hh = 0.5f * sprite_ptr->height * sprite_ptr->scale.y;
+    pivot_offset(sprite_ptr, &ox, &oy);
+    r = sqrtf(hw * hw + hh * hh) + sqrtf(ox * ox + oy * oy);
     *lmin = (vec3_t){-r, -r, -r};
     *lmax = (vec3_t){r, r, r};
     *model = sk_mat4_translate(sprite_ptr->position.x, sprite_ptr->position.y, sprite_ptr->position.z);
@@ -358,19 +400,46 @@ void sk_sprite3d_facing_basis(sk_sprite3d_facing_t facing, vec3_t rotation, cons
     }
 }
 
+/* The sprite's region of its texture as UVs (u0, v0, u1, v1), top-down like the
+ * image: the whole texture unless a source rectangle is set. */
+static void source_uv(const sk_sprite3d_t *sprite_ptr, int texture_width, int texture_height, float out[4])
+{
+    if (sprite_ptr->source_width <= 0.0f || sprite_ptr->source_height <= 0.0f || texture_width <= 0 ||
+        texture_height <= 0) {
+        out[0] = 0.0f, out[1] = 0.0f, out[2] = 1.0f, out[3] = 1.0f;
+        return;
+    }
+    out[0] = sprite_ptr->source_x / (float)texture_width;
+    out[1] = sprite_ptr->source_y / (float)texture_height;
+    out[2] = (sprite_ptr->source_x + sprite_ptr->source_width) / (float)texture_width;
+    out[3] = (sprite_ptr->source_y + sprite_ptr->source_height) / (float)texture_height;
+}
+
+/* How far the quad's center sits from the sprite's position, along its right and up
+ * axes: 0 for the default center pivot. */
+static void pivot_offset(const sk_sprite3d_t *sprite_ptr, float *out_right, float *out_up)
+{
+    *out_right = (0.5f - sprite_ptr->pivot_x) * sprite_ptr->width * sprite_ptr->scale.x;
+    *out_up = (sprite_ptr->pivot_y - 0.5f) * sprite_ptr->height * sprite_ptr->scale.y;
+}
+
 /* The sprite's quad for this camera; drawing and picking both use it, so the quad
  * picked is the quad on screen. */
 static void sprite_quad_corners(const sk_sprite3d_t *sprite_ptr, const sk_camera3d_t *cam,
                                 vec3_t *tl, vec3_t *tr, vec3_t *br, vec3_t *bl)
 {
     vec3_t right, up, c;
-    float hw, hh;
+    float hw, hh, ox, oy;
 
     sk_sprite3d_facing_basis((sk_sprite3d_facing_t)sprite_ptr->facing, sprite_ptr->rotation, cam, &right, &up);
 
-    hw = 0.5f * sprite_ptr->size * sprite_ptr->scale.x;
-    hh = 0.5f * sprite_ptr->size * sprite_ptr->scale.y;
+    hw = 0.5f * sprite_ptr->width * sprite_ptr->scale.x;
+    hh = 0.5f * sprite_ptr->height * sprite_ptr->scale.y;
+    /* the pivot sits on the position, so the quad's center moves away from it
+       (pivot y runs down the texture, `up` runs up in the world) */
+    pivot_offset(sprite_ptr, &ox, &oy);
     c = sprite_ptr->position;
+    c = (vec3_t){c.x + right.x * ox + up.x * oy, c.y + right.y * ox + up.y * oy, c.z + right.z * ox + up.z * oy};
     *tl = (vec3_t){c.x - right.x * hw + up.x * hh, c.y - right.y * hw + up.y * hh, c.z - right.z * hw + up.z * hh};
     *tr = (vec3_t){c.x + right.x * hw + up.x * hh, c.y + right.y * hw + up.y * hh, c.z + right.z * hw + up.z * hh};
     *br = (vec3_t){c.x + right.x * hw - up.x * hh, c.y + right.y * hw - up.y * hh, c.z + right.z * hw - up.z * hh};
@@ -414,7 +483,12 @@ static bool sprite_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_r
      * so the ray passes through to whatever is behind the sprite. UVs follow the
      * quad layout in draw_handle(): tl=(0,0) tr=(1,0) br=(1,1) bl=(0,1). */
     if (best != NULL && sprite_ptr->pick_alpha_test) {
-        float uv_x, uv_y, a;
+        float uv_x, uv_y, a, uv[4];
+        sg_view view;
+        sg_sampler smp;
+        int tw = 0, th = 0;
+        sk_texture_get_binding(sprite_ptr->texture, &view, &smp, &tw, &th);
+        source_uv(sprite_ptr, tw, th, uv);
         if (best == &h0) { /* tri (tl,tr,br): uv = (u+v, v) */
             uv_x = best->u + best->v;
             uv_y = best->v;
@@ -422,6 +496,8 @@ static bool sprite_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_r
             uv_x = best->u;
             uv_y = best->u + best->v;
         }
+        uv_x = uv[0] + uv_x * (uv[2] - uv[0]);
+        uv_y = uv[1] + uv_y * (uv[3] - uv[1]);
         if (sk_texture_sample_alpha(sprite_ptr->texture, uv_x, uv_y, &a) &&
             a < sprite_ptr->pick_alpha_threshold) {
             best = NULL;
