@@ -20,7 +20,16 @@ extern "C" {
  * .glb) also ensures the buffers and images it references, relative to it, and the
  * callback fires once all of them are local. A missing buffer fails; a missing
  * image only warns, and the model uses the placeholder texture
- * (sk_texture_set_placeholder) in its place. */
+ * (sk_texture_set_placeholder) in its place.
+ *
+ * Files are also loaded before the callback fires, so creating the resource in the
+ * callback is cheap: decoding runs on worker threads, and GPU uploads run on the
+ * main thread within a per-frame budget (sk_asset_set_upload_budget). The extension
+ * names the resource: .png/.jpg/.jpeg a texture, .gltf/.glb a mesh, .hdr an
+ * environment, .wav/.ogg/.mp3 audio. A resource the callback doesn't create is
+ * freed after it returns; pass SK_ASSET_FILE_ONLY for a file used any other way
+ * (a PNG for sk_environment_create, say). A file that can't be loaded fires the
+ * failure callback. */
 
 typedef void (*sk_asset_callback_fn)(const char *path, void *user_data);
 
@@ -35,6 +44,8 @@ enum {
     SK_ASSET_NONE        = 0,
     SK_ASSET_FORCE_FETCH = 1 << 0, /* re-download even if cached; no-op where no
                                       network fetch exists (desktop today) */
+    SK_ASSET_FILE_ONLY   = 1 << 1, /* only make the file local; don't load it as the
+                                      resource its extension names (see below) */
 };
 
 /* Set the asset base that logical paths resolve against. On desktop this is a
@@ -66,6 +77,27 @@ sk_asset_add_task_result_t sk_asset_add_task(sk_handle_t task,
                                              sk_asset_callback_fn on_success,
                                              sk_asset_callback_fn on_failure,
                                              void *user_data);
+
+/* Groups: one task for many files (for a level or a loading screen). A group
+ * completes when all of its members have, successfully only if they all did, and
+ * then fires its own callbacks (sk_asset_add_task) with an empty path. Members
+ * keep their own callbacks, if they have any, and load without them. The group
+ * holds its members' resources until its callbacks have run, so they can be
+ * created there (with the paths the members' callbacks received). */
+sk_handle_t sk_asset_group_create(void);
+/* Add a file task (sk_asset_ensure_async) to a group. False for anything else, or
+ * a task that's already in a group. */
+bool sk_asset_group_add(sk_handle_t group, sk_handle_t task);
+
+/* Rough progress of a task or group, 0..1, for loading screens: a file counts a
+ * quarter each for being fetched, its dependencies, being prepared and being
+ * finished. 1 once the task has completed (its handle is no longer live). */
+float sk_asset_get_progress(sk_handle_t task);
+
+/* Milliseconds per frame spent finishing loads on the main thread (GPU uploads),
+ * default 4. At least one step runs each frame, so one large texture can exceed
+ * it: a 4096x4096 texture is one upload of ~45 ms. */
+void sk_asset_set_upload_budget(float milliseconds);
 
 #ifdef __cplusplus
 }

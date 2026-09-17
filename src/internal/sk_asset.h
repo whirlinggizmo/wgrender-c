@@ -35,6 +35,12 @@ bool sk_asset_join_relative(const char *base_path, const char *uri, char *out, s
  * "data:" URIs, absolute URLs ("scheme://...") and absolute paths. */
 bool sk_asset_is_relative_uri(const char *uri);
 
+/* Prepare workers: -1 = the default (CPU cores - 1, at most 4; none without
+ * threads), 0 = prepare on the main thread, one file per frame. Restarts the
+ * workers when the asset layer is running; call it while nothing is loading. */
+void sk_asset_set_worker_count(int count);
+int sk_asset_get_worker_count(void);
+
 /* Asset tasks not finished yet (for test tooling). */
 int sk_asset_pending_count(void);
 

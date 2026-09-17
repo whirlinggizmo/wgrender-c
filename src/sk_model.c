@@ -11,6 +11,7 @@
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_light.h"
+#include "internal/sk_loader.h"
 #include "internal/sk_material.h"
 #include "internal/sk_math.h"
 #include "internal/sk_model.h"
@@ -56,6 +57,9 @@ typedef struct {
     /* for alpha-tested picking of MASK / BLEND materials */
     float *pick_uvs[2];    /* texture coordinate sets 0 and 1, 2 per vertex; NULL = absent */
     float *pick_alpha;     /* vertex color alpha, 1 per vertex; NULL = absent or all opaque */
+    /* while loading: interleaved vertices waiting for upload (indices are pick_indices) */
+    float *upload_vertices;
+    size_t upload_bytes;
 } sk_primitive_t;
 
 /* node transform (base from glTF + per-frame working copy) */
@@ -247,8 +251,9 @@ static sg_shader make_skinned_shader(void)
 /* Textures created while loading one glTF file, one per glTF image (0 = not
  * created yet). The loader holds one reference to each; materials add their own. */
 typedef struct {
-    sk_handle_t texture; /* 0 = not loaded yet */
-    bool failed;         /* couldn't be read or decoded (warned once) */
+    sk_texture_pixels_t *pixels; /* decoded while preparing; freed once uploaded */
+    sk_handle_t texture;         /* 0 = not uploaded (yet) */
+    bool failed;                 /* couldn't be read or decoded (warned) */
 } sk_gltf_image_t;
 
 typedef struct {
@@ -294,41 +299,37 @@ static const unsigned char *image_bytes(const sk_gltf_textures_t *cache, const c
     return (const unsigned char *)*owned;
 }
 
-/* Decode a glTF image into a texture (cached per image). 0 when it can't be
- * loaded (warned once per image). */
-static sk_handle_t load_image(sk_gltf_textures_t *cache, const cgltf_image *img)
+/* Decode a glTF image (any thread). Failures are warned and marked. */
+static void decode_image(sk_gltf_textures_t *cache, const cgltf_image *img)
 {
+    const size_t index = (size_t)(img - cache->gltf->images);
     const unsigned char *bytes;
     void *owned = NULL;
-    int w = 0, h = 0, comp = 0, size = 0;
-    stbi_uc *pixels;
-    size_t index;
+    int size = 0;
 
-    if (img == NULL) {
-        return 0;
+    if (cache->images[index].pixels != NULL || cache->images[index].failed) {
+        return;
     }
-    index = (size_t)(img - cache->gltf->images);
-    if (cache->images[index].texture != 0 || cache->images[index].failed) {
-        return cache->images[index].texture;
-    }
-    cache->images[index].failed = true; /* until it loads */
     bytes = image_bytes(cache, img, &size, &owned);
     if (bytes == NULL) {
         log_warn("model: %s: image %zu (%s) couldn't be read; using the placeholder texture", cache->path,
                  index, img->uri != NULL && strncmp(img->uri, "data:", 5) != 0 ? img->uri : "embedded");
-        return 0;
+        cache->images[index].failed = true;
+        return;
     }
-    pixels = stbi_load_from_memory(bytes, size, &w, &h, &comp, 4);
+    cache->images[index].pixels = sk_texture_pixels_decode(bytes, size);
     free(owned);
-    if (pixels == NULL) {
+    if (cache->images[index].pixels == NULL) {
         log_warn("model: %s: image %zu couldn't be decoded (%s); using the placeholder texture", cache->path, index,
-                 stbi_failure_reason());
-        return 0;
+                 sk_texture_pixels_error());
+        cache->images[index].failed = true;
     }
-    cache->images[index].texture = sk_texture_create_rgba(pixels, w, h);
-    cache->images[index].failed = cache->images[index].texture == 0;
-    stbi_image_free(pixels);
-    return cache->images[index].texture;
+}
+
+/* The texture uploaded for a glTF image; 0 when it couldn't be loaded. */
+static sk_handle_t load_image(sk_gltf_textures_t *cache, const cgltf_image *img)
+{
+    return img != NULL ? cache->images[img - cache->gltf->images].texture : 0;
 }
 
 static sk_texture_wrap_t gltf_wrap(cgltf_wrap_mode mode)
@@ -508,7 +509,8 @@ void sk_model_generate_tangents(const float *positions, const float *normals, co
     free(bitangents);
 }
 
-/* Build a GPU primitive. For static primitives `node_world` (when non-NULL) is
+/* Build a primitive's CPU data (any thread; upload_primitive creates its GPU
+ * buffers). For static primitives `node_world` (when non-NULL) is
  * baked into positions, normals and tangents: glTF places them with their node's
  * world transform. Skinned primitives ignore it; their joints place them. */
 static bool build_primitive(const cgltf_data *g, const cgltf_primitive *prim, bool skinned,
@@ -661,12 +663,9 @@ static bool build_primitive(const cgltf_data *g, const cgltf_primitive *prim, bo
         memcpy(v + 14, &colors[i * 4], 4 * sizeof(float));
     }
 
-    out->vbuf = sg_make_buffer(&(sg_buffer_desc){
-        .usage.vertex_buffer = true,
-        .data = {.ptr = verts, .size = vcount * stride * sizeof(float)}});
-    out->ibuf = sg_make_buffer(&(sg_buffer_desc){
-        .usage.index_buffer = true,
-        .data = {.ptr = indices, .size = icount * sizeof(uint32_t)}});
+    out->upload_vertices = verts;
+    out->upload_bytes = vcount * stride * sizeof(float);
+    verts = NULL;
     out->index_count = (int)icount;
     out->skinned = skinned;
     out->material = prim->material != NULL ? (int)(prim->material - g->materials) : default_material;
@@ -825,9 +824,8 @@ static void parse_animations(sk_mesh_t *mesh, const cgltf_data *g)
 
 /* One material per glTF material, plus glTF's default material if a primitive
  * uses it. Textures are shared between materials that use the same image. */
-static void load_materials(sk_mesh_t *mesh, const cgltf_data *g, const char *path)
+static void load_materials(sk_mesh_t *mesh, const cgltf_data *g, sk_gltf_textures_t *cache)
 {
-    sk_gltf_textures_t cache = {.gltf = g, .path = path};
     bool uses_default = false;
 
     for (int p = 0; p < mesh->prim_count; p++) {
@@ -838,22 +836,18 @@ static void load_materials(sk_mesh_t *mesh, const cgltf_data *g, const char *pat
         return;
     }
     mesh->materials = (sk_handle_t *)calloc((size_t)mesh->material_count, sizeof(sk_handle_t));
-    cache.images = (sk_gltf_image_t *)calloc(g->images_count + 1, sizeof(sk_gltf_image_t));
-    if (mesh->materials == NULL || cache.images == NULL) {
-        free(cache.images);
+    if (mesh->materials == NULL) {
         mesh->material_count = 0;
         return;
     }
     for (int i = 0; i < mesh->material_count; i++) {
-        mesh->materials[i] = create_gltf_material(&cache, i < (int)g->materials_count ? &g->materials[i] : NULL);
+        mesh->materials[i] = create_gltf_material(cache, i < (int)g->materials_count ? &g->materials[i] : NULL);
     }
-    for (cgltf_size i = 0; i < g->images_count; i++) {
-        sk_texture_release(cache.images[i].texture); /* materials hold what they use */
-    }
-    free(cache.images);
 }
 
-static bool load_model(sk_mesh_t *mesh, const unsigned char *data, int size, const char *path)
+/* Parse a glTF file into a mesh's CPU data (any thread). On success `*gltf` stays
+ * loaded for creating the materials. */
+static bool parse_model(sk_mesh_t *mesh, const unsigned char *data, int size, const char *path, cgltf_data **gltf)
 {
     cgltf_options options = {0};
     cgltf_data *g = NULL;
@@ -906,7 +900,6 @@ static bool load_model(sk_mesh_t *mesh, const unsigned char *data, int size, con
         }
     }
     mesh->prim_count = idx;
-    if (idx > 0) load_materials(mesh, g, path);
 
     /* merged local-space AABB for broadphase/picking */
     mesh->lmin = (vec3_t){1e30f, 1e30f, 1e30f};
@@ -920,8 +913,12 @@ static bool load_model(sk_mesh_t *mesh, const unsigned char *data, int size, con
         if (mesh->prims[p].pmax.z > mesh->lmax.z) mesh->lmax.z = mesh->prims[p].pmax.z;
     }
 
-    cgltf_free(g);
-    return idx > 0;
+    if (idx == 0) {
+        cgltf_free(g);
+        return false;
+    }
+    *gltf = g;
+    return true;
 }
 
 /* ----------------------------------------------------------- animation ---- */
@@ -1147,6 +1144,23 @@ static sk_model_t *resolve(sk_handle_t handle)
     return &sk_models[index];
 }
 
+/* A mesh's CPU data (any thread, for meshes that were never uploaded). */
+static void free_mesh_cpu_data(sk_mesh_t *mesh)
+{
+    for (int p = 0; p < mesh->prim_count; p++) {
+        free(mesh->prims[p].pick_positions);
+        free(mesh->prims[p].pick_indices);
+        free(mesh->prims[p].pick_joints);
+        free(mesh->prims[p].pick_weights);
+        free(mesh->prims[p].pick_uvs[0]);
+        free(mesh->prims[p].pick_uvs[1]);
+        free(mesh->prims[p].pick_alpha);
+        free(mesh->prims[p].upload_vertices);
+    }
+    free(mesh->prims);
+    free_mesh_cpu(mesh);
+}
+
 static void free_mesh_data(sk_mesh_t *mesh)
 {
     for (int p = 0; p < mesh->prim_count; p++) {
@@ -1159,6 +1173,7 @@ static void free_mesh_data(sk_mesh_t *mesh)
         free(mesh->prims[p].pick_uvs[0]);
         free(mesh->prims[p].pick_uvs[1]);
         free(mesh->prims[p].pick_alpha);
+        free(mesh->prims[p].upload_vertices);
     }
     free(mesh->prims);
     for (int m = 0; m < mesh->material_count; m++) {
@@ -1198,35 +1213,157 @@ static sk_handle_t find_mesh_by_path(const char *path)
     return 0;
 }
 
-static sk_handle_t create_mesh(const unsigned char *data, int size, const char *path)
-{
-    sk_handle_t handle;
-    uint16_t index = 0;
-    sk_mesh_t mesh = {0};
+/* ------------------------------------------------------------ mesh loader */
 
-    if (!load_model(&mesh, data, size, path)) {
-        log_error("failed to load model");
-        free_mesh_data(&mesh);
-        return 0;
+/* A glTF file loaded into CPU data (prepare, any thread), created on the main
+ * thread in steps: buffers, then one texture per step, then materials. */
+typedef struct {
+    sk_mesh_t mesh;              /* moves into the mesh pool when finished */
+    unsigned char *file;         /* the file's bytes: a .glb's buffers point into them */
+    cgltf_data *gltf;
+    sk_gltf_textures_t textures;
+    int step;                    /* 0 = buffers, then images, then materials */
+    size_t next_image;
+} sk_mesh_prepared_t;
+
+static void *prepare_mesh(const char *path)
+{
+    sk_mesh_prepared_t *prepared;
+    unsigned char *bytes;
+    int size = 0;
+    bool ok;
+
+    bytes = read_file_bytes(path, &size);
+    if (bytes == NULL) {
+        log_error("failed to open model: %s", path != NULL ? path : "(null)");
+        return NULL;
     }
-    handle = sk_handle_pool_alloc(&sk_mesh_pool);
+    prepared = (sk_mesh_prepared_t *)calloc(1, sizeof(sk_mesh_prepared_t));
+    ok = prepared != NULL && parse_model(&prepared->mesh, bytes, size, path, &prepared->gltf);
+    if (!ok) {
+        log_error("failed to load model: %s", path != NULL ? path : "(null)");
+        if (prepared != NULL) free_mesh_cpu_data(&prepared->mesh);
+        free(prepared);
+        free(bytes);
+        return NULL;
+    }
+    prepared->file = bytes;
+    prepared->textures.gltf = prepared->gltf;
+    prepared->textures.path = path; /* only while preparing: the loader's path outlives it */
+    prepared->textures.images =
+        (sk_gltf_image_t *)calloc(prepared->gltf->images_count + 1, sizeof(sk_gltf_image_t));
+    if (prepared->textures.images != NULL) {
+        /* images that textures use, decoded here (the slow part of most models) */
+        for (cgltf_size t = 0; t < prepared->gltf->textures_count; t++) {
+            if (prepared->gltf->textures[t].image != NULL) {
+                decode_image(&prepared->textures, prepared->gltf->textures[t].image);
+            }
+        }
+    }
+    prepared->textures.path = NULL;
+    return prepared;
+}
+
+static void discard_mesh(void *data)
+{
+    sk_mesh_prepared_t *prepared = (sk_mesh_prepared_t *)data;
+
+    if (prepared == NULL) return;
+    if (prepared->textures.images != NULL) {
+        for (cgltf_size i = 0; i < prepared->gltf->images_count; i++) {
+            sk_texture_pixels_free(prepared->textures.images[i].pixels);
+            sk_texture_release(prepared->textures.images[i].texture); /* materials hold what they use */
+        }
+    }
+    free(prepared->textures.images);
+    free_mesh_data(&prepared->mesh); /* empty once moved into the pool */
+    cgltf_free(prepared->gltf);
+    free(prepared->file);
+    free(prepared);
+}
+
+static bool upload_primitive(sk_primitive_t *prim)
+{
+    prim->vbuf = sg_make_buffer(&(sg_buffer_desc){
+        .usage.vertex_buffer = true,
+        .data = {.ptr = prim->upload_vertices, .size = prim->upload_bytes}});
+    prim->ibuf = sg_make_buffer(&(sg_buffer_desc){
+        .usage.index_buffer = true,
+        .data = {.ptr = prim->pick_indices, .size = (size_t)prim->index_count * sizeof(uint32_t)}});
+    free(prim->upload_vertices);
+    prim->upload_vertices = NULL;
+    if (sg_query_buffer_state(prim->vbuf) != SG_RESOURCESTATE_VALID ||
+        sg_query_buffer_state(prim->ibuf) != SG_RESOURCESTATE_VALID) {
+        log_error("model: couldn't create GPU buffers (see the sokol error above)");
+        return false;
+    }
+    return true;
+}
+
+static sk_loader_step_t finish_mesh(void *data, const char *path, sk_handle_t *resource)
+{
+    sk_mesh_prepared_t *prepared = (sk_mesh_prepared_t *)data;
+    sk_mesh_t *mesh = &prepared->mesh;
+    uint16_t index = 0;
+
+    *resource = 0;
+    if (prepared->step == 0) {
+        for (int p = 0; p < mesh->prim_count; p++) {
+            if (!upload_primitive(&mesh->prims[p])) {
+                return SK_LOADER_FAILED;
+            }
+        }
+        prepared->step = 1;
+        return SK_LOADER_MORE;
+    }
+    if (prepared->textures.images != NULL) {
+        while (prepared->next_image < prepared->gltf->images_count) {
+            sk_gltf_image_t *image = &prepared->textures.images[prepared->next_image++];
+            if (image->pixels != NULL) {
+                image->texture = sk_texture_create_pixels(image->pixels, NULL, true);
+                image->failed = image->texture == 0;
+                sk_texture_pixels_free(image->pixels);
+                image->pixels = NULL;
+                return SK_LOADER_MORE;
+            }
+        }
+    }
+
+    prepared->textures.path = path;
+    load_materials(mesh, prepared->gltf, &prepared->textures);
+    prepared->textures.path = NULL;
+    const sk_handle_t handle = sk_handle_pool_alloc(&sk_mesh_pool);
     if (handle == 0) {
         log_error("MAX_MESHES reached (%d)", MAX_MESHES);
-        free_mesh_data(&mesh);
-        return 0;
+        return SK_LOADER_FAILED;
     }
     if (path != NULL && path[0] != '\0') {
-        size_t n = strlen(path);
-        if (n >= sizeof(mesh.path)) n = sizeof(mesh.path) - 1;
-        memcpy(mesh.path, path, n);
-        mesh.path[n] = '\0';
-        mesh.has_path = true;
+        snprintf(mesh->path, sizeof(mesh->path), "%s", path);
+        mesh->has_path = true;
     }
-    mesh.ref_count = 0; /* references are added by models and explicit ownership */
+    mesh->ref_count = 1;
     sk_handle_pool_resolve(&sk_mesh_pool, handle, &index);
-    sk_meshes[index] = mesh;
-    return handle;
+    sk_meshes[index] = *mesh;
+    memset(mesh, 0, sizeof(*mesh));
+    *resource = handle;
+    return SK_LOADER_DONE;
 }
+
+static sk_handle_t find_mesh(const char *path)
+{
+    const sk_handle_t mesh = find_mesh_by_path(path);
+    retain_mesh(mesh); /* no-op when 0 */
+    return mesh;
+}
+
+static const sk_loader_t sk_mesh_loader = {
+    .name = "mesh",
+    .prepare = prepare_mesh,
+    .finish = finish_mesh,
+    .discard = discard_mesh,
+    .find = find_mesh,
+    .release = release_mesh,
+};
 
 static sk_handle_t create_model(sk_handle_t mesh_handle)
 {
@@ -1280,21 +1417,7 @@ static unsigned char *read_file_bytes(const char *path, int *out_size)
 SK_KEEP
 sk_handle_t sk_mesh_create(const char *path)
 {
-    sk_handle_t mesh = find_mesh_by_path(path);
-    unsigned char *bytes;
-    int size = 0;
-
-    if (mesh != 0) { retain_mesh(mesh); return mesh; }
-    bytes = read_file_bytes(path, &size);
-    if (bytes == NULL) {
-        log_error("failed to open model: %s", path != NULL ? path : "(null)");
-        return 0;
-    }
-    mesh = create_mesh(bytes, size, path);
-    free(bytes);
-    if (mesh == 0) return 0;
-    retain_mesh(mesh);
-    return mesh;
+    return sk_loader_create(&sk_mesh_loader, path);
 }
 
 SK_KEEP void sk_mesh_destroy(sk_handle_t mesh) { release_mesh(mesh); }
@@ -2212,6 +2335,8 @@ void sk_model_init(void)
     sk_scene_register_pick(SK_HANDLE_KIND_MODEL, model_pick);
     sk_asset_register_dependencies(".gltf", list_gltf_dependencies);
     sk_asset_register_dependencies(".glb", list_gltf_dependencies);
+    sk_asset_register_loader(".gltf", &sk_mesh_loader);
+    sk_asset_register_loader(".glb", &sk_mesh_loader);
 }
 
 void sk_model_deinit(void)

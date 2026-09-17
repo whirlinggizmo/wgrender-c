@@ -300,7 +300,13 @@ The same pattern applies to texture/sprite, audio/sound, font/text.
 
 **Loading is split from creation** (`include/sk_asset.h`): *ensure* the file is
 local (async), then *create* synchronously from the path in the ready callback —
-which receives a path, never bytes:
+which receives a path, never bytes. Before the callback fires, the asset pipeline
+also loads the file as the resource its extension names (decoded on worker
+threads, uploaded on the main thread within a per-frame budget), so the create in
+the callback only finds it. Each resource type registers a loader
+(`src/internal/sk_loader.h`: prepare on any thread, finish on the main thread in
+steps); the sync create runs the same loader inline. See
+[PLAN-pipeline.md](PLAN-pipeline.md).
 
 ```c
 static void on_ready(const char *path, void *user) {
@@ -308,7 +314,7 @@ static void on_ready(const char *path, void *user) {
     g_model           = sk_model_create(mesh);  /* object   ← resource    */
     sk_mesh_destroy(mesh);                       /* model keeps its own ref */
 }
-sk_asset_add_task(sk_asset_ensure_async(path, NULL), on_ready, on_failed, ctx);
+sk_asset_add_task(sk_asset_ensure_async(path, NULL, SK_ASSET_NONE), on_ready, on_failed, ctx);
 ```
 
 ---

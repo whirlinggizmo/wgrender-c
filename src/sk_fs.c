@@ -103,8 +103,9 @@ void sk_fs_init(const char *root_dir)
     sk_fs_idbfs_begin(sk_fs_root);
     log_info("sk_fs: idbfs mounting at %s (restoring cache)", sk_fs_root);
 #else
-    const char *cwd = getcwd(NULL, 0);
-    log_info("sk_fs: using stdio relative to working dir (absolute path=%s/%s)", cwd, sk_fs_root);
+    char *cwd = getcwd(NULL, 0);
+    log_info("sk_fs: using stdio relative to working dir (absolute path=%s/%s)", cwd != NULL ? cwd : "?", sk_fs_root);
+    free(cwd);
 #endif
 }
 

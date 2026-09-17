@@ -59,7 +59,7 @@ LIB     := $(BUILD)/libsk.a
 SRCS    := $(wildcard src/*.c)
 OBJS    := $(patsubst src/%.c,$(BUILD)/obj/%.o,$(SRCS))
 
-.PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check parity
+.PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check parity loadbench
 
 all: $(LIB)
 
@@ -107,6 +107,24 @@ verify:
 	@$(MAKE) --no-print-directory test
 	@$(MAKE) --no-print-directory smoke
 	@echo "verify: PASS"
+
+# --- loading benchmark (tools/bench) -----------------------------------------
+# Worst frame while loading Sponza and FlightHelmet, background vs synchronous.
+# Downloads the models on first use. Headless by default (CPU work only);
+# DESKTOP=1 uses the desktop build, with real GPU uploads, in a window.
+loadbench:
+	@tools/bench/fetch_assets.sh
+ifeq ($(DESKTOP),1)
+	@$(MAKE) --no-print-directory -j$(NPROC) all
+	@$(CC) $(STD) -O2 -Iinclude tools/bench/loadbench.c build/desktop/libsk.a \
+	    $$($(MAKE) --no-print-directory -s -C examples print-ldlibs) -o build/desktop/loadbench
+	@build/desktop/loadbench 2>/dev/null
+else
+	@$(MAKE) --no-print-directory -j$(NPROC) all HEADLESS=1
+	@$(CC) $(STD) -O2 -Iinclude tools/bench/loadbench.c build/headless/libsk.a -ldl -lm -lpthread \
+	    -o build/headless/loadbench
+	@build/headless/loadbench 2>/dev/null
+endif
 
 # --- shaders (sokol-shdc) ---------------------------------------------------
 # Regenerates the committed *.glsl.h (GL core, WebGL2, WebGPU) from annotated

@@ -30,7 +30,7 @@ rl_camera3d_set                         ported   sk_camera3d_set_view  plus set_
 
 # --- rl_asset.h ---
 rl_asset_ensure                         dropped  synchronous fetch needs JSPI on wasm; use sk_asset_ensure_async
-rl_asset_ensure_many_async              todo     batch ensure: designed with the loading pipeline (docs/ROADMAP.md)
+rl_asset_ensure_many_async              ported   sk_asset_group_create + sk_asset_group_add (handle-only; members ensured separately) + sk_asset_get_progress
 rl_asset_ensure_many_from_scratch_async dropped  scratch buffer
 rl_asset_finish_task                    dropped  managed task queue fires callbacks (sk_asset_add_task)
 rl_asset_free_task                      dropped  managed task queue frees tasks

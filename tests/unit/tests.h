@@ -57,6 +57,15 @@ void test_parity_model(void);
 void test_parity_sound_pan(void);
 void test_parity_asset_host(void);
 
+void test_pipeline_gpu_pools(void);
+void test_pipeline_mesh_textures(void);
+void test_pipeline_async(void);
+void test_pipeline_unclaimed(void);
+void test_pipeline_failures(void);
+void test_pipeline_budget(void);
+void test_pipeline_shutdown(void);
+void test_pipeline_group(void);
+
 void test_pick_object(void);
 void test_shape_3d(void);
 void test_pick_ray_sphere(void);

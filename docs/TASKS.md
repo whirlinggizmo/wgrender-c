@@ -112,13 +112,30 @@ tick the box in the same commit.
 - [x] Audio regressions from librl fixed: long audio streams (music create 215 ms →
       5 ms, ~108 MB → 6 MB) and mixing runs on the audio device's thread
       ([PLAN-audio.md](PLAN-audio.md))
-- [ ] Loading pipeline: background decode + budgeted GPU upload for all resource
-      types (see ROADMAP, "Loading pipeline"); measure real upload times first
+- [x] Loading pipeline (2026-09-17, [PLAN-pipeline.md](PLAN-pipeline.md),
+      `examples/loading.c`, `make loadbench`): textures, meshes, environments and
+      audio decode on worker threads and upload within a per-frame budget before
+      the asset callback; asset groups and progress; threaded web build
+      (`WEB_THREADS=0` without). Loading Sponza + FlightHelmet: worst frame 1.24 s
+      → 17 ms (desktop, headless) and 1.98 s → 70 ms (WebGL2)
+- [x] Bug: sokol's default pools (128 buffers, images) made Sponza fail to load;
+      pools raised, and a failed GPU buffer or image fails the load
+- [ ] Loading follow-ups: compressed textures (KTX2 / Basis) so a large texture
+      isn't one long upload; shader warm-up (the first frame drawing loaded PBR
+      models stalls ~220 ms on WebGL2 while programs compile); the zero-worker mode
+      prepares a whole glTF in one frame (~1 s for FlightHelmet); `.glb` dependency
+      listing reads the whole file on the main thread; Windows threads are written
+      but untested
+- [ ] Bug: `sk_request_quit` on web aborts in sokol_audio (the audio node keeps
+      pulling after shutdown)
+- [ ] Bug: `[` and `]` draw as boxes in the built-in text font
+- [ ] webcheck: WebGPU runs occasionally fail the first four examples (never
+      start within 20 s); not reproducible on rerun
 - [x] Lighting: light objects (directional, point, spot), per-scene lights and
       ambient, up to 8 lights per model by contribution, nothing lit implicitly
       (docs/PLAN-lighting.md, examples/lights.c). `simple.c` lighting PARITY note
       removed
-- [ ] Remove the remaining `PARITY:` note in `examples/simple.c` when FPS drawing
+- [x] Remove the remaining `PARITY:` note in `examples/simple.c` when FPS drawing
       in a custom font lands
 
 ## librl parity (functional, not 1:1; see `make parity` for function-level status)
@@ -141,8 +158,9 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 - [ ] Window and monitor control: size, position, monitor queries. Deferred:
       sokol_app has no API for them, so it needs native code per platform (X11,
       Win32, Cocoa; canvas size on web), together with the ignored window flags
-- [ ] Assets: ensure many files at once (with the loading pipeline), host ping
-      (with the `sk_net` rework)
+- [x] Assets: ensure many files at once: asset groups (`sk_asset_group_create`,
+      `sk_asset_group_add`) with `sk_asset_get_progress`
+- [ ] Assets: host ping (with the `sk_net` rework)
 
 ## Parity outside the API
 
@@ -195,8 +213,8 @@ Not supported yet:
       `sk_scene_set_environment/background/tonemap`, SH irradiance + GGX-prefiltered
       cubemap + BRDF table, background skybox, tone mapping (Neutral default, ACES)
       and exposure ([PLAN-environment.md](PLAN-environment.md), `examples/environment.c`)
-- [ ] Environment follow-ups: prefilter off the main thread or on the GPU (330 ms per
-      1K HDR today; see the loading pipeline), other inputs (6 cube faces, KTX2
+- [ ] Environment follow-ups: prefiltering runs on a loading worker when loaded
+      through `sk_asset` (330 ms per 1K HDR; sync creates still block), other inputs (6 cube faces, KTX2
       prefiltered), RGBM fallback for backends that can't filter half-float textures,
       HDR framebuffer (bloom, tone mapping sprites together with models)
 - [ ] Generated tangents come from texture coordinate set 0; normal maps on set 1

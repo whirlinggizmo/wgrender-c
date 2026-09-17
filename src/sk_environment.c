@@ -9,6 +9,7 @@
 #include "internal/sk_camera3d.h"
 #include "internal/sk_environment.h"
 #include "internal/sk_handle_pool.h"
+#include "internal/sk_loader.h"
 #include "internal/sk_render.h"
 #include "sk_logger.h"
 
@@ -554,45 +555,68 @@ static sk_handle_t find_by_path(const char *path)
     return 0;
 }
 
-SK_KEEP
-sk_handle_t sk_environment_create(const char *path)
+/* The CPU half of loading an environment (any thread). */
+typedef struct {
+    sk_env_sh_t sh;
+    sk_env_cube_t source;
+    sk_env_cube_t prefiltered;
+} sk_env_prepared_t;
+
+static void *prepare_environment(const char *path)
 {
     sk_env_image_t image;
-    sk_env_cube_t source, prefiltered;
-    sk_environment_t env = {0};
-    sk_handle_t handle = find_by_path(path);
-    uint16_t index = 0;
+    sk_env_prepared_t *prepared;
 
-    if (handle != 0) {
-        sk_environment_retain(handle);
-        return handle;
-    }
-    if (!sk_env.ready) {
-        log_error("sk_environment_create: environments aren't supported by this graphics backend");
-        return 0;
-    }
     if (!load_image(path, &image)) {
         log_error("sk_environment_create: failed to load %s", path != NULL ? path : "(null)");
         free(image.rgb);
-        return 0;
+        return NULL;
     }
-    sk_environment_project_sh(&image, &env.sh);
+    prepared = (sk_env_prepared_t *)calloc(1, sizeof(sk_env_prepared_t));
+    if (prepared == NULL) {
+        free(image.rgb);
+        return NULL;
+    }
+    sk_environment_project_sh(&image, &prepared->sh);
     int source_size = MIN_SOURCE_CUBE_SIZE;
     while (source_size * 2 <= image.width / 4 && source_size < MAX_SOURCE_CUBE_SIZE) source_size *= 2;
-    const bool built = sk_environment_cube_from_equirect(&image, source_size, &source);
-    stbi_image_free(image.rgb);
-    if (!built || !sk_environment_prefilter(&source, SK_ENVIRONMENT_CUBE_SIZE, SK_ENVIRONMENT_MIP_COUNT,
-                                            PREFILTER_SAMPLES, &prefiltered)) {
-        sk_environment_cube_free(&source);
+    const bool built = sk_environment_cube_from_equirect(&image, source_size, &prepared->source);
+    free(image.rgb);
+    if (!built || !sk_environment_prefilter(&prepared->source, SK_ENVIRONMENT_CUBE_SIZE, SK_ENVIRONMENT_MIP_COUNT,
+                                            PREFILTER_SAMPLES, &prepared->prefiltered)) {
         log_error("sk_environment_create: out of memory preparing %s", path);
-        return 0;
+        sk_environment_cube_free(&prepared->source);
+        free(prepared);
+        return NULL;
     }
-    env.background = make_cube_image(&source);
-    env.background_mip_count = source.mip_count;
-    sk_environment_cube_free(&source);
+    return prepared;
+}
+
+static void discard_environment(void *data)
+{
+    sk_env_prepared_t *prepared = (sk_env_prepared_t *)data;
+    if (prepared == NULL) return;
+    sk_environment_cube_free(&prepared->source);
+    sk_environment_cube_free(&prepared->prefiltered);
+    free(prepared);
+}
+
+static sk_loader_step_t finish_environment(void *data, const char *path, sk_handle_t *resource)
+{
+    const sk_env_prepared_t *prepared = (const sk_env_prepared_t *)data;
+    sk_environment_t env = {0};
+    uint16_t index = 0;
+
+    *resource = 0;
+    if (!sk_env.ready) {
+        log_error("sk_environment_create: environments aren't supported by this graphics backend");
+        return SK_LOADER_FAILED;
+    }
+    env.sh = prepared->sh;
+    env.background = make_cube_image(&prepared->source);
+    env.background_mip_count = prepared->source.mip_count;
     env.background_view = sg_make_view(&(sg_view_desc){.texture.image = env.background});
-    env.cube = make_cube_image(&prefiltered);
-    sk_environment_cube_free(&prefiltered);
+    env.cube = make_cube_image(&prepared->prefiltered);
     env.cube_view = sg_make_view(&(sg_view_desc){.texture.image = env.cube});
     if (path != NULL) {
         snprintf(env.path, sizeof(env.path), "%s", path);
@@ -600,18 +624,45 @@ sk_handle_t sk_environment_create(const char *path)
     }
     env.ref_count = 1;
 
-    handle = sk_handle_pool_alloc(&sk_environment_pool);
+    const sk_handle_t handle = sk_handle_pool_alloc(&sk_environment_pool);
     if (handle == 0) {
         log_error("MAX_ENVIRONMENTS reached (%d)", MAX_ENVIRONMENTS);
         sg_destroy_view(env.cube_view);
         sg_destroy_image(env.cube);
         sg_destroy_view(env.background_view);
         sg_destroy_image(env.background);
-        return 0;
+        return SK_LOADER_FAILED;
     }
     sk_handle_pool_resolve(&sk_environment_pool, handle, &index);
     sk_environments[index] = env;
-    return handle;
+    *resource = handle;
+    return SK_LOADER_DONE;
+}
+
+static sk_handle_t find_environment(const char *path)
+{
+    const sk_handle_t environment = find_by_path(path);
+    if (environment != 0) sk_environment_retain(environment);
+    return environment;
+}
+
+static const sk_loader_t sk_environment_loader = {
+    .name = "environment",
+    .prepare = prepare_environment,
+    .finish = finish_environment,
+    .discard = discard_environment,
+    .find = find_environment,
+    .release = sk_environment_release,
+};
+
+SK_KEEP
+sk_handle_t sk_environment_create(const char *path)
+{
+    if (!sk_env.ready) { /* before the CPU work */
+        log_error("sk_environment_create: environments aren't supported by this graphics backend");
+        return 0;
+    }
+    return sk_loader_create(&sk_environment_loader, path);
 }
 
 SK_KEEP
@@ -803,6 +854,7 @@ void sk_environment_init(void)
         .label = "sk-background-triangle",
     });
     sk_env.ready = true;
+    sk_asset_register_loader(".hdr", &sk_environment_loader);
 }
 
 void sk_environment_deinit(void)

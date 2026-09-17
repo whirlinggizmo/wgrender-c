@@ -14,6 +14,7 @@
 
 #include "internal/exports.h"
 #include "internal/sk_handle_pool.h"
+#include "internal/sk_loader.h"
 #include "internal/sk_internal.h"
 #include "sk_handle.h"
 #include "sk_logger.h"
@@ -326,66 +327,130 @@ static void free_audio_data(sk_audio_t *audio_ptr)
     free(audio_ptr->encoded);
 }
 
-sk_handle_t sk_audio_create_mode(const char *path, sk_audio_mode_t mode)
+/* The CPU half of loading audio (any thread): a probed file, decoded or kept for
+ * streaming. */
+static void *prepare_audio_mode(const char *path, sk_audio_mode_t mode)
 {
-    sk_audio_t audio = {0};
-    sk_handle_t handle;
-    uint16_t index = 0;
+    sk_audio_t *audio = (sk_audio_t *)calloc(1, sizeof(sk_audio_t));
     unsigned char *bytes;
     int size = 0;
-    bool stream;
 
+    if (audio == NULL) {
+        return NULL;
+    }
+    bytes = read_file(path, &size);
+    if (bytes == NULL) {
+        log_error("Failed to read audio: %s", path != NULL ? path : "(null)");
+        free(audio);
+        return NULL;
+    }
+    audio->format = probe(bytes, size, path, audio);
+    if (audio->format == FORMAT_UNKNOWN || audio->channels <= 0 || audio->frame_count == 0) {
+        log_error("audio decode failed for %s", path);
+        free(bytes);
+        free(audio);
+        return NULL;
+    }
+    if (mode == SK_AUDIO_MODE_STREAM || (mode == SK_AUDIO_MODE_AUTO && size > SK_AUDIO_STREAM_MIN_BYTES)) {
+        audio->encoded = bytes; /* kept; decoded while playing */
+        audio->encoded_size = size;
+    } else {
+        const bool ok = decode_all(bytes, size, audio);
+        free(bytes);
+        if (!ok) {
+            log_error("audio decode failed for %s", path);
+            free(audio->pcm);
+            free(audio);
+            return NULL;
+        }
+    }
+    return audio;
+}
+
+static void *prepare_audio(const char *path)
+{
+    return prepare_audio_mode(path, SK_AUDIO_MODE_AUTO);
+}
+
+static void discard_audio(void *prepared)
+{
+    if (prepared != NULL) {
+        free_audio_data((sk_audio_t *)prepared); /* no-op once finish took the data */
+        free(prepared);
+    }
+}
+
+static sk_loader_step_t finish_audio(void *prepared, const char *path, sk_handle_t *resource)
+{
+    sk_audio_t *audio = (sk_audio_t *)prepared;
+    uint16_t index = 0;
+
+    if (path != NULL) {
+        snprintf(audio->path, sizeof(audio->path), "%s", path);
+        audio->has_path = path[0] != '\0';
+    }
+    audio->ref_count = 1; /* the caller's, until sk_audio_destroy */
+
+    sk_audio_lock();
+    *resource = sk_handle_pool_alloc(&sk_audio_pool);
+    if (*resource == 0) {
+        sk_audio_unlock();
+        log_error("MAX_AUDIO reached (%d)", MAX_AUDIO);
+        return SK_LOADER_FAILED;
+    }
+    sk_handle_pool_resolve(&sk_audio_pool, *resource, &index);
+    sk_audios[index] = *audio;
+    sk_audio_unlock();
+    audio->pcm = NULL; /* owned by the resource now */
+    audio->encoded = NULL;
+    return SK_LOADER_DONE;
+}
+
+static sk_handle_t find_audio(const char *path)
+{
+    sk_handle_t handle;
     sk_audio_lock();
     handle = find_audio_by_path(path);
     if (handle != 0) {
         sk_audio_retain(handle);
-        sk_audio_unlock();
+    }
+    sk_audio_unlock();
+    return handle;
+}
+
+static void release_audio(sk_handle_t audio)
+{
+    sk_audio_lock();
+    sk_audio_release(audio);
+    sk_audio_unlock();
+}
+
+static const sk_loader_t sk_audio_loader = {
+    .name = "audio",
+    .prepare = prepare_audio,
+    .finish = finish_audio,
+    .discard = discard_audio,
+    .find = find_audio,
+    .release = release_audio,
+};
+
+sk_handle_t sk_audio_create_mode(const char *path, sk_audio_mode_t mode)
+{
+    sk_handle_t handle = find_audio(path);
+    sk_audio_t *prepared;
+
+    if (handle != 0) {
         return handle;
     }
-    sk_audio_unlock();
-
     /* read and decode without the lock: the mixer keeps running meanwhile */
-    bytes = read_file(path, &size);
-    if (bytes == NULL) {
-        log_error("Failed to read audio: %s", path != NULL ? path : "(null)");
+    prepared = (sk_audio_t *)prepare_audio_mode(path, mode);
+    if (prepared == NULL) {
         return 0;
     }
-    audio.format = probe(bytes, size, path, &audio);
-    if (audio.format == FORMAT_UNKNOWN || audio.channels <= 0 || audio.frame_count == 0) {
-        log_error("audio decode failed for %s", path);
-        free(bytes);
-        return 0;
+    if (finish_audio(prepared, path, &handle) != SK_LOADER_DONE) {
+        handle = 0;
     }
-    stream = mode == SK_AUDIO_MODE_STREAM || (mode == SK_AUDIO_MODE_AUTO && size > SK_AUDIO_STREAM_MIN_BYTES);
-    if (stream) {
-        audio.encoded = bytes; /* kept; decoded while playing */
-        audio.encoded_size = size;
-    } else {
-        const bool ok = decode_all(bytes, size, &audio);
-        free(bytes);
-        if (!ok) {
-            log_error("audio decode failed for %s", path);
-            free(audio.pcm);
-            return 0;
-        }
-    }
-    if (path != NULL) {
-        snprintf(audio.path, sizeof(audio.path), "%s", path);
-        audio.has_path = path[0] != '\0';
-    }
-    audio.ref_count = 1; /* the caller's, until sk_audio_destroy */
-
-    sk_audio_lock();
-    handle = sk_handle_pool_alloc(&sk_audio_pool);
-    if (handle == 0) {
-        sk_audio_unlock();
-        log_error("MAX_AUDIO reached (%d)", MAX_AUDIO);
-        free_audio_data(&audio);
-        return 0;
-    }
-    sk_handle_pool_resolve(&sk_audio_pool, handle, &index);
-    sk_audios[index] = audio;
-    sk_audio_unlock();
+    discard_audio(prepared);
     return handle;
 }
 
@@ -587,6 +652,9 @@ void sk_audio_init(void)
     sk_handle_pool_init(&sk_audio_pool, SK_HANDLE_KIND_AUDIO, MAX_AUDIO,
                         sk_audio_free_indices, MAX_AUDIO,
                         sk_audio_generations, sk_audio_occupied);
+    sk_asset_register_loader(".wav", &sk_audio_loader);
+    sk_asset_register_loader(".ogg", &sk_audio_loader);
+    sk_asset_register_loader(".mp3", &sk_audio_loader);
 #if defined(SK_HEADLESS)
     log_info("audio: headless build, no playback");
 #else

@@ -48,7 +48,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function parseArgs(argv) {
     const opts = { backend: "webgl2", headed: false, settle: 20000, quiet: 1500, jobs: 0, out: null,
-                   browser: process.env.WEBCHECK_BROWSER, examples: [] };
+                   browser: process.env.WEBCHECK_BROWSER, threads: true, examples: [] };
     for (const arg of argv) {
         const [key, value] = arg.split(/=(.*)/s);
         switch (key) {
@@ -59,6 +59,7 @@ function parseArgs(argv) {
             case "--jobs": opts.jobs = Number(value); break;
             case "--out": opts.out = value; break;
             case "--browser": opts.browser = value; break;
+            case "--threads": opts.threads = value !== "0"; break;
             default:
                 if (arg.startsWith("--")) throw new Error(`unknown option ${arg}`);
                 opts.examples.push(arg);
@@ -66,7 +67,7 @@ function parseArgs(argv) {
     }
     if (!(opts.backend in BACKEND_LOG)) throw new Error(`--backend must be webgl2 or webgpu, got '${opts.backend}'`);
     if (opts.backend === "webgpu") opts.headed = true;
-    opts.site = join(ROOT, "examples", "build", opts.backend);
+    opts.site = join(ROOT, "examples", "build", opts.threads ? opts.backend : `${opts.backend}-nothreads`);
     if (!(opts.jobs >= 1)) opts.jobs = 4;
     opts.out ??= join(opts.site, "webcheck");
     return opts;
@@ -159,6 +160,9 @@ async function checkExample(browser, debugBase, baseUrl, example, opts) {
         let lastActivity = Date.now();
         session.onEvent((msg) => {
             if (msg.method === "Network.requestWillBeSent") {
+                /* a worker's own script (threaded builds start pthread workers) has no
+                 * loader, and its completion is reported to the worker, not this page */
+                if (!msg.params.loaderId) return;
                 inflight.add(msg.params.requestId);
                 lastActivity = Date.now();
             } else if (msg.method === "Network.loadingFinished" || msg.method === "Network.loadingFailed") {

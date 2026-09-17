@@ -149,6 +149,9 @@ static void on_init(void)
     sg_setup(&(sg_desc){
         .environment = sk_platform_environment(),
         .logger.func = slog_func,
+        .buffer_pool_size = SK_GFX_BUFFER_POOL_SIZE,
+        .image_pool_size = SK_GFX_IMAGE_POOL_SIZE,
+        .view_pool_size = SK_GFX_VIEW_POOL_SIZE,
     });
     sk_logger_info("libsk: %s backend", backend_name(sg_query_backend()));
     stm_setup();

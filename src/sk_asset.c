@@ -9,6 +9,8 @@
 #include "internal/sk_asset.h"
 #include "internal/sk_fs.h"
 #include "internal/sk_handle_pool.h"
+#include "internal/sk_loader.h"
+#include "internal/sk_thread.h"
 #include "internal/sk_internal.h"
 #include "sk_handle.h"
 #include "sk_logger.h"
@@ -32,8 +34,17 @@
 
 #define MAX_ASSET_TASKS 256
 #define MAX_DEPENDENCY_FORMATS 8
+#define MAX_LOADER_FORMATS 16
 
-enum { TASK_NEW = 0, TASK_FETCHING, TASK_WAITING /* on its dependencies */ };
+enum {
+    TASK_NEW = 0,
+    TASK_FETCHING,
+    TASK_WAITING,   /* on its dependencies */
+    TASK_PREPARING, /* queued for or running on a worker */
+    TASK_FINISHING, /* prepared; creating the resource on the main thread */
+};
+#define MAX_WORKERS 4
+#define DEFAULT_UPLOAD_BUDGET_MS 4.0f
 enum { FETCH_PENDING = 0, FETCH_OK, FETCH_FAILED };
 
 typedef struct {
@@ -56,7 +67,35 @@ typedef struct {
     bool dependency_failed;
     bool dependencies_started;
     bool optional;            /* a dependency its parent can do without */
+    /* loading (docs/PLAN-pipeline.md): prepare on a worker, finish on the main thread */
+    char local[512];          /* the local path: the resource's name and the callback's path */
+    const sk_loader_t *loader;
+    void *prepared;
+    sk_handle_t resource;     /* holds one reference until the callback has run */
+    bool load_failed;
+    uint32_t finish_order;    /* finishes run in the order tasks were prepared */
+    bool finish_started;      /* a resource being finished over several steps goes first */
+    /* groups (sk_asset_group_create): a task that completes when its members have */
+    bool is_group;
+    uint16_t group;           /* slot of the group this task is a member of; 0 = none */
+    int dependency_count;     /* dependencies (or a group's members) added in total */
+    int failed_members;
+    struct sk_asset_held *held; /* a group's members' resources, until its callbacks have run */
+    int held_count, held_capacity;
 } sk_asset_task_t;
+
+typedef struct sk_asset_held {
+    const sk_loader_t *loader;
+    sk_handle_t resource;
+} sk_asset_held_t;
+
+/* A prepare job for the workers, or its result. */
+typedef struct {
+    uint16_t slot;
+    const sk_loader_t *loader;
+    char path[512];
+    void *prepared;
+} sk_asset_job_t;
 
 typedef struct {
     char extension[16];
@@ -72,6 +111,31 @@ static bool sk_asset_ready = false;
 static char sk_asset_host[256] = "";
 static sk_asset_format_t sk_asset_formats[MAX_DEPENDENCY_FORMATS];
 static int sk_asset_format_count;
+
+typedef struct {
+    char extension[16];
+    const sk_loader_t *loader;
+} sk_asset_loader_format_t;
+
+static sk_asset_loader_format_t sk_asset_loaders[MAX_LOADER_FORMATS];
+static int sk_asset_loader_count;
+
+/* Workers and their queues (ring buffers of MAX_ASSET_TASKS: a task has at most
+ * one job or result at a time). Guarded by sk_asset_jobs.lock. */
+static struct {
+    sk_mutex_t lock;
+    sk_cond_t wake;
+    sk_thread_t threads[MAX_WORKERS];
+    int worker_count;
+    bool stop;
+    sk_asset_job_t queue[MAX_ASSET_TASKS];
+    int queue_head, queue_count;
+    sk_asset_job_t done[MAX_ASSET_TASKS];
+    int done_head, done_count;
+} sk_asset_jobs;
+static int sk_asset_worker_request = -1; /* -1 = default */
+static float sk_asset_upload_budget_ms = DEFAULT_UPLOAD_BUDGET_MS;
+static uint32_t sk_asset_finish_counter;
 
 static sk_asset_task_t *resolve(sk_handle_t handle)
 {
@@ -184,6 +248,42 @@ void sk_asset_register_dependencies(const char *extension, sk_asset_dependencies
     sk_asset_formats[sk_asset_format_count++].list = list;
 }
 
+void sk_asset_register_loader(const char *extension, const sk_loader_t *loader)
+{
+    for (int i = 0; i < sk_asset_loader_count; i++) {
+        if (strcmp(sk_asset_loaders[i].extension, extension) == 0) {
+            sk_asset_loaders[i].loader = loader;
+            return;
+        }
+    }
+    if (sk_asset_loader_count >= MAX_LOADER_FORMATS || strlen(extension) >= sizeof(sk_asset_loaders[0].extension)) {
+        log_error("Can't register a loader for %s", extension);
+        return;
+    }
+    snprintf(sk_asset_loaders[sk_asset_loader_count].extension, sizeof(sk_asset_loaders[0].extension), "%s", extension);
+    sk_asset_loaders[sk_asset_loader_count++].loader = loader;
+}
+
+sk_handle_t sk_loader_create(const sk_loader_t *loader, const char *path)
+{
+    sk_handle_t resource = loader->find(path);
+    void *prepared;
+    sk_loader_step_t step = SK_LOADER_MORE;
+
+    if (resource != 0) {
+        return resource;
+    }
+    prepared = loader->prepare(path);
+    if (prepared == NULL) {
+        return 0;
+    }
+    while (step == SK_LOADER_MORE) {
+        step = loader->finish(prepared, path, &resource);
+    }
+    loader->discard(prepared);
+    return step == SK_LOADER_DONE ? resource : 0;
+}
+
 bool sk_asset_is_relative_uri(const char *uri)
 {
     if (uri == NULL || uri[0] == '\0' || uri[0] == '/' || strncmp(uri, "data:", 5) == 0) {
@@ -267,6 +367,24 @@ bool sk_asset_join_relative(const char *base_path, const char *uri, char *out, s
     return count > 0;
 }
 
+static bool has_extension(const char *path, const char *extension)
+{
+    const size_t path_len = strlen(path), ext_len = strlen(extension);
+    if (path_len < ext_len) return false;
+    for (size_t k = 0; k < ext_len; k++) {
+        if (tolower((unsigned char)path[path_len - ext_len + k]) != tolower((unsigned char)extension[k])) return false;
+    }
+    return true;
+}
+
+static const sk_loader_t *lookup_loader(const char *path)
+{
+    for (int i = 0; i < sk_asset_loader_count; i++) {
+        if (has_extension(path, sk_asset_loaders[i].extension)) return sk_asset_loaders[i].loader;
+    }
+    return NULL;
+}
+
 static sk_asset_dependencies_fn lookup_format(const char *path)
 {
     const size_t path_len = strlen(path);
@@ -328,6 +446,7 @@ static void add_dependency(const char *uri, bool required, void *context)
     task->optional = !required;
     task->armed = true;
     parent_task->pending++;
+    parent_task->dependency_count++;
 }
 
 /* Queue the dependencies of a task whose own file is now local. */
@@ -395,6 +514,179 @@ sk_asset_add_task_result_t sk_asset_add_task(sk_handle_t handle,
     return SK_ASSET_ADD_TASK_OK;
 }
 
+/* ------------------------------------------------------------- workers ---- */
+
+static void push_job(sk_asset_job_t *ring, int *head, int *count, const sk_asset_job_t *job)
+{
+    ring[(*head + *count) % MAX_ASSET_TASKS] = *job; /* never full: one entry per task */
+    (*count)++;
+}
+
+static bool pop_job(sk_asset_job_t *ring, int *head, int *count, sk_asset_job_t *job)
+{
+    if (*count == 0) return false;
+    *job = ring[*head];
+    *head = (*head + 1) % MAX_ASSET_TASKS;
+    (*count)--;
+    return true;
+}
+
+static void worker_main(void *arg)
+{
+    sk_asset_job_t job;
+    (void)arg;
+    sk_mutex_lock(&sk_asset_jobs.lock);
+    for (;;) {
+        while (!sk_asset_jobs.stop && sk_asset_jobs.queue_count == 0) {
+            sk_cond_wait(&sk_asset_jobs.wake, &sk_asset_jobs.lock);
+        }
+        if (sk_asset_jobs.stop) break;
+        pop_job(sk_asset_jobs.queue, &sk_asset_jobs.queue_head, &sk_asset_jobs.queue_count, &job);
+        sk_mutex_unlock(&sk_asset_jobs.lock);
+        job.prepared = job.loader->prepare(job.path);
+        sk_mutex_lock(&sk_asset_jobs.lock);
+        push_job(sk_asset_jobs.done, &sk_asset_jobs.done_head, &sk_asset_jobs.done_count, &job);
+    }
+    sk_mutex_unlock(&sk_asset_jobs.lock);
+}
+
+static int default_worker_count(void)
+{
+    const int count = sk_thread_cpu_count() - 1;
+    if (!sk_thread_available()) return 0;
+    return count < 1 ? 1 : (count > MAX_WORKERS ? MAX_WORKERS : count);
+}
+
+static void start_workers(int count)
+{
+    sk_asset_jobs.stop = false;
+    sk_asset_jobs.worker_count = 0;
+    for (int i = 0; i < count && i < MAX_WORKERS; i++) {
+        if (!sk_thread_create(&sk_asset_jobs.threads[i], worker_main, NULL)) {
+            log_warn("Asset workers: started %d of %d; the rest of loading runs on the main thread", i, count);
+            break;
+        }
+        sk_asset_jobs.worker_count++;
+    }
+}
+
+static void stop_workers(void)
+{
+    sk_mutex_lock(&sk_asset_jobs.lock);
+    sk_asset_jobs.stop = true;
+    sk_cond_broadcast(&sk_asset_jobs.wake);
+    sk_mutex_unlock(&sk_asset_jobs.lock);
+    for (int i = 0; i < sk_asset_jobs.worker_count; i++) {
+        sk_thread_join(&sk_asset_jobs.threads[i]); /* running prepares finish first */
+    }
+    sk_asset_jobs.worker_count = 0;
+}
+
+void sk_asset_set_worker_count(int count)
+{
+    sk_asset_worker_request = count;
+    if (sk_asset_ready) {
+        stop_workers();
+        start_workers(count >= 0 ? count : default_worker_count());
+    }
+}
+
+int sk_asset_get_worker_count(void)
+{
+    return sk_asset_jobs.worker_count;
+}
+
+SK_KEEP
+void sk_asset_set_upload_budget(float milliseconds)
+{
+    sk_asset_upload_budget_ms = milliseconds > 0.0f ? milliseconds : 0.0f;
+}
+
+/* ------------------------------------------------------ groups, progress */
+
+SK_KEEP
+sk_handle_t sk_asset_group_create(void)
+{
+    sk_handle_t handle;
+    sk_asset_task_t *task_ptr;
+
+    if (!sk_asset_ready) {
+        return 0;
+    }
+    handle = sk_handle_pool_alloc(&sk_asset_pool);
+    if (handle == 0) {
+        log_error("MAX_ASSET_TASKS reached (%d)", MAX_ASSET_TASKS);
+        return 0;
+    }
+    task_ptr = resolve(handle);
+    *task_ptr = (sk_asset_task_t){0};
+    task_ptr->is_group = true;
+    task_ptr->state = TASK_WAITING;
+    return handle;
+}
+
+SK_KEEP
+bool sk_asset_group_add(sk_handle_t group, sk_handle_t task)
+{
+    sk_asset_task_t *group_ptr = resolve(group), *task_ptr = resolve(task);
+    uint16_t group_index = 0;
+
+    if (group_ptr == NULL || task_ptr == NULL || !group_ptr->is_group || task_ptr->is_group || group == task ||
+        task_ptr->group != 0 || task_ptr->parent != 0) {
+        log_warn("sk_asset_group_add: needs a group and a file task that isn't in a group");
+        return false;
+    }
+    sk_handle_pool_resolve(&sk_asset_pool, group, &group_index);
+    task_ptr->group = group_index;
+    task_ptr->armed = true; /* loads even without callbacks of its own */
+    group_ptr->pending++;
+    group_ptr->dependency_count++;
+    return true;
+}
+
+/* Rough progress of one file task: fetched, prepared, finished. */
+static float task_progress(const sk_asset_task_t *task)
+{
+    switch (task->state) {
+        case TASK_WAITING:
+            return 0.25f + 0.25f * (task->dependency_count > 0
+                                        ? (float)(task->dependency_count - task->pending) / (float)task->dependency_count
+                                        : 1.0f);
+        case TASK_PREPARING: return 0.5f;
+        case TASK_FINISHING: return 0.75f;
+        default: return 0.0f; /* queued or downloading */
+    }
+}
+
+SK_KEEP
+float sk_asset_get_progress(sk_handle_t task)
+{
+    uint16_t index = 0;
+    const sk_asset_task_t *task_ptr;
+    float sum;
+
+    if (sk_handle_get_kind(task) != SK_HANDLE_KIND_ASSET_TASK) {
+        return 0.0f;
+    }
+    if (!sk_handle_pool_resolve(&sk_asset_pool, task, &index)) {
+        return 1.0f; /* finished: its callbacks have run */
+    }
+    task_ptr = &sk_asset_tasks[index];
+    if (!task_ptr->is_group) {
+        return task_progress(task_ptr);
+    }
+    if (task_ptr->dependency_count == 0) {
+        return 0.0f;
+    }
+    sum = (float)(task_ptr->dependency_count - task_ptr->pending); /* finished members */
+    for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) {
+        if (sk_asset_occupied[i] && sk_asset_tasks[i].group == index) {
+            sum += task_progress(&sk_asset_tasks[i]);
+        }
+    }
+    return sum / (float)task_ptr->dependency_count;
+}
+
 void sk_asset_init(void)
 {
     memset(sk_asset_tasks, 0, sizeof(sk_asset_tasks));
@@ -408,24 +700,56 @@ void sk_asset_init(void)
         .num_lanes = 4,
     });
 #endif
+    sk_mutex_init(&sk_asset_jobs.lock);
+    sk_cond_init(&sk_asset_jobs.wake);
+    sk_asset_jobs.queue_head = sk_asset_jobs.queue_count = 0;
+    sk_asset_jobs.done_head = sk_asset_jobs.done_count = 0;
+    start_workers(sk_asset_worker_request >= 0 ? sk_asset_worker_request : default_worker_count());
+    log_info("sk_asset: %d loading worker(s)%s", sk_asset_jobs.worker_count,
+             sk_asset_jobs.worker_count == 0 ? " (loading on the main thread)" : "");
     sk_asset_ready = true;
+}
+
+static void ready(uint16_t i, bool ok);
+
+static bool hold(sk_asset_task_t *group, const sk_loader_t *loader, sk_handle_t resource)
+{
+    if (group->held_count == group->held_capacity) {
+        const int capacity = group->held_capacity > 0 ? group->held_capacity * 2 : 8;
+        sk_asset_held_t *held = (sk_asset_held_t *)realloc(group->held, (size_t)capacity * sizeof(sk_asset_held_t));
+        if (held == NULL) return false;
+        group->held = held;
+        group->held_capacity = capacity;
+    }
+    group->held[group->held_count++] = (sk_asset_held_t){loader, resource};
+    return true;
 }
 
 /* Free a finished task slot before firing its callback (which may queue more),
  * then tell the task it's a dependency of, if any. */
-static void finish(uint16_t i, bool ok)
+static void complete(uint16_t i, bool ok)
 {
     sk_handle_t handle = sk_handle_pool_handle_from_index(&sk_asset_pool, i);
     const sk_asset_task_t task = sk_asset_tasks[i];
     char local[512];
 
-    sk_fs_resolve(task.path, local, sizeof(local));
+    if (task.is_group) {
+        local[0] = '\0';
+    } else if (task.local[0] != '\0') {
+        snprintf(local, sizeof(local), "%s", task.local);
+    } else {
+        sk_fs_resolve(task.path, local, sizeof(local));
+    }
     sk_asset_tasks[i] = (sk_asset_task_t){0};
     sk_handle_pool_free(&sk_asset_pool, handle);
     if (ok) {
         if (task.on_success) task.on_success(local, task.user_data);
     } else {
-        if (task.dependency_failed) {
+        if (task.is_group) {
+            log_error("Asset group: some files failed (%d of %d)", task.failed_members, task.dependency_count);
+        } else if (task.load_failed) {
+            log_error("Asset couldn't be loaded: %s", local);
+        } else if (task.dependency_failed) {
             log_error("Asset dependencies missing: %s", local);
         } else if (task.optional) {
             log_warn("Asset not found (optional, dependency of %s): %s", sk_asset_tasks[task.parent].path, local);
@@ -434,14 +758,57 @@ static void finish(uint16_t i, bool ok)
         }
         if (task.on_failure) task.on_failure(local, task.user_data);
     }
+    for (int h = 0; h < task.held_count; h++) {
+        task.held[h].loader->release(task.held[h].resource); /* members' resources nobody created */
+    }
+    free(task.held);
+    if (task.resource != 0 && task.group != 0 && hold(&sk_asset_tasks[task.group], task.loader, task.resource)) {
+        /* the group keeps it until its own callbacks have run */
+    } else if (task.resource != 0) {
+        task.loader->release(task.resource); /* freed unless the callback created it */
+    }
     if (task.parent != 0) {
         sk_asset_task_t *parent = &sk_asset_tasks[task.parent];
         parent->pending--;
         parent->dependency_failed = parent->dependency_failed || (!ok && !task.optional);
         if (parent->pending <= 0) {
-            finish(task.parent, !parent->dependency_failed);
+            ready(task.parent, !parent->dependency_failed);
         }
     }
+    if (task.group != 0) {
+        sk_asset_task_t *group = &sk_asset_tasks[task.group];
+        group->pending--;
+        group->failed_members += ok ? 0 : 1;
+        if (group->pending <= 0 && group->armed) {
+            complete(task.group, group->failed_members == 0);
+        }
+    }
+}
+
+/* A task's files are all local (ok) or not: load its resource, or complete. */
+static void ready(uint16_t i, bool ok)
+{
+    sk_asset_task_t *task = &sk_asset_tasks[i];
+    sk_asset_job_t job = {.slot = i};
+
+    task->loader = ok && task->parent == 0 && !(task->flags & SK_ASSET_FILE_ONLY) ? lookup_loader(task->path) : NULL;
+    if (task->loader == NULL) {
+        complete(i, ok);
+        return;
+    }
+    sk_fs_resolve(task->path, task->local, sizeof(task->local));
+    task->resource = task->loader->find(task->local);
+    if (task->resource != 0) {
+        complete(i, true); /* already loaded */
+        return;
+    }
+    task->state = TASK_PREPARING;
+    job.loader = task->loader;
+    snprintf(job.path, sizeof(job.path), "%s", task->local);
+    sk_mutex_lock(&sk_asset_jobs.lock);
+    push_job(sk_asset_jobs.queue, &sk_asset_jobs.queue_head, &sk_asset_jobs.queue_count, &job);
+    sk_cond_broadcast(&sk_asset_jobs.wake);
+    sk_mutex_unlock(&sk_asset_jobs.lock);
 }
 
 /* A task's own file is local (ok) or unavailable: ensure its dependencies, or finish. */
@@ -454,7 +821,86 @@ static void resolved(uint16_t i, bool ok)
             return; /* finishes when its last dependency does */
         }
     }
-    finish(i, ok && !task->dependency_failed);
+    ready(i, ok && !task->dependency_failed);
+}
+
+/* Prepared jobs back from the workers (or, without workers, one prepared here). */
+static void collect_prepared(void)
+{
+    sk_asset_job_t job;
+    bool have;
+
+    if (sk_asset_jobs.worker_count == 0) {
+        sk_mutex_lock(&sk_asset_jobs.lock);
+        have = pop_job(sk_asset_jobs.queue, &sk_asset_jobs.queue_head, &sk_asset_jobs.queue_count, &job);
+        sk_mutex_unlock(&sk_asset_jobs.lock);
+        if (have) { /* one per frame, so loads don't stack into one stall */
+            job.prepared = job.loader->prepare(job.path);
+            sk_mutex_lock(&sk_asset_jobs.lock);
+            push_job(sk_asset_jobs.done, &sk_asset_jobs.done_head, &sk_asset_jobs.done_count, &job);
+            sk_mutex_unlock(&sk_asset_jobs.lock);
+        }
+    }
+    for (;;) {
+        sk_mutex_lock(&sk_asset_jobs.lock);
+        have = pop_job(sk_asset_jobs.done, &sk_asset_jobs.done_head, &sk_asset_jobs.done_count, &job);
+        sk_mutex_unlock(&sk_asset_jobs.lock);
+        if (!have) break;
+        sk_asset_task_t *task = &sk_asset_tasks[job.slot];
+        if (job.prepared == NULL) {
+            task->load_failed = true;
+            complete(job.slot, false);
+            continue;
+        }
+        task->prepared = job.prepared;
+        task->state = TASK_FINISHING;
+        task->finish_order = sk_asset_finish_counter++;
+    }
+}
+
+/* The finishing task prepared first, or 0. */
+static uint16_t next_finishing(void)
+{
+    uint16_t next = 0;
+    for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) {
+        const sk_asset_task_t *task = &sk_asset_tasks[i];
+        if (!sk_asset_occupied[i] || task->state != TASK_FINISHING) continue;
+        if (task->finish_started) return i;
+        if (next == 0 || task->finish_order < sk_asset_tasks[next].finish_order) next = i;
+    }
+    return next;
+}
+
+/* Finish prepared resources on the main thread within the upload budget, at least
+ * one step per frame. */
+static void load(void)
+{
+    const double start = sk_thread_now();
+    uint16_t i;
+
+    collect_prepared();
+    while ((i = next_finishing()) != 0) {
+        sk_asset_task_t *task = &sk_asset_tasks[i];
+        sk_loader_step_t step = SK_LOADER_DONE;
+
+        if (!task->finish_started) {
+            /* created meanwhile, e.g. by a sync create of the same file: use that one */
+            task->resource = task->loader->find(task->local);
+            task->finish_started = true;
+        }
+        if (task->resource == 0) {
+            step = task->loader->finish(task->prepared, task->local, &task->resource);
+        }
+        if (step != SK_LOADER_MORE) {
+            task->loader->discard(task->prepared);
+            task->prepared = NULL;
+            task->load_failed = step == SK_LOADER_FAILED;
+            complete(i, step == SK_LOADER_DONE);
+        }
+        if ((sk_thread_now() - start) * 1000.0 >= (double)sk_asset_upload_budget_ms) {
+            break;
+        }
+    }
 }
 
 void sk_asset_tick(void)
@@ -470,7 +916,15 @@ void sk_asset_tick(void)
     for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) {
         sk_asset_task_t *task = &sk_asset_tasks[i];
 
-        if (!sk_asset_occupied[i] || !task->armed || task->state == TASK_WAITING) {
+        if (!sk_asset_occupied[i] || !task->armed || task->state == TASK_PREPARING ||
+            task->state == TASK_FINISHING) {
+            continue;
+        }
+        if (task->is_group) {
+            if (task->pending <= 0) complete(i, task->failed_members == 0); /* all done before it was armed */
+            continue;
+        }
+        if (task->state == TASK_WAITING) {
             continue;
         }
 
@@ -492,8 +946,8 @@ void sk_asset_tick(void)
         resolved(i, sk_fs_exists(task->path));
 #endif
     }
+    load();
 }
-
 /* Tasks not finished yet (queued, downloading or waiting on dependencies).
  * Exported on web so tools/webcheck.mjs can tell when an example is done loading. */
 SK_KEEP
@@ -508,7 +962,32 @@ int sk_asset_pending_count(void)
 
 void sk_asset_deinit(void)
 {
+    sk_asset_job_t job;
+
     sk_asset_ready = false;
+    /* Loads still in progress are dropped: queued jobs, prepared data, and resources
+     * partly finished (their loader's discard releases what it created). */
+    stop_workers();
+    sk_asset_jobs.queue_count = 0;
+    while (pop_job(sk_asset_jobs.done, &sk_asset_jobs.done_head, &sk_asset_jobs.done_count, &job)) {
+        if (job.prepared != NULL) job.loader->discard(job.prepared);
+    }
+    for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) {
+        sk_asset_task_t *task = &sk_asset_tasks[i];
+        if (!sk_asset_occupied[i]) continue;
+        if (task->prepared != NULL) {
+            task->loader->discard(task->prepared);
+            task->prepared = NULL;
+        }
+        for (int h = 0; h < task->held_count; h++) {
+            task->held[h].loader->release(task->held[h].resource);
+        }
+        free(task->held);
+        task->held = NULL;
+        task->held_count = 0;
+    }
+    sk_cond_destroy(&sk_asset_jobs.wake);
+    sk_mutex_destroy(&sk_asset_jobs.lock);
 #ifdef __EMSCRIPTEN__
     sfetch_shutdown();
 #endif

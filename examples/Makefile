@@ -103,7 +103,25 @@ BACKEND      ?= webgl2
 ifeq ($(filter $(BACKEND),webgl2 webgpu),)
   $(error BACKEND must be webgl2 or webgpu (got '$(BACKEND)'))
 endif
-BUILD_WEB    := build/$(BACKEND)
+# WEB_THREADS=1 (default): asset decoding on worker threads. The page must be
+# cross-origin isolated (COOP/COEP headers; tools/serve.py sends them), or the
+# build doesn't start. WEB_THREADS=0 builds without threads, into build/<backend>-nothreads.
+WEB_THREADS  ?= 1
+ifeq ($(filter $(WEB_THREADS),0 1),)
+  $(error WEB_THREADS must be 0 or 1 (got '$(WEB_THREADS)'))
+endif
+ifeq ($(WEB_THREADS),1)
+  BUILD_WEB    := build/$(BACKEND)
+  WASM_THREADS := -pthread
+  # workers are started up front, so starting a load never waits on one.
+  # Growable memory with threads makes JS glue re-check the heap view on access
+  # (emscripten warns about it); assets need the growth.
+  WASM_THREADS_LINK := -pthread -sPTHREAD_POOL_SIZE=4 -Wno-pthreads-mem-growth
+else
+  BUILD_WEB    := build/$(BACKEND)-nothreads
+  WASM_THREADS :=
+  WASM_THREADS_LINK :=
+endif
 WEB_SHELL    := web/index.html
 WASM_EXAMPLE ?= hello
 NPROC        := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
@@ -119,11 +137,11 @@ else
   WASM_DEFS         := -DSOKOL_GLES3
   WASM_BACKEND_LINK := -sUSE_WEBGL2=1
 endif
-WASM_CFLAGS := $(STD) $(WARN) $(OPT) $(WASM_DEFS) $(INCS) -MMD -MP
+WASM_CFLAGS := $(STD) $(WARN) $(OPT) $(WASM_DEFS) $(WASM_THREADS) $(INCS) -MMD -MP
 # idbfs for persistent storage; FORCE_FILESYSTEM so the FS/IDBFS JS is linked;
 # grow memory for assets. (No -sJSPI: sapp_run owns the loop, so we can't suspend
 # in callbacks — sk_fs restore is a polled barrier, not an await. See PLAN-sk_fs.)
-WASM_LINK := $(WASM_BACKEND_LINK) -sALLOW_MEMORY_GROWTH=1 \
+WASM_LINK := $(WASM_BACKEND_LINK) $(WASM_THREADS_LINK) -sALLOW_MEMORY_GROWTH=1 \
              -sFORCE_FILESYSTEM -lidbfs.js
 
 # Per-example bundles (.js + .wasm) + one shared index.html switcher. The switcher
@@ -139,12 +157,18 @@ endef
 $(BUILD_WEB):
 	mkdir -p $(BUILD_WEB)
 
-$(WEB_OBJ_DIR)/lib/%.o: $(ROOT)/src/%.c
+# Rebuild everything when the compile flags change (WEB_THREADS, OPT, ...).
+WEB_FLAGS_STAMP := $(WEB_OBJ_DIR)/flags
+$(WEB_FLAGS_STAMP): FORCE
+	@mkdir -p $(dir $@)
+	@echo '$(WASM_CFLAGS)' | cmp -s - $@ || echo '$(WASM_CFLAGS)' > $@
+
+$(WEB_OBJ_DIR)/lib/%.o: $(ROOT)/src/%.c $(WEB_FLAGS_STAMP)
 	@mkdir -p $(dir $@)
 	@echo "  emcc[$(BACKEND)]: $<"
 	@$(EMCC) $(WASM_CFLAGS) -c $< -o $@
 
-$(WEB_OBJ_DIR)/examples/%.o: %.c
+$(WEB_OBJ_DIR)/examples/%.o: %.c $(WEB_FLAGS_STAMP)
 	@mkdir -p $(dir $@)
 	@$(EMCC) $(WASM_CFLAGS) -c $< -o $@
 
@@ -170,7 +194,7 @@ serve:
 # resolve via the shell: make's direct exec can hit a node/ directory on PATH (emsdk)
 NODE ?= $(shell command -v node 2>/dev/null || echo node)
 webcheck: wasm-all
-	@$(NODE) $(ROOT)/tools/webcheck.mjs --backend=$(BACKEND) $(WEBCHECK_FLAGS)
+	@$(NODE) $(ROOT)/tools/webcheck.mjs --backend=$(BACKEND) --threads=$(WEB_THREADS) $(WEBCHECK_FLAGS)
 
 clean:
 	rm -rf build

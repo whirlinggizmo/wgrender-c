@@ -5,6 +5,12 @@
 
 #include "sk_types.h"
 
+/* sokol_gfx resource pool sizes (sg_setup). sokol's defaults (128 buffers and
+ * images) run out at ~60 textured materials or glTF primitives. */
+#define SK_GFX_BUFFER_POOL_SIZE 4096 /* two per glTF primitive */
+#define SK_GFX_IMAGE_POOL_SIZE 2048  /* textures, render targets, environments */
+#define SK_GFX_VIEW_POOL_SIZE 4096
+
 /* Frame command list
  * ------------------
  * sokol_gl content (shapes, sprites, 2D, fontstash text) is recorded into

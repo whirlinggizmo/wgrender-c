@@ -6,6 +6,7 @@
 
 #include "internal/exports.h"
 #include "internal/sk_handle_pool.h"
+#include "internal/sk_loader.h"
 #include "internal/sk_texture.h"
 #include "sk_logger.h"
 
@@ -143,26 +144,32 @@ static sk_handle_t alloc_texture_slot(sk_texture_t *out)
     return handle;
 }
 
-/* Make an RGBA8 image with a full mipmap chain. Each level averages 2x2 texels
- * of the previous one (the last row or column repeats for odd sizes), in the
- * stored color space. */
-static sg_image make_mipmapped_image(const unsigned char *rgba, int w, int h)
-{
-    sg_image_desc desc = {.width = w, .height = h, .pixel_format = SG_PIXELFORMAT_RGBA8};
-    unsigned char *levels[SG_MAX_MIPMAPS] = {NULL};
-    int lw = w, lh = h, count = 1;
-    sg_image image;
+/* ------------------------------------------------------------ pixels ---- */
 
-    desc.data.mip_levels[0] = (sg_range){.ptr = rgba, .size = (size_t)(w * h * 4)};
-    while ((lw > 1 || lh > 1) && count < SG_MAX_MIPMAPS) {
-        const unsigned char *src = count == 1 ? rgba : levels[count - 1];
+struct sk_texture_pixels {
+    int width;
+    int height;
+    int mip_count;
+    bool translucent; /* some pixel isn't fully opaque */
+    unsigned char *levels[SG_MAX_MIPMAPS];
+};
+
+/* Fill levels 1.. from level 0. Each level averages 2x2 texels of the previous one
+ * (the last row or column repeats for odd sizes), in the stored color space. */
+static bool build_mipmaps(sk_texture_pixels_t *pixels)
+{
+    int lw = pixels->width, lh = pixels->height;
+
+    pixels->mip_count = 1;
+    while ((lw > 1 || lh > 1) && pixels->mip_count < SG_MAX_MIPMAPS) {
+        const unsigned char *src = pixels->levels[pixels->mip_count - 1];
         const int sw = lw, sh = lh;
         unsigned char *dst;
         lw = lw > 1 ? lw / 2 : 1;
         lh = lh > 1 ? lh / 2 : 1;
-        dst = (unsigned char *)malloc((size_t)(lw * lh * 4));
+        dst = (unsigned char *)malloc((size_t)lw * (size_t)lh * 4);
         if (dst == NULL) {
-            break;
+            return false;
         }
         for (int y = 0; y < lh; y++) {
             const int y0 = y * 2 < sh ? y * 2 : sh - 1, y1 = y * 2 + 1 < sh ? y * 2 + 1 : sh - 1;
@@ -175,26 +182,97 @@ static sg_image make_mipmapped_image(const unsigned char *rgba, int w, int h)
                 }
             }
         }
-        levels[count] = dst;
-        desc.data.mip_levels[count] = (sg_range){.ptr = dst, .size = (size_t)(lw * lh * 4)};
-        count++;
+        pixels->levels[pixels->mip_count++] = dst;
     }
-    desc.num_mipmaps = count;
-    image = sg_make_image(&desc);
-    for (int i = 1; i < count; i++) {
-        free(levels[i]);
-    }
-    return image;
+    return true;
 }
 
-static sk_handle_t create_texture_from_rgba(const unsigned char *rgba, int w, int h,
-                                            const char *path)
+/* Takes ownership of `rgba` (malloc'd): adds mipmaps and the translucency flag. */
+static sk_texture_pixels_t *adopt_rgba(unsigned char *rgba, int width, int height)
+{
+    sk_texture_pixels_t *pixels = (sk_texture_pixels_t *)calloc(1, sizeof(sk_texture_pixels_t));
+
+    if (pixels == NULL) {
+        free(rgba);
+        return NULL;
+    }
+    pixels->width = width;
+    pixels->height = height;
+    pixels->levels[0] = rgba;
+    for (size_t i = 0; i < (size_t)width * (size_t)height && !pixels->translucent; i++) {
+        pixels->translucent = rgba[i * 4 + 3] != 255;
+    }
+    if (!build_mipmaps(pixels)) {
+        sk_texture_pixels_free(pixels);
+        return NULL;
+    }
+    return pixels;
+}
+
+sk_texture_pixels_t *sk_texture_pixels_decode(const unsigned char *bytes, int size)
+{
+    int w = 0, h = 0, comp = 0;
+    stbi_uc *rgba;
+
+    if (bytes == NULL || size <= 0) {
+        return NULL;
+    }
+    rgba = stbi_load_from_memory(bytes, size, &w, &h, &comp, 4); /* malloc'd (STBI_MALLOC) */
+    return rgba != NULL ? adopt_rgba(rgba, w, h) : NULL;
+}
+
+const char *sk_texture_pixels_error(void)
+{
+    return stbi_failure_reason(); /* per thread */
+}
+
+sk_texture_pixels_t *sk_texture_pixels_from_rgba(const unsigned char *rgba, int width, int height)
+{
+    unsigned char *copy;
+
+    if (rgba == NULL || width <= 0 || height <= 0) {
+        return NULL;
+    }
+    copy = (unsigned char *)malloc((size_t)width * (size_t)height * 4);
+    if (copy == NULL) {
+        return NULL;
+    }
+    memcpy(copy, rgba, (size_t)width * (size_t)height * 4);
+    return adopt_rgba(copy, width, height);
+}
+
+void sk_texture_pixels_free(sk_texture_pixels_t *pixels)
+{
+    if (pixels == NULL) {
+        return;
+    }
+    for (int i = 0; i < SG_MAX_MIPMAPS; i++) {
+        free(pixels->levels[i]);
+    }
+    free(pixels);
+}
+
+static sg_image make_image(const sk_texture_pixels_t *pixels)
+{
+    sg_image_desc desc = {.width = pixels->width, .height = pixels->height,
+                          .pixel_format = SG_PIXELFORMAT_RGBA8, .num_mipmaps = pixels->mip_count};
+    int lw = pixels->width, lh = pixels->height;
+
+    for (int i = 0; i < pixels->mip_count; i++) {
+        desc.data.mip_levels[i] = (sg_range){.ptr = pixels->levels[i], .size = (size_t)lw * (size_t)lh * 4};
+        lw = lw > 1 ? lw / 2 : 1;
+        lh = lh > 1 ? lh / 2 : 1;
+    }
+    return sg_make_image(&desc);
+}
+
+sk_handle_t sk_texture_create_pixels(const sk_texture_pixels_t *pixels, const char *path, bool keep_alpha)
 {
     sk_handle_t handle;
     uint16_t index = 0;
     sk_texture_t t = {0};
 
-    if (rgba == NULL || w <= 0 || h <= 0) {
+    if (pixels == NULL) {
         return 0;
     }
     handle = alloc_texture_slot(&t);
@@ -203,10 +281,10 @@ static sk_handle_t create_texture_from_rgba(const unsigned char *rgba, int w, in
     }
     sk_handle_pool_resolve(&sk_texture_pool, handle, &index);
 
-    t.width = w;
-    t.height = h;
+    t.width = pixels->width;
+    t.height = pixels->height;
     t.sampler = sk_default_sampler;
-    t.ref_count = 0;
+    t.ref_count = 1;
     if (path != NULL && path[0] != '\0') {
         size_t n = strlen(path);
         if (n >= sizeof(t.path)) {
@@ -216,9 +294,21 @@ static sk_handle_t create_texture_from_rgba(const unsigned char *rgba, int w, in
         t.path[n] = '\0';
         t.has_path = true;
     }
-    t.image = make_mipmapped_image(rgba, w, h);
-    t.view = sg_make_view(&(sg_view_desc){.texture.image = t.image});
+    t.image = make_image(pixels);
+    if (sg_query_image_state(t.image) == SG_RESOURCESTATE_VALID) {
+        t.view = sg_make_view(&(sg_view_desc){.texture.image = t.image});
+    }
+    if (sg_query_view_state(t.view) != SG_RESOURCESTATE_VALID) {
+        log_error("Couldn't create a GPU image for %s (see the sokol error above)", t.has_path ? t.path : "texture");
+        sg_destroy_view(t.view);
+        sg_destroy_image(t.image);
+        sk_handle_pool_free(&sk_texture_pool, handle);
+        return 0;
+    }
     sk_textures[index] = t;
+    if (keep_alpha && pixels->translucent) {
+        extract_alpha_mask(&sk_textures[index], pixels->levels[0]);
+    }
     return handle;
 }
 
@@ -256,42 +346,57 @@ static unsigned char *read_file_bytes(const char *path, int *out_size)
     return bytes;
 }
 
-static sk_handle_t create_texture_from_memory(const unsigned char *data, int size,
-                                              const char *path)
-{
-    int w = 0, h = 0, comp = 0;
-    stbi_uc *pixels;
-    sk_handle_t handle;
+/* ------------------------------------------------------------ loader ---- */
 
-    if (data == NULL || size <= 0) {
-        return 0;
+static void *prepare_texture(const char *path)
+{
+    int size = 0;
+    unsigned char *bytes = read_file_bytes(path, &size);
+    sk_texture_pixels_t *pixels;
+
+    if (bytes == NULL) {
+        return NULL;
     }
-    pixels = stbi_load_from_memory(data, size, &w, &h, &comp, 4);
+    pixels = sk_texture_pixels_decode(bytes, size);
+    free(bytes);
     if (pixels == NULL) {
-        log_error("Failed to decode image (%s)", stbi_failure_reason());
-        return 0;
+        log_error("Failed to decode image %s (%s)", path, sk_texture_pixels_error());
     }
-    handle = create_texture_from_rgba(pixels, w, h, path);
-    stbi_image_free(pixels);
-    return handle;
+    return pixels;
 }
+
+static sk_loader_step_t finish_texture(void *prepared, const char *path, sk_handle_t *resource)
+{
+    *resource = sk_texture_create_pixels((const sk_texture_pixels_t *)prepared, path, false);
+    return *resource != 0 ? SK_LOADER_DONE : SK_LOADER_FAILED;
+}
+
+static void discard_texture(void *prepared)
+{
+    sk_texture_pixels_free((sk_texture_pixels_t *)prepared);
+}
+
+static sk_handle_t find_texture(const char *path)
+{
+    const sk_handle_t texture = find_texture_by_path(path);
+    sk_texture_retain(texture);
+    return texture;
+}
+
+static const sk_loader_t sk_texture_loader = {
+    .name = "texture",
+    .prepare = prepare_texture,
+    .finish = finish_texture,
+    .discard = discard_texture,
+    .find = find_texture,
+    .release = sk_texture_release,
+};
 
 sk_handle_t sk_texture_create_rgba(const unsigned char *rgba, int width, int height)
 {
-    sk_handle_t handle = create_texture_from_rgba(rgba, width, height, NULL);
-    sk_texture_t *texture_ptr = resolve(handle);
-    bool translucent = false;
-
-    if (texture_ptr == NULL) {
-        return 0;
-    }
-    for (int i = 0; i < width * height && !translucent; i++) {
-        translucent = rgba[i * 4 + 3] != 255;
-    }
-    if (translucent) {
-        extract_alpha_mask(texture_ptr, rgba); /* no source to re-read later */
-    }
-    texture_ptr->ref_count = 1;
+    sk_texture_pixels_t *pixels = sk_texture_pixels_from_rgba(rgba, width, height);
+    const sk_handle_t handle = sk_texture_create_pixels(pixels, NULL, true); /* no source to re-read later */
+    sk_texture_pixels_free(pixels);
     return handle;
 }
 
@@ -510,25 +615,7 @@ bool sk_texture_set_placeholder(sk_handle_t texture)
 SK_KEEP
 sk_handle_t sk_texture_create(const char *path)
 {
-    sk_handle_t tex = find_texture_by_path(path);
-    unsigned char *bytes;
-    int size = 0;
-
-    if (tex != 0) {
-        sk_texture_retain(tex);
-        return tex;
-    }
-    bytes = read_file_bytes(path, &size);
-    if (bytes == NULL) {
-        return 0;
-    }
-    tex = create_texture_from_memory(bytes, size, path);
-    free(bytes);
-    if (tex == 0) {
-        return 0;
-    }
-    sk_texture_retain(tex);
-    return tex;
+    return sk_loader_create(&sk_texture_loader, path);
 }
 
 SK_KEEP
@@ -628,6 +715,9 @@ void sk_texture_init(void)
                         MAX_TEXTURES,
                         sk_texture_generations,
                         sk_texture_occupied);
+    sk_asset_register_loader(".png", &sk_texture_loader);
+    sk_asset_register_loader(".jpg", &sk_texture_loader);
+    sk_asset_register_loader(".jpeg", &sk_texture_loader);
 
     sk_default_sampler = sg_make_sampler(&(sg_sampler_desc){
         .min_filter = SG_FILTER_LINEAR,
@@ -674,7 +764,9 @@ void sk_texture_init(void)
         sk_handle_pool_resolve(&sk_texture_pool, SK_TEXTURE_CHECKER, &index);
         sk_textures[index].width = CHECKER_SIZE;
         sk_textures[index].height = CHECKER_SIZE;
-        sk_textures[index].image = make_mipmapped_image(checker, CHECKER_SIZE, CHECKER_SIZE);
+        sk_texture_pixels_t *pixels = sk_texture_pixels_from_rgba(checker, CHECKER_SIZE, CHECKER_SIZE);
+        sk_textures[index].image = make_image(pixels);
+        sk_texture_pixels_free(pixels);
         sk_textures[index].view = sg_make_view(&(sg_view_desc){.texture.image = sk_textures[index].image});
         sk_textures[index].sampler = sk_default_sampler;
     }

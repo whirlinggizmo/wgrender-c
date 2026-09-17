@@ -1,0 +1,420 @@
+/* Loading pipeline (docs/PLAN-pipeline.md), on sokol's dummy backend. */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#include "internal/sk_asset.h"
+#include "internal/sk_environment.h"
+#include "internal/sk_fs.h"
+#include "internal/sk_internal.h"
+#include "internal/sk_light.h"
+#include "internal/sk_material.h"
+#include "internal/sk_model.h"
+#include "internal/sk_scene.h"
+#include "internal/sk_platform.h"
+#include "internal/sk_render.h"
+#include "internal/sk_texture.h"
+#include "sk_asset.h"
+#include "sk_audio.h"
+#include "sk_logger.h"
+#include "sk_model.h"
+#include "sk_texture.h"
+#include "test.h"
+#include "tests.h"
+
+#include "sokol_gfx.h"
+
+/* More textures than sokol's default pools hold load with libsk's pool sizes, and
+ * running out fails the create instead of returning a texture with no image. */
+void test_pipeline_gpu_pools(void)
+{
+    static const unsigned char pixel[4] = {255, 255, 255, 255};
+    static sk_handle_t textures[600];
+    int created = 0;
+
+    sg_setup(&(sg_desc){.environment = sk_platform_environment(),
+                        .buffer_pool_size = SK_GFX_BUFFER_POOL_SIZE,
+                        .image_pool_size = SK_GFX_IMAGE_POOL_SIZE,
+                        .view_pool_size = SK_GFX_VIEW_POOL_SIZE});
+    sk_texture_init();
+    for (int i = 0; i < 600; i++) {
+        textures[i] = sk_texture_create_rgba(pixel, 1, 1);
+        created += textures[i] != 0;
+    }
+    CHECK(created == 600);
+    sk_texture_deinit();
+    sg_shutdown();
+
+    sg_setup(&(sg_desc){.environment = sk_platform_environment(), .image_pool_size = 8});
+    sk_texture_init();
+    sk_logger_set_level(SK_LOGGER_LEVEL_FATAL); /* sokol and libsk report the exhaustion */
+    created = 0;
+    for (int i = 0; i < 16; i++) {
+        textures[i] = sk_texture_create_rgba(pixel, 1, 1);
+        created += textures[i] != 0;
+        if (textures[i] != 0) {
+            CHECK(sk_texture_get_size(textures[i]).x == 1.0f);
+        }
+    }
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    CHECK(created > 0 && created < 16);
+    sk_texture_deinit();
+    sg_shutdown();
+}
+
+static void setup(void)
+{
+    sg_setup(&(sg_desc){.environment = sk_platform_environment()});
+    sk_audio_init();
+    sk_render_init();
+    sk_scene_init();
+    sk_color_init();
+    sk_camera3d_init();
+    sk_texture_init();
+    sk_light_init();
+    sk_material_init();
+    sk_environment_init();
+    sk_model_init();
+}
+
+static void teardown(void)
+{
+    sk_audio_deinit();
+    sk_model_deinit();
+    sk_environment_deinit();
+    sk_material_deinit();
+    sk_light_deinit();
+    sk_texture_deinit();
+    sk_camera3d_deinit();
+    sk_color_deinit();
+    sk_scene_deinit();
+    sk_render_deinit();
+    sg_shutdown();
+}
+
+#define GUMSHOE "../examples/assets/models/gumshoe/gumshoe.glb"
+
+/* Textures a mesh's materials use that loaded (not missing, not the placeholder). */
+static int loaded_textures(sk_handle_t mesh)
+{
+    int count = 0;
+    for (int m = 0; m < sk_mesh_get_material_count(mesh); m++) {
+        const sk_material_t *material = sk_material_get(sk_mesh_get_material(mesh, m));
+        for (int t = 0; material != NULL && t < SK_MATERIAL_TEXTURE_COUNT; t++) {
+            const sk_handle_t texture = material->textures[t].texture;
+            count += texture != 0 && texture != sk_texture_get_placeholder() && sk_texture_get_size(texture).x > 1.0f;
+        }
+    }
+    return count;
+}
+
+/* A .glb's embedded images decode (their bytes live in the file's buffer). */
+void test_pipeline_mesh_textures(void)
+{
+    setup();
+    sk_handle_t mesh = sk_mesh_create(GUMSHOE);
+    CHECK(mesh != 0);
+    CHECK(loaded_textures(mesh) >= 2);
+    CHECK(sk_mesh_create(GUMSHOE) == mesh); /* deduped */
+    sk_mesh_destroy(mesh);
+    sk_mesh_destroy(mesh);
+    teardown();
+}
+
+/* ------------------------------------------------------ async loading ---- */
+
+#define ASSETS "../examples/assets"
+#define TEXTURE "textures/blobshadow.png"
+
+static struct {
+    int successes, failures;
+    sk_handle_t texture, mesh, audio, group_texture;
+    char path[512];
+    bool destroy_in_callback; /* create, then drop it again */
+} got;
+
+static void on_texture(const char *path, void *user)
+{
+    (void)user;
+    got.successes++;
+    snprintf(got.path, sizeof(got.path), "%s", path);
+    got.texture = sk_texture_create(path);
+    if (got.destroy_in_callback) sk_texture_destroy(got.texture);
+}
+
+static void on_mesh(const char *path, void *user)
+{
+    (void)user;
+    got.successes++;
+    got.mesh = sk_mesh_create(path);
+}
+
+static void on_audio(const char *path, void *user)
+{
+    (void)user;
+    got.successes++;
+    got.audio = sk_audio_create(path);
+}
+
+static void on_nothing(const char *path, void *user)
+{
+    (void)path;
+    (void)user;
+    got.successes++;
+}
+
+static void on_failed(const char *path, void *user)
+{
+    (void)path;
+    (void)user;
+    got.failures++;
+}
+
+static void start_assets(int workers, const char *host)
+{
+    setup();
+    sk_fs_init(NULL);
+    sk_asset_set_worker_count(workers);
+    sk_asset_init();
+    sk_asset_set_host(host);
+    memset(&got, 0, sizeof(got));
+}
+
+static void stop_assets(void)
+{
+    sk_asset_deinit();
+    sk_asset_set_worker_count(-1);
+    sk_fs_deinit();
+    teardown();
+}
+
+static void load(const char *path, unsigned int flags, sk_asset_callback_fn on_success)
+{
+    CHECK(sk_asset_add_task(sk_asset_ensure_async(path, NULL, flags), on_success, on_failed, NULL) ==
+          SK_ASSET_ADD_TASK_OK);
+}
+
+/* Tick until nothing is pending; the frames it took, or -1 after 2000 frames. */
+static int run_until_done(void)
+{
+    for (int frame = 1; frame <= 2000; frame++) {
+        sk_asset_tick();
+        if (sk_asset_pending_count() == 0) return frame;
+        if (sk_asset_get_worker_count() > 0) {
+            struct timespec pause = {0, 1000000};
+            nanosleep(&pause, NULL);
+        }
+    }
+    return -1;
+}
+
+/* A handle's texture is gone (stale handles warn; quiet here). */
+static bool texture_freed(sk_handle_t texture)
+{
+    sk_logger_set_level(SK_LOGGER_LEVEL_ERROR);
+    const bool freed = sk_texture_get_size(texture).x == 0.0f;
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    return freed;
+}
+
+static void check_async_loads(int workers)
+{
+    start_assets(workers, ASSETS);
+    CHECK(sk_asset_get_worker_count() == workers);
+    load(TEXTURE, SK_ASSET_NONE, on_texture);
+    load("models/gumshoe/gumshoe.glb", SK_ASSET_NONE, on_mesh);
+    load("sounds/click_004.ogg", SK_ASSET_NONE, on_audio);
+    CHECK(run_until_done() > 0);
+    CHECK(got.successes == 3 && got.failures == 0);
+    /* the callbacks' creates return the prepared resources, with one reference */
+    CHECK(sk_texture_get_size(got.texture).x > 1.0f);
+    CHECK(sk_texture_create(got.path) == got.texture);
+    sk_texture_destroy(got.texture);
+    CHECK(got.mesh != 0 && loaded_textures(got.mesh) >= 2);
+    CHECK(got.audio != 0);
+    sk_texture_destroy(got.texture);
+    CHECK(texture_freed(got.texture)); /* the last reference is gone */
+    sk_mesh_destroy(got.mesh);
+    sk_audio_destroy(got.audio);
+    stop_assets();
+}
+
+/* Files load before their callbacks, with and without worker threads. */
+void test_pipeline_async(void)
+{
+    check_async_loads(0);
+    check_async_loads(2);
+}
+
+/* A resource the callback doesn't create (or releases again) is freed. */
+void test_pipeline_unclaimed(void)
+{
+    start_assets(1, ASSETS);
+    got.destroy_in_callback = true;
+    load(TEXTURE, SK_ASSET_NONE, on_texture);
+    CHECK(run_until_done() > 0);
+    CHECK(got.successes == 1);
+    CHECK(texture_freed(got.texture)); /* freed after the callback */
+
+    /* a sync create while the file is being prepared: the callback gets the same one */
+    got.destroy_in_callback = false;
+    load(TEXTURE, SK_ASSET_NONE, on_texture);
+    char local[512];
+    sk_fs_resolve(TEXTURE, local, sizeof(local));
+    const sk_handle_t texture = sk_texture_create(local);
+    CHECK(run_until_done() > 0);
+    CHECK(got.texture == texture);
+    sk_texture_destroy(texture);
+    sk_texture_destroy(texture);
+    CHECK(texture_freed(texture));
+    stop_assets();
+}
+
+/* Files that can't be loaded fire the failure callback; FILE_ONLY skips loading. */
+void test_pipeline_failures(void)
+{
+    const char *dir = "build/pipeline_test";
+    char path[256];
+    FILE *f;
+
+    snprintf(path, sizeof(path), "mkdir -p %s", dir);
+    CHECK(system(path) == 0);
+    snprintf(path, sizeof(path), "%s/broken.png", dir);
+    f = fopen(path, "wb");
+    CHECK(f != NULL);
+    if (f == NULL) return;
+    fputs("not a png", f);
+    fclose(f);
+
+    start_assets(1, dir);
+    sk_logger_set_level(SK_LOGGER_LEVEL_FATAL);
+    load("broken.png", SK_ASSET_NONE, on_nothing);
+    load("missing.png", SK_ASSET_NONE, on_nothing);
+    CHECK(run_until_done() > 0);
+    CHECK(got.successes == 0 && got.failures == 2);
+    load("broken.png", SK_ASSET_FILE_ONLY, on_nothing);
+    CHECK(run_until_done() > 0);
+    CHECK(got.successes == 1 && got.failures == 2);
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    stop_assets();
+}
+
+/* A mesh finishes over several frames (buffers, then one texture each) when the
+ * budget is used up by each step. */
+void test_pipeline_budget(void)
+{
+    start_assets(0, ASSETS);
+    sk_asset_set_upload_budget(0.0f);
+    load("models/gumshoe/gumshoe.glb", SK_ASSET_NONE, on_mesh);
+    const int frames = run_until_done();
+    /* frame 1 prepares and uploads the buffers; the 2 textures and the materials
+     * take a frame each */
+    CHECK(frames == 4);
+    CHECK(got.mesh != 0 && loaded_textures(got.mesh) >= 2);
+    sk_mesh_destroy(got.mesh);
+    sk_asset_set_upload_budget(4.0f);
+    stop_assets();
+}
+
+/* Shutting down with loads queued, running and half finished leaks and crashes
+ * nothing (run under SANITIZE=address and thread). */
+void test_pipeline_shutdown(void)
+{
+    for (int round = 0; round < 3; round++) {
+        start_assets(2, ASSETS);
+        sk_asset_set_upload_budget(0.0f);
+        load("models/gumshoe/gumshoe.glb", SK_ASSET_NONE, on_mesh);
+        load(TEXTURE, SK_ASSET_NONE, on_texture);
+        load("sounds/click_004.ogg", SK_ASSET_NONE, on_audio);
+        for (int frame = 0; frame < round * 3; frame++) {
+            sk_asset_tick();
+        }
+        if (got.mesh != 0) sk_mesh_destroy(got.mesh);
+        if (got.texture != 0) sk_texture_destroy(got.texture);
+        if (got.audio != 0) sk_audio_destroy(got.audio);
+        sk_asset_set_upload_budget(4.0f);
+        stop_assets();
+    }
+}
+
+static void on_group_done(const char *path, void *user)
+{
+    CHECK(path != NULL && path[0] == '\0');
+    (*(int *)user)++;
+}
+
+static void on_group_create(const char *path, void *user)
+{
+    (void)path;
+    (*(int *)user)++;
+    got.group_texture = sk_texture_create(got.path);
+}
+
+/* A group completes after its members, fails if one does, and reports progress. */
+void test_pipeline_group(void)
+{
+    int group_ok = 0, group_failed = 0;
+
+    start_assets(1, ASSETS);
+    sk_handle_t group = sk_asset_group_create();
+    sk_handle_t texture = sk_asset_ensure_async(TEXTURE, NULL, SK_ASSET_NONE);
+    sk_handle_t mesh = sk_asset_ensure_async("models/gumshoe/gumshoe.glb", NULL, SK_ASSET_NONE);
+    CHECK(sk_asset_add_task(texture, on_texture, on_failed, NULL) == SK_ASSET_ADD_TASK_OK);
+    CHECK(sk_asset_group_add(group, texture));
+    CHECK(sk_asset_group_add(group, mesh)); /* no callbacks of its own */
+    sk_logger_set_level(SK_LOGGER_LEVEL_FATAL);
+    CHECK(!sk_asset_group_add(group, texture)); /* already in a group */
+    CHECK(!sk_asset_group_add(group, group));
+    CHECK(!sk_asset_group_add(texture, mesh));
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    CHECK(sk_asset_add_task(group, on_group_done, on_group_done, &group_ok) == SK_ASSET_ADD_TASK_OK);
+    CHECK(sk_asset_get_progress(group) == 0.0f);
+
+    float last = 0.0f;
+    bool monotonic = true;
+    for (int frame = 0; frame < 2000 && sk_asset_pending_count() > 0; frame++) {
+        sk_asset_tick();
+        const float progress = sk_asset_get_progress(group);
+        monotonic = monotonic && progress >= last && progress <= 1.0f;
+        last = progress;
+        struct timespec pause = {0, 1000000};
+        nanosleep(&pause, NULL);
+    }
+    CHECK(monotonic);
+    CHECK(group_ok == 1 && got.successes == 1 && got.failures == 0);
+    CHECK(sk_asset_get_progress(group) == 1.0f); /* completed */
+    sk_texture_destroy(got.texture);
+
+    /* a missing member fails the group; the other members still load */
+    sk_logger_set_level(SK_LOGGER_LEVEL_FATAL);
+    group = sk_asset_group_create();
+    CHECK(sk_asset_group_add(group, sk_asset_ensure_async("missing.png", NULL, SK_ASSET_NONE)));
+    CHECK(sk_asset_group_add(group, sk_asset_ensure_async(TEXTURE, NULL, SK_ASSET_NONE)));
+    CHECK(sk_asset_add_task(group, on_group_done, on_group_done, &group_failed) == SK_ASSET_ADD_TASK_OK);
+    CHECK(run_until_done() > 0);
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    CHECK(group_failed == 1);
+
+    /* the group holds its members' resources for its own callback */
+    group_ok = 0;
+    group = sk_asset_group_create();
+    got.destroy_in_callback = true; /* the member's callback takes the handle and drops it again */
+    texture = sk_asset_ensure_async(TEXTURE, NULL, SK_ASSET_NONE);
+    CHECK(sk_asset_add_task(texture, on_texture, on_failed, NULL) == SK_ASSET_ADD_TASK_OK);
+    CHECK(sk_asset_group_add(group, texture));
+    CHECK(sk_asset_add_task(group, on_group_create, on_failed, &group_ok) == SK_ASSET_ADD_TASK_OK);
+    CHECK(run_until_done() > 0);
+    CHECK(group_ok == 1);
+    CHECK(got.group_texture == got.texture); /* the same resource, not a reload */
+    sk_texture_destroy(got.group_texture);
+    CHECK(texture_freed(got.group_texture));
+
+    /* an empty group completes on the next tick */
+    group_ok = 0;
+    group = sk_asset_group_create();
+    CHECK(sk_asset_add_task(group, on_group_done, NULL, &group_ok) == SK_ASSET_ADD_TASK_OK);
+    CHECK(run_until_done() == 1);
+    CHECK(group_ok == 1);
+    stop_assets();
+}

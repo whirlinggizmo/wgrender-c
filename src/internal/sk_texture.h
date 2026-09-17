@@ -26,6 +26,23 @@ void sk_texture_release(sk_handle_t handle);
  * Returns false if the texture has no path or decode fails. */
 bool sk_texture_ensure_alpha_mask(sk_handle_t handle);
 
+/* Decoded RGBA8 pixels with a full mipmap chain: the CPU half of loading a texture,
+ * safe to build on any thread. */
+typedef struct sk_texture_pixels sk_texture_pixels_t;
+
+/* Decode a PNG or JPEG file's bytes. NULL on failure (sk_texture_pixels_error
+ * says why, on the same thread). */
+sk_texture_pixels_t *sk_texture_pixels_decode(const unsigned char *bytes, int size);
+const char *sk_texture_pixels_error(void);
+/* A copy of RGBA8 pixels, with mipmaps. */
+sk_texture_pixels_t *sk_texture_pixels_from_rgba(const unsigned char *rgba, int width, int height);
+void sk_texture_pixels_free(sk_texture_pixels_t *pixels);
+
+/* Main thread: upload pixels as a texture named `path` (NULL for none), with one
+ * reference owned by the caller. `keep_alpha` keeps an alpha mask when any pixel
+ * isn't fully opaque (for textures with no file to re-read it from). */
+sk_handle_t sk_texture_create_pixels(const sk_texture_pixels_t *pixels, const char *path, bool keep_alpha);
+
 /* Create an unnamed texture from RGBA8 pixels (e.g. an image embedded in a glTF
  * file). Returns it with one reference owned by the caller. Keeps an alpha mask
  * when any pixel isn't fully opaque. */

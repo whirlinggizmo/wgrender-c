@@ -104,6 +104,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")  # honest reload-on-change
         self.send_header("Accept-Ranges", "bytes")
+        # cross-origin isolation: threaded builds need SharedArrayBuffer
+        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+        self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
         super().end_headers()
 
 
