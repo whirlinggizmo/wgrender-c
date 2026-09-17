@@ -1,0 +1,55 @@
+# libsk CI: the same checks as a local "done" (see AGENTS.md), minus `make parity`
+# (needs a librl checkout) and WebGPU (needs a GPU).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    name: desktop (build, check, test, smoke)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          tools/deps.sh install
+          sudo apt-get install -y bc  # tools/smoke.sh timing
+      - name: Build library and examples (GL)
+        run: make -j"$(nproc)" && make -j"$(nproc)" examples
+      - name: Guardrails
+        run: make check
+      - name: Unit tests
+        run: make test
+      - name: Smoke test (every example headless)
+        run: make smoke
+
+  web:
+    name: web (WebGL2 build + browser check)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 5.0.7
+          actions-cache-folder: emsdk-cache
+      - name: Build and check in headless Chrome
+        run: make -C examples webcheck BACKEND=gl
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webcheck-screenshots
+          path: examples/build/webcheck/gl
+          if-no-files-found: ignore

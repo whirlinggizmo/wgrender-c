@@ -19,6 +19,9 @@ tick the box in the same commit.
       merging
 - [ ] Later: `SANITIZE=1` (ASan/UBSan) test build; wasm-side unit tests when
       web-only code needs them
+- [x] CI (GitHub Actions, `.github/workflows/ci.yml`): desktop build, `make check`,
+      `make test`, `make smoke`; web build + `make webcheck` (WebGL2, headless Chrome)
+      with screenshots as an artifact
 - [x] Null / headless renderer: `make HEADLESS=1` builds `lib/libsk_headless.a`
       (sokol dummy GPU backend, no window or audio device, no GL/X11/ALSA link
       deps) behind an internal `sk_platform` layer; frames run paced at 60/s
@@ -100,7 +103,10 @@ tick the box in the same commit.
       when frames stall, because `dt` is capped at 0.1 s. Simulation belongs in a
       tick, which uses real elapsed time and catches up (up to 5 ticks per frame)
 - [ ] Decide: asset callbacks run on the main thread, so creating a resource
-      blocks the frame (the MP3 decode takes ~0.22s). Related to audio streaming
+      blocks the frame (the MP3 decode takes ~0.22s). Related to audio streaming.
+      Leaning (2026-09-16): stream long audio; async resource creation (handle
+      returned in a loading state, worker thread on desktop, time-sliced or worker
+      on web). Plan after render-to-texture.
 - [x] Lighting: light objects (directional, point, spot), per-scene lights and
       ambient, up to 8 lights per model by contribution, nothing lit implicitly
       (docs/PLAN-lighting.md, examples/lights.c). `simple.c` lighting PARITY note

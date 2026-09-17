@@ -137,7 +137,7 @@ functions (value returns instead), public `fs_*` (internal; see
 - ~~**Null / headless renderer**~~ — done: `make HEADLESS=1` (sokol dummy GPU
   backend, a headless run loop behind the internal `sk_platform` layer, no audio
   device) and `make smoke`. Unit tests link the headless library, so they need no
-  GL/X11/ALSA. Next steps when needed: CI running `make test` and `make smoke`, and
+  GL/X11/ALSA. CI runs `make test`, `make smoke` and the WebGL2 webcheck. Next, when needed:
   benchmarks / asset-validation tools on the headless build.
 - **Test suite (features + librl parity)** — build it in layers, cheapest first:
   1. **API parity report** (`make parity`): diff librl's public `rl_*` symbols
