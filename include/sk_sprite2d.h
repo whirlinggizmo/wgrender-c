@@ -41,6 +41,14 @@ bool sk_sprite2d_set_size(sk_handle_t sprite, float width, float height);
  * sprite: (0, 0) top-left, (1, 1) bottom-right. Default (0.5, 0.5), the center. */
 bool sk_sprite2d_set_pivot(sk_handle_t sprite, float x, float y);
 
+/* Nine-slice: borders in source pixels that keep their size when the sprite is
+ * drawn at another size (panels, buttons, frames). The corners stay as they are,
+ * the edges stretch along one axis and the middle along both; borders of 0 on an
+ * axis leave it unsliced, all 0 turns nine-slice off (the default). Set the
+ * on-screen size with sk_sprite2d_set_size. Picks hit the whole rectangle: the
+ * alpha test is skipped while a sprite is sliced. */
+bool sk_sprite2d_set_nine_slice(sk_handle_t sprite, float left, float top, float right, float bottom);
+
 bool sk_sprite2d_set_tint(sk_handle_t sprite, sk_handle_t color);    /* default: white (0) */
 bool sk_sprite2d_set_visible(sk_handle_t sprite, bool visible);
 bool sk_sprite2d_is_visible(sk_handle_t sprite);

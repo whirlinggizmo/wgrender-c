@@ -25,6 +25,8 @@ typedef struct {
     char *text;       /* owned copy, may be NULL */
     float x, y;
     float size;
+    float max_width; /* 0 = no wrap */
+    sk_text_align_t align_x, align_y;
     sk_handle_t color;
     bool visible;
     bool pickable;
@@ -47,7 +49,27 @@ static sk_text2d_t *resolve(sk_handle_t handle)
     return &sk_texts[index];
 }
 
-/* Scene 2D pass: drawn over 3D; picked by its text's rectangle (top-left at x, y). */
+/* The block of text on screen: its top-left corner and its size. The position is the
+ * block's left/center/right and top/middle/bottom edge, per its alignment; a wrapped
+ * block is as wide as its max width, an unwrapped one as wide as its widest line. */
+static bool block_rect(const sk_text2d_t *text_ptr, float *left, float *top, float *width, float *height)
+{
+    const vec2_t size = sk_text_block_size(text_ptr->font, text_ptr->text, text_ptr->size, text_ptr->max_width);
+    if (size.y <= 0.0f) {
+        return false;
+    }
+    *width = text_ptr->max_width > 0.0f && text_ptr->max_width > size.x ? text_ptr->max_width : size.x;
+    *height = size.y;
+    *left = text_ptr->x - (text_ptr->align_x == SK_TEXT_ALIGN_CENTER   ? *width * 0.5f
+                           : text_ptr->align_x == SK_TEXT_ALIGN_RIGHT ? *width
+                                                                      : 0.0f);
+    *top = text_ptr->y - (text_ptr->align_y == SK_TEXT_ALIGN_MIDDLE   ? *height * 0.5f
+                          : text_ptr->align_y == SK_TEXT_ALIGN_BOTTOM ? *height
+                                                                      : 0.0f);
+    return true;
+}
+
+/* Scene 2D pass: drawn over 3D; picked by its block's rectangle. */
 static void draw_2d(sk_handle_t handle)
 {
     sk_text2d_draw(handle);
@@ -56,18 +78,17 @@ static void draw_2d(sk_handle_t handle)
 static bool pick_2d(sk_handle_t handle, float x, float y, sk_pick_result_t *out)
 {
     const sk_text2d_t *text_ptr = resolve(handle);
-    float width, height;
-    if (text_ptr == NULL || !text_ptr->visible || !text_ptr->pickable || text_ptr->text == NULL) {
+    float left, top, width, height;
+    if (text_ptr == NULL || !text_ptr->visible || !text_ptr->pickable || text_ptr->text == NULL ||
+        !block_rect(text_ptr, &left, &top, &width, &height)) {
         return false;
     }
-    width = sk_text2d_measure_width(handle);
-    height = sk_text2d_measure_height(handle);
-    if (x < text_ptr->x || y < text_ptr->y || x > text_ptr->x + width || y > text_ptr->y + height) {
+    if (x < left || y < top || x > left + width || y > top + height) {
         return false;
     }
     *out = (sk_pick_result_t){
         .hit = true,
-        .point_local = {x - text_ptr->x, y - text_ptr->y, 0},
+        .point_local = {x - left, y - top, 0},
         .point_world = {x, y, 0},
     };
     return true;
@@ -108,6 +129,8 @@ sk_handle_t sk_text2d_create(sk_handle_t font)
         .font = font,
         .text = NULL,
         .size = 16.0f,
+        .align_x = SK_TEXT_ALIGN_LEFT,
+        .align_y = SK_TEXT_ALIGN_TOP,
         .color = 0,
         .visible = true,
         .pickable = true,
@@ -189,11 +212,34 @@ bool sk_text2d_is_visible(sk_handle_t handle)
 }
 
 SK_KEEP
+bool sk_text2d_set_align(sk_handle_t handle, sk_text_align_t horizontal, sk_text_align_t vertical)
+{
+    sk_text2d_t *text_ptr = resolve(handle);
+    if (text_ptr == NULL) return false;
+    if (horizontal > SK_TEXT_ALIGN_RIGHT || vertical < SK_TEXT_ALIGN_TOP || vertical > SK_TEXT_ALIGN_BOTTOM) {
+        log_warn("sk_text2d_set_align: horizontal is LEFT/CENTER/RIGHT, vertical TOP/MIDDLE/BOTTOM");
+        return false;
+    }
+    text_ptr->align_x = horizontal;
+    text_ptr->align_y = vertical;
+    return true;
+}
+
+SK_KEEP
+bool sk_text2d_set_max_width(sk_handle_t handle, float width)
+{
+    sk_text2d_t *text_ptr = resolve(handle);
+    if (text_ptr == NULL) return false;
+    text_ptr->max_width = width > 0.0f ? width : 0.0f;
+    return true;
+}
+
+SK_KEEP
 float sk_text2d_measure_width(sk_handle_t handle)
 {
     sk_text2d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL || text_ptr->text == NULL) return 0.0f;
-    return sk_text_measure_ex(text_ptr->font, text_ptr->text, text_ptr->size).x;
+    return sk_text_block_size(text_ptr->font, text_ptr->text, text_ptr->size, text_ptr->max_width).x;
 }
 
 SK_KEEP
@@ -201,7 +247,7 @@ float sk_text2d_measure_height(sk_handle_t handle)
 {
     sk_text2d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL || text_ptr->text == NULL) return 0.0f;
-    return sk_text_measure_ex(text_ptr->font, text_ptr->text, text_ptr->size).y;
+    return sk_text_block_size(text_ptr->font, text_ptr->text, text_ptr->size, text_ptr->max_width).y;
 }
 
 SK_KEEP
@@ -240,10 +286,14 @@ SK_KEEP
 void sk_text2d_draw(sk_handle_t handle)
 {
     sk_text2d_t *text_ptr = resolve(handle);
-    if (text_ptr == NULL || !text_ptr->visible || text_ptr->text == NULL) return;
+    float left, top, width, height;
+    if (text_ptr == NULL || !text_ptr->visible || text_ptr->text == NULL ||
+        !block_rect(text_ptr, &left, &top, &width, &height)) {
+        return;
+    }
     /* font 0 or a font that isn't loaded resolves to the default / built-in font */
-    sk_text_draw_ex(text_ptr->font, text_ptr->text, text_ptr->x, text_ptr->y,
-                    text_ptr->size, text_ptr->color);
+    sk_text_block_draw(text_ptr->font, text_ptr->text, left, top, text_ptr->size, text_ptr->color,
+                       text_ptr->max_width, width, text_ptr->align_x);
 }
 
 SK_KEEP

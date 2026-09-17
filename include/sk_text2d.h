@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#include "sk_text.h" /* sk_text_align_t, the default font */
 #include "sk_types.h"
 
 /* Text2d object (kind TEXT2D): a placed string drawn from a Font resource,
@@ -37,8 +38,21 @@ bool sk_text2d_is_pickable(sk_handle_t handle);
 bool sk_text2d_set_enabled(sk_handle_t text, bool enabled);
 bool sk_text2d_is_enabled(sk_handle_t text);
 
-/* Rendered extent of the current text at the current size (0 if no text). Uses
- * the font it draws with (its own, or the default font). */
+/* Where the text sits relative to its position: LEFT/CENTER/RIGHT horizontally,
+ * TOP/MIDDLE/BOTTOM vertically (default: left, top, so the position is the
+ * block's top-left corner). Wrapped lines line up the same way inside the block,
+ * and picks use the block's rectangle. False for another axis's value. */
+bool sk_text2d_set_align(sk_handle_t handle, sk_text_align_t horizontal, sk_text_align_t vertical);
+
+/* Wrap the text to `width` logical pixels, between words (a word wider than that
+ * keeps a line to itself); 0 turns wrapping off (the default). Newlines in the
+ * text always break a line. A wrapped block is `width` wide for alignment and
+ * picking, however short its lines are. */
+bool sk_text2d_set_max_width(sk_handle_t handle, float width);
+
+/* Size of the laid-out text at the current size — the widest line and the lines'
+ * total height (0 if no text). Uses the font it draws with (its own, or the
+ * default font). */
 float sk_text2d_measure_width(sk_handle_t handle);
 float sk_text2d_measure_height(sk_handle_t handle);
 

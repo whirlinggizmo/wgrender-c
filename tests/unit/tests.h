@@ -83,6 +83,10 @@ void test_pick_ray_from_screen(void);
 
 void test_render_targets(void);
 
+void test_nine_slice(void);
+void test_text2d_layout(void);
+void test_scene_clip(void);
+
 void test_scene_view_depth(void);
 void test_scene_sort_transparent(void);
 

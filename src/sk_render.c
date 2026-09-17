@@ -407,6 +407,30 @@ void sk_render_end_mode_2d(void)
     /* 2D is the default projection; nothing to restore for the milestone. */
 }
 
+/* ---- clipping ---------------------------------------------------------- */
+
+/* Clip rectangles are logical pixels with a top-left origin, like 2D drawing,
+ * while the scissor rect is in framebuffer pixels: screen rects scale by the DPI
+ * scale, render targets are already in their own pixels. */
+static void set_scissor(float x, float y, float width, float height)
+{
+    const float scale = sk_render_current_pass_index == 0 ? sk_platform_dpi_scale() : 1.0f;
+    sgl_scissor_rectf(x * scale, y * scale, width * scale, height * scale, true);
+}
+
+SK_KEEP
+void sk_render_begin_clip(float x, float y, float width, float height)
+{
+    set_scissor(x, y, width > 0.0f ? width : 0.0f, height > 0.0f ? height : 0.0f);
+}
+
+SK_KEEP
+void sk_render_end_clip(void)
+{
+    const vec2_t size = sk_render_current_pass_index == 0 ? sk_window_get_screen_size() : sk_render_target_size();
+    set_scissor(0.0f, 0.0f, size.x, size.y);
+}
+
 SK_KEEP
 void sk_render_begin_mode_3d(void)
 {

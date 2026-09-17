@@ -20,6 +20,14 @@ typedef struct {
  * bottom-left (as seen in the texture), as x,y pairs into out[8]. */
 void sk_sprite2d_corners(const sk_sprite2d_placement_t *placement, float out[8]);
 
+/* One axis of a nine-slice: where the two inner edges sit, as fractions (0..1) of
+ * the destination (out_dest) and of the source region (out_source). Borders wider
+ * than the region share it; borders that don't fit the destination shrink to fill
+ * it (so a stretched patch never flips). False when the axis isn't sliced. Pure;
+ * exposed for tests. */
+bool sk_sprite2d_nine_slice_axis(float border_low, float border_high, float dest_size, float source_size,
+                                 float out_dest[2], float out_source[2]);
+
 /* Map a screen point into the sprite: u, v in 0..1 across it (u follows the
  * texture's x, v its y, so flipped sprites mirror u/v). Returns false when the
  * point is outside the sprite. Pure; exposed for tests. */

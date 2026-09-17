@@ -50,10 +50,19 @@ typedef struct {
     sk_interaction_edges_t tick_edges;
 } sk_interaction_t;
 
+/* A clip rectangle for one layer's 2D members (screen pixels, top-left origin). */
+#define MAX_SCENE_CLIPS 8
+typedef struct {
+    int layer;
+    float x, y, width, height;
+} sk_scene_clip_t;
+
 typedef struct {
     sk_scene_entry_t *items;
     int count;
     int capacity;
+    sk_scene_clip_t clips[MAX_SCENE_CLIPS];
+    int clip_count;
     sk_interaction_t interaction;
     sk_handle_t camera;
     sk_handle_t ambient_color;  /* 0 = white */
@@ -198,6 +207,26 @@ static bool is_2d_member(sk_handle_t handle)
         return false;
     }
     return sk_is_2d_registry[kind] == NULL || sk_is_2d_registry[kind](handle);
+}
+
+/* The clip rectangle of a layer, or NULL when it isn't clipped. */
+static const sk_scene_clip_t *lookup_clip(const sk_scene_t *scene_ptr, int layer)
+{
+    for (int i = 0; i < scene_ptr->clip_count; i++) {
+        if (scene_ptr->clips[i].layer == layer) {
+            return &scene_ptr->clips[i];
+        }
+    }
+    return NULL;
+}
+
+/* True when a screen point falls outside the clip rectangle of a member's layer:
+ * what isn't drawn isn't picked either. */
+static bool clipped_out(const sk_scene_t *scene_ptr, int layer, float x, float y)
+{
+    const sk_scene_clip_t *clip = lookup_clip(scene_ptr, layer);
+    return clip != NULL &&
+           (x < clip->x || y < clip->y || x > clip->x + clip->width || y > clip->y + clip->height);
 }
 
 static bool is_enabled(sk_handle_t handle)
@@ -408,6 +437,38 @@ void sk_scene_clear(sk_handle_t scene)
 }
 
 SK_KEEP
+bool sk_scene_set_clip(sk_handle_t scene, int layer, float x, float y, float width, float height)
+{
+    sk_scene_t *scene_ptr = resolve(scene);
+    int slot = -1;
+
+    if (scene_ptr == NULL) {
+        return false;
+    }
+    for (int i = 0; i < scene_ptr->clip_count; i++) {
+        if (scene_ptr->clips[i].layer == layer) {
+            slot = i;
+            break;
+        }
+    }
+    if (width <= 0.0f || height <= 0.0f) { /* no clip: drop the layer's rectangle */
+        if (slot >= 0) {
+            scene_ptr->clips[slot] = scene_ptr->clips[--scene_ptr->clip_count];
+        }
+        return true;
+    }
+    if (slot < 0) {
+        if (scene_ptr->clip_count >= MAX_SCENE_CLIPS) {
+            log_warn("sk_scene_set_clip: at most %d clipped layers per scene", MAX_SCENE_CLIPS);
+            return false;
+        }
+        slot = scene_ptr->clip_count++;
+    }
+    scene_ptr->clips[slot] = (sk_scene_clip_t){.layer = layer, .x = x, .y = y, .width = width, .height = height};
+    return true;
+}
+
+SK_KEEP
 void sk_scene_set_active_camera(sk_handle_t scene, sk_handle_t camera)
 {
     sk_scene_t *scene_ptr = resolve(scene);
@@ -600,11 +661,35 @@ void sk_scene_draw(sk_handle_t scene)
     sk_render_end_mode_3d();
     sk_light_env_set_current(-1); /* models drawn outside a scene are unlit */
 
-    /* 2D members on top of all 3D, in layer then member order */
-    for (int i = 0; i < scene_ptr->count; i++) {
-        const sk_drawable_passes_t *passes = lookup_passes(scene_ptr->items[i].drawable);
-        if (passes != NULL && passes->draw_2d != NULL && is_2d_member(scene_ptr->items[i].drawable)) {
-            passes->draw_2d(scene_ptr->items[i].drawable);
+    /* 2D members on top of all 3D, in layer then member order, each layer inside
+     * its clip rectangle (sk_scene_set_clip) if it has one */
+    {
+        const sk_scene_clip_t *clip = NULL;
+        int clip_layer = 0;
+        bool layer_known = false;
+        for (int i = 0; i < scene_ptr->count; i++) {
+            const sk_handle_t drawable = scene_ptr->items[i].drawable;
+            const sk_drawable_passes_t *passes = lookup_passes(drawable);
+            if (passes == NULL || passes->draw_2d == NULL || !is_2d_member(drawable)) {
+                continue;
+            }
+            if (!layer_known || scene_ptr->items[i].layer != clip_layer) {
+                const sk_scene_clip_t *next = lookup_clip(scene_ptr, scene_ptr->items[i].layer);
+                if (next != clip) {
+                    if (next != NULL) {
+                        sk_render_begin_clip(next->x, next->y, next->width, next->height);
+                    } else {
+                        sk_render_end_clip();
+                    }
+                    clip = next;
+                }
+                clip_layer = scene_ptr->items[i].layer;
+                layer_known = true;
+            }
+            passes->draw_2d(drawable);
+        }
+        if (clip != NULL) {
+            sk_render_end_clip();
         }
     }
 }
@@ -632,6 +717,7 @@ sk_pick_result_t sk_scene_pick(sk_handle_t scene, sk_handle_t camera,
     for (int i = scene_ptr->count - 1; i >= 0; i--) {
         const sk_drawable_passes_t *passes = lookup_passes(scene_ptr->items[i].drawable);
         if (is_2d_member(scene_ptr->items[i].drawable) &&
+            !clipped_out(scene_ptr, scene_ptr->items[i].layer, mouse_x, mouse_y) &&
             pick_2d(scene_ptr->items[i].drawable, passes, mouse_x, mouse_y, &result)) {
             return result;
         }
@@ -718,6 +804,7 @@ static sk_handle_t pick_member(sk_scene_t *scene_ptr, float x, float y, bool *is
     for (int i = scene_ptr->count - 1; i >= 0 && hit == 0; i--) {
         const sk_drawable_passes_t *passes = lookup_passes(scene_ptr->items[i].drawable);
         if (is_2d_member(scene_ptr->items[i].drawable) &&
+            !clipped_out(scene_ptr, scene_ptr->items[i].layer, x, y) &&
             pick_2d(scene_ptr->items[i].drawable, passes, x, y, &result)) {
             hit = scene_ptr->items[i].drawable;
             *is_2d = true;

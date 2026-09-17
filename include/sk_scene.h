@@ -21,6 +21,13 @@ bool sk_scene_add(sk_handle_t scene, sk_handle_t drawable, int layer);
 bool sk_scene_set_layer(sk_handle_t scene, sk_handle_t drawable, int layer);
 bool sk_scene_remove(sk_handle_t scene, sk_handle_t drawable);
 void sk_scene_clear(sk_handle_t scene);
+/* Clip a layer's 2D members to a screen rectangle (logical pixels, top-left
+ * origin): what falls outside isn't drawn and isn't picked, which is what a
+ * scrolling list or a panel with content needs. A width or height of 0 removes
+ * the layer's rectangle (the default). 3D members are never clipped. The
+ * rectangles belong to the scene, not to its members, so they outlive
+ * sk_scene_clear; at most 8 layers per scene are clipped. */
+bool sk_scene_set_clip(sk_handle_t scene, int layer, float x, float y, float width, float height);
 
 void sk_scene_set_active_camera(sk_handle_t scene, sk_handle_t camera);
 

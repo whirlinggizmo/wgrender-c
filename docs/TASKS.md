@@ -209,8 +209,7 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 - [ ] Materials, phase 2: custom shaders (`.skshader` packages from sokol-shdc)
 - [ ] Materials, phase 3: shapes and sprites on materials (with the batched renderer)
 - [ ] 2D / UI layer: screen space, draw ordering, 2D picking, pickable UI primitives
-      ([PLAN-2d.md](PLAN-2d.md): steps 1–2 done; UI essentials and sprite3d for 2D
-      worlds to do)
+      ([PLAN-2d.md](PLAN-2d.md): steps 1–3 done; sprite3d for 2D worlds to do)
 - [ ] Particle emitters (batched/instanced)
 - [x] Render to texture: `sk_texture_create_target`, `sk_render_begin/end_texture`,
       `sk_texture_set_sampling` ([PLAN-render-target.md](PLAN-render-target.md),

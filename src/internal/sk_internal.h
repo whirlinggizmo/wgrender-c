@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 
+#include "sk_text.h" /* sk_text_align_t */
 #include "sk_types.h"
 
 /* Shared lifecycle/state across the C translation units. These are NOT public
@@ -83,6 +84,15 @@ void sk_text_deinit(void);
 /* The font to use for `font`: the default font for 0 (sk_text_set_default_font, else
  * the built-in font), and the built-in font for a font that isn't loaded. */
 sk_handle_t sk_text_resolve_font(sk_handle_t font);
+/* A block of text laid out in `font` (0 = default) at `size`: lines break at
+ * newlines and, when max_width > 0, between words that don't fit (a word longer
+ * than that keeps a line to itself). Lines are one font line height apart.
+ * sk_text_block_size gives the widest line and the total height; sk_text_block_draw
+ * draws it with (left, top) as the block's top-left corner, aligning each line
+ * inside a box `box_width` wide (the block's own width when it's not wider). */
+vec2_t sk_text_block_size(sk_handle_t font, const char *text, float size, float max_width);
+void sk_text_block_draw(sk_handle_t font, const char *text, float left, float top, float size,
+                        sk_handle_t color, float max_width, float box_width, sk_text_align_t align_x);
 
 /* text2d (retained text object, built on the text layer) */
 void sk_text2d_init(void);

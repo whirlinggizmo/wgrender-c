@@ -25,6 +25,7 @@ typedef struct {
     float scale_x, scale_y;
     float width, height; /* <= 0: source size */
     float pivot_x, pivot_y;
+    float slice_left, slice_top, slice_right, slice_bottom; /* nine-slice borders in source pixels; all 0: off */
     sk_handle_t tint;
     bool visible;
     bool pickable;
@@ -75,16 +76,51 @@ static sk_sprite2d_t *resolve(sk_handle_t sprite)
 
 /* ------------------------------------------------------------ geometry ---- */
 
+/* Screen position of a point given in unit coordinates across the sprite. */
+static void point_at(const sk_sprite2d_placement_t *p, float u, float v, float *out_x, float *out_y)
+{
+    const float c = cosf(p->rotation), s = sinf(p->rotation);
+    const float lx = (u - p->pivot_x) * p->width * p->scale_x;
+    const float ly = (v - p->pivot_y) * p->height * p->scale_y;
+    *out_x = p->x + lx * c - ly * s;
+    *out_y = p->y + lx * s + ly * c;
+}
+
 void sk_sprite2d_corners(const sk_sprite2d_placement_t *p, float out[8])
 {
     static const float unit[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
-    const float c = cosf(p->rotation), s = sinf(p->rotation);
     for (int i = 0; i < 4; i++) {
-        const float lx = (unit[i][0] - p->pivot_x) * p->width * p->scale_x;
-        const float ly = (unit[i][1] - p->pivot_y) * p->height * p->scale_y;
-        out[i * 2] = p->x + lx * c - ly * s;
-        out[i * 2 + 1] = p->y + lx * s + ly * c;
+        point_at(p, unit[i][0], unit[i][1], &out[i * 2], &out[i * 2 + 1]);
     }
+}
+
+bool sk_sprite2d_nine_slice_axis(float border_low, float border_high, float dest_size, float source_size,
+                                 float out_dest[2], float out_source[2])
+{
+    float low = border_low > 0.0f ? border_low : 0.0f;
+    float high = border_high > 0.0f ? border_high : 0.0f;
+    float dest_low, dest_high;
+
+    if (dest_size <= 0.0f || source_size <= 0.0f || low + high <= 0.0f) {
+        return false;
+    }
+    if (low + high > source_size) { /* borders wider than the region: share it */
+        const float k = source_size / (low + high);
+        low *= k;
+        high *= k;
+    }
+    dest_low = low;
+    dest_high = high;
+    if (dest_low + dest_high > dest_size) { /* too big to draw at 1:1: shrink them to fit */
+        const float k = dest_size / (dest_low + dest_high);
+        dest_low *= k;
+        dest_high *= k;
+    }
+    out_dest[0] = dest_low / dest_size;
+    out_dest[1] = 1.0f - dest_high / dest_size;
+    out_source[0] = low / source_size;
+    out_source[1] = 1.0f - high / source_size;
+    return true;
 }
 
 bool sk_sprite2d_screen_to_unit(const sk_sprite2d_placement_t *p, float screen_x, float screen_y,
@@ -107,6 +143,12 @@ bool sk_sprite2d_screen_to_unit(const sk_sprite2d_placement_t *p, float screen_x
     *u = ux;
     *v = uy;
     return true;
+}
+
+static bool is_nine_slice(const sk_sprite2d_t *sprite_ptr)
+{
+    return sprite_ptr->slice_left > 0.0f || sprite_ptr->slice_top > 0.0f || sprite_ptr->slice_right > 0.0f ||
+           sprite_ptr->slice_bottom > 0.0f;
 }
 
 /* Resolve a sprite's texture binding, source region (texture pixels) and
@@ -168,6 +210,50 @@ static void draw_quad(sg_view view, sg_sampler smp, const float corners[8], floa
     sgl_disable_texture();
 }
 
+/* Nine-slice: the corners keep their size, the edges stretch along one axis and the
+ * middle along both. An axis without borders stays one span, so a sprite sliced on
+ * one axis draws three patches, not nine. False when nothing is sliced. */
+static bool draw_nine_slice(const sk_sprite2d_t *sprite_ptr, sg_view view, sg_sampler smp, const float source[4],
+                            int tw, int th, const sk_sprite2d_placement_t *p)
+{
+    float du[4] = {0.0f, 1.0f, 0.0f, 0.0f}, su[4] = {0.0f, 1.0f, 0.0f, 0.0f};
+    float dv[4] = {0.0f, 1.0f, 0.0f, 0.0f}, sv[4] = {0.0f, 1.0f, 0.0f, 0.0f};
+    int nu = 2, nv = 2;
+    float d[2], t[2];
+    const bool flip_v = sk_texture_is_flipped(sprite_ptr->texture);
+
+    if (sk_sprite2d_nine_slice_axis(sprite_ptr->slice_left, sprite_ptr->slice_right, p->width, source[2], d, t)) {
+        du[1] = d[0], du[2] = d[1], du[3] = 1.0f;
+        su[1] = t[0], su[2] = t[1], su[3] = 1.0f;
+        nu = 4;
+    }
+    if (sk_sprite2d_nine_slice_axis(sprite_ptr->slice_top, sprite_ptr->slice_bottom, p->height, source[3], d, t)) {
+        dv[1] = d[0], dv[2] = d[1], dv[3] = 1.0f;
+        sv[1] = t[0], sv[2] = t[1], sv[3] = 1.0f;
+        nv = 4;
+    }
+    if (nu == 2 && nv == 2) {
+        return false;
+    }
+    for (int j = 0; j + 1 < nv; j++) {
+        for (int i = 0; i + 1 < nu; i++) {
+            float corners[8];
+            if (du[i + 1] <= du[i] || dv[j + 1] <= dv[j]) {
+                continue; /* a border shrunk away */
+            }
+            point_at(p, du[i], dv[j], &corners[0], &corners[1]);
+            point_at(p, du[i + 1], dv[j], &corners[2], &corners[3]);
+            point_at(p, du[i + 1], dv[j + 1], &corners[4], &corners[5]);
+            point_at(p, du[i], dv[j + 1], &corners[6], &corners[7]);
+            draw_quad(view, smp, corners, (source[0] + su[i] * source[2]) / (float)tw,
+                      (source[1] + sv[j] * source[3]) / (float)th,
+                      (source[0] + su[i + 1] * source[2]) / (float)tw,
+                      (source[1] + sv[j + 1] * source[3]) / (float)th, flip_v, sprite_ptr->tint);
+        }
+    }
+    return true;
+}
+
 static void draw_handle(sk_handle_t sprite)
 {
     const sk_sprite2d_t *sprite_ptr = resolve(sprite);
@@ -179,6 +265,9 @@ static void draw_handle(sk_handle_t sprite)
 
     if (sprite_ptr == NULL || !sprite_ptr->visible ||
         !resolve_placement(sprite_ptr, &view, &smp, source, &tw, &th, &placement)) {
+        return;
+    }
+    if (draw_nine_slice(sprite_ptr, view, smp, source, tw, th, &placement)) {
         return;
     }
     sk_sprite2d_corners(&placement, corners);
@@ -201,7 +290,7 @@ static bool pick_handle(sk_handle_t sprite, float screen_x, float screen_y, sk_p
         !sk_sprite2d_screen_to_unit(&placement, screen_x, screen_y, &u, &v)) {
         return false;
     }
-    if (sprite_ptr->alpha_test &&
+    if (sprite_ptr->alpha_test && !is_nine_slice(sprite_ptr) &&
         sk_texture_sample_alpha(sprite_ptr->texture, (source[0] + u * source[2]) / (float)tw,
                                 (source[1] + v * source[3]) / (float)th, &alpha) &&
         alpha < sprite_ptr->alpha_threshold) {
@@ -344,6 +433,20 @@ bool sk_sprite2d_set_size(sk_handle_t sprite, float width, float height)
     }
     sprite_ptr->width = width > 0.0f && height > 0.0f ? width : 0.0f;
     sprite_ptr->height = width > 0.0f && height > 0.0f ? height : 0.0f;
+    return true;
+}
+
+SK_KEEP
+bool sk_sprite2d_set_nine_slice(sk_handle_t sprite, float left, float top, float right, float bottom)
+{
+    sk_sprite2d_t *sprite_ptr = resolve(sprite);
+    if (sprite_ptr == NULL) {
+        return false;
+    }
+    sprite_ptr->slice_left = left > 0.0f ? left : 0.0f;
+    sprite_ptr->slice_top = top > 0.0f ? top : 0.0f;
+    sprite_ptr->slice_right = right > 0.0f ? right : 0.0f;
+    sprite_ptr->slice_bottom = bottom > 0.0f ? bottom : 0.0f;
     return true;
 }
 

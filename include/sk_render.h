@@ -17,6 +17,15 @@ void sk_render_end_mode_2d(void);
 void sk_render_begin_mode_3d(void);
 void sk_render_end_mode_3d(void);
 
+/* Clip drawing to a screen rectangle (logical pixels, top-left origin; the
+ * drawing target's pixels inside sk_render_begin_texture) until
+ * sk_render_end_clip, which goes back to the whole target. A width or height of
+ * 0 clips everything away. Not nestable: the last rectangle set wins, and
+ * ending a clip restores the whole target, not an enclosing rectangle. Scenes
+ * clip their own layers with sk_scene_set_clip. */
+void sk_render_begin_clip(float x, float y, float width, float height);
+void sk_render_end_clip(void);
+
 /* Draw into a render target texture (sk_texture_create_target) instead of the
  * screen, until sk_render_end_texture. Call between sk_render_begin and
  * sk_render_end; everything works inside (clear, 2D, 3D mode, scenes, models,

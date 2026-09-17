@@ -7,6 +7,19 @@ extern "C" {
 
 #include "sk_types.h"
 
+/* Where a block of text sits relative to its position, per axis: LEFT / CENTER /
+ * RIGHT horizontally, TOP / MIDDLE / BOTTOM vertically. Wrapped lines line up the
+ * same way inside the block. */
+typedef enum
+{
+    SK_TEXT_ALIGN_LEFT = 0,
+    SK_TEXT_ALIGN_CENTER = 1,
+    SK_TEXT_ALIGN_RIGHT = 2,
+    SK_TEXT_ALIGN_TOP = 3,
+    SK_TEXT_ALIGN_MIDDLE = 4,
+    SK_TEXT_ALIGN_BOTTOM = 5
+} sk_text_align_t;
+
 /* The default font: what sk_text_draw, sk_text_measure and sk_text_draw_fps use,
  * and what font handle 0 means everywhere (sk_text_draw_ex, text2d, text3d).
  *
