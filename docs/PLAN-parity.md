@@ -67,20 +67,20 @@ void   sk_text_draw_3d(sk_handle_t font, const char *text, float x, float y, flo
 
 librl: 3D rectangle and circle (center, size, axis-angle rotation), line and line
 strip, immediate and retained. libsk: retained shapes are local geometry plus
-`sk_shape_set_transform`; immediate 3D draws take a center and size.
+`sk_shape3d_set_transform`; immediate 3D draws take a center and size.
 
 ```c
-/* retained: local geometry, placed with sk_shape_set_transform */
-bool sk_shape_set_rectangle(sk_handle_t shape, float width, float height);  /* in the XY plane, filled */
-bool sk_shape_set_circle(sk_handle_t shape, float radius);                  /* in the XY plane, outline */
-bool sk_shape_set_line(sk_handle_t shape, float x0, float y0, float z0, float x1, float y1, float z1);
-bool sk_shape_set_line_strip(sk_handle_t shape);                            /* empty strip */
-bool sk_shape_add_point(sk_handle_t shape, float x, float y, float z);      /* append to the strip */
+/* retained: local geometry, placed with sk_shape3d_set_transform */
+bool sk_shape3d_set_rectangle(sk_handle_t shape, float width, float height);  /* in the XY plane, filled */
+bool sk_shape3d_set_circle(sk_handle_t shape, float radius);                  /* in the XY plane, outline */
+bool sk_shape3d_set_line(sk_handle_t shape, float x0, float y0, float z0, float x1, float y1, float z1);
+bool sk_shape3d_set_line_strip(sk_handle_t shape);                            /* empty strip */
+bool sk_shape3d_add_point(sk_handle_t shape, float x, float y, float z);      /* append to the strip */
 
 /* immediate (3D mode); rotation is euler radians like every transform */
-void sk_shape_draw_rectangle_3d(float cx, float cy, float cz, float width, float height,
+void sk_shape3d_draw_rectangle(float cx, float cy, float cz, float width, float height,
                                 float rx, float ry, float rz, sk_handle_t color);
-void sk_shape_draw_circle_3d(float cx, float cy, float cz, float radius,
+void sk_shape3d_draw_circle(float cx, float cy, float cz, float radius,
                              float rx, float ry, float rz, sk_handle_t color);
 ```
 
@@ -153,7 +153,7 @@ bool  sk_model_is_ready(sk_handle_t model);   /* has a loaded mesh (handles are 
    pickable object, stats as a value struct. Recommend: yes.
 2. **Text3d:** as above, sharing sprite3d's facing modes. Recommend: yes.
 3. **Line strips:** built point by point on a retained shape
-   (`sk_shape_set_line_strip` + `sk_shape_add_point`), with no immediate strip
+   (`sk_shape3d_set_line_strip` + `sk_shape3d_add_point`), with no immediate strip
    function. Alternatives: an immediate `begin/point/end` sequence, or strips from
    a "point list" resource handle. Recommend: retained, point by point.
 4. **Window and monitors:** A (native, Linux/X11 + web now, Windows/macOS written
@@ -170,7 +170,7 @@ bool  sk_model_is_ready(sk_handle_t model);   /* has a loaded mesh (handles are 
 ## As built
 
 - **Bug fixed:** scene picking treated a non-pickable 3D object as "no exact test"
-  and fell back to its bounding box, so `sk_shape_set_pickable(false)` still hit.
+  and fell back to its bounding box, so `sk_shape3d_set_pickable(false)` still hit.
   Picking now goes through one internal path (`pick_2d`/`pick_3d` in sk_scene.c),
   shared by `sk_scene_pick` and `sk_pick_object`, which also counts the stats.
 - **text2d joined scenes** as a 2D member (drawn over 3D, picked by its text

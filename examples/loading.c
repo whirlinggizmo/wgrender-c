@@ -159,18 +159,18 @@ static void draw_graph(int x, int y, int width, int height)
     const float bar = (float)width / GRAPH;
     float worst = 0.0f;
 
-    sk_shape_draw_rectangle(x, y, width, height, g.bar);
+    sk_shape2d_draw_rectangle(x, y, width, height, g.bar);
     for (int i = 0; i < GRAPH; i++) {
         const float ms = g.frame_ms[(g.frame_next + i) % GRAPH];
         const int h = (int)(height * (ms < max_ms ? ms : max_ms) / max_ms);
         if (h > 0) {
-            sk_shape_draw_rectangle(x + (int)(i * bar), y + height - h, bar > 1.0f ? (int)bar : 1, h,
+            sk_shape2d_draw_rectangle(x + (int)(i * bar), y + height - h, bar > 1.0f ? (int)bar : 1, h,
                                     ms > 34.0f ? g.graph_slow : g.graph_ok);
         }
         worst = ms > worst ? ms : worst;
     }
     const int line_y = y + height - (int)(height * 16.7f / max_ms); /* a 60 Hz frame */
-    sk_shape_draw_line(x, line_y, x + width, line_y, g.line);
+    sk_shape2d_draw_line(x, line_y, x + width, line_y, g.line);
 
     char text[96];
     snprintf(text, sizeof(text), "frame times, 0-100 ms (line: 16.7 ms)   worst: %.0f ms", worst);
@@ -202,18 +202,18 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_render_clear_background(g.bg);
     sk_scene_draw(g.scene);
     sk_render_begin_mode_3d();
-    sk_shape_draw_cube_wires(0, 1.9f + 0.1f * sinf(g.time * 3.0f), 0, 0.5f, 0.5f, 0.5f, g.cube);
+    sk_shape3d_draw_cube_wires(0, 1.9f + 0.1f * sinf(g.time * 3.0f), 0, 0.5f, 0.5f, 0.5f, g.cube);
     sk_render_end_mode_3d();
 
-    sk_shape_draw_rectangle(0, 0, (int)screen.x, 64, g.bar);
+    sk_shape2d_draw_rectangle(0, 0, (int)screen.x, 64, g.bar);
     sk_text_draw("libsk loading   A: in the background   S: synchronously   U: unload", 12, 12, 12,
                  SK_COLOR_RAYWHITE);
     if (g.group != 0) {
         const float progress = sk_asset_get_progress(g.group);
         snprintf(line, sizeof(line), "loading (%s)... %.0f%%", g.sync ? "synchronously" : "in the background",
                  progress * 100.0f);
-        sk_shape_draw_rectangle(12, 40, (int)(240 * progress), 12, g.graph_ok);
-        sk_shape_draw_rectangle_lines(12, 40, 240, 12, g.line);
+        sk_shape2d_draw_rectangle(12, 40, (int)(240 * progress), 12, g.graph_ok);
+        sk_shape2d_draw_rectangle_lines(12, 40, 240, 12, g.line);
         sk_text_draw(line, 264, 40, 12, SK_COLOR_LIGHTGRAY);
     } else if (g.loaded) {
         snprintf(line, sizeof(line), "loaded %d files %s in %.2f s; creating them took %.0f ms",

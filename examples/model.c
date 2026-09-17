@@ -89,7 +89,7 @@ static void frame(float dt, float tick_fraction, void *user_data) {
   sk_render_clear_background(g_bg);
 
   sk_render_begin_mode_3d();
-  sk_shape_draw_grid(20, 1.0f, SK_COLOR_DARKGRAY);
+  sk_shape3d_draw_grid(20, 1.0f, SK_COLOR_DARKGRAY);
   sk_render_end_mode_3d();
 
   sk_scene_draw(g_scene);

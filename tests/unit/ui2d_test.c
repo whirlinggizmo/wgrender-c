@@ -13,7 +13,7 @@
 #include "sk_logger.h"
 #include "sk_pick.h"
 #include "sk_scene.h"
-#include "sk_shape.h"
+#include "sk_shape2d.h"
 #include "sk_sprite2d.h"
 #include "sk_text.h"
 #include "sk_text2d.h"
@@ -151,7 +151,7 @@ void test_scene_clip(void)
     sk_scene_init();
     sk_color_init();
     sk_camera3d_init();
-    sk_shape_init();
+    sk_shape2d_init();
     sk_logger_set_level(SK_LOGGER_LEVEL_ERROR);
     CHECK(sk_window_set_size(800, 600));
 
@@ -161,12 +161,12 @@ void test_scene_clip(void)
     sk_scene_set_active_camera(scene, camera);
 
     /* a row of 2D panels on layer 1, inside a 200x100 window at (100, 100) */
-    const sk_handle_t inside = sk_shape_create();
-    sk_shape_set_rectangle_2d(inside, 60, 40, 0);
-    sk_shape_set_transform_2d(inside, 120, 120, 0, 1, 1);
-    const sk_handle_t outside = sk_shape_create();
-    sk_shape_set_rectangle_2d(outside, 60, 40, 0);
-    sk_shape_set_transform_2d(outside, 120, 260, 0, 1, 1); /* below the window */
+    const sk_handle_t inside = sk_shape2d_create();
+    sk_shape2d_set_rectangle(inside, 60, 40, 0);
+    sk_shape2d_set_transform(inside, 120, 120, 0, 1, 1);
+    const sk_handle_t outside = sk_shape2d_create();
+    sk_shape2d_set_rectangle(outside, 60, 40, 0);
+    sk_shape2d_set_transform(outside, 120, 260, 0, 1, 1); /* below the window */
     sk_scene_add(scene, inside, 1);
     sk_scene_add(scene, outside, 1);
 
@@ -178,9 +178,9 @@ void test_scene_clip(void)
     CHECK(sk_scene_pick(scene, 0, 150, 280).handle == 0); /* clipped away: not picked */
 
     /* another layer isn't clipped */
-    const sk_handle_t other = sk_shape_create();
-    sk_shape_set_rectangle_2d(other, 60, 40, 0);
-    sk_shape_set_transform_2d(other, 400, 400, 0, 1, 1);
+    const sk_handle_t other = sk_shape2d_create();
+    sk_shape2d_set_rectangle(other, 60, 40, 0);
+    sk_shape2d_set_transform(other, 400, 400, 0, 1, 1);
     sk_scene_add(scene, other, 2);
     CHECK(sk_scene_pick(scene, 0, 430, 420).handle == other);
 
@@ -208,7 +208,7 @@ void test_scene_clip(void)
     CHECK(sk_window_set_size((int)screen.x, (int)screen.y));
     sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
     sk_scene_destroy(scene);
-    sk_shape_deinit();
+    sk_shape2d_deinit();
     sk_camera3d_deinit();
     sk_color_deinit();
     sk_scene_deinit();

@@ -284,7 +284,7 @@ Not supported yet:
 ## Open decisions
 
 - [x] Handle-only API for point lists: line strips are built point by point on a
-      retained shape (`sk_shape_set_line_strip` + `sk_shape_add_point`); batch
+      retained shape (`sk_shape3d_set_line_strip` + `sk_shape3d_add_point`); batch
       asset ensure is designed with the loading pipeline
 - [ ] Which language binding comes first
 - [ ] Naming, if libsk becomes an API with swappable implementations (see the

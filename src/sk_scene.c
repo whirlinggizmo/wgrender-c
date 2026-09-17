@@ -96,7 +96,6 @@ static bool sk_transparent_overflow_logged;
 static sk_drawable_bounds_fn sk_bounds_registry[SK_DRAWABLE_KIND_COUNT];
 static sk_drawable_pick_fn sk_pick_registry[SK_DRAWABLE_KIND_COUNT];
 static sk_drawable_enabled_fn sk_enabled_registry[SK_DRAWABLE_KIND_COUNT];
-static sk_drawable_is_2d_fn sk_is_2d_registry[SK_DRAWABLE_KIND_COUNT];
 static bool sk_scene_capture_releasing; /* the capturing press was released last frame */
 
 /* ---- drawable dispatch registry --------------------------------------- */
@@ -190,23 +189,12 @@ void sk_scene_register_enabled(sk_handle_kind_t kind, sk_drawable_enabled_fn ena
     sk_enabled_registry[kind] = enabled;
 }
 
-void sk_scene_register_is_2d(sk_handle_kind_t kind, sk_drawable_is_2d_fn is_2d)
-{
-    if ((int)kind < 0 || (int)kind >= SK_DRAWABLE_KIND_COUNT) {
-        return;
-    }
-    sk_is_2d_registry[kind] = is_2d;
-}
-
-/* A 2D member: its kind draws/picks in 2D and, for kinds that can be either
- * (shapes), this object is 2D. */
+/* A 2D member: its kind draws and picks in screen space (sprite2d, text2d,
+ * shape2d). Each kind is one or the other, so the handle says which. */
 static bool is_2d_member(sk_handle_t handle)
 {
     const sk_handle_kind_t kind = sk_handle_get_kind(handle);
-    if ((int)kind < 0 || (int)kind >= SK_DRAWABLE_KIND_COUNT || sk_passes_registry[kind].pick_2d == NULL) {
-        return false;
-    }
-    return sk_is_2d_registry[kind] == NULL || sk_is_2d_registry[kind](handle);
+    return (int)kind >= 0 && (int)kind < SK_DRAWABLE_KIND_COUNT && sk_passes_registry[kind].pick_2d != NULL;
 }
 
 /* The clip rectangle of a layer, or NULL when it isn't clipped. */
@@ -993,7 +981,6 @@ void sk_scene_init(void)
     memset(sk_bounds_registry, 0, sizeof(sk_bounds_registry));
     memset(sk_pick_registry, 0, sizeof(sk_pick_registry));
     memset(sk_enabled_registry, 0, sizeof(sk_enabled_registry));
-    memset(sk_is_2d_registry, 0, sizeof(sk_is_2d_registry));
     sk_scene_capture_releasing = false;
     sk_handle_pool_init(&sk_scene_pool,
                         SK_HANDLE_KIND_SCENE,

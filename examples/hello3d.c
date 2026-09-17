@@ -36,17 +36,17 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
     /* ---- 3D ---- */
     sk_render_begin_mode_3d();
-    sk_shape_draw_grid(20, 1.0f, SK_COLOR_DARKGRAY);
+    sk_shape3d_draw_grid(20, 1.0f, SK_COLOR_DARKGRAY);
 
     /* axes */
-    sk_shape_draw_line_3d(0, 0, 0, 5, 0, 0, SK_COLOR_RED);
-    sk_shape_draw_line_3d(0, 0, 0, 0, 5, 0, SK_COLOR_GREEN);
-    sk_shape_draw_line_3d(0, 0, 0, 0, 0, 5, SK_COLOR_BLUE);
+    sk_shape3d_draw_line(0, 0, 0, 5, 0, 0, SK_COLOR_RED);
+    sk_shape3d_draw_line(0, 0, 0, 0, 5, 0, SK_COLOR_GREEN);
+    sk_shape3d_draw_line(0, 0, 0, 0, 0, 5, SK_COLOR_BLUE);
 
-    sk_shape_draw_cube(0.0f, 1.0f, 0.0f, 2.0f, 2.0f, 2.0f, SK_COLOR_SKYBLUE);
-    sk_shape_draw_cube_wires(0.0f, 1.0f, 0.0f, 2.02f, 2.02f, 2.02f, SK_COLOR_DARKBLUE);
-    sk_shape_draw_sphere(5.0f, 1.5f, 0.0f, 1.5f, SK_COLOR_GOLD);
-    sk_shape_draw_sphere(-5.0f, 1.5f, 0.0f, 1.5f, SK_COLOR_MAROON);
+    sk_shape3d_draw_cube(0.0f, 1.0f, 0.0f, 2.0f, 2.0f, 2.0f, SK_COLOR_SKYBLUE);
+    sk_shape3d_draw_cube_wires(0.0f, 1.0f, 0.0f, 2.02f, 2.02f, 2.02f, SK_COLOR_DARKBLUE);
+    sk_shape3d_draw_sphere(5.0f, 1.5f, 0.0f, 1.5f, SK_COLOR_GOLD);
+    sk_shape3d_draw_sphere(-5.0f, 1.5f, 0.0f, 1.5f, SK_COLOR_MAROON);
     sk_render_end_mode_3d();
 
     /* ---- 2D overlay ---- */

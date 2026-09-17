@@ -51,10 +51,10 @@ static void on_init(void *user_data)
     sk_scene_set_active_camera(g_scene, g_camera);
 
     /* a couple of ground shapes for depth reference */
-    sk_handle_t pedestal = sk_shape_create();
-    sk_shape_set_cube(pedestal, 3.0f, 0.5f, 3.0f);
-    sk_shape_set_transform(pedestal, 0.0f, 0.25f, 0.0f, 0, 0, 0, 1, 1, 1);
-    sk_shape_set_color(pedestal, SK_COLOR_DARKGRAY);
+    sk_handle_t pedestal = sk_shape3d_create();
+    sk_shape3d_set_cube(pedestal, 3.0f, 0.5f, 3.0f);
+    sk_shape3d_set_transform(pedestal, 0.0f, 0.25f, 0.0f, 0, 0, 0, 1, 1, 1);
+    sk_shape3d_set_color(pedestal, SK_COLOR_DARKGRAY);
     sk_scene_add(g_scene, pedestal, 0);
 
     sk_asset_add_task(sk_asset_ensure_async(LOGO_PATH, NULL, 0), on_logo_loaded, on_logo_failed, NULL);
@@ -78,7 +78,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_render_clear_background(g_bg);
 
     sk_render_begin_mode_3d();
-    sk_shape_draw_grid(20, 1.0f, SK_COLOR_DARKGRAY);
+    sk_shape3d_draw_grid(20, 1.0f, SK_COLOR_DARKGRAY);
     sk_render_end_mode_3d();
 
     sk_scene_draw(g_scene);

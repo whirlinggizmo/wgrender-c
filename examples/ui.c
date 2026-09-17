@@ -88,7 +88,7 @@ static void place_rows(void)
 {
     for (int i = 0; i < ROWS; i++) {
         const float y = LIST_Y + (float)i * ROW_HEIGHT - g.scroll;
-        sk_shape_set_transform_2d(g.rows[i], LIST_X, y, 0, 1, 1);
+        sk_shape2d_set_transform(g.rows[i], LIST_X, y, 0, 1, 1);
         sk_text2d_set_position(g.row_labels[i], LIST_X + 12, y + ROW_HEIGHT * 0.5f);
     }
 }
@@ -134,28 +134,28 @@ static void init(void *user_data)
     sk_sprite2d_set_size(g.panel, PANEL_WIDTH, PANEL_HEIGHT);
     sk_scene_add(g.scene, g.panel, LAYER_PANEL); /* pickable, so presses on it don't orbit */
 
-    g.divider = sk_shape_create();
-    sk_shape_set_line_2d(g.divider, 0, 0, 220, 0, 2);
-    sk_shape_set_transform_2d(g.divider, 30, 300, 0, 1, 1);
-    sk_shape_set_color(g.divider, g.disabled);
-    sk_shape_set_pickable(g.divider, false);
+    g.divider = sk_shape2d_create();
+    sk_shape2d_set_line(g.divider, 0, 0, 220, 0, 2);
+    sk_shape2d_set_transform(g.divider, 30, 300, 0, 1, 1);
+    sk_shape2d_set_color(g.divider, g.disabled);
+    sk_shape2d_set_pickable(g.divider, false);
     sk_scene_add(g.scene, g.divider, LAYER_CONTROL);
 
-    g.bar_back = sk_shape_create();
-    sk_shape_set_rectangle_2d(g.bar_back, 220, 18, 9);
-    sk_shape_set_transform_2d(g.bar_back, 30, 320, 0, 1, 1);
-    sk_shape_set_outline(g.bar_back, 2);
-    sk_shape_set_color(g.bar_back, g.outline);
-    sk_shape_set_pickable(g.bar_back, false);
+    g.bar_back = sk_shape2d_create();
+    sk_shape2d_set_rectangle(g.bar_back, 220, 18, 9);
+    sk_shape2d_set_transform(g.bar_back, 30, 320, 0, 1, 1);
+    sk_shape2d_set_outline(g.bar_back, 2);
+    sk_shape2d_set_color(g.bar_back, g.outline);
+    sk_shape2d_set_pickable(g.bar_back, false);
     sk_scene_add(g.scene, g.bar_back, LAYER_LABEL);
-    g.bar_fill = sk_shape_create();
-    sk_shape_set_color(g.bar_fill, g.bar_color);
-    sk_shape_set_pickable(g.bar_fill, false);
+    g.bar_fill = sk_shape2d_create();
+    sk_shape2d_set_color(g.bar_fill, g.bar_color);
+    sk_shape2d_set_pickable(g.bar_fill, false);
     sk_scene_add(g.scene, g.bar_fill, LAYER_CONTROL);
-    g.bar_tip = sk_shape_create();
-    sk_shape_set_circle_2d(g.bar_tip, 6);
-    sk_shape_set_color(g.bar_tip, g.text);
-    sk_shape_set_pickable(g.bar_tip, false);
+    g.bar_tip = sk_shape2d_create();
+    sk_shape2d_set_circle(g.bar_tip, 6);
+    sk_shape2d_set_color(g.bar_tip, g.text);
+    sk_shape2d_set_pickable(g.bar_tip, false);
     sk_scene_add(g.scene, g.bar_tip, LAYER_LABEL);
 
     /* wrapped note: laid out inside 220 pixels, breaking between words */
@@ -171,9 +171,9 @@ static void init(void *user_data)
 
     for (int i = 0; i < BUTTONS; i++) {
         const float y = 100.0f + 60.0f * (float)i;
-        g.buttons[i] = sk_shape_create();
-        sk_shape_set_rectangle_2d(g.buttons[i], 220, 44, 10);
-        sk_shape_set_transform_2d(g.buttons[i], 30, y, 0, 1, 1);
+        g.buttons[i] = sk_shape2d_create();
+        sk_shape2d_set_rectangle(g.buttons[i], 220, 44, 10);
+        sk_shape2d_set_transform(g.buttons[i], 30, y, 0, 1, 1);
         sk_scene_add(g.scene, g.buttons[i], LAYER_CONTROL);
 
         /* centered on the button, so the label needs no measuring */
@@ -188,9 +188,9 @@ static void init(void *user_data)
 
     /* the clipped list: rows and their labels live on two layers with the same box */
     for (int i = 0; i < ROWS; i++) {
-        g.rows[i] = sk_shape_create();
-        sk_shape_set_rectangle_2d(g.rows[i], LIST_WIDTH, ROW_HEIGHT - 4.0f, 6);
-        sk_shape_set_color(g.rows[i], g.row_color);
+        g.rows[i] = sk_shape2d_create();
+        sk_shape2d_set_rectangle(g.rows[i], LIST_WIDTH, ROW_HEIGHT - 4.0f, 6);
+        sk_shape2d_set_color(g.rows[i], g.row_color);
         sk_scene_add(g.scene, g.rows[i], LAYER_ROW);
 
         g.row_labels[i] = sk_text2d_create(0);
@@ -222,26 +222,26 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
     /* buttons: color from their interaction state */
     for (int i = 0; i < BUTTONS; i++) {
-        const bool enabled = sk_shape_is_enabled(g.buttons[i]);
+        const bool enabled = sk_shape2d_is_enabled(g.buttons[i]);
         const sk_button_state_t press = sk_scene_get_press(g.scene, g.buttons[i]);
         const sk_button_state_t hover = sk_scene_get_hover(g.scene, g.buttons[i]);
         const bool held = press == SK_BUTTON_PRESSED || press == SK_BUTTON_DOWN;
         const bool over = hover == SK_BUTTON_PRESSED || hover == SK_BUTTON_DOWN;
-        sk_shape_set_color(g.buttons[i], !enabled ? g.disabled : held ? g.pressed : over ? g.hover : g.idle);
+        sk_shape2d_set_color(g.buttons[i], !enabled ? g.disabled : held ? g.pressed : over ? g.hover : g.idle);
         sk_text2d_set_color(g.labels[i], enabled ? g.text : g.text_disabled);
     }
     if (sk_scene_is_clicked(g.scene, g.buttons[0]) || sk_scene_is_clicked(g.scene, g.buttons[2])) {
         g.clicks++;
     }
     if (sk_scene_is_clicked(g.scene, g.buttons[1])) {
-        sk_shape_set_enabled(g.buttons[2], !sk_shape_is_enabled(g.buttons[2]));
+        sk_shape2d_set_enabled(g.buttons[2], !sk_shape2d_is_enabled(g.buttons[2]));
     }
     {
         const float fill = 220.0f * (float)(g.clicks % 11) / 10.0f;
-        sk_shape_set_rectangle_2d(g.bar_fill, fill > 18.0f ? fill : 18.0f, 18, 9);
-        sk_shape_set_transform_2d(g.bar_fill, 30, 320, 0, 1, 1);
-        sk_shape_set_visible(g.bar_fill, g.clicks % 11 > 0);
-        sk_shape_set_transform_2d(g.bar_tip, 30 + (fill > 9.0f ? fill - 9.0f : 9.0f), 329, 0, 1, 1);
+        sk_shape2d_set_rectangle(g.bar_fill, fill > 18.0f ? fill : 18.0f, 18, 9);
+        sk_shape2d_set_transform(g.bar_fill, 30, 320, 0, 1, 1);
+        sk_shape2d_set_visible(g.bar_fill, g.clicks % 11 > 0);
+        sk_shape2d_set_transform(g.bar_tip, 30 + (fill > 9.0f ? fill - 9.0f : 9.0f), 329, 0, 1, 1);
     }
 
     /* the clipped list: the wheel scrolls it, clicking a row selects it */
@@ -258,7 +258,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
             if (sk_scene_is_clicked(g.scene, g.rows[i])) {
                 g.selected = i;
             }
-            sk_shape_set_color(g.rows[i], g.selected == i ? g.row_selected : over ? g.hover : g.row_color);
+            sk_shape2d_set_color(g.rows[i], g.selected == i ? g.row_selected : over ? g.hover : g.row_color);
         }
     }
 

@@ -42,8 +42,10 @@ void sk_scene_init(void);
 void sk_scene_deinit(void);
 
 /* shape */
-void sk_shape_init(void);
-void sk_shape_deinit(void);
+void sk_shape2d_init(void);
+void sk_shape2d_deinit(void);
+void sk_shape3d_init(void);
+void sk_shape3d_deinit(void);
 
 /* texture */
 void sk_texture_init(void);

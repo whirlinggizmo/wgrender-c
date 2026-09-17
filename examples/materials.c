@@ -114,9 +114,9 @@ static void init(void *user_data)
     sk_light_set_intensity(g.lamp, 8.0f);
     sk_light_set_range(g.lamp, 10.0f);
     sk_scene_add(g.scene, g.lamp, 0);
-    g.lamp_marker = sk_shape_create(); /* shapes are unlit, so it shows the light's color */
-    sk_shape_set_sphere(g.lamp_marker, 0.06f);
-    sk_shape_set_color(g.lamp_marker, SK_COLOR_SKYBLUE);
+    g.lamp_marker = sk_shape3d_create(); /* shapes are unlit, so it shows the light's color */
+    sk_shape3d_set_sphere(g.lamp_marker, 0.06f);
+    sk_shape3d_set_color(g.lamp_marker, SK_COLOR_SKYBLUE);
     sk_scene_add(g.scene, g.lamp_marker, 0);
 
     /* rows of roughness steps: red plastic, then gold */
@@ -186,8 +186,8 @@ static void frame(float dt, float tick_fraction, void *user_data)
     ly = 1.4f + sinf(g.time * 0.9f) * 1.2f;
     lz = sinf(g.time * 0.7f) * 1.5f + 2.0f;
     sk_light_set_position(g.lamp, lx, ly, lz);
-    sk_shape_set_transform(g.lamp_marker, lx, ly, lz, 0, 0, 0, 1, 1, 1);
-    sk_shape_set_visible(g.lamp_marker, sk_light_is_enabled(g.lamp));
+    sk_shape3d_set_transform(g.lamp_marker, lx, ly, lz, 0, 0, 0, 1, 1, 1);
+    sk_shape3d_set_visible(g.lamp_marker, sk_light_is_enabled(g.lamp));
     for (int i = 2 * COLUMNS; i < SPHERE_COUNT; i++) { /* turn the bottom row so the normal map moves */
         const float x = ((float)(i - 2 * COLUMNS) - 2.0f) * 1.35f;
         sk_model_set_transform(g.spheres[i], x, 0.0f, 0, 0, g.time * 0.5f, 0, 1, 1, 1);

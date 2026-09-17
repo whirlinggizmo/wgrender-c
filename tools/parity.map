@@ -148,12 +148,30 @@ rl_scratch_set_vector3                  dropped  scratch buffer
 rl_scratch_set_vector4                  dropped  scratch buffer
 
 # --- rl_shape.h ---
-rl_shape_draw_line_strip_3d             ported   sk_shape_add_point  strips are retained shapes built point by point (no point arrays in the API)
-rl_shape_set_circle_3d                  ported   sk_shape_set_circle  local geometry + sk_shape_set_transform
-rl_shape_set_line_3d                    ported   sk_shape_set_line
-rl_shape_set_line_strip_3d              ported   sk_shape_set_line_strip  then sk_shape_add_point per point
-rl_shape_set_rectangle_3d               ported   sk_shape_set_rectangle  local geometry + sk_shape_set_transform
-rl_shape_set_stroke_color               ported   sk_shape_set_color   librl shapes only have a stroke color
+# Shapes are two types in libsk: sk_shape2d (screen space) and sk_shape3d (world),
+# like sprite2d/sprite3d and text2d/text3d, so every rl_shape_* needs an entry.
+rl_shape_create                         ported   sk_shape3d_create    2D shapes are sk_shape2d_create
+rl_shape_destroy                        ported   sk_shape3d_destroy
+rl_shape_draw                           ported   sk_shape3d_draw
+rl_shape_draw_cube                      ported   sk_shape3d_draw_cube
+rl_shape_draw_sphere                    ported   sk_shape3d_draw_sphere
+rl_shape_draw_line_3d                   ported   sk_shape3d_draw_line
+rl_shape_draw_rectangle_3d              ported   sk_shape3d_draw_rectangle
+rl_shape_draw_circle_3d                 ported   sk_shape3d_draw_circle
+rl_shape_draw_rectangle                 ported   sk_shape2d_draw_rectangle  screen space
+rl_shape_set_cube                       ported   sk_shape3d_set_cube
+rl_shape_set_sphere                     ported   sk_shape3d_set_sphere
+rl_shape_set_transform                  ported   sk_shape3d_set_transform  2D shapes take sk_shape2d_set_transform (x, y, rotation, scale)
+rl_shape_set_visible                    ported   sk_shape3d_set_visible
+rl_shape_is_visible                     ported   sk_shape3d_is_visible
+rl_shape_set_pickable                   ported   sk_shape3d_set_pickable
+rl_shape_is_pickable                    ported   sk_shape3d_is_pickable
+rl_shape_draw_line_strip_3d             ported   sk_shape3d_add_point  strips are retained shapes built point by point (no point arrays in the API)
+rl_shape_set_circle_3d                  ported   sk_shape3d_set_circle  local geometry + sk_shape3d_set_transform
+rl_shape_set_line_3d                    ported   sk_shape3d_set_line
+rl_shape_set_line_strip_3d              ported   sk_shape3d_set_line_strip  then sk_shape3d_add_point per point
+rl_shape_set_rectangle_3d               ported   sk_shape3d_set_rectangle  local geometry + sk_shape3d_set_transform
+rl_shape_set_stroke_color               ported   sk_shape3d_set_color   librl shapes only have a stroke color
 
 # --- rl_sound.h ---
 

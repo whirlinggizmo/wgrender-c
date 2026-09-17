@@ -186,16 +186,16 @@ void sk_render_end_clip(void);
 
 ### Step 2: retained 2D shapes
 
-- New shape kinds with `sk_shape_set_rectangle_2d` (rounded corners, radius clamped to
-  half the shorter side), `sk_shape_set_circle_2d`, `sk_shape_set_line_2d` (thickness,
-  butt ends), `sk_shape_set_transform_2d` and `sk_shape_set_outline` (rectangles and
-  circles). **A 2D rectangle's origin is its top-left corner**, like the immediate
-  `sk_shape_draw_rectangle(x, y, w, h)` and how UI is laid out; circles are centered.
+- Retained 2D shapes: a rounded rectangle (radius clamped to half the shorter side),
+  a circle, a thick line (butt ends), a 2D transform and an outline for rectangles and
+  circles. **A 2D rectangle's origin is its top-left corner**, like the immediate
+  `sk_shape2d_draw_rectangle(x, y, w, h)` and how UI is laid out; circles are centered.
+  (Named `sk_shape_set_*_2d` when step 2 landed; they're `sk_shape2d_set_rectangle`,
+  `_circle`, `_line`, `_transform` and `_outline` since the split below.)
   Picked by exact area (rounded corners, outline rings, distance to the line).
-- One shape handle kind now holds 2D and 3D shapes, so kinds can register
-  `sk_scene_register_is_2d`: scenes draw and pick each member through exactly one of
-  the 2D or 3D paths, `sk_pick_object` routes the same way (it previously used the 2D
-  pick for any kind that had one), and pick statistics are unchanged for 3D shapes.
+- Step 2 put 2D and 3D shapes in one handle kind, routed at runtime by
+  `sk_scene_register_is_2d`. **That was undone right after step 3: shapes are now two
+  types**, `sk_shape2d` and `sk_shape3d` (see "Shape types" below).
 - `examples/ui.c` is built from 2D shapes: a rounded translucent panel (pickable, so
   presses on it don't orbit), rounded buttons, a divider line, an outlined progress
   bar with a filled part and a circle tip. Checked in the browser with CDP clicks
@@ -233,6 +233,31 @@ void sk_render_end_clip(void);
   selectable rows. Checked in the browser with CDP events on both backends: hover,
   click to select, wheel scroll, and a row scrolled out of the box that no longer
   takes the pointer ("hovered: the panel").
+
+### Shape types: sk_shape2d and sk_shape3d
+
+Asked during step 3 review: why one shape type for both layers, when every other
+drawable splits (`sprite2d`/`sprite3d`, `text2d`/`text3d`)? It had no good answer —
+one type meant setters that silently don't apply (`set_outline` is 2D-only,
+`set_transform` vs `set_transform_2d`), an object whose category changed with the
+setter you called, runtime routing, and no type check for bindings. So:
+
+- `sk_shape2d_*` — screen space: the immediate primitives (`sk_shape2d_draw_rectangle`,
+  `_rectangle_lines`, `_line`, `_circle`, `_circle_lines`, `_triangle`) and retained
+  shapes (`set_rectangle`, `set_circle`, `set_line`, `set_transform`, `set_pivot`,
+  `set_outline`), handle kind `SK_HANDLE_KIND_SHAPE2D`.
+- `sk_shape3d_*` — the world: the immediate debug draws (the `_3d` suffixes are gone:
+  `sk_shape3d_draw_line`, `_cube`, `_cube_wires`, `_sphere`, `_grid`, `_rectangle`,
+  `_circle`) and retained 3D shapes, handle kind `SK_HANDLE_KIND_SHAPE3D`.
+- The scene drops `sk_scene_register_is_2d` and its registry: a kind draws and picks
+  either in 2D or in 3D, so the handle says which.
+
+**`sk_shape2d_set_pivot(x, y)`** comes with the split: a normalized point on the
+shape's bounds that the position refers to and that rotation and scale turn around.
+Default: the shape's own origin — a rectangle's top-left, a circle's center — so
+nothing moves until it's set. Lines have explicit endpoints and ignore it. This is the
+same idea as `sk_sprite2d_set_pivot`, and text2d's alignment is its 9-point form; the
+three mechanisms now line up, with each noun's default documented where it belongs.
 
 ## Verification
 

@@ -161,7 +161,8 @@ static void on_init(void)
     /* GPU-backed subsystems (need a live sg context) */
     sk_render_init();
     sk_scene_init();  /* registry must exist before drawables register */
-    sk_shape_init();
+    sk_shape2d_init();
+    sk_shape3d_init();
     sk_texture_init();
     sk_sprite3d_init();
     sk_sprite2d_init();
@@ -356,7 +357,8 @@ static void on_cleanup(void)
     sk_sprite2d_deinit();
     sk_sprite3d_deinit();
     sk_texture_deinit();
-    sk_shape_deinit();
+    sk_shape2d_deinit();
+    sk_shape3d_deinit();
     sk_scene_deinit();
     sk_render_deinit();
 

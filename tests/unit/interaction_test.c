@@ -12,7 +12,7 @@
 #include "sk_input.h"
 #include "sk_logger.h"
 #include "sk_scene.h"
-#include "sk_shape.h"
+#include "sk_shape3d.h"
 #include "sk_sprite2d.h"
 #include "sk_texture.h"
 #include "sk_window.h"
@@ -72,7 +72,7 @@ void test_interaction(void)
     sk_camera3d_init();
     sk_texture_init();
     sk_sprite2d_init();
-    sk_shape_init();
+    sk_shape3d_init();
     sk_input_init();
     sk_logger_set_level(SK_LOGGER_LEVEL_ERROR);
     CHECK(sk_window_set_size(800, 600));
@@ -88,8 +88,8 @@ void test_interaction(void)
     sk_sprite2d_set_position(button, 200, 100);
     sk_scene_add(scene, button, 0);
 
-    sk_handle_t cube = sk_shape_create(); /* at the origin: the middle of the screen */
-    sk_shape_set_cube(cube, 2, 2, 2);
+    sk_handle_t cube = sk_shape3d_create(); /* at the origin: the middle of the screen */
+    sk_shape3d_set_cube(cube, 2, 2, 2);
     sk_scene_add(scene, cube, 0);
 
     /* not interactive: nothing tracked */
@@ -213,7 +213,7 @@ void test_interaction(void)
     sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
     sk_scene_destroy(scene);
     sk_input_deinit();
-    sk_shape_deinit();
+    sk_shape3d_deinit();
     sk_sprite2d_deinit();
     sk_texture_deinit();
     sk_camera3d_deinit();

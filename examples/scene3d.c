@@ -28,24 +28,24 @@ static void on_init(void *user_data)
 
     for (int i = 0; i < 8; i++) {
         float a = (float)(i * 6.2831853 / 8.0);
-        sk_handle_t cube = sk_shape_create();
-        sk_shape_set_cube(cube, 1.5f, 1.5f, 1.5f);
-        sk_shape_set_transform(cube, cosf(a) * 6.0f, 0.75f, sinf(a) * 6.0f,
+        sk_handle_t cube = sk_shape3d_create();
+        sk_shape3d_set_cube(cube, 1.5f, 1.5f, 1.5f);
+        sk_shape3d_set_transform(cube, cosf(a) * 6.0f, 0.75f, sinf(a) * 6.0f,
                                0.0f, a, 0.0f, 1.0f, 1.0f, 1.0f);
-        sk_shape_set_color(cube, i % 2 ? SK_COLOR_SKYBLUE : SK_COLOR_ORANGE);
+        sk_shape3d_set_color(cube, i % 2 ? SK_COLOR_SKYBLUE : SK_COLOR_ORANGE);
         sk_scene_add(g_scene, cube, 0);
         g_ring[i] = cube;
     }
 
-    g_sphere = sk_shape_create();
-    sk_shape_set_sphere(g_sphere, 1.5f);
-    sk_shape_set_transform(g_sphere, 0.0f, 2.5f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
-    sk_shape_set_color(g_sphere, SK_COLOR_GOLD);
+    g_sphere = sk_shape3d_create();
+    sk_shape3d_set_sphere(g_sphere, 1.5f);
+    sk_shape3d_set_transform(g_sphere, 0.0f, 2.5f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+    sk_shape3d_set_color(g_sphere, SK_COLOR_GOLD);
     sk_scene_add(g_scene, g_sphere, 0);
 
-    g_spinner = sk_shape_create();
-    sk_shape_set_cube(g_spinner, 2.0f, 2.0f, 2.0f);
-    sk_shape_set_color(g_spinner, SK_COLOR_LIME);
+    g_spinner = sk_shape3d_create();
+    sk_shape3d_set_cube(g_spinner, 2.0f, 2.0f, 2.0f);
+    sk_shape3d_set_color(g_spinner, SK_COLOR_LIME);
     sk_scene_add(g_scene, g_spinner, 1);
 
     sk_debug_enable_fps(12, 10, 16);
@@ -76,12 +76,12 @@ static void update_selection(sk_handle_t hit)
     }
 
     if (g_selected != 0) {
-        sk_shape_set_color(g_selected, default_color_for(g_selected));
+        sk_shape3d_set_color(g_selected, default_color_for(g_selected));
     }
 
     g_selected = hit;
     if (g_selected != 0) {
-        sk_shape_set_color(g_selected, SK_COLOR_RAYWHITE);
+        sk_shape3d_set_color(g_selected, SK_COLOR_RAYWHITE);
     }
 }
 
@@ -96,7 +96,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_camera3d_set_view(g_camera, cosf(t * 0.35f) * 18.0f, 11.0f, sinf(t * 0.35f) * 18.0f,
                          0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
-    sk_shape_set_transform(g_spinner, 0.0f, 5.0f, 0.0f, t * 1.3f, t * 0.9f, 0.0f,
+    sk_shape3d_set_transform(g_spinner, 0.0f, 5.0f, 0.0f, t * 1.3f, t * 0.9f, 0.0f,
                            1.0f, 1.0f, 1.0f);
 
     if (mouse.left == SK_BUTTON_PRESSED) {
@@ -108,7 +108,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_render_clear_background(g_bg);
 
     sk_render_begin_mode_3d();
-    sk_shape_draw_grid(24, 1.0f, SK_COLOR_DARKGRAY);
+    sk_shape3d_draw_grid(24, 1.0f, SK_COLOR_DARKGRAY);
     sk_render_end_mode_3d();
 
     sk_scene_draw(g_scene);

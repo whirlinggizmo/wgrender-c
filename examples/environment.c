@@ -181,7 +181,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_render_begin();
     sk_render_clear_background(g.bg);
     sk_scene_draw(g.scene);
-    sk_shape_draw_rectangle(0, 0, (int)sk_window_get_screen_size().x, 60, g.bar);
+    sk_shape2d_draw_rectangle(0, 0, (int)sk_window_get_screen_size().x, 60, g.bar);
     sk_text_draw("libsk environment lighting: reflections, background and tone mapping", 12, 12, 16,
                  SK_COLOR_RAYWHITE);
     snprintf(line, sizeof(line), "[E] %s   [B] background %s   [T] tone mapping %s   [UP/DOWN] exposure %+.1f EV",

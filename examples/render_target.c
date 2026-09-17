@@ -126,7 +126,7 @@ static void init(void *user_data)
 /* A texture with a 2px frame and a caption above it. */
 static void draw_panel(sk_handle_t texture, float x, float y, float w, float h, const char *caption)
 {
-    sk_shape_draw_rectangle((int)x - 2, (int)y - 2, (int)w + 4, (int)h + 4, g.frame_color);
+    sk_shape2d_draw_rectangle((int)x - 2, (int)y - 2, (int)w + 4, (int)h + 4, g.frame_color);
     sk_texture_draw(texture, x, y, w, h, 0);
     sk_text_draw(caption, (int)x, (int)y - 20, 16, SK_COLOR_LIGHTGRAY);
 }

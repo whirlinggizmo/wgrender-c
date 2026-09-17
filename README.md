@@ -121,7 +121,7 @@ static void frame(float dt, float tick_fraction, void *user_data) {
     float draw_x = prev_x + (x - prev_x) * tick_fraction;   // smooth at any frame rate
     sk_render_begin();
     sk_render_clear_background(SK_COLOR_RAYWHITE);
-    sk_shape_draw_rectangle((int)draw_x, 40, 200, 120, SK_COLOR_SKYBLUE);
+    sk_shape2d_draw_rectangle((int)draw_x, 40, 200, 120, SK_COLOR_SKYBLUE);
     sk_render_end();
 }
 

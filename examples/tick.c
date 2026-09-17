@@ -69,11 +69,11 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_text_draw(line, 20, 74, 16, SK_COLOR_LIGHTGRAY);
 
     sk_text_draw("raw tick position", 20, 130, 16, SK_COLOR_GRAY);
-    sk_shape_draw_rectangle((int)g.x, 155, SQUARE, SQUARE, SK_COLOR_ORANGE);
+    sk_shape2d_draw_rectangle((int)g.x, 155, SQUARE, SQUARE, SK_COLOR_ORANGE);
 
     sk_text_draw("interpolated with tick_fraction", 20, 250, 16, SK_COLOR_GRAY);
     float smooth_x = g.prev_x + (g.x - g.prev_x) * tick_fraction;
-    sk_shape_draw_rectangle((int)smooth_x, 275, SQUARE, SQUARE, SK_COLOR_SKYBLUE);
+    sk_shape2d_draw_rectangle((int)smooth_x, 275, SQUARE, SQUARE, SK_COLOR_SKYBLUE);
 
     sk_text_draw_fps(20, SCREEN_HEIGHT - 30);
     sk_render_end();

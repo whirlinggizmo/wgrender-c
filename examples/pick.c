@@ -31,7 +31,7 @@ static sk_pick_result_t g_last;
 static const char *kind_name(sk_handle_t handle)
 {
     switch (sk_handle_get_kind(handle)) {
-    case SK_HANDLE_KIND_SHAPE:    return "shape";
+    case SK_HANDLE_KIND_SHAPE3D:    return "shape";
     case SK_HANDLE_KIND_SPRITE3D: return "sprite3d";
     case SK_HANDLE_KIND_MODEL:    return "model";
     default:                      return "?";
@@ -94,16 +94,16 @@ static void on_init(void *user_data)
     sk_scene_add(g_scene, sun, 0);
     sk_scene_set_ambient(g_scene, 0, 0.3f);
 
-    g_cube = sk_shape_create();
-    sk_shape_set_cube(g_cube, 2.0f, 2.0f, 2.0f);
-    sk_shape_set_transform(g_cube, -3.5f, 1.0f, 0.0f, 0.0f, 0.6f, 0.0f, 1.0f, 1.0f, 1.0f);
-    sk_shape_set_color(g_cube, SK_COLOR_ORANGE);
+    g_cube = sk_shape3d_create();
+    sk_shape3d_set_cube(g_cube, 2.0f, 2.0f, 2.0f);
+    sk_shape3d_set_transform(g_cube, -3.5f, 1.0f, 0.0f, 0.0f, 0.6f, 0.0f, 1.0f, 1.0f, 1.0f);
+    sk_shape3d_set_color(g_cube, SK_COLOR_ORANGE);
     sk_scene_add(g_scene, g_cube, 0);
 
-    g_sphere = sk_shape_create();
-    sk_shape_set_sphere(g_sphere, 1.5f);
-    sk_shape_set_transform(g_sphere, 3.5f, 1.5f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
-    sk_shape_set_color(g_sphere, SK_COLOR_GOLD);
+    g_sphere = sk_shape3d_create();
+    sk_shape3d_set_sphere(g_sphere, 1.5f);
+    sk_shape3d_set_transform(g_sphere, 3.5f, 1.5f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+    sk_shape3d_set_color(g_sphere, SK_COLOR_GOLD);
     sk_scene_add(g_scene, g_sphere, 0);
 
     sk_asset_add_task(sk_asset_ensure_async(LOGO_PATH, NULL, 0), on_logo_loaded, on_failed, NULL);
@@ -129,12 +129,12 @@ static void update_selection(sk_handle_t hit)
     if (hit == g_selected) {
         return;
     }
-    if (sk_handle_get_kind(g_selected) == SK_HANDLE_KIND_SHAPE) {
-        sk_shape_set_color(g_selected, default_color_for(g_selected));
+    if (sk_handle_get_kind(g_selected) == SK_HANDLE_KIND_SHAPE3D) {
+        sk_shape3d_set_color(g_selected, default_color_for(g_selected));
     }
     g_selected = hit;
-    if (sk_handle_get_kind(g_selected) == SK_HANDLE_KIND_SHAPE) {
-        sk_shape_set_color(g_selected, SK_COLOR_RAYWHITE);
+    if (sk_handle_get_kind(g_selected) == SK_HANDLE_KIND_SHAPE3D) {
+        sk_shape3d_set_color(g_selected, SK_COLOR_RAYWHITE);
     }
 }
 
@@ -155,7 +155,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_render_clear_background(g_bg);
 
     sk_render_begin_mode_3d();
-    sk_shape_draw_grid(24, 1.0f, SK_COLOR_DARKGRAY);
+    sk_shape3d_draw_grid(24, 1.0f, SK_COLOR_DARKGRAY);
     sk_render_end_mode_3d();
 
     sk_scene_draw(g_scene);

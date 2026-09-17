@@ -16,17 +16,17 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_render_clear_background(SK_COLOR_RAYWHITE);
 
     /* filled + outlined rectangles */
-    sk_shape_draw_rectangle(40, 40, 200, 120, SK_COLOR_SKYBLUE);
-    sk_shape_draw_rectangle_lines(40, 40, 200, 120, SK_COLOR_DARKBLUE);
+    sk_shape2d_draw_rectangle(40, 40, 200, 120, SK_COLOR_SKYBLUE);
+    sk_shape2d_draw_rectangle_lines(40, 40, 200, 120, SK_COLOR_DARKBLUE);
 
     /* line + triangle + circles */
-    sk_shape_draw_line(40, 200, 240, 320, SK_COLOR_RED);
-    sk_shape_draw_triangle(320, 60, 280, 180, 360, 180, SK_COLOR_GOLD);
-    sk_shape_draw_circle(440, 120, 60.0f, SK_COLOR_PURPLE);
-    sk_shape_draw_circle_lines(440, 120, 60.0f, SK_COLOR_BLACK);
+    sk_shape2d_draw_line(40, 200, 240, 320, SK_COLOR_RED);
+    sk_shape2d_draw_triangle(320, 60, 280, 180, 360, 180, SK_COLOR_GOLD);
+    sk_shape2d_draw_circle(440, 120, 60.0f, SK_COLOR_PURPLE);
+    sk_shape2d_draw_circle_lines(440, 120, 60.0f, SK_COLOR_BLACK);
 
     /* a marker that follows the mouse */
-    sk_shape_draw_circle(mouse.x, mouse.y, 8.0f, SK_COLOR_MAROON);
+    sk_shape2d_draw_circle(mouse.x, mouse.y, 8.0f, SK_COLOR_MAROON);
 
     /* text */
     sk_text_draw("libsk + sokol", 40, 360, 32, SK_COLOR_DARKGRAY);

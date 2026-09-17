@@ -84,9 +84,9 @@ static void init(void *user_data)
     sk_light_set_intensity(g.lamp, 20.0f);
     sk_light_set_range(g.lamp, 5.0f);
     sk_scene_add(g.scene, g.lamp, 0);
-    g.lamp_marker = sk_shape_create();
-    sk_shape_set_sphere(g.lamp_marker, 0.12f);
-    sk_shape_set_color(g.lamp_marker, sk_color_create(60, 220, 255, 255));
+    g.lamp_marker = sk_shape3d_create();
+    sk_shape3d_set_sphere(g.lamp_marker, 0.12f);
+    sk_shape3d_set_color(g.lamp_marker, sk_color_create(60, 220, 255, 255));
     sk_scene_add(g.scene, g.lamp_marker, 0);
 
     g.spot = sk_light_create(SK_LIGHT_SPOT);
@@ -118,14 +118,14 @@ static void frame(float dt, float tick_fraction, void *user_data)
     /* point light orbits through the row; spot sweeps left and right */
     float lx = sinf(g.time * 0.6f) * 5.0f, lz = cosf(g.time * 0.6f) * 2.0f;
     sk_light_set_position(g.lamp, lx, 1.2f, lz);
-    sk_shape_set_transform(g.lamp_marker, lx, 1.2f, lz, 0, 0, 0, 1, 1, 1);
-    sk_shape_set_visible(g.lamp_marker, sk_light_is_enabled(g.lamp));
+    sk_shape3d_set_transform(g.lamp_marker, lx, 1.2f, lz, 0, 0, 0, 1, 1, 1);
+    sk_shape3d_set_visible(g.lamp_marker, sk_light_is_enabled(g.lamp));
     sk_light_set_direction(g.spot, sinf(g.time * 0.8f) * 0.7f, -1.0f, -0.3f);
 
     sk_render_begin();
     sk_render_clear_background(g.bg);
     sk_render_begin_mode_3d();
-    sk_shape_draw_grid(20, 1.0f, g.grid);
+    sk_shape3d_draw_grid(20, 1.0f, g.grid);
     sk_render_end_mode_3d();
     sk_scene_draw(g.scene);
 

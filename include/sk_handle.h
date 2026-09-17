@@ -22,12 +22,13 @@ typedef enum sk_handle_kind_t {
     /* 10 retired: music folded into Sound (a looping sound over an Audio) */
     SK_HANDLE_KIND_TEXT2D = 11,
     SK_HANDLE_KIND_SCENE = 12,
-    SK_HANDLE_KIND_SHAPE = 13,
+    SK_HANDLE_KIND_SHAPE3D = 13,
     SK_HANDLE_KIND_TEXT3D = 14,
     SK_HANDLE_KIND_AUDIO = 15, /* resource: decoded PCM shared by Sound/Music */
     SK_HANDLE_KIND_LIGHT = 16, /* object: directional / point / spot light */
     SK_HANDLE_KIND_MATERIAL = 17, /* resource: shading model + parameters + textures */
     SK_HANDLE_KIND_ENVIRONMENT = 18, /* resource: prefiltered environment map for lighting */
+    SK_HANDLE_KIND_SHAPE2D = 19,  /* object: screen-space shape (rectangle, circle, line) */
     /* 18-31 reserved for future drawable / presentation / resource kinds */
     SK_HANDLE_KIND_ASSET_TASK = 32,
 } sk_handle_kind_t;

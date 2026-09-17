@@ -230,7 +230,12 @@ alpha-test picking, so a separate "pickable" constructor isn't required.
 
 ## 5. The Shape decision
 
-`sk_shape` currently wears **three hats**; only one overlaps Model:
+**Since 2026-09-17 shapes are two types**, `sk_shape2d` (screen space) and
+`sk_shape3d` (world), matching sprite2d/sprite3d and text2d/text3d: hat (1) below
+is now `sk_shape2d_draw_*` plus retained 2D shapes, hats (2) and (3) are
+`sk_shape3d_*`. The reasoning below stands as written.
+
+`sk_shape` wore **three hats**; only one overlaps Model:
 
 1. **Immediate 2D primitives** (`draw_rectangle/circle/line/triangle`) — the 2D
    drawing API. **Keep.** Not a mesh, not an object.
@@ -253,7 +258,7 @@ Costs accepted by retiring (3):
   if needed.
 
 Net: keep hats (1) and (2) as a standalone **draw/gizmo** utility (candidate
-future rename `sk_shape_draw_*` → `sk_draw_*`); fold hat (3) into Model.
+future rename `sk_shape3d_draw_*` → `sk_draw_*`); fold hat (3) into Model.
 
 ---
 

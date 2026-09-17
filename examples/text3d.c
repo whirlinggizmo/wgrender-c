@@ -74,38 +74,38 @@ static void init(void *user_data)
     g.scene = sk_scene_create();
     sk_scene_set_active_camera(g.scene, g.camera);
 
-    g.cube = sk_shape_create();
-    sk_shape_set_cube(g.cube, 1.2f, 1.2f, 1.2f);
-    sk_shape_set_transform(g.cube, -3, 0.6f, 0, 0, 0, 0, 1, 1, 1);
+    g.cube = sk_shape3d_create();
+    sk_shape3d_set_cube(g.cube, 1.2f, 1.2f, 1.2f);
+    sk_shape3d_set_transform(g.cube, -3, 0.6f, 0, 0, 0, 0, 1, 1, 1);
     sk_scene_add(g.scene, g.cube, 0);
 
-    g.sphere = sk_shape_create();
-    sk_shape_set_sphere(g.sphere, 0.7f);
-    sk_shape_set_transform(g.sphere, 0, 0.7f, 0, 0, 0, 0, 1, 1, 1);
+    g.sphere = sk_shape3d_create();
+    sk_shape3d_set_sphere(g.sphere, 0.7f);
+    sk_shape3d_set_transform(g.sphere, 0, 0.7f, 0, 0, 0, 0, 1, 1, 1);
     sk_scene_add(g.scene, g.sphere, 0);
 
-    g.panel = sk_shape_create();
-    sk_shape_set_rectangle(g.panel, 1.4f, 1.0f);
-    sk_shape_set_transform(g.panel, 3, 0.8f, 0, 0, -0.5f, 0, 1, 1, 1);
+    g.panel = sk_shape3d_create();
+    sk_shape3d_set_rectangle(g.panel, 1.4f, 1.0f);
+    sk_shape3d_set_transform(g.panel, 3, 0.8f, 0, 0, -0.5f, 0, 1, 1, 1);
     sk_scene_add(g.scene, g.panel, 0);
 
     for (int i = 0; i < 3; i++) { /* rings lying on the ground under each object */
-        g.rings[i] = sk_shape_create();
-        sk_shape_set_circle(g.rings[i], 1.0f);
-        sk_shape_set_transform(g.rings[i], -3.0f + 3.0f * i, 0.01f, 0, -1.5707963f, 0, 0, 1, 1, 1);
-        sk_shape_set_color(g.rings[i], g.ring);
-        sk_shape_set_pickable(g.rings[i], false);
+        g.rings[i] = sk_shape3d_create();
+        sk_shape3d_set_circle(g.rings[i], 1.0f);
+        sk_shape3d_set_transform(g.rings[i], -3.0f + 3.0f * i, 0.01f, 0, -1.5707963f, 0, 0, 1, 1, 1);
+        sk_shape3d_set_color(g.rings[i], g.ring);
+        sk_shape3d_set_pickable(g.rings[i], false);
         sk_scene_add(g.scene, g.rings[i], 0);
     }
 
-    g.spiral = sk_shape_create(); /* a line strip, built point by point */
-    sk_shape_set_line_strip(g.spiral);
+    g.spiral = sk_shape3d_create(); /* a line strip, built point by point */
+    sk_shape3d_set_line_strip(g.spiral);
     for (int i = 0; i <= 160; i++) {
         const float t = (float)i / 160.0f, a = t * 6.2831853f * 4.0f;
-        sk_shape_add_point(g.spiral, cosf(a) * (0.2f + t), t * 2.5f, sinf(a) * (0.2f + t));
+        sk_shape3d_add_point(g.spiral, cosf(a) * (0.2f + t), t * 2.5f, sinf(a) * (0.2f + t));
     }
-    sk_shape_set_transform(g.spiral, 0, 0, -3, 0, 0, 0, 1, 1, 1);
-    sk_shape_set_color(g.spiral, g.teal);
+    sk_shape3d_set_transform(g.spiral, 0, 0, -3, 0, 0, 0, 1, 1, 1);
+    sk_shape3d_set_color(g.spiral, g.teal);
     sk_scene_add(g.scene, g.spiral, 0);
 
     g.labels[0] = add_label("cube", -3, 1.7f, 0);
@@ -131,19 +131,19 @@ static void frame(float dt, float tick_fraction, void *user_data)
     (void)tick_fraction;
     (void)user_data;
     if (kb.keys[SK_KEY_ESCAPE] == SK_BUTTON_PRESSED) sk_request_quit();
-    if (kb.keys[SK_KEY_P] == SK_BUTTON_PRESSED) sk_shape_set_pickable(g.cube, !sk_shape_is_pickable(g.cube));
+    if (kb.keys[SK_KEY_P] == SK_BUTTON_PRESSED) sk_shape3d_set_pickable(g.cube, !sk_shape3d_is_pickable(g.cube));
 
     g.time += dt;
-    sk_shape_set_transform(g.cube, -3, 0.6f, 0, 0, g.time * 0.7f, 0, 1, 1, 1);
+    sk_shape3d_set_transform(g.cube, -3, 0.6f, 0, 0, g.time * 0.7f, 0, 1, 1, 1);
     sk_text3d_set_transform(g.sign, 0, 3.2f, -3, 0, sinf(g.time * 0.6f) * 0.6f, 0);
 
     /* hover: the nearest pickable object under the mouse */
     sk_pick_reset_stats();
     const sk_pick_result_t pick = sk_scene_pick(g.scene, 0, (float)mouse.x, (float)mouse.y);
     g.hovered = pick.hit ? pick.handle : 0;
-    sk_shape_set_color(g.cube, g.hovered == g.cube ? g.highlight : g.gold);
-    sk_shape_set_color(g.sphere, g.hovered == g.sphere ? g.highlight : g.rose);
-    sk_shape_set_color(g.panel, g.hovered == g.panel ? g.highlight : g.teal);
+    sk_shape3d_set_color(g.cube, g.hovered == g.cube ? g.highlight : g.gold);
+    sk_shape3d_set_color(g.sphere, g.hovered == g.sphere ? g.highlight : g.rose);
+    sk_shape3d_set_color(g.panel, g.hovered == g.panel ? g.highlight : g.teal);
     for (int i = 0; i < LABEL_COUNT; i++) {
         sk_text3d_set_color(g.labels[i], g.hovered == g.labels[i] ? g.gold : SK_COLOR_RAYWHITE);
     }
@@ -152,7 +152,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_render_begin();
     sk_render_clear_background(g.bg);
     sk_render_begin_mode_3d();
-    sk_shape_draw_grid(16, 1.0f, g.grey);
+    sk_shape3d_draw_grid(16, 1.0f, g.grey);
     sk_render_end_mode_3d();
     sk_scene_draw(g.scene);
 
@@ -161,7 +161,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
              pick.hit ? (pick.handle == g.cube ? "cube" : pick.handle == g.sphere ? "sphere"
                          : pick.handle == g.panel ? "rectangle" : pick.handle == g.sign ? "sign" : "label")
                       : "nothing",
-             sk_shape_is_pickable(g.cube) ? "yes" : "no");
+             sk_shape3d_is_pickable(g.cube) ? "yes" : "no");
     sk_text_draw_ex(g.font, line, 12, 36, 16, SK_COLOR_LIGHTGRAY);
     snprintf(line, sizeof(line), "pick stats: %d box tests (%d rejected), %d exact tests, %d hits",
              stats.broadphase_tests, stats.broadphase_rejects, stats.narrowphase_tests, stats.narrowphase_hits);
