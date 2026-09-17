@@ -6,150 +6,140 @@
 #include "internal/exports.h"
 #include "internal/sk_font.h"
 #include "internal/sk_internal.h"
-#include "internal/sk_render.h"
-#include "sk_window.h"
+#include "sk_logger.h"
 
 #include "fontstash.h"
-#include "sokol_app.h"
 #include "sokol_gfx.h"
-#include "sokol_log.h"
-#include "util/sokol_debugtext.h"
 #include "util/sokol_fontstash.h"
 
-/* First-milestone text uses sokol_debugtext's built-in 8x8 bitmap fonts.
- * Geometry is baked per draw call, so changing the canvas between calls lets us
- * support different pixel sizes within a frame. Real TTF/fontstash fonts (and
- * the font-handle API) come in a later phase. */
+/* All text is TrueType (fontstash). Font handle 0 means the default font: the one
+ * set with sk_text_set_default_font, else the built-in font (an ASCII subset of
+ * JetBrains Mono embedded in the library; src/fonts/sk_default_font.h). A font that
+ * isn't loaded (invalid or freed handle) falls back to the built-in font. */
 
-#define SK_TEXT_GLYPH_BASE 8.0f /* native glyph cell size in canvas units */
+#define SK_TEXT_DEFAULT_SIZE 16.0f /* pixel size when a size <= 0 is given */
+
+static sk_handle_t sk_text_builtin_font; /* referenced; 0 if it couldn't be created */
+static sk_handle_t sk_text_default_font; /* referenced; 0 = the built-in font */
 
 void sk_text_init(void)
 {
-    sdtx_setup(&(sdtx_desc_t){
-        .fonts[0] = sdtx_font_kc853(),
-        .logger.func = slog_func,
-    });
+    sk_text_default_font = 0;
+    sk_text_builtin_font = sk_font_create_builtin();
+    if (sk_text_builtin_font == 0) {
+        log_error("text: the built-in font couldn't be created");
+    }
 }
 
 void sk_text_deinit(void)
 {
-    sdtx_shutdown();
+    sk_font_release(sk_text_default_font);
+    sk_font_release(sk_text_builtin_font);
+    sk_text_default_font = 0;
+    sk_text_builtin_font = 0;
 }
 
-void sk_text_set_pass(int pass)
+sk_handle_t sk_text_resolve_font(sk_handle_t font)
 {
-    sdtx_layer(pass);
+    if (font == 0) {
+        font = sk_text_default_font != 0 ? sk_text_default_font : sk_text_builtin_font;
+    }
+    return sk_font_fons_id(font) != FONS_INVALID ? font : sk_text_builtin_font;
 }
 
-void sk_text_flush(int pass)
+/* Select `font` (resolved) at `size` for drawing or measuring; false if there's no
+ * font at all (text not initialized). */
+static bool use_font(sk_handle_t font, float size)
 {
-    sdtx_draw_layer(pass);
+    FONScontext *fons = sk_font_context();
+    const int id = sk_font_fons_id(sk_text_resolve_font(font));
+    if (fons == NULL || id == FONS_INVALID) {
+        return false;
+    }
+    fonsSetFont(fons, id);
+    fonsSetSize(fons, size > 0.0f ? size : SK_TEXT_DEFAULT_SIZE);
+    fonsSetAlign(fons, FONS_ALIGN_LEFT | FONS_ALIGN_TOP);
+    return true;
 }
 
-static float size_to_scale(int font_size)
+static void draw_text(sk_handle_t font, const char *text, float x, float y, float size, color_t c)
 {
-    float fs = font_size > 0 ? (float)font_size : SK_TEXT_GLYPH_BASE;
-    return fs / SK_TEXT_GLYPH_BASE;
+    FONScontext *fons = sk_font_context();
+    if (text == NULL || !use_font(font, size)) {
+        return;
+    }
+    fonsSetColor(fons, sfons_rgba((uint8_t)(c.r * 255.0f), (uint8_t)(c.g * 255.0f), (uint8_t)(c.b * 255.0f),
+                                  (uint8_t)(c.a * 255.0f)));
+    fonsDrawText(fons, x, y, text, NULL);
 }
 
-static void draw_at(const char *text, int x, int y, int font_size, color_t c)
+SK_KEEP
+bool sk_text_set_default_font(sk_handle_t font)
 {
-    const float scale = size_to_scale(font_size);
-    const float fs = scale * SK_TEXT_GLYPH_BASE; /* pixel height of a glyph */
+    if (font != 0 && sk_font_fons_id(font) == FONS_INVALID) {
+        log_warn("sk_text_set_default_font: %u isn't a loaded font", (unsigned int)font);
+        return false;
+    }
+    sk_font_retain(font); /* the default font holds a reference; no-op for 0 */
+    sk_font_release(sk_text_default_font);
+    sk_text_default_font = font;
+    return true;
+}
 
-    /* the screen in logical pixels, a render target in its pixels */
-    const vec2_t canvas = sk_render_current_pass() == 0 ? sk_window_get_screen_size() : sk_render_target_size();
-    sdtx_canvas(canvas.x / scale, canvas.y / scale);
-    sdtx_font(0);
-    /* pixel position -> character grid: 1 char == fs pixels */
-    sdtx_pos((float)x / fs, (float)y / fs);
-    sdtx_color4f(c.r, c.g, c.b, c.a);
-    sdtx_puts(text);
+SK_KEEP
+sk_handle_t sk_text_get_default_font(void)
+{
+    return sk_text_default_font;
 }
 
 SK_KEEP
 void sk_text_draw(const char *text, int x, int y, int font_size, sk_handle_t color)
 {
-    if (text == NULL) {
-        return;
-    }
-    draw_at(text, x, y, font_size, sk_color_get(color));
+    draw_text(0, text, (float)x, (float)y, (float)font_size, sk_color_get(color));
+}
+
+static void format_fps(char *buf, size_t size)
+{
+    const double dt = sk_get_fps_delta(); /* frames that ran, not display refreshes */
+    snprintf(buf, size, "%d FPS", dt > 0.0 ? (int)(1.0 / dt + 0.5) : 0);
 }
 
 SK_KEEP
 void sk_text_draw_fps(int x, int y)
 {
-    double dt = sk_get_fps_delta(); /* frames that ran, not display refreshes */
-    int fps = dt > 0.0 ? (int)(1.0 / dt + 0.5) : 0;
     char buf[32];
-    snprintf(buf, sizeof(buf), "%d FPS", fps);
-    draw_at(buf, x, y, 16, (color_t){0.0f, 1.0f, 0.0f, 1.0f});
+    format_fps(buf, sizeof(buf));
+    draw_text(0, buf, (float)x, (float)y, SK_TEXT_DEFAULT_SIZE, (color_t){0.0f, 1.0f, 0.0f, 1.0f});
 }
 
 SK_KEEP
 void sk_text_draw_fps_ex(sk_handle_t font, float x, float y, float size, sk_handle_t color)
 {
-    double dt = sk_get_fps_delta();
-    int fps = dt > 0.0 ? (int)(1.0 / dt + 0.5) : 0;
     char buf[32];
-    snprintf(buf, sizeof(buf), "%d FPS", fps);
-    sk_text_draw_ex(font, buf, x, y, size, color);
+    format_fps(buf, sizeof(buf));
+    draw_text(font, buf, x, y, size, sk_color_get(color));
 }
 
 SK_KEEP
 int sk_text_measure(const char *text, int font_size)
 {
-    int len = text != NULL ? (int)strlen(text) : 0;
-    float fs = font_size > 0 ? (float)font_size : SK_TEXT_GLYPH_BASE;
-    /* built-in font is monospaced with square 8x8 cells */
-    return (int)(len * fs);
-}
-
-/* ----------------------------------------------- TrueType (fontstash) ----- */
-
-static bool setup_fons(sk_handle_t font, float size)
-{
-    FONScontext *fons = sk_font_context();
-    int fid = sk_font_fons_id(font);
-    if (fons == NULL || fid == FONS_INVALID) {
-        return false;
-    }
-    fonsSetFont(fons, fid);
-    fonsSetSize(fons, size);
-    fonsSetAlign(fons, FONS_ALIGN_LEFT | FONS_ALIGN_TOP);
-    return true;
+    return (int)(sk_text_measure_ex(0, text, (float)font_size).x + 0.5f);
 }
 
 SK_KEEP
-void sk_text_draw_ex(sk_handle_t font, const char *text, float x, float y,
-                     float size, sk_handle_t color)
+void sk_text_draw_ex(sk_handle_t font, const char *text, float x, float y, float size, sk_handle_t color)
 {
-    FONScontext *fons = sk_font_context();
-    color_t c;
-
-    if (text == NULL) {
-        return;
-    }
-    if (!setup_fons(font, size)) {
-        /* fall back to the built-in bitmap font */
-        sk_text_draw(text, (int)x, (int)y, (int)size, color);
-        return;
-    }
-    c = sk_color_get(color);
-    fonsSetColor(fons, sfons_rgba((uint8_t)(c.r * 255.0f), (uint8_t)(c.g * 255.0f),
-                                  (uint8_t)(c.b * 255.0f), (uint8_t)(c.a * 255.0f)));
-    fonsDrawText(fons, x, y, text, NULL);
+    draw_text(font, text, x, y, size, sk_color_get(color));
 }
 
 SK_KEEP
 vec2_t sk_text_measure_ex(sk_handle_t font, const char *text, float size)
 {
-    FONScontext *fons = sk_font_context();
     float bounds[4] = {0};
 
-    if (text == NULL || !setup_fons(font, size)) {
+    if (text == NULL || !use_font(font, size)) {
         return (vec2_t){0.0f, 0.0f};
     }
-    fonsTextBounds(fons, 0.0f, 0.0f, text, NULL, bounds);
+    fonsTextBounds(sk_font_context(), 0.0f, 0.0f, text, NULL, bounds);
     return (vec2_t){bounds[2] - bounds[0], bounds[3] - bounds[1]};
 }

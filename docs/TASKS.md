@@ -137,7 +137,13 @@ tick the box in the same commit.
 - [x] Bug: the library builds had no header dependency tracking (desktop and
       headless not at all, web not for the vendored `-isystem` headers), so header
       changes left stale objects. Both now use `-MD -MP`
-- [ ] Bug: `[` and `]` draw as boxes in the built-in text font
+- [x] Built-in font (2026-09-17): the 8x8 sokol_debugtext bitmap font (KC85/3, whose
+      `[ ] \ { | } ~` were graphics and umlauts) is replaced by JetBrains Mono, an
+      ASCII subset embedded in the library (`src/fonts/sk_default_font.h`, generated
+      by `tools/gen_default_font.py`, OFL). All text is TrueType now; sokol_debugtext
+      is gone (web size about even: -12.5 KB code, +9 KB font).
+      `sk_text_set_default_font` sets another default (e.g. for UTF-8), used by
+      `sk_text_draw` and font handle 0 everywhere, including text3d
 - [x] webcheck: WebGPU runs failed the first four examples (started after ~20 s or
       never) when the monitors were asleep: WebGPU ran in a visible browser window,
       and the pages waited for the compositor to wake the displays (cosmic-comp logs
@@ -279,3 +285,13 @@ Not supported yet:
       retained shape (`sk_shape_set_line_strip` + `sk_shape_add_point`); batch
       asset ensure is designed with the loading pipeline
 - [ ] Which language binding comes first
+- [ ] Naming, if libsk becomes an API with swappable implementations (see the
+      exploration task): `destroy` on resources only drops a reference (`release`
+      would say so), `create(path)` on resources loads or finds a shared one (`load`?),
+      and the `sk_` prefix names the sokol implementation rather than the API. Decide
+      together, before bindings depend on the names
+- [x] Fonts are resources like the rest (2026-09-17): refcounted and deduped by
+      path; text objects and the default font hold references; a released font's
+      fontstash data is kept by path and reused (fontstash can't remove fonts).
+      Follow-up: a `.ttf/.otf` loader so reading big font files runs in the loading
+      pipeline

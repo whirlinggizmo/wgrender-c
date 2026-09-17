@@ -29,8 +29,7 @@
  * begin/clear/draw/end ordering, we record everything between sk_render_begin()
  * and sk_render_end(), then open the swapchain pass in sk_render_end() (where
  * the clear color is already known) and replay the frame's command list (sgl
- * layers and model draws, in call order; see internal/sk_render.h), then the
- * debugtext overlay.
+ * layers, including text, and model draws, in call order; see internal/sk_render.h).
  */
 
 typedef enum {
@@ -296,7 +295,6 @@ bool sk_render_begin_texture(sk_handle_t texture)
     sk_render_passes[sk_render_pass_count] = (sk_render_pass_t){.target = texture};
     sk_render_current_pass_index = sk_render_pass_count++;
     sk_texture_set_drawing_into(texture);
-    sk_text_set_pass(sk_render_current_pass_index);
     open_sgl_layer();
     setup_2d_projection();
     return true;
@@ -311,7 +309,6 @@ void sk_render_end_texture(void)
     }
     sk_render_current_pass_index = 0;
     sk_texture_set_drawing_into(0);
-    sk_text_set_pass(0);
     if (sk_render_cmd_count < MAX_RENDER_CMDS) {
         open_sgl_layer();
     }
@@ -380,7 +377,6 @@ void sk_render_end(void)
             .label = "sk-render-target",
         });
         replay_pass(p);
-        sk_text_flush(p); /* bitmap text drawn into this target */
         sg_end_pass();
     }
     sk_texture_set_drawing_into(0);
@@ -389,7 +385,6 @@ void sk_render_end(void)
         .swapchain = sk_platform_swapchain(),
     });
     replay_pass(0);
-    sk_text_flush(0); /* bitmap text overlay */
     sg_end_pass();
     sg_commit();
 

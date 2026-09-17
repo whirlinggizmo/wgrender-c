@@ -15,7 +15,7 @@ STD     := -std=gnu11
 WARN    := -Wall -Wextra -Wno-unused-parameter
 OPT     := -O1 -g
 DEFS    := -DSK_HEADLESS -DSOKOL_DUMMY_BACKEND
-INCS    := -I$(ROOT)/include -I$(ROOT)/src -Iunit -isystem $(ROOT)/deps/sokol
+INCS    := -I$(ROOT)/include -I$(ROOT)/src -Iunit -isystem $(ROOT)/deps/sokol -isystem $(ROOT)/deps/fontstash
 CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
 # Unit tests link the headless library: no window, GPU, audio device, or

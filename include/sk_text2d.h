@@ -15,11 +15,11 @@ extern "C" {
  * normal UI text that cost is negligible; cached/retained geometry would only
  * pay off for very large amounts of text and isn't implemented.
  *
- * `font` may be 0 (or a font whose asset hasn't finished loading): the object
- * renders with the built-in bitmap fallback font and sharpens to the TTF once a
- * ready font is attached via sk_text2d_set_font. So you can create, place, and
- * show text before its font asset is ready — the same create-now / set-resource-
- * later pattern as sprite3d/model/sound. */
+ * `font` may be 0: the text uses the default font (sk_text_set_default_font, else
+ * the built-in font) until a font is attached with sk_text2d_set_font. So you can
+ * create, place and show text before its font asset is ready, the same
+ * create-now / set-resource-later pattern as sprite3d, model and sound. The text
+ * holds a reference to its font. */
 sk_handle_t sk_text2d_create(sk_handle_t font); /* font may be 0 (attach later) */
 bool sk_text2d_set_font(sk_handle_t handle, sk_handle_t font);
 bool sk_text2d_set_text(sk_handle_t handle, const char *text); /* copied */
@@ -34,7 +34,7 @@ bool sk_text2d_set_pickable(sk_handle_t handle, bool pickable);
 bool sk_text2d_is_pickable(sk_handle_t handle);
 
 /* Rendered extent of the current text at the current size (0 if no text). Uses
- * TTF metrics when the font is ready, else the bitmap fallback's. */
+ * the font it draws with (its own, or the default font). */
 float sk_text2d_measure_width(sk_handle_t handle);
 float sk_text2d_measure_height(sk_handle_t handle);
 

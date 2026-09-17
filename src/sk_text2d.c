@@ -5,23 +5,23 @@
 
 #include "internal/exports.h"
 #include "internal/sk_font.h"
+#include "internal/sk_internal.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_scene.h"
 #include "sk_handle.h"
 #include "sk_logger.h"
-#include "sk_text.h" /* draw/measure delegate (handles the bitmap fallback) */
+#include "sk_text.h" /* draw/measure delegate (resolves font 0 to the default font) */
 
-#include "fontstash.h" /* FONS_INVALID for the font-ready check */
 
 /* Retained 2D text: holds the string + placement/color as instance state and
  * renders through the immediate sk_text path. Fonts aren't reference-counted
- * (sk_font owns the slot until destroyed), so the object just stores the handle;
- * an unset/not-ready font falls back to the built-in bitmap font. */
+ * (a font the text uses stays alive: the text holds a reference); a font that
+ * isn't set (0) uses the default font. */
 
 #define MAX_TEXT2D 256
 
 typedef struct {
-    sk_handle_t font; /* 0 or not-ready -> bitmap fallback */
+    sk_handle_t font; /* referenced; 0 = the default font */
     char *text;       /* owned copy, may be NULL */
     float x, y;
     float size;
@@ -44,11 +44,6 @@ static sk_text2d_t *resolve(sk_handle_t handle)
         return NULL;
     }
     return &sk_texts[index];
-}
-
-static bool font_ready(sk_handle_t font)
-{
-    return sk_font_fons_id(font) != FONS_INVALID;
 }
 
 /* Scene 2D pass: drawn over 3D; picked by its text's rectangle (top-left at x, y). */
@@ -89,6 +84,7 @@ void sk_text2d_init(void)
 void sk_text2d_deinit(void)
 {
     for (int i = 0; i < MAX_TEXT2D; i++) {
+        if (sk_text2d_occupied[i]) sk_font_release(sk_texts[i].font);
         free(sk_texts[i].text);
         sk_texts[i].text = NULL;
     }
@@ -105,6 +101,7 @@ sk_handle_t sk_text2d_create(sk_handle_t font)
         return 0;
     }
     sk_handle_pool_resolve(&sk_text2d_pool, handle, &index);
+    sk_font_retain(font); /* no-op for 0 */
     sk_texts[index] = (sk_text2d_t){
         .font = font,
         .text = NULL,
@@ -121,7 +118,9 @@ bool sk_text2d_set_font(sk_handle_t handle, sk_handle_t font)
 {
     sk_text2d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL) return false;
-    text_ptr->font = font; /* fonts aren't refcounted; the app owns the lifetime */
+    sk_font_retain(font); /* before releasing, in case they're the same font */
+    sk_font_release(text_ptr->font);
+    text_ptr->font = font;
     return true;
 }
 
@@ -191,10 +190,7 @@ float sk_text2d_measure_width(sk_handle_t handle)
 {
     sk_text2d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL || text_ptr->text == NULL) return 0.0f;
-    if (font_ready(text_ptr->font)) {
-        return sk_text_measure_ex(text_ptr->font, text_ptr->text, text_ptr->size).x;
-    }
-    return (float)sk_text_measure(text_ptr->text, (int)text_ptr->size);
+    return sk_text_measure_ex(text_ptr->font, text_ptr->text, text_ptr->size).x;
 }
 
 SK_KEEP
@@ -202,10 +198,7 @@ float sk_text2d_measure_height(sk_handle_t handle)
 {
     sk_text2d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL || text_ptr->text == NULL) return 0.0f;
-    if (font_ready(text_ptr->font)) {
-        return sk_text_measure_ex(text_ptr->font, text_ptr->text, text_ptr->size).y;
-    }
-    return text_ptr->size; /* bitmap glyph height tracks the requested size */
+    return sk_text_measure_ex(text_ptr->font, text_ptr->text, text_ptr->size).y;
 }
 
 SK_KEEP
@@ -229,7 +222,7 @@ void sk_text2d_draw(sk_handle_t handle)
 {
     sk_text2d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL || !text_ptr->visible || text_ptr->text == NULL) return;
-    /* delegates to TTF when the font resolves, else the built-in bitmap font */
+    /* font 0 or a font that isn't loaded resolves to the default / built-in font */
     sk_text_draw_ex(text_ptr->font, text_ptr->text, text_ptr->x, text_ptr->y,
                     text_ptr->size, text_ptr->color);
 }
@@ -240,6 +233,7 @@ void sk_text2d_destroy(sk_handle_t handle)
     sk_text2d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL) return;
     free(text_ptr->text);
+    sk_font_release(text_ptr->font);
     memset(text_ptr, 0, sizeof(*text_ptr));
     sk_handle_pool_free(&sk_text2d_pool, handle);
 }

@@ -4,7 +4,7 @@
  *     with nearest filtering (a low-resolution pixel-art look)
  *   - "minimap": the same scene from a top-down orthographic camera, in a 256x256
  *     texture
- *   - "label": TrueType and bitmap text drawn into a 256x128 texture, used as the
+ *   - "label": text in two fonts drawn into a 256x128 texture, used as the
  *     base color texture of the spinning sphere's material (and shown on its own)
  * Each frame draws the label first, so the scene views that use it show this
  * frame's label. Keys: ESC quit. */

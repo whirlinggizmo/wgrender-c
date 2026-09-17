@@ -77,11 +77,12 @@ void sk_font_init(void);
 void sk_font_deinit(void);
 void sk_font_flush(void); /* upload the font atlas (outside a render pass) */
 
-/* text (sokol_debugtext) */
+/* text (fontstash; the built-in font is embedded) */
 void sk_text_init(void);
 void sk_text_deinit(void);
-void sk_text_set_pass(int pass); /* record debugtext for render pass `pass` (0 = screen) */
-void sk_text_flush(int pass);    /* emit pass `pass`'s debugtext into the open sg pass */
+/* The font to use for `font`: the default font for 0 (sk_text_set_default_font, else
+ * the built-in font), and the built-in font for a font that isn't loaded. */
+sk_handle_t sk_text_resolve_font(sk_handle_t font);
 
 /* text2d (retained text object, built on the text layer) */
 void sk_text2d_init(void);

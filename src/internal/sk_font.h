@@ -14,6 +14,14 @@ void sk_font_flush(void); /* upload the atlas (must run outside a render pass) *
 /* Shared fontstash context, or NULL if unavailable. */
 FONScontext *sk_font_context(void);
 
+/* The embedded built-in font (src/fonts/sk_default_font.h), with a reference for
+ * the caller; 0 if fontstash isn't available. */
+sk_handle_t sk_font_create_builtin(void);
+
+/* Reference counting (text objects and the default font hold references). */
+void sk_font_retain(sk_handle_t handle);
+void sk_font_release(sk_handle_t handle);
+
 /* fontstash font id for a handle, or FONS_INVALID. */
 int sk_font_fons_id(sk_handle_t handle);
 

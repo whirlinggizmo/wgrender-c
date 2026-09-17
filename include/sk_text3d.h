@@ -18,8 +18,9 @@ extern "C" {
  * - Facing uses sprite3d's modes: face the camera (default), face it with world up
  *   kept, lie flat facing up, or FREE (oriented by the rotation, like a sign).
  * - Depth-tested against the scene; a scene sorts it with other transparent parts.
- * - Drawn once its font is loaded (font may be 0 at create; set it when ready).
- *   The built-in bitmap font isn't available in 3D.
+ * - Font 0 (at create, or until set) draws with the default font
+ *   (sk_text_set_default_font, else the built-in font). The text holds a reference
+ *   to its font.
  * - Picked by its text's rectangle (sk_pick_object, sk_scene_pick). */
 
 sk_handle_t sk_text3d_create(sk_handle_t font);

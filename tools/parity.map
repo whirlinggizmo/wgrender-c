@@ -40,7 +40,7 @@ rl_asset_poll_task                      dropped  managed task queue; callbacks i
 rl_asset_tick                           dropped  runtime ticks the asset queue each frame (internal sk_asset_tick)
 
 # --- rl_font.h ---
-rl_font_get_default                     dropped  font handle 0 already means the built-in font everywhere
+rl_font_get_default                     ported   sk_text_get_default_font   (0 = built in; sk_text_set_default_font replaces it)
 
 # --- rl_fs.h (filesystem is internal in libsk; see docs/PLAN-sk_fs.md) ---
 rl_fs_clear                             dropped  sk_fs is internal

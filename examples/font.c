@@ -1,7 +1,11 @@
 /* libsk font example — TrueType text via fontstash, loaded async.
  *
- * Loads two fonts (JetBrains Mono, Komika) with sk_asset_load_async, then draws
- * scalable text including a measured, centered line. */
+ * Loads two fonts (JetBrains Mono, Komika) with sk_asset_ensure_async, then draws
+ * scalable text including a measured, centered line.
+ *
+ *   D    switch the default font (sk_text_draw, font handle 0) between the built-in
+ *        font (JetBrains Mono, ASCII) and Komika
+ *   ESC  quit */
 #include <stddef.h>
 #include <stdio.h>
 
@@ -68,7 +72,16 @@ static void frame(float dt, float tick_fraction, void *user_data)
         sk_text_draw("loading fonts...", 40, 200, 20, SK_COLOR_GRAY);
     }
 
-    /* bitmap-font FPS overlay still available */
+    /* the default font: built in (JetBrains Mono), or Komika after D */
+    sk_keyboard_state_t keys = sk_input_get_keyboard_state();
+    if (keys.keys[SK_KEY_D] == SK_BUTTON_PRESSED && g_komika != 0) {
+        sk_text_set_default_font(sk_text_get_default_font() == 0 ? g_komika : 0);
+    }
+    sk_text_draw(sk_text_get_default_font() == 0 ? "[D] default font: built in   {a|b} ~ \\ ^_`"
+                                                 : "[D] default font: Komika   {a|b} ~ \\ ^_`",
+                 40, 360, 16, SK_COLOR_DARKGREEN);
+
+    /* FPS in the default font */
     sk_text_draw_fps(12, 12);
 
     sk_render_end();

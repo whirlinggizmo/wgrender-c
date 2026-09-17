@@ -59,7 +59,7 @@ static sk_text3d_t *resolve(sk_handle_t handle)
 static bool use_font(sk_handle_t font)
 {
     FONScontext *fons = sk_font_context();
-    const int id = sk_font_fons_id(font);
+    const int id = sk_font_fons_id(sk_text_resolve_font(font)); /* 0: the default font */
     if (fons == NULL || id == FONS_INVALID) {
         return false;
     }
@@ -257,6 +257,7 @@ sk_handle_t sk_text3d_create(sk_handle_t font)
         return 0;
     }
     sk_handle_pool_resolve(&sk_text3d_pool, handle, &index);
+    sk_font_retain(font); /* no-op for 0 */
     sk_text3ds[index] = (sk_text3d_t){
         .font = font,
         .size = 1.0f,
@@ -273,6 +274,7 @@ void sk_text3d_destroy(sk_handle_t handle)
     sk_text3d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL) return;
     free(text_ptr->text);
+    sk_font_release(text_ptr->font);
     memset(text_ptr, 0, sizeof(*text_ptr));
     sk_handle_pool_free(&sk_text3d_pool, handle);
 }
@@ -282,6 +284,8 @@ bool sk_text3d_set_font(sk_handle_t handle, sk_handle_t font)
 {
     sk_text3d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL) return false;
+    sk_font_retain(font); /* before releasing, in case they're the same font */
+    sk_font_release(text_ptr->font);
     text_ptr->font = font;
     return true;
 }
@@ -410,6 +414,7 @@ void sk_text3d_init(void)
 void sk_text3d_deinit(void)
 {
     for (int i = 0; i < MAX_TEXT3D; i++) {
+        if (sk_text3d_occupied[i]) sk_font_release(sk_text3ds[i].font);
         free(sk_text3ds[i].text);
     }
     memset(sk_text3ds, 0, sizeof(sk_text3ds));
