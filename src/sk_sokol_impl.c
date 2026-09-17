@@ -16,6 +16,7 @@
 #include "sokol_gfx.h"
 #if !defined(SK_HEADLESS) /* headless: no window, no glue (see sk_platform.c) */
 #include "sokol_app.h"
+#include "sokol_app_utils.h" /* deps/sokol_utils: window/display extensions; after sokol_app */
 #include "sokol_glue.h"
 #endif
 #include "sokol_time.h"

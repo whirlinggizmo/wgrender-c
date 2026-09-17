@@ -18,7 +18,7 @@ if [ "$(uname -s)" != "Linux" ]; then
 fi
 
 # pkg-config modules sokol needs on Linux (see LDLIBS_PLATFORM in examples/Makefile).
-MODULES=(alsa gl x11 xi xcursor)
+MODULES=(alsa gl x11 xi xcursor xrandr)
 
 detect_pm() {
     if command -v apt-get >/dev/null 2>&1; then echo apt
@@ -37,18 +37,21 @@ package_for() {
         apt:x11)           echo libx11-dev ;;
         apt:xi)            echo libxi-dev ;;
         apt:xcursor)       echo libxcursor-dev ;;
+        apt:xrandr)        echo libxrandr-dev ;;
         dnf:pkg-config)    echo pkgconf-pkg-config ;;
         dnf:alsa)          echo alsa-lib-devel ;;
         dnf:gl)            echo mesa-libGL-devel ;;
         dnf:x11)           echo libX11-devel ;;
         dnf:xi)            echo libXi-devel ;;
         dnf:xcursor)       echo libXcursor-devel ;;
+        dnf:xrandr)        echo libXrandr-devel ;;
         pacman:pkg-config) echo pkgconf ;;
         pacman:alsa)       echo alsa-lib ;;
         pacman:gl)         echo libglvnd ;;
         pacman:x11)        echo libx11 ;;
         pacman:xi)         echo libxi ;;
         pacman:xcursor)    echo libxcursor ;;
+        pacman:xrandr)     echo libxrandr ;;
         *)                 echo "<$2 dev package>" ;;
     esac
 }

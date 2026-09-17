@@ -47,5 +47,15 @@ SHDC_LINE="$(grep '^sokol-tools-bin ' "$DEST/VERSION" || true)"
     [ -n "$SHDC_LINE" ] && echo "$SHDC_LINE"
 } > "$DEST/VERSION"
 
+# deps/sokol_utils reads sokol_app's private state: make sure it still compiles.
+CHECK="$ROOT/build/sokol-src-check"
+mkdir -p "$CHECK"
+printf '#define SOKOL_IMPL\n#define SOKOL_GLCORE\n#define SOKOL_NO_ENTRY\n#include "sokol_app.h"\n#include "sokol_app_utils.h"\n' \
+    > "$CHECK/utils.c"
+if ! ${CC:-cc} -std=gnu11 -c -isystem "$DEST" -isystem "$ROOT/deps/sokol_utils" "$CHECK/utils.c" -o "$CHECK/utils.o"; then
+    echo "update_sokol: deps/sokol_utils/sokol_app_utils.h no longer compiles against this sokol; fix it (mark changes [libsk], list them in its VERSION)" >&2
+    exit 1
+fi
+
 echo "update_sokol: deps/sokol now at fork $COMMIT ($DATE), upstream base $BASE"
 git -C "$ROOT" diff --stat -- deps/sokol

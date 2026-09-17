@@ -169,9 +169,9 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       `sk_texture_draw`; scenes draw 2D after 3D and pick it first; 2D, mouse and
       screen size are in logical pixels (docs/PLAN-sprite2d.md, examples/sprite2d.c)
 - [x] Lighting controls: redesigned as light objects in scenes (see above)
-- [ ] Window and monitor control: size, position, monitor queries. Deferred:
-      sokol_app has no API for them, so it needs native code per platform (X11,
-      Win32, Cocoa; canvas size on web), together with the ignored window flags
+- [ ] Window and monitor control: size, position, monitor queries, with the
+      ignored window flags. `deps/sokol_utils` (squk/sokol_utils, vendored with fixes)
+      provides the native code; API proposed in [PLAN-window.md](PLAN-window.md)
 - [x] Assets: ensure many files at once: asset groups (`sk_asset_group_create`,
       `sk_asset_group_add`) with `sk_asset_get_progress`
 - [ ] Assets: host ping (with the `sk_net` rework)

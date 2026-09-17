@@ -1,0 +1,10 @@
+# Vendored from squk/sokol_utils (zlib license, LICENSE in this directory): extension
+# functions for sokol_app.h (window size/position, displays, swap interval, mouse
+# position). It reads sokol_app's private state, so check it compiles whenever
+# deps/sokol is updated.
+sokol_utils https://github.com/squk/sokol_utils 65cbd2a6fbc2bd9a9eb716f1f478b6dc37ba41c0 2026-07-31
+# Changes made in libsk (marked "[libsk]" in the header):
+# - removed _sapp_x11_window_focused(): sokol_app.h now defines it (redefinition error)
+# - _sapp_linux_set_swap_interval() uses sokol_app's _sapp_glx_swapinterval(): the
+#   original called an undeclared glXGetProcAddress and passed the X11 window as the
+#   GLX drawable

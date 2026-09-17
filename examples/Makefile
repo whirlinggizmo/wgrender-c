@@ -30,7 +30,7 @@ OPT     := -O2
 DEFS    := -DSOKOL_GLCORE
 # Public headers with full warnings; vendored single-header libs via -isystem.
 INCS    := -I$(ROOT)/include -I$(ROOT)/src
-INCS    += -isystem $(ROOT)/deps/sokol -isystem $(ROOT)/deps/stb \
+INCS    += -isystem $(ROOT)/deps/sokol -isystem $(ROOT)/deps/sokol_utils -isystem $(ROOT)/deps/stb \
            -isystem $(ROOT)/deps/fontstash -isystem $(ROOT)/deps/dr \
            -isystem $(ROOT)/deps/cgltf
 CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
@@ -38,7 +38,7 @@ CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 LIB     := $(ROOT)/build/desktop/libsk.a
 
 ifeq ($(UNAME_S),Linux)
-  LDLIBS_PLATFORM := -lGL -lX11 -lXi -lXcursor -lasound -ldl -lm -lpthread
+  LDLIBS_PLATFORM := -lGL -lX11 -lXi -lXcursor -lXrandr -lasound -ldl -lm -lpthread
 endif
 ifeq ($(UNAME_S),Darwin)
   LDLIBS_PLATFORM := -framework Cocoa -framework QuartzCore -framework OpenGL \

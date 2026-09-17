@@ -55,8 +55,8 @@ endif
 # Our headers use -I (full warnings); vendored single-header libs use -isystem so
 # their warnings (stb/fontstash/dr/cgltf/sokol) don't drown out ours.
 INCS    := -Iinclude -Isrc
-INCS    += -isystem deps/sokol -isystem deps/stb -isystem deps/fontstash \
-           -isystem deps/dr -isystem deps/cgltf
+INCS    += -isystem deps/sokol -isystem deps/sokol_utils -isystem deps/stb \
+           -isystem deps/fontstash -isystem deps/dr -isystem deps/cgltf
 CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
 ifeq ($(WEB),1)
