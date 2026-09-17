@@ -1,8 +1,10 @@
 /* libsk audio example — looping mp3 music + a one-shot ogg sound.
  *
- * Each file is ensured local (async), then sk_audio_create(path) decodes it
- * (dr_mp3 / dr_wav / stb_vorbis) into a shared Audio resource; a Music or Sound
- * object plays it. Press SPACE to play the click, M to toggle music. */
+ * Each file is ensured local (async), then sk_audio_create(path) makes a shared
+ * Audio resource: the 6 MB music is streamed (decoded while playing), the small
+ * click is decoded up front. Sound objects play them. Mixing runs on the audio
+ * device's thread, so music keeps playing through a slow frame: press S to stall
+ * one frame for 300 ms. Press SPACE to play the click, M to toggle music. */
 #include <stddef.h>
 
 #include "sk.h"
@@ -56,6 +58,11 @@ static void frame(float dt, float tick_fraction, void *user_data)
     if (kb.keys[SK_KEY_SPACE] == SK_BUTTON_PRESSED && g_click != 0) {
         sk_sound_play(g_click);
     }
+    if (kb.keys[SK_KEY_S] == SK_BUTTON_PRESSED) {
+        const double until = sk_get_time() + 0.3; /* a deliberately slow frame */
+        while (sk_get_time() < until) {
+        }
+    }
     if (kb.keys[SK_KEY_M] == SK_BUTTON_PRESSED && g_music != 0) {
         if (g_music_on) { sk_sound_pause(g_music); } else { sk_sound_resume(g_music); }
         g_music_on = !g_music_on;
@@ -65,13 +72,13 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_render_clear_background(g_bg);
 
     sk_text_draw("libsk + sokol_audio", 24, 30, 28, SK_COLOR_RAYWHITE);
-    sk_text_draw(g_music != 0 ? (g_music_on ? "music: playing (mp3, looping)"
+    sk_text_draw(g_music != 0 ? (g_music_on ? "music: playing (mp3, streamed, looping)"
                                             : "music: paused")
                               : "music: loading...",
                  24, 80, 18, SK_COLOR_SKYBLUE);
     sk_text_draw(g_click != 0 ? "click: ready (ogg)" : "click: loading...",
                  24, 110, 18, SK_COLOR_LIME);
-    sk_text_draw("[SPACE] play click   [M] toggle music   [ESC] quit",
+    sk_text_draw("[SPACE] play click   [M] toggle music   [S] stall 300 ms   [ESC] quit",
                  24, 150, 16, SK_COLOR_LIGHTGRAY);
 
     sk_text_draw_fps(24, 12);

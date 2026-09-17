@@ -110,6 +110,18 @@ functions (value returns instead), public `fs_*` (internal; see
 
 ## Supporting / cross-cutting (slot in when an item above needs it)
 
+- **Loading pipeline: decode in the background, upload within a frame budget** —
+  beyond librl (which created resources synchronously too). Today `sk_*_create`
+  reads, decodes and uploads on the main thread, so a large texture or glTF
+  loaded during gameplay makes a slow frame. Direction (2026-09-16): the asset
+  task pipeline gets stages — fetch (async, exists) → decode on a worker, via a
+  function each resource type registers → finish on the main thread (GPU upload)
+  within a per-frame time budget, spreading big uploads over frames → callback, so
+  `sk_*_create(path)` in the callback is cheap and the public API stays the same.
+  Web: time-sliced main-thread decode first, then browser-native off-thread
+  decoders (`createImageBitmap`, `decodeAudioData`). Measure real GPU upload times
+  first. `ensure_many` (librl parity) fits here as a task group.
+
 - ~~**Offscreen / render-to-texture**~~ — done (2026-09-16): render targets are
   textures (`sk_texture_create_target`, `sk_render_begin_texture`); see
   [PLAN-render-target.md](PLAN-render-target.md). Still to come: persistent

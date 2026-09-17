@@ -29,6 +29,8 @@ jobs:
         run: make check
       - name: Unit tests
         run: make test
+      - name: Unit tests under ThreadSanitizer
+        run: make test SANITIZE=thread
       - name: Smoke test (every example headless)
         run: make smoke
 

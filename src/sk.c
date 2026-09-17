@@ -186,9 +186,9 @@ static void on_init(void)
 }
 
 #if !defined(__EMSCRIPTEN__)
-/* Wait until `deadline` (seconds on the sk_get_time clock). Sleeps in short slices
- * so audio keeps being fed during long waits (low target fps), then yields for
- * the last moment because OS sleeps overshoot by up to a millisecond or two. */
+/* Wait until `deadline` (seconds on the sk_get_time clock): sleep, then yield for
+ * the last moment because OS sleeps overshoot by up to a millisecond or two.
+ * (Audio mixes on its own thread, so nothing needs feeding while waiting.) */
 static void wait_until(double deadline)
 {
     const double spin = 0.002;
@@ -198,17 +198,13 @@ static void wait_until(double deadline)
             return;
         }
         if (remaining > spin) {
-            double slice = remaining - spin;
-            if (slice > 0.005) {
-                slice = 0.005;
-            }
+            const double sleep_for = remaining - spin;
 #  if defined(_WIN32)
-            Sleep((DWORD)(slice * 1000.0));
+            Sleep((DWORD)(sleep_for * 1000.0));
 #  else
-            struct timespec ts = {0, (long)(slice * 1e9)};
+            struct timespec ts = {(time_t)sleep_for, (long)((sleep_for - (double)(time_t)sleep_for) * 1e9)};
             nanosleep(&ts, NULL);
 #  endif
-            sk_audio_tick();
         } else {
 #  if defined(_WIN32)
             Sleep(0);
@@ -302,8 +298,6 @@ static void on_frame(void)
 {
     /* pump async asset loads; completion callbacks fire here (main thread) */
     sk_asset_tick();
-    /* mix + push one audio block (also on skipped frames, or audio underruns) */
-    sk_audio_tick();
 
     if (!pace_frame()) {
         return;

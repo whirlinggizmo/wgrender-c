@@ -5,6 +5,9 @@
 
 void test_asset_join_relative(void);
 
+void test_audio_streaming(void);
+void test_audio_threads(void);
+
 void test_camera_api(void);
 void test_camera_projection(void);
 void test_pick_ray_from_screen_ortho(void);

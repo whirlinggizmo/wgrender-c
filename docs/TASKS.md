@@ -17,8 +17,8 @@ tick the box in the same commit.
 - [ ] Unit tests: `sk_fs` / asset bookkeeping, scene layers and ordering, sprite
       alpha-test picking, animation sampling, text2d state, render command-list
       merging
-- [ ] Later: `SANITIZE=1` (ASan/UBSan) test build; wasm-side unit tests when
-      web-only code needs them
+- [x] Sanitizer test builds: `make test SANITIZE=thread|address|undefined` (TSan in CI)
+- [ ] Later: wasm-side unit tests when web-only code needs them
 - [x] CI (GitHub Actions, `.github/workflows/ci.yml`): desktop build, `make check`,
       `make test`, `make smoke`; web build + `make webcheck` (WebGL2, headless Chrome)
       with screenshots as an artifact
@@ -102,11 +102,11 @@ tick the box in the same commit.
 - [x] Decided (by the tick design): time accumulated from frame `dt` runs slow
       when frames stall, because `dt` is capped at 0.1 s. Simulation belongs in a
       tick, which uses real elapsed time and catches up (up to 5 ticks per frame)
-- [ ] Decide: asset callbacks run on the main thread, so creating a resource
-      blocks the frame (the MP3 decode takes ~0.22s). Related to audio streaming.
-      Leaning (2026-09-16): stream long audio; async resource creation (handle
-      returned in a loading state, worker thread on desktop, time-sliced or worker
-      on web). Plan after render-to-texture.
+- [x] Audio regressions from librl fixed: long audio streams (music create 215 ms →
+      5 ms, ~108 MB → 6 MB) and mixing runs on the audio device's thread
+      ([PLAN-audio.md](PLAN-audio.md))
+- [ ] Loading pipeline: background decode + budgeted GPU upload for all resource
+      types (see ROADMAP, "Loading pipeline"); measure real upload times first
 - [x] Lighting: light objects (directional, point, spot), per-scene lights and
       ambient, up to 8 lights per model by contribution, nothing lit implicitly
       (docs/PLAN-lighting.md, examples/lights.c). `simple.c` lighting PARITY note

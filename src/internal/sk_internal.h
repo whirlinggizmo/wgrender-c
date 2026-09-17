@@ -68,7 +68,6 @@ void sk_asset_deinit(void);
 
 /* audio (sokol_audio mixer) + sound/music stores */
 void sk_audio_init(void);
-void sk_audio_tick(void);
 void sk_audio_deinit(void);
 void sk_sound_init(void);
 void sk_sound_deinit(void);

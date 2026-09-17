@@ -2,6 +2,7 @@
 #
 #   make test                  build lib/libsk.a if needed, build and run unit tests
 #   make test TESTS=pick_      only tests whose name starts with "pick_"
+#   make test SANITIZE=thread  build library + tests with a sanitizer (thread, address, undefined)
 #   make clean
 #
 # Unit tests (tests/unit/) call library internals directly and link against
@@ -23,7 +24,8 @@ LIB     := $(ROOT)/lib/libsk_headless.a
 LDLIBS_PLATFORM := -ldl -lm -lpthread
 
 BUILD      := build
-UNIT_BIN   := $(BUILD)/unit_tests
+SANITIZE   ?=
+UNIT_BIN   := $(BUILD)/unit_tests$(if $(SANITIZE),_$(SANITIZE))
 UNIT_SRCS  := $(wildcard unit/*.c)
 UNIT_HDRS  := $(wildcard unit/*.h)
 
@@ -31,8 +33,12 @@ UNIT_HDRS  := $(wildcard unit/*.h)
 
 test: unit
 
+# ThreadSanitizer can't map its shadow memory with the high ASLR entropy of newer
+# kernels ("unexpected memory mapping"), so run it with ASLR off.
+RUN := $(if $(filter thread,$(SANITIZE)),setarch $(shell uname -m) -R)
+
 unit: $(UNIT_BIN)
-	@./$(UNIT_BIN) $(TESTS)
+	@$(RUN) ./$(UNIT_BIN) $(TESTS)
 
 # Keep the library current (the root build is a cheap no-op when nothing changed).
 $(LIB): FORCE
@@ -41,8 +47,20 @@ $(LIB): FORCE
 $(BUILD):
 	mkdir -p $(BUILD)
 
+ifeq ($(SANITIZE),)
 $(UNIT_BIN): $(UNIT_SRCS) $(UNIT_HDRS) $(LIB) | $(BUILD)
 	$(CC) $(CFLAGS) $(UNIT_SRCS) -o $@ $(LIB) $(LDLIBS_PLATFORM)
+else
+# Sanitizer build (`make test SANITIZE=thread`, `address`, `undefined`): the
+# library is compiled into the test binary with instrumentation, since the
+# prebuilt archive isn't.
+LIB_SRCS := $(wildcard $(ROOT)/src/*.c)
+SAN_INCS := -isystem $(ROOT)/deps/stb -isystem $(ROOT)/deps/fontstash -isystem $(ROOT)/deps/dr \
+            -isystem $(ROOT)/deps/cgltf
+SAN_FLAGS := -fsanitize=$(SANITIZE) -fno-omit-frame-pointer -g
+$(UNIT_BIN): $(UNIT_SRCS) $(UNIT_HDRS) $(LIB_SRCS) FORCE | $(BUILD)
+	$(CC) $(CFLAGS) $(SAN_INCS) $(SAN_FLAGS) $(UNIT_SRCS) $(LIB_SRCS) -o $@ $(LDLIBS_PLATFORM)
+endif
 
 clean:
 	rm -rf $(BUILD)

@@ -12,6 +12,9 @@ Keep this file short and rule-shaped. The authoritative design doc is
   stay **backend-free** (no sokol/GL leakage into the public surface).
 - `make test` — unit tests (`tests/unit/`, link against `lib/libsk_headless.a`, no
   stubs, no display or GPU).
+- `make test SANITIZE=thread` (or `address`, `undefined`) — the unit tests with the
+  library built in under a sanitizer. Run `thread` when touching audio or other
+  code shared with the mixer thread.
 - `make smoke` — every example built headless (`make HEADLESS=1`) and run for 180
   frames; fails on crashes, timeouts or error logs. Needs no display. Add or update tests alongside code changes; new tests go in
   `tests/unit/tests.h` and the table in `tests/unit/main.c`.
