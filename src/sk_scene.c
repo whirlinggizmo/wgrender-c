@@ -7,6 +7,7 @@
 #include "internal/sk_camera3d.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
+#include "internal/sk_environment.h"
 #include "internal/sk_light.h"
 #include "internal/sk_math.h"
 #include "internal/sk_scene.h"
@@ -33,6 +34,13 @@ typedef struct {
     sk_handle_t camera;
     sk_handle_t ambient_color;  /* 0 = white */
     float ambient_intensity;    /* 0 = no ambient (default) */
+    sk_handle_t environment;    /* referenced; 0 = none */
+    float environment_intensity;
+    float environment_rotation;
+    sk_handle_t background;     /* referenced; 0 = none */
+    float background_blur;
+    sk_tonemap_t tonemap;
+    float exposure;
 } sk_scene_t;
 
 static sk_scene_t sk_scenes[MAX_SCENES];
@@ -183,7 +191,7 @@ sk_handle_t sk_scene_create(void)
         return 0;
     }
     sk_handle_pool_resolve(&sk_scene_pool, handle, &index);
-    sk_scenes[index] = (sk_scene_t){0};
+    sk_scenes[index] = (sk_scene_t){.tonemap = SK_TONEMAP_NEUTRAL};
     return handle;
 }
 
@@ -195,6 +203,8 @@ void sk_scene_destroy(sk_handle_t scene)
         return;
     }
     free(scene_ptr->items);
+    sk_environment_release(scene_ptr->environment); /* no-op for 0 */
+    sk_environment_release(scene_ptr->background);
     *scene_ptr = (sk_scene_t){0};
     sk_handle_pool_free(&sk_scene_pool, scene);
 }
@@ -298,6 +308,47 @@ bool sk_scene_set_ambient(sk_handle_t scene, sk_handle_t color, float intensity)
     return true;
 }
 
+SK_KEEP
+bool sk_scene_set_environment(sk_handle_t scene, sk_handle_t environment, float intensity, float rotation)
+{
+    sk_scene_t *scene_ptr = resolve(scene);
+    if (scene_ptr == NULL || (environment != 0 && sk_handle_get_kind(environment) != SK_HANDLE_KIND_ENVIRONMENT)) {
+        return false;
+    }
+    sk_environment_retain(environment); /* no-op for 0 */
+    sk_environment_release(scene_ptr->environment);
+    scene_ptr->environment = environment;
+    scene_ptr->environment_intensity = intensity > 0.0f ? intensity : 0.0f;
+    scene_ptr->environment_rotation = rotation;
+    return true;
+}
+
+SK_KEEP
+bool sk_scene_set_background(sk_handle_t scene, sk_handle_t environment, float blur)
+{
+    sk_scene_t *scene_ptr = resolve(scene);
+    if (scene_ptr == NULL || (environment != 0 && sk_handle_get_kind(environment) != SK_HANDLE_KIND_ENVIRONMENT)) {
+        return false;
+    }
+    sk_environment_retain(environment);
+    sk_environment_release(scene_ptr->background);
+    scene_ptr->background = environment;
+    scene_ptr->background_blur = blur < 0.0f ? 0.0f : (blur > 1.0f ? 1.0f : blur);
+    return true;
+}
+
+SK_KEEP
+bool sk_scene_set_tonemap(sk_handle_t scene, sk_tonemap_t tonemap, float exposure)
+{
+    sk_scene_t *scene_ptr = resolve(scene);
+    if (scene_ptr == NULL || tonemap < SK_TONEMAP_NONE || tonemap > SK_TONEMAP_ACES) {
+        return false;
+    }
+    scene_ptr->tonemap = tonemap;
+    scene_ptr->exposure = exposure;
+    return true;
+}
+
 /* Gather the scene's enabled lights (in member order) and ambient into a
  * lighting environment for the models drawn by this scene draw. */
 static int push_lighting(const sk_scene_t *scene_ptr)
@@ -306,6 +357,11 @@ static int push_lighting(const sk_scene_t *scene_ptr)
     color_t ambient = sk_color_get(scene_ptr->ambient_color);
 
     env.count = 0;
+    env.environment = scene_ptr->environment;
+    env.environment_intensity = scene_ptr->environment_intensity;
+    env.environment_rotation = scene_ptr->environment_rotation;
+    env.tonemap = (int)scene_ptr->tonemap;
+    env.exposure = scene_ptr->exposure;
     env.ambient = (vec3_t){sk_srgb_to_linear(ambient.r) * scene_ptr->ambient_intensity,
                            sk_srgb_to_linear(ambient.g) * scene_ptr->ambient_intensity,
                            sk_srgb_to_linear(ambient.b) * scene_ptr->ambient_intensity};
@@ -403,6 +459,13 @@ void sk_scene_draw(sk_handle_t scene)
     }
 
     sk_light_env_set_current(push_lighting(scene_ptr));
+    if (scene_ptr->background != 0) {
+        const bool same = scene_ptr->background == scene_ptr->environment;
+        sk_environment_submit_background(scene_ptr->background, scene_ptr->background_blur,
+                                         same ? scene_ptr->environment_intensity : 1.0f,
+                                         same ? scene_ptr->environment_rotation : 0.0f,
+                                         (int)scene_ptr->tonemap, scene_ptr->exposure);
+    }
     sk_render_begin_mode_3d();
     for (int start = 0; start < scene_ptr->count;) {
         int layer = scene_ptr->items[start].layer;

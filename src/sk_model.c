@@ -7,6 +7,7 @@
 #include "internal/exports.h"
 #include "internal/sk_asset.h"
 #include "internal/sk_camera3d.h"
+#include "internal/sk_environment.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_light.h"
@@ -1814,7 +1815,7 @@ static void draw_transparent(sk_handle_t handle, int part)
     }
 }
 
-static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material)
+static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material, const sk_environment_binding_t *binding)
 {
     fs_params_t fsp;
     const sk_light_env_t *env = sk_light_env_get(e->light_env);
@@ -1856,6 +1857,20 @@ static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material)
         fsp.u_uv_row1[t][2] = m[5];
     }
 
+    /* exposure and tone mapping come from the scene; models outside a scene show raw colors */
+    fsp.u_tonemap[0] = env != NULL ? (float)env->tonemap : 0.0f;
+    fsp.u_tonemap[1] = env != NULL ? powf(2.0f, env->exposure) : 1.0f;
+    if (lit && binding->valid && env->environment_intensity > 0.0f) {
+        fsp.u_env[0] = env->environment_intensity;
+        fsp.u_env[1] = binding->max_lod;
+        fsp.u_env[2] = cosf(env->environment_rotation);
+        fsp.u_env[3] = sinf(env->environment_rotation);
+        for (int k = 0; k < 9; k++) {
+            fsp.u_sh[k][0] = binding->sh.c[k][0];
+            fsp.u_sh[k][1] = binding->sh.c[k][1];
+            fsp.u_sh[k][2] = binding->sh.c[k][2];
+        }
+    }
     if (lit) {
         fsp.u_ambient[0] = env->ambient.x;
         fsp.u_ambient[1] = env->ambient.y;
@@ -1926,6 +1941,9 @@ static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr
 {
     const sk_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
     const sk_material_texture_t *textures = material->textures;
+    const sk_light_env_t *light_env = sk_light_env_get(e->light_env);
+    sk_environment_binding_t environment;
+    sk_environment_get_binding(light_env != NULL ? light_env->environment : 0, &environment);
     sg_pipeline pip = sk_pips[prim->skinned ? 1 : 0][blended ? 1 : 0][material->double_sided ? 1 : 0];
     if (pip.id != cur_pip->id) {
         sg_apply_pipeline(pip);
@@ -1963,8 +1981,12 @@ static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr
         .samplers[SMP_normal_smp] = texture_sampler(&textures[SK_MATERIAL_TEXTURE_NORMAL]),
         .samplers[SMP_occlusion_smp] = texture_sampler(&textures[SK_MATERIAL_TEXTURE_OCCLUSION]),
         .samplers[SMP_emissive_smp] = texture_sampler(&textures[SK_MATERIAL_TEXTURE_EMISSIVE]),
+        .views[VIEW_env_tex] = environment.cube,
+        .views[VIEW_brdf_tex] = environment.brdf_lut,
+        .samplers[SMP_env_smp] = environment.cube_sampler,
+        .samplers[SMP_brdf_smp] = environment.lut_sampler,
     });
-    apply_fs(e, material);
+    apply_fs(e, material, &environment);
     sg_draw(0, prim->index_count, 1);
 }
 

@@ -107,7 +107,11 @@ async function waitFor(url, what) {
 // Minimal DevTools-protocol session on one page target.
 async function openSession(wsUrl) {
     const ws = new WebSocket(wsUrl);
-    await new Promise((res, rej) => { ws.addEventListener("open", res); ws.addEventListener("error", rej); });
+    await new Promise((res, rej) => {
+        const timer = setTimeout(() => rej(new Error(`no DevTools connection to ${wsUrl} in 15000 ms`)), 15000);
+        ws.addEventListener("open", () => { clearTimeout(timer); res(); });
+        ws.addEventListener("error", (ev) => { clearTimeout(timer); rej(new Error(`DevTools connection failed: ${ev.message ?? wsUrl}`)); });
+    });
     let nextId = 0;
     const pending = new Map();
     const listeners = [];
@@ -121,10 +125,19 @@ async function openSession(wsUrl) {
         }
     });
     return {
-        send(method, params = {}) {
+        /* Every request times out: a hung or crashed page must fail the check, not
+         * stall the whole run. */
+        send(method, params = {}, timeoutMs = 15000) {
             return new Promise((res, rej) => {
                 const id = ++nextId;
-                pending.set(id, (msg) => (msg.error ? rej(new Error(`${method}: ${msg.error.message}`)) : res(msg.result)));
+                const timer = setTimeout(() => {
+                    pending.delete(id);
+                    rej(new Error(`${method}: no response from the browser in ${timeoutMs} ms`));
+                }, timeoutMs);
+                pending.set(id, (msg) => {
+                    clearTimeout(timer);
+                    msg.error ? rej(new Error(`${method}: ${msg.error.message}`)) : res(msg.result);
+                });
                 ws.send(JSON.stringify({ id, method, params }));
             });
         },
@@ -134,7 +147,7 @@ async function openSession(wsUrl) {
 }
 
 async function checkExample(browser, debugBase, baseUrl, example, opts) {
-    const result = { example, errors: [], started: false, backendOk: false, screenshot: null };
+    const result = { example, errors: [], started: false, backendOk: false, screenshot: null, console: [] };
     /* Each example gets its own browser context (separate storage, like a fresh
      * profile), so examples checked at the same time don't share the IndexedDB
      * file cache and can't slow or affect each other. */
@@ -153,6 +166,7 @@ async function checkExample(browser, debugBase, baseUrl, example, opts) {
                 lastActivity = Date.now();
             } else if (msg.method === "Runtime.consoleAPICalled") {
                 const text = msg.params.args.map((a) => a.value ?? a.description ?? "").join(" ");
+                result.console.push(text.trim().split("\n")[0]);
                 if (text.includes("libsk:") && text.includes("backend")) {
                     result.started = true;
                     lastActivity = Date.now();
@@ -178,6 +192,12 @@ async function checkExample(browser, debugBase, baseUrl, example, opts) {
          * the deadline, whichever comes first. */
         let pending = -1;
         while (Date.now() < deadline) {
+            if (!result.started) {
+                /* don't call into the page before libsk reports it's running: calling an
+                 * exported function before the wasm runtime is initialized aborts the page */
+                await sleep(100);
+                continue;
+            }
             const { result: value } = await session.send("Runtime.evaluate", {
                 expression: "typeof Module !== 'undefined' && Module._sk_asset_pending_count ? Module._sk_asset_pending_count() : -1",
                 returnByValue: true,
@@ -352,7 +372,10 @@ async function main() {
             while (reported < examples.length && results[reported]) {
                 const r = results[reported++];
                 const problems = [...r.errors];
-                if (!r.started) problems.push("never logged its backend (did not start?)");
+                if (!r.started) {
+                    problems.push("never logged its backend (did not start?); last console output:");
+                    for (const line of r.console.slice(-6)) problems.push(`  | ${line}`);
+                }
                 else if (r.pending !== 0) problems.push(`still loading after ${opts.settle} ms (${r.pending} asset task(s) pending)`);
                 else if (!r.backendOk) problems.push(`started on a different backend than '${opts.backend}' (stale build?)`);
                 if (problems.length) failed++;
@@ -363,7 +386,12 @@ async function main() {
         const worker = async () => {
             while (next < examples.length) {
                 const index = next++;
-                results[index] = await checkExample(browser, debugBase, baseUrl, examples[index], opts);
+                try {
+                    results[index] = await checkExample(browser, debugBase, baseUrl, examples[index], opts);
+                } catch (err) {
+                    results[index] = { example: examples[index], errors: [`check failed: ${err.message}`],
+                                       started: true, backendOk: true, pending: 0 };
+                }
                 report();
             }
         };

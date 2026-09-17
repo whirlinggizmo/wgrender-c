@@ -24,6 +24,11 @@ void sk_render_deinit(void);
  * queue) to the command list, after everything recorded so far. */
 void sk_render_submit_models(int first, int count);
 
+/* Append a custom draw to the command list: `draw(arg)` runs inside the render
+ * pass, in call order (e.g. a scene background). */
+typedef void (*sk_render_callback_fn)(int arg);
+void sk_render_submit_callback(sk_render_callback_fn draw, int arg);
+
 /* Switch the sokol_gl 3D pipeline between opaque (depth writes on) and
  * transparent (blended, depth writes off). Only valid inside 3D mode. */
 void sk_render_set_3d_transparent(bool transparent);

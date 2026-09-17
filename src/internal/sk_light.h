@@ -34,6 +34,12 @@ typedef struct {
     sk_scene_light_t lights[SK_MAX_SCENE_LIGHTS];
     int count;
     vec3_t ambient; /* color rgb * intensity */
+    /* environment lighting and output (docs/PLAN-environment.md) */
+    sk_handle_t environment; /* 0 = none */
+    float environment_intensity;
+    float environment_rotation; /* radians around +y */
+    int tonemap;                /* sk_tonemap_t */
+    float exposure;             /* stops */
 } sk_light_env_t;
 
 /* Resolve a light handle. False if the handle is invalid, not a light, or disabled. */

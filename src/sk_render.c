@@ -5,6 +5,7 @@
 #include "internal/exports.h"
 #include "internal/sk_camera3d.h"
 #include "internal/sk_internal.h"
+#include "internal/sk_environment.h"
 #include "internal/sk_light.h"
 #include "internal/sk_model.h"
 #include "internal/sk_platform.h"
@@ -35,6 +36,7 @@
 typedef enum {
     RENDER_CMD_SGL_LAYER,
     RENDER_CMD_MODELS,
+    RENDER_CMD_CALLBACK,
 } sk_render_cmd_kind_t;
 
 typedef struct {
@@ -43,6 +45,7 @@ typedef struct {
     int layer; /* RENDER_CMD_SGL_LAYER */
     int first; /* RENDER_CMD_MODELS: item range in sk_model's queue */
     int count;
+    sk_render_callback_fn callback; /* RENDER_CMD_CALLBACK: called with `first` */
 } sk_render_cmd_t;
 
 /* A render pass recorded this frame: pass 0 is the screen, the rest are render
@@ -151,6 +154,28 @@ void sk_render_submit_models(int first, int count)
         }
         return;
     }
+    open_sgl_layer();
+}
+
+void sk_render_submit_callback(sk_render_callback_fn draw, int arg)
+{
+    sk_render_cmd_t *last = &sk_render_cmds[sk_render_cmd_count - 1];
+
+    if (draw == NULL || sk_render_cmd_count >= MAX_RENDER_CMDS - 1) {
+        return;
+    }
+    /* drop the current sgl layer if nothing was recorded into it */
+    if (sk_render_cmd_count > 1 && last->kind == RENDER_CMD_SGL_LAYER && last->pass == sk_render_current_pass_index &&
+        sgl_num_vertices() == sk_layer_mark_vertices && sgl_num_commands() == sk_layer_mark_commands) {
+        sk_render_cmd_count--;
+        sk_render_next_layer--;
+    }
+    sk_render_cmds[sk_render_cmd_count++] = (sk_render_cmd_t){
+        .kind = RENDER_CMD_CALLBACK,
+        .pass = sk_render_current_pass_index,
+        .first = arg,
+        .callback = draw,
+    };
     open_sgl_layer();
 }
 
@@ -303,8 +328,10 @@ static void replay_pass(int index)
         }
         if (cmd->kind == RENDER_CMD_SGL_LAYER) {
             sgl_draw_layer(cmd->layer); /* shapes / sprites / 2D / fontstash text */
-        } else {
+        } else if (cmd->kind == RENDER_CMD_MODELS) {
             sk_model_draw_items(cmd->first, cmd->count); /* custom-pipeline meshes */
+        } else {
+            cmd->callback(cmd->first);
         }
     }
 }
@@ -368,6 +395,7 @@ void sk_render_end(void)
 
     sk_model_end_frame();
     sk_light_end_frame();
+    sk_environment_end_frame();
     reset_frame_commands();
 }
 

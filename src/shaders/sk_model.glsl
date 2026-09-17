@@ -28,6 +28,12 @@
  *   u_light_dir_type[i]   xyz direction the light travels, w type (0 dir, 1 point, 2 spot)
  *   u_light_radiance[i]   rgb color * intensity (linear)
  *   u_light_spot[i]       x cos(inner), y cos(outer)
+ *   u_env             environment (docs/PLAN-environment.md): x intensity (0 = none),
+ *                     y the prefiltered cubemap's last mip (roughness 1), z/w cos/sin
+ *                     of its rotation around +y
+ *   u_sh[9]           environment irradiance / pi as spherical harmonics (xyz)
+ *   u_tonemap         x mode (0 none, 1 Khronos PBR Neutral, 2 ACES), y exposure
+ *                     scale (2^EV). Mode 0 and scale 1 outside scenes.
  * The attenuation and cone formulas match sk_light_attenuation and
  * sk_light_spot_factor in src/sk_light.c. The BRDF follows the glTF 2.0
  * specification, appendix B (Lambert diffuse, GGX / Smith height-correlated
@@ -101,39 +107,7 @@ void main() {
 }
 @end
 
-@fs fs
-layout(binding=1) uniform fs_params {
-    vec4 u_base_color;
-    vec4 u_emissive;
-    vec4 u_pbr;
-    vec4 u_material;
-    vec4 u_camera_pos;
-    vec4 u_ambient;
-    vec4 u_uv_row0[5];
-    vec4 u_uv_row1[5];
-    vec4 u_light_pos_range[8];
-    vec4 u_light_dir_type[8];
-    vec4 u_light_radiance[8];
-    vec4 u_light_spot[8];
-};
-layout(binding=0) uniform texture2D base_color_tex;
-layout(binding=1) uniform texture2D metallic_roughness_tex;
-layout(binding=2) uniform texture2D normal_tex;
-layout(binding=3) uniform texture2D occlusion_tex;
-layout(binding=4) uniform texture2D emissive_tex;
-layout(binding=0) uniform sampler base_color_smp;
-layout(binding=1) uniform sampler metallic_roughness_smp;
-layout(binding=2) uniform sampler normal_smp;
-layout(binding=3) uniform sampler occlusion_smp;
-layout(binding=4) uniform sampler emissive_smp;
-in vec3 v_normal;
-in vec4 v_tangent;
-in vec2 v_uv0;
-in vec2 v_uv1;
-in vec4 v_color;
-in vec3 v_world_pos;
-out vec4 frag_color;
-
+@block color
 const float PI = 3.14159265359;
 
 vec3 srgb_to_linear(vec3 c) {
@@ -147,6 +121,102 @@ vec3 linear_to_srgb(vec3 c) {
     vec3 lo = c * 12.92;
     vec3 hi = 1.055 * pow(max(c, vec3(0.0031308)), vec3(1.0 / 2.4)) - 0.055;
     return mix(lo, hi, step(vec3(0.0031308), c));
+}
+
+/* Khronos PBR Neutral (https://github.com/KhronosGroup/ToneMapping) */
+vec3 tonemap_neutral(vec3 color) {
+    const float start_compression = 0.8 - 0.04;
+    const float desaturation = 0.15;
+    float x = min(color.r, min(color.g, color.b));
+    float offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
+    color -= offset;
+    float peak = max(color.r, max(color.g, color.b));
+    if (peak < start_compression) {
+        return color;
+    }
+    const float d = 1.0 - start_compression;
+    float new_peak = 1.0 - d * d / (peak + d - start_compression);
+    color *= new_peak / peak;
+    float g = 1.0 - 1.0 / (desaturation * (peak - new_peak) + 1.0);
+    return mix(color, vec3(new_peak), g);
+}
+
+/* ACES filmic curve fit (Narkowicz 2015) */
+vec3 tonemap_aces(vec3 color) {
+    color *= 0.6;
+    return clamp((color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14), 0.0, 1.0);
+}
+
+/* Linear scene color to the framebuffer's sRGB, with exposure and tone mapping. */
+vec3 to_display(vec3 color, vec4 tonemap) {
+    color *= tonemap.y;
+    int mode = int(tonemap.x + 0.5);
+    if (mode == 1) {
+        color = tonemap_neutral(color);
+    } else if (mode == 2) {
+        color = tonemap_aces(color);
+    }
+    return linear_to_srgb(color);
+}
+
+/* A world direction in the environment's frame (rotated by -rotation around +y). */
+vec3 env_dir(vec3 dir, vec4 env) {
+    return vec3(env.z * dir.x - env.w * dir.z, dir.y, env.w * dir.x + env.z * dir.z);
+}
+@end
+
+@fs fs
+@include_block color
+layout(binding=1) uniform fs_params {
+    vec4 u_base_color;
+    vec4 u_emissive;
+    vec4 u_pbr;
+    vec4 u_material;
+    vec4 u_camera_pos;
+    vec4 u_ambient;
+    vec4 u_uv_row0[5];
+    vec4 u_uv_row1[5];
+    vec4 u_light_pos_range[8];
+    vec4 u_light_dir_type[8];
+    vec4 u_light_radiance[8];
+    vec4 u_light_spot[8];
+    vec4 u_env;
+    vec4 u_sh[9];
+    vec4 u_tonemap;
+};
+layout(binding=0) uniform texture2D base_color_tex;
+layout(binding=1) uniform texture2D metallic_roughness_tex;
+layout(binding=2) uniform texture2D normal_tex;
+layout(binding=3) uniform texture2D occlusion_tex;
+layout(binding=4) uniform texture2D emissive_tex;
+layout(binding=0) uniform sampler base_color_smp;
+layout(binding=1) uniform sampler metallic_roughness_smp;
+layout(binding=2) uniform sampler normal_smp;
+layout(binding=3) uniform sampler occlusion_smp;
+layout(binding=4) uniform sampler emissive_smp;
+layout(binding=5) uniform textureCube env_tex;
+layout(binding=6) uniform texture2D brdf_tex;
+layout(binding=5) uniform sampler env_smp;
+layout(binding=6) uniform sampler brdf_smp;
+in vec3 v_normal;
+in vec4 v_tangent;
+in vec2 v_uv0;
+in vec2 v_uv1;
+in vec4 v_color;
+in vec3 v_world_pos;
+out vec4 frag_color;
+
+/* Environment irradiance / pi at a direction (environment frame). */
+vec3 eval_sh(vec3 n) {
+    return u_sh[0].xyz * 0.282095
+         + u_sh[1].xyz * (0.488603 * n.y)
+         + u_sh[2].xyz * (0.488603 * n.z)
+         + u_sh[3].xyz * (0.488603 * n.x)
+         + u_sh[4].xyz * (1.092548 * n.x * n.y)
+         + u_sh[5].xyz * (1.092548 * n.y * n.z)
+         + u_sh[6].xyz * (0.315392 * (3.0 * n.z * n.z - 1.0))
+         + u_sh[7].xyz * (1.092548 * n.x * n.z)
+         + u_sh[8].xyz * (0.546274 * (n.x * n.x - n.y * n.y));
 }
 
 /* Texture coordinates for texture slot i: its coordinate set, then its transform. */
@@ -179,7 +249,7 @@ void main() {
         discard;
     }
     if (u_pbr.w < 0.5) {
-        frag_color = vec4(linear_to_srgb(base.rgb), base.a); /* unlit */
+        frag_color = vec4(to_display(base.rgb, u_tonemap), base.a); /* unlit */
         return;
     }
 
@@ -251,10 +321,53 @@ void main() {
         color += u_light_radiance[i].rgb * falloff * n_dot_l * (diffuse + specular);
     }
 
+    if (u_env.x > 0.0) {
+        /* split-sum image-based lighting: diffuse from SH irradiance, specular from the
+         * prefiltered cubemap mip for this roughness and the BRDF table */
+        float lod_roughness = sqrt(clamp(alpha, 0.0, 1.0)); /* the perceptual roughness used for the mips */
+        vec3 irradiance = max(eval_sh(env_dir(n, u_env)), vec3(0.0));
+        vec3 r = env_dir(reflect(-v, n), u_env);
+        vec3 prefiltered = textureLod(samplerCube(env_tex, env_smp), r, lod_roughness * u_env.y).rgb;
+        vec2 ab = texture(sampler2D(brdf_tex, brdf_smp), vec2(n_dot_v, lod_roughness)).rg;
+        color += (irradiance * c_diff + prefiltered * (f0 * ab.x + ab.y)) * ao * u_env.x;
+    }
+
     color += u_emissive.rgb * srgb_to_linear(texture(sampler2D(emissive_tex, emissive_smp), tex_uv(4)).rgb);
-    frag_color = vec4(linear_to_srgb(color), base.a);
+    frag_color = vec4(to_display(color, u_tonemap), base.a);
+}
+@end
+
+/* Background (skybox): a full-screen triangle at the far plane; each pixel looks up
+ * the environment in its view direction. */
+@vs vs_background
+in vec2 bg_position;
+out vec2 v_ndc;
+void main() {
+    gl_Position = vec4(bg_position, 1.0, 1.0);
+    v_ndc = bg_position;
+}
+@end
+
+@fs fs_background
+@include_block color
+layout(binding=0) uniform bg_params {
+    mat4 inv_view_proj;
+    vec4 bg_env;      /* x intensity, y mip (blur), z/w cos/sin of rotation */
+    vec4 bg_tonemap;  /* as u_tonemap */
+};
+layout(binding=0) uniform textureCube bg_tex;
+layout(binding=0) uniform sampler bg_smp;
+in vec2 v_ndc;
+out vec4 frag_color;
+void main() {
+    vec4 near_point = inv_view_proj * vec4(v_ndc, -1.0, 1.0);
+    vec4 far_point = inv_view_proj * vec4(v_ndc, 1.0, 1.0);
+    vec3 dir = normalize(far_point.xyz / far_point.w - near_point.xyz / near_point.w);
+    vec3 radiance = textureLod(samplerCube(bg_tex, bg_smp), env_dir(dir, bg_env), bg_env.y).rgb * bg_env.x;
+    frag_color = vec4(to_display(radiance, bg_tonemap), 1.0);
 }
 @end
 
 @program model_static vs_static fs
 @program model_skinned vs_skinned fs
+@program background vs_background fs_background

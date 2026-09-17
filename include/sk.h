@@ -8,6 +8,7 @@
 #include "sk_camera3d.h" // IWYU pragma: keep
 #include "sk_color.h"   // IWYU pragma: keep
 #include "sk_debug.h"   // IWYU pragma: keep
+#include "sk_environment.h" // IWYU pragma: keep
 #include "sk_event.h"   // IWYU pragma: keep
 #include "sk_font.h"    // IWYU pragma: keep
 #include "sk_handle.h"  // IWYU pragma: keep

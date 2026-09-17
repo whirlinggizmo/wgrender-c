@@ -14,8 +14,9 @@ extern "C" {
  * several scenes. Scenes also have an ambient term
  * (sk_scene_set_ambient). See docs/PLAN-lighting.md.
  *
- * - Nothing is lit implicitly: a new scene has no lights and no ambient, so its
- *   models render black until you light them. Models drawn outside a scene
+ * - Nothing is lit implicitly: a new scene has no lights, no ambient and no
+ *   environment (sk_scene_set_environment), so its models render black until you
+ *   light them. Models drawn outside a scene
  *   (sk_model_draw) are unlit: base color x tint.
  * - Lights affect models only. Shapes and sprites are unlit.
  * - Each model uses up to 8 lights: the ones contributing most to it (brightness,

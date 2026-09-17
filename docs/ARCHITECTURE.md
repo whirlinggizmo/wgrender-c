@@ -56,6 +56,7 @@ transform / tint / volume / playback state and points at a shared resource via
 | `ethernight_club.mp3` | **Audio** (decoded \| streamed)          | **Sound** (`set_audio`)          |
 | `JetBrainsMono`       | **Font**                                 | Text2d / Text3d (`set_font`)     |
 | *(code)* / `gumshoe.glb` | **Material** (shading + params + textures) | Model (`set_material`, per slot) |
+| `venice_sunset_1k.hdr` | **Environment** (irradiance + prefiltered cubemap) | Scene (`set_environment`, `set_background`) |
 | *(none)*              | *(none)*                                 | **Light** (added to a Scene)     |
 
 Rule that disambiguates every row: **resource = the data noun, object = the

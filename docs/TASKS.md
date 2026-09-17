@@ -193,11 +193,14 @@ VertexColorTest, TextureSettingsTest and BoxTextured on desktop, WebGL2, WebGPU)
 
 Not supported yet:
 
-- [ ] Environment lighting (image-based lighting), wanted next: without it metals
-      only show direct highlights and look dark. Scene environment map (prefiltered
-      specular + irradiance, BRDF lookup table), probably with HDR input and tone
-      mapping (below).
-- [ ] Tone mapping / exposure (lit values above 1 clip)
+- [x] Environment lighting: `sk_environment_create` (.hdr/PNG/JPEG equirect),
+      `sk_scene_set_environment/background/tonemap`, SH irradiance + GGX-prefiltered
+      cubemap + BRDF table, background skybox, tone mapping (Neutral default, ACES)
+      and exposure ([PLAN-environment.md](PLAN-environment.md), `examples/environment.c`)
+- [ ] Environment follow-ups: prefilter off the main thread or on the GPU (330 ms per
+      1K HDR today; see the loading pipeline), other inputs (6 cube faces, KTX2
+      prefiltered), RGBM fallback for backends that can't filter half-float textures,
+      HDR framebuffer (bloom, tone mapping sprites together with models)
 - [ ] Generated tangents come from texture coordinate set 0; normal maps on set 1
       need tangents in the file
 - [ ] Mipmaps average in stored (sRGB) space and don't renormalize normal maps
