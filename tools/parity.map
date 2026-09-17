@@ -40,6 +40,7 @@ rl_asset_poll_task                      dropped  managed task queue; callbacks i
 rl_asset_tick                           dropped  runtime ticks the asset queue each frame (internal sk_asset_tick)
 
 # --- rl_font.h ---
+rl_font_destroy                         ported   sk_font_release      resources are reference counted: release drops this handle's reference
 rl_font_get_default                     ported   sk_text_get_default_font   (0 = built in; sk_text_set_default_font replaces it)
 
 # --- rl_fs.h (filesystem is internal in libsk; see docs/PLAN-sk_fs.md) ---
@@ -74,7 +75,7 @@ rl_set_light_direction                  ported   sk_light_set_direction
 
 # --- rl_model.h ---
 rl_model_create_from_file               dropped  objects are created from handles (sk_mesh_create + sk_model_create)
-rl_model_destroy_asset                  ported   sk_mesh_destroy
+rl_model_destroy_asset                  ported   sk_mesh_release
 rl_model_get_animation_frame_count      ported   sk_model_get_animation_duration  glTF animations are timed in seconds, not frames
 rl_model_get_default_asset              dropped  no placeholder model: a model without a mesh draws nothing (missing images get sk_texture_get_placeholder)
 rl_model_is_valid                       ported   sk_model_is_ready  handles are generation-checked; the question is whether a mesh is loaded
@@ -197,6 +198,7 @@ rl_text3d_get_bounds_to_scratch         dropped  scratch buffer; value returns i
 rl_text3d_set_content                   ported   sk_text3d_set_text  named like text2d
 
 # --- rl_texture.h ---
+rl_texture_destroy                      ported   sk_texture_release   resources are reference counted: release drops this handle's reference
 rl_texture_draw_ex                      ported   sk_texture_draw       explicit size instead of scale; sprite2d for rotation/source regions
 rl_texture_draw_ground                  dropped  a sprite3d with SK_SPRITE3D_FACING_Y_UP is a placeable, pickable ground quad
 

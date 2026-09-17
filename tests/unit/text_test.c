@@ -57,7 +57,7 @@ void test_text_default_font(void)
     CHECK(sk_text_get_default_font() == font);
 
     /* the default font holds a reference: destroying ours keeps it loaded */
-    sk_font_destroy(font);
+    sk_font_release(font);
     CHECK(sk_text_measure_ex(0, "[ab]", 16.0f).x == comic.x);
     CHECK(sk_text_set_default_font(0)); /* its reference goes: the font is freed */
     CHECK(sk_font_fons_id(font) == FONS_INVALID);
@@ -90,11 +90,11 @@ void test_text_font_refcount(void)
     const int fons_id = sk_font_fons_id(font);
     CHECK(font != 0 && fons_id != FONS_INVALID);
     CHECK(sk_font_create(FONT) == font); /* deduped: a second reference */
-    sk_font_destroy(font);
+    sk_font_release(font);
     CHECK(sk_font_fons_id(font) == fons_id); /* one reference left */
 
     sk_handle_t label = sk_text3d_create(font); /* the text's reference */
-    sk_font_destroy(font);                      /* the last of ours */
+    sk_font_release(font);                      /* the last of ours */
     CHECK(sk_font_fons_id(font) == fons_id);   /* the text keeps it */
     sk_text3d_set_text(label, "x");
     CHECK(sk_text3d_get_size(label).x > 0.0f);
@@ -104,7 +104,7 @@ void test_text_font_refcount(void)
 
     const sk_handle_t again = sk_font_create(FONT); /* reuses the parked fontstash font */
     CHECK(again != 0 && sk_font_fons_id(again) == fons_id);
-    sk_font_destroy(again);
+    sk_font_release(again);
 
     sk_text3d_deinit();
     sk_font_deinit();

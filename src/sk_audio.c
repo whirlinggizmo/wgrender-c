@@ -389,7 +389,7 @@ static sk_loader_step_t finish_audio(void *prepared, const char *path, sk_handle
         snprintf(audio->path, sizeof(audio->path), "%s", path);
         audio->has_path = path[0] != '\0';
     }
-    audio->ref_count = 1; /* the caller's, until sk_audio_destroy */
+    audio->ref_count = 1; /* the caller's, until sk_audio_release */
 
     sk_audio_lock();
     *resource = sk_handle_pool_alloc(&sk_audio_pool);
@@ -470,12 +470,6 @@ sk_handle_t sk_audio_create(const char *path)
     return sk_audio_create_mode(path, SK_AUDIO_MODE_AUTO);
 }
 
-SK_KEEP
-void sk_audio_destroy(sk_handle_t handle)
-{
-    sk_audio_release(handle);
-}
-
 void sk_audio_retain(sk_handle_t handle)
 {
     sk_audio_lock();
@@ -484,6 +478,7 @@ void sk_audio_retain(sk_handle_t handle)
     sk_audio_unlock();
 }
 
+SK_KEEP
 void sk_audio_release(sk_handle_t handle)
 {
     sk_audio_lock();

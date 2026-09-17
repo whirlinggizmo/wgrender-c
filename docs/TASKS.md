@@ -289,11 +289,18 @@ Not supported yet:
       retained shape (`sk_shape3d_set_line_strip` + `sk_shape3d_add_point`); batch
       asset ensure is designed with the loading pipeline
 - [ ] Which language binding comes first
-- [ ] Naming, if libsk becomes an API with swappable implementations (see the
-      exploration task): `destroy` on resources only drops a reference (`release`
-      would say so), `create(path)` on resources loads or finds a shared one (`load`?),
-      and the `sk_` prefix names the sokol implementation rather than the API. Decide
-      together, before bindings depend on the names
+- [x] Naming, part 1 (2026-09-17): resources now have `sk_<resource>_release`
+      instead of `destroy`, because that's what it does — drop this handle's
+      reference — and objects keep `destroy`, so the name says which layer you're on
+      (texture, mesh, audio, font, material, environment). The public wrappers
+      collapsed onto the internal `release` functions that already existed; `retain`
+      stays internal (one `create` is one reference). `create` stays `create` for
+      both layers on purpose: the noun says whether it takes a path or a handle, and
+      generators like `sk_mesh_create_cube` load nothing
+- [ ] Naming, part 2: the `sk_` prefix names the sokol implementation rather than the
+      API. Only worth changing if the "C API as a contract" exploration goes ahead —
+      then do it in the same sweep as any other rename, before bindings depend on the
+      names
 - [x] Fonts are resources like the rest (2026-09-17): refcounted and deduped by
       path; text objects and the default font hold references; a released font's
       fontstash data is kept by path and reused (fontstash can't remove fonts).

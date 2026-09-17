@@ -423,6 +423,7 @@ void sk_texture_retain(sk_handle_t handle)
     }
 }
 
+SK_KEEP
 void sk_texture_release(sk_handle_t handle)
 {
     uint16_t index = 0;
@@ -628,20 +629,6 @@ vec2_t sk_texture_get_size(sk_handle_t handle)
     return (vec2_t){(float)texture_ptr->width, (float)texture_ptr->height};
 }
 
-SK_KEEP
-void sk_texture_destroy(sk_handle_t handle)
-{
-    uint16_t index = 0;
-
-    if (!sk_handle_pool_resolve(&sk_texture_pool, handle, &index)) {
-        return;
-    }
-    if (is_builtin_texture(index)) {
-        log_error("Cannot destroy built-in texture (%u)", (unsigned int)handle);
-        return;
-    }
-    sk_texture_release(handle);
-}
 
 bool sk_texture_sample_alpha(sk_handle_t handle, float u, float v, float *out_alpha)
 {

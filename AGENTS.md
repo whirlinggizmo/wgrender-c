@@ -101,6 +101,11 @@ Creation follows one pattern, no exceptions:
 - Bare `_create` for both — the **noun** says which (resource noun → path, object
   noun → handle). **No** `_create_from_memory` and **no** "create object from
   file" shortcut; loading bytes and turning them into a resource is internal.
+- **Freeing says which layer it is:** resources are reference counted and shared,
+  so they have `sk_<resource>_release(handle)` — it drops this handle's reference
+  and frees the resource only when the last one goes. Objects are private, so they
+  have `sk_<object>_destroy(handle)`. `retain` stays internal: one `create` is one
+  reference.
 
 Loading is split from creation (the librl model): the **asset** layer *ensures a
 file is local* and fires a **path-only** callback

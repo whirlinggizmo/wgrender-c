@@ -72,7 +72,7 @@ static void on_sphere_loaded(const char *path, void *user)
     for (int i = 0; i < 2 * COLUMNS + 1; i++) {
         sk_model_set_mesh(g.spheres[i], mesh);
     }
-    sk_mesh_destroy(mesh);
+    sk_mesh_release(mesh);
 }
 
 static void on_gumshoe_loaded(const char *path, void *user)
@@ -80,7 +80,7 @@ static void on_gumshoe_loaded(const char *path, void *user)
     sk_handle_t mesh = sk_mesh_create(path);
     (void)user;
     sk_model_set_mesh(g.gumshoe, mesh);
-    sk_mesh_destroy(mesh);
+    sk_mesh_release(mesh);
 }
 
 static void on_normal_map_loaded(const char *path, void *user)
@@ -88,7 +88,7 @@ static void on_normal_map_loaded(const char *path, void *user)
     sk_handle_t texture = sk_texture_create(path);
     (void)user;
     sk_material_set_texture(g.tiles, "normal_texture", texture);
-    sk_texture_destroy(texture);
+    sk_texture_release(texture);
 }
 
 static void on_failed(const char *path, void *user)
@@ -106,7 +106,7 @@ static sk_handle_t create_sphere(float x, float y, float r, float gr, float b, f
     sk_material_set_float(material, "roughness", roughness);
     sk_model_set_transform(model, x, y, 0, 0, 0, 0, 1, 1, 1);
     sk_model_set_material(model, 0, material);
-    sk_material_destroy(material);
+    sk_material_release(material);
     sk_scene_add(g.scene, model, 0);
     return model;
 }

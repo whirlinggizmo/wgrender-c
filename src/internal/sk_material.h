@@ -62,6 +62,5 @@ bool sk_material_set_texture_mipmaps(sk_handle_t material, const char *name, boo
 
 /* Reference counting (meshes and models hold references). */
 void sk_material_retain(sk_handle_t material);
-void sk_material_release(sk_handle_t material);
 
 #endif // SK_INTERNAL_MATERIAL_H

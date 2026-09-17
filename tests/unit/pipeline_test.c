@@ -117,8 +117,8 @@ void test_pipeline_mesh_textures(void)
     CHECK(mesh != 0);
     CHECK(loaded_textures(mesh) >= 2);
     CHECK(sk_mesh_create(GUMSHOE) == mesh); /* deduped */
-    sk_mesh_destroy(mesh);
-    sk_mesh_destroy(mesh);
+    sk_mesh_release(mesh);
+    sk_mesh_release(mesh);
     teardown();
 }
 
@@ -140,7 +140,7 @@ static void on_texture(const char *path, void *user)
     got.successes++;
     snprintf(got.path, sizeof(got.path), "%s", path);
     got.texture = sk_texture_create(path);
-    if (got.destroy_in_callback) sk_texture_destroy(got.texture);
+    if (got.destroy_in_callback) sk_texture_release(got.texture);
 }
 
 static void on_mesh(const char *path, void *user)
@@ -230,13 +230,13 @@ static void check_async_loads(int workers)
     /* the callbacks' creates return the prepared resources, with one reference */
     CHECK(sk_texture_get_size(got.texture).x > 1.0f);
     CHECK(sk_texture_create(got.path) == got.texture);
-    sk_texture_destroy(got.texture);
+    sk_texture_release(got.texture);
     CHECK(got.mesh != 0 && loaded_textures(got.mesh) >= 2);
     CHECK(got.audio != 0);
-    sk_texture_destroy(got.texture);
+    sk_texture_release(got.texture);
     CHECK(texture_freed(got.texture)); /* the last reference is gone */
-    sk_mesh_destroy(got.mesh);
-    sk_audio_destroy(got.audio);
+    sk_mesh_release(got.mesh);
+    sk_audio_release(got.audio);
     stop_assets();
 }
 
@@ -265,8 +265,8 @@ void test_pipeline_unclaimed(void)
     const sk_handle_t texture = sk_texture_create(local);
     CHECK(run_until_done() > 0);
     CHECK(got.texture == texture);
-    sk_texture_destroy(texture);
-    sk_texture_destroy(texture);
+    sk_texture_release(texture);
+    sk_texture_release(texture);
     CHECK(texture_freed(texture));
     stop_assets();
 }
@@ -312,7 +312,7 @@ void test_pipeline_budget(void)
      * take a frame each */
     CHECK(frames == 4);
     CHECK(got.mesh != 0 && loaded_textures(got.mesh) >= 2);
-    sk_mesh_destroy(got.mesh);
+    sk_mesh_release(got.mesh);
     sk_asset_set_upload_budget(4.0f);
     stop_assets();
 }
@@ -330,9 +330,9 @@ void test_pipeline_shutdown(void)
         for (int frame = 0; frame < round * 3; frame++) {
             sk_asset_tick();
         }
-        if (got.mesh != 0) sk_mesh_destroy(got.mesh);
-        if (got.texture != 0) sk_texture_destroy(got.texture);
-        if (got.audio != 0) sk_audio_destroy(got.audio);
+        if (got.mesh != 0) sk_mesh_release(got.mesh);
+        if (got.texture != 0) sk_texture_release(got.texture);
+        if (got.audio != 0) sk_audio_release(got.audio);
         sk_asset_set_upload_budget(4.0f);
         stop_assets();
     }
@@ -384,7 +384,7 @@ void test_pipeline_group(void)
     CHECK(monotonic);
     CHECK(group_ok == 1 && got.successes == 1 && got.failures == 0);
     CHECK(sk_asset_get_progress(group) == 1.0f); /* completed */
-    sk_texture_destroy(got.texture);
+    sk_texture_release(got.texture);
 
     /* a missing member fails the group; the other members still load */
     sk_logger_set_level(SK_LOGGER_LEVEL_FATAL);
@@ -407,7 +407,7 @@ void test_pipeline_group(void)
     CHECK(run_until_done() > 0);
     CHECK(group_ok == 1);
     CHECK(got.group_texture == got.texture); /* the same resource, not a reload */
-    sk_texture_destroy(got.group_texture);
+    sk_texture_release(got.group_texture);
     CHECK(texture_freed(got.group_texture));
 
     /* an empty group completes on the next tick */

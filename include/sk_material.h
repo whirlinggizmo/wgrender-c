@@ -68,7 +68,12 @@ typedef enum {
 } sk_material_alpha_t;
 
 sk_handle_t sk_material_create(sk_material_shading_t shading);
-void        sk_material_destroy(sk_handle_t material);
+/* Drop this handle's reference to the resource. Resources are shared and
+ * reference counted (loading the same path again returns the same handle, with
+ * one more reference), so a resource is freed when its last reference goes, not
+ * when you call this. Objects hold their own references, so handing a resource
+ * to one and releasing it right away is the normal pattern. */
+void        sk_material_release(sk_handle_t material);
 
 bool sk_material_set_shading(sk_handle_t material, sk_material_shading_t shading);
 sk_material_shading_t sk_material_get_shading(sk_handle_t material);

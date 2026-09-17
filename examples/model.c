@@ -23,7 +23,7 @@ static void on_mesh_asset_loaded(const char *path, void *user) {
   sk_handle_t model = (sk_handle_t)(uintptr_t)user; /* handle passed by value */
   sk_handle_t mesh = sk_mesh_create(path);
   sk_model_set_mesh(model, mesh);
-  sk_mesh_destroy(mesh); /* the model holds its own reference to the mesh */
+  sk_mesh_release(mesh); /* the model holds its own reference to the mesh */
 }
 
 static void on_failed(const char *p, void *u) {

@@ -119,7 +119,7 @@ void test_material_api(void)
 
     /* reference counted: freed when the last holder releases it */
     sk_material_retain(material); /* e.g. a model */
-    sk_material_destroy(material); /* the creator's reference */
+    sk_material_release(material); /* the creator's reference */
     CHECK(sk_material_get(material) != NULL);
     sk_material_release(material);
     CHECK(sk_material_get(material) == NULL);

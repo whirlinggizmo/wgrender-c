@@ -22,9 +22,14 @@ extern "C" {
  * it (sk_model_create). One Mesh can back many Models. */
 
 /* Mesh resource. Loads (or returns a shared, deduped) Mesh from a path and adds
- * a reference owned by the caller; release it with sk_mesh_destroy. */
+ * a reference owned by the caller; release it with sk_mesh_release. */
 sk_handle_t sk_mesh_create(const char *path);
-void        sk_mesh_destroy(sk_handle_t mesh);
+/* Drop this handle's reference to the resource. Resources are shared and
+ * reference counted (loading the same path again returns the same handle, with
+ * one more reference), so a resource is freed when its last reference goes, not
+ * when you call this. Objects hold their own references, so handing a resource
+ * to one and releasing it right away is the normal pattern. */
+void        sk_mesh_release(sk_handle_t mesh);
 
 /* The mesh's materials, one slot per glTF material (see sk_material.h). The
  * returned handle is borrowed: it stays valid while the mesh lives, and changing

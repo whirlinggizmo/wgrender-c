@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <sk_audio.h> /* the public header ("" would find this file); sk_audio_release lives there */
 #include "sk_types.h"
 
 /* Audio mixing runs on the audio device's thread (sokol_audio callback mode), so
@@ -34,9 +35,8 @@ void sk_audio_lock(void);
 void sk_audio_unlock(void);
 
 /* Audio resource reference counting (take the lock). Public creation/destruction
- * is sk_audio_create / sk_audio_destroy; Sound objects add their own references. */
+ * is sk_audio_create / sk_audio_release; Sound objects add their own references. */
 void sk_audio_retain(sk_handle_t audio);
-void sk_audio_release(sk_handle_t audio);
 
 /* Register/unregister a Sound object with the mixer (take the lock). */
 void sk_audio_register(sk_sound_t *sound);

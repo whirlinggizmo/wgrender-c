@@ -100,9 +100,13 @@ Resources are shared; objects are cheap and private.
 - A resource keeps a `ref_count`. It is freed only when the count reaches zero.
 - Two kinds of reference add to the count:
   1. **Instance references** — each object created from a resource retains it
-     (`+1`), and releases it on destroy (`-1`).
+     (`+1`), and releases it when the object is destroyed (`-1`).
   2. **Ownership references** — explicitly loading a resource
-     (`*_create`/preload) adds a caller-owned `+1`, released by `*_destroy`.
+     (`*_create`/preload) adds a caller-owned `+1`, dropped by `*_release`.
+- **The names say which layer you're on:** resources have `*_release` (drop *a*
+  reference; the resource goes when the last one does), objects have `*_destroy`
+  (the object is gone when you say so). Retaining is internal: one `create` is one
+  reference, so callers never need a matching `retain`.
 - **Dedup by source path:** `*_create(path)` first looks for an existing
   resource with the same path; if found it just retains and returns it (and
   skips the file read entirely). Generated resources are not deduped (no path).
@@ -295,7 +299,7 @@ file" shortcut.
 /* Resource — from a path (load-or-share: deduped, refcounted) or a generator. */
 sk_handle_t sk_mesh_create(const char *path);
 sk_handle_t sk_mesh_create_cube(float w, float h, float l);   /* generated */
-void        sk_mesh_destroy(sk_handle_t mesh);
+void        sk_mesh_release(sk_handle_t mesh);
 
 /* Object — from a resource handle (adds its own reference). */
 sk_handle_t sk_model_create(sk_handle_t mesh);
@@ -317,7 +321,7 @@ steps); the sync create runs the same loader inline. See
 static void on_ready(const char *path, void *user) {
     sk_handle_t mesh  = sk_mesh_create(path);   /* resource ← file        */
     g_model           = sk_model_create(mesh);  /* object   ← resource    */
-    sk_mesh_destroy(mesh);                       /* model keeps its own ref */
+    sk_mesh_release(mesh);                       /* model keeps its own ref */
 }
 sk_asset_add_task(sk_asset_ensure_async(path, NULL, SK_ASSET_NONE), on_ready, on_failed, ctx);
 ```
@@ -338,7 +342,7 @@ sk_asset_add_task(sk_asset_ensure_async(path, NULL, SK_ASSET_NONE), on_ready, on
   - two handle pools; `create_mesh`/`find_mesh_by_path`/`retain_mesh`/
     `release_mesh`/`create_model`;
   - public API: `sk_mesh_create` / `sk_mesh_create_from_memory` /
-    `sk_model_create_from_mesh` / `sk_mesh_destroy`, plus backward-compatible
+    `sk_model_create_from_mesh` / `sk_mesh_release`, plus backward-compatible
     `sk_model_create` / `sk_model_create_from_memory` sugar. Builds clean (lib +
     examples + `make check`).
 

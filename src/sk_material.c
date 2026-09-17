@@ -148,6 +148,7 @@ void sk_material_retain(sk_handle_t material)
     }
 }
 
+SK_KEEP
 void sk_material_release(sk_handle_t material)
 {
     sk_material_t *material_ptr = resolve(material);
@@ -227,12 +228,6 @@ sk_handle_t sk_material_create(sk_material_shading_t shading)
         sk_materials[index].textures[i] = (sk_material_texture_t){.scale = {1.0f, 1.0f}, .mipmaps = true};
     }
     return handle;
-}
-
-SK_KEEP
-void sk_material_destroy(sk_handle_t material)
-{
-    sk_material_release(material);
 }
 
 SK_KEEP

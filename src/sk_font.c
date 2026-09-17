@@ -212,6 +212,7 @@ void sk_font_retain(sk_handle_t handle)
     }
 }
 
+SK_KEEP
 void sk_font_release(sk_handle_t handle)
 {
     sk_font_t *font_ptr = resolve(handle);
@@ -225,12 +226,6 @@ void sk_font_release(sk_handle_t handle)
 
 /* Drops the caller's reference; the font stays while text objects (or the default
  * font) still use it. */
-SK_KEEP
-void sk_font_destroy(sk_handle_t handle)
-{
-    sk_font_release(handle);
-}
-
 FONScontext *sk_font_context(void)
 {
     return sk_fons;

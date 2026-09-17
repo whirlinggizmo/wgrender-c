@@ -227,7 +227,7 @@ void test_environment_api(void)
         CHECK(env != 0);
         CHECK(sk_handle_get_kind(env) == SK_HANDLE_KIND_ENVIRONMENT);
         CHECK(sk_environment_create("../examples/assets/environments/studio_small_09_1k.hdr") == env); /* deduped */
-        sk_environment_destroy(env);
+        sk_environment_release(env);
         CHECK(sk_environment_create("missing.hdr") == 0);
 
         sk_environment_binding_t binding;
@@ -243,7 +243,7 @@ void test_environment_api(void)
         CHECK(!sk_scene_set_environment(scene, scene, 1.0f, 0.0f)); /* not an environment */
         CHECK(sk_scene_set_tonemap(scene, SK_TONEMAP_ACES, 1.0f));
         CHECK(!sk_scene_set_tonemap(scene, (sk_tonemap_t)9, 0.0f));
-        sk_environment_destroy(env); /* the scene still holds two references */
+        sk_environment_release(env); /* the scene still holds two references */
         sk_environment_get_binding(env, &binding);
         CHECK(binding.valid);
         sk_scene_destroy(scene); /* last references */

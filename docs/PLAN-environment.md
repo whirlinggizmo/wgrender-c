@@ -28,7 +28,7 @@ three.js, Godot). Without one:
  * Radiance .hdr (recommended, true HDR) or PNG/JPEG (sRGB, low dynamic range).
  * Creation prepares the lighting data on the CPU (see below). */
 sk_handle_t sk_environment_create(const char *path);
-void        sk_environment_destroy(sk_handle_t environment);
+void        sk_environment_release(sk_handle_t environment);
 
 /* include/sk_scene.h */
 /* Light the scene's models with an environment. intensity scales it (1 = as

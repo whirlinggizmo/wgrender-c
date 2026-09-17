@@ -43,7 +43,7 @@ static void on_logo_loaded(const char *path, void *user)
     sk_handle_t texture = sk_texture_create(path);
     (void)user;
     g_sprite = sk_sprite3d_create(texture);
-    sk_texture_destroy(texture); /* the sprite holds its own reference */
+    sk_texture_release(texture); /* the sprite holds its own reference */
     if (g_sprite == 0) {
         return;
     }
@@ -60,7 +60,7 @@ static void on_model_loaded(const char *path, void *user)
     sk_handle_t mesh = sk_mesh_create(path);
     (void)user;
     g_model = sk_model_create(mesh);
-    sk_mesh_destroy(mesh); /* the model holds its own reference to the mesh */
+    sk_mesh_release(mesh); /* the model holds its own reference to the mesh */
     if (g_model == 0) {
         return;
     }

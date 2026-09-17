@@ -39,7 +39,7 @@ static void on_mesh_loaded(const char *path, void *user)
     for (int i = 0; i < MODEL_COUNT; i++) {
         sk_model_set_mesh(g.models[i], mesh);
     }
-    sk_mesh_destroy(mesh); /* the models hold their own references */
+    sk_mesh_release(mesh); /* the models hold their own references */
 }
 
 static void on_failed(const char *path, void *user)

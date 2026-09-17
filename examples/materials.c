@@ -42,7 +42,7 @@ static void on_sphere_loaded(const char *path, void *user)
     for (int i = 0; i < SPHERE_COUNT; i++) {
         sk_model_set_mesh(g.spheres[i], mesh);
     }
-    sk_mesh_destroy(mesh); /* the models hold their own references */
+    sk_mesh_release(mesh); /* the models hold their own references */
 }
 
 static void on_gumshoe_loaded(const char *path, void *user)
@@ -50,7 +50,7 @@ static void on_gumshoe_loaded(const char *path, void *user)
     sk_handle_t mesh = sk_mesh_create(path);
     (void)user;
     sk_model_set_mesh(g.gumshoe, mesh);
-    sk_mesh_destroy(mesh);
+    sk_mesh_release(mesh);
 }
 
 static void on_normal_map_loaded(const char *path, void *user)
@@ -58,7 +58,7 @@ static void on_normal_map_loaded(const char *path, void *user)
     sk_handle_t texture = sk_texture_create(path);
     (void)user;
     sk_material_set_texture(g.tiles, "normal_texture", texture);
-    sk_texture_destroy(texture); /* the material holds its own reference */
+    sk_texture_release(texture); /* the material holds its own reference */
 }
 
 static void on_failed(const char *path, void *user)
@@ -73,7 +73,7 @@ static sk_handle_t create_sphere(float x, float y, sk_handle_t material)
     sk_handle_t model = sk_model_create(0); /* mesh attached when it loads */
     sk_model_set_transform(model, x, y, 0, 0, 0, 0, 1, 1, 1);
     sk_model_set_material(model, 0, material);
-    sk_material_destroy(material);
+    sk_material_release(material);
     sk_scene_add(g.scene, model, 0);
     return model;
 }
@@ -154,7 +154,7 @@ static void init(void *user_data)
     sk_model_set_animation(g.gumshoe, 3);
     material = create_pbr(1.0f, 0.77f, 0.34f, 1.0f, 0.3f);
     sk_model_set_material(g.gumshoe, GUMSHOE_BODY_SLOT, material);
-    sk_material_destroy(material);
+    sk_material_release(material);
     sk_scene_add(g.scene, g.gumshoe, 0);
 
     sk_asset_add_task(sk_asset_ensure_async(SPHERE_PATH, NULL, SK_ASSET_NONE), on_sphere_loaded, on_failed, NULL);

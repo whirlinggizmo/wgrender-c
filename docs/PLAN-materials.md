@@ -46,7 +46,7 @@ typedef enum {
 } sk_material_model_t;
 
 sk_handle_t sk_material_create(sk_material_model_t model);  /* or a custom shader, below */
-void        sk_material_destroy(sk_handle_t material);
+void        sk_material_release(sk_handle_t material);
 
 /* Parameters by name. Built-in models define their names (below); custom shaders
  * expose their own uniform names. Unknown names return false. */

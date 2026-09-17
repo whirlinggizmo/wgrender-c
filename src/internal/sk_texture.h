@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 
+#include <sk_texture.h> /* the public header ("" would find this file); sk_texture_release lives there */
 #include "sk_types.h"
 #include "sokol_gfx.h"
 
@@ -20,7 +21,6 @@ bool sk_texture_sample_alpha(sk_handle_t handle, float u, float v, float *out_al
 
 /* Reference counting (used by Sprite objects and explicit texture ownership). */
 void sk_texture_retain(sk_handle_t handle);
-void sk_texture_release(sk_handle_t handle);
 
 /* Build the CPU alpha mask on demand (re-reads from the texture's source path).
  * Returns false if the texture has no path or decode fails. */

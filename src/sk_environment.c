@@ -665,18 +665,13 @@ sk_handle_t sk_environment_create(const char *path)
     return sk_loader_create(&sk_environment_loader, path);
 }
 
-SK_KEEP
-void sk_environment_destroy(sk_handle_t environment)
-{
-    sk_environment_release(environment);
-}
-
 void sk_environment_retain(sk_handle_t environment)
 {
     sk_environment_t *env_ptr = resolve(environment);
     if (env_ptr != NULL) env_ptr->ref_count++;
 }
 
+SK_KEEP
 void sk_environment_release(sk_handle_t environment)
 {
     sk_environment_t *env_ptr = resolve(environment);

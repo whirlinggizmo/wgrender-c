@@ -25,7 +25,7 @@ typedef enum
  *
  * Built in, it's JetBrains Mono (printable ASCII only, embedded in the library).
  * Set a font of your own for other characters (UTF-8) or another look. The default
- * font holds a reference to the font, so it stays loaded after sk_font_destroy until
+ * font holds a reference to the font, so it stays loaded after sk_font_release until
  * the default changes. Pass 0 to go back to the built-in font. False for a handle
  * that isn't a font.
  *

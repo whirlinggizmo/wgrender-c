@@ -162,7 +162,7 @@ void test_parity_model(void)
     sk_handle_t mesh = sk_mesh_create("../examples/assets/models/gumshoe/gumshoe.glb");
     CHECK(mesh != 0);
     sk_model_set_mesh(model, mesh);
-    sk_mesh_destroy(mesh);
+    sk_mesh_release(mesh);
     CHECK(sk_model_is_ready(model));
 
     const float duration = sk_model_get_animation_duration(model, 3);
@@ -191,7 +191,7 @@ void test_parity_sound_pan(void)
     sk_sound_init();
     sk_handle_t audio = sk_audio_create("../examples/assets/sounds/click_004.ogg");
     sk_handle_t sound = sk_sound_create(audio);
-    sk_audio_destroy(audio);
+    sk_audio_release(audio);
     sk_sound_set_loop(sound, true);
 
     /* find the loudest frame at center, then check the same frame panned */

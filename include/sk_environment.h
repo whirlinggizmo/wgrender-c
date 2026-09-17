@@ -20,7 +20,12 @@ extern "C" {
  *   sk_scene_set_tonemap (sk_scene.h). */
 
 sk_handle_t sk_environment_create(const char *path);
-void        sk_environment_destroy(sk_handle_t environment);
+/* Drop this handle's reference to the resource. Resources are shared and
+ * reference counted (loading the same path again returns the same handle, with
+ * one more reference), so a resource is freed when its last reference goes, not
+ * when you call this. Objects hold their own references, so handing a resource
+ * to one and releasing it right away is the normal pattern. */
+void        sk_environment_release(sk_handle_t environment);
 
 #ifdef __cplusplus
 }

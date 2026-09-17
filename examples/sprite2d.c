@@ -56,7 +56,7 @@ static void on_white_logo_loaded(const char *path, void *user)
     sk_handle_t texture = sk_texture_create(path);
     (void)user;
     sk_sprite2d_set_texture(g.sprites[TINT_SPRITE], texture);
-    sk_texture_destroy(texture); /* the sprite holds its own reference */
+    sk_texture_release(texture); /* the sprite holds its own reference */
 }
 
 static void on_mesh_loaded(const char *path, void *user)
@@ -64,7 +64,7 @@ static void on_mesh_loaded(const char *path, void *user)
     sk_handle_t mesh = sk_mesh_create(path);
     (void)user;
     sk_model_set_mesh(g.model, mesh);
-    sk_mesh_destroy(mesh);
+    sk_mesh_release(mesh);
 }
 
 static void on_failed(const char *path, void *user)

@@ -5,6 +5,7 @@
 
 #include "fontstash.h"
 #include "sokol_gfx.h"
+#include <sk_font.h> /* the public header ("" would find this file); sk_font_release lives there */
 #include "sk_types.h"
 
 void sk_font_init(void);
@@ -20,7 +21,6 @@ sk_handle_t sk_font_create_builtin(void);
 
 /* Reference counting (text objects and the default font hold references). */
 void sk_font_retain(sk_handle_t handle);
-void sk_font_release(sk_handle_t handle);
 
 /* fontstash font id for a handle, or FONS_INVALID. */
 int sk_font_fons_id(sk_handle_t handle);

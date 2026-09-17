@@ -1423,7 +1423,7 @@ sk_handle_t sk_mesh_create(const char *path)
     return sk_loader_create(&sk_mesh_loader, path);
 }
 
-SK_KEEP void sk_mesh_destroy(sk_handle_t mesh) { release_mesh(mesh); }
+SK_KEEP void sk_mesh_release(sk_handle_t mesh) { release_mesh(mesh); }
 
 SK_KEEP int sk_mesh_get_material_count(sk_handle_t mesh)
 {

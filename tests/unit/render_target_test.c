@@ -72,8 +72,8 @@ void test_render_targets(void)
     CHECK(!sk_texture_set_sampling(target, (sk_texture_wrap_t)9, SK_TEXTURE_WRAP_CLAMP, SK_TEXTURE_FILTER_LINEAR));
     CHECK(!sk_texture_set_sampling(0, SK_TEXTURE_WRAP_CLAMP, SK_TEXTURE_WRAP_CLAMP, SK_TEXTURE_FILTER_LINEAR));
 
-    sk_texture_destroy(target);
-    sk_texture_destroy(other);
+    sk_texture_release(target);
+    sk_texture_release(other);
     CHECK(!sk_render_begin_texture(target)); /* destroyed */
 
     sk_logger_set_level(SK_LOGGER_LEVEL_INFO);

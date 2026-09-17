@@ -37,7 +37,7 @@ static void on_gumshoe_loaded(const char *path, void *user)
     sk_handle_t mesh = sk_mesh_create(path);
     (void)user;
     sk_model_set_mesh(g.gumshoe, mesh);
-    sk_mesh_destroy(mesh);
+    sk_mesh_release(mesh);
 }
 
 static void on_sphere_loaded(const char *path, void *user)
@@ -46,7 +46,7 @@ static void on_sphere_loaded(const char *path, void *user)
     (void)user;
     sk_model_set_mesh(g.globe, mesh);
     sk_model_set_mesh(g.ground, mesh);
-    sk_mesh_destroy(mesh);
+    sk_mesh_release(mesh);
 }
 
 static void on_font_loaded(const char *path, void *user)
@@ -67,7 +67,7 @@ static sk_handle_t create_model(float x, float y, float z, float scale_y, float 
     sk_model_set_transform(model, x, y, z, 0, 0, 0, scale, scale_y, scale);
     if (material != 0) {
         sk_model_set_material(model, 0, material);
-        sk_material_destroy(material); /* the model keeps its own reference */
+        sk_material_release(material); /* the model keeps its own reference */
     }
     sk_scene_add(g.scene, model, 0);
     return model;

@@ -68,7 +68,7 @@ static void check_stream_matches_decode(const char *path, int frames, float pitc
 
     /* the path dedupes: the second create returns the first Audio */
     CHECK(decoded != 0 && streamed == decoded);
-    sk_audio_destroy(streamed);
+    sk_audio_release(streamed);
     CHECK(!sk_audio_is_streamed(decoded));
 
     /* the same file under another path, forced to stream */
@@ -79,8 +79,8 @@ static void check_stream_matches_decode(const char *path, int frames, float pitc
     CHECK(sk_audio_is_streamed(streamed));
 
     sk_handle_t sa = sk_sound_create(decoded), sb = sk_sound_create(streamed);
-    sk_audio_destroy(decoded); /* sounds hold references; audio stays alive while playing */
-    sk_audio_destroy(streamed);
+    sk_audio_release(decoded); /* sounds hold references; audio stays alive while playing */
+    sk_audio_release(streamed);
     for (int i = 0; i < 2; i++) {
         sk_handle_t s = i == 0 ? sa : sb;
         sk_sound_set_loop(s, true);
@@ -149,7 +149,7 @@ void test_audio_streaming(void)
     sk_sound_pause(first);
 
     /* the Audio outlives its creator's reference while sounds use it */
-    sk_audio_destroy(music);
+    sk_audio_release(music);
     sk_sound_play(second);
     sk_audio_mix(mixed, BLOCK, 44100);
     CHECK(sk_sound_is_playing(second));
@@ -173,8 +173,8 @@ void test_audio_streaming(void)
     CHECK(!sk_sound_is_playing(reference));
 
     sk_sound_destroy(reference);
-    sk_audio_destroy(reference_audio);
-    sk_audio_destroy(click);
+    sk_audio_release(reference_audio);
+    sk_audio_release(click);
     remove(WAV_PATH);
     sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
     sk_sound_deinit();
@@ -232,7 +232,7 @@ void test_audio_threads(void)
             case 7: { /* create and drop a whole Audio + Sound while mixing */
                 sk_handle_t audio = sk_audio_create_mode("./" CLICK_PATH, SK_AUDIO_MODE_STREAM);
                 sk_handle_t extra = sk_sound_create(audio);
-                sk_audio_destroy(audio);
+                sk_audio_release(audio);
                 sk_sound_play(extra);
                 sk_sound_destroy(extra);
                 break;
@@ -245,8 +245,8 @@ void test_audio_threads(void)
     CHECK(blocks > 0);
 
     for (int i = 0; i < 4; i++) sk_sound_destroy(sounds[i]);
-    sk_audio_destroy(music);
-    sk_audio_destroy(click);
+    sk_audio_release(music);
+    sk_audio_release(click);
     sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
     sk_sound_deinit();
     sk_audio_deinit();

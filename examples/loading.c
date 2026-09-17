@@ -54,9 +54,9 @@ static void release_all(void)
     sk_material_set_texture(g.material, "normal_texture", 0);
     for (int i = 0; i < FILES; i++) {
         if (g.resources[i] == 0) continue;
-        if (i < ENVIRONMENTS) sk_environment_destroy(g.resources[i]);
-        else if (i < ENVIRONMENTS + MESHES) sk_mesh_destroy(g.resources[i]);
-        else sk_texture_destroy(g.resources[i]);
+        if (i < ENVIRONMENTS) sk_environment_release(g.resources[i]);
+        else if (i < ENVIRONMENTS + MESHES) sk_mesh_release(g.resources[i]);
+        else sk_texture_release(g.resources[i]);
         g.resources[i] = 0;
     }
     g.loaded = false;

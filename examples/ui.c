@@ -61,7 +61,7 @@ static void on_gumshoe(const char *path, void *user)
     const sk_handle_t mesh = sk_mesh_create(path);
     (void)user;
     sk_model_set_mesh(g.gumshoe, mesh);
-    sk_mesh_destroy(mesh);
+    sk_mesh_release(mesh);
 }
 
 static void on_panel(const char *path, void *user)
@@ -69,7 +69,7 @@ static void on_panel(const char *path, void *user)
     const sk_handle_t texture = sk_texture_create(path);
     (void)user;
     sk_sprite2d_set_texture(g.panel, texture);
-    sk_texture_destroy(texture);
+    sk_texture_release(texture);
 }
 
 static void on_failed(const char *path, void *user)

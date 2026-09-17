@@ -94,7 +94,7 @@ static void frame(float dt, float fraction, void *user)
     printf("loadbench: %-10s worst frame %7.1f ms, loaded in %6.2f s over %d frames\n",
            b.phase == 0 ? "background" : "sync", b.worst * 1000.0, now - b.started, b.frames);
     fflush(stdout);
-    for (int i = 0; i < MODELS; i++) sk_mesh_destroy(b.meshes[i]);
+    for (int i = 0; i < MODELS; i++) sk_mesh_release(b.meshes[i]);
     if (++b.phase == 1) {
         start(true);
     } else {

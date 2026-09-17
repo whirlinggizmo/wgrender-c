@@ -29,7 +29,7 @@ static void on_music_loaded(const char *path, void *user)
     sk_handle_t audio = sk_audio_create(path);
     (void)user;
     g_music = sk_sound_create(audio);
-    sk_audio_destroy(audio); /* the sound holds its own reference */
+    sk_audio_release(audio); /* the sound holds its own reference */
     sk_sound_set_volume(g_music, 0.5f);
     sk_sound_set_loop(g_music, true); /* "music" is just a looping sound */
     sk_sound_play(g_music);

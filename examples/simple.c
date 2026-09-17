@@ -55,7 +55,7 @@ static void on_bgm_ready(const char *path, void *user)
     sk_handle_t audio = sk_audio_create(path);
     (void)user;
     g.bgm = sk_sound_create(audio);
-    sk_audio_destroy(audio); /* the sound holds its own reference */
+    sk_audio_release(audio); /* the sound holds its own reference */
     sk_sound_set_loop(g.bgm, true);
     sk_sound_play(g.bgm);
 }
@@ -65,7 +65,7 @@ static void on_model_ready(const char *path, void *user)
     sk_handle_t mesh = sk_mesh_create(path);
     (void)user;
     g.model = sk_model_create(mesh);
-    sk_mesh_destroy(mesh); /* the model holds its own reference */
+    sk_mesh_release(mesh); /* the model holds its own reference */
     sk_model_set_animation(g.model, 1);
     sk_model_set_animation_speed(g.model, 1.0f);
     sk_model_set_animation_loop(g.model, true);
@@ -79,7 +79,7 @@ static void on_sprite_ready(const char *path, void *user)
     sk_handle_t texture = sk_texture_create(path);
     (void)user;
     g.sprite = sk_sprite3d_create(texture);
-    sk_texture_destroy(texture); /* the sprite holds its own reference */
+    sk_texture_release(texture); /* the sprite holds its own reference */
     sk_sprite3d_set_facing(g.sprite, SK_SPRITE3D_FACING_FREE); /* librl's default: oriented by its rotation */
     sk_sprite3d_set_transform(g.sprite, 0, SPRITE_Y_OFFSET, 0, 0, 0, 0, 1, 1, 1);
     sk_sprite3d_set_tint(g.sprite, SK_COLOR_RAYWHITE);

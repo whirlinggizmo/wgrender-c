@@ -26,7 +26,7 @@ static void on_music(const char *path, void *user)
     const sk_handle_t audio = sk_audio_create(path);
     (void)user;
     g.music = sk_sound_create(audio);
-    sk_audio_destroy(audio); /* the sound keeps its own reference */
+    sk_audio_release(audio); /* the sound keeps its own reference */
     sk_sound_set_loop(g.music, true);
     sk_sound_play(g.music);
 }

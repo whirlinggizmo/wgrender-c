@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "internal/sk_math.h"
+#include <sk_environment.h> /* the public header ("" would find this file); sk_environment_release lives there */
 #include "sk_types.h"
 #include "sokol_gfx.h"
 
@@ -72,7 +73,6 @@ uint16_t sk_environment_half_from_float(float value);
 void sk_environment_init(void);
 void sk_environment_deinit(void);
 void sk_environment_retain(sk_handle_t environment);
-void sk_environment_release(sk_handle_t environment);
 
 /* What shaders bind for an environment (0 or invalid: a black cubemap and zero
  * lighting). Also returns the shared BRDF table and samplers. */
