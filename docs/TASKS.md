@@ -184,7 +184,13 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 ## Parity outside the API
 
 - [ ] Gamepad input (`sk_input_*`)
-- [ ] Touch input (`sk_input_*`)
+- [ ] Touch input (`sk_input_*`): also what the web build needs in mobile browsers
+      (sokol_app already delivers touch events there; libsk ignores them)
+- [ ] Native iOS / Android: long stretch goal. sokol supports both (Metal/GLES3,
+      CoreAudio/AAudio, touch); libsk would need build targets, Metal shaders, app
+      lifecycle and bundle/APK file access. Until then, mobile runs the wasm build
+      (mobile browser, a wasm host app, or a shell like Electron/Tauri; hosts without
+      cross-origin isolation need WEB_THREADS=0)
 - [ ] First language binding, as its own module/repo (decide which; Beef is a candidate)
 - [ ] Scripting, as its own module/repo on top of the public API
 
@@ -252,6 +258,17 @@ Not supported yet:
       from 874 KB wasm + 425 KB JS to 693 + 190 KB (323 KB gzipped; librl's c-simple
       is 653 + 264 KB, 342 KB gzipped). The rest of the gap: every program links
       every subsystem (below)
+- [ ] Web startup goal: one cold start (download + compile, like an install), then
+      warm starts with no redownload or recompile. Measure cold vs warm time to first
+      frame per example plus wasm/JS sizes (raw, gzip, brotli); check compiled-code
+      caching (streaming instantiation, `application/wasm`, cache headers; the dev
+      server sends no-store on purpose). Then size levers: Closure on the JS glue,
+      emmalloc, `-sENVIRONMENT=web,worker`, `-Oz`, browser-native image/audio
+      decoders on web, optional subsystems (below)
+- [ ] Explore (later, own session): libsk's C API as the contract with other
+      implementations, e.g. a JS backend (three.js/Babylon) for JS-target games, or
+      another implementation language (Zig, Odin, D betterC, Beef; engines like
+      Sedulous). Compare footprint and caching against the C + sokol build first
 - [ ] Optional subsystems: exclude modules at build time to shrink wasm, with a
       per-example size report
 - [x] Scripting and language bindings stay out of the core repo (decided; see ROADMAP)
