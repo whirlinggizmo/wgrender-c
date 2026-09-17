@@ -64,6 +64,10 @@ bool sk_shape_set_visible(sk_handle_t shape, bool visible);
 bool sk_shape_is_visible(sk_handle_t shape);
 bool sk_shape_set_pickable(sk_handle_t shape, bool pickable);
 bool sk_shape_is_pickable(sk_handle_t shape);
+/* Enabled (default): a hit reacts (hover, press, click in an interactive scene).
+ * Disabled: still drawn and picked, and still blocks the pointer, but doesn't react. */
+bool sk_shape_set_enabled(sk_handle_t shape, bool enabled);
+bool sk_shape_is_enabled(sk_handle_t shape);
 void sk_shape_draw(sk_handle_t shape);
 
 #ifdef __cplusplus

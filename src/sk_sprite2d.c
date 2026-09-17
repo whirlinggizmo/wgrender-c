@@ -28,6 +28,7 @@ typedef struct {
     sk_handle_t tint;
     bool visible;
     bool pickable;
+    bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
     bool alpha_test;
     float alpha_threshold;
 } sk_sprite2d_t;
@@ -47,6 +48,7 @@ void sk_sprite2d_init(void)
     sk_handle_pool_init(&sk_sprite2d_pool, SK_HANDLE_KIND_SPRITE2D, MAX_SPRITES, sk_sprite2d_free_indices,
                         MAX_SPRITES, sk_sprite2d_generations, sk_sprite2d_occupied);
     sk_scene_register_2d(SK_HANDLE_KIND_SPRITE2D, draw_handle, pick_handle);
+    sk_scene_register_enabled(SK_HANDLE_KIND_SPRITE2D, sk_sprite2d_is_enabled);
 }
 
 void sk_sprite2d_deinit(void)
@@ -238,6 +240,7 @@ sk_handle_t sk_sprite2d_create(sk_handle_t texture)
         .pivot_y = 0.5f,
         .visible = true,
         .pickable = true,
+        .enabled = true,
         .alpha_threshold = 0.5f,
     };
     if (texture != 0) {
@@ -401,6 +404,24 @@ bool sk_sprite2d_is_pickable(sk_handle_t sprite)
 {
     sk_sprite2d_t *sprite_ptr = resolve(sprite);
     return sprite_ptr != NULL && sprite_ptr->pickable;
+}
+
+SK_KEEP
+bool sk_sprite2d_set_enabled(sk_handle_t sprite, bool enabled)
+{
+    sk_sprite2d_t *sprite_ptr = resolve(sprite);
+    if (sprite_ptr == NULL) {
+        return false;
+    }
+    sprite_ptr->enabled = enabled;
+    return true;
+}
+
+SK_KEEP
+bool sk_sprite2d_is_enabled(sk_handle_t sprite)
+{
+    sk_sprite2d_t *sprite_ptr = resolve(sprite);
+    return sprite_ptr != NULL && sprite_ptr->enabled;
 }
 
 SK_KEEP

@@ -29,6 +29,7 @@ typedef struct {
     sk_handle_t tint;
     bool visible;
     bool pickable;
+    bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
     bool pick_alpha_test;
     float pick_alpha_threshold;
 } sk_sprite3d_t;
@@ -91,6 +92,7 @@ static sk_handle_t create_sprite(sk_handle_t texture)
         .tint = 0,
         .visible = true,
         .pickable = true,
+        .enabled = true,
     };
     if (texture != 0) {
         sk_texture_retain(texture);
@@ -170,6 +172,22 @@ bool sk_sprite3d_is_pickable(sk_handle_t handle)
 {
     const sk_sprite3d_t *sprite_ptr = resolve(handle);
     return sprite_ptr != NULL && sprite_ptr->pickable;
+}
+
+SK_KEEP
+bool sk_sprite3d_set_enabled(sk_handle_t handle, bool enabled)
+{
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    if (sprite_ptr == NULL) return false;
+    sprite_ptr->enabled = enabled;
+    return true;
+}
+
+SK_KEEP
+bool sk_sprite3d_is_enabled(sk_handle_t handle)
+{
+    const sk_sprite3d_t *sprite_ptr = resolve(handle);
+    return sprite_ptr != NULL && sprite_ptr->enabled;
 }
 
 SK_KEEP
@@ -448,6 +466,7 @@ void sk_sprite3d_init(void)
     sk_scene_register_passes(SK_HANDLE_KIND_SPRITE3D, NULL, collect_transparent, draw_transparent);
     sk_scene_register_bounds(SK_HANDLE_KIND_SPRITE3D, sprite_bounds);
     sk_scene_register_pick(SK_HANDLE_KIND_SPRITE3D, sprite_pick);
+    sk_scene_register_enabled(SK_HANDLE_KIND_SPRITE3D, sk_sprite3d_is_enabled);
 }
 
 void sk_sprite3d_deinit(void)

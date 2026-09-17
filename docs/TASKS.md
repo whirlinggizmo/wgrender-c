@@ -190,8 +190,9 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 ## Parity outside the API
 
 - [ ] Gamepad input (`sk_input_*`)
-- [ ] Touch input (`sk_input_*`): also what the web build needs in mobile browsers
-      (sokol_app already delivers touch events there; libsk ignores them)
+- [ ] Touch input (`sk_input_*`): the primary touch drives the pointer (buttons,
+      scene interaction) since 2026-09-17; a multi-touch API (all touch points,
+      gestures) is still open
 - [ ] Native iOS / Android: long stretch goal. sokol supports both (Metal/GLES3,
       CoreAudio/AAudio, touch); libsk would need build targets, Metal shaders, app
       lifecycle and bundle/APK file access. Until then, mobile runs the wasm build
@@ -208,6 +209,7 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 - [ ] Materials, phase 2: custom shaders (`.skshader` packages from sokol-shdc)
 - [ ] Materials, phase 3: shapes and sprites on materials (with the batched renderer)
 - [ ] 2D / UI layer: screen space, draw ordering, 2D picking, pickable UI primitives
+      (proposed: [PLAN-2d.md](PLAN-2d.md))
 - [ ] Particle emitters (batched/instanced)
 - [x] Render to texture: `sk_texture_create_target`, `sk_render_begin/end_texture`,
       `sk_texture_set_sampling` ([PLAN-render-target.md](PLAN-render-target.md),

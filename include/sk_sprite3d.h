@@ -34,6 +34,10 @@ bool sk_sprite3d_set_visible(sk_handle_t handle, bool visible);
 bool sk_sprite3d_is_visible(sk_handle_t handle);
 bool sk_sprite3d_set_pickable(sk_handle_t handle, bool pickable); /* default: pickable */
 bool sk_sprite3d_is_pickable(sk_handle_t handle);
+/* Enabled (default): a hit reacts (hover, press, click in an interactive scene).
+ * Disabled: still drawn and picked, and still blocks the pointer, but doesn't react. */
+bool sk_sprite3d_set_enabled(sk_handle_t sprite, bool enabled);
+bool sk_sprite3d_is_enabled(sk_handle_t sprite);
 /* When enabled, picking ignores hits on texels whose alpha is below `threshold`
  * (0..1). Builds a CPU alpha mask from the texture's source path on demand. */
 bool sk_sprite3d_set_pick_alpha_test(sk_handle_t handle, bool enable, float threshold);

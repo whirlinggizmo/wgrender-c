@@ -28,6 +28,7 @@ typedef struct {
     sk_handle_t color;
     bool visible;
     bool pickable;
+    bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
 } sk_text2d_t;
 
 static sk_text2d_t sk_texts[MAX_TEXT2D];
@@ -79,6 +80,7 @@ void sk_text2d_init(void)
                         sk_text2d_free_indices, MAX_TEXT2D,
                         sk_text2d_generations, sk_text2d_occupied);
     sk_scene_register_2d(SK_HANDLE_KIND_TEXT2D, draw_2d, pick_2d);
+    sk_scene_register_enabled(SK_HANDLE_KIND_TEXT2D, sk_text2d_is_enabled);
 }
 
 void sk_text2d_deinit(void)
@@ -109,6 +111,7 @@ sk_handle_t sk_text2d_create(sk_handle_t font)
         .color = 0,
         .visible = true,
         .pickable = true,
+        .enabled = true,
     };
     return handle;
 }
@@ -215,6 +218,22 @@ bool sk_text2d_is_pickable(sk_handle_t handle)
 {
     const sk_text2d_t *text_ptr = resolve(handle);
     return text_ptr != NULL && text_ptr->pickable;
+}
+
+SK_KEEP
+bool sk_text2d_set_enabled(sk_handle_t handle, bool enabled)
+{
+    sk_text2d_t *text_ptr = resolve(handle);
+    if (text_ptr == NULL) return false;
+    text_ptr->enabled = enabled;
+    return true;
+}
+
+SK_KEEP
+bool sk_text2d_is_enabled(sk_handle_t handle)
+{
+    const sk_text2d_t *text_ptr = resolve(handle);
+    return text_ptr != NULL && text_ptr->enabled;
 }
 
 SK_KEEP

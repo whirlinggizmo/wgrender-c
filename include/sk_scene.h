@@ -55,6 +55,31 @@ bool sk_scene_set_tonemap(sk_handle_t scene, sk_tonemap_t tonemap, float exposur
 
 void sk_scene_draw(sk_handle_t scene);
 
+/* Pointer interaction (docs/PLAN-2d.md). An interactive scene picks under the pointer
+ * (the mouse, or the primary touch) once per frame, before the frame's ticks, against
+ * where its members were last drawn, and tracks hover and press per member: 2D
+ * members first (topmost), then the nearest 3D member. Only pickable, visible members
+ * are hit; a member that isn't enabled (sk_<kind>_set_enabled) is still hit and blocks
+ * the pointer, but its hover and press stay UP and it's never clicked.
+ *
+ * States use the button enum with the same edge rules as keys and buttons: PRESSED and
+ * RELEASED are since the previous frame in the frame callback, and since the previous
+ * tick in a tick callback. A press that starts on a 2D member captures the pointer
+ * (sk_input_is_pointer_captured). Changing interactive resets the scene's state.
+ * Default: not interactive. */
+bool sk_scene_set_interactive(sk_handle_t scene, bool interactive);
+bool sk_scene_is_interactive(sk_handle_t scene);
+
+/* The topmost member under the pointer (enabled or not), or 0. */
+sk_handle_t sk_scene_get_hovered(sk_handle_t scene);
+/* UP: not under the pointer, PRESSED: came under it, DOWN: under it, RELEASED: left it. */
+sk_button_state_t sk_scene_get_hover(sk_handle_t scene, sk_handle_t object);
+/* The primary button, for a press that started on this object: PRESSED when it went
+ * down, DOWN while held (also when the pointer moved off), RELEASED when let go. */
+sk_button_state_t sk_scene_get_press(sk_handle_t scene, sk_handle_t object);
+/* Released while still over the object it was pressed on. */
+bool sk_scene_is_clicked(sk_handle_t scene, sk_handle_t object);
+
 /* Ray-pick the scene at screen pixel (mouse_x, mouse_y) using `camera` (or the
  * scene's active camera if `camera` is 0). Broadphase uses world-space AABBs;
  * narrow phase (when registered) tests the actual shape bounds. Returns the

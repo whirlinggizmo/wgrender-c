@@ -11,6 +11,12 @@
 void sk_scene_init(void);
 void sk_scene_deinit(void);
 
+/* Pointer interaction (sk_scene_set_interactive), driven by the runtime: update
+ * before the frame's ticks, clear edges after each tick and after the frame. */
+void sk_scene_update_interaction(void);
+void sk_scene_end_tick_interaction(void);
+void sk_scene_end_frame_interaction(void);
+
 /* Render passes
  * -------------
  * sk_scene_draw() draws each layer in two passes: an opaque pass (depth writes
@@ -74,6 +80,11 @@ typedef bool (*sk_drawable_pick_fn)(sk_handle_t handle, vec3_t origin, vec3_t di
                                     sk_pick_result_t *out);
 
 void sk_scene_register_pick(sk_handle_kind_t kind, sk_drawable_pick_fn pick);
+
+/* Whether a drawable's hits react in an interactive scene (sk_<kind>_is_enabled). A
+ * kind that doesn't register one is always enabled. */
+typedef bool (*sk_drawable_enabled_fn)(sk_handle_t handle);
+void sk_scene_register_enabled(sk_handle_kind_t kind, sk_drawable_enabled_fn enabled);
 bool sk_drawable_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_result_t *out);
 
 #endif // SK_INTERNAL_SCENE_H

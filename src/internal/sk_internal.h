@@ -112,5 +112,10 @@ typedef enum {
 void sk_input_set_context(sk_input_context_t context);
 void sk_input_end_tick(void);  /* clear tick edges (after each tick) */
 void sk_input_end_frame(void); /* clear frame edges (after the frame callback) */
+sk_input_context_t sk_input_get_context(void);
+/* The pointer (mouse, or the primary touch) with this frame's edges, whatever the
+ * context: position in logical pixels, primary button held / pressed / released. */
+void sk_input_get_pointer_frame(float *x, float *y, bool *down, bool *pressed, bool *released);
+void sk_input_set_pointer_captured(bool captured);
 
 #endif // SK_INTERNAL_H

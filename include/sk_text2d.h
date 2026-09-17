@@ -32,6 +32,10 @@ bool sk_text2d_is_visible(sk_handle_t handle);
  * scene, where it's drawn over 3D like sprite2d). Default: pickable. */
 bool sk_text2d_set_pickable(sk_handle_t handle, bool pickable);
 bool sk_text2d_is_pickable(sk_handle_t handle);
+/* Enabled (default): a hit reacts (hover, press, click in an interactive scene).
+ * Disabled: still drawn and picked, and still blocks the pointer, but doesn't react. */
+bool sk_text2d_set_enabled(sk_handle_t text, bool enabled);
+bool sk_text2d_is_enabled(sk_handle_t text);
 
 /* Rendered extent of the current text at the current size (0 if no text). Uses
  * the font it draws with (its own, or the default font). */

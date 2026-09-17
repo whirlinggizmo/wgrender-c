@@ -16,6 +16,7 @@
 #include "internal/sk_material.h"
 #include "internal/sk_platform.h"
 #include "internal/sk_render.h"
+#include "internal/sk_scene.h"
 #include "internal/sk_sprite2d.h"
 #include "internal/sk_tick_clock.h"
 #include "sk_logger.h"
@@ -296,6 +297,7 @@ static void run_ticks(double elapsed)
         }
         sk_rt.tick_fn(step, sk_rt.tick_user_data);
         sk_input_end_tick();
+        sk_scene_end_tick_interaction();
     }
     sk_input_set_context(SK_INPUT_CONTEXT_FRAME);
 }
@@ -308,6 +310,7 @@ static void on_frame(void)
     if (!pace_frame()) {
         return;
     }
+    sk_scene_update_interaction(); /* before the ticks: they read it too */
     run_ticks(update_frame_timing());
 
     if (sk_rt.frame_fn != NULL) {
@@ -318,6 +321,7 @@ static void on_frame(void)
     /* clear frame input edges after the frame; sokol delivers the next frame's
      * events before the next frame_cb */
     sk_input_end_frame();
+    sk_scene_end_frame_interaction();
 }
 
 static void on_event(const void *ev)

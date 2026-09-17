@@ -42,6 +42,7 @@ typedef struct {
     sk_handle_t color;
     bool visible;
     bool pickable;
+    bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
 } sk_shape_t;
 
 static sk_shape_t sk_shapes[MAX_SHAPES];
@@ -71,6 +72,7 @@ void sk_shape_init(void)
     sk_scene_register_passes(SK_HANDLE_KIND_SHAPE, draw_opaque, collect_transparent, draw_transparent);
     sk_scene_register_bounds(SK_HANDLE_KIND_SHAPE, shape_bounds);
     sk_scene_register_pick(SK_HANDLE_KIND_SHAPE, shape_pick);
+    sk_scene_register_enabled(SK_HANDLE_KIND_SHAPE, sk_shape_is_enabled);
 }
 
 void sk_shape_deinit(void)
@@ -373,6 +375,7 @@ sk_handle_t sk_shape_create(void)
         .color = 0,
         .visible = true,
         .pickable = true,
+        .enabled = true,
     };
     return handle;
 }
@@ -558,6 +561,24 @@ bool sk_shape_is_pickable(sk_handle_t shape)
 {
     sk_shape_t *shape_ptr = resolve(shape);
     return shape_ptr != NULL && shape_ptr->pickable;
+}
+
+SK_KEEP
+bool sk_shape_set_enabled(sk_handle_t shape, bool enabled)
+{
+    sk_shape_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL) {
+        return false;
+    }
+    shape_ptr->enabled = enabled;
+    return true;
+}
+
+SK_KEEP
+bool sk_shape_is_enabled(sk_handle_t shape)
+{
+    sk_shape_t *shape_ptr = resolve(shape);
+    return shape_ptr != NULL && shape_ptr->enabled;
 }
 
 static void draw_handle(sk_handle_t shape)

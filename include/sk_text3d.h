@@ -36,6 +36,10 @@ bool        sk_text3d_set_visible(sk_handle_t text, bool visible);
 bool        sk_text3d_is_visible(sk_handle_t text);
 bool        sk_text3d_set_pickable(sk_handle_t text, bool pickable); /* default: pickable */
 bool        sk_text3d_is_pickable(sk_handle_t text);
+/* Enabled (default): a hit reacts (hover, press, click in an interactive scene).
+ * Disabled: still drawn and picked, and still blocks the pointer, but doesn't react. */
+bool sk_text3d_set_enabled(sk_handle_t text, bool enabled);
+bool sk_text3d_is_enabled(sk_handle_t text);
 /* World-space width and height of the current text ((0, 0) until the font loads). */
 vec2_t      sk_text3d_get_size(sk_handle_t text);
 /* Draw now (inside 3D mode); scenes draw their members themselves. */

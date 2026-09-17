@@ -58,6 +58,7 @@ static const test_case_t TESTS[] = {
     {"parity_sound_pan", test_parity_sound_pan},
     {"parity_asset_host", test_parity_asset_host},
     {"window_headless", test_window_headless},
+    {"interaction", test_interaction},
     {"text_default_font", test_text_default_font},
     {"text_font_refcount", test_text_font_refcount},
     {"pipeline_gpu_pools", test_pipeline_gpu_pools},

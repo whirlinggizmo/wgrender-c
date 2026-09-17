@@ -54,6 +54,10 @@ bool sk_model_set_visible(sk_handle_t handle, bool visible);
 bool sk_model_is_visible(sk_handle_t handle);
 bool sk_model_set_pickable(sk_handle_t handle, bool pickable); /* default: pickable */
 bool sk_model_is_pickable(sk_handle_t handle);
+/* Enabled (default): a hit reacts (hover, press, click in an interactive scene).
+ * Disabled: still drawn and picked, and still blocks the pointer, but doesn't react. */
+bool sk_model_set_enabled(sk_handle_t model, bool enabled);
+bool sk_model_is_enabled(sk_handle_t model);
 void sk_model_draw(sk_handle_t handle);
 void sk_model_destroy(sk_handle_t handle);
 

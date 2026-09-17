@@ -128,6 +128,7 @@ typedef struct {
     sk_handle_t tint;
     bool visible;
     bool pickable;
+    bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
     sk_handle_t materials[SK_MAX_MATERIAL_SLOTS]; /* per-slot overrides (referenced); 0 = mesh's */
 
     /* animation playback */
@@ -1383,6 +1384,7 @@ static sk_handle_t create_model(sk_handle_t mesh_handle)
     model.scale = (vec3_t){1, 1, 1};
     model.visible = true;
     model.pickable = true;
+    model.enabled = true;
     model.cur_anim = -1;
     model.anim_speed = 1.0f;
     model.anim_loop = true;
@@ -1548,6 +1550,20 @@ SK_KEEP bool sk_model_is_pickable(sk_handle_t handle)
 {
     sk_model_t *model_ptr = resolve(handle);
     return model_ptr != NULL && model_ptr->pickable;
+}
+
+SK_KEEP bool sk_model_set_enabled(sk_handle_t handle, bool enabled)
+{
+    sk_model_t *model_ptr = resolve(handle);
+    if (model_ptr == NULL) return false;
+    model_ptr->enabled = enabled;
+    return true;
+}
+
+SK_KEEP bool sk_model_is_enabled(sk_handle_t handle)
+{
+    sk_model_t *model_ptr = resolve(handle);
+    return model_ptr != NULL && model_ptr->enabled;
 }
 
 SK_KEEP void sk_model_draw(sk_handle_t handle) { draw_immediate(handle); }
@@ -2334,6 +2350,7 @@ void sk_model_init(void)
     sk_scene_register_passes(SK_HANDLE_KIND_MODEL, draw_opaque, collect_transparent, draw_transparent);
     sk_scene_register_bounds(SK_HANDLE_KIND_MODEL, model_bounds);
     sk_scene_register_pick(SK_HANDLE_KIND_MODEL, model_pick);
+    sk_scene_register_enabled(SK_HANDLE_KIND_MODEL, sk_model_is_enabled);
     sk_asset_register_dependencies(".gltf", list_gltf_dependencies);
     sk_asset_register_dependencies(".glb", list_gltf_dependencies);
     sk_asset_register_loader(".gltf", &sk_mesh_loader);

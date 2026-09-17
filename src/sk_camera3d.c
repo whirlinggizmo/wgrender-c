@@ -206,6 +206,19 @@ sk_mat4_t sk_camera3d_view(const sk_camera3d_t *cam)
     return sk_mat4_lookat(cam->position, cam->target, cam->up);
 }
 
+bool sk_camera3d_get_data(sk_handle_t camera, sk_camera3d_t *out)
+{
+    uint16_t index = 0;
+    if (camera == 0) {
+        return sk_camera3d_get_active_data(out);
+    }
+    if (out == NULL || !resolve(camera, &index)) {
+        return false;
+    }
+    *out = sk_cameras[index];
+    return true;
+}
+
 bool sk_camera3d_get_active_data(sk_camera3d_t *out)
 {
     uint16_t index = 0;

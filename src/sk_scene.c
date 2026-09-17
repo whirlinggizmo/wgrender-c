@@ -28,10 +28,33 @@ typedef struct {
     int layer;
 } sk_scene_entry_t;
 
+/* Interaction edges for one context (frame or tick; see sk_input.c). A frame adds at
+ * most one of each, but tick edges carry over frames that run no ticks. */
+#define SK_INTERACTION_MAX_EDGES 8
+typedef struct {
+    sk_handle_t entered[SK_INTERACTION_MAX_EDGES];
+    int entered_count;
+    sk_handle_t left[SK_INTERACTION_MAX_EDGES];
+    int left_count;
+    sk_handle_t pressed;
+    sk_handle_t released;
+    sk_handle_t clicked;
+} sk_interaction_edges_t;
+
+typedef struct {
+    bool interactive;
+    sk_handle_t hovered;     /* topmost under the pointer (enabled or not) */
+    sk_handle_t press_target; /* what the held press started on (0: nothing) */
+    bool press_down;
+    sk_interaction_edges_t frame_edges;
+    sk_interaction_edges_t tick_edges;
+} sk_interaction_t;
+
 typedef struct {
     sk_scene_entry_t *items;
     int count;
     int capacity;
+    sk_interaction_t interaction;
     sk_handle_t camera;
     sk_handle_t ambient_color;  /* 0 = white */
     float ambient_intensity;    /* 0 = no ambient (default) */
@@ -63,6 +86,8 @@ static sk_transparent_item_t sk_transparent_items[MAX_TRANSPARENT_ITEMS];
 static bool sk_transparent_overflow_logged;
 static sk_drawable_bounds_fn sk_bounds_registry[SK_DRAWABLE_KIND_COUNT];
 static sk_drawable_pick_fn sk_pick_registry[SK_DRAWABLE_KIND_COUNT];
+static sk_drawable_enabled_fn sk_enabled_registry[SK_DRAWABLE_KIND_COUNT];
+static bool sk_scene_capture_releasing; /* the capturing press was released last frame */
 
 /* ---- drawable dispatch registry --------------------------------------- */
 
@@ -145,6 +170,23 @@ void sk_scene_register_pick(sk_handle_kind_t kind, sk_drawable_pick_fn pick)
         return;
     }
     sk_pick_registry[kind] = pick;
+}
+
+void sk_scene_register_enabled(sk_handle_kind_t kind, sk_drawable_enabled_fn enabled)
+{
+    if ((int)kind < 0 || (int)kind >= SK_DRAWABLE_KIND_COUNT) {
+        return;
+    }
+    sk_enabled_registry[kind] = enabled;
+}
+
+static bool is_enabled(sk_handle_t handle)
+{
+    const sk_handle_kind_t kind = sk_handle_get_kind(handle);
+    if ((int)kind < 0 || (int)kind >= SK_DRAWABLE_KIND_COUNT || sk_enabled_registry[kind] == NULL) {
+        return true;
+    }
+    return sk_enabled_registry[kind](handle);
 }
 
 bool sk_drawable_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_result_t *out)
@@ -637,12 +679,212 @@ void sk_pick_reset_stats(void)
     sk_pick_stats = (sk_pick_stats_t){0};
 }
 
+/* ---- pointer interaction ---------------------------------------------- */
+
+/* The topmost pickable member under a screen point: 2D members first (last drawn
+ * first), then the nearest 3D hit through the scene's camera. Unlike sk_scene_pick it
+ * doesn't change the active camera or count pick statistics. */
+static sk_handle_t pick_member(sk_scene_t *scene_ptr, float x, float y, bool *is_2d)
+{
+    const sk_pick_stats_t stats = sk_pick_stats;
+    sk_pick_result_t result = {0};
+    sk_handle_t hit = 0;
+    float best_t = 1e30f;
+    sk_camera3d_t cam;
+
+    *is_2d = false;
+    sort_by_layer(scene_ptr);
+    for (int i = scene_ptr->count - 1; i >= 0 && hit == 0; i--) {
+        const sk_drawable_passes_t *passes = lookup_passes(scene_ptr->items[i].drawable);
+        if (passes != NULL && passes->pick_2d != NULL &&
+            pick_2d(scene_ptr->items[i].drawable, passes, x, y, &result)) {
+            hit = scene_ptr->items[i].drawable;
+            *is_2d = true;
+        }
+    }
+    if (hit == 0 && sk_camera3d_get_data(scene_ptr->camera, &cam)) {
+        const vec2_t screen = sk_window_get_screen_size();
+        const sk_ray_t ray = sk_pick_ray_from_screen(&cam, x, y, screen.x, screen.y);
+        for (int i = 0; i < scene_ptr->count; i++) {
+            sk_pick_result_t candidate = {0};
+            if (pick_3d(scene_ptr->items[i].drawable, ray, &candidate) && candidate.distance < best_t) {
+                best_t = candidate.distance;
+                hit = scene_ptr->items[i].drawable;
+            }
+        }
+    }
+    sk_pick_stats = stats;
+    return hit;
+}
+
+static void add_edge(sk_handle_t *list, int *count, sk_handle_t handle)
+{
+    if (*count < SK_INTERACTION_MAX_EDGES) {
+        list[(*count)++] = handle;
+    }
+}
+
+static void add_interaction_edges(sk_interaction_t *state, sk_handle_t entered, sk_handle_t left, sk_handle_t pressed,
+                                  sk_handle_t released, sk_handle_t clicked)
+{
+    sk_interaction_edges_t *sets[2] = {&state->frame_edges, &state->tick_edges};
+    for (int i = 0; i < 2; i++) {
+        if (entered != 0) add_edge(sets[i]->entered, &sets[i]->entered_count, entered);
+        if (left != 0) add_edge(sets[i]->left, &sets[i]->left_count, left);
+        if (pressed != 0) sets[i]->pressed = pressed;
+        if (released != 0) sets[i]->released = released;
+        if (clicked != 0) sets[i]->clicked = clicked;
+    }
+}
+
+void sk_scene_update_interaction(void)
+{
+    float x, y;
+    bool down, pressed, released;
+    bool captured = false;
+
+    sk_input_get_pointer_frame(&x, &y, &down, &pressed, &released);
+    if (sk_scene_capture_releasing) {
+        sk_input_set_pointer_captured(false); /* captured through the release frame */
+        sk_scene_capture_releasing = false;
+    }
+    for (int i = 0; i < MAX_SCENES; i++) {
+        sk_scene_t *scene_ptr = &sk_scenes[i];
+        sk_interaction_t *state = &scene_ptr->interaction;
+        sk_handle_t entered = 0, left = 0, pressed_on = 0, released_on = 0, clicked_on = 0;
+        bool is_2d = false;
+        sk_handle_t hit;
+
+        if (!sk_scene_occupied[i] || !state->interactive) {
+            continue;
+        }
+        hit = pick_member(scene_ptr, x, y, &is_2d);
+        if (hit != state->hovered) {
+            left = state->hovered;
+            entered = hit;
+            state->hovered = hit;
+        }
+        if (pressed) {
+            state->press_target = hit; /* a disabled hit still takes the press: it blocks */
+            state->press_down = true;
+            pressed_on = hit != 0 && is_enabled(hit) ? hit : 0;
+            captured = captured || (hit != 0 && is_2d);
+        }
+        if (released && state->press_down) {
+            state->press_down = false;
+            if (state->press_target != 0 && is_enabled(state->press_target)) {
+                released_on = state->press_target;
+                clicked_on = hit == state->press_target ? hit : 0;
+            }
+        }
+        add_interaction_edges(state, entered, left, pressed_on, released_on, clicked_on);
+    }
+    if (captured) {
+        sk_input_set_pointer_captured(true);
+    }
+    if (released) {
+        sk_scene_capture_releasing = true; /* clears next frame */
+    }
+}
+
+void sk_scene_end_tick_interaction(void)
+{
+    for (int i = 0; i < MAX_SCENES; i++) {
+        sk_scenes[i].interaction.tick_edges = (sk_interaction_edges_t){0};
+    }
+}
+
+void sk_scene_end_frame_interaction(void)
+{
+    for (int i = 0; i < MAX_SCENES; i++) {
+        sk_scenes[i].interaction.frame_edges = (sk_interaction_edges_t){0};
+    }
+}
+
+static const sk_interaction_edges_t *current_interaction_edges(const sk_scene_t *scene_ptr)
+{
+    return sk_input_get_context() == SK_INPUT_CONTEXT_TICK ? &scene_ptr->interaction.tick_edges
+                                                            : &scene_ptr->interaction.frame_edges;
+}
+
+static bool contains(const sk_handle_t *list, int count, sk_handle_t handle)
+{
+    for (int i = 0; i < count; i++) {
+        if (list[i] == handle) return true;
+    }
+    return false;
+}
+
+SK_KEEP
+bool sk_scene_set_interactive(sk_handle_t scene, bool interactive)
+{
+    sk_scene_t *scene_ptr = resolve(scene);
+    if (scene_ptr == NULL) {
+        return false;
+    }
+    scene_ptr->interaction = (sk_interaction_t){.interactive = interactive};
+    return true;
+}
+
+SK_KEEP
+bool sk_scene_is_interactive(sk_handle_t scene)
+{
+    const sk_scene_t *scene_ptr = resolve(scene);
+    return scene_ptr != NULL && scene_ptr->interaction.interactive;
+}
+
+SK_KEEP
+sk_handle_t sk_scene_get_hovered(sk_handle_t scene)
+{
+    const sk_scene_t *scene_ptr = resolve(scene);
+    return scene_ptr != NULL ? scene_ptr->interaction.hovered : 0;
+}
+
+SK_KEEP
+sk_button_state_t sk_scene_get_hover(sk_handle_t scene, sk_handle_t object)
+{
+    const sk_scene_t *scene_ptr = resolve(scene);
+    const sk_interaction_edges_t *edges;
+    if (scene_ptr == NULL || object == 0 || !is_enabled(object)) {
+        return SK_BUTTON_UP;
+    }
+    edges = current_interaction_edges(scene_ptr);
+    if (contains(edges->entered, edges->entered_count, object)) return SK_BUTTON_PRESSED;
+    if (contains(edges->left, edges->left_count, object)) return SK_BUTTON_RELEASED;
+    return scene_ptr->interaction.hovered == object ? SK_BUTTON_DOWN : SK_BUTTON_UP;
+}
+
+SK_KEEP
+sk_button_state_t sk_scene_get_press(sk_handle_t scene, sk_handle_t object)
+{
+    const sk_scene_t *scene_ptr = resolve(scene);
+    const sk_interaction_edges_t *edges;
+    if (scene_ptr == NULL || object == 0 || !is_enabled(object)) {
+        return SK_BUTTON_UP;
+    }
+    edges = current_interaction_edges(scene_ptr);
+    if (edges->pressed == object) return SK_BUTTON_PRESSED;
+    if (edges->released == object) return SK_BUTTON_RELEASED;
+    return scene_ptr->interaction.press_down && scene_ptr->interaction.press_target == object ? SK_BUTTON_DOWN
+                                                                                               : SK_BUTTON_UP;
+}
+
+SK_KEEP
+bool sk_scene_is_clicked(sk_handle_t scene, sk_handle_t object)
+{
+    const sk_scene_t *scene_ptr = resolve(scene);
+    return scene_ptr != NULL && object != 0 && is_enabled(object) &&
+           current_interaction_edges(scene_ptr)->clicked == object;
+}
+
 void sk_scene_init(void)
 {
     memset(sk_scenes, 0, sizeof(sk_scenes));
     memset(sk_passes_registry, 0, sizeof(sk_passes_registry));
     memset(sk_bounds_registry, 0, sizeof(sk_bounds_registry));
     memset(sk_pick_registry, 0, sizeof(sk_pick_registry));
+    memset(sk_enabled_registry, 0, sizeof(sk_enabled_registry));
+    sk_scene_capture_releasing = false;
     sk_handle_pool_init(&sk_scene_pool,
                         SK_HANDLE_KIND_SCENE,
                         MAX_SCENES,

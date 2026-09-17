@@ -33,6 +33,7 @@ typedef struct {
     sk_handle_t color;
     bool visible;
     bool pickable;
+    bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
 } sk_text3d_t;
 
 static sk_text3d_t sk_text3ds[MAX_TEXT3D];
@@ -264,6 +265,7 @@ sk_handle_t sk_text3d_create(sk_handle_t font)
         .facing = SK_SPRITE3D_FACING_CAMERA,
         .visible = true,
         .pickable = true,
+        .enabled = true,
     };
     return handle;
 }
@@ -377,6 +379,22 @@ bool sk_text3d_is_pickable(sk_handle_t handle)
 }
 
 SK_KEEP
+bool sk_text3d_set_enabled(sk_handle_t handle, bool enabled)
+{
+    sk_text3d_t *text_ptr = resolve(handle);
+    if (text_ptr == NULL) return false;
+    text_ptr->enabled = enabled;
+    return true;
+}
+
+SK_KEEP
+bool sk_text3d_is_enabled(sk_handle_t handle)
+{
+    const sk_text3d_t *text_ptr = resolve(handle);
+    return text_ptr != NULL && text_ptr->enabled;
+}
+
+SK_KEEP
 vec2_t sk_text3d_get_size(sk_handle_t handle)
 {
     const sk_text3d_t *text_ptr = resolve(handle);
@@ -409,6 +427,7 @@ void sk_text3d_init(void)
     sk_scene_register_passes(SK_HANDLE_KIND_TEXT3D, NULL, collect_transparent, draw_transparent);
     sk_scene_register_bounds(SK_HANDLE_KIND_TEXT3D, text_bounds);
     sk_scene_register_pick(SK_HANDLE_KIND_TEXT3D, text_pick);
+    sk_scene_register_enabled(SK_HANDLE_KIND_TEXT3D, sk_text3d_is_enabled);
 }
 
 void sk_text3d_deinit(void)

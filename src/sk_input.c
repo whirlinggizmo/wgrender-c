@@ -46,6 +46,11 @@ typedef struct {
     sk_input_edges_t frame_edges;
     sk_input_edges_t tick_edges;
     sk_input_context_t context;
+
+    /* the first touch drives the pointer, like the left mouse button */
+    bool touching;
+    uintptr_t touch_id;
+    bool pointer_captured; /* set by interactive scenes (sk_scene.c) */
 } sk_input_state_t;
 
 static sk_input_state_t sk_input;
@@ -126,11 +131,44 @@ static void add_edges(sk_input_edges_t *edges, const sapp_event *ev, bool key_wa
     }
 }
 
+/* Feed the primary touch to the pointer as mouse events (move, then left button). */
+static void handle_touch(const sapp_event *ev)
+{
+    for (int i = 0; i < ev->num_touches; i++) {
+        const sapp_touchpoint *touch = &ev->touches[i];
+        const bool primary = sk_input.touching && touch->identifier == sk_input.touch_id;
+        if (!touch->changed || (sk_input.touching && !primary)) {
+            continue;
+        }
+        if (ev->type == SAPP_EVENTTYPE_TOUCHES_BEGAN && sk_input.touching) {
+            continue; /* a second finger */
+        }
+        sapp_event mouse = {.type = SAPP_EVENTTYPE_MOUSE_MOVE, .mouse_x = touch->pos_x, .mouse_y = touch->pos_y};
+        sk_input_handle_event(&mouse);
+        if (ev->type == SAPP_EVENTTYPE_TOUCHES_BEGAN) {
+            sk_input.touching = true;
+            sk_input.touch_id = touch->identifier;
+            mouse.type = SAPP_EVENTTYPE_MOUSE_DOWN;
+            sk_input_handle_event(&mouse);
+        } else if (ev->type == SAPP_EVENTTYPE_TOUCHES_ENDED || ev->type == SAPP_EVENTTYPE_TOUCHES_CANCELLED) {
+            sk_input.touching = false;
+            mouse.type = SAPP_EVENTTYPE_MOUSE_UP;
+            sk_input_handle_event(&mouse);
+        }
+        return;
+    }
+}
+
 void sk_input_handle_event(const sapp_event *ev)
 {
     bool key_was_down = false;
 
     if (ev == NULL) {
+        return;
+    }
+    if (ev->type == SAPP_EVENTTYPE_TOUCHES_BEGAN || ev->type == SAPP_EVENTTYPE_TOUCHES_MOVED ||
+        ev->type == SAPP_EVENTTYPE_TOUCHES_ENDED || ev->type == SAPP_EVENTTYPE_TOUCHES_CANCELLED) {
+        handle_touch(ev);
         return;
     }
     switch (ev->type) {
@@ -175,6 +213,31 @@ void sk_input_handle_event(const sapp_event *ev)
         default:
             break;
     }
+}
+
+sk_input_context_t sk_input_get_context(void)
+{
+    return sk_input.context;
+}
+
+void sk_input_get_pointer_frame(float *x, float *y, bool *down, bool *pressed, bool *released)
+{
+    *x = (float)sk_input.x;
+    *y = (float)sk_input.y;
+    *down = sk_input.down[0];
+    *pressed = sk_input.frame_edges.pressed[0];
+    *released = sk_input.frame_edges.released[0];
+}
+
+void sk_input_set_pointer_captured(bool captured)
+{
+    sk_input.pointer_captured = captured;
+}
+
+SK_KEEP
+bool sk_input_is_pointer_captured(void)
+{
+    return sk_input.pointer_captured;
 }
 
 SK_KEEP
