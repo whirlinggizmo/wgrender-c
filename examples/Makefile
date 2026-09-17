@@ -9,7 +9,8 @@
 #   make wasm                  WebGL2 (SOKOL_GLES3), example=hello
 #   make wasm BACKEND=webgpu   WebGPU (SOKOL_WGPU, emdawnwebgpu port)
 #   make wasm WASM_EXAMPLE=model
-#   make wasm-all              build every example for web
+#   make wasm-all              build every example for web (prints a size summary)
+#   make websize               wasm/JS sizes of every built web example
 #   make serve [BACKEND=...]   static-serve build/<backend> at :8000
 #   make smoke                 build every example headless and run each briefly
 #   make webcheck              build all for web, load each in a browser, fail on errors
@@ -49,7 +50,7 @@ BUILD_DESKTOP := build/desktop
 SRCS          := $(wildcard *.c)
 BINS          := $(patsubst %.c,$(BUILD_DESKTOP)/%,$(SRCS))
 
-.PHONY: all run clean wasm wasm-all serve webcheck smoke headless print-ldlibs FORCE
+.PHONY: all run clean wasm wasm-all websize serve webcheck smoke headless print-ldlibs FORCE
 
 all: $(BINS)
 
@@ -152,6 +153,11 @@ wasm:
 wasm-all:
 	@$(MAKE) --no-print-directory -j$(NPROC) $(WEB_BUNDLES)
 	$(wasm_deploy)
+	@$(ROOT)/tools/websize.sh $(BUILD_WEB) | tail -n +2 | awk 'NR == 1 || /^hello |^simple |^model / { print } END { print "(all examples: $(BUILD_WEB)/sizes.txt, make websize)" }'
+
+# Web build sizes per example (tools/websize.sh), for the current BACKEND/WEB_THREADS.
+websize:
+	@$(ROOT)/tools/websize.sh $(BUILD_WEB)
 
 serve:
 	@python3 $(ROOT)/tools/serve.py 8000 $(BUILD_WEB)

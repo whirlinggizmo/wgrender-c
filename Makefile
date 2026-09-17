@@ -11,6 +11,7 @@
 #   make wasm[-all] build the web examples         (-> examples/Makefile)
 #   make serve      static-serve the web build     (-> examples/Makefile)
 #   make webcheck   web build + browser smoke check (-> examples/Makefile)
+#   make websize    wasm/JS sizes per web example   (-> examples/Makefile)
 #   make shaders    regenerate shdc shader headers
 #   make check      naming / backend-leak guardrails
 #   make test       build and run unit tests        (-> tests/Makefile)
@@ -132,7 +133,7 @@ deps:
 # (BACKEND=, WASM_EXAMPLE=) propagate to the sub-make automatically.
 examples:
 	@$(MAKE) -C examples
-run wasm wasm-all serve webcheck smoke:
+run wasm wasm-all websize serve webcheck smoke:
 	@$(MAKE) -C examples $@
 
 # --- tests (delegated to tests/Makefile) -------------------------------------

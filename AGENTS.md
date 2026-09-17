@@ -39,6 +39,8 @@ Keep this file short and rule-shaped. The authoritative design doc is
   virtual X display when Xvfb is installed, else in a visible window). Web builds use
   threads by default, which need cross-origin isolation (`tools/serve.py` sends the
   headers); `WEB_THREADS=0` builds without.
+- `make websize [BACKEND=webgpu] [WEB_THREADS=0]` — wasm/JS sizes per web example
+  (raw and gzip; brotli if installed), also summarized after `make wasm-all`.
 - Run `make verify` (lib + examples + `make check` + `make test` + `make smoke`,
   about 10 s) before calling a change done; run `make webcheck` (and
   `BACKEND=webgpu`) too when touching rendering, assets or web code.
