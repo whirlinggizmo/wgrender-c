@@ -3,7 +3,7 @@
  *   tests/build/unit_tests            run every test
  *   tests/build/unit_tests pick_      run tests whose name starts with "pick_"
  *
- * Tests call library internals directly and link against lib/libsk.a. Nothing
+ * Tests call library internals directly and link against build/headless/libsk.a. Nothing
  * here opens a window or touches the GPU. */
 #include <stdio.h>
 #include <string.h>

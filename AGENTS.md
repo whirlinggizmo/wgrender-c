@@ -6,11 +6,13 @@ Keep this file short and rule-shaped. The authoritative design doc is
 
 ## Build & verify
 
-- `make` — build the static library (`lib/libsk.a`).
+- `make` — build the static library (`build/desktop/libsk.a`). Build outputs live
+  in one directory per target: `build/{desktop,headless}` and
+  `examples/build/{desktop,headless,webgl2,webgpu}`.
 - `make examples` — build everything in `examples/`.
 - `make check` — guardrails; currently enforces that `include/` and `examples/`
   stay **backend-free** (no sokol/GL leakage into the public surface).
-- `make test` — unit tests (`tests/unit/`, link against `lib/libsk_headless.a`, no
+- `make test` — unit tests (`tests/unit/`, link against `build/headless/libsk.a`, no
   stubs, no display or GPU).
 - `make test SANITIZE=thread` (or `address`, `undefined`) — the unit tests with the
   library built in under a sanitizer. Run `thread` when touching audio or other
@@ -19,10 +21,11 @@ Keep this file short and rule-shaped. The authoritative design doc is
   frames; fails on crashes, timeouts or error logs. Needs no display. Add or update tests alongside code changes; new tests go in
   `tests/unit/tests.h` and the table in `tests/unit/main.c`.
 - `make parity` — librl → libsk parity report (needs `../librl`).
-- `make webcheck [BACKEND=wgpu]` — web build smoke test in a browser (needs
+- `make webcheck [BACKEND=webgpu]` — web build smoke test in a browser (needs
   Emscripten, Node >= 22, a Chromium-based browser).
-- Build clean (lib + examples + `make check` + `make test` + `make smoke`) before
-  calling a change done; run `make webcheck` too when touching rendering, assets or web code.
+- Run `make verify` (lib + examples + `make check` + `make test` + `make smoke`,
+  about 10 s) before calling a change done; run `make webcheck` (and
+  `BACKEND=webgpu`) too when touching rendering, assets or web code.
 
 ## Process
 

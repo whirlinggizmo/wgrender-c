@@ -35,4 +35,7 @@ bool sk_asset_join_relative(const char *base_path, const char *uri, char *out, s
  * "data:" URIs, absolute URLs ("scheme://...") and absolute paths. */
 bool sk_asset_is_relative_uri(const char *uri);
 
+/* Asset tasks not finished yet (for test tooling). */
+int sk_asset_pending_count(void);
+
 #endif // SK_INTERNAL_ASSET_H

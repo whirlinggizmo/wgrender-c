@@ -1,12 +1,12 @@
 # libsk tests.
 #
-#   make test                  build lib/libsk.a if needed, build and run unit tests
+#   make test                  build the headless library if needed, build and run unit tests
 #   make test TESTS=pick_      only tests whose name starts with "pick_"
 #   make test SANITIZE=thread  build library + tests with a sanitizer (thread, address, undefined)
 #   make clean
 #
 # Unit tests (tests/unit/) call library internals directly and link against
-# lib/libsk_headless.a, with no stubs. They don't open a window or touch the GPU.
+# build/headless/libsk.a, with no stubs. They don't open a window or touch the GPU.
 
 ROOT := ..
 
@@ -20,7 +20,7 @@ CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
 # Unit tests link the headless library: no window, GPU, audio device, or
 # GL/X11/ALSA libraries needed (runs in CI and with no display).
-LIB     := $(ROOT)/lib/libsk_headless.a
+LIB     := $(ROOT)/build/headless/libsk.a
 LDLIBS_PLATFORM := -ldl -lm -lpthread
 
 BUILD      := build

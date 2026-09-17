@@ -1,15 +1,26 @@
 # libsk CI: the same checks as a local "done" (see AGENTS.md), minus `make parity`
 # (needs a librl checkout) and WebGPU (needs a GPU).
+#
+# - desktop: every push and pull request (skipped for docs-only changes), daily,
+#   and on demand. Nothing waits on it; it catches clean-checkout problems (files
+#   not committed, new system dependencies).
+# - web: daily and on demand (Actions -> ci -> Run workflow), since web breakage
+#   from a clean environment is rare and `make webcheck` runs locally when web code
+#   changes.
 name: ci
 
 on:
   push:
     branches: [main]
+    paths-ignore: ["docs/**", "**/*.md"]
   pull_request:
+    paths-ignore: ["docs/**", "**/*.md"]
+  schedule:
+    - cron: "17 9 * * *" # daily, 09:17 UTC
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
@@ -36,22 +47,27 @@ jobs:
 
   web:
     name: web (WebGL2 build + browser check)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: actions/cache@v4
+        with:
+          path: emsdk-cache
+          key: emsdk-5.0.7-${{ runner.os }}
       - uses: mymindstorm/setup-emsdk@v14
         with:
           version: 5.0.7
           actions-cache-folder: emsdk-cache
       - name: Build and check in headless Chrome
-        run: make -C examples webcheck BACKEND=gl
+        run: make -C examples webcheck BACKEND=webgl2
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: webcheck-screenshots
-          path: examples/build/webcheck/gl
+          path: examples/build/webgl2/webcheck
           if-no-files-found: ignore

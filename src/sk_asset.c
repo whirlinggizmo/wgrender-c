@@ -488,6 +488,18 @@ void sk_asset_tick(void)
     }
 }
 
+/* Tasks not finished yet (queued, downloading or waiting on dependencies).
+ * Exported on web so tools/webcheck.mjs can tell when an example is done loading. */
+SK_KEEP
+int sk_asset_pending_count(void)
+{
+    int count = 0;
+    for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) {
+        count += sk_asset_occupied[i] ? 1 : 0;
+    }
+    return count;
+}
+
 void sk_asset_deinit(void)
 {
     sk_asset_ready = false;

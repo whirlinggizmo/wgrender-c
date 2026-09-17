@@ -41,13 +41,14 @@ make deps       # install them via apt / dnf / pacman (uses sudo)
 Then:
 
 ```sh
-make            # build lib/libsk.a
-make examples   # build examples/build/*
+make            # build build/desktop/libsk.a
+make examples   # build examples/build/desktop/*
 make run        # build + run the hello example
 make check      # enforce the "no backend leakage" invariant
 make test       # unit tests (tests/unit/; links the headless library)
-make smoke      # run every example headless (no window, GPU or audio) for ~3 s each
-make HEADLESS=1 # build lib/libsk_headless.a: sokol dummy GPU backend, no window or audio
+make smoke      # run every example headless (no window, GPU or audio) for ~3 s, in parallel
+make verify     # build + check + test + smoke (a few seconds): run before calling a change done
+make HEADLESS=1 # build build/headless/libsk.a: sokol dummy GPU backend, no window or audio
                 # headless apps run frames at 60/s until sk_request_quit(), or for
                 # SK_HEADLESS_FRAMES frames when that environment variable is set
 make clean
@@ -58,20 +59,23 @@ make clean
 Needs Emscripten on `PATH` (`source <emsdk>/emsdk_env.sh`).
 
 ```sh
-make wasm WASM_EXAMPLE=simple      # one example, WebGL2 (BACKEND=wgpu for WebGPU)
-make wasm-all                      # every example
+make wasm WASM_EXAMPLE=simple      # one example, WebGL2 (BACKEND=webgpu for WebGPU)
+make wasm-all                      # every example -> examples/build/webgl2/
 make serve                         # http://localhost:8000/ (assets mounted at /assets/)
 make webcheck                      # build all, load each in a browser, fail on errors
-make webcheck BACKEND=wgpu         # same for WebGPU (opens a visible browser window)
+make webcheck BACKEND=webgpu       # same for WebGPU (opens visible browser windows)
 ```
 
 `make webcheck` (`tools/webcheck.mjs`) needs Node >= 22 and a Chromium-based
-browser (Brave, Chrome or Chromium; override with `WEBCHECK_BROWSER`). It fails an
-example on console errors, exceptions, sokol panics, or a wrong/missing backend,
-and saves a screenshot of each to `examples/build/webcheck/<backend>/`. WebGL2
+browser (Brave, Chrome or Chromium; override with `WEBCHECK_BROWSER`). It checks
+four examples at a time, each in its own browser context, waits until each has
+finished loading its assets, and fails an example on console errors, libsk
+`[ERROR]`/`[FATAL]` logs, exceptions, sokol panics, a wrong/missing backend, or
+assets still loading after 20 s. It saves a screenshot of each to
+`examples/build/<backend>/webcheck/`. WebGL2
 runs headless; WebGPU needs a visible window because headless browsers have no
-GPU adapter. It catches crashes and errors, not missing content, so glance at the
-screenshots (slow assets like the 6 MB MP3 may still be loading). The browser and
+GPU adapter. It catches crashes, errors and unfinished loads, not wrong-looking
+output, so glance at the screenshots. The browser and
 server it starts are always stopped, even if Node crashes or is killed (process
 groups, a sweep by the run's unique profile directory, and a watchdog).
 

@@ -7,13 +7,16 @@
 #   make                       build all desktop examples (build/desktop/)
 #   make run                   build + run hello
 #   make wasm                  WebGL2 (SOKOL_GLES3), example=hello
-#   make wasm BACKEND=wgpu     WebGPU (SOKOL_WGPU, emdawnwebgpu port)
+#   make wasm BACKEND=webgpu   WebGPU (SOKOL_WGPU, emdawnwebgpu port)
 #   make wasm WASM_EXAMPLE=model
 #   make wasm-all              build every example for web
-#   make serve                 static-serve build/web at :8000
+#   make serve [BACKEND=...]   static-serve build/<backend> at :8000
 #   make smoke                 build every example headless and run each briefly
 #   make webcheck              build all for web, load each in a browser, fail on errors
-#   make webcheck BACKEND=wgpu (WebGPU runs in a visible browser window)
+#   make webcheck BACKEND=webgpu (WebGPU runs in a visible browser window)
+#
+# Outputs, one directory per target: build/desktop, build/headless, and the web
+# sites build/webgl2 and build/webgpu (each with obj/ and webcheck/ screenshots).
 #   make clean
 
 UNAME_S := $(shell uname -s)
@@ -31,7 +34,7 @@ INCS    += -isystem $(ROOT)/deps/sokol -isystem $(ROOT)/deps/stb \
            -isystem $(ROOT)/deps/cgltf
 CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
-LIB     := $(ROOT)/lib/libsk.a
+LIB     := $(ROOT)/build/desktop/libsk.a
 
 ifeq ($(UNAME_S),Linux)
   LDLIBS_PLATFORM := -lGL -lX11 -lXi -lXcursor -lasound -ldl -lm -lpthread
@@ -59,7 +62,7 @@ $(BUILD_DESKTOP):
 	mkdir -p $(BUILD_DESKTOP)
 
 $(BUILD_DESKTOP)/%: %.c $(LIB) | $(BUILD_DESKTOP)
-	$(CC) $(CFLAGS) $< -o $@ -L$(ROOT)/lib -lsk $(LDLIBS_PLATFORM)
+	$(CC) $(CFLAGS) $< -o $@ $(LIB) $(LDLIBS_PLATFORM)
 
 run: $(BUILD_DESKTOP)/hello
 	./$(BUILD_DESKTOP)/hello
@@ -68,10 +71,10 @@ print-ldlibs:
 	@echo $(LDLIBS_PLATFORM)
 
 # --- headless (no window, GPU or audio device) -------------------------------
-# Same example sources linked against lib/libsk_headless.a; runs anywhere, e.g.
+# Same example sources linked against build/headless/libsk.a; runs anywhere, e.g.
 # CI or with the displays asleep. tools/smoke.sh runs each for SMOKE_FRAMES frames.
 BUILD_HEADLESS  := build/headless
-HEADLESS_LIB    := $(ROOT)/lib/libsk_headless.a
+HEADLESS_LIB    := $(ROOT)/build/headless/libsk.a
 HEADLESS_BINS   := $(patsubst %.c,$(BUILD_HEADLESS)/%,$(SRCS))
 LDLIBS_HEADLESS := -ldl -lm -lpthread
 SMOKE_FRAMES    ?= 180
@@ -91,21 +94,32 @@ smoke: headless
 	@$(ROOT)/tools/smoke.sh $(SMOKE_FRAMES) $(HEADLESS_BINS)
 
 # --- wasm (emscripten; WebGL2 or WebGPU) ------------------------------------
-# Requires emcc on PATH (source your emsdk_env.sh first). The whole lib is
-# compiled into each bundle (emcc, no static .a reuse), so no lib prereq here.
+# Each backend has its own directory, build/webgl2 or build/webgpu: the site
+# (index.html, examples.json, <example>.js/.wasm), obj/ (the library compiled once,
+# with header dependency tracking, plus example objects) and webcheck/ screenshots.
+# Everything builds in parallel and only what changed rebuilds.
 EMCC         ?= emcc
-BUILD_WEB    := build/web
+BACKEND      ?= webgl2
+ifeq ($(filter $(BACKEND),webgl2 webgpu),)
+  $(error BACKEND must be webgl2 or webgpu (got '$(BACKEND)'))
+endif
+BUILD_WEB    := build/$(BACKEND)
 WEB_SHELL    := web/index.html
 WASM_EXAMPLE ?= hello
-BACKEND      ?= gl
+NPROC        := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 LIB_SRCS     := $(wildcard $(ROOT)/src/*.c)
-ifeq ($(BACKEND),wgpu)
-  WASM_DEFS         := -DSOKOL_WGPU
+WEB_OBJ_DIR  := $(BUILD_WEB)/obj
+WEB_LIB_OBJS := $(patsubst $(ROOT)/src/%.c,$(WEB_OBJ_DIR)/lib/%.o,$(LIB_SRCS))
+WEB_EX_OBJS  := $(patsubst %.c,$(WEB_OBJ_DIR)/examples/%.o,$(SRCS))
+WEB_BUNDLES  := $(patsubst %.c,$(BUILD_WEB)/%.js,$(SRCS))
+ifeq ($(BACKEND),webgpu)
+  WASM_DEFS         := -DSOKOL_WGPU --use-port=emdawnwebgpu # the port provides webgpu/webgpu.h
   WASM_BACKEND_LINK := --use-port=emdawnwebgpu
 else
   WASM_DEFS         := -DSOKOL_GLES3
   WASM_BACKEND_LINK := -sUSE_WEBGL2=1
 endif
+WASM_CFLAGS := $(STD) $(WARN) $(OPT) $(WASM_DEFS) $(INCS) -MMD -MP
 # idbfs for persistent storage; FORCE_FILESYSTEM so the FS/IDBFS JS is linked;
 # grow memory for assets. (No -sJSPI: sapp_run owns the loop, so we can't suspend
 # in callbacks — sk_fs restore is a polled barrier, not an await. See PLAN-sk_fs.)
@@ -119,28 +133,37 @@ define wasm_deploy
 	@cd $(BUILD_WEB) && printf '[%s]\n' \
 	    "$$(ls *.js 2>/dev/null | sed 's/\.js$$//;s/^/"/;s/$$/"/' | paste -sd, -)" \
 	    > examples.json
-	@echo "deployed $(BUILD_WEB) ($(BACKEND)) — 'make serve' then open http://localhost:8000/"
+	@echo "deployed $(BUILD_WEB) — 'make serve BACKEND=$(BACKEND)' then open http://localhost:8000/"
 endef
 
 $(BUILD_WEB):
 	mkdir -p $(BUILD_WEB)
 
-wasm: | $(BUILD_WEB)
-	$(EMCC) $(STD) $(WARN) $(OPT) $(WASM_DEFS) $(INCS) \
-	    $(LIB_SRCS) $(WASM_EXAMPLE).c \
-	    $(WASM_LINK) -o $(BUILD_WEB)/$(WASM_EXAMPLE).js
+$(WEB_OBJ_DIR)/lib/%.o: $(ROOT)/src/%.c
+	@mkdir -p $(dir $@)
+	@echo "  emcc[$(BACKEND)]: $<"
+	@$(EMCC) $(WASM_CFLAGS) -c $< -o $@
+
+$(WEB_OBJ_DIR)/examples/%.o: %.c
+	@mkdir -p $(dir $@)
+	@$(EMCC) $(WASM_CFLAGS) -c $< -o $@
+
+$(BUILD_WEB)/%.js: $(WEB_OBJ_DIR)/examples/%.o $(WEB_LIB_OBJS)
+	@echo "  wasm[$(BACKEND)]: $*"
+	@$(EMCC) $(WEB_OBJ_DIR)/examples/$*.o $(WEB_LIB_OBJS) $(WASM_LINK) -o $@
+
+-include $(WEB_LIB_OBJS:.o=.d) $(WEB_EX_OBJS:.o=.d)
+
+wasm:
+	@$(MAKE) --no-print-directory -j$(NPROC) $(BUILD_WEB)/$(WASM_EXAMPLE).js
 	$(wasm_deploy)
 
-wasm-all: | $(BUILD_WEB)
-	@for ex in $(patsubst %.c,%,$(SRCS)); do \
-	    echo "  wasm[$(BACKEND)]: $$ex"; \
-	    $(EMCC) $(STD) $(WARN) $(OPT) $(WASM_DEFS) $(INCS) \
-	        $(LIB_SRCS) $$ex.c $(WASM_LINK) -o $(BUILD_WEB)/$$ex.js || exit 1; \
-	done
+wasm-all:
+	@$(MAKE) --no-print-directory -j$(NPROC) $(WEB_BUNDLES)
 	$(wasm_deploy)
 
 serve:
-	@python3 $(ROOT)/tools/serve.py 8000
+	@python3 $(ROOT)/tools/serve.py 8000 $(BUILD_WEB)
 
 # Web smoke check (tools/webcheck.mjs): needs Node >= 22 and a Chromium-based
 # browser (Brave/Chrome/Chromium). Extra options: WEBCHECK_FLAGS="--headed pick".

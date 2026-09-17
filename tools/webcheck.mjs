@@ -1,21 +1,29 @@
 #!/usr/bin/env node
 // Web smoke check for the libsk examples (`make webcheck`).
 //
-// Serves examples/build/web with tools/serve.py, loads each built example in a
+// Serves examples/build/<backend> with tools/serve.py, loads each built example in a
 // Chromium-based browser (Brave, Chrome, Chromium) through the DevTools
-// protocol, and fails an example if it logs a console error, throws, hits a
-// sokol panic, or never reports starting on the expected backend. A screenshot
+// protocol, and fails an example if it logs a console error or a libsk
+// [ERROR]/[FATAL] line, throws, hits a sokol panic, never reports starting on the
+// expected backend, or is still loading assets when its time runs out. A screenshot
 // of every example is saved for a visual check.
 //
 // No npm dependencies: needs Node >= 22 (built-in fetch and WebSocket).
 //
 //   node tools/webcheck.mjs [options] [example ...]     (default: all built examples)
 //
-//   --backend=gl|wgpu   backend the build was made with (default gl)
+//   --backend=webgl2|webgpu  backend to check (default webgl2); the site is
+//                       examples/build/<backend>
 //   --headed            show the browser window. WebGPU always runs headed:
 //                       headless browsers have no GPU adapter.
-//   --settle=MS         time each example runs before it is checked (default 5000)
-//   --out=DIR           screenshot directory (default examples/build/webcheck/<backend>)
+//   --settle=MS         longest an example runs before it is checked (default 20000). An
+//                       example is checked once it has started, has no asset tasks
+//                       pending (libsk's queue) and no network requests in flight, and
+//                       has run --quiet ms since the last of those changed
+//   --quiet=MS          (default 1500)
+//   --jobs=N            examples checked at once (default 4). Each example has its own
+//                       browser context (own storage; its own window when headed)
+//   --out=DIR           screenshot directory (default examples/build/<backend>/webcheck)
 //   --browser=PATH      browser executable (or WEBCHECK_BROWSER; default: first
 //                       found of brave-browser-stable, google-chrome-stable,
 //                       google-chrome, chromium, chromium-browser)
@@ -33,20 +41,22 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const SITE = join(ROOT, "examples", "build", "web");
-const BACKEND_LOG = { gl: "GLES3/WebGL2 backend", wgpu: "WebGPU backend" };
+const BACKEND_LOG = { webgl2: "GLES3/WebGL2 backend", webgpu: "WebGPU backend" };
 const BROWSERS = ["brave-browser-stable", "google-chrome-stable", "google-chrome", "chromium", "chromium-browser"];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function parseArgs(argv) {
-    const opts = { backend: "gl", headed: false, settle: 5000, out: null, browser: process.env.WEBCHECK_BROWSER, examples: [] };
+    const opts = { backend: "webgl2", headed: false, settle: 20000, quiet: 1500, jobs: 0, out: null,
+                   browser: process.env.WEBCHECK_BROWSER, examples: [] };
     for (const arg of argv) {
         const [key, value] = arg.split(/=(.*)/s);
         switch (key) {
             case "--backend": opts.backend = value; break;
             case "--headed": opts.headed = true; break;
             case "--settle": opts.settle = Number(value); break;
+            case "--quiet": opts.quiet = Number(value); break;
+            case "--jobs": opts.jobs = Number(value); break;
             case "--out": opts.out = value; break;
             case "--browser": opts.browser = value; break;
             default:
@@ -54,9 +64,11 @@ function parseArgs(argv) {
                 opts.examples.push(arg);
         }
     }
-    if (!(opts.backend in BACKEND_LOG)) throw new Error(`--backend must be gl or wgpu, got '${opts.backend}'`);
-    if (opts.backend === "wgpu") opts.headed = true;
-    opts.out ??= join(ROOT, "examples", "build", "webcheck", opts.backend);
+    if (!(opts.backend in BACKEND_LOG)) throw new Error(`--backend must be webgl2 or webgpu, got '${opts.backend}'`);
+    if (opts.backend === "webgpu") opts.headed = true;
+    opts.site = join(ROOT, "examples", "build", opts.backend);
+    if (!(opts.jobs >= 1)) opts.jobs = 4;
+    opts.out ??= join(opts.site, "webcheck");
     return opts;
 }
 
@@ -121,19 +133,34 @@ async function openSession(wsUrl) {
     };
 }
 
-async function checkExample(debugBase, baseUrl, example, opts) {
+async function checkExample(browser, debugBase, baseUrl, example, opts) {
     const result = { example, errors: [], started: false, backendOk: false, screenshot: null };
-    const target = await (await fetch(`${debugBase}/json/new?about:blank`, { method: "PUT" })).json();
-    const session = await openSession(target.webSocketDebuggerUrl);
+    /* Each example gets its own browser context (separate storage, like a fresh
+     * profile), so examples checked at the same time don't share the IndexedDB
+     * file cache and can't slow or affect each other. */
+    const { browserContextId } = await browser.send("Target.createBrowserContext", { disposeOnDetach: true });
+    const { targetId } = await browser.send("Target.createTarget", { url: "about:blank", browserContextId });
+    const session = await openSession(`ws://${new URL(debugBase).host}/devtools/page/${targetId}`);
     try {
+        const inflight = new Set();
+        let lastActivity = Date.now();
         session.onEvent((msg) => {
-            if (msg.method === "Runtime.consoleAPICalled") {
+            if (msg.method === "Network.requestWillBeSent") {
+                inflight.add(msg.params.requestId);
+                lastActivity = Date.now();
+            } else if (msg.method === "Network.loadingFinished" || msg.method === "Network.loadingFailed") {
+                inflight.delete(msg.params.requestId);
+                lastActivity = Date.now();
+            } else if (msg.method === "Runtime.consoleAPICalled") {
                 const text = msg.params.args.map((a) => a.value ?? a.description ?? "").join(" ");
                 if (text.includes("libsk:") && text.includes("backend")) {
                     result.started = true;
+                    lastActivity = Date.now();
                     result.backendOk ||= text.includes(BACKEND_LOG[opts.backend]);
                 }
-                if (msg.params.type === "error" || text.includes("[panic]")) {
+                /* libsk logs go to the console as plain messages: fail on error-level
+                 * ones like tools/smoke.sh does ([ERROR], [FATAL]) */
+                if (msg.params.type === "error" || text.includes("[panic]") || /\[(ERROR|FATAL)/.test(text)) {
                     result.errors.push(text.trim().split("\n")[0]);
                 }
             } else if (msg.method === "Runtime.exceptionThrown") {
@@ -143,14 +170,35 @@ async function checkExample(debugBase, baseUrl, example, opts) {
         });
         await session.send("Runtime.enable");
         await session.send("Page.enable");
+        await session.send("Network.enable");
+        const deadline = Date.now() + opts.settle;
         await session.send("Page.navigate", { url: `${baseUrl}/?ex=${encodeURIComponent(example)}` });
-        await sleep(opts.settle);
+        /* Wait until the example has started, its asset downloads are done, and it has
+         * run for a while since (errors from loading show up in that window), or until
+         * the deadline, whichever comes first. */
+        let pending = -1;
+        while (Date.now() < deadline) {
+            const { result: value } = await session.send("Runtime.evaluate", {
+                expression: "typeof Module !== 'undefined' && Module._sk_asset_pending_count ? Module._sk_asset_pending_count() : -1",
+                returnByValue: true,
+            });
+            if (value.value !== pending) {
+                pending = value.value;
+                lastActivity = Date.now();
+            }
+            if (result.started && pending === 0 && inflight.size === 0 && Date.now() - lastActivity >= opts.quiet) {
+                break;
+            }
+            await sleep(100);
+        }
+        result.pending = pending;
         const shot = await session.send("Page.captureScreenshot", { format: "png" });
         result.screenshot = join(opts.out, `${example}.png`);
         writeFileSync(result.screenshot, Buffer.from(shot.data, "base64"));
     } finally {
         session.close();
-        await fetch(`${debugBase}/json/close/${target.id}`).catch(() => {});
+        await browser.send("Target.closeTarget", { targetId }).catch(() => {});
+        await browser.send("Target.disposeBrowserContext", { browserContextId }).catch(() => {});
     }
     return result;
 }
@@ -251,9 +299,9 @@ async function main() {
         throw new Error(`Node ${process.version} has no built-in WebSocket; webcheck needs Node >= 22`);
     }
     const opts = parseArgs(process.argv.slice(2));
-    const manifest = join(SITE, "examples.json");
+    const manifest = join(opts.site, "examples.json");
     if (!existsSync(manifest)) {
-        throw new Error(`no web build at ${SITE} (run 'make wasm-all BACKEND=${opts.backend}' first)`);
+        throw new Error(`no web build at ${opts.site} (run 'make wasm-all BACKEND=${opts.backend}' first)`);
     }
     const built = JSON.parse(readFileSync(manifest, "utf8"));
     const examples = opts.examples.length ? opts.examples : built;
@@ -275,7 +323,7 @@ async function main() {
 
     try {
         const sitePort = await freePort();
-        run.spawn("python3", [join(ROOT, "tools", "serve.py"), String(sitePort)]);
+        run.spawn("python3", [join(ROOT, "tools", "serve.py"), String(sitePort), opts.site]);
         const baseUrl = `http://127.0.0.1:${sitePort}`;
         await waitFor(`${baseUrl}/examples.json`, "tools/serve.py");
 
@@ -292,20 +340,35 @@ async function main() {
             "about:blank",
         ]);
         const debugBase = `http://127.0.0.1:${debugPort}`;
-        await waitFor(`${debugBase}/json/version`, "browser");
+        const version = await (await waitFor(`${debugBase}/json/version`, "browser")).json();
+        const browser = await openSession(version.webSocketDebuggerUrl);
 
         console.log(`webcheck: ${examples.length} example(s), backend ${opts.backend}, ` +
-                    `${opts.headed ? "headed" : "headless"}, ${browserPath}`);
-        let failed = 0;
-        for (const example of examples) {
-            const r = await checkExample(debugBase, baseUrl, example, opts);
-            const problems = [...r.errors];
-            if (!r.started) problems.push("never logged its backend (did not start?)");
-            else if (!r.backendOk) problems.push(`started on a different backend than '${opts.backend}' (stale build?)`);
-            if (problems.length) failed++;
-            console.log(`  ${problems.length ? "FAIL" : "ok  "}  ${example}`);
-            for (const p of problems) console.log(`          ${p}`);
-        }
+                    `${opts.headed ? "headed" : "headless"}, ${opts.jobs} at a time, ${browserPath}`);
+        /* check `jobs` examples at a time; report in order as results complete */
+        const results = new Array(examples.length);
+        let next = 0, reported = 0, failed = 0;
+        const report = () => {
+            while (reported < examples.length && results[reported]) {
+                const r = results[reported++];
+                const problems = [...r.errors];
+                if (!r.started) problems.push("never logged its backend (did not start?)");
+                else if (r.pending !== 0) problems.push(`still loading after ${opts.settle} ms (${r.pending} asset task(s) pending)`);
+                else if (!r.backendOk) problems.push(`started on a different backend than '${opts.backend}' (stale build?)`);
+                if (problems.length) failed++;
+                console.log(`  ${problems.length ? "FAIL" : "ok  "}  ${r.example}`);
+                for (const p of problems) console.log(`          ${p}`);
+            }
+        };
+        const worker = async () => {
+            while (next < examples.length) {
+                const index = next++;
+                results[index] = await checkExample(browser, debugBase, baseUrl, examples[index], opts);
+                report();
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(opts.jobs, examples.length) }, worker));
+        browser.close();
         console.log(`screenshots: ${opts.out}`);
         console.log(failed ? `FAIL: ${failed} of ${examples.length} example(s)` : `PASS: ${examples.length} example(s)`);
         return failed ? 1 : 0;

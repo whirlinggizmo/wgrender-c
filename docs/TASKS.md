@@ -11,18 +11,26 @@ tick the box in the same commit.
 ## Infrastructure
 
 - [x] `make parity`: librl → libsk API parity report (`tools/parity.sh`, `tools/parity.map`)
-- [x] Unit test setup: `make test`, `tests/unit/` (no stubs, links lib/libsk.a);
+- [x] Unit test setup: `make test`, `tests/unit/` (no stubs, links the headless library);
       first tests cover the handle pool, matrix math, picking math and the
       transparent sort. They found two pick-normal bugs (fixed)
 - [ ] Unit tests: `sk_fs` / asset bookkeeping, scene layers and ordering, sprite
       alpha-test picking, animation sampling, text2d state, render command-list
       merging
 - [x] Sanitizer test builds: `make test SANITIZE=thread|address|undefined` (TSan in CI)
+- [x] Faster checks (2026-09-16): `make verify` (~5 s incremental); smoke runs examples
+      in parallel (46 s → 4 s); web library compiles once per backend, examples link
+      against it (92 s → 2 s cold); webcheck checks 4 examples at a time in isolated
+      browser contexts and waits for loading to finish instead of a fixed 5 s
+      (78 s → 12 s WebGL2, ~100 s → 29 s WebGPU); CI caches emsdk and skips
+      docs-only changes. Negative-tested: crashes, hangs, panics, error logs,
+      missing assets, stale backend builds and unfinished loads all still fail.
+      webcheck now also fails on libsk [ERROR]/[FATAL] logs (it missed them before)
 - [ ] Later: wasm-side unit tests when web-only code needs them
 - [x] CI (GitHub Actions, `.github/workflows/ci.yml`): desktop build, `make check`,
       `make test`, `make smoke`; web build + `make webcheck` (WebGL2, headless Chrome)
       with screenshots as an artifact
-- [x] Null / headless renderer: `make HEADLESS=1` builds `lib/libsk_headless.a`
+- [x] Null / headless renderer: `make HEADLESS=1` builds `build/headless/libsk.a`
       (sokol dummy GPU backend, no window or audio device, no GL/X11/ALSA link
       deps) behind an internal `sk_platform` layer; frames run paced at 60/s
       until `sk_request_quit` or `SK_HEADLESS_FRAMES`. Unit tests link it

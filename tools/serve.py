@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Dev server for the libsk web build (stdlib only; cross-platform).
 
-Serves the built site (examples/build/web/) at / and *mounts* the shared asset
+Serves a built site (examples/build/webgl2/ or webgpu/) at / and *mounts* the shared asset
 tree (examples/assets/) at /assets/ — so assets are never copied or symlinked into
 the site. Single source of truth, works on Windows/macOS/Linux. This mirrors the
 web asset host "/assets/" (the same logical path the desktop fs resolves locally).
 
-    python3 tools/serve.py [port]      # default 8000
+    python3 tools/serve.py [port] [site]   # default 8000, examples/build/webgl2
 """
 import http.server
 import os
@@ -15,7 +15,7 @@ import sys
 import urllib.parse
 
 ROOT   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SITE   = os.path.join(ROOT, "examples", "build", "web")
+SITE   = os.path.abspath(sys.argv[2]) if len(sys.argv) > 2 else os.path.join(ROOT, "examples", "build", "webgl2")
 ASSETS = os.path.join(ROOT, "examples", "assets")
 PORT   = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
 
@@ -108,5 +108,5 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    print(f"libsk: http://localhost:{PORT}/  (web/ at /, examples/assets/ mounted at /assets/)")
+    print(f"libsk: http://localhost:{PORT}/  ({SITE} at /, examples/assets/ mounted at /assets/)")
     http.server.HTTPServer(("", PORT), Handler).serve_forever()

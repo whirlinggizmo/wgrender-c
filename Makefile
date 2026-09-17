@@ -5,7 +5,7 @@
 # `$(MAKE) -C examples`, and the examples build depends back on this lib.
 #
 # Targets:
-#   make            build static lib (lib/libsk.a)
+#   make            build static lib (build/desktop/libsk.a)
 #   make examples   build example programs        (-> examples/Makefile)
 #   make run        build + run the hello example  (-> examples/Makefile)
 #   make wasm[-all] build the web examples         (-> examples/Makefile)
@@ -14,9 +14,13 @@
 #   make shaders    regenerate shdc shader headers
 #   make check      naming / backend-leak guardrails
 #   make test       build and run unit tests        (-> tests/Makefile)
+#   make verify     build + check + test + smoke: run before calling a change done
 #   make deps       install system build deps (ALSA/GL/X11 dev packages)
 #   make parity     librl -> libsk API parity report (LIBRL_DIR=../librl)
-#   make HEADLESS=1 headless lib (lib/libsk_headless.a): no window, GPU or audio
+#   make HEADLESS=1 headless lib (build/headless/libsk.a): no window, GPU or audio
+#
+# Build outputs live in one directory per target: build/desktop, build/headless
+# (library objects + libsk.a) and examples/build/{desktop,headless,webgl2,webgpu}.
 #   make smoke      run every example headless for a few seconds (-> examples)
 #   make clean
 
@@ -42,34 +46,30 @@ INCS    += -isystem deps/sokol -isystem deps/stb -isystem deps/fontstash \
            -isystem deps/dr -isystem deps/cgltf
 CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
-LIBDIR  := lib
 ifeq ($(HEADLESS),1)
-  BUILD := build/headless
-  LIB   := $(LIBDIR)/libsk_headless.a
+  TARGET := headless
   DEPS_CHECK :=
 else
-  BUILD := build
-  LIB   := $(LIBDIR)/libsk.a
+  TARGET := desktop
   DEPS_CHECK := deps-check
 endif
+BUILD   := build/$(TARGET)
+LIB     := $(BUILD)/libsk.a
 
 SRCS    := $(wildcard src/*.c)
-OBJS    := $(patsubst src/%.c,$(BUILD)/%.o,$(SRCS))
+OBJS    := $(patsubst src/%.c,$(BUILD)/obj/%.o,$(SRCS))
 
-.PHONY: all examples run clean check test smoke wasm wasm-all serve webcheck shaders deps deps-check parity
+.PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check parity
 
 all: $(LIB)
 
-$(BUILD):
-	mkdir -p $(BUILD)
+$(BUILD)/obj:
+	mkdir -p $(BUILD)/obj
 
-$(LIBDIR):
-	mkdir -p $(LIBDIR)
-
-$(BUILD)/%.o: src/%.c | $(BUILD) $(DEPS_CHECK)
+$(BUILD)/obj/%.o: src/%.c | $(BUILD)/obj $(DEPS_CHECK)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(LIB): $(OBJS) | $(LIBDIR)
+$(LIB): $(OBJS)
 	$(AR) rcs $@ $(OBJS)
 	@echo "built $@"
 
@@ -95,6 +95,18 @@ run wasm wasm-all serve webcheck smoke:
 # --- tests (delegated to tests/Makefile) -------------------------------------
 test:
 	@$(MAKE) --no-print-directory -C tests test
+
+# Everything to run before calling a change done (AGENTS.md): library, examples,
+# guardrails, unit tests and the headless smoke test. Add `make webcheck` (and
+# BACKEND=webgpu) when touching rendering, assets or web code.
+NPROC := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+verify:
+	@$(MAKE) --no-print-directory -j$(NPROC) all
+	@$(MAKE) --no-print-directory -C examples -j$(NPROC)
+	@$(MAKE) --no-print-directory check
+	@$(MAKE) --no-print-directory test
+	@$(MAKE) --no-print-directory smoke
+	@echo "verify: PASS"
 
 # --- shaders (sokol-shdc) ---------------------------------------------------
 # Regenerates the committed *.glsl.h (GL core, WebGL2, WebGPU) from annotated
@@ -126,6 +138,6 @@ parity:
 	@LIBRL_DIR=$(LIBRL_DIR) tools/parity.sh $(PARITY_FLAGS)
 
 clean:
-	rm -rf $(BUILD) $(LIBDIR)
+	rm -rf build
 	@$(MAKE) -C examples clean
 	@$(MAKE) -C tests clean
