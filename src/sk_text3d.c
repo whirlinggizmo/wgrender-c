@@ -343,6 +343,7 @@ void sk_text3d_destroy(sk_handle_t handle)
 {
     sk_text3d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL) return;
+    sk_scene_forget(handle);
     free(text_ptr->text);
     sk_font_release(text_ptr->font);
     memset(text_ptr, 0, sizeof(*text_ptr));

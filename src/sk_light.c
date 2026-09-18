@@ -9,6 +9,7 @@
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_light.h"
+#include "internal/sk_scene.h"
 #include "sk_logger.h"
 
 #define LIGHTS_INITIAL 32 /* slots to start with; the pool doubles as needed */
@@ -97,6 +98,7 @@ SK_KEEP
 void sk_light_destroy(sk_handle_t light)
 {
     if (resolve(light) != NULL) {
+        sk_scene_forget(light);
         sk_handle_pool_free(&sk_light_pool, light);
     }
 }

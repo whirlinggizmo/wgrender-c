@@ -42,6 +42,10 @@ typedef int (*sk_drawable_collect_transparent_fn)(sk_handle_t handle, const sk_c
                                                   sk_transparent_item_t *out, int max_items);
 typedef void (*sk_drawable_draw_transparent_fn)(sk_handle_t handle, int part);
 
+/* An object is being destroyed: take it out of every scene (members, hover and press
+ * state, the active camera). Every object's destroy calls this. */
+void sk_scene_forget(sk_handle_t object);
+
 void sk_scene_register_passes(sk_handle_kind_t kind,
                               sk_drawable_draw_opaque_fn draw_opaque,
                               sk_drawable_collect_transparent_fn collect_transparent,

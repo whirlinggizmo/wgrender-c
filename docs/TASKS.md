@@ -207,6 +207,9 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 - [x] High-DPI by default (2026-09-18): windows render at the display's full
       resolution; `SK_WINDOW_FLAG_LOW_DPI` opts out (fewer pixels to fill).
       Replaces `SK_WINDOW_FLAG_WINDOW_HIGHDPI`
+- [x] Destroying an object takes it out of every scene (2026-09-18): members, hover
+      and press state, and a scene's camera. It used to stay as a stale handle that
+      warned on every draw
 - [ ] Touch later: long-press and swipe/fling recognizers if a game wants them;
       pinch from desktop trackpads (browsers send it as ctrl + wheel)
 - [ ] Native iOS / Android: long stretch goal. sokol supports both (Metal/GLES3,

@@ -5,6 +5,7 @@
 #include "internal/exports.h"
 #include "internal/sk_camera3d.h"
 #include "internal/sk_handle_pool.h"
+#include "internal/sk_scene.h"
 #include "sk_logger.h"
 
 #define CAMERAS_INITIAL 16 /* slots to start with; the pool doubles as needed */
@@ -169,6 +170,7 @@ void sk_camera3d_destroy(sk_handle_t handle)
     if (sk_active_camera == handle) {
         sk_active_camera = SK_CAMERA3D_DEFAULT;
     }
+    sk_scene_forget(handle); /* scenes using it fall back to the active camera */
     sk_cameras[index] = (sk_camera3d_t){0};
     sk_handle_pool_free(&sk_camera_pool, handle);
 }

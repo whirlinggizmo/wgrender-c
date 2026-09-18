@@ -202,6 +202,7 @@ void sk_shape2d_destroy(sk_handle_t shape)
     if (shape_ptr == NULL) {
         return;
     }
+    sk_scene_forget(shape);
     *shape_ptr = (sk_shape2d_t){0};
     sk_handle_pool_free(&sk_shape2d_pool, shape);
 }

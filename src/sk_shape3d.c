@@ -289,6 +289,7 @@ void sk_shape3d_destroy(sk_handle_t shape)
     if (shape_ptr == NULL) {
         return;
     }
+    sk_scene_forget(shape);
     free(shape_ptr->points);
     *shape_ptr = (sk_shape3d_t){0};
     sk_handle_pool_free(&sk_shape3d_pool, shape);

@@ -17,6 +17,9 @@ extern "C" {
 sk_handle_t sk_scene_create(void);
 void        sk_scene_destroy(sk_handle_t scene);
 
+/* Members are objects; a scene doesn't own them. Destroying an object takes it out of
+ * every scene it's in (and out of their hover and press state); destroying a camera
+ * makes the scenes using it fall back to the active camera. */
 bool sk_scene_add(sk_handle_t scene, sk_handle_t drawable, int layer);
 bool sk_scene_set_layer(sk_handle_t scene, sk_handle_t drawable, int layer);
 bool sk_scene_remove(sk_handle_t scene, sk_handle_t drawable);

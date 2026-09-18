@@ -141,7 +141,7 @@ deps:
 # (BACKEND=, WASM_EXAMPLE=) propagate to the sub-make automatically.
 examples:
 	@$(MAKE) -C examples
-run wasm wasm-all websize serve serve-tls webcheck smoke:
+run wasm wasm-all websize serve serve-tls spritebench-web webcheck smoke:
 	@$(MAKE) -C examples $@
 
 # --- tests (delegated to tests/Makefile) -------------------------------------
@@ -179,33 +179,23 @@ else
 endif
 
 # --- sprite benchmark (tools/bench) ------------------------------------------
-# Sprite-heavy scenes: frame time and sokol_gl's per-frame vertex and command use as
-# sprite counts grow (pools and budgets grow with them). Runs twice: against the
-# normal library, then one whose sokol_gl budgets start large instead of growing
-# (BENCH_DEFS, in its own <target>-bench build directory). Headless by default (CPU only); DESKTOP=1 uses
-# the desktop build with vsync off.
-SPRITEBENCH_DEFS := -DSK_SGL_VERTICES=262144 -DSK_SGL_COMMANDS=65536
+# Sprite-heavy scenes (a grid, a perspective field with mixed facings, 3D and 2D
+# particles): frame time and CPU split into update / scene / submit, with sokol_gl's
+# vertex and command use. Headless by default (CPU only); DESKTOP=1 uses the desktop
+# build with vsync off. `make spritebench-web` builds it as a web page (examples/Makefile).
 SPRITEBENCH_INCS := -Iinclude -isystem deps/sokol
 spritebench:
 ifeq ($(DESKTOP),1)
 	@$(MAKE) --no-print-directory -j$(NPROC) all
-	@$(MAKE) --no-print-directory -j$(NPROC) all BENCH_DEFS="$(SPRITEBENCH_DEFS)"
 	@libs="$$($(MAKE) --no-print-directory -s -C examples print-ldlibs)"; \
 	$(CC) $(STD) -O2 -DSOKOL_GLCORE $(SPRITEBENCH_INCS) tools/bench/spritebench.c build/desktop/libsk.a \
-	    $$libs -lm -o build/desktop/spritebench && \
-	$(CC) $(STD) -O2 -DSOKOL_GLCORE $(SPRITEBENCH_DEFS) $(SPRITEBENCH_INCS) tools/bench/spritebench.c \
-	    build/desktop-bench/libsk.a $$libs -lm -o build/desktop-bench/spritebench
+	    $$libs -lm -o build/desktop/spritebench
 	@build/desktop/spritebench 2>/dev/null
-	@build/desktop-bench/spritebench 2>/dev/null
 else
 	@$(MAKE) --no-print-directory -j$(NPROC) all HEADLESS=1
-	@$(MAKE) --no-print-directory -j$(NPROC) all HEADLESS=1 BENCH_DEFS="$(SPRITEBENCH_DEFS)"
 	@$(CC) $(STD) -O2 -DSK_HEADLESS -DSOKOL_DUMMY_BACKEND $(SPRITEBENCH_INCS) tools/bench/spritebench.c \
 	    build/headless/libsk.a -ldl -lm -lpthread -o build/headless/spritebench
-	@$(CC) $(STD) -O2 -DSK_HEADLESS -DSOKOL_DUMMY_BACKEND $(SPRITEBENCH_DEFS) $(SPRITEBENCH_INCS) \
-	    tools/bench/spritebench.c build/headless-bench/libsk.a -ldl -lm -lpthread -o build/headless-bench/spritebench
 	@build/headless/spritebench 2>/dev/null
-	@build/headless-bench/spritebench 2>/dev/null
 endif
 
 # --- shaders (sokol-shdc) ---------------------------------------------------

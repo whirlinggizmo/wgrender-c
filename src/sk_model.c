@@ -2248,6 +2248,7 @@ SK_KEEP void sk_model_destroy(sk_handle_t handle)
     sk_model_t *model_ptr = resolve(handle);
     sk_handle_t mesh;
     if (model_ptr == NULL) return;
+    sk_scene_forget(handle);
     mesh = model_ptr->mesh;
     for (int m = 0; m < SK_MAX_MATERIAL_SLOTS; m++) {
         sk_material_release(model_ptr->materials[m]); /* no-op for 0 */

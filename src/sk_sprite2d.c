@@ -354,6 +354,7 @@ void sk_sprite2d_destroy(sk_handle_t sprite)
     if (sprite_ptr == NULL) {
         return;
     }
+    sk_scene_forget(sprite);
     if (sprite_ptr->texture != 0) {
         sk_texture_release(sprite_ptr->texture);
     }

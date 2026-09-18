@@ -419,6 +419,34 @@ bool sk_scene_remove(sk_handle_t scene, sk_handle_t drawable)
     return true;
 }
 
+void sk_scene_forget(sk_handle_t object)
+{
+    if (object == 0) {
+        return;
+    }
+    for (uint16_t i = 1; i < sk_scene_pool.capacity; i++) {
+        sk_scene_t *scene_ptr = &sk_scenes[i];
+        int idx;
+        if (!sk_scene_pool.occupied[i]) {
+            continue;
+        }
+        while ((idx = find_entry(scene_ptr, object)) >= 0) {
+            memmove(&scene_ptr->items[idx], &scene_ptr->items[idx + 1],
+                    (size_t)(scene_ptr->count - idx - 1) * sizeof(sk_scene_entry_t));
+            scene_ptr->count--;
+        }
+        if (scene_ptr->interaction.hovered == object) {
+            scene_ptr->interaction.hovered = 0;
+        }
+        if (scene_ptr->interaction.press_target == object) {
+            scene_ptr->interaction.press_target = 0;
+        }
+        if (scene_ptr->camera == object) {
+            scene_ptr->camera = 0;
+        }
+    }
+}
+
 SK_KEEP
 void sk_scene_clear(sk_handle_t scene)
 {

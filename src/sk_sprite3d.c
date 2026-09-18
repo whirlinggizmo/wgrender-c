@@ -535,6 +535,7 @@ void sk_sprite3d_destroy(sk_handle_t handle)
     if (sprite_ptr == NULL) {
         return;
     }
+    sk_scene_forget(handle);
     texture = sprite_ptr->texture;
     *sprite_ptr = (sk_sprite3d_t){0};
     sk_handle_pool_free(&sk_sprite_pool, handle);

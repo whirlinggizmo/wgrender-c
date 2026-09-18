@@ -245,6 +245,30 @@ void test_interaction(void)
     CHECK(sk_scene_get_hover(scene, button) == SK_BUTTON_UP);
     sk_input_set_context(SK_INPUT_CONTEXT_FRAME);
 
+    /* destroying an object takes it out of every scene, with its hover and press state */
+    {
+        sk_handle_t other = sk_scene_create();
+        sk_handle_t gone = sk_sprite2d_create(sk_texture_get_default());
+        sk_sprite2d_set_size(gone, 100, 40);
+        sk_sprite2d_set_position(gone, 650, 100);
+        CHECK(sk_scene_add(scene, gone, 0) && sk_scene_add(other, gone, 0));
+        move(650, 100);
+        frame();
+        CHECK(sk_scene_get_hovered(scene) == gone);
+        event(SAPP_EVENTTYPE_MOUSE_DOWN);
+        frame();
+        CHECK(sk_scene_get_press(scene, gone) == SK_BUTTON_PRESSED);
+        sk_sprite2d_destroy(gone);
+        CHECK(sk_scene_get_hovered(scene) == 0);
+        CHECK(!sk_scene_set_layer(scene, gone, 1)); /* not a member any more */
+        CHECK(!sk_scene_set_layer(other, gone, 1));
+        event(SAPP_EVENTTYPE_MOUSE_UP);
+        frame();
+        CHECK(!sk_scene_is_clicked(scene, gone));
+        CHECK(sk_scene_get_hovered(scene) == 0);
+        sk_scene_destroy(other);
+    }
+
     end_frame();
     CHECK(sk_window_set_size((int)screen.x, (int)screen.y));
     sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
