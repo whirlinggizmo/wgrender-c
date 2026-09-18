@@ -284,6 +284,33 @@ Resources and objects are separate handle kinds (`include/sk_handle.h`).
 
 ---
 
+## 6b. Coordinates and anchors
+
+One screen space: **logical pixels, top-left origin, y down**, used by input
+positions, picks, clip rectangles and every 2D draw. The world is right-handed with
+**+y up**, and all angles everywhere are radians. High-DPI is invisible to callers —
+the scissor rectangle is the only place framebuffer pixels appear, and
+`sk_render_begin_clip` converts for you. Texture source rectangles are in texture
+pixels, also top-left.
+
+What differs per noun is **where an object's position sits on it**, and each default
+is the one that noun is usually placed by:
+
+| object | anchor | default |
+|---|---|---|
+| sprite2d | `set_pivot`, a fraction of the quad | `(0.5, 0.5)`, its center |
+| sprite3d | `set_pivot`, a fraction of the quad (y runs down the texture) | `(0.5, 0.5)`; `(0.5, 1)` stands it on the ground |
+| shape2d rectangle | `set_pivot`, a fraction of the bounds | its top-left corner, like UI layout |
+| shape2d circle | `set_pivot`, a fraction of the bounds | its center |
+| shape2d line | its own endpoints (no pivot) | — |
+| text2d | `set_align`, a 9-point grid | LEFT / TOP |
+| text3d | `set_align`, the same enum | CENTER / MIDDLE |
+| model, shape3d | the mesh's or shape's own origin | — |
+
+Two mechanisms, not three: a pivot is continuous (any fraction, including outside
+0..1), alignment is the 9-point form of the same idea and additionally lines up
+wrapped lines inside the block. Text uses alignment because it needs that second job.
+
 ## 7. Public API shape
 
 The public surface is **handle-only**: every parameter/return is a handle, an

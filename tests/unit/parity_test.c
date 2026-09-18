@@ -81,7 +81,7 @@ void test_parity_text3d(void)
     CHECK(sk_text3d_set_font(text, font));
     vec2_t size = sk_text3d_get_size(text);
     CHECK(size.x > 1.5f && size.x < 4.0f); /* five monospace glyphs, each about 0.45 of the font size */
-    CHECK(size.y > 0.4f && size.y < 1.0f); /* the ink of "Hello": capitals, no descenders */
+    CHECK(size.y > 0.9f && size.y < 1.6f); /* one line at size 1: the font's line height, not the ink */
 
     /* centered on its position, facing the camera */
     sk_pick_result_t r = sk_pick_object(text, camera, 0.5f, 0.5f);

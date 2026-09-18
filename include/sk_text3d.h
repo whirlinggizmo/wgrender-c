@@ -8,13 +8,16 @@ extern "C" {
 #include <stdbool.h>
 
 #include "sk_sprite3d.h"
+#include "sk_text.h" /* sk_text_align_t */
 #include "sk_types.h"
 
 /* Text3d object (kind TEXT3D): a string placed in the 3D world, drawn with a
  * TrueType font (sk_font_create), centered on its position.
  *
- * - size is the font size in world units (default 1): roughly the height from the
+ * - size is the font size in world units (default 1): one line's height, from the
  *   lowest descender to the highest ascender.
+ * - Newlines break lines; sk_text3d_set_max_width wraps between words, and
+ *   sk_text3d_set_align says where the block sits relative to the position.
  * - Facing uses sprite3d's modes: face the camera (default), face it with world up
  *   kept, lie flat facing up, or FREE (oriented by the rotation, like a sign).
  * - Depth-tested against the scene; a scene sorts it with other transparent parts.
@@ -28,6 +31,14 @@ void        sk_text3d_destroy(sk_handle_t text);
 bool        sk_text3d_set_font(sk_handle_t text, sk_handle_t font);
 bool        sk_text3d_set_text(sk_handle_t text, const char *string); /* copied */
 bool        sk_text3d_set_size(sk_handle_t text, float size);
+/* Where the text sits relative to its position: LEFT/CENTER/RIGHT horizontally,
+ * TOP/MIDDLE/BOTTOM vertically. Default: centered both ways, so the position is
+ * the middle of the block. Wrapped lines line up the same way inside it. */
+bool        sk_text3d_set_align(sk_handle_t text, sk_text_align_t horizontal, sk_text_align_t vertical);
+/* Wrap the text to `width` world units, between words (a word wider than that
+ * keeps a line to itself); 0 turns wrapping off (the default). Newlines in the
+ * text always break a line, wrapped or not. */
+bool        sk_text3d_set_max_width(sk_handle_t text, float width);
 bool        sk_text3d_set_transform(sk_handle_t text, float x, float y, float z,
                                     float rotation_x, float rotation_y, float rotation_z); /* radians */
 bool        sk_text3d_set_facing(sk_handle_t text, sk_sprite3d_facing_t facing);

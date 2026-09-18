@@ -146,6 +146,37 @@ static int walk_lines(FONScontext *fons, const char *text, float max_width, floa
     return count;
 }
 
+typedef struct {
+    const char **starts;
+    const char **ends;
+    int max_lines;
+    int count;
+} split_t;
+
+static void collect_line(const char *start, const char *end, int index, void *user)
+{
+    split_t *ctx = (split_t *)user;
+    (void)index;
+    if (ctx->count < ctx->max_lines) {
+        ctx->starts[ctx->count] = start;
+        ctx->ends[ctx->count] = end;
+        ctx->count++;
+    }
+}
+
+int sk_text_split_lines(const char *text, float max_width, const char **starts, const char **ends, int max_lines)
+{
+    FONScontext *fons = sk_font_context();
+    split_t ctx = {.starts = starts, .ends = ends, .max_lines = max_lines, .count = 0};
+    float width = 0.0f;
+
+    if (fons == NULL || text == NULL || *text == '\0' || max_lines <= 0) {
+        return 0;
+    }
+    walk_lines(fons, text, max_width, &width, collect_line, &ctx);
+    return ctx.count;
+}
+
 vec2_t sk_text_block_size(sk_handle_t font, const char *text, float size, float max_width)
 {
     FONScontext *fons = sk_font_context();
@@ -258,17 +289,11 @@ int sk_text_measure(const char *text, int font_size)
 SK_KEEP
 void sk_text_draw_ex(sk_handle_t font, const char *text, float x, float y, float size, sk_color_t color)
 {
-    draw_text(font, text, x, y, size, sk_color_unpack(color));
+    sk_text_block_draw(font, text, x, y, size, color, 0.0f, 0.0f, SK_TEXT_ALIGN_LEFT);
 }
 
 SK_KEEP
 vec2_t sk_text_measure_ex(sk_handle_t font, const char *text, float size)
 {
-    float bounds[4] = {0};
-
-    if (text == NULL || !use_font(font, size)) {
-        return (vec2_t){0.0f, 0.0f};
-    }
-    fonsTextBounds(sk_font_context(), 0.0f, 0.0f, text, NULL, bounds);
-    return (vec2_t){bounds[2] - bounds[0], bounds[3] - bounds[1]};
+    return sk_text_block_size(font, text, size, 0.0f);
 }

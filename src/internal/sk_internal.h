@@ -90,6 +90,11 @@ sk_handle_t sk_text_resolve_font(sk_handle_t font);
  * draws it with (left, top) as the block's top-left corner, aligning each line
  * inside a box `box_width` wide (the block's own width when it's not wider). */
 vec2_t sk_text_block_size(sk_handle_t font, const char *text, float size, float max_width);
+/* The same line splitting, for callers that draw their own glyphs (text3d): the
+ * font and size must already be selected in fontstash, and max_width is in those
+ * units (0: no wrap). Fills [starts[i], ends[i]) and returns the line count, at
+ * most max_lines. */
+int sk_text_split_lines(const char *text, float max_width, const char **starts, const char **ends, int max_lines);
 void sk_text_block_draw(sk_handle_t font, const char *text, float left, float top, float size,
                         sk_color_t color, float max_width, float box_width, sk_text_align_t align_x);
 

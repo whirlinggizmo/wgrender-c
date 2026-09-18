@@ -18,7 +18,9 @@
 #include "sk_sprite3d.h"
 #include "internal/sk_texture.h"
 #include "sk_text.h"
+#include "sk_color.h"
 #include "sk_text2d.h"
+#include "sk_text3d.h"
 #include "sk_texture.h"
 #include "sk_window.h"
 #include "test.h"
@@ -280,6 +282,87 @@ void test_sprite3d_2d_world(void)
     sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
     sk_sprite3d_deinit();
     sk_texture_deinit();
+    sk_camera3d_deinit();
+    sk_scene_deinit();
+    sk_render_deinit();
+    sg_shutdown();
+}
+
+/* One layout for all text: the immediate path measures and draws the same laid-out
+ * block as text2d, and text3d wraps and aligns in world units. */
+void test_text_layout_shared(void)
+{
+    const vec2_t screen = sk_window_get_screen_size();
+
+    sg_setup(&(sg_desc){.environment = sk_platform_environment()});
+    sk_render_init();
+    sk_scene_init();
+    sk_camera3d_init();
+    sk_font_init();
+    sk_text_init();
+    sk_text3d_init();
+    sk_logger_set_level(SK_LOGGER_LEVEL_ERROR);
+
+    /* immediate text: newlines break lines, and the height grows by whole lines */
+    const vec2_t one = sk_text_measure_ex(0, "one", 16.0f);
+    const vec2_t three = sk_text_measure_ex(0, "one\ntwo\nthree", 16.0f);
+    CHECK(one.x > 0.0f && one.y > 0.0f);
+    CHECK_NEAR(three.y, one.y * 3.0f, 0.01);
+    CHECK(three.x > one.x); /* "three" is the widest line */
+    CHECK(sk_text_measure_ex(0, "", 16.0f).y == 0.0f);
+    CHECK_NEAR(sk_text_measure("one", 16), (double)(int)(one.x + 0.5f), 0.51);
+    sk_text_draw_ex(0, "one\ntwo", 10.0f, 10.0f, 16.0f, SK_COLOR_WHITE); /* draws without trouble */
+
+    /* text3d: same splitting, sizes in world units */
+    const sk_handle_t label = sk_text3d_create(0);
+    CHECK(sk_text3d_set_text(label, "one two three four"));
+    CHECK(sk_text3d_set_size(label, 1.0f));
+    const vec2_t unwrapped = sk_text3d_get_size(label);
+    CHECK(unwrapped.x > 0.0f && unwrapped.y > 0.0f);
+
+    CHECK(sk_text3d_set_max_width(label, unwrapped.x * 0.5f));
+    const vec2_t wrapped = sk_text3d_get_size(label);
+    CHECK(wrapped.x < unwrapped.x);
+    CHECK(wrapped.y > unwrapped.y);                             /* more lines */
+    CHECK_NEAR(wrapped.y, unwrapped.y * 3.0f, 0.01);            /* "one two" / "three" / "four" */
+    CHECK(sk_text3d_set_max_width(label, 0.0f));                /* off again */
+    CHECK_NEAR(sk_text3d_get_size(label).y, unwrapped.y, 0.01);
+
+    /* newlines break without wrapping, and one line of size 1 is about 1 unit tall */
+    CHECK(sk_text3d_set_text(label, "a\nb"));
+    CHECK_NEAR(sk_text3d_get_size(label).y, unwrapped.y * 2.0f, 0.01);
+    CHECK(unwrapped.y > 0.8f && unwrapped.y < 1.6f);
+
+    /* alignment takes only its own axis's values; the size doesn't depend on it */
+    CHECK(sk_text3d_set_align(label, SK_TEXT_ALIGN_LEFT, SK_TEXT_ALIGN_TOP));
+    CHECK_NEAR(sk_text3d_get_size(label).y, unwrapped.y * 2.0f, 0.01);
+    CHECK(!sk_text3d_set_align(label, SK_TEXT_ALIGN_MIDDLE, SK_TEXT_ALIGN_TOP));
+    CHECK(!sk_text3d_set_align(label, SK_TEXT_ALIGN_LEFT, SK_TEXT_ALIGN_RIGHT));
+    CHECK(!sk_text3d_set_align(0, SK_TEXT_ALIGN_LEFT, SK_TEXT_ALIGN_TOP));
+    CHECK(!sk_text3d_set_max_width(0, 1.0f));
+
+    /* alignment moves the block, so picks follow it: a camera looking down -Z at
+       the origin, the text placed at the origin, 8 world units of screen height */
+    const sk_handle_t camera = sk_camera3d_create(SK_CAMERA3D_ORTHOGRAPHIC);
+    sk_camera3d_set_view(camera, 0, 0, 10, 0, 0, 0, 0, 1, 0);
+    sk_camera3d_set_ortho_height(camera, 8.0f);
+    sk_camera3d_set_active(camera);
+    CHECK(sk_window_set_size(800, 600));
+    CHECK(sk_text3d_set_text(label, "pick"));
+    CHECK(sk_text3d_set_facing(label, SK_SPRITE3D_FACING_FREE));
+    CHECK(sk_text3d_set_transform(label, 0, 0, 0, 0, 0, 0));
+
+    CHECK(sk_text3d_set_align(label, SK_TEXT_ALIGN_CENTER, SK_TEXT_ALIGN_MIDDLE));
+    CHECK(sk_pick_object(label, camera, 400, 300).hit); /* centered on its position */
+    CHECK(sk_text3d_set_align(label, SK_TEXT_ALIGN_LEFT, SK_TEXT_ALIGN_TOP));
+    CHECK(sk_pick_object(label, camera, 420, 310).hit);       /* block runs down and to the right */
+    CHECK(!sk_pick_object(label, camera, 380, 290).hit);      /* nothing up and to the left of it */
+
+    sk_text3d_destroy(label);
+    CHECK(sk_window_set_size((int)screen.x, (int)screen.y));
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    sk_text3d_deinit();
+    sk_font_deinit();
     sk_camera3d_deinit();
     sk_scene_deinit();
     sk_render_deinit();

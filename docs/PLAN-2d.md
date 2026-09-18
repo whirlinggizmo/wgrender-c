@@ -219,6 +219,13 @@ void sk_render_end_clip(void);
   **`sk_text2d_measure_width`/`_height` now measure the laid-out block** — the widest
   line and whole lines of the font's line height, not one line's glyph extents — and
   picks use that rectangle.
+- **One layout path for all text** (cleaned up after step 4): the immediate
+  `sk_text_draw_ex` / `sk_text_measure_ex` go through the same block layout, so
+  newlines break lines there too and the measured height is whole lines rather than
+  one line's glyph extents; text3d gained `set_align` and `set_max_width` and shares
+  the line splitting (`sk_text_split_lines`) while still drawing its own glyphs in
+  world space. **`sk_text3d_get_size().y` now reports the font's line height** for a
+  single line (about 1.2x the size) instead of the ink's height.
 - Clipping: `sk_scene_set_clip(scene, layer, x, y, width, height)` clips a layer's 2D
   members (at most 8 layers per scene; a 0 size removes it), and
   `sk_render_begin_clip` / `sk_render_end_clip` do the same for immediate drawing.
