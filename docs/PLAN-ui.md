@@ -1,7 +1,8 @@
 # Plan: UI through libsk's public API
 
-Status: **accepted** (2026-09-18), all decisions as recommended. Steps 1 (drawing and input) and 2
-(text) done; see "As built". Steps 3–4 to do.
+Status: **done for now** (2026-09-18). Steps 1 (drawing and input), 2 (text) and 3 (the Clay
+example) are built; see "As built". Step 4 — clipboard, letter spacing, the ImGui hook —
+waits until text fields, a design or developer UI need it.
 
 ## Why
 
@@ -267,6 +268,24 @@ the public API's rules. It's independent of everything above and can come later.
   rounding bound, scale 1 inside a render target, and the atlas growing across a frame
   then drawing from the bigger atlas. The headless platform gained a DPI scale for
   tests (`sk_platform_set_headless_dpi_scale`).
+
+### Step 3: the Clay example (2026-09-18)
+
+- `examples/clay.c` draws Clay's demo layout through the public API only: about 100
+  lines of glue (measure callback on `sk_text_measure_n`, a render-command switch onto
+  the step 1 and 2 calls, pointer capture from `Clay_GetPointerOverIds`). Every GAP the
+  prototype marked is gone: no string copies, no triangle-built rectangles, nested
+  clips, images from a small `{texture, source rect}` struct in `imageData`.
+- Clay is vendored for the example only (`deps/clay`, pinned at `e6cc369`); libsk
+  doesn't include or link it. It costs about +51 KB gzipped on web, in that program
+  only (`clay` 376.6 KB vs `hello` 325.9 KB).
+- A strip of "game" beside the UI shows capture working: clicks there drop markers,
+  and a press that starts on the UI and is released over the strip doesn't. Checked
+  in the browser with CDP input on WebGL2 (dropdown on hover, sidebar switching, wheel
+  scrolling, two markers from two strip clicks and none from the drag), plus webcheck
+  on both backends and a 2× device-pixel-ratio capture (crisp text, smooth corners).
+- Not exercised: images (the demo layout has none) and nested scroll areas (it has
+  one); the clip stack's nesting is covered by `render_clip_stack`.
 
 ## Verification
 

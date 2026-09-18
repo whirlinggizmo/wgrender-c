@@ -33,7 +33,7 @@ DEFS    := -DSOKOL_GLCORE
 INCS    := -I$(ROOT)/include -I$(ROOT)/src
 INCS    += -isystem $(ROOT)/deps/sokol -isystem $(ROOT)/deps/sokol_utils -isystem $(ROOT)/deps/stb \
            -isystem $(ROOT)/deps/fontstash -isystem $(ROOT)/deps/dr \
-           -isystem $(ROOT)/deps/cgltf
+           -isystem $(ROOT)/deps/cgltf -isystem $(ROOT)/deps/clay
 CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
 LIB     := $(ROOT)/build/desktop/libsk.a

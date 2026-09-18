@@ -220,11 +220,13 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       pointer, retained 2D shapes, nine-slice sprites, text alignment and wrapping,
       per-layer clipping, and sprite3d source/extent/pivot for 2D worlds on an
       orthographic camera ([PLAN-2d.md](PLAN-2d.md), `examples/ui.c`, `examples/2d.c`)
-- [ ] UI through the public API ([PLAN-ui.md](PLAN-ui.md), steps 1–2 of 4 done): float immediate
-      2D, rounded rectangles and borders, source-rect and nine-slice images, a clip
-      stack, length-taking text, DPI-correct glyphs, UI pointer/keyboard capture, a
-      float wheel — so a layout library like Clay draws through libsk with ~150 lines
-      of public-API glue. A Clay prototype (not committed) found the gaps
+- [x] UI through the public API ([PLAN-ui.md](PLAN-ui.md), 2026-09-18): float immediate
+      2D, rounded rectangles and borders, source-rect and nine-slice images, a nesting
+      clip stack, length-taking text, crisp high-DPI glyphs, a growing glyph atlas, UI
+      pointer/keyboard capture, a float two-axis wheel; `examples/clay.c` lays out UI
+      with Clay and draws it through ~100 lines of public-API glue
+- [ ] UI later (PLAN-ui step 4): clipboard and keyboard capture in use with text
+      fields, letter spacing, the Dear ImGui extension hook
 - [ ] Particle emitters (batched/instanced)
 - [x] Render to texture: `sk_texture_create_target`, `sk_render_begin/end_texture`,
       `sk_texture_set_sampling` ([PLAN-render-target.md](PLAN-render-target.md),
