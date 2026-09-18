@@ -284,8 +284,21 @@ the public API's rules. It's independent of everything above and can come later.
   in the browser with CDP input on WebGL2 (dropdown on hover, sidebar switching, wheel
   scrolling, two markers from two strip clicks and none from the drag), plus webcheck
   on both backends and a 2× device-pixel-ratio capture (crisp text, smooth corners).
-- Not exercised: images (the demo layout has none) and nested scroll areas (it has
-  one); the clip stack's nesting is covered by `render_clip_stack`.
+- A second page (Tab) exercises what the demo layout doesn't: images from source
+  rectangles, tinted and nine-sliced; a floating tooltip per image and click to select;
+  borders with per-side widths, per-corner radii and lines between children; a
+  horizontal scroll area inside a vertical one; a custom element (a meter the game
+  draws); an overlay color that darkens a card on hover; a width and color transition
+  (`Clay_EndLayout(dt)`). The glue grew by about 40 lines: `clay_image_t` gains
+  nine-slice borders and a tint (not the element's `backgroundColor`, which Clay also
+  draws as a rectangle over the image), a `clay_custom_t` draw callback, and a stack of
+  overlay colors mixed into every color drawn.
+- It found a Clay bug, fixed on a branch of libsk's Clay fork (`github.com/robknopf/clay`,
+  vendored with `tools/update_clay.sh`, like sokol): the wheel and drag
+  went to whichever scroll container came last in Clay's internal list, not the
+  innermost one under the pointer, and swap-back removal (after switching pages) put
+  the outer area last, so the inner one never scrolled. Also, Clay multiplies the wheel
+  delta by 10, so the example passes notches times 4 for 40 pixels per notch.
 
 ## Verification
 

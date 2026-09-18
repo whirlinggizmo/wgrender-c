@@ -1,8 +1,8 @@
-# Vendored from nicbarker/clay (zlib license, LICENSE in this directory): a C99 UI
-# layout library (flexbox-like; emits render commands and draws nothing itself). Used
-# only by examples/clay.c, which draws it through libsk's public API; libsk itself
-# doesn't include or link Clay (docs/PLAN-ui.md). clay-video-demo.c is Clay's shared
-# demo layout (examples/shared-layouts).
-clay https://github.com/nicbarker/clay e6cc36941ab2af5d81107617039d6f527a1c660b 2026-05-20
-# Changes made in libsk (marked "[libsk]"): clay-video-demo.c includes "clay.h"
-# instead of "../../clay.h".
+# Vendored from libsk's fork of nicbarker/clay (zlib license, LICENSE.md): a C99 UI
+# layout library (flexbox-like; emits render commands and draws nothing itself), with
+# fixes libsk needs on top of upstream. Used only by examples/clay.c, which draws it
+# through libsk's public API; libsk itself doesn't include or link Clay
+# (docs/PLAN-ui.md). Files keep their upstream paths; update them all together with
+# tools/update_clay.sh.
+clay-fork https://github.com/robknopf/clay.git 842df9f5549e57cbe35dbf4524f4edd8c0292fc6 2026-09-18
+clay-upstream https://github.com/nicbarker/clay.git e6cc36941ab2af5d81107617039d6f527a1c660b

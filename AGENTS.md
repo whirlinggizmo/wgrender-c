@@ -32,6 +32,9 @@ Keep this file short and rule-shaped. The authoritative design doc is
   fork (github.com/robknopf/sokol: upstream plus fixes libsk needs; sync the fork
   with floooh/sokol there first). Records the fork and upstream commits in
   `deps/sokol/VERSION`.
+- `tools/update_clay.sh [ref]` — the same for Clay (used only by `examples/clay.c`),
+  from libsk's fork (github.com/robknopf/clay: upstream plus fixes, each on its own
+  branch merged into the fork's `main`). Records both commits in `deps/clay/VERSION`.
 - `make loadbench [DESKTOP=1]` — worst frame while loading large glTF models in the
   background vs synchronously (downloads them on first use).
 - `make spritebench [DESKTOP=1]` — sprite-heavy scenes against the default caps and
