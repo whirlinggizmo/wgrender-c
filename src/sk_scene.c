@@ -22,11 +22,13 @@
 
 #define MAX_SCENES 64
 #define SK_DRAWABLE_KIND_COUNT 64 /* handle kind is 6 bits */
-/* transparent parts per scene layer; overridable at build time (-DSK_MAX_TRANSPARENT_ITEMS=...) for benchmarks. */
+/* Transparent parts per scene layer: the list starts at TRANSPARENT_INITIAL and doubles
+ * as needed, up to SK_MAX_TRANSPARENT_ITEMS (overridable at build time,
+ * -DSK_MAX_TRANSPARENT_ITEMS=...). */
 #ifndef SK_MAX_TRANSPARENT_ITEMS
-#define SK_MAX_TRANSPARENT_ITEMS 4096
+#define SK_MAX_TRANSPARENT_ITEMS (1 << 20)
 #endif
-#define MAX_TRANSPARENT_ITEMS SK_MAX_TRANSPARENT_ITEMS /* per scene layer */
+#define TRANSPARENT_INITIAL 1024
 
 typedef struct {
     sk_handle_t drawable;
@@ -96,7 +98,8 @@ typedef struct {
 } sk_drawable_passes_t;
 
 static sk_drawable_passes_t sk_passes_registry[SK_DRAWABLE_KIND_COUNT];
-static sk_transparent_item_t sk_transparent_items[MAX_TRANSPARENT_ITEMS];
+static sk_transparent_item_t *sk_transparent_items;
+static int sk_transparent_capacity;
 static bool sk_transparent_overflow_logged;
 static sk_drawable_bounds_fn sk_bounds_registry[SK_DRAWABLE_KIND_COUNT];
 static sk_drawable_pick_fn sk_pick_registry[SK_DRAWABLE_KIND_COUNT];
@@ -566,6 +569,26 @@ static void sort_by_layer(sk_scene_t *scene_ptr)
 /* One layer: opaque parts first, then transparent parts sorted back to front
  * across all drawable kinds. Consecutive parts of the same kind stay batched
  * (the render command list merges adjacent sokol_gl and model runs). */
+
+/* Double the transparent list, up to SK_MAX_TRANSPARENT_ITEMS; false when it can't. */
+static bool grow_transparent_items(void)
+{
+    const int capacity = sk_transparent_capacity == 0 ? TRANSPARENT_INITIAL : sk_transparent_capacity * 2;
+    sk_transparent_item_t *items;
+    if (sk_transparent_capacity >= SK_MAX_TRANSPARENT_ITEMS) {
+        return false;
+    }
+    items = realloc(sk_transparent_items,
+                    sizeof(*items) * (size_t)(capacity < SK_MAX_TRANSPARENT_ITEMS ? capacity : SK_MAX_TRANSPARENT_ITEMS));
+    if (items == NULL) {
+        return false;
+    }
+    sk_transparent_items = items;
+    sk_transparent_capacity = capacity < SK_MAX_TRANSPARENT_ITEMS ? capacity : SK_MAX_TRANSPARENT_ITEMS;
+    log_debug("scene: transparent list grown to %d parts", sk_transparent_capacity);
+    return true;
+}
+
 static void draw_layer(const sk_scene_entry_t *entries, int count, const sk_camera3d_t *cam)
 {
     int transparent_count = 0;
@@ -579,21 +602,29 @@ static void draw_layer(const sk_scene_entry_t *entries, int count, const sk_came
 
     for (int i = 0; i < count; i++) {
         const sk_drawable_passes_t *passes = lookup_passes(entries[i].drawable);
-        int room = MAX_TRANSPARENT_ITEMS - transparent_count;
         int first = transparent_count;
+        int room, collected;
         if (passes == NULL || passes->collect_transparent == NULL) {
             continue;
         }
-        if (room <= 0) {
+        /* a drawable that fills the room left may have had more: grow and collect it again */
+        for (;;) {
+            room = sk_transparent_capacity - transparent_count;
+            collected = room > 0 ? passes->collect_transparent(entries[i].drawable, cam,
+                                                               &sk_transparent_items[first], room)
+                                 : 0;
+            if (collected < room || !grow_transparent_items()) {
+                break;
+            }
+        }
+        if (room <= 0 || collected >= room) {
             if (!sk_transparent_overflow_logged) {
-                log_warn("scene: MAX_TRANSPARENT_ITEMS (%d) reached; skipping transparent parts",
-                         MAX_TRANSPARENT_ITEMS);
+                log_warn("scene: %d transparent parts in one layer, the most there can be; skipping the rest",
+                         SK_MAX_TRANSPARENT_ITEMS);
                 sk_transparent_overflow_logged = true;
             }
-            break;
         }
-        transparent_count += passes->collect_transparent(entries[i].drawable, cam,
-                                                         &sk_transparent_items[first], room);
+        transparent_count += collected;
         for (int t = first; t < transparent_count; t++) {
             sk_transparent_items[t].order = t;
         }
@@ -997,6 +1028,9 @@ void sk_scene_init(void)
 
 void sk_scene_deinit(void)
 {
+    free(sk_transparent_items);
+    sk_transparent_items = NULL;
+    sk_transparent_capacity = 0;
     for (int i = 0; i < MAX_SCENES; i++) {
         free(sk_scenes[i].items);
         sk_scenes[i] = (sk_scene_t){0};

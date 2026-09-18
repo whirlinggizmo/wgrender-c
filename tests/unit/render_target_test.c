@@ -200,3 +200,67 @@ void test_texture_draw_immediate(void)
     sk_texture_deinit();
     sg_shutdown();
 }
+
+/* Draw `vertices` vertices in one draw, or `commands` draws each with its own matrix. */
+static void record(int vertices, int commands)
+{
+    sgl_begin_triangles();
+    for (int i = 0; i < vertices; i++) {
+        sgl_v2f((float)(i % 3), (float)(i % 2));
+    }
+    sgl_end();
+    for (int i = 0; i < commands; i++) {
+        sgl_translate(1.0f, 0.0f, 0.0f);
+        sgl_begin_triangles();
+        sgl_v2f(0, 0);
+        sgl_v2f(1, 0);
+        sgl_v2f(0, 1);
+        sgl_end();
+    }
+}
+
+/* A frame that runs out of sokol_gl's vertex or command budget loses the draws past
+ * it; the budget doubles for the frames after, so the same frame then fits. */
+void test_render_sgl_growth(void)
+{
+    enum { VERTICES = 70000, COMMANDS = 20000 }; /* past the initial 65536 and 16384 */
+    sgl_error_t err;
+
+    sg_setup(&(sg_desc){.environment = sk_platform_environment()});
+    sk_texture_init();
+    sk_render_init();
+    sk_logger_set_level(SK_LOGGER_LEVEL_ERROR); /* growing warns */
+
+    sk_render_begin();
+    record(100, 10);
+    CHECK(!sgl_error().any);
+    sk_render_end();
+
+    sk_render_begin();
+    record(VERTICES, 0);
+    CHECK(sgl_error().vertices_full);
+    sk_render_end();
+    sk_render_begin();
+    record(VERTICES, 0);
+    err = sgl_error();
+    CHECK(!err.any);
+    CHECK(sgl_num_vertices() >= VERTICES);
+    sk_render_end();
+
+    sk_render_begin();
+    record(0, COMMANDS);
+    err = sgl_error();
+    CHECK(err.commands_full || err.uniforms_full);
+    sk_render_end();
+    sk_render_begin();
+    record(0, COMMANDS);
+    err = sgl_error();
+    CHECK(!err.any);
+    CHECK(sgl_num_commands() >= COMMANDS);
+    sk_render_end();
+
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    sk_render_deinit();
+    sk_texture_deinit();
+    sg_shutdown();
+}

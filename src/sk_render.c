@@ -19,14 +19,21 @@
 #include "sokol_gfx.h"
 #include "util/sokol_gl.h"
 
-/* sokol_gl's per-frame budgets (0: sokol's defaults, 65536 vertices and 16384
- * commands); overridable at build time for benchmarks. Everything drawn through
- * sokol_gl in a frame shares them: sprites, 2D and 3D shapes, text. */
+/* sokol_gl's per-frame budgets, shared by everything drawn through it in a frame:
+ * sprites, 2D and 3D shapes, text. They start at SK_SGL_VERTICES / SK_SGL_COMMANDS
+ * (sokol's defaults) and double after a frame that ran out, up to SK_SGL_MAX_*; all
+ * overridable at build time. A frame that runs out loses the draws that didn't fit. */
+#ifndef SK_SGL_VERTICES
+#define SK_SGL_VERTICES 65536
+#endif
+#ifndef SK_SGL_COMMANDS
+#define SK_SGL_COMMANDS 16384
+#endif
 #ifndef SK_SGL_MAX_VERTICES
-#define SK_SGL_MAX_VERTICES 0
+#define SK_SGL_MAX_VERTICES (1 << 20) /* 24 MB */
 #endif
 #ifndef SK_SGL_MAX_COMMANDS
-#define SK_SGL_MAX_COMMANDS 0
+#define SK_SGL_MAX_COMMANDS (1 << 18)
 #endif
 
 #define MAX_RENDER_CMDS 1024
@@ -80,6 +87,11 @@ static int sk_render_next_layer;
 static int sk_layer_mark_vertices;
 static int sk_layer_mark_commands;
 static bool sk_render_overflow_logged;
+/* the sokol_gl context everything records into, and its budgets */
+static sgl_context sk_sgl_ctx;
+static int sk_sgl_vertices;
+static int sk_sgl_commands;
+static bool sk_sgl_at_most_logged;
 
 static void open_sgl_layer(void)
 {
@@ -196,11 +208,21 @@ void sk_render_set_3d_transparent(bool transparent)
 
 void sk_render_init(void)
 {
+    /* sokol_gl's default context can't be resized or destroyed, so it stays minimal
+     * and unused; recording goes into a context of our own that can be replaced
+     * with a larger one */
     sgl_setup(&(sgl_desc_t){
-        .max_vertices = SK_SGL_MAX_VERTICES,
-        .max_commands = SK_SGL_MAX_COMMANDS,
+        .max_vertices = 64,
+        .max_commands = 16,
         .logger.func = 0,
     });
+    sk_sgl_vertices = SK_SGL_VERTICES;
+    sk_sgl_commands = SK_SGL_COMMANDS;
+    sk_sgl_ctx = sgl_make_context(&(sgl_context_desc_t){
+        .max_vertices = sk_sgl_vertices,
+        .max_commands = sk_sgl_commands,
+    });
+    sgl_set_context(sk_sgl_ctx);
 
     /* alpha-blended pipeline for 2D primitives (no depth) */
     sk_pip_2d = sgl_make_pipeline(&(sg_pipeline_desc){
@@ -252,6 +274,8 @@ void sk_render_deinit(void)
     sgl_destroy_pipeline(sk_pip_2d);
     sgl_destroy_pipeline(sk_pip_3d);
     sgl_destroy_pipeline(sk_pip_3d_transparent);
+    sgl_destroy_context(sk_sgl_ctx);
+    sk_sgl_ctx = (sgl_context){0};
     sgl_shutdown();
 }
 
@@ -373,8 +397,54 @@ static sg_pass_action pass_action(int index)
 }
 
 SK_KEEP
+/* After a frame that ran out of sokol_gl's vertex or command budget (its draws past
+ * the budget were dropped): switch to a context with that budget doubled, up to
+ * SK_SGL_MAX_*. Pipelines carry over: they depend only on the pixel formats, which
+ * every context here shares. */
+static int doubled(int size, int most)
+{
+    return size < most / 2 ? size * 2 : most;
+}
+
+static void grow_sgl_budgets(sgl_error_t err)
+{
+    const bool vertices_full = err.vertices_full && sk_sgl_vertices < SK_SGL_MAX_VERTICES;
+    const bool commands_full = (err.commands_full || err.uniforms_full) && sk_sgl_commands < SK_SGL_MAX_COMMANDS;
+    const int vertices = vertices_full ? doubled(sk_sgl_vertices, SK_SGL_MAX_VERTICES) : sk_sgl_vertices;
+    const int commands = commands_full ? doubled(sk_sgl_commands, SK_SGL_MAX_COMMANDS) : sk_sgl_commands;
+    sgl_context ctx;
+
+    if (!err.vertices_full && !err.commands_full && !err.uniforms_full) {
+        return;
+    }
+    if (!vertices_full && !commands_full) {
+        if (!sk_sgl_at_most_logged) {
+            log_warn("render: a frame needed more than %d vertices or %d draw commands, the most there can be; "
+                     "draws past them were dropped",
+                     SK_SGL_MAX_VERTICES, SK_SGL_MAX_COMMANDS);
+            sk_sgl_at_most_logged = true;
+        }
+        return;
+    }
+    ctx = sgl_make_context(&(sgl_context_desc_t){.max_vertices = vertices, .max_commands = commands});
+    if (ctx.id == SG_INVALID_ID) {
+        log_error("render: couldn't grow the draw budget to %d vertices, %d commands", vertices, commands);
+        return;
+    }
+    log_warn("render: a frame ran out of %s (%d vertices, %d commands) and lost the draws past it; "
+             "growing to %d vertices, %d commands",
+             vertices_full && commands_full ? "vertices and draw commands" : vertices_full ? "vertices" : "draw commands",
+             sk_sgl_vertices, sk_sgl_commands, vertices, commands);
+    sgl_destroy_context(sk_sgl_ctx);
+    sk_sgl_ctx = ctx;
+    sk_sgl_vertices = vertices;
+    sk_sgl_commands = commands;
+    sgl_set_context(ctx);
+}
+
 void sk_render_end(void)
 {
+    sgl_error_t sgl_err;
     if (sk_render_current_pass_index != 0) {
         log_warn("sk_render_end: still drawing into a texture (missing sk_render_end_texture)");
         sk_render_end_texture();
@@ -409,7 +479,9 @@ void sk_render_end(void)
     });
     replay_pass(0);
     sg_end_pass();
+    sgl_err = sgl_error(); /* sg_commit clears it */
     sg_commit();
+    grow_sgl_budgets(sgl_err);
 
     sk_model_end_frame();
     sk_light_end_frame();

@@ -13,6 +13,7 @@
 #include "sk_camera3d.h"
 #include "sk_logger.h"
 #include "sk_pick.h"
+#include "sk_render.h"
 #include "sk_scene.h"
 #include "sk_shape2d.h"
 #include "sk_sprite2d.h"
@@ -420,4 +421,62 @@ void test_sprite3d_facings(void)
     sk_sprite3d_facing_basis(SK_SPRITE3D_FACING_FREE, (vec3_t){0, 1.5707963f, 0}, &pitched, &right, &up);
     CHECK_VEC3_NEAR(right, 0, 0, -1, 1e-5); /* a quarter turn about Y */
     CHECK_VEC3_NEAR(up, 0, 1, 0, 1e-5);
+}
+
+/* Sprite pools start small and grow: well past the old fixed sizes (1024 sprite3d,
+ * 4096 sprite2d) every handle still resolves to its own sprite, and a scene with
+ * that many transparent sprites draws (its transparent list grows too). */
+void test_sprite_pools_grow(void)
+{
+    enum { COUNT = 6000 };
+    static sk_handle_t sprites3d[COUNT], sprites2d[COUNT];
+    bool created = true, positions = true, set2d = true;
+
+    sg_setup(&(sg_desc){.environment = sk_platform_environment()});
+    sk_render_init();
+    sk_scene_init();
+    sk_camera3d_init();
+    sk_texture_init();
+    sk_sprite3d_init();
+    sk_sprite2d_init();
+    sk_logger_set_level(SK_LOGGER_LEVEL_ERROR);
+
+    const sk_handle_t scene = sk_scene_create();
+    const sk_handle_t camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(camera, 0, 0, 50, 0, 0, 0, 0, 1, 0);
+    sk_scene_set_active_camera(scene, camera);
+    for (int i = 0; i < COUNT; i++) {
+        sprites3d[i] = sk_sprite3d_create(sk_texture_get_default());
+        sprites2d[i] = sk_sprite2d_create(sk_texture_get_default());
+        created = created && sprites3d[i] != 0 && sprites2d[i] != 0;
+        sk_sprite3d_set_transform(sprites3d[i], (float)i, 0, 0, 0, 0, 0, 1, 1, 1);
+        sk_scene_add(scene, sprites3d[i], 0);
+    }
+    CHECK(created);
+    for (int i = 0; i < COUNT; i++) {
+        positions = positions && sk_sprite3d_get_position(sprites3d[i]).x == (float)i;
+        set2d = set2d && sk_sprite2d_set_position(sprites2d[i], (float)i, 0);
+    }
+    CHECK(positions);
+    CHECK(set2d);
+
+    sk_render_begin();
+    sk_scene_draw(scene);
+    sk_render_end();
+
+    for (int i = 0; i < COUNT; i++) {
+        sk_sprite3d_destroy(sprites3d[i]);
+        sk_sprite2d_destroy(sprites2d[i]);
+    }
+    CHECK(sk_sprite3d_get_position(sprites3d[0]).x == 0); /* stale: resolves to nothing */
+
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    sk_scene_destroy(scene);
+    sk_sprite2d_deinit();
+    sk_sprite3d_deinit();
+    sk_texture_deinit();
+    sk_camera3d_deinit();
+    sk_scene_deinit();
+    sk_render_deinit();
+    sg_shutdown();
 }

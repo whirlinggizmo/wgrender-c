@@ -17,11 +17,12 @@
 #include "sokol_gfx.h"
 #include "util/sokol_gl.h"
 
-/* sprite2d pool size; overridable at build time (-DSK_MAX_SPRITE2D=...) for benchmarks. */
+/* The sprite2d pool starts at SPRITES_INITIAL slots and doubles as needed, up to
+ * SK_MAX_SPRITE2D (overridable at build time, -DSK_MAX_SPRITE2D=...). */
 #ifndef SK_MAX_SPRITE2D
-#define SK_MAX_SPRITE2D 4096
+#define SK_MAX_SPRITE2D SK_HANDLE_POOL_MAX_SLOTS
 #endif
-#define MAX_SPRITES SK_MAX_SPRITE2D
+#define SPRITES_INITIAL 256
 
 typedef struct {
     sk_handle_t texture;
@@ -40,32 +41,30 @@ typedef struct {
     float alpha_threshold;
 } sk_sprite2d_t;
 
-static sk_sprite2d_t sk_sprites2d[MAX_SPRITES];
+static sk_sprite2d_t *sk_sprites2d; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_sprite2d_pool;
-static uint16_t sk_sprite2d_free_indices[MAX_SPRITES];
-static uint16_t sk_sprite2d_generations[MAX_SPRITES];
-static unsigned char sk_sprite2d_occupied[MAX_SPRITES];
 
 static void draw_handle(sk_handle_t sprite);
 static bool pick_handle(sk_handle_t sprite, float screen_x, float screen_y, sk_pick_result_t *out);
 
 void sk_sprite2d_init(void)
 {
-    memset(sk_sprites2d, 0, sizeof(sk_sprites2d));
-    sk_handle_pool_init(&sk_sprite2d_pool, SK_HANDLE_KIND_SPRITE2D, MAX_SPRITES, sk_sprite2d_free_indices,
-                        MAX_SPRITES, sk_sprite2d_generations, sk_sprite2d_occupied);
+    if (!sk_handle_pool_init_growable(&sk_sprite2d_pool, SK_HANDLE_KIND_SPRITE2D, "sprite2d", (void **)&sk_sprites2d,
+                                      sizeof(sk_sprite2d_t), SPRITES_INITIAL, SK_MAX_SPRITE2D)) {
+        log_error("sprite2d: out of memory");
+    }
     sk_scene_register_2d(SK_HANDLE_KIND_SPRITE2D, draw_handle, pick_handle);
     sk_scene_register_enabled(SK_HANDLE_KIND_SPRITE2D, sk_sprite2d_is_enabled);
 }
 
 void sk_sprite2d_deinit(void)
 {
-    for (uint16_t i = 1; i < MAX_SPRITES; i++) {
-        if (sk_sprite2d_occupied[i] && sk_sprites2d[i].texture != 0) {
+    for (uint16_t i = 1; i < sk_sprite2d_pool.capacity; i++) {
+        if (sk_sprite2d_pool.occupied[i] && sk_sprites2d[i].texture != 0) {
             sk_texture_release(sk_sprites2d[i].texture);
         }
     }
-    sk_handle_pool_reset(&sk_sprite2d_pool);
+    sk_handle_pool_destroy(&sk_sprite2d_pool);
 }
 
 static sk_sprite2d_t *resolve(sk_handle_t sprite)
@@ -326,7 +325,7 @@ sk_handle_t sk_sprite2d_create(sk_handle_t texture)
     uint16_t index = 0;
 
     if (handle == 0) {
-        log_error("MAX_SPRITES reached (%d)", MAX_SPRITES);
+        log_error("sprite2d: pool full (%u)", (unsigned)sk_sprite2d_pool.max - 1u);
         return 0;
     }
     sk_handle_pool_resolve(&sk_sprite2d_pool, handle, &index);

@@ -7,11 +7,14 @@
  * mean and worst frame time, the CPU time spent in the frame callback, and
  * sokol_gl's vertex and command use with any overflow.
  *
- *   make spritebench            headless: CPU cost only, default caps then raised caps
+ * Pools and sokol_gl's budgets grow as needed, so past the warm-up frames nothing
+ * should overflow up to the most they can grow to.
+ *
+ *   make spritebench            headless: CPU cost only, default then large budgets
  *   make spritebench DESKTOP=1  desktop, vsync off: real GPU cost (opens a window)
  *
- * The raised-caps run links a library built with larger pools and sokol_gl
- * budgets (BENCH_DEFS in the Makefile), in its own build directory. */
+ * The second run links a library whose sokol_gl budgets start large instead of
+ * growing (BENCH_DEFS in the Makefile), in its own build directory. */
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -27,11 +30,11 @@
 #define MEASURE_FRAMES 100
 #define MAX_BENCH_SPRITES 40000
 
-#ifndef SK_SGL_MAX_VERTICES
-#define SK_SGL_MAX_VERTICES 0
+#ifndef SK_SGL_VERTICES
+#define SK_SGL_VERTICES 0
 #endif
-#ifndef SK_SGL_MAX_COMMANDS
-#define SK_SGL_MAX_COMMANDS 0
+#ifndef SK_SGL_COMMANDS
+#define SK_SGL_COMMANDS 0
 #endif
 
 enum { TEXTURES = 4 };
@@ -145,11 +148,11 @@ static void print_results(void)
     const bool frames = true;
     const char *build = "desktop, vsync off";
 #endif
-    printf("\nspritebench (%s; %s)\n", build, SK_SGL_MAX_VERTICES > 0 ? "raised caps" : "default caps");
-    if (SK_SGL_MAX_VERTICES > 0) {
-        printf("sokol_gl budget: %d vertices, %d commands per frame\n", SK_SGL_MAX_VERTICES, SK_SGL_MAX_COMMANDS);
+    printf("\nspritebench (%s; %s)\n", build, SK_SGL_VERTICES > 0 ? "large starting budgets" : "default budgets");
+    if (SK_SGL_VERTICES > 0) {
+        printf("sokol_gl budget: starts at %d vertices, %d commands per frame\n", SK_SGL_VERTICES, SK_SGL_COMMANDS);
     } else {
-        printf("sokol_gl budget: sokol's defaults (65536 vertices, 16384 commands per frame)\n");
+        printf("sokol_gl budget: starts at 65536 vertices, 16384 commands per frame, doubling as needed\n");
     }
     printf("%-22s %7s %8s", "scene", "wanted", "created");
     if (frames) printf(" %9s %9s", "frame ms", "worst ms");

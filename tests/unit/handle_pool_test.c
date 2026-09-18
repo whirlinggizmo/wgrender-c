@@ -91,3 +91,70 @@ void test_handle_pool_reuse(void)
     CHECK(SK_HANDLE_INDEX(h1) == 1);
     CHECK(SK_HANDLE_GENERATION(h1) == 1);
 }
+
+void test_handle_pool_fifo(void)
+{
+    test_pool_t p;
+    init_pool(&p);
+
+    sk_handle_t h1 = sk_handle_pool_alloc(&p.pool);
+    sk_handle_t h2 = sk_handle_pool_alloc(&p.pool);
+    sk_handle_t h3 = sk_handle_pool_alloc(&p.pool);
+
+    /* freed slots come back oldest first, so churn spreads over all of them rather
+     * than wrapping one slot's generation */
+    sk_handle_pool_free(&p.pool, h2);
+    sk_handle_pool_free(&p.pool, h1);
+    sk_handle_pool_free(&p.pool, h3);
+    CHECK(SK_HANDLE_INDEX(sk_handle_pool_alloc(&p.pool)) == SK_HANDLE_INDEX(h2));
+    sk_handle_t again = sk_handle_pool_alloc(&p.pool);
+    CHECK(SK_HANDLE_INDEX(again) == SK_HANDLE_INDEX(h1));
+    sk_handle_pool_free(&p.pool, again);
+    CHECK(SK_HANDLE_INDEX(sk_handle_pool_alloc(&p.pool)) == SK_HANDLE_INDEX(h3));
+    CHECK(SK_HANDLE_INDEX(sk_handle_pool_alloc(&p.pool)) == SK_HANDLE_INDEX(h1));
+}
+
+typedef struct {
+    int value;
+    char pad[20];
+} test_item_t;
+
+void test_handle_pool_growable(void)
+{
+    enum { MAX = 40, COUNT = MAX - 1 }; /* slot 0 is reserved */
+    sk_handle_pool_t pool;
+    test_item_t *items = NULL;
+    sk_handle_t handles[COUNT];
+    uint16_t index = 0;
+    bool all_resolve = true;
+
+    CHECK(sk_handle_pool_init_growable(&pool, SK_HANDLE_KIND_SPRITE3D, "test", (void **)&items, sizeof(test_item_t),
+                                       4, MAX));
+    CHECK(items != NULL && pool.capacity == 4);
+
+    /* past the initial slots it doubles (4, 8, 16, 32, then the most, 40); handles
+     * and item contents survive every move */
+    for (int i = 0; i < COUNT; i++) {
+        handles[i] = sk_handle_pool_alloc(&pool);
+        CHECK(sk_handle_pool_resolve(&pool, handles[i], &index));
+        CHECK(items[index].value == 0); /* new slots are zeroed */
+        items[index].value = 1000 + i;
+    }
+    CHECK(pool.capacity == MAX);
+    CHECK(sk_handle_pool_alloc(&pool) == 0); /* full at the most */
+    for (int i = 0; i < COUNT; i++) {
+        all_resolve = all_resolve && sk_handle_pool_resolve(&pool, handles[i], &index) &&
+                      items[index].value == 1000 + i;
+    }
+    CHECK(all_resolve);
+
+    /* freeing makes room without growing further */
+    CHECK(sk_handle_pool_free(&pool, handles[5]));
+    CHECK(!sk_handle_pool_resolve(&pool, handles[5], NULL));
+    handles[5] = sk_handle_pool_alloc(&pool);
+    CHECK(handles[5] != 0 && pool.capacity == MAX);
+
+    sk_handle_pool_destroy(&pool);
+    CHECK(items == NULL);
+    CHECK(!sk_handle_pool_resolve(&pool, handles[0], NULL));
+}

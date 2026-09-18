@@ -70,8 +70,8 @@ else
   TARGET := desktop
   DEPS_CHECK := deps-check
 endif
-# BENCH_DEFS: extra -D flags for benchmark builds (tools/bench), e.g. raised pool
-# sizes. They get their own build directory (<target>-bench) so the normal
+# BENCH_DEFS: extra -D flags for benchmark builds (tools/bench), e.g. larger
+# starting sokol_gl budgets. They get their own build directory (<target>-bench) so the normal
 # libraries, tests and examples never pick them up.
 BENCH_DEFS ?=
 ifneq ($(strip $(BENCH_DEFS)),)
@@ -179,13 +179,12 @@ else
 endif
 
 # --- sprite benchmark (tools/bench) ------------------------------------------
-# Sprite-heavy scenes: which limit breaks first (object pools, sokol_gl's per-frame
-# vertex and command budgets) and frame time past the defaults. Runs twice: against
-# the normal library, then one built with raised caps (BENCH_DEFS, in its own
-# <target>-bench build directory). Headless by default (CPU only); DESKTOP=1 uses
+# Sprite-heavy scenes: frame time and sokol_gl's per-frame vertex and command use as
+# sprite counts grow (pools and budgets grow with them). Runs twice: against the
+# normal library, then one whose sokol_gl budgets start large instead of growing
+# (BENCH_DEFS, in its own <target>-bench build directory). Headless by default (CPU only); DESKTOP=1 uses
 # the desktop build with vsync off.
-SPRITEBENCH_DEFS := -DSK_MAX_SPRITE3D=40000 -DSK_MAX_SPRITE2D=40000 -DSK_MAX_TRANSPARENT_ITEMS=40000 \
-                    -DSK_SGL_MAX_VERTICES=262144 -DSK_SGL_MAX_COMMANDS=65536
+SPRITEBENCH_DEFS := -DSK_SGL_VERTICES=262144 -DSK_SGL_COMMANDS=65536
 SPRITEBENCH_INCS := -Iinclude -isystem deps/sokol
 spritebench:
 ifeq ($(DESKTOP),1)

@@ -19,11 +19,12 @@
 #include "sokol_gfx.h"
 #include "util/sokol_gl.h"
 
-/* sprite3d pool size; overridable at build time (-DSK_MAX_SPRITE3D=...) for benchmarks. */
+/* The sprite3d pool starts at SPRITES_INITIAL slots and doubles as needed, up to
+ * SK_MAX_SPRITE3D (overridable at build time, -DSK_MAX_SPRITE3D=...). */
 #ifndef SK_MAX_SPRITE3D
-#define SK_MAX_SPRITE3D 1024
+#define SK_MAX_SPRITE3D SK_HANDLE_POOL_MAX_SLOTS
 #endif
-#define MAX_SPRITES SK_MAX_SPRITE3D
+#define SPRITES_INITIAL 256
 
 typedef struct {
     sk_handle_t texture;
@@ -42,11 +43,8 @@ typedef struct {
     float pick_alpha_threshold;
 } sk_sprite3d_t;
 
-static sk_sprite3d_t sk_sprites[MAX_SPRITES];
+static sk_sprite3d_t *sk_sprites; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_sprite_pool;
-static uint16_t sk_sprite_free_indices[MAX_SPRITES];
-static uint16_t sk_sprite_generations[MAX_SPRITES];
-static unsigned char sk_sprite_occupied[MAX_SPRITES];
 
 static void draw_handle(sk_handle_t handle);
 static int collect_transparent(sk_handle_t handle, const sk_camera3d_t *cam,
@@ -90,7 +88,7 @@ static sk_handle_t create_sprite(sk_handle_t texture)
     uint16_t index = 0;
 
     if (handle == 0) {
-        log_error("MAX_SPRITES reached (%d)", MAX_SPRITES);
+        log_error("sprite3d: pool full (%u)", (unsigned)sk_sprite_pool.max - 1u);
         return 0;
     }
     sk_handle_pool_resolve(&sk_sprite_pool, handle, &index);
@@ -547,14 +545,10 @@ void sk_sprite3d_destroy(sk_handle_t handle)
 
 void sk_sprite3d_init(void)
 {
-    memset(sk_sprites, 0, sizeof(sk_sprites));
-    sk_handle_pool_init(&sk_sprite_pool,
-                        SK_HANDLE_KIND_SPRITE3D,
-                        MAX_SPRITES,
-                        sk_sprite_free_indices,
-                        MAX_SPRITES,
-                        sk_sprite_generations,
-                        sk_sprite_occupied);
+    if (!sk_handle_pool_init_growable(&sk_sprite_pool, SK_HANDLE_KIND_SPRITE3D, "sprite3d", (void **)&sk_sprites,
+                                      sizeof(sk_sprite3d_t), SPRITES_INITIAL, SK_MAX_SPRITE3D)) {
+        log_error("sprite3d: out of memory");
+    }
     sk_scene_register_passes(SK_HANDLE_KIND_SPRITE3D, NULL, collect_transparent, draw_transparent);
     sk_scene_register_bounds(SK_HANDLE_KIND_SPRITE3D, sprite_bounds);
     sk_scene_register_pick(SK_HANDLE_KIND_SPRITE3D, sprite_pick);
@@ -563,5 +557,5 @@ void sk_sprite3d_init(void)
 
 void sk_sprite3d_deinit(void)
 {
-    sk_handle_pool_reset(&sk_sprite_pool);
+    sk_handle_pool_destroy(&sk_sprite_pool);
 }

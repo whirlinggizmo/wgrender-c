@@ -227,6 +227,15 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       with Clay and draws it through ~100 lines of public-API glue
 - [ ] UI later (PLAN-ui step 4): clipboard and keyboard capture in use with text
       fields, letter spacing, the Dear ImGui extension hook
+- [x] Limits that grow (2026-09-18): the sprite3d and sprite2d pools start at 256
+      and double up to 65,534 (the handle's 16-bit index); the scene's transparent
+      list doubles as needed; sokol_gl's per-frame vertex and command budgets double
+      after a frame that ran out (logged: that frame lost its draws past them), up to
+      1M vertices and 256K commands. Freed handle slots are reused oldest first, so
+      churn no longer wraps one slot's 10-bit generation. spritebench: 32,768 sprites
+      in every scene with the default build (was 1,024 sprite3d)
+- [ ] The other fixed pools (models, sounds, text2d, shapes, lights, ...) on the
+      growable handle pool
 - [ ] Particle emitters (batched/instanced)
 - [x] Render to texture: `sk_texture_create_target`, `sk_render_begin/end_texture`,
       `sk_texture_set_sampling` ([PLAN-render-target.md](PLAN-render-target.md),
