@@ -14,13 +14,28 @@ extern "C" {
  *
  * Immediate primitives draw between sk_render_begin() and sk_render_end(), in
  * call order. */
-void sk_shape2d_draw_rectangle(int x, int y, int width, int height, sk_color_t color);
-void sk_shape2d_draw_rectangle_lines(int x, int y, int width, int height, sk_color_t color);
-void sk_shape2d_draw_line(int start_x, int start_y, int end_x, int end_y, sk_color_t color);
-void sk_shape2d_draw_circle(int center_x, int center_y, float radius, sk_color_t color);
-void sk_shape2d_draw_circle_lines(int center_x, int center_y, float radius, sk_color_t color);
+void sk_shape2d_draw_rectangle(float x, float y, float width, float height, sk_color_t color);
+void sk_shape2d_draw_rectangle_lines(float x, float y, float width, float height, sk_color_t color);
+void sk_shape2d_draw_line(float start_x, float start_y, float end_x, float end_y, sk_color_t color);
+void sk_shape2d_draw_circle(float center_x, float center_y, float radius, sk_color_t color);
+void sk_shape2d_draw_circle_lines(float center_x, float center_y, float radius, sk_color_t color);
 void sk_shape2d_draw_triangle(float x0, float y0, float x1, float y1, float x2, float y2,
                               sk_color_t color);
+
+/* A filled rectangle from (x, y), with each corner rounded by its own radius
+ * (clamped to half the shorter side; 0 is square). */
+void sk_shape2d_draw_rounded_rectangle(float x, float y, float width, float height,
+                                       float r_top_left, float r_top_right,
+                                       float r_bottom_right, float r_bottom_left, sk_color_t color);
+
+/* A border just inside the rectangle (x, y, width, height), each side its own width,
+ * each outer corner its own radius, as in CSS. Inner corners are rounded by the outer
+ * radius less the wider of the two sides meeting there; borders wider than the box
+ * fill it. */
+void sk_shape2d_draw_border(float x, float y, float width, float height,
+                            float left, float top, float right, float bottom,
+                            float r_top_left, float r_top_right,
+                            float r_bottom_right, float r_bottom_left, sk_color_t color);
 
 /* Retained 2D shapes — handle-based drawables with a kind, a transform, a color,
  * and visible / pickable / enabled flags. Add one to a scene (sk_scene_add): 2D

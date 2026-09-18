@@ -228,7 +228,8 @@ void sk_render_end_clip(void);
   single line (about 1.2x the size) instead of the ink's height.
 - Clipping: `sk_scene_set_clip(scene, layer, x, y, width, height)` clips a layer's 2D
   members (at most 8 layers per scene; a 0 size removes it), and
-  `sk_render_begin_clip` / `sk_render_end_clip` do the same for immediate drawing.
+  `sk_render_begin_clip` / `sk_render_end_clip` do the same for immediate drawing
+  (since [PLAN-ui.md](PLAN-ui.md): a nesting stack, `sk_render_push_clip` / `pop_clip`).
   Rectangles are logical pixels, top-left origin; the scissor rect is framebuffer
   pixels, so screen rectangles scale by the DPI scale and render targets don't.
   **A clipped-away member isn't picked either**, so a scrolled-out row can't be

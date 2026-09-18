@@ -10,6 +10,7 @@
 #include "internal/sk_internal.h"
 #include "internal/sk_pick.h"
 #include "internal/sk_scene.h"
+#include "internal/sk_shape2d.h"
 #include "sk_logger.h"
 
 #include "sokol_gfx.h"
@@ -92,12 +93,9 @@ static void set_color(sk_color_t color)
 /* --------------------------------------------------------- immediate 2D ---- */
 
 SK_KEEP
-void sk_shape2d_draw_rectangle(int x, int y, int width, int height, sk_color_t color)
+void sk_shape2d_draw_rectangle(float x, float y, float width, float height, sk_color_t color)
 {
-    const float x0 = (float)x;
-    const float y0 = (float)y;
-    const float x1 = (float)(x + width);
-    const float y1 = (float)(y + height);
+    const float x0 = x, y0 = y, x1 = x + width, y1 = y + height;
 
     sgl_begin_quads();
     set_color(color);
@@ -109,12 +107,9 @@ void sk_shape2d_draw_rectangle(int x, int y, int width, int height, sk_color_t c
 }
 
 SK_KEEP
-void sk_shape2d_draw_rectangle_lines(int x, int y, int width, int height, sk_color_t color)
+void sk_shape2d_draw_rectangle_lines(float x, float y, float width, float height, sk_color_t color)
 {
-    const float x0 = (float)x;
-    const float y0 = (float)y;
-    const float x1 = (float)(x + width);
-    const float y1 = (float)(y + height);
+    const float x0 = x, y0 = y, x1 = x + width, y1 = y + height;
 
     sgl_begin_line_strip();
     set_color(color);
@@ -127,20 +122,19 @@ void sk_shape2d_draw_rectangle_lines(int x, int y, int width, int height, sk_col
 }
 
 SK_KEEP
-void sk_shape2d_draw_line(int start_x, int start_y, int end_x, int end_y, sk_color_t color)
+void sk_shape2d_draw_line(float start_x, float start_y, float end_x, float end_y, sk_color_t color)
 {
     sgl_begin_lines();
     set_color(color);
-    sgl_v2f((float)start_x, (float)start_y);
-    sgl_v2f((float)end_x, (float)end_y);
+    sgl_v2f(start_x, start_y);
+    sgl_v2f(end_x, end_y);
     sgl_end();
 }
 
 SK_KEEP
-void sk_shape2d_draw_circle(int center_x, int center_y, float radius, sk_color_t color)
+void sk_shape2d_draw_circle(float center_x, float center_y, float radius, sk_color_t color)
 {
-    const float cx = (float)center_x;
-    const float cy = (float)center_y;
+    const float cx = center_x, cy = center_y;
 
     sgl_begin_triangles();
     set_color(color);
@@ -155,10 +149,9 @@ void sk_shape2d_draw_circle(int center_x, int center_y, float radius, sk_color_t
 }
 
 SK_KEEP
-void sk_shape2d_draw_circle_lines(int center_x, int center_y, float radius, sk_color_t color)
+void sk_shape2d_draw_circle_lines(float center_x, float center_y, float radius, sk_color_t color)
 {
-    const float cx = (float)center_x;
-    const float cy = (float)center_y;
+    const float cx = center_x, cy = center_y;
 
     sgl_begin_line_strip();
     set_color(color);
@@ -380,18 +373,20 @@ static void pivot_offset(const sk_shape2d_t *shape_ptr, float *out_x, float *out
     }
 }
 
-/* The outline of a rounded rectangle inset by `inset` (its radius shrinks with it),
- * clockwise from the top-left corner's arc, SK_CORNER_SEGMENTS + 1 points per
- * corner. */
-static int rounded_rect_points(float width, float height, float radius, float inset, float *xy)
+/* The outline of the rectangle (x, y, width, height) with per-corner radii (top-left,
+ * top-right, bottom-right, bottom-left), each clamped to half the shorter side,
+ * clockwise from the top-left corner's arc: SK_CORNER_SEGMENTS + 1 points per corner,
+ * so any two outlines have the same count and can be joined into a band. */
+int sk_shape2d_rounded_outline(float x, float y, float width, float height, const float radii[4], float *xy)
 {
-    const float r = fmaxf(0.0f, radius - inset);
-    const float x0 = inset, y0 = inset, x1 = width - inset, y1 = height - inset;
+    const float w = width > 0.0f ? width : 0.0f, h = height > 0.0f ? height : 0.0f;
+    const float limit = fminf(w, h) * 0.5f;
     int n = 0;
     for (int c = 0; c < 4; c++) {
         /* corners: top-left, top-right, bottom-right, bottom-left (y down) */
-        const float cx = c == 0 || c == 3 ? x0 + r : x1 - r;
-        const float cy = c == 0 || c == 1 ? y0 + r : y1 - r;
+        const float r = fmaxf(0.0f, fminf(radii[c], limit));
+        const float cx = c == 0 || c == 3 ? x + r : x + w - r;
+        const float cy = c == 0 || c == 1 ? y + r : y + h - r;
         const float start = SHAPE_PI + (float)c * SHAPE_PI * 0.5f; /* 180, 270, 0, 90 degrees */
         for (int i = 0; i <= SK_CORNER_SEGMENTS; i++) {
             const float a = start + (float)i / SK_CORNER_SEGMENTS * SHAPE_PI * 0.5f;
@@ -401,6 +396,15 @@ static int rounded_rect_points(float width, float height, float radius, float in
         }
     }
     return n;
+}
+
+/* A retained rectangle's outline from its own origin, inset by `inset` (the radius
+ * shrinks with it). */
+static int rounded_rect_points(float width, float height, float radius, float inset, float *xy)
+{
+    const float r = fmaxf(0.0f, radius - inset);
+    const float radii[4] = {r, r, r, r};
+    return sk_shape2d_rounded_outline(inset, inset, width - 2.0f * inset, height - 2.0f * inset, radii, xy);
 }
 
 static void fill_fan(float cx, float cy, const float *xy, int n)
@@ -429,6 +433,47 @@ static void fill_band(const float *outer, const float *inner, int n)
         sgl_v2f(inner[j * 2], inner[j * 2 + 1]);
     }
     sgl_end();
+}
+
+#define OUTLINE_POINTS SK_SHAPE2D_OUTLINE_POINTS
+_Static_assert(SK_SHAPE2D_OUTLINE_POINTS == 4 * (SK_CORNER_SEGMENTS + 1), "outline size out of step");
+
+SK_KEEP
+void sk_shape2d_draw_rounded_rectangle(float x, float y, float width, float height, float r_top_left,
+                                       float r_top_right, float r_bottom_right, float r_bottom_left,
+                                       sk_color_t color)
+{
+    const float radii[4] = {r_top_left, r_top_right, r_bottom_right, r_bottom_left};
+    float xy[OUTLINE_POINTS * 2];
+    const int n = sk_shape2d_rounded_outline(x, y, width, height, radii, xy);
+    if (width <= 0.0f || height <= 0.0f) {
+        return;
+    }
+    set_color(color);
+    fill_fan(x + width * 0.5f, y + height * 0.5f, xy, n);
+}
+
+SK_KEEP
+void sk_shape2d_draw_border(float x, float y, float width, float height, float left, float top, float right,
+                            float bottom, float r_top_left, float r_top_right, float r_bottom_right,
+                            float r_bottom_left, sk_color_t color)
+{
+    const float l = fmaxf(0.0f, left), t = fmaxf(0.0f, top), r = fmaxf(0.0f, right), b = fmaxf(0.0f, bottom);
+    const float outer_radii[4] = {r_top_left, r_top_right, r_bottom_right, r_bottom_left};
+    /* inner corners are circular too: the outer radius less the wider adjoining side */
+    const float inner_radii[4] = {r_top_left - fmaxf(l, t), r_top_right - fmaxf(r, t), r_bottom_right - fmaxf(r, b),
+                                  r_bottom_left - fmaxf(l, b)};
+    float outer[OUTLINE_POINTS * 2], inner[OUTLINE_POINTS * 2];
+    int n;
+
+    if (width <= 0.0f || height <= 0.0f || l + t + r + b <= 0.0f) {
+        return;
+    }
+    n = sk_shape2d_rounded_outline(x, y, width, height, outer_radii, outer);
+    /* borders wider than the box fill it: the inner outline stays inside the outer one */
+    sk_shape2d_rounded_outline(x + fminf(l, width), y + fminf(t, height), width - l - r, height - t - b, inner_radii, inner);
+    set_color(color);
+    fill_band(outer, inner, n);
 }
 
 static int circle_points(float radius, float *xy)

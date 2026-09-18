@@ -46,4 +46,8 @@ int sk_render_current_pass(void);
  * target, else the screen. For aspect ratios. */
 vec2_t sk_render_target_size(void);
 
+/* The current clip in logical pixels (the whole target when nothing is pushed);
+ * false when nothing is pushed in this pass. For tests. */
+bool sk_render_get_clip(float *x, float *y, float *width, float *height);
+
 #endif // SK_INTERNAL_RENDER_H

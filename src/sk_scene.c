@@ -668,21 +668,20 @@ void sk_scene_draw(sk_handle_t scene)
             }
             if (!layer_known || scene_ptr->items[i].layer != clip_layer) {
                 const sk_scene_clip_t *next = lookup_clip(scene_ptr, scene_ptr->items[i].layer);
-                if (next != clip) {
-                    if (next != NULL) {
-                        sk_render_begin_clip(next->x, next->y, next->width, next->height);
-                    } else {
-                        sk_render_end_clip();
-                    }
-                    clip = next;
+                if (clip != NULL) {
+                    sk_render_pop_clip(); /* leaving the previous layer's clip */
                 }
+                if (next != NULL) {
+                    sk_render_push_clip(next->x, next->y, next->width, next->height);
+                }
+                clip = next;
                 clip_layer = scene_ptr->items[i].layer;
                 layer_known = true;
             }
             passes->draw_2d(drawable);
         }
         if (clip != NULL) {
-            sk_render_end_clip();
+            sk_render_pop_clip();
         }
     }
 }
@@ -847,7 +846,7 @@ void sk_scene_update_interaction(void)
 
     sk_input_get_pointer_frame(&x, &y, &down, &pressed, &released);
     if (sk_scene_capture_releasing) {
-        sk_input_set_pointer_captured(false); /* captured through the release frame */
+        sk_input_set_scene_pointer_captured(false); /* captured through the release frame */
         sk_scene_capture_releasing = false;
     }
     for (int i = 0; i < MAX_SCENES; i++) {
@@ -882,7 +881,7 @@ void sk_scene_update_interaction(void)
         add_interaction_edges(state, entered, left, pressed_on, released_on, clicked_on);
     }
     if (captured) {
-        sk_input_set_pointer_captured(true);
+        sk_input_set_scene_pointer_captured(true);
     }
     if (released) {
         sk_scene_capture_releasing = true; /* clears next frame */

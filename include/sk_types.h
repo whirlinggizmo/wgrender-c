@@ -31,7 +31,9 @@ typedef struct
 {
     int x;
     int y;
-    int wheel;
+    float wheel;   /* vertical scroll this frame (or tick): about one unit per wheel notch,
+                      fractional on trackpads and precision wheels */
+    float wheel_x; /* horizontal scroll, same units */
     int left;
     int right;
     int middle;

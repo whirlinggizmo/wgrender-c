@@ -53,6 +53,23 @@ vec2_t      sk_texture_get_size(sk_handle_t handle);
  * mode; follows call order. For rotation, source regions or picking use sprite2d. */
 void        sk_texture_draw(sk_handle_t texture, float x, float y, float width, float height,
                             sk_color_t tint);
+
+/* A region of the texture (source rectangle in texture pixels; width or height <= 0:
+ * the whole texture) drawn into the rectangle (x, y, width, height); width or
+ * height <= 0 draws it at its own size. Axis-aligned, top-left at (x, y), in call
+ * order, like sk_texture_draw — for icons and panels cut from an atlas. */
+void        sk_texture_draw_ex(sk_handle_t texture, float source_x, float source_y,
+                               float source_width, float source_height,
+                               float x, float y, float width, float height, sk_color_t tint);
+
+/* The same, nine-sliced: borders (left, top, right, bottom) in source pixels keep their
+ * size, the edges stretch along one axis and the middle along both — a skinned panel
+ * or button at any size. Borders that don't fit shrink to fill it, as with
+ * sk_sprite2d_set_nine_slice; all 0 draws the plain region. */
+void        sk_texture_draw_nine_slice(sk_handle_t texture, float source_x, float source_y,
+                                       float source_width, float source_height,
+                                       float left, float top, float right, float bottom,
+                                       float x, float y, float width, float height, sk_color_t tint);
 /* Drop this handle's reference to the resource. Resources are shared and
  * reference counted (loading the same path again returns the same handle, with
  * one more reference), so a resource is freed when its last reference goes, not

@@ -207,8 +207,8 @@ static void draw_overlay(sk_mouse_state_t mouse)
     draw_text(g.debug_font, line, 10, 36, DEBUG_FONT_SIZE, SK_COLOR_BLACK);
     snprintf(line, sizeof(line), "Elapsed: %.2f", g.elapsed);
     draw_text(g.debug_font, line, 10, 56, DEBUG_FONT_SIZE, SK_COLOR_BLACK);
-    snprintf(line, sizeof(line), "Mouse: (%d, %d) w:%d b:[%d, %d, %d]", mouse.x, mouse.y,
-             mouse.wheel, mouse.left, mouse.right, mouse.middle);
+    snprintf(line, sizeof(line), "Mouse: (%d, %d) w:%.1f b:[%d, %d, %d]", mouse.x, mouse.y,
+             (double)mouse.wheel, mouse.left, mouse.right, mouse.middle);
     draw_text(g.debug_font, line, 10, 76, DEBUG_FONT_SIZE, SK_COLOR_BLACK);
     draw_text(g.debug_font, g.platform_text, 10, 96, DEBUG_FONT_SIZE, SK_COLOR_BLACK);
 

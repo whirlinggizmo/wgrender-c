@@ -290,7 +290,7 @@ One screen space: **logical pixels, top-left origin, y down**, used by input
 positions, picks, clip rectangles and every 2D draw. The world is right-handed with
 **+y up**, and all angles everywhere are radians. High-DPI is invisible to callers —
 the scissor rectangle is the only place framebuffer pixels appear, and
-`sk_render_begin_clip` converts for you. Texture source rectangles are in texture
+`sk_render_push_clip` converts for you. Texture source rectangles are in texture
 pixels, also top-left.
 
 What differs per noun is **where an object's position sits on it**, and each default

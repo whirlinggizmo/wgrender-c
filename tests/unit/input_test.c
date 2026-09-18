@@ -91,3 +91,60 @@ void test_input_tick_deltas(void)
     frame = sk_input_get_mouse_state();
     CHECK(frame.dx == 0 && frame.dy == 0);
 }
+
+/* Scrolling accumulates as floats on both axes: small trackpad steps used to be
+ * truncated to 0 one event at a time and lost. */
+void test_input_wheel(void)
+{
+    sapp_event ev;
+    sk_input_init();
+    sk_input_set_context(SK_INPUT_CONTEXT_FRAME);
+
+    memset(&ev, 0, sizeof(ev));
+    ev.type = SAPP_EVENTTYPE_MOUSE_SCROLL;
+    ev.scroll_y = 0.25f;
+    ev.scroll_x = -0.5f;
+    for (int i = 0; i < 4; i++) {
+        sk_input_handle_event(&ev);
+    }
+    CHECK_NEAR(sk_input_get_mouse_state().wheel, 1.0, 1e-6);
+    CHECK_NEAR(sk_input_get_mouse_state().wheel_x, -2.0, 1e-6);
+    CHECK_NEAR(sk_input_get_mouse_wheel(), 1.0, 1e-6);
+    CHECK_NEAR(sk_input_get_mouse_wheel_x(), -2.0, 1e-6);
+
+    ev.scroll_y = 0.03f; /* one trackpad step: kept, not rounded away */
+    ev.scroll_x = 0.0f;
+    sk_input_handle_event(&ev);
+    CHECK_NEAR(sk_input_get_mouse_wheel(), 1.03, 1e-5);
+
+    sk_input_end_frame();
+    CHECK(sk_input_get_mouse_state().wheel == 0.0f && sk_input_get_mouse_state().wheel_x == 0.0f);
+}
+
+/* The UI's captures are sticky, and the pointer is captured by either the UI or a
+ * scene press. */
+void test_input_capture(void)
+{
+    sk_input_init();
+    CHECK(!sk_input_is_pointer_captured());
+    CHECK(!sk_input_is_keyboard_captured());
+
+    sk_input_set_pointer_captured(true);
+    CHECK(sk_input_is_pointer_captured());
+    sk_input_end_frame(); /* sticky: survives the frame */
+    sk_input_end_tick();
+    CHECK(sk_input_is_pointer_captured());
+
+    sk_input_set_scene_pointer_captured(true); /* a scene press as well */
+    sk_input_set_pointer_captured(false);
+    CHECK(sk_input_is_pointer_captured());     /* still held by the scene */
+    sk_input_set_scene_pointer_captured(false);
+    CHECK(!sk_input_is_pointer_captured());
+
+    sk_input_set_keyboard_captured(true);
+    sk_input_end_frame();
+    CHECK(sk_input_is_keyboard_captured());
+    CHECK(!sk_input_is_pointer_captured());    /* independent of the pointer */
+    sk_input_set_keyboard_captured(false);
+    CHECK(!sk_input_is_keyboard_captured());
+}

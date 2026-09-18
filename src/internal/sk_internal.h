@@ -130,6 +130,6 @@ sk_input_context_t sk_input_get_context(void);
 /* The pointer (mouse, or the primary touch) with this frame's edges, whatever the
  * context: position in logical pixels, primary button held / pressed / released. */
 void sk_input_get_pointer_frame(float *x, float *y, bool *down, bool *pressed, bool *released);
-void sk_input_set_pointer_captured(bool captured);
+void sk_input_set_scene_pointer_captured(bool captured); /* sk_scene.c's interaction capture */
 
 #endif // SK_INTERNAL_H

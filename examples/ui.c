@@ -12,6 +12,8 @@
  *     animation
  *   - dragging anywhere else orbits the camera; a drag that starts on a button
  *     doesn't (sk_input_is_pointer_captured)
+ *   - the header is immediate drawing, next to all that retained UI: the panel's
+ *     nine-slice texture drawn directly, and a rounded, bordered status pill
  * Touch works like the mouse. ESC quits. */
 #include <math.h>
 #include <stdio.h>
@@ -44,11 +46,12 @@ static const char *ROW_NAMES[ROWS] = {"Sponza", "Flight helmet", "Gumshoe", "Dam
 static struct {
     sk_handle_t scene, camera, sun;
     sk_color_t bg, idle, hover, pressed, disabled, text, text_disabled, highlight, outline, bar_color,
-        row_color, row_selected;
+        row_color, row_selected, pill, pill_edge;
     sk_handle_t panel, divider, bar_back, bar_fill, bar_tip, note;
     sk_handle_t buttons[BUTTONS], labels[BUTTONS];
     sk_handle_t rows[ROWS], row_labels[ROWS];
     sk_handle_t gumshoe;
+    sk_handle_t panel_texture;
     int clicks;
     int selected;
     float scroll; /* pixels the list is scrolled down by */
@@ -66,10 +69,9 @@ static void on_gumshoe(const char *path, void *user)
 
 static void on_panel(const char *path, void *user)
 {
-    const sk_handle_t texture = sk_texture_create(path);
     (void)user;
-    sk_sprite2d_set_texture(g.panel, texture);
-    sk_texture_release(texture);
+    g.panel_texture = sk_texture_create(path); /* kept: the header draws it too */
+    sk_sprite2d_set_texture(g.panel, g.panel_texture);
 }
 
 static void on_failed(const char *path, void *user)
@@ -109,6 +111,8 @@ static void init(void *user_data)
     g.bar_color = sk_color_rgba(110, 200, 140, 255);
     g.row_color = sk_color_rgba(44, 50, 66, 255);
     g.row_selected = sk_color_rgba(80, 110, 90, 255);
+    g.pill = sk_color_rgba(40, 46, 62, 230);
+    g.pill_edge = sk_color_rgba(90, 105, 140, 255);
     g.selected = -1;
 
     g.camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
@@ -283,12 +287,17 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_render_begin();
     sk_render_clear_background(g.bg);
     sk_scene_draw(g.scene);
-    sk_text_draw("libsk ui: hover, press and click 2D and 3D members", 20, 20, 20, g.text);
+    /* the header is immediate drawing, next to the retained panel below it: the same
+       nine-slice texture as the panel, and a rounded, bordered pill for the status */
+    sk_texture_draw_nine_slice(g.panel_texture, 0, 0, 0, 0, 16, 16, 16, 16, 10, 6, 640, 62, SK_COLOR_WHITE);
+    sk_shape2d_draw_rounded_rectangle(18, 40, 624, 22, 11, 11, 11, 11, g.pill);
+    sk_shape2d_draw_border(18, 40, 624, 22, 1, 1, 1, 1, 11, 11, 11, 11, g.pill_edge);
+    sk_text_draw("libsk ui: hover, press and click 2D and 3D members", 22, 15, 20, g.text);
     snprintf(line, sizeof(line), "clicks: %d   selected: %s   hovered: %s   pointer captured: %s", g.clicks,
              g.selected < 0 ? "nothing" : ROW_NAMES[g.selected],
              hovered == 0 ? "nothing" : hovered == g.gumshoe ? "gumshoe" : hovered == g.panel ? "the panel" : "UI",
              sk_input_is_pointer_captured() ? "yes" : "no");
-    sk_text_draw(line, 20, 46, 15, g.text_disabled);
+    sk_text_draw(line, 28, 43, 15, g.text_disabled);
     sk_render_end();
 }
 

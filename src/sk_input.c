@@ -27,7 +27,7 @@
 
 typedef struct {
     int dx, dy;
-    int wheel;
+    float wheel, wheel_x; /* accumulated as floats: truncating each event lost small trackpad steps */
     bool pressed[SK_MOUSE_BUTTONS];
     bool released[SK_MOUSE_BUTTONS];
     bool key_pressed[SK_KEYBOARD_MAX_KEYS];
@@ -50,7 +50,9 @@ typedef struct {
     /* the first touch drives the pointer, like the left mouse button */
     bool touching;
     uintptr_t touch_id;
-    bool pointer_captured; /* set by interactive scenes (sk_scene.c) */
+    bool scene_pointer_captured; /* set by interactive scenes (sk_scene.c) */
+    bool ui_pointer_captured;    /* sticky, set by the game's UI */
+    bool ui_keyboard_captured;   /* sticky, set by the game's UI */
 } sk_input_state_t;
 
 static sk_input_state_t sk_input;
@@ -108,7 +110,8 @@ static void add_edges(sk_input_edges_t *edges, const sapp_event *ev, bool key_wa
             edges->released[ev->mouse_button] = true;
             break;
         case SAPP_EVENTTYPE_MOUSE_SCROLL:
-            edges->wheel += (int)ev->scroll_y;
+            edges->wheel += ev->scroll_y;
+            edges->wheel_x += ev->scroll_x;
             break;
         case SAPP_EVENTTYPE_KEY_DOWN:
             if (!ev->key_repeat && !key_was_down) {
@@ -229,15 +232,33 @@ void sk_input_get_pointer_frame(float *x, float *y, bool *down, bool *pressed, b
     *released = sk_input.frame_edges.released[0];
 }
 
+void sk_input_set_scene_pointer_captured(bool captured)
+{
+    sk_input.scene_pointer_captured = captured;
+}
+
+SK_KEEP
 void sk_input_set_pointer_captured(bool captured)
 {
-    sk_input.pointer_captured = captured;
+    sk_input.ui_pointer_captured = captured;
 }
 
 SK_KEEP
 bool sk_input_is_pointer_captured(void)
 {
-    return sk_input.pointer_captured;
+    return sk_input.scene_pointer_captured || sk_input.ui_pointer_captured;
+}
+
+SK_KEEP
+void sk_input_set_keyboard_captured(bool captured)
+{
+    sk_input.ui_keyboard_captured = captured;
+}
+
+SK_KEEP
+bool sk_input_is_keyboard_captured(void)
+{
+    return sk_input.ui_keyboard_captured;
 }
 
 SK_KEEP
@@ -263,9 +284,15 @@ vec2_t sk_input_get_mouse_delta(void)
 }
 
 SK_KEEP
-int sk_input_get_mouse_wheel(void)
+float sk_input_get_mouse_wheel(void)
 {
     return current_edges()->wheel;
+}
+
+SK_KEEP
+float sk_input_get_mouse_wheel_x(void)
+{
+    return current_edges()->wheel_x;
 }
 
 SK_KEEP
@@ -286,6 +313,7 @@ sk_mouse_state_t sk_input_get_mouse_state(void)
     state.x = sk_input.x;
     state.y = sk_input.y;
     state.wheel = edges->wheel;
+    state.wheel_x = edges->wheel_x;
     state.left = sk_input_get_mouse_button(0);
     state.right = sk_input_get_mouse_button(1);
     state.middle = sk_input_get_mouse_button(2);

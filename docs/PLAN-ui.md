@@ -1,6 +1,7 @@
 # Plan: UI through libsk's public API
 
-Status: **accepted** (2026-09-18), all decisions as recommended. Step 1 (drawing and input) in progress.
+Status: **accepted** (2026-09-18), all decisions as recommended. Step 1 (drawing and input) done;
+see "As built". Steps 2–4 to do.
 
 ## Why
 
@@ -136,8 +137,8 @@ parameter of the `_n` functions and a text2d setting.
 set that. The UI gets its own, sticky, switch:
 
 ```c
-void sk_input_capture_pointer(bool captured);   /* the UI holds the pointer */
-void sk_input_capture_keyboard(bool captured);  /* a UI text field has focus */
+void sk_input_set_pointer_captured(bool captured);   /* the UI holds the pointer */
+void sk_input_set_keyboard_captured(bool captured);  /* a UI text field has focus */
 bool sk_input_is_keyboard_captured(void);
 ```
 
@@ -204,6 +205,40 @@ the public API's rules. It's independent of everything above and can come later.
 7. **DPI-correct glyph rasterization** for all 2D text. Recommend: yes — without it UI
    text is blurry on every high-DPI screen.
 8. **Deferred:** letter spacing, clipboard, the ImGui hook.
+
+## As built
+
+### Step 1: drawing and input (2026-09-18)
+
+- Immediate 2D takes floats (`rectangle`, `rectangle_lines`, `line`, `circle`,
+  `circle_lines`); callers passing ints needed no changes.
+- `sk_shape2d_draw_rounded_rectangle` and `sk_shape2d_draw_border` as designed. One
+  outline builder (`sk_shape2d_rounded_outline`, internal) now serves them and the
+  retained rectangles; borders wider than the box fill it.
+- `sk_texture_draw_ex` and `sk_texture_draw_nine_slice`; `sk_texture_draw` became a
+  wrapper, and the nine-slice helper no longer needs a sprite, so sprites and the
+  immediate call share it.
+- The clip stack, `sk_render_push_clip` / `pop_clip`, replaced begin/end clip: 32 deep,
+  each push intersected with its parent, a render target's pass starting from its own
+  target, and pushes left open dropped (with a warning) at the end of a texture pass
+  or the frame. Scene layer clips push and pop on it, so a layer clip intersects with a
+  clip pushed around `sk_scene_draw`.
+- **Capture names differ from the draft:** `sk_input_set_pointer_captured` /
+  `sk_input_set_keyboard_captured` / `sk_input_is_keyboard_captured`, the house
+  set/is pairing for the existing `sk_input_is_pointer_captured`. The draft's
+  `sk_input_capture_pointer` would have sat next to the existing
+  `sk_input_capture_cursor`, which means something else (pointer lock). The scene's
+  internal setter became `sk_input_set_scene_pointer_captured`.
+- The wheel is `float wheel, wheel_x` (and `sk_input_get_mouse_wheel_x`). Beyond
+  precision, this fixed a bug: each scroll event was truncated to `int` before being
+  added up, so small trackpad steps (sokol reports a notch as about 1.0 and trackpad
+  steps as fractions) were dropped entirely.
+- `examples/ui.c` gained an immediate header — its nine-slice texture drawn directly,
+  and a rounded, bordered status pill — above the retained panel; checked on both
+  backends.
+- Tests: `input_wheel`, `input_capture`, `render_clip_stack`, `shape2d_immediate`
+  (outline geometry, and vertex counts proving each draw emits and skips what it
+  should), `texture_draw_immediate`.
 
 ## Verification
 

@@ -1,3 +1,5 @@
+#include <math.h>
+
 /* Retained 2D shapes (docs/PLAN-2d.md step 2): exact-area picking under the 2D
  * transform, and 2D/3D routing (a shape handle is one or the other). */
 #include "internal/sk_camera3d.h"
@@ -8,6 +10,7 @@
 #include "sk_camera3d.h"
 #include "sk_logger.h"
 #include "sk_pick.h"
+#include "sk_render.h"
 #include "sk_scene.h"
 #include "sk_shape2d.h"
 #include "sk_shape3d.h"
@@ -15,7 +18,11 @@
 #include "test.h"
 #include "tests.h"
 
+#include "internal/sk_shape2d.h"
+#include "sk_color.h"
+
 #include "sokol_gfx.h"
+#include "util/sokol_gl.h"
 
 static bool hit(sk_handle_t shape, float x, float y)
 {
@@ -138,6 +145,79 @@ void test_shape2d(void)
     sk_shape3d_deinit();
     sk_camera3d_deinit();
     sk_scene_deinit();
+    sk_render_deinit();
+    sg_shutdown();
+}
+
+/* Immediate rounded rectangles and borders (docs/PLAN-ui.md): the shared outline's
+ * geometry, and what each draw emits (sokol_gl vertex counts on the dummy backend). */
+void test_shape2d_immediate(void)
+{
+    float xy[SK_SHAPE2D_OUTLINE_POINTS * 2];
+    const int per_corner = SK_SHAPE2D_OUTLINE_POINTS / 4;
+
+    /* square corners: every point of a corner's arc sits on the corner */
+    const float square[4] = {0, 0, 0, 0};
+    CHECK(sk_shape2d_rounded_outline(10, 20, 100, 50, square, xy) == SK_SHAPE2D_OUTLINE_POINTS);
+    CHECK_NEAR(xy[0], 10, 1e-4);                                /* top-left */
+    CHECK_NEAR(xy[1], 20, 1e-4);
+    CHECK_NEAR(xy[per_corner * 2], 110, 1e-4);                  /* top-right */
+    CHECK_NEAR(xy[per_corner * 2 + 1], 20, 1e-4);
+    CHECK_NEAR(xy[2 * per_corner * 2], 110, 1e-4);              /* bottom-right */
+    CHECK_NEAR(xy[2 * per_corner * 2 + 1], 70, 1e-4);
+
+    /* per-corner radii, the outline stays inside the rectangle */
+    const float mixed[4] = {10, 0, 5, 20};
+    sk_shape2d_rounded_outline(0, 0, 100, 50, mixed, xy);
+    float min_x = 1e9f, max_x = -1e9f, min_y = 1e9f, max_y = -1e9f;
+    for (int i = 0; i < SK_SHAPE2D_OUTLINE_POINTS; i++) {
+        min_x = fminf(min_x, xy[i * 2]), max_x = fmaxf(max_x, xy[i * 2]);
+        min_y = fminf(min_y, xy[i * 2 + 1]), max_y = fmaxf(max_y, xy[i * 2 + 1]);
+    }
+    CHECK_NEAR(min_x, 0, 1e-4);
+    CHECK_NEAR(max_x, 100, 1e-4);
+    CHECK_NEAR(min_y, 0, 1e-4);
+    CHECK_NEAR(max_y, 50, 1e-4);
+    CHECK_NEAR(xy[0], 0, 1e-4);   /* the top-left arc starts on the left edge ... */
+    CHECK_NEAR(xy[1], 10, 1e-4);  /* ... 10 down: radius 10 */
+    CHECK_NEAR(xy[per_corner * 2], 100, 1e-4); /* top-right is square */
+    CHECK_NEAR(xy[per_corner * 2 + 1], 0, 1e-4);
+
+    /* radii clamp to half the shorter side: 10x4 with radius 10 rounds by 2 */
+    const float huge[4] = {10, 10, 10, 10};
+    sk_shape2d_rounded_outline(0, 0, 10, 4, huge, xy);
+    CHECK_NEAR(xy[1], 2, 1e-4);
+    CHECK_NEAR(xy[(per_corner - 1) * 2], 2, 1e-4);
+
+    /* what the draws emit */
+    sg_setup(&(sg_desc){.environment = sk_platform_environment()});
+    sk_render_init();
+    sk_logger_set_level(SK_LOGGER_LEVEL_ERROR);
+    sk_render_begin();
+    int before = sgl_num_vertices();
+    sk_shape2d_draw_rounded_rectangle(10.5f, 20.25f, 100, 50, 8, 8, 8, 8, SK_COLOR_RED); /* fractional: floats */
+    const int fan = sgl_num_vertices() - before;
+    CHECK(fan == SK_SHAPE2D_OUTLINE_POINTS * 3); /* a triangle per outline edge */
+
+    before = sgl_num_vertices();
+    sk_shape2d_draw_border(10, 20, 100, 50, 2, 2, 2, 2, 8, 8, 8, 8, SK_COLOR_RED);
+    CHECK(sgl_num_vertices() - before == SK_SHAPE2D_OUTLINE_POINTS * 6); /* two per band segment */
+
+    before = sgl_num_vertices(); /* nothing to draw: no vertices */
+    sk_shape2d_draw_rounded_rectangle(0, 0, 0, 50, 4, 4, 4, 4, SK_COLOR_RED);
+    sk_shape2d_draw_border(0, 0, 100, 50, 0, 0, 0, 0, 4, 4, 4, 4, SK_COLOR_RED);
+    sk_shape2d_draw_border(0, 0, 100, -5, 2, 2, 2, 2, 4, 4, 4, 4, SK_COLOR_RED);
+    CHECK(sgl_num_vertices() == before);
+
+    sk_shape2d_draw_border(0, 0, 10, 10, 50, 50, 50, 50, 0, 0, 0, 0, SK_COLOR_RED); /* wider than the box: fills it */
+    CHECK(sgl_num_vertices() - before == SK_SHAPE2D_OUTLINE_POINTS * 6);
+
+    before = sgl_num_vertices();
+    sk_shape2d_draw_rectangle(0.5f, 0.5f, 10.25f, 4.75f, SK_COLOR_RED);
+    CHECK(sgl_num_vertices() - before == 6); /* one quad */
+    sk_render_end();
+
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
     sk_render_deinit();
     sg_shutdown();
 }

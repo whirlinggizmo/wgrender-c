@@ -284,6 +284,12 @@ void sk_render_clear_background(sk_color_t color)
     sk_render_passes[sk_render_current_pass_index].clear_color = sk_color_unpack(color);
 }
 
+/* the clip stack, below */
+static void clip_begin_pass(void);
+static void clip_end_pass(void);
+static void clip_end_frame(void);
+static void apply_clip(void);
+
 SK_KEEP
 bool sk_render_begin_texture(sk_handle_t texture)
 {
@@ -307,6 +313,7 @@ bool sk_render_begin_texture(sk_handle_t texture)
     }
     sk_render_passes[sk_render_pass_count] = (sk_render_pass_t){.target = texture};
     sk_render_current_pass_index = sk_render_pass_count++;
+    clip_begin_pass();
     sk_texture_set_drawing_into(texture);
     open_sgl_layer();
     setup_2d_projection();
@@ -322,10 +329,12 @@ void sk_render_end_texture(void)
     }
     sk_render_current_pass_index = 0;
     sk_texture_set_drawing_into(0);
+    clip_end_pass();
     if (sk_render_cmd_count < MAX_RENDER_CMDS) {
         open_sgl_layer();
     }
     setup_2d_projection();
+    apply_clip(); /* the screen's clip, in the layer that continues the screen pass */
 }
 
 /* Replay the commands recorded for pass `index` into the open sg pass. */
@@ -370,6 +379,7 @@ void sk_render_end(void)
         log_warn("sk_render_end: still drawing into a texture (missing sk_render_end_texture)");
         sk_render_end_texture();
     }
+    clip_end_frame();
     sk_debug_draw();
 
     /* upload the font atlas before opening the pass (sg_update_image cannot run
@@ -430,17 +440,115 @@ static void set_scissor(float x, float y, float width, float height)
     sgl_scissor_rectf(x * scale, y * scale, width * scale, height * scale, true);
 }
 
-SK_KEEP
-void sk_render_begin_clip(float x, float y, float width, float height)
+/* The clip stack. Each push intersects with the clip it's pushed inside, so nested
+ * areas (a scroll list in a panel, a scene layer clip inside a UI clip) stay inside
+ * their parent. Each render pass starts from its whole target: a render target's
+ * pass (sk_render_begin_texture) ignores clips pushed on the screen before it. */
+#define SK_MAX_CLIPS 32
+
+typedef struct {
+    float x, y, width, height;
+} clip_rect_t;
+
+static clip_rect_t sk_clips[SK_MAX_CLIPS];
+static int sk_clip_depth;    /* entries in use */
+static int sk_clip_base;     /* first entry that belongs to the current pass */
+static int sk_clip_overflow; /* pushes past SK_MAX_CLIPS, so their pops match up */
+static bool sk_clip_warned;
+
+static void warn_clips(const char *what)
 {
-    set_scissor(x, y, width > 0.0f ? width : 0.0f, height > 0.0f ? height : 0.0f);
+    if (!sk_clip_warned) {
+        log_warn("render: %s", what);
+        sk_clip_warned = true;
+    }
+}
+
+/* The whole drawing target, in logical pixels (a render target's own pixels). */
+static clip_rect_t target_rect(void)
+{
+    const vec2_t size = sk_render_current_pass_index == 0 ? sk_window_get_screen_size() : sk_render_target_size();
+    return (clip_rect_t){0.0f, 0.0f, size.x, size.y};
+}
+
+static clip_rect_t current_clip(void)
+{
+    return sk_clip_depth > sk_clip_base ? sk_clips[sk_clip_depth - 1] : target_rect();
+}
+
+static void apply_clip(void)
+{
+    const clip_rect_t clip = current_clip();
+    set_scissor(clip.x, clip.y, clip.width, clip.height);
 }
 
 SK_KEEP
-void sk_render_end_clip(void)
+void sk_render_push_clip(float x, float y, float width, float height)
 {
-    const vec2_t size = sk_render_current_pass_index == 0 ? sk_window_get_screen_size() : sk_render_target_size();
-    set_scissor(0.0f, 0.0f, size.x, size.y);
+    const clip_rect_t parent = current_clip();
+    const float x0 = x > parent.x ? x : parent.x;
+    const float y0 = y > parent.y ? y : parent.y;
+    const float x1 = x + (width > 0.0f ? width : 0.0f), px1 = parent.x + parent.width;
+    const float y1 = y + (height > 0.0f ? height : 0.0f), py1 = parent.y + parent.height;
+    const float right = x1 < px1 ? x1 : px1, bottom = y1 < py1 ? y1 : py1;
+
+    if (sk_clip_depth >= SK_MAX_CLIPS) {
+        sk_clip_overflow++;
+        warn_clips("clip stack full (32 deep); extra pushes don't clip");
+        return;
+    }
+    sk_clips[sk_clip_depth++] = (clip_rect_t){x0, y0, right > x0 ? right - x0 : 0.0f, bottom > y0 ? bottom - y0 : 0.0f};
+    apply_clip();
+}
+
+SK_KEEP
+void sk_render_pop_clip(void)
+{
+    if (sk_clip_overflow > 0) {
+        sk_clip_overflow--;
+        return;
+    }
+    if (sk_clip_depth <= sk_clip_base) {
+        warn_clips("sk_render_pop_clip without a matching push");
+        return;
+    }
+    sk_clip_depth--;
+    apply_clip();
+}
+
+bool sk_render_get_clip(float *x, float *y, float *width, float *height)
+{
+    const clip_rect_t clip = current_clip();
+    *x = clip.x;
+    *y = clip.y;
+    *width = clip.width;
+    *height = clip.height;
+    return sk_clip_depth > sk_clip_base;
+}
+
+/* A render target's pass starts with no clip; back on the screen, the screen's clips
+ * apply again. Pushes left open in the target's pass are dropped. */
+static void clip_begin_pass(void)
+{
+    sk_clip_base = sk_clip_depth;
+}
+
+static void clip_end_pass(void)
+{
+    if (sk_clip_depth > sk_clip_base || sk_clip_overflow > 0) {
+        warn_clips("clips pushed while drawing into a texture weren't popped");
+    }
+    sk_clip_depth = sk_clip_base;
+    sk_clip_overflow = 0;
+    sk_clip_base = 0;
+}
+
+static void clip_end_frame(void)
+{
+    if (sk_clip_depth > 0 || sk_clip_overflow > 0) {
+        warn_clips("clips pushed this frame weren't all popped");
+    }
+    sk_clip_depth = sk_clip_base = sk_clip_overflow = 0;
 }
 
 SK_KEEP

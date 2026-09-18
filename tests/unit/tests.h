@@ -25,6 +25,8 @@ void test_frame_pace_web_skip(void);
 
 void test_input_tick_edges(void);
 void test_input_tick_deltas(void);
+void test_input_wheel(void);
+void test_input_capture(void);
 
 void test_sprite2d_corners(void);
 void test_sprite2d_screen_to_unit(void);
@@ -60,6 +62,7 @@ void test_parity_asset_host(void);
 void test_window_headless(void);
 void test_interaction(void);
 void test_shape2d(void);
+void test_shape2d_immediate(void);
 void test_text_default_font(void);
 void test_text_font_refcount(void);
 
@@ -82,6 +85,8 @@ void test_pick_world_aabb(void);
 void test_pick_ray_from_screen(void);
 
 void test_render_targets(void);
+void test_render_clip_stack(void);
+void test_texture_draw_immediate(void);
 
 void test_nine_slice(void);
 void test_text2d_layout(void);

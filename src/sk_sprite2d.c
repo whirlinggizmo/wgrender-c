@@ -219,21 +219,21 @@ static void draw_quad(sg_view view, sg_sampler smp, const float corners[8], floa
 /* Nine-slice: the corners keep their size, the edges stretch along one axis and the
  * middle along both. An axis without borders stays one span, so a sprite sliced on
  * one axis draws three patches, not nine. False when nothing is sliced. */
-static bool draw_nine_slice(const sk_sprite2d_t *sprite_ptr, sg_view view, sg_sampler smp, const float source[4],
-                            int tw, int th, const sk_sprite2d_placement_t *p)
+static bool draw_nine_slice(sg_view view, sg_sampler smp, bool flip_v, const float source[4], int tw, int th,
+                            const sk_sprite2d_placement_t *p, const float slice[4], sk_color_t tint)
 {
     float du[4] = {0.0f, 1.0f, 0.0f, 0.0f}, su[4] = {0.0f, 1.0f, 0.0f, 0.0f};
     float dv[4] = {0.0f, 1.0f, 0.0f, 0.0f}, sv[4] = {0.0f, 1.0f, 0.0f, 0.0f};
     int nu = 2, nv = 2;
     float d[2], t[2];
-    const bool flip_v = sk_texture_is_flipped(sprite_ptr->texture);
 
-    if (sk_sprite2d_nine_slice_axis(sprite_ptr->slice_left, sprite_ptr->slice_right, p->width, source[2], d, t)) {
+    /* slice: left, top, right, bottom borders in source pixels */
+    if (sk_sprite2d_nine_slice_axis(slice[0], slice[2], p->width, source[2], d, t)) {
         du[1] = d[0], du[2] = d[1], du[3] = 1.0f;
         su[1] = t[0], su[2] = t[1], su[3] = 1.0f;
         nu = 4;
     }
-    if (sk_sprite2d_nine_slice_axis(sprite_ptr->slice_top, sprite_ptr->slice_bottom, p->height, source[3], d, t)) {
+    if (sk_sprite2d_nine_slice_axis(slice[1], slice[3], p->height, source[3], d, t)) {
         dv[1] = d[0], dv[2] = d[1], dv[3] = 1.0f;
         sv[1] = t[0], sv[2] = t[1], sv[3] = 1.0f;
         nv = 4;
@@ -254,7 +254,7 @@ static bool draw_nine_slice(const sk_sprite2d_t *sprite_ptr, sg_view view, sg_sa
             draw_quad(view, smp, corners, (source[0] + su[i] * source[2]) / (float)tw,
                       (source[1] + sv[j] * source[3]) / (float)th,
                       (source[0] + su[i + 1] * source[2]) / (float)tw,
-                      (source[1] + sv[j + 1] * source[3]) / (float)th, flip_v, sprite_ptr->tint);
+                      (source[1] + sv[j + 1] * source[3]) / (float)th, flip_v, tint);
         }
     }
     return true;
@@ -273,7 +273,10 @@ static void draw_handle(sk_handle_t sprite)
         !resolve_placement(sprite_ptr, &view, &smp, source, &tw, &th, &placement)) {
         return;
     }
-    if (draw_nine_slice(sprite_ptr, view, smp, source, tw, th, &placement)) {
+    const float slice[4] = {sprite_ptr->slice_left, sprite_ptr->slice_top, sprite_ptr->slice_right,
+                            sprite_ptr->slice_bottom};
+    if (draw_nine_slice(view, smp, sk_texture_is_flipped(sprite_ptr->texture), source, tw, th, &placement, slice,
+                        sprite_ptr->tint)) {
         return;
     }
     sk_sprite2d_corners(&placement, corners);
@@ -555,24 +558,68 @@ void sk_sprite2d_draw(sk_handle_t sprite)
     draw_handle(sprite);
 }
 
+/* The texture's region in pixels: the whole texture when width or height <= 0. */
+static void texture_source(float source_x, float source_y, float source_width, float source_height, int tw, int th,
+                           float out[4])
+{
+    if (source_width > 0.0f && source_height > 0.0f) {
+        out[0] = source_x, out[1] = source_y, out[2] = source_width, out[3] = source_height;
+    } else {
+        out[0] = 0.0f, out[1] = 0.0f, out[2] = (float)tw, out[3] = (float)th;
+    }
+}
+
 SK_KEEP
 void sk_texture_draw(sk_handle_t texture, float x, float y, float width, float height, sk_color_t tint)
+{
+    sk_texture_draw_ex(texture, 0.0f, 0.0f, 0.0f, 0.0f, x, y, width, height, tint);
+}
+
+SK_KEEP
+void sk_texture_draw_ex(sk_handle_t texture, float source_x, float source_y, float source_width, float source_height,
+                        float x, float y, float width, float height, sk_color_t tint)
 {
     sg_view view;
     sg_sampler smp;
     int tw = 0, th = 0;
-    float corners[8];
+    float source[4], corners[8];
 
     if (texture == 0 || !sk_texture_get_binding(texture, &view, &smp, &tw, &th) || tw <= 0 || th <= 0) {
         return;
     }
-    if (width <= 0.0f || height <= 0.0f) {
-        width = (float)tw;
-        height = (float)th;
+    texture_source(source_x, source_y, source_width, source_height, tw, th, source);
+    if (width <= 0.0f || height <= 0.0f) { /* the region's own size */
+        width = source[2];
+        height = source[3];
     }
     corners[0] = x;         corners[1] = y;
     corners[2] = x + width; corners[3] = y;
     corners[4] = x + width; corners[5] = y + height;
     corners[6] = x;         corners[7] = y + height;
-    draw_quad(view, smp, corners, 0.0f, 0.0f, 1.0f, 1.0f, sk_texture_is_flipped(texture), tint);
+    draw_quad(view, smp, corners, source[0] / (float)tw, source[1] / (float)th, (source[0] + source[2]) / (float)tw,
+              (source[1] + source[3]) / (float)th, sk_texture_is_flipped(texture), tint);
+}
+
+SK_KEEP
+void sk_texture_draw_nine_slice(sk_handle_t texture, float source_x, float source_y, float source_width,
+                                float source_height, float left, float top, float right, float bottom, float x,
+                                float y, float width, float height, sk_color_t tint)
+{
+    sg_view view;
+    sg_sampler smp;
+    int tw = 0, th = 0;
+    float source[4];
+    const float slice[4] = {fmaxf(0.0f, left), fmaxf(0.0f, top), fmaxf(0.0f, right), fmaxf(0.0f, bottom)};
+    const sk_sprite2d_placement_t placement = {
+        .x = x, .y = y, .width = width, .height = height, .scale_x = 1.0f, .scale_y = 1.0f,
+    }; /* pivot (0, 0): (x, y) is the top-left corner */
+
+    if (texture == 0 || width <= 0.0f || height <= 0.0f ||
+        !sk_texture_get_binding(texture, &view, &smp, &tw, &th) || tw <= 0 || th <= 0) {
+        return;
+    }
+    texture_source(source_x, source_y, source_width, source_height, tw, th, source);
+    if (!draw_nine_slice(view, smp, sk_texture_is_flipped(texture), source, tw, th, &placement, slice, tint)) {
+        sk_texture_draw_ex(texture, source[0], source[1], source[2], source[3], x, y, width, height, tint);
+    }
 }
