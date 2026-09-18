@@ -127,8 +127,20 @@ removes a pool, a handle kind, two public functions, the 256-color ceiling and t
   transparent black. The compiler cannot catch this — `sk_color_t` and `sk_handle_t`
   are both 32-bit unsigned — so it was done by reading every initializer, and the
   examples (which draw every kind) are the check.
-- `tests/unit/color_test.c` covers packing, clamping, `with_alpha`, `lerp` endpoints
-  and clamping, unpacking, and a round trip.
+- Building and reading components: `sk_color_rgba` (0..255) and `sk_color_rgbaf`
+  (0..1, rounded to the nearest step), both clamping — out-of-range components
+  saturate and never wrap into the neighbouring channel — plus `sk_color_get_red`,
+  `_green`, `_blue`, `_alpha`.
+- **No constant-expression macro.** It was considered so a palette could be declared
+  at file scope (`sk_color_rgba(...)` is a function call, so it cannot initialize
+  anything with static storage duration). Dropped, because a macro can't clamp
+  without evaluating its arguments more than once, and clamping everywhere matters
+  more than that convenience. The built-ins carry their components as comments
+  instead, and the test below checks the literal against the function, so the two
+  stay independent rather than one deriving from the other.
+- `tests/unit/color_test.c` covers all 26 built-ins against their documented
+  components, packing and clamping for both constructors, `with_alpha`, `lerp`
+  endpoints and clamping, the component getters, unpacking, and round trips.
 - **What the `0` change actually broke, and how it was caught.** Seven examples called
   `sk_scene_set_ambient(scene, 0, ...)` — handle 0 meaning white — which silently
   became transparent black, so their 3D models lost all ambient light. The compiler

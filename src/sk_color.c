@@ -20,6 +20,44 @@ sk_color_t sk_color_rgba(int r, int g, int b, int a)
                         clamp_component(a));
 }
 
+/* 0..1 float -> 0..255, clamped and rounded to the nearest step. */
+static unsigned int clamp_component_f(float v)
+{
+    const float scaled = v * 255.0f + 0.5f;
+    return (unsigned int)(scaled < 0.0f ? 0.0f : scaled > 255.0f ? 255.0f : scaled);
+}
+
+SK_KEEP
+sk_color_t sk_color_rgbaf(float r, float g, float b, float a)
+{
+    return (sk_color_t)((clamp_component_f(r) << 24) | (clamp_component_f(g) << 16) |
+                        (clamp_component_f(b) << 8) | clamp_component_f(a));
+}
+
+SK_KEEP
+int sk_color_get_red(sk_color_t color)
+{
+    return (int)((color >> 24) & 0xFFu);
+}
+
+SK_KEEP
+int sk_color_get_green(sk_color_t color)
+{
+    return (int)((color >> 16) & 0xFFu);
+}
+
+SK_KEEP
+int sk_color_get_blue(sk_color_t color)
+{
+    return (int)((color >> 8) & 0xFFu);
+}
+
+SK_KEEP
+int sk_color_get_alpha(sk_color_t color)
+{
+    return (int)(color & 0xFFu);
+}
+
 SK_KEEP
 sk_color_t sk_color_with_alpha(sk_color_t color, int a)
 {
