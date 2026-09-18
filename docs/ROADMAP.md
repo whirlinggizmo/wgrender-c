@@ -29,6 +29,9 @@ that lean on them. Items with a design doc link there.
    - *In-game UI/HUD* (styled, animated menus and bars): built from sprite2d +
      text2d + shapes, with layout from a small renderer-agnostic library such as
      **Clay** (C99, flexbox-like, emits rectangles/text/images to draw). Later.
+     Refined in [PLAN-ui.md](PLAN-ui.md) (accepted): the glue uses only libsk's
+     public API, so libsk gains the immediate drawing, text and input pieces a layout
+     library needs, and no Clay code or types enter libsk.
 3. **Particle emitters** — emitter object + **batched/instanced** quad rendering
    (rides the 2D batch path + materials from 1–2). High visual payoff; doing it
    right is what finally justifies a real batched renderer over sokol_gl immediate.
