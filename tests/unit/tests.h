@@ -64,6 +64,7 @@ void test_interaction(void);
 void test_shape2d(void);
 void test_shape2d_immediate(void);
 void test_text_default_font(void);
+void test_text_slices_and_dpi(void);
 void test_text_font_refcount(void);
 
 void test_pipeline_gpu_pools(void);

@@ -71,6 +71,7 @@ static const test_case_t TESTS[] = {
     {"sprite3d_2d_world", test_sprite3d_2d_world},
     {"sprite3d_facings", test_sprite3d_facings},
     {"text_default_font", test_text_default_font},
+    {"text_slices_and_dpi", test_text_slices_and_dpi},
     {"text_font_refcount", test_text_font_refcount},
     {"pipeline_gpu_pools", test_pipeline_gpu_pools},
     {"pipeline_mesh_textures", test_pipeline_mesh_textures},

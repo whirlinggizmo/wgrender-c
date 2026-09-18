@@ -233,7 +233,10 @@ bool sk_platform_monitor_rect(int monitor, int *x, int *y, int *width, int *heig
     *height = sk_platform_height();
     return true;
 }
-float sk_platform_dpi_scale(void) { return 1.0f; }
+/* No display, so no DPI of its own: tests pick the scale it reports. */
+static float sk_headless_dpi_scale = 1.0f;
+float sk_platform_dpi_scale(void) { return sk_headless_dpi_scale; }
+void sk_platform_set_headless_dpi_scale(float scale) { sk_headless_dpi_scale = scale > 0.0f ? scale : 1.0f; }
 double sk_platform_frame_duration(void) { return sk_headless.frame_duration; }
 void sk_platform_set_title(const char *title) { (void)title; }
 void sk_platform_lock_mouse(bool locked) { (void)locked; }

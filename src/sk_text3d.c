@@ -97,7 +97,7 @@ static bool layout_block(sk_handle_t font, const char *text, float size, float m
     if (text == NULL || text[0] == '\0' || to_raster <= 0.0f || !use_font(font)) {
         return false;
     }
-    out->count = sk_text_split_lines(text, max_width > 0.0f ? max_width * to_raster : 0.0f, out->starts, out->ends,
+    out->count = sk_text_split_lines(text, -1, max_width > 0.0f ? max_width * to_raster : 0.0f, out->starts, out->ends,
                                      MAX_TEXT3D_LINES);
     if (out->count == 0) {
         return false;

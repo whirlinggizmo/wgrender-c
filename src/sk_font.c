@@ -17,6 +17,7 @@
 
 #define MAX_FONTS 64
 #define SK_FONT_ATLAS_DIM 1024
+#define SK_FONT_ATLAS_MAX 4096 /* 16 MB of 8-bit coverage at most */
 
 /* Font resource: refcounted and deduped by path, like textures. fontstash can't
  * remove a font, so when the last reference goes the fontstash font is parked by
@@ -244,10 +245,54 @@ void sk_font_flush(void)
     }
 }
 
+/* A full glyph atlas grows, but never in the middle of a frame: draws recorded
+ * earlier in the frame refer to the atlas texture and to UVs for its size, and
+ * growing recreates both. So a full atlas only asks to grow; the glyphs that didn't
+ * fit skip this one frame, and sk_font_end_frame grows it once the frame is
+ * submitted. More likely with high-DPI text, whose glyphs take up to four times the
+ * area. The smaller side doubles each time, up to SK_FONT_ATLAS_MAX. */
+static bool sk_font_grow_pending;
+
+static void on_fons_error(void *user, int error, int value)
+{
+    (void)user;
+    (void)value;
+    if (error == FONS_ATLAS_FULL) {
+        sk_font_grow_pending = true;
+    } else {
+        log_warn("font: fontstash error %d", error);
+    }
+}
+
+void sk_font_end_frame(void)
+{
+    static bool full_warned;
+    int width = 0, height = 0;
+
+    if (!sk_font_grow_pending || sk_fons == NULL) {
+        return;
+    }
+    sk_font_grow_pending = false;
+    fonsGetAtlasSize(sk_fons, &width, &height);
+    if (width < SK_FONT_ATLAS_MAX || height < SK_FONT_ATLAS_MAX) {
+        const bool grow_width = width <= height && width < SK_FONT_ATLAS_MAX;
+        const int new_width = grow_width ? width * 2 : width, new_height = grow_width ? height : height * 2;
+        if (fonsExpandAtlas(sk_fons, new_width, new_height)) {
+            log_info("font: glyph atlas grew to %dx%d", new_width, new_height);
+            return;
+        }
+    }
+    if (!full_warned) {
+        log_warn("font: glyph atlas full at %dx%d; glyphs that don't fit aren't drawn", width, height);
+        full_warned = true;
+    }
+}
+
 void sk_font_init(void)
 {
     memset(sk_fonts, 0, sizeof(sk_fonts));
     sk_font_parked_count = 0;
+    sk_font_grow_pending = false;
     sk_font_added = 0;
     sk_handle_pool_init(&sk_font_pool,
                         SK_HANDLE_KIND_FONT,
@@ -263,7 +308,9 @@ void sk_font_init(void)
     });
     if (sk_fons == NULL) {
         log_error("failed to create fontstash context");
+        return;
     }
+    fonsSetErrorCallback(sk_fons, on_fons_error, NULL);
 }
 
 void sk_font_deinit(void)

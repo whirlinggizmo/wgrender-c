@@ -46,6 +46,12 @@ void   sk_text_draw_ex(sk_handle_t font, const char *text, float x, float y,
                        float size, sk_color_t color);
 vec2_t sk_text_measure_ex(sk_handle_t font, const char *text, float size);
 
+/* The same for `length` bytes of `text` (a slice of a longer string, as layout
+ * libraries pass it); a negative length means up to the NUL. */
+void   sk_text_draw_n(sk_handle_t font, const char *text, int length, float x, float y,
+                      float size, sk_color_t color);
+vec2_t sk_text_measure_n(sk_handle_t font, const char *text, int length, float size);
+
 #ifdef __cplusplus
 }
 #endif

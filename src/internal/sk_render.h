@@ -50,4 +50,8 @@ vec2_t sk_render_target_size(void);
  * false when nothing is pushed in this pass. For tests. */
 bool sk_render_get_clip(float *x, float *y, float *width, float *height);
 
+/* Framebuffer pixels per logical pixel where drawing goes now: the screen's DPI
+ * scale, or 1 inside a render target (its pixels are its own). */
+float sk_render_pixel_scale(void);
+
 #endif // SK_INTERNAL_RENDER_H

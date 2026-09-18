@@ -7,10 +7,12 @@
 #include "internal/sk_color.h"
 #include "internal/sk_font.h"
 #include "internal/sk_internal.h"
+#include "internal/sk_render.h"
 #include "sk_logger.h"
 
 #include "fontstash.h"
 #include "sokol_gfx.h"
+#include "util/sokol_gl.h"
 #include "util/sokol_fontstash.h"
 
 /* All text is TrueType (fontstash). Font handle 0 means the default font: the one
@@ -48,9 +50,19 @@ sk_handle_t sk_text_resolve_font(sk_handle_t font)
     return sk_font_fons_id(font) != FONS_INVALID ? font : sk_text_builtin_font;
 }
 
-/* Select `font` (resolved) at `size` for drawing or measuring; false if there's no
- * font at all (text not initialized). */
-static bool use_font(sk_handle_t font, float size)
+/* Framebuffer pixels per logical pixel where text is drawn now: the screen's DPI
+ * scale, or 1 inside a render target. Glyphs are rasterized at size x this and drawn
+ * scaled back, so they land 1:1 on the pixels instead of being magnified (blurry text
+ * on high-DPI screens). Measurement divides it back out: sizes stay logical. */
+static float pixel_scale(void)
+{
+    const float scale = sk_render_pixel_scale();
+    return scale > 0.0f ? scale : 1.0f;
+}
+
+/* Select `font` (resolved) at `size` logical pixels, rasterized at `scale`; false if
+ * there's no font at all (text not initialized). */
+static bool use_font(sk_handle_t font, float size, float scale)
 {
     FONScontext *fons = sk_font_context();
     const int id = sk_font_fons_id(sk_text_resolve_font(font));
@@ -58,25 +70,20 @@ static bool use_font(sk_handle_t font, float size)
         return false;
     }
     fonsSetFont(fons, id);
-    fonsSetSize(fons, size > 0.0f ? size : SK_TEXT_DEFAULT_SIZE);
+    fonsSetSize(fons, (size > 0.0f ? size : SK_TEXT_DEFAULT_SIZE) * scale);
     fonsSetAlign(fons, FONS_ALIGN_LEFT | FONS_ALIGN_TOP);
     return true;
 }
 
-static void draw_text(sk_handle_t font, const char *text, float x, float y, float size, sk_colorf_t c)
+/* The end of `text`: `length` bytes, or up to the NUL when length < 0. */
+static const char *text_end(const char *text, int length)
 {
-    FONScontext *fons = sk_font_context();
-    if (text == NULL || !use_font(font, size)) {
-        return;
-    }
-    fonsSetColor(fons, sfons_rgba((uint8_t)(c.r * 255.0f), (uint8_t)(c.g * 255.0f), (uint8_t)(c.b * 255.0f),
-                                  (uint8_t)(c.a * 255.0f)));
-    fonsDrawText(fons, x, y, text, NULL);
+    return length < 0 ? text + strlen(text) : text + length;
 }
 
 /* ---- laid-out blocks (wrapping, alignment) ------------------------------ */
 
-/* Advance width of text[start, end); the font must already be selected. */
+/* Advance width of text[start, end) in the selected font's pixels. */
 static float span_width(FONScontext *fons, const char *start, const char *end)
 {
     float bounds[4] = {0};
@@ -97,12 +104,12 @@ static void emit_line(FONScontext *fons, const char *start, const char *end, int
     }
 }
 
-/* Walk the lines of `text`, breaking at newlines and, with max_width > 0, before a
- * word that would overflow (a word longer than the box keeps its own line). The
- * font must already be selected. Returns the line count; out_width gets the widest
- * line's width. */
-static int walk_lines(FONScontext *fons, const char *text, float max_width, float *out_width, line_fn fn,
-                      void *user)
+/* Walk the lines of text[text, end), breaking at newlines and, with max_width > 0,
+ * before a word that would overflow (a word longer than the box keeps its own line).
+ * Everything is in the selected font's pixels. Returns the line count; out_width gets
+ * the widest line's width. */
+static int walk_lines(FONScontext *fons, const char *text, const char *end, float max_width, float *out_width,
+                      line_fn fn, void *user)
 {
     const char *line_start = text;
     const char *line_end = text; /* end of what this line holds so far */
@@ -110,7 +117,7 @@ static int walk_lines(FONScontext *fons, const char *text, float max_width, floa
     int count = 0;
 
     *out_width = 0.0f;
-    if (*text == '\0') {
+    if (text >= end) {
         return 0;
     }
     if (max_width <= 0.0f) {
@@ -118,10 +125,10 @@ static int walk_lines(FONScontext *fons, const char *text, float max_width, floa
            measuring " " gives the space's advance (layout libraries such as Clay add
            that between the words they measure) */
         for (;;) {
-            const char *newline = strchr(line_start, '\n');
+            const char *newline = memchr(line_start, '\n', (size_t)(end - line_start));
             if (newline == NULL) {
-                if (*line_start != '\0' || count == 0) {
-                    emit_line(fons, line_start, line_start + strlen(line_start), count++, out_width, fn, user);
+                if (line_start < end || count == 0) {
+                    emit_line(fons, line_start, end, count++, out_width, fn, user);
                 }
                 return count;
             }
@@ -131,28 +138,28 @@ static int walk_lines(FONScontext *fons, const char *text, float max_width, floa
     }
     for (;;) { /* wrapping: spaces at a break belong to neither line's width */
         const char *word_start, *word_end;
-        while (*cursor == ' ' || *cursor == '\t') { /* spaces stay with the line before them */
+        while (cursor < end && (*cursor == ' ' || *cursor == '\t')) { /* spaces stay with the line before them */
             cursor++;
         }
         word_start = cursor;
-        while (*cursor != '\0' && *cursor != '\n' && *cursor != ' ' && *cursor != '\t') {
+        while (cursor < end && *cursor != '\n' && *cursor != ' ' && *cursor != '\t') {
             cursor++;
         }
         word_end = cursor;
         if (word_end > word_start) {
-            if (max_width > 0.0f && line_end > line_start && span_width(fons, line_start, word_end) > max_width) {
+            if (line_end > line_start && span_width(fons, line_start, word_end) > max_width) {
                 emit_line(fons, line_start, line_end, count++, out_width, fn, user);
                 line_start = word_start;
             }
             line_end = word_end;
         }
-        if (*cursor == '\n') {
+        if (cursor < end && *cursor == '\n') {
             emit_line(fons, line_start, line_end, count++, out_width, fn, user);
             cursor++;
             line_start = line_end = cursor;
             continue;
         }
-        if (*cursor == '\0') {
+        if (cursor >= end) {
             break;
         }
     }
@@ -180,36 +187,38 @@ static void collect_line(const char *start, const char *end, int index, void *us
     }
 }
 
-int sk_text_split_lines(const char *text, float max_width, const char **starts, const char **ends, int max_lines)
+int sk_text_split_lines(const char *text, int length, float max_width, const char **starts, const char **ends,
+                        int max_lines)
 {
     FONScontext *fons = sk_font_context();
     split_t ctx = {.starts = starts, .ends = ends, .max_lines = max_lines, .count = 0};
     float width = 0.0f;
 
-    if (fons == NULL || text == NULL || *text == '\0' || max_lines <= 0) {
+    if (fons == NULL || text == NULL || max_lines <= 0) {
         return 0;
     }
-    walk_lines(fons, text, max_width, &width, collect_line, &ctx);
+    walk_lines(fons, text, text_end(text, length), max_width, &width, collect_line, &ctx);
     return ctx.count;
 }
 
-vec2_t sk_text_block_size(sk_handle_t font, const char *text, float size, float max_width)
+vec2_t sk_text_block_size(sk_handle_t font, const char *text, int length, float size, float max_width)
 {
     FONScontext *fons = sk_font_context();
+    const float scale = pixel_scale();
     float ascender = 0.0f, descender = 0.0f, line_height = 0.0f, width = 0.0f;
     int lines;
 
-    if (text == NULL || !use_font(font, size)) {
+    if (text == NULL || !use_font(font, size, scale)) {
         return (vec2_t){0.0f, 0.0f};
     }
     fonsVertMetrics(fons, &ascender, &descender, &line_height);
-    lines = walk_lines(fons, text, max_width, &width, NULL, NULL);
-    return (vec2_t){width, (float)lines * line_height};
+    lines = walk_lines(fons, text, text_end(text, length), max_width * scale, &width, NULL, NULL);
+    return (vec2_t){width / scale, (float)lines * line_height / scale};
 }
 
 typedef struct {
     FONScontext *fons;
-    float left, top, line_height, box_width;
+    float left, top, line_height, box_width; /* in the font's (rasterized) pixels */
     sk_text_align_t align_x;
 } block_draw_t;
 
@@ -229,24 +238,31 @@ static void draw_line(const char *start, const char *end, int index, void *user)
     fonsDrawText(ctx->fons, x, ctx->top + (float)index * ctx->line_height, start, end);
 }
 
-void sk_text_block_draw(sk_handle_t font, const char *text, float left, float top, float size, sk_color_t color,
-                        float max_width, float box_width, sk_text_align_t align_x)
+void sk_text_block_draw(sk_handle_t font, const char *text, int length, float left, float top, float size,
+                        sk_color_t color, float max_width, float box_width, sk_text_align_t align_x)
 {
     FONScontext *fons = sk_font_context();
     const sk_colorf_t c = sk_color_unpack(color);
+    const float scale = pixel_scale();
     block_draw_t ctx;
     float ascender = 0.0f, descender = 0.0f, line_height = 0.0f, width = 0.0f;
 
-    if (text == NULL || !use_font(font, size)) {
+    if (text == NULL || !use_font(font, size, scale)) {
         return;
     }
     fonsVertMetrics(fons, &ascender, &descender, &line_height);
     fonsSetColor(fons, sfons_rgba((uint8_t)(c.r * 255.0f), (uint8_t)(c.g * 255.0f), (uint8_t)(c.b * 255.0f),
                                   (uint8_t)(c.a * 255.0f)));
     ctx = (block_draw_t){
-        .fons = fons, .left = left, .top = top, .line_height = line_height, .box_width = box_width,
-        .align_x = align_x};
-    walk_lines(fons, text, max_width, &width, draw_line, &ctx);
+        .fons = fons, .left = left * scale, .top = top * scale, .line_height = line_height,
+        .box_width = box_width * scale, .align_x = align_x};
+    /* lay out and draw in the rasterized pixels, scaled back to logical ones: fontstash
+       emits each call's vertices before returning, so they get this matrix */
+    sgl_matrix_mode_modelview();
+    sgl_push_matrix();
+    sgl_scale(1.0f / scale, 1.0f / scale, 1.0f);
+    walk_lines(fons, text, text_end(text, length), max_width * scale, &width, draw_line, &ctx);
+    sgl_pop_matrix();
 }
 
 SK_KEEP
@@ -271,7 +287,7 @@ sk_handle_t sk_text_get_default_font(void)
 SK_KEEP
 void sk_text_draw(const char *text, int x, int y, int font_size, sk_color_t color)
 {
-    draw_text(0, text, (float)x, (float)y, (float)font_size, sk_color_unpack(color));
+    sk_text_draw_n(0, text, -1, (float)x, (float)y, (float)font_size, color);
 }
 
 static void format_fps(char *buf, size_t size)
@@ -285,7 +301,7 @@ void sk_text_draw_fps(int x, int y)
 {
     char buf[32];
     format_fps(buf, sizeof(buf));
-    draw_text(0, buf, (float)x, (float)y, SK_TEXT_DEFAULT_SIZE, (sk_colorf_t){0.0f, 1.0f, 0.0f, 1.0f});
+    sk_text_draw_n(0, buf, -1, (float)x, (float)y, SK_TEXT_DEFAULT_SIZE, 0x00FF00FFu);
 }
 
 SK_KEEP
@@ -293,7 +309,7 @@ void sk_text_draw_fps_ex(sk_handle_t font, float x, float y, float size, sk_colo
 {
     char buf[32];
     format_fps(buf, sizeof(buf));
-    draw_text(font, buf, x, y, size, sk_color_unpack(color));
+    sk_text_draw_n(font, buf, -1, x, y, size, color);
 }
 
 SK_KEEP
@@ -303,13 +319,25 @@ int sk_text_measure(const char *text, int font_size)
 }
 
 SK_KEEP
+void sk_text_draw_n(sk_handle_t font, const char *text, int length, float x, float y, float size, sk_color_t color)
+{
+    sk_text_block_draw(font, text, length, x, y, size, color, 0.0f, 0.0f, SK_TEXT_ALIGN_LEFT);
+}
+
+SK_KEEP
+vec2_t sk_text_measure_n(sk_handle_t font, const char *text, int length, float size)
+{
+    return sk_text_block_size(font, text, length, size, 0.0f);
+}
+
+SK_KEEP
 void sk_text_draw_ex(sk_handle_t font, const char *text, float x, float y, float size, sk_color_t color)
 {
-    sk_text_block_draw(font, text, x, y, size, color, 0.0f, 0.0f, SK_TEXT_ALIGN_LEFT);
+    sk_text_draw_n(font, text, -1, x, y, size, color);
 }
 
 SK_KEEP
 vec2_t sk_text_measure_ex(sk_handle_t font, const char *text, float size)
 {
-    return sk_text_block_size(font, text, size, 0.0f);
+    return sk_text_measure_n(font, text, -1, size);
 }

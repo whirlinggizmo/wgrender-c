@@ -413,6 +413,7 @@ void sk_render_end(void)
 
     sk_model_end_frame();
     sk_light_end_frame();
+    sk_font_end_frame();
     sk_environment_end_frame();
     reset_frame_commands();
 }
@@ -434,9 +435,14 @@ void sk_render_end_mode_2d(void)
 /* Clip rectangles are logical pixels with a top-left origin, like 2D drawing,
  * while the scissor rect is in framebuffer pixels: screen rects scale by the DPI
  * scale, render targets are already in their own pixels. */
+float sk_render_pixel_scale(void)
+{
+    return sk_render_current_pass_index == 0 ? sk_platform_dpi_scale() : 1.0f;
+}
+
 static void set_scissor(float x, float y, float width, float height)
 {
-    const float scale = sk_render_current_pass_index == 0 ? sk_platform_dpi_scale() : 1.0f;
+    const float scale = sk_render_pixel_scale();
     sgl_scissor_rectf(x * scale, y * scale, width * scale, height * scale, true);
 }
 

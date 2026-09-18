@@ -1,7 +1,7 @@
 # Plan: UI through libsk's public API
 
-Status: **accepted** (2026-09-18), all decisions as recommended. Step 1 (drawing and input) done;
-see "As built". Steps 2–4 to do.
+Status: **accepted** (2026-09-18), all decisions as recommended. Steps 1 (drawing and input) and 2
+(text) done; see "As built". Steps 3–4 to do.
 
 ## Why
 
@@ -239,6 +239,34 @@ the public API's rules. It's independent of everything above and can come later.
 - Tests: `input_wheel`, `input_capture`, `render_clip_stack`, `shape2d_immediate`
   (outline geometry, and vertex counts proving each draw emits and skips what it
   should), `texture_draw_immediate`.
+
+### Step 2: text (2026-09-18)
+
+- `sk_text_draw_n` / `sk_text_measure_n` as designed; the `_ex` functions, `sk_text_draw`
+  and the FPS counter all go through them. The internal layout (`sk_text_block_size`,
+  `sk_text_block_draw`, `sk_text_split_lines`) takes a length too.
+- **Crisp high-DPI text.** Glyphs are rasterized at size × the drawing target's pixel
+  scale (`sk_render_pixel_scale`, internal: the screen's DPI scale, 1 inside a render
+  target) and drawn under a matching `1/scale` matrix; fontstash emits each call's
+  vertices before returning, so they get it. Measurement divides the scale back out.
+  In the browser at a device pixel ratio of 2, the `font` example's text went from
+  visibly smeared to sharp: edge contrast over the same text rose from 4.93 to 6.40.
+  The `font` example now enables high-DPI.
+- **Measured widths differ slightly between screens.** fontstash rounds every glyph's
+  advance to a whole rasterized pixel, so a line's width is off by up to half a pixel
+  per glyph at 1×, a quarter at 2×, a sixth at 3× — higher DPI is *closer* to the true
+  width ("Hello, world" at 16 px: 84 px at 1×, 90 at 2×, 88 at 3×, about 88.8 exact).
+  Measuring and drawing round the same way, so layout is consistent on any one screen.
+- **The glyph atlas grows** instead of silently dropping glyphs that don't fit
+  (1024² to start, the smaller side doubling up to 4096²) — but only **between
+  frames**. Growing mid-frame recreates the atlas texture while draws recorded earlier
+  in the frame still refer to it and to UVs for its old size: with sokol's validation
+  on, the next frame's submit aborted. So a full atlas asks to grow, the glyphs that
+  didn't fit skip one frame, and `sk_font_end_frame` grows it after `sg_commit`.
+- Tests: `text_slices_and_dpi` — slices, logical metrics at 1×/2×/3× within the
+  rounding bound, scale 1 inside a render target, and the atlas growing across a frame
+  then drawing from the bigger atlas. The headless platform gained a DPI scale for
+  tests (`sk_platform_set_headless_dpi_scale`).
 
 ## Verification
 

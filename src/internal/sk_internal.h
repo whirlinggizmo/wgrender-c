@@ -76,6 +76,7 @@ void sk_sound_deinit(void);
 void sk_font_init(void);
 void sk_font_deinit(void);
 void sk_font_flush(void); /* upload the font atlas (outside a render pass) */
+void sk_font_end_frame(void); /* grow a glyph atlas that filled up (after the frame is submitted) */
 
 /* text (fontstash; the built-in font is embedded) */
 void sk_text_init(void);
@@ -85,18 +86,21 @@ void sk_text_deinit(void);
 sk_handle_t sk_text_resolve_font(sk_handle_t font);
 /* A block of text laid out in `font` (0 = default) at `size`: lines break at
  * newlines and, when max_width > 0, between words that don't fit (a word longer
- * than that keeps a line to itself). Lines are one font line height apart.
+ * than that keeps a line to itself). Lines are one font line height apart. `length`
+ * is in bytes; negative means up to the NUL. Sizes and positions are logical
+ * pixels; glyphs are rasterized at the drawing target's pixel scale.
  * sk_text_block_size gives the widest line and the total height; sk_text_block_draw
  * draws it with (left, top) as the block's top-left corner, aligning each line
  * inside a box `box_width` wide (the block's own width when it's not wider). */
-vec2_t sk_text_block_size(sk_handle_t font, const char *text, float size, float max_width);
+vec2_t sk_text_block_size(sk_handle_t font, const char *text, int length, float size, float max_width);
+void sk_text_block_draw(sk_handle_t font, const char *text, int length, float left, float top, float size,
+                        sk_color_t color, float max_width, float box_width, sk_text_align_t align_x);
 /* The same line splitting, for callers that draw their own glyphs (text3d): the
  * font and size must already be selected in fontstash, and max_width is in those
  * units (0: no wrap). Fills [starts[i], ends[i]) and returns the line count, at
  * most max_lines. */
-int sk_text_split_lines(const char *text, float max_width, const char **starts, const char **ends, int max_lines);
-void sk_text_block_draw(sk_handle_t font, const char *text, float left, float top, float size,
-                        sk_color_t color, float max_width, float box_width, sk_text_align_t align_x);
+int sk_text_split_lines(const char *text, int length, float max_width, const char **starts, const char **ends,
+                        int max_lines);
 
 /* text2d (retained text object, built on the text layer) */
 void sk_text2d_init(void);

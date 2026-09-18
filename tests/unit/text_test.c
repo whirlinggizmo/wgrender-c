@@ -1,3 +1,4 @@
+#include <math.h>
 /* The default font (sk_text_set_default_font), on sokol's dummy backend. */
 #include <string.h>
 
@@ -10,9 +11,14 @@
 #include "sk_logger.h"
 #include "sk_text.h"
 #include "sk_text3d.h"
+#include "internal/sk_texture.h"
+#include "sk_color.h"
+#include "sk_render.h"
+#include "sk_texture.h"
 #include "test.h"
 #include "tests.h"
 
+#include "fontstash.h"
 #include "sokol_gfx.h"
 
 #define FONT "../examples/assets/fonts/Komika/KOMIKAH_.ttf"
@@ -107,5 +113,80 @@ void test_text_font_refcount(void)
     sk_font_deinit();
     sk_scene_deinit();
     sk_render_deinit();
+    sg_shutdown();
+}
+
+/* Text slices, DPI-correct rasterization and a growing glyph atlas (docs/PLAN-ui.md,
+ * step 2). */
+void test_text_slices_and_dpi(void)
+{
+    sg_setup(&(sg_desc){.environment = sk_platform_environment()});
+    sk_texture_init();
+    sk_render_init();
+    sk_font_init();
+    sk_text_init();
+    sk_logger_set_level(SK_LOGGER_LEVEL_ERROR);
+
+    /* slices: `length` bytes of a longer string, negative meaning up to the NUL */
+    const vec2_t hello = sk_text_measure_ex(0, "hello", 16.0f);
+    const vec2_t slice = sk_text_measure_n(0, "hello world", 5, 16.0f);
+    CHECK(slice.x == hello.x && slice.y == hello.y);
+    const vec2_t whole = sk_text_measure_n(0, "hello world", -1, 16.0f);
+    CHECK(whole.x == sk_text_measure_ex(0, "hello world", 16.0f).x);
+    CHECK(sk_text_measure_n(0, "hello", 0, 16.0f).x == 0.0f && sk_text_measure_n(0, "hello", 0, 16.0f).y == 0.0f);
+    CHECK_NEAR(sk_text_measure_n(0, "a\nb", 3, 16.0f).y, hello.y * 2.0f, 0.01); /* the newline is inside */
+    CHECK_NEAR(sk_text_measure_n(0, "a\nb", 1, 16.0f).y, hello.y, 0.01);        /* ... and here it isn't */
+
+    /* at 2x DPI glyphs are rasterized twice as large, but measurement stays logical.
+       fontstash rounds each glyph's advance to a whole rasterized pixel, so a width is
+       off by up to half a pixel per glyph at 1x, a quarter at 2x, a sixth at 3x: the
+       higher the DPI, the closer to the true width (measured here at 10x the size,
+       where the rounding is negligible). Measuring and drawing round alike, so layout
+       is consistent on any one screen. */
+    const int glyphs = 12;
+    const float exact = sk_text_measure_ex(0, "Hello, world", 160.0f).x / 10.0f;
+    const vec2_t at1 = sk_text_measure_ex(0, "Hello, world", 16.0f);
+    CHECK(fabsf(at1.x - exact) <= 0.5f * glyphs + 0.1f);
+    sk_platform_set_headless_dpi_scale(2.0f);
+    const vec2_t at2 = sk_text_measure_ex(0, "Hello, world", 16.0f);
+    CHECK(fabsf(at2.x - exact) <= 0.25f * glyphs + 0.1f);
+    CHECK_NEAR(at2.y, at1.y, 1.0); /* the line height stays logical too */
+    sk_platform_set_headless_dpi_scale(3.0f);
+    CHECK(fabsf(sk_text_measure_ex(0, "Hello, world", 16.0f).x - exact) <= 0.5f / 3.0f * glyphs + 0.1f);
+
+    /* inside a render target the target's own pixels count: scale 1 */
+    const sk_handle_t target = sk_texture_create_target(64, 32);
+    sk_render_begin();
+    CHECK_NEAR(sk_render_pixel_scale(), 3.0, 1e-6);
+    CHECK(sk_render_begin_texture(target));
+    CHECK_NEAR(sk_render_pixel_scale(), 1.0, 1e-6);
+    CHECK(sk_text_measure_ex(0, "Hello, world", 16.0f).x == at1.x); /* the same as at 1x */
+    sk_render_end_texture();
+    sk_text_draw_n(0, "hello world", 5, 10.5f, 10.5f, 16.0f, SK_COLOR_WHITE); /* draws without trouble */
+    sk_render_end();
+    sk_platform_set_headless_dpi_scale(1.0f);
+
+    /* the glyph atlas grows instead of dropping glyphs: capitals at 300 and 400 px
+       don't fit in 1024 x 1024 */
+    int width = 0, height = 0;
+    fonsGetAtlasSize(sk_font_context(), &width, &height);
+    CHECK(width == 1024 && height == 1024);
+    sk_render_begin();
+    sk_text_draw_ex(0, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 0, 0, 300.0f, SK_COLOR_WHITE);
+    sk_text_draw_ex(0, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 0, 0, 400.0f, SK_COLOR_WHITE);
+    sk_render_end();
+    fonsGetAtlasSize(sk_font_context(), &width, &height);
+    CHECK(width * height > 1024 * 1024); /* grown once the frame was submitted, not during it */
+    sk_render_begin();                   /* and the next frame draws from the bigger atlas */
+    sk_text_draw_ex(0, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 0, 0, 300.0f, SK_COLOR_WHITE);
+    sk_text_draw_ex(0, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 0, 0, 400.0f, SK_COLOR_WHITE);
+    sk_render_end();
+
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    sk_texture_release(target);
+    sk_text_deinit();
+    sk_font_deinit();
+    sk_render_deinit();
+    sk_texture_deinit();
     sg_shutdown();
 }

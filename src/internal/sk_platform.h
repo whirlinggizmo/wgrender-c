@@ -32,6 +32,9 @@ bool sk_platform_is_headless(void);
 int sk_platform_width(void);         /* framebuffer pixels */
 int sk_platform_height(void);
 float sk_platform_dpi_scale(void);   /* framebuffer pixels per logical pixel, > 0 */
+#if defined(SK_HEADLESS)
+void sk_platform_set_headless_dpi_scale(float scale); /* for tests: what sk_platform_dpi_scale reports */
+#endif
 double sk_platform_frame_duration(void); /* last frame's raw duration, seconds */
 
 void sk_platform_set_title(const char *title);

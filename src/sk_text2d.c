@@ -55,7 +55,7 @@ static sk_text2d_t *resolve(sk_handle_t handle)
  * block is as wide as its max width, an unwrapped one as wide as its widest line. */
 static bool block_rect(const sk_text2d_t *text_ptr, float *left, float *top, float *width, float *height)
 {
-    const vec2_t size = sk_text_block_size(text_ptr->font, text_ptr->text, text_ptr->size, text_ptr->max_width);
+    const vec2_t size = sk_text_block_size(text_ptr->font, text_ptr->text, -1, text_ptr->size, text_ptr->max_width);
     if (size.y <= 0.0f) {
         return false;
     }
@@ -240,7 +240,7 @@ float sk_text2d_measure_width(sk_handle_t handle)
 {
     sk_text2d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL || text_ptr->text == NULL) return 0.0f;
-    return sk_text_block_size(text_ptr->font, text_ptr->text, text_ptr->size, text_ptr->max_width).x;
+    return sk_text_block_size(text_ptr->font, text_ptr->text, -1, text_ptr->size, text_ptr->max_width).x;
 }
 
 SK_KEEP
@@ -248,7 +248,7 @@ float sk_text2d_measure_height(sk_handle_t handle)
 {
     sk_text2d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL || text_ptr->text == NULL) return 0.0f;
-    return sk_text_block_size(text_ptr->font, text_ptr->text, text_ptr->size, text_ptr->max_width).y;
+    return sk_text_block_size(text_ptr->font, text_ptr->text, -1, text_ptr->size, text_ptr->max_width).y;
 }
 
 SK_KEEP
@@ -293,7 +293,7 @@ void sk_text2d_draw(sk_handle_t handle)
         return;
     }
     /* font 0 or a font that isn't loaded resolves to the default / built-in font */
-    sk_text_block_draw(text_ptr->font, text_ptr->text, left, top, text_ptr->size, text_ptr->color,
+    sk_text_block_draw(text_ptr->font, text_ptr->text, -1, left, top, text_ptr->size, text_ptr->color,
                        text_ptr->max_width, width, text_ptr->align_x);
 }
 
