@@ -1,5 +1,6 @@
 #include "sk_input.h"
 
+#include <math.h>
 #include <string.h>
 
 #include "internal/exports.h"
@@ -36,7 +37,22 @@ typedef struct {
     int num_pressed_keys;
     int pressed_chars[SK_KEYBOARD_MAX_PRESSED_CHARS];
     int num_pressed_chars;
+    bool touch_pressed[SK_INPUT_MAX_TOUCHES];
+    bool touch_released[SK_INPUT_MAX_TOUCHES];
+    float touch_dx[SK_INPUT_MAX_TOUCHES], touch_dy[SK_INPUT_MAX_TOUCHES];
+    float gesture_dx, gesture_dy;
+    float gesture_log_scale; /* summed, so a cleared edge set means a scale of 1 */
+    float gesture_rotation;
 } sk_input_edges_t;
+
+/* A finger, in the slot its id names. A lifted finger keeps its slot (and position)
+ * until both edge sets have seen the release. */
+typedef struct {
+    bool down;
+    uintptr_t system_id; /* sokol's identifier */
+    float x, y;          /* logical pixels */
+    unsigned order;      /* when it went down: fingers are listed oldest first */
+} sk_finger_t;
 
 typedef struct {
     int x, y;
@@ -47,9 +63,13 @@ typedef struct {
     sk_input_edges_t tick_edges;
     sk_input_context_t context;
 
-    /* the first touch drives the pointer, like the left mouse button */
+    sk_finger_t fingers[SK_INPUT_MAX_TOUCHES];
+    unsigned finger_order;
+    /* the first finger drives the pointer, like the left mouse button, until a second
+     * one cancels it; then the pointer stays up until every finger has lifted */
     bool touching;
     uintptr_t touch_id;
+    bool touch_cancelled;
     bool scene_pointer_captured; /* set by interactive scenes (sk_scene.c) */
     bool ui_pointer_captured;    /* sticky, set by the game's UI */
     bool ui_keyboard_captured;   /* sticky, set by the game's UI */
@@ -134,31 +154,158 @@ static void add_edges(sk_input_edges_t *edges, const sapp_event *ev, bool key_wa
     }
 }
 
-/* Feed the primary touch to the pointer as mouse events (move, then left button). */
+static int find_finger(uintptr_t system_id)
+{
+    for (int i = 0; i < SK_INPUT_MAX_TOUCHES; i++) {
+        if (sk_input.fingers[i].down && sk_input.fingers[i].system_id == system_id) return i;
+    }
+    return -1;
+}
+
+/* A slot for a new finger: one with no edges left to report, else any that's up. */
+static int free_finger(void)
+{
+    const sk_input_edges_t *f = &sk_input.frame_edges, *t = &sk_input.tick_edges;
+    for (int i = 0; i < SK_INPUT_MAX_TOUCHES; i++) {
+        if (!sk_input.fingers[i].down && !f->touch_pressed[i] && !f->touch_released[i] && !t->touch_pressed[i] &&
+            !t->touch_released[i]) {
+            return i;
+        }
+    }
+    for (int i = 0; i < SK_INPUT_MAX_TOUCHES; i++) {
+        if (!sk_input.fingers[i].down) return i;
+    }
+    return -1;
+}
+
+static int fingers_down(void)
+{
+    int count = 0;
+    for (int i = 0; i < SK_INPUT_MAX_TOUCHES; i++) count += sk_input.fingers[i].down ? 1 : 0;
+    return count;
+}
+
+/* The first two fingers down (the gesture's), or false. */
+static bool gesture_pair(int *a, int *b)
+{
+    *a = *b = -1;
+    for (int i = 0; i < SK_INPUT_MAX_TOUCHES; i++) {
+        const sk_finger_t *finger = &sk_input.fingers[i];
+        if (!finger->down) continue;
+        if (*a < 0 || finger->order < sk_input.fingers[*a].order) {
+            *b = *a;
+            *a = i;
+        } else if (*b < 0 || finger->order < sk_input.fingers[*b].order) {
+            *b = i;
+        }
+    }
+    return *b >= 0;
+}
+
+/* Move the pointer to logical (x, y), and press or release its left button. */
+static void pointer_event(sapp_event_type type, float x, float y)
+{
+    sapp_event mouse = {.type = SAPP_EVENTTYPE_MOUSE_MOVE,
+                        .mouse_x = x * sk_window_dpi_scale(),
+                        .mouse_y = y * sk_window_dpi_scale()};
+    sk_input_handle_event(&mouse);
+    if (type != SAPP_EVENTTYPE_MOUSE_MOVE) {
+        mouse.type = type;
+        sk_input_handle_event(&mouse);
+    }
+}
+
+/* The pointer follows the first finger; a second one cancels its press. */
+static void touch_pointer(sapp_event_type type, uintptr_t system_id, const sk_finger_t *finger)
+{
+    if (type == SAPP_EVENTTYPE_TOUCHES_BEGAN) {
+        if (!sk_input.touching && !sk_input.touch_cancelled && fingers_down() == 1) {
+            sk_input.touching = true;
+            sk_input.touch_id = system_id;
+            pointer_event(SAPP_EVENTTYPE_MOUSE_DOWN, finger->x, finger->y);
+        } else if (sk_input.touching) {
+            sk_input.touching = false; /* released off-screen: nothing under it is clicked */
+            sk_input.touch_cancelled = true;
+            pointer_event(SAPP_EVENTTYPE_MOUSE_UP, -1.0f, -1.0f);
+        }
+    } else if (sk_input.touching && system_id == sk_input.touch_id) {
+        if (type == SAPP_EVENTTYPE_TOUCHES_MOVED) {
+            pointer_event(SAPP_EVENTTYPE_MOUSE_MOVE, finger->x, finger->y);
+        } else {
+            sk_input.touching = false;
+            pointer_event(SAPP_EVENTTYPE_MOUSE_UP, finger->x, finger->y);
+        }
+    }
+}
+
+/* Fingers, their edges, the pointer and the two-finger gesture from one touch event. */
 static void handle_touch(const sapp_event *ev)
 {
+    const float scale = sk_window_dpi_scale();
+    const sapp_event_type type = ev->type == SAPP_EVENTTYPE_TOUCHES_CANCELLED ? SAPP_EVENTTYPE_TOUCHES_ENDED : ev->type;
+    int a, b;
+    float ax = 0, ay = 0, bx = 0, by = 0;
+    const bool had_pair = gesture_pair(&a, &b);
+    const int pair_a = a, pair_b = b;
+
+    if (had_pair) {
+        ax = sk_input.fingers[a].x, ay = sk_input.fingers[a].y;
+        bx = sk_input.fingers[b].x, by = sk_input.fingers[b].y;
+    }
     for (int i = 0; i < ev->num_touches; i++) {
         const sapp_touchpoint *touch = &ev->touches[i];
-        const bool primary = sk_input.touching && touch->identifier == sk_input.touch_id;
-        if (!touch->changed || (sk_input.touching && !primary)) {
+        const float x = touch->pos_x / scale, y = touch->pos_y / scale;
+        int slot = find_finger(touch->identifier);
+        sk_finger_t *finger;
+
+        if (!touch->changed) continue;
+        if (type == SAPP_EVENTTYPE_TOUCHES_BEGAN && slot < 0) {
+            slot = free_finger();
+            if (slot < 0) continue;
+            sk_input.frame_edges.touch_released[slot] = sk_input.tick_edges.touch_released[slot] = false;
+            sk_input.frame_edges.touch_dx[slot] = sk_input.tick_edges.touch_dx[slot] = 0.0f;
+            sk_input.frame_edges.touch_dy[slot] = sk_input.tick_edges.touch_dy[slot] = 0.0f;
+            sk_input.fingers[slot] = (sk_finger_t){
+                .down = true, .system_id = touch->identifier, .x = x, .y = y, .order = ++sk_input.finger_order};
+            sk_input.frame_edges.touch_pressed[slot] = sk_input.tick_edges.touch_pressed[slot] = true;
+        } else if (slot < 0) {
             continue;
         }
-        if (ev->type == SAPP_EVENTTYPE_TOUCHES_BEGAN && sk_input.touching) {
-            continue; /* a second finger */
+        finger = &sk_input.fingers[slot];
+        sk_input.frame_edges.touch_dx[slot] += x - finger->x;
+        sk_input.tick_edges.touch_dx[slot] += x - finger->x;
+        sk_input.frame_edges.touch_dy[slot] += y - finger->y;
+        sk_input.tick_edges.touch_dy[slot] += y - finger->y;
+        finger->x = x;
+        finger->y = y;
+        if (type == SAPP_EVENTTYPE_TOUCHES_ENDED) {
+            finger->down = false;
+            sk_input.frame_edges.touch_released[slot] = sk_input.tick_edges.touch_released[slot] = true;
         }
-        sapp_event mouse = {.type = SAPP_EVENTTYPE_MOUSE_MOVE, .mouse_x = touch->pos_x, .mouse_y = touch->pos_y};
-        sk_input_handle_event(&mouse);
-        if (ev->type == SAPP_EVENTTYPE_TOUCHES_BEGAN) {
-            sk_input.touching = true;
-            sk_input.touch_id = touch->identifier;
-            mouse.type = SAPP_EVENTTYPE_MOUSE_DOWN;
-            sk_input_handle_event(&mouse);
-        } else if (ev->type == SAPP_EVENTTYPE_TOUCHES_ENDED || ev->type == SAPP_EVENTTYPE_TOUCHES_CANCELLED) {
-            sk_input.touching = false;
-            mouse.type = SAPP_EVENTTYPE_MOUSE_UP;
-            sk_input_handle_event(&mouse);
+        touch_pointer(type, touch->identifier, finger);
+    }
+    if (fingers_down() == 0) {
+        sk_input.touch_cancelled = false;
+    }
+
+    /* the same two fingers before and after: they panned, pinched and twisted */
+    if (had_pair && gesture_pair(&a, &b) && a == pair_a && b == pair_b) {
+        const float nax = sk_input.fingers[a].x, nay = sk_input.fingers[a].y;
+        const float nbx = sk_input.fingers[b].x, nby = sk_input.fingers[b].y;
+        const float before = hypotf(bx - ax, by - ay), after = hypotf(nbx - nax, nby - nay);
+        float turn = atan2f(nby - nay, nbx - nax) - atan2f(by - ay, bx - ax);
+        const float pan_x = (nax + nbx - ax - bx) * 0.5f, pan_y = (nay + nby - ay - by) * 0.5f;
+        if (turn > (float)M_PI) turn -= 2.0f * (float)M_PI;
+        if (turn < -(float)M_PI) turn += 2.0f * (float)M_PI;
+        sk_input_edges_t *sets[2] = {&sk_input.frame_edges, &sk_input.tick_edges};
+        for (int s = 0; s < 2; s++) {
+            sets[s]->gesture_dx += pan_x;
+            sets[s]->gesture_dy += pan_y;
+            if (before > 0.0f && after > 0.0f) {
+                sets[s]->gesture_log_scale += logf(after / before);
+                sets[s]->gesture_rotation += turn;
+            }
         }
-        return;
     }
 }
 
@@ -354,4 +501,68 @@ sk_keyboard_state_t sk_input_get_keyboard_state(void)
     }
 
     return state;
+}
+
+/* The fingers to report in the current context (down, or with an edge in it), oldest first. */
+static int list_touches(int out[SK_INPUT_MAX_TOUCHES])
+{
+    const sk_input_edges_t *edges = current_edges();
+    int count = 0;
+    for (int i = 0; i < SK_INPUT_MAX_TOUCHES; i++) {
+        if (!sk_input.fingers[i].down && !edges->touch_pressed[i] && !edges->touch_released[i]) continue;
+        int j = count++;
+        while (j > 0 && sk_input.fingers[out[j - 1]].order > sk_input.fingers[i].order) {
+            out[j] = out[j - 1];
+            j--;
+        }
+        out[j] = i;
+    }
+    return count;
+}
+
+SK_KEEP
+int sk_input_get_touch_count(void)
+{
+    int slots[SK_INPUT_MAX_TOUCHES];
+    return list_touches(slots);
+}
+
+SK_KEEP
+sk_touch_t sk_input_get_touch(int index)
+{
+    int slots[SK_INPUT_MAX_TOUCHES];
+    const int count = list_touches(slots);
+    const sk_input_edges_t *edges = current_edges();
+    int slot;
+
+    if (index < 0 || index >= count) {
+        return (sk_touch_t){.id = -1, .state = SK_BUTTON_UP};
+    }
+    slot = slots[index];
+    return (sk_touch_t){
+        .id = slot,
+        .x = sk_input.fingers[slot].x,
+        .y = sk_input.fingers[slot].y,
+        .dx = edges->touch_dx[slot],
+        .dy = edges->touch_dy[slot],
+        .state = button_state(sk_input.fingers[slot].down, edges->touch_pressed[slot], edges->touch_released[slot]),
+    };
+}
+
+SK_KEEP
+sk_touch_gesture_t sk_input_get_touch_gesture(void)
+{
+    const sk_input_edges_t *edges = current_edges();
+    sk_touch_gesture_t gesture = {.scale = expf(edges->gesture_log_scale)};
+    int a, b;
+
+    gesture.dx = edges->gesture_dx;
+    gesture.dy = edges->gesture_dy;
+    gesture.rotation = edges->gesture_rotation;
+    if (gesture_pair(&a, &b)) {
+        gesture.active = true;
+        gesture.x = (sk_input.fingers[a].x + sk_input.fingers[b].x) * 0.5f;
+        gesture.y = (sk_input.fingers[a].y + sk_input.fingers[b].y) * 0.5f;
+    }
+    return gesture;
 }

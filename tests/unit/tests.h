@@ -28,6 +28,8 @@ void test_input_tick_edges(void);
 void test_input_tick_deltas(void);
 void test_input_wheel(void);
 void test_input_capture(void);
+void test_input_touches(void);
+void test_input_touch_gesture(void);
 
 void test_sprite2d_corners(void);
 void test_sprite2d_screen_to_unit(void);

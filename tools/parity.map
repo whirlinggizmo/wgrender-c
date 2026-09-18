@@ -127,8 +127,8 @@ rl_scratch_get_mouse                    dropped  scratch buffer; use sk_input_ge
 rl_scratch_get_pick_result              dropped  scratch buffer; pick functions return values
 rl_scratch_get_quaternion               dropped  scratch buffer
 rl_scratch_get_rect                     dropped  scratch buffer
-rl_scratch_get_touchpoint               dropped  scratch buffer (touch input is a separate todo in docs/TASKS.md)
-rl_scratch_get_touchpoints              dropped  scratch buffer (touch input is a separate todo in docs/TASKS.md)
+rl_scratch_get_touchpoint               ported   sk_input_get_touch   by value, with edges and deltas; ids are small and stable while down
+rl_scratch_get_touchpoints              ported   sk_input_get_touch_count  plus sk_input_get_touch(index); two-finger pan/pinch/twist in sk_input_get_touch_gesture
 rl_scratch_get_vector2                  dropped  scratch buffer
 rl_scratch_get_vector3                  dropped  scratch buffer
 rl_scratch_get_vector4                  dropped  scratch buffer

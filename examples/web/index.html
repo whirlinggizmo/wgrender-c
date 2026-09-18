@@ -14,9 +14,11 @@
   #status { color: #7b8494; }
   select { background: #0f1115; color: #cdd3de; border: 1px solid #3a4150;
     border-radius: 6px; padding: 4px 8px; font: inherit; }
-  /* canvas fills the area below the bar; sokol manages the drawing buffer */
+  /* canvas fills the area below the bar; sokol manages the drawing buffer. Touches
+     on it are the program's: the browser doesn't scroll or zoom the page for them. */
   #canvas { position: fixed; inset: 38px 0 0 0; width: 100vw;
-    height: calc(100vh - 38px); display: block; background: #000; outline: none; }
+    height: calc(100vh - 38px); display: block; background: #000; outline: none;
+    touch-action: none; }
 </style>
 </head>
 <body>

@@ -17,6 +17,40 @@ int sk_input_get_mouse_button(int button);
 sk_mouse_state_t sk_input_get_mouse_state(void);
 sk_keyboard_state_t sk_input_get_keyboard_state(void);
 
+/* Touch
+ * -----
+ * The first finger also drives the pointer (position and left button), so UI and scene
+ * interaction work by touch. A second finger cancels that press: the pointer is
+ * released off-screen, at (-1, -1), so nothing under it is clicked, and it stays up
+ * until every finger has lifted.
+ *
+ * Fingers, and the two-finger gesture, have edges and deltas like the mouse: since the
+ * previous frame in the frame callback, since the previous tick in a tick. */
+#define SK_INPUT_MAX_TOUCHES 8
+
+typedef struct {
+    int id;       /* stable while the finger is down (0 .. SK_INPUT_MAX_TOUCHES - 1);
+                     reused once it has lifted */
+    float x, y;   /* logical pixels, like the mouse */
+    float dx, dy; /* moved this frame (or tick) */
+    int state;    /* SK_BUTTON_PRESSED, _DOWN or _RELEASED */
+} sk_touch_t;
+
+/* Two fingers: the first two down, while both are. */
+typedef struct {
+    bool active;    /* two or more fingers down */
+    float x, y;     /* the point between them */
+    float dx, dy;   /* two-finger pan this frame (or tick) */
+    float scale;    /* pinch this frame (or tick): the ratio of their distances, 1 = none */
+    float rotation; /* twist this frame (or tick), radians, clockwise on screen */
+} sk_touch_gesture_t;
+
+/* Fingers down, plus those lifted this frame (or tick); sk_input_get_touch(0 .. count - 1)
+ * reads them, oldest first. */
+int sk_input_get_touch_count(void);
+sk_touch_t sk_input_get_touch(int index);
+sk_touch_gesture_t sk_input_get_touch_gesture(void);
+
 /* Whether game controls (camera drags, 3D selection, hotkeys) should leave the pointer
  * or the keyboard alone because a UI has it. Advisory: libsk keeps reporting input;
  * game code checks these first.

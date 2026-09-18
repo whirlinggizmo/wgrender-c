@@ -322,6 +322,10 @@ static void on_frame(void)
      * events before the next frame_cb */
     sk_input_end_frame();
     sk_scene_end_frame_interaction();
+    if (sk_rt.tick_fn == NULL) { /* nothing reads tick edges: don't let them pile up */
+        sk_input_end_tick();
+        sk_scene_end_tick_interaction();
+    }
 }
 
 static void on_event(const void *ev)

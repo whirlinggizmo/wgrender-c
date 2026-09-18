@@ -6,18 +6,32 @@ tree (examples/assets/) at /assets/ — so assets are never copied or symlinked 
 the site. Single source of truth, works on Windows/macOS/Linux. This mirrors the
 web asset host "/assets/" (the same logical path the desktop fs resolves locally).
 
-    python3 tools/serve.py [port] [site]   # default 8000, examples/build/webgl2
+    python3 tools/serve.py [port] [site] [--tls CERT KEY]   # default 8000, examples/build/webgl2
+
+--tls serves HTTPS with that certificate and key (PEM), e.g. a locally trusted dev
+certificate, so another device on the LAN (a phone) gets a secure page: threaded
+builds need one for SharedArrayBuffer. localhost is secure without it.
 """
 import http.server
 import os
 import posixpath
+import ssl
 import sys
 import urllib.parse
 
+ARGS = sys.argv[1:]
+TLS = None
+if "--tls" in ARGS:
+    i = ARGS.index("--tls")
+    if len(ARGS) < i + 3:
+        sys.exit("serve.py: --tls needs CERT and KEY")
+    TLS = (ARGS[i + 1], ARGS[i + 2])
+    del ARGS[i:i + 3]
+
 ROOT   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SITE   = os.path.abspath(sys.argv[2]) if len(sys.argv) > 2 else os.path.join(ROOT, "examples", "build", "webgl2")
+SITE   = os.path.abspath(ARGS[1]) if len(ARGS) > 1 else os.path.join(ROOT, "examples", "build", "webgl2")
 ASSETS = os.path.join(ROOT, "examples", "assets")
-PORT   = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
+PORT   = int(ARGS[0]) if len(ARGS) > 0 else 8000
 
 
 class _LimitReader:
@@ -111,5 +125,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    print(f"libsk: http://localhost:{PORT}/  ({SITE} at /, examples/assets/ mounted at /assets/)")
-    http.server.HTTPServer(("", PORT), Handler).serve_forever()
+    server = http.server.ThreadingHTTPServer(("", PORT), Handler)
+    scheme = "http"
+    if TLS is not None:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(certfile=os.path.expanduser(TLS[0]), keyfile=os.path.expanduser(TLS[1]))
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+        scheme = "https"
+    print(f"libsk: {scheme}://localhost:{PORT}/  ({SITE} at /, examples/assets/ mounted at /assets/)")
+    server.serve_forever()

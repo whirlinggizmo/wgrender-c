@@ -193,6 +193,44 @@ void test_interaction(void)
         sk_input_handle_event(&touch);
         frame();
         CHECK(sk_scene_is_clicked(scene, button));
+
+        /* a second finger cancels the press: released off-screen, no click, and the
+           pointer stays up until both fingers lift */
+        frame();
+        touch.type = SAPP_EVENTTYPE_TOUCHES_BEGAN;
+        end_frame();
+        sk_input_handle_event(&touch);
+        frame();
+        CHECK(sk_scene_get_press(scene, button) == SK_BUTTON_PRESSED);
+        sapp_event second = {.type = SAPP_EVENTTYPE_TOUCHES_BEGAN, .num_touches = 2};
+        second.touches[0] = (sapp_touchpoint){.identifier = 7, .pos_x = 400, .pos_y = 300};
+        second.touches[1] = (sapp_touchpoint){.identifier = 8, .pos_x = 500, .pos_y = 300, .changed = true};
+        end_frame();
+        sk_input_handle_event(&second);
+        frame();
+        CHECK(sk_scene_get_press(scene, button) == SK_BUTTON_RELEASED);
+        CHECK(!sk_scene_is_clicked(scene, button));
+        CHECK(sk_input_get_mouse_position().x == -1 && sk_input_get_mouse_position().y == -1);
+        second.type = SAPP_EVENTTYPE_TOUCHES_ENDED; /* the second finger lifts... */
+        end_frame();
+        sk_input_handle_event(&second);
+        touch.type = SAPP_EVENTTYPE_TOUCHES_MOVED;  /* ...and the first one moves on */
+        sk_input_handle_event(&touch);
+        frame();
+        CHECK(sk_input_get_mouse_button(0) == SK_BUTTON_UP);
+        CHECK(sk_input_get_mouse_position().x == -1); /* still cancelled */
+        touch.type = SAPP_EVENTTYPE_TOUCHES_ENDED;
+        end_frame();
+        sk_input_handle_event(&touch);
+        frame();
+        CHECK(!sk_scene_is_clicked(scene, button));
+        touch.type = SAPP_EVENTTYPE_TOUCHES_BEGAN; /* all lifted: the next touch is a pointer again */
+        end_frame();
+        sk_input_handle_event(&touch);
+        touch.type = SAPP_EVENTTYPE_TOUCHES_ENDED;
+        sk_input_handle_event(&touch);
+        frame();
+        CHECK(sk_scene_is_clicked(scene, button));
     }
 
     /* tick edges carry over frames that ran no tick */

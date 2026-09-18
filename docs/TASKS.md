@@ -198,9 +198,14 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       this fix, both tilted. `CAMERA_FIXED_Y` also no longer collapses to an invisible
       zero-width quad when the camera looks straight down
 - [ ] Gamepad input (`sk_input_*`)
-- [ ] Touch input (`sk_input_*`): the primary touch drives the pointer (buttons,
-      scene interaction) since 2026-09-17; a multi-touch API (all touch points,
-      gestures) is still open
+- [x] Touch input (`sk_input_*`, 2026-09-18): the first finger drives the pointer
+      (since 2026-09-17), and a second one cancels its press (released off-screen,
+      no click); every finger with ids, edges and deltas (`sk_input_get_touch`), and
+      the two-finger pan / pinch / twist (`sk_input_get_touch_gesture`), per frame
+      and per tick. `examples/touch.c`; checked with CDP touch events and on a Pixel
+      9 Pro XL (`tools/serve.py --tls` for a secure page on the LAN)
+- [ ] Touch later: long-press and swipe/fling recognizers if a game wants them;
+      pinch from desktop trackpads (browsers send it as ctrl + wheel)
 - [ ] Native iOS / Android: long stretch goal. sokol supports both (Metal/GLES3,
       CoreAudio/AAudio, touch); libsk would need build targets, Metal shaders, app
       lifecycle and bundle/APK file access. Until then, mobile runs the wasm build

@@ -46,6 +46,9 @@ Keep this file short and rule-shaped. The authoritative design doc is
   virtual X display when Xvfb is installed, else in a visible window). Web builds use
   threads by default, which need cross-origin isolation (`tools/serve.py` sends the
   headers); `WEB_THREADS=0` builds without.
+- `python3 tools/serve.py [port] [site] [--tls CERT KEY]` — the dev server (COOP/COEP
+  headers, `/assets/` mounted). `--tls` gives other devices on the LAN (a phone) the
+  secure page threaded builds need; `localhost` is secure without it.
 - `make websize [BACKEND=webgpu] [WEB_THREADS=0]` — wasm/JS sizes per web example
   (raw and gzip; brotli if installed), also summarized after `make wasm-all`.
 - Run `make verify` (lib + examples + `make check` + `make test` + `make smoke`,
