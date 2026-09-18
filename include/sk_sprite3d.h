@@ -12,8 +12,8 @@ extern "C" {
  * a shared Texture resource. See docs/ARCHITECTURE.md. */
 
 typedef enum {
-    SK_SPRITE3D_FACING_CAMERA = 0,         /* fully faces the camera        */
-    SK_SPRITE3D_FACING_CAMERA_FIXED_Y = 1, /* faces camera, world up locked */
+    SK_SPRITE3D_FACING_CAMERA = 0,         /* spherical: parallel to the view plane, whatever the camera's pitch */
+    SK_SPRITE3D_FACING_CAMERA_FIXED_Y = 1, /* cylindrical: turns about world Y to face the camera, stays upright */
     SK_SPRITE3D_FACING_Y_UP = 2,           /* flat in XZ plane, normal +Y   */
     SK_SPRITE3D_FACING_FREE = 3,           /* its own rotation: the local XY plane, facing +Z */
 } sk_sprite3d_facing_t;

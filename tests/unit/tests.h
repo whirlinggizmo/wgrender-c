@@ -89,6 +89,7 @@ void test_text_layout_shared(void);
 void test_color_values(void);
 void test_scene_clip(void);
 void test_sprite3d_2d_world(void);
+void test_sprite3d_facings(void);
 
 void test_scene_view_depth(void);
 void test_scene_sort_transparent(void);

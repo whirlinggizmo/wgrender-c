@@ -190,6 +190,13 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 
 ## Parity outside the API
 
+- [x] sprite3d / text3d camera facings (2026-09-18) now do what their names say, and
+      differ from librl on purpose. `CAMERA` is spherical (parallel to the view plane,
+      tilting with the camera's pitch); `CAMERA_FIXED_Y` is cylindrical (turns about
+      world Y, stays upright). In librl, `CAMERA` built the quad from `camera.up` — the
+      up *hint*, normally (0, 1, 0) — so both modes were upright there; in libsk before
+      this fix, both tilted. `CAMERA_FIXED_Y` also no longer collapses to an invisible
+      zero-width quad when the camera looks straight down
 - [ ] Gamepad input (`sk_input_*`)
 - [ ] Touch input (`sk_input_*`): the primary touch drives the pointer (buttons,
       scene interaction) since 2026-09-17; a multi-touch API (all touch points,

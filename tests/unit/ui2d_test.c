@@ -9,6 +9,7 @@
 #include "internal/sk_render.h"
 #include "internal/sk_scene.h"
 #include "internal/sk_sprite2d.h"
+#include "internal/sk_sprite3d.h"
 #include "sk_camera3d.h"
 #include "sk_logger.h"
 #include "sk_pick.h"
@@ -367,4 +368,46 @@ void test_text_layout_shared(void)
     sk_scene_deinit();
     sk_render_deinit();
     sg_shutdown();
+}
+
+/* The four facings' quad bases (sk_sprite3d_facing_basis, shared by sprite3d and
+ * text3d), under a camera pitched 45 degrees down: spherical faces the view plane,
+ * cylindrical stays upright. */
+void test_sprite3d_facings(void)
+{
+    const sk_camera3d_t pitched = {.position = {0, 10, 10}, .target = {0, 0, 0}, .up = {0, 1, 0}};
+    const float h = 0.70710678f;
+    vec3_t right, up;
+
+    /* spherical: tilts back with the camera, so it faces it exactly */
+    sk_sprite3d_facing_basis(SK_SPRITE3D_FACING_CAMERA, (vec3_t){0, 0, 0}, &pitched, &right, &up);
+    CHECK_VEC3_NEAR(right, 1, 0, 0, 1e-5);
+    CHECK_VEC3_NEAR(up, 0, h, -h, 1e-5);
+
+    /* cylindrical: same right, but upright however far the camera looks down */
+    sk_sprite3d_facing_basis(SK_SPRITE3D_FACING_CAMERA_FIXED_Y, (vec3_t){0, 0, 0}, &pitched, &right, &up);
+    CHECK_VEC3_NEAR(right, 1, 0, 0, 1e-5);
+    CHECK_VEC3_NEAR(up, 0, 1, 0, 1e-6);
+
+    /* ... and it still turns about Y to follow a camera moving around it */
+    const sk_camera3d_t side = {.position = {10, 10, 0}, .target = {0, 0, 0}, .up = {0, 1, 0}};
+    sk_sprite3d_facing_basis(SK_SPRITE3D_FACING_CAMERA_FIXED_Y, (vec3_t){0, 0, 0}, &side, &right, &up);
+    CHECK_VEC3_NEAR(right, 0, 0, -1, 1e-5);
+    CHECK_VEC3_NEAR(up, 0, 1, 0, 1e-6);
+
+    /* looking straight down (up hint along -Z): no horizontal direction from the
+       view, so it takes the camera's own right instead of collapsing */
+    const sk_camera3d_t down = {.position = {0, 10, 0}, .target = {0, 0, 0}, .up = {0, 0, -1}};
+    sk_sprite3d_facing_basis(SK_SPRITE3D_FACING_CAMERA_FIXED_Y, (vec3_t){0, 0, 0}, &down, &right, &up);
+    CHECK_NEAR(right.x * right.x + right.y * right.y + right.z * right.z, 1.0, 1e-5);
+    CHECK_NEAR(right.y, 0.0, 1e-6);
+    CHECK_VEC3_NEAR(up, 0, 1, 0, 1e-6);
+
+    /* flat on the ground and free don't depend on the camera at all */
+    sk_sprite3d_facing_basis(SK_SPRITE3D_FACING_Y_UP, (vec3_t){0, 0, 0}, &pitched, &right, &up);
+    CHECK_VEC3_NEAR(right, 1, 0, 0, 1e-6);
+    CHECK_VEC3_NEAR(up, 0, 0, -1, 1e-6);
+    sk_sprite3d_facing_basis(SK_SPRITE3D_FACING_FREE, (vec3_t){0, 1.5707963f, 0}, &pitched, &right, &up);
+    CHECK_VEC3_NEAR(right, 0, 0, -1, 1e-5); /* a quarter turn about Y */
+    CHECK_VEC3_NEAR(up, 0, 1, 0, 1e-5);
 }

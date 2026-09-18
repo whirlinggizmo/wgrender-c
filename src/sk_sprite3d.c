@@ -398,10 +398,20 @@ void sk_sprite3d_facing_basis(sk_sprite3d_facing_t facing, vec3_t rotation, cons
         const sk_mat4_t rot = sk_mat4_trs((vec3_t){0, 0, 0}, rotation, (vec3_t){1, 1, 1});
         *right = (vec3_t){rot.m[0], rot.m[1], rot.m[2]};
         *up = (vec3_t){rot.m[4], rot.m[5], rot.m[6]};
+    } else if (facing == SK_SPRITE3D_FACING_CAMERA_FIXED_Y) {
+        /* cylindrical: turns about world Y to face the camera and stays upright, so
+           a tree doesn't lean back when the camera looks down at it */
+        const vec3_t fwd = v3_norm(v3_sub(cam->target, cam->position));
+        vec3_t horizontal = v3_cross(fwd, (vec3_t){0, 1, 0});
+        if (horizontal.x * horizontal.x + horizontal.y * horizontal.y + horizontal.z * horizontal.z < 1e-12f) {
+            horizontal = v3_cross(fwd, cam->up); /* looking straight up or down: the camera's own right */
+        }
+        *right = v3_norm(horizontal);
+        *up = (vec3_t){0, 1, 0};
     } else {
-        vec3_t fwd = v3_norm(v3_sub(cam->target, cam->position));
-        vec3_t world_up = (facing == SK_SPRITE3D_FACING_CAMERA_FIXED_Y) ? (vec3_t){0, 1, 0} : cam->up;
-        *right = v3_norm(v3_cross(fwd, world_up));
+        /* spherical: parallel to the view plane, facing the camera whatever its pitch */
+        const vec3_t fwd = v3_norm(v3_sub(cam->target, cam->position));
+        *right = v3_norm(v3_cross(fwd, cam->up));
         *up = v3_norm(v3_cross(*right, fwd));
     }
 }

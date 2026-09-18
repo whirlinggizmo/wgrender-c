@@ -66,6 +66,7 @@ static const test_case_t TESTS[] = {
     {"color_values", test_color_values},
     {"scene_clip", test_scene_clip},
     {"sprite3d_2d_world", test_sprite3d_2d_world},
+    {"sprite3d_facings", test_sprite3d_facings},
     {"text_default_font", test_text_default_font},
     {"text_font_refcount", test_text_font_refcount},
     {"pipeline_gpu_pools", test_pipeline_gpu_pools},
