@@ -311,6 +311,16 @@ void test_text_layout_shared(void)
     CHECK_NEAR(three.y, one.y * 3.0f, 0.01);
     CHECK(three.x > one.x); /* "three" is the widest line */
     CHECK(sk_text_measure_ex(0, "", 16.0f).y == 0.0f);
+
+    /* unwrapped text measures exactly what's drawn, spaces included: a lone space has
+       its advance (Clay measures " " to space the words it lays out), and trailing
+       spaces count */
+    const float a = sk_text_measure_ex(0, "a", 16.0f).x, space = sk_text_measure_ex(0, " ", 16.0f).x;
+    CHECK(space > 0.0f);
+    CHECK(sk_text_measure_ex(0, "a ", 16.0f).x > a);
+    CHECK_NEAR(sk_text_measure_ex(0, "a b", 16.0f).x, a + space + sk_text_measure_ex(0, "b", 16.0f).x, 0.5);
+    CHECK_NEAR(sk_text_measure_ex(0, "  ", 16.0f).x, space * 2.0f, 0.5);
+    CHECK_NEAR(sk_text_measure_ex(0, "a\n", 16.0f).y, one.y, 0.01); /* a trailing newline adds no line */
     CHECK_NEAR(sk_text_measure("one", 16), (double)(int)(one.x + 0.5f), 0.51);
     sk_text_draw_ex(0, "one\ntwo", 10.0f, 10.0f, 16.0f, SK_COLOR_WHITE); /* draws without trouble */
 

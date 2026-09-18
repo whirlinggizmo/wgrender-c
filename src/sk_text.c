@@ -113,7 +113,23 @@ static int walk_lines(FONScontext *fons, const char *text, float max_width, floa
     if (*text == '\0') {
         return 0;
     }
-    for (;;) {
+    if (max_width <= 0.0f) {
+        /* no wrapping: a line is exactly what's between newlines, spaces included, so
+           measuring " " gives the space's advance (layout libraries such as Clay add
+           that between the words they measure) */
+        for (;;) {
+            const char *newline = strchr(line_start, '\n');
+            if (newline == NULL) {
+                if (*line_start != '\0' || count == 0) {
+                    emit_line(fons, line_start, line_start + strlen(line_start), count++, out_width, fn, user);
+                }
+                return count;
+            }
+            emit_line(fons, line_start, newline, count++, out_width, fn, user);
+            line_start = newline + 1;
+        }
+    }
+    for (;;) { /* wrapping: spaces at a break belong to neither line's width */
         const char *word_start, *word_end;
         while (*cursor == ' ' || *cursor == '\t') { /* spaces stay with the line before them */
             cursor++;
