@@ -18,7 +18,7 @@
 
 static sk_handle_t g_scene;
 static sk_handle_t g_camera;
-static sk_handle_t g_bg;
+static sk_color_t g_bg;
 
 static sk_handle_t g_cube;
 static sk_handle_t g_sphere;
@@ -80,7 +80,7 @@ static void on_init(void *user_data)
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
     (void)user_data;
 
-    g_bg = sk_color_create(24, 26, 34, 255);
+    g_bg = sk_color_rgba(24, 26, 34, 255);
     g_camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
     sk_camera3d_set_view(g_camera, 11.0f, 9.0f, 11.0f, 0.0f, 2.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
@@ -92,7 +92,7 @@ static void on_init(void *user_data)
     sk_light_set_direction(sun, -0.6f, -1.0f, -0.5f);
     sk_light_set_intensity(sun, 3.0f);
     sk_scene_add(g_scene, sun, 0);
-    sk_scene_set_ambient(g_scene, 0, 0.3f);
+    sk_scene_set_ambient(g_scene, SK_COLOR_WHITE, 0.3f);
 
     g_cube = sk_shape3d_create();
     sk_shape3d_set_cube(g_cube, 2.0f, 2.0f, 2.0f);

@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "internal/exports.h"
+#include "internal/sk_color.h"
 #include "internal/sk_font.h"
 #include "internal/sk_internal.h"
 #include "sk_logger.h"
@@ -62,7 +63,7 @@ static bool use_font(sk_handle_t font, float size)
     return true;
 }
 
-static void draw_text(sk_handle_t font, const char *text, float x, float y, float size, color_t c)
+static void draw_text(sk_handle_t font, const char *text, float x, float y, float size, sk_colorf_t c)
 {
     FONScontext *fons = sk_font_context();
     if (text == NULL || !use_font(font, size)) {
@@ -181,11 +182,11 @@ static void draw_line(const char *start, const char *end, int index, void *user)
     fonsDrawText(ctx->fons, x, ctx->top + (float)index * ctx->line_height, start, end);
 }
 
-void sk_text_block_draw(sk_handle_t font, const char *text, float left, float top, float size, sk_handle_t color,
+void sk_text_block_draw(sk_handle_t font, const char *text, float left, float top, float size, sk_color_t color,
                         float max_width, float box_width, sk_text_align_t align_x)
 {
     FONScontext *fons = sk_font_context();
-    const color_t c = sk_color_get(color);
+    const sk_colorf_t c = sk_color_unpack(color);
     block_draw_t ctx;
     float ascender = 0.0f, descender = 0.0f, line_height = 0.0f, width = 0.0f;
 
@@ -221,9 +222,9 @@ sk_handle_t sk_text_get_default_font(void)
 }
 
 SK_KEEP
-void sk_text_draw(const char *text, int x, int y, int font_size, sk_handle_t color)
+void sk_text_draw(const char *text, int x, int y, int font_size, sk_color_t color)
 {
-    draw_text(0, text, (float)x, (float)y, (float)font_size, sk_color_get(color));
+    draw_text(0, text, (float)x, (float)y, (float)font_size, sk_color_unpack(color));
 }
 
 static void format_fps(char *buf, size_t size)
@@ -237,15 +238,15 @@ void sk_text_draw_fps(int x, int y)
 {
     char buf[32];
     format_fps(buf, sizeof(buf));
-    draw_text(0, buf, (float)x, (float)y, SK_TEXT_DEFAULT_SIZE, (color_t){0.0f, 1.0f, 0.0f, 1.0f});
+    draw_text(0, buf, (float)x, (float)y, SK_TEXT_DEFAULT_SIZE, (sk_colorf_t){0.0f, 1.0f, 0.0f, 1.0f});
 }
 
 SK_KEEP
-void sk_text_draw_fps_ex(sk_handle_t font, float x, float y, float size, sk_handle_t color)
+void sk_text_draw_fps_ex(sk_handle_t font, float x, float y, float size, sk_color_t color)
 {
     char buf[32];
     format_fps(buf, sizeof(buf));
-    draw_text(font, buf, x, y, size, sk_color_get(color));
+    draw_text(font, buf, x, y, size, sk_color_unpack(color));
 }
 
 SK_KEEP
@@ -255,9 +256,9 @@ int sk_text_measure(const char *text, int font_size)
 }
 
 SK_KEEP
-void sk_text_draw_ex(sk_handle_t font, const char *text, float x, float y, float size, sk_handle_t color)
+void sk_text_draw_ex(sk_handle_t font, const char *text, float x, float y, float size, sk_color_t color)
 {
-    draw_text(font, text, x, y, size, sk_color_get(color));
+    draw_text(font, text, x, y, size, sk_color_unpack(color));
 }
 
 SK_KEEP

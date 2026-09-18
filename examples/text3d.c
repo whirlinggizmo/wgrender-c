@@ -22,7 +22,7 @@ static struct {
     sk_handle_t scene;
     sk_handle_t camera;
     sk_handle_t font;
-    sk_handle_t bg, grey, gold, teal, rose, highlight, ring;
+    sk_color_t bg, grey, gold, teal, rose, highlight, ring;
     sk_handle_t cube, sphere, panel, spiral, sign;
     sk_handle_t rings[3];
     sk_handle_t labels[LABEL_COUNT];
@@ -61,13 +61,13 @@ static void init(void *user_data)
 {
     (void)user_data;
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
-    g.bg = sk_color_create(22, 24, 30, 255);
-    g.grey = sk_color_create(60, 64, 76, 255);
-    g.gold = sk_color_create(230, 180, 60, 255);
-    g.teal = sk_color_create(60, 190, 180, 255);
-    g.rose = sk_color_create(220, 90, 120, 255);
-    g.highlight = sk_color_create(255, 255, 255, 255);
-    g.ring = sk_color_create(120, 130, 160, 255);
+    g.bg = sk_color_rgba(22, 24, 30, 255);
+    g.grey = sk_color_rgba(60, 64, 76, 255);
+    g.gold = sk_color_rgba(230, 180, 60, 255);
+    g.teal = sk_color_rgba(60, 190, 180, 255);
+    g.rose = sk_color_rgba(220, 90, 120, 255);
+    g.highlight = sk_color_rgba(255, 255, 255, 255);
+    g.ring = sk_color_rgba(120, 130, 160, 255);
 
     g.camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
     sk_camera3d_set_view(g.camera, 0, 4.0f, 9.0f, 0, 0.8f, 0, 0, 1, 0);

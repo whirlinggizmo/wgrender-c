@@ -16,7 +16,8 @@
 #include "sk.h"
 
 static struct {
-    sk_handle_t bg, music;
+    sk_handle_t music;
+    sk_color_t bg;
     double quit_at;
     bool quitting;
 } g;
@@ -41,7 +42,7 @@ static void init(void *user_data)
 {
     (void)user_data;
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
-    g.bg = sk_color_create(30, 36, 48, 255);
+    g.bg = sk_color_rgba(30, 36, 48, 255);
     g.quit_at = sk_get_time() + 1.0; /* soon enough for tools/webcheck.mjs to see the quit */
     sk_asset_add_task(sk_asset_ensure_async("music/ethernight_club.mp3", NULL, SK_ASSET_NONE), on_music, NULL,
                       NULL);

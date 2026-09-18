@@ -85,6 +85,7 @@ void test_render_targets(void);
 
 void test_nine_slice(void);
 void test_text2d_layout(void);
+void test_color_values(void);
 void test_scene_clip(void);
 void test_sprite3d_2d_world(void);
 

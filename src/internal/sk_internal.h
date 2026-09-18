@@ -26,9 +26,6 @@ int sk_event_init(void);
 void sk_event_deinit(void);
 
 /* color store */
-void sk_color_init(void);
-void sk_color_deinit(void);
-color_t sk_color_get(sk_handle_t handle); /* normalized 0..1 rgba */
 void sk_color_set(sk_handle_t handle, int r, int g, int b, int a);
 
 /* camera3d */
@@ -94,7 +91,7 @@ sk_handle_t sk_text_resolve_font(sk_handle_t font);
  * inside a box `box_width` wide (the block's own width when it's not wider). */
 vec2_t sk_text_block_size(sk_handle_t font, const char *text, float size, float max_width);
 void sk_text_block_draw(sk_handle_t font, const char *text, float left, float top, float size,
-                        sk_handle_t color, float max_width, float box_width, sk_text_align_t align_x);
+                        sk_color_t color, float max_width, float box_width, sk_text_align_t align_x);
 
 /* text2d (retained text object, built on the text layer) */
 void sk_text2d_init(void);

@@ -31,7 +31,7 @@ bool        sk_text3d_set_size(sk_handle_t text, float size);
 bool        sk_text3d_set_transform(sk_handle_t text, float x, float y, float z,
                                     float rotation_x, float rotation_y, float rotation_z); /* radians */
 bool        sk_text3d_set_facing(sk_handle_t text, sk_sprite3d_facing_t facing);
-bool        sk_text3d_set_color(sk_handle_t text, sk_handle_t color);
+bool        sk_text3d_set_color(sk_handle_t text, sk_color_t color);
 bool        sk_text3d_set_visible(sk_handle_t text, bool visible);
 bool        sk_text3d_is_visible(sk_handle_t text);
 bool        sk_text3d_set_pickable(sk_handle_t text, bool pickable); /* default: pickable */
@@ -47,7 +47,7 @@ void        sk_text3d_draw(sk_handle_t text);
 
 /* Draw text once at a 3D point, facing the camera, line height `size` in world
  * units (inside 3D mode). */
-void sk_text_draw_3d(sk_handle_t font, const char *text, float x, float y, float z, float size, sk_handle_t color);
+void sk_text_draw_3d(sk_handle_t font, const char *text, float x, float y, float z, float size, sk_color_t color);
 
 #ifdef __cplusplus
 }

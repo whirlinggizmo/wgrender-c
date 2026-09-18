@@ -8,7 +8,7 @@
 #include "sk.h"
 
 static sk_handle_t g_camera;
-static sk_handle_t g_bg;
+static sk_color_t g_bg;
 
 static void on_init(void *user_data)
 {
@@ -16,7 +16,7 @@ static void on_init(void *user_data)
     g_camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE); /* default fov: pi/4 */
     sk_camera3d_set_view(g_camera, 14.0f, 8.0f, 14.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     sk_camera3d_set_active(g_camera);
-    g_bg = sk_color_create(28, 28, 38, 255);
+    g_bg = sk_color_rgba(28, 28, 38, 255);
     sk_debug_enable_fps(12, 10, 16);
 }
 

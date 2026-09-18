@@ -13,7 +13,7 @@
 #include "sk.h"
 
 static struct {
-    sk_handle_t bg;
+    sk_color_t bg;
     char status[96];
 } g;
 
@@ -25,7 +25,7 @@ static void report(const char *what, bool ok)
 static void init(void *user_data)
 {
     (void)user_data;
-    g.bg = sk_color_create(24, 28, 38, 255);
+    g.bg = sk_color_rgba(24, 28, 38, 255);
     snprintf(g.status, sizeof(g.status), "press a key");
 }
 

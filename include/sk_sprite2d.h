@@ -49,7 +49,7 @@ bool sk_sprite2d_set_pivot(sk_handle_t sprite, float x, float y);
  * alpha test is skipped while a sprite is sliced. */
 bool sk_sprite2d_set_nine_slice(sk_handle_t sprite, float left, float top, float right, float bottom);
 
-bool sk_sprite2d_set_tint(sk_handle_t sprite, sk_handle_t color);    /* default: white (0) */
+bool sk_sprite2d_set_tint(sk_handle_t sprite, sk_color_t color);    /* default: SK_COLOR_WHITE */
 bool sk_sprite2d_set_visible(sk_handle_t sprite, bool visible);
 bool sk_sprite2d_is_visible(sk_handle_t sprite);
 bool sk_sprite2d_set_pickable(sk_handle_t sprite, bool pickable);   /* default: pickable */

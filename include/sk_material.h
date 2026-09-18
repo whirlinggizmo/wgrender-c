@@ -90,7 +90,7 @@ bool sk_material_set_float(sk_handle_t material, const char *name, float value);
 bool sk_material_set_vec2(sk_handle_t material, const char *name, float x, float y);
 bool sk_material_set_vec3(sk_handle_t material, const char *name, float x, float y, float z);
 bool sk_material_set_vec4(sk_handle_t material, const char *name, float x, float y, float z, float w);
-bool sk_material_set_color(sk_handle_t material, const char *name, sk_handle_t color);
+bool sk_material_set_color(sk_handle_t material, const char *name, sk_color_t color);
 /* The material holds its own reference to the texture. 0 clears it. */
 bool sk_material_set_texture(sk_handle_t material, const char *name, sk_handle_t texture);
 /* How texture `name` (e.g. "base_color_texture") is sampled. Default: repeat, linear. */

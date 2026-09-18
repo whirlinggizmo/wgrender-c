@@ -6,8 +6,12 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef unsigned int sk_handle_t;
+
+/* Packed 8-bit RGBA, 0xRRGGBBAA — a value, not a handle (see sk_color.h). */
+typedef uint32_t sk_color_t;
 
 typedef enum
 {
@@ -82,14 +86,6 @@ typedef struct
     float z;
     float w;
 } quat_t;
-
-typedef struct
-{
-    float r;
-    float g;
-    float b;
-    float a;
-} color_t;
 
 typedef struct
 {

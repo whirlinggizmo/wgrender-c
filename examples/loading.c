@@ -31,7 +31,8 @@ static const char *PATHS[FILES] = {
 };
 
 static struct {
-    sk_handle_t scene, camera, bg, bar, graph_ok, graph_slow, line, cube;
+    sk_handle_t scene, camera;
+    sk_color_t bg, bar, graph_ok, graph_slow, line, cube;
     sk_handle_t gumshoe, sphere, material;
     sk_handle_t group;
     bool sync;                 /* the load in progress creates everything in its group callback */
@@ -123,12 +124,12 @@ static void init(void *user_data)
 {
     (void)user_data;
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
-    g.bg = sk_color_create(20, 22, 28, 255);
-    g.bar = sk_color_create(0, 0, 0, 170);
-    g.graph_ok = sk_color_create(90, 200, 120, 255);
-    g.graph_slow = sk_color_create(235, 80, 70, 255);
-    g.line = sk_color_create(255, 255, 255, 90);
-    g.cube = sk_color_create(230, 180, 60, 255);
+    g.bg = sk_color_rgba(20, 22, 28, 255);
+    g.bar = sk_color_rgba(0, 0, 0, 170);
+    g.graph_ok = sk_color_rgba(90, 200, 120, 255);
+    g.graph_slow = sk_color_rgba(235, 80, 70, 255);
+    g.line = sk_color_rgba(255, 255, 255, 90);
+    g.cube = sk_color_rgba(230, 180, 60, 255);
 
     g.camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
     sk_camera3d_set_view(g.camera, 0, 1.0f, 5.5f, 0, 0.6f, 0, 0, 1, 0);

@@ -176,7 +176,6 @@ static void on_init(void)
     sk_text3d_init();
 
     /* CPU-side stores */
-    sk_color_init();
     sk_camera3d_init();
     sk_fs_init(NULL);   /* local storage; asset acquisition sits on top */
     sk_asset_init();
@@ -344,7 +343,6 @@ static void on_cleanup(void)
     sk_asset_deinit();
     sk_fs_deinit();
     sk_camera3d_deinit();
-    sk_color_deinit();
 
     sk_text3d_deinit();
     sk_text2d_deinit();

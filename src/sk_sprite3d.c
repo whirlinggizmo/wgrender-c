@@ -4,6 +4,8 @@
 #include <string.h>
 
 #include "internal/exports.h"
+#include "internal/sk_color.h"
+#include "sk_color.h"
 #include "internal/sk_camera3d.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
@@ -28,7 +30,7 @@ typedef struct {
     float source_x, source_y, source_width, source_height; /* texture pixels; width/height <= 0: all of it */
     float pivot_x, pivot_y;                                /* 0..1 across the quad; (0.5, 0.5) is its center */
     int facing;
-    sk_handle_t tint;
+    sk_color_t tint;
     bool visible;
     bool pickable;
     bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
@@ -96,7 +98,7 @@ static sk_handle_t create_sprite(sk_handle_t texture)
         .pivot_x = 0.5f,
         .pivot_y = 0.5f,
         .facing = SK_SPRITE3D_FACING_CAMERA,
-        .tint = 0,
+        .tint = SK_COLOR_WHITE,
         .visible = true,
         .pickable = true,
         .enabled = true,
@@ -248,7 +250,7 @@ vec3_t sk_sprite3d_get_scale(sk_handle_t handle)
 }
 
 SK_KEEP
-bool sk_sprite3d_set_tint(sk_handle_t handle, sk_handle_t color)
+bool sk_sprite3d_set_tint(sk_handle_t handle, sk_color_t color)
 {
     sk_sprite3d_t *sprite_ptr = resolve(handle);
     if (sprite_ptr == NULL) return false;
@@ -293,7 +295,7 @@ static void draw_handle(sk_handle_t handle)
     sk_camera3d_t cam;
     sg_view view;
     sg_sampler smp;
-    color_t tint;
+    sk_colorf_t tint;
     float uv[4];
     int tw = 0, th = 0;
 
@@ -312,7 +314,7 @@ static void draw_handle(sk_handle_t handle)
         return;
     }
 
-    tint = sk_color_get(sprite_ptr->tint != 0 ? sprite_ptr->tint : 0); /* 0 -> white */
+    tint = sk_color_unpack(sprite_ptr->tint);
 
     {
         vec3_t tl, tr, br, bl;

@@ -4,6 +4,8 @@
 #include <string.h>
 
 #include "internal/exports.h"
+#include "internal/sk_color.h"
+#include "sk_color.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_pick.h"
@@ -39,7 +41,7 @@ typedef struct {
     float pivot_x, pivot_y; /* 0..1 across the bounds; see pivot_offset */
     bool has_pivot;         /* false: the kind's own origin */
     float outline;          /* rectangles and circles: stroke thickness; 0 = filled */
-    sk_handle_t color;
+    sk_color_t color;
     bool visible;
     bool pickable;
     bool enabled; /* false: hits block the pointer but don't react (scene interaction) */
@@ -81,16 +83,16 @@ static sk_shape2d_t *resolve(sk_handle_t shape)
     return &sk_shapes2d[index];
 }
 
-static void set_color(sk_handle_t color)
+static void set_color(sk_color_t color)
 {
-    color_t c = sk_color_get(color);
+    sk_colorf_t c = sk_color_unpack(color);
     sgl_c4f(c.r, c.g, c.b, c.a);
 }
 
 /* --------------------------------------------------------- immediate 2D ---- */
 
 SK_KEEP
-void sk_shape2d_draw_rectangle(int x, int y, int width, int height, sk_handle_t color)
+void sk_shape2d_draw_rectangle(int x, int y, int width, int height, sk_color_t color)
 {
     const float x0 = (float)x;
     const float y0 = (float)y;
@@ -107,7 +109,7 @@ void sk_shape2d_draw_rectangle(int x, int y, int width, int height, sk_handle_t 
 }
 
 SK_KEEP
-void sk_shape2d_draw_rectangle_lines(int x, int y, int width, int height, sk_handle_t color)
+void sk_shape2d_draw_rectangle_lines(int x, int y, int width, int height, sk_color_t color)
 {
     const float x0 = (float)x;
     const float y0 = (float)y;
@@ -125,7 +127,7 @@ void sk_shape2d_draw_rectangle_lines(int x, int y, int width, int height, sk_han
 }
 
 SK_KEEP
-void sk_shape2d_draw_line(int start_x, int start_y, int end_x, int end_y, sk_handle_t color)
+void sk_shape2d_draw_line(int start_x, int start_y, int end_x, int end_y, sk_color_t color)
 {
     sgl_begin_lines();
     set_color(color);
@@ -135,7 +137,7 @@ void sk_shape2d_draw_line(int start_x, int start_y, int end_x, int end_y, sk_han
 }
 
 SK_KEEP
-void sk_shape2d_draw_circle(int center_x, int center_y, float radius, sk_handle_t color)
+void sk_shape2d_draw_circle(int center_x, int center_y, float radius, sk_color_t color)
 {
     const float cx = (float)center_x;
     const float cy = (float)center_y;
@@ -153,7 +155,7 @@ void sk_shape2d_draw_circle(int center_x, int center_y, float radius, sk_handle_
 }
 
 SK_KEEP
-void sk_shape2d_draw_circle_lines(int center_x, int center_y, float radius, sk_handle_t color)
+void sk_shape2d_draw_circle_lines(int center_x, int center_y, float radius, sk_color_t color)
 {
     const float cx = (float)center_x;
     const float cy = (float)center_y;
@@ -168,7 +170,7 @@ void sk_shape2d_draw_circle_lines(int center_x, int center_y, float radius, sk_h
 }
 
 SK_KEEP
-void sk_shape2d_draw_triangle(float x0, float y0, float x1, float y1, float x2, float y2, sk_handle_t color)
+void sk_shape2d_draw_triangle(float x0, float y0, float x1, float y1, float x2, float y2, sk_color_t color)
 {
     sgl_begin_triangles();
     set_color(color);
@@ -195,7 +197,7 @@ sk_handle_t sk_shape2d_create(void)
         .kind = SK_SHAPE2D_NONE,
         .scale_x = 1.0f,
         .scale_y = 1.0f,
-        .color = 0,
+        .color = SK_COLOR_WHITE,
         .visible = true,
         .pickable = true,
         .enabled = true,
@@ -286,7 +288,7 @@ bool sk_shape2d_set_outline(sk_handle_t shape, float thickness)
 }
 
 SK_KEEP
-bool sk_shape2d_set_color(sk_handle_t shape, sk_handle_t color)
+bool sk_shape2d_set_color(sk_handle_t shape, sk_color_t color)
 {
     sk_shape2d_t *shape_ptr = resolve(shape);
     if (shape_ptr == NULL) {

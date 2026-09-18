@@ -26,7 +26,7 @@ bool sk_text2d_set_font(sk_handle_t handle, sk_handle_t font);
 bool sk_text2d_set_text(sk_handle_t handle, const char *text); /* copied */
 bool sk_text2d_set_position(sk_handle_t handle, float x, float y);
 bool sk_text2d_set_size(sk_handle_t handle, float size);
-bool sk_text2d_set_color(sk_handle_t handle, sk_handle_t color);
+bool sk_text2d_set_color(sk_handle_t handle, sk_color_t color);
 bool sk_text2d_set_visible(sk_handle_t handle, bool visible);
 bool sk_text2d_is_visible(sk_handle_t handle);
 /* Picked by its text's rectangle (sk_pick_object, or sk_scene_pick when in a

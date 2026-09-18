@@ -29,7 +29,6 @@ void test_shape2d(void)
     sg_setup(&(sg_desc){.environment = sk_platform_environment()});
     sk_render_init();
     sk_scene_init();
-    sk_color_init();
     sk_camera3d_init();
     sk_shape2d_init();
     sk_shape3d_init();
@@ -138,7 +137,6 @@ void test_shape2d(void)
     sk_shape2d_deinit();
     sk_shape3d_deinit();
     sk_camera3d_deinit();
-    sk_color_deinit();
     sk_scene_deinit();
     sk_render_deinit();
     sg_shutdown();

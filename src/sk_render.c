@@ -3,6 +3,7 @@
 #include <stdbool.h>
 
 #include "internal/exports.h"
+#include "internal/sk_color.h"
 #include "internal/sk_camera3d.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_environment.h"
@@ -51,7 +52,7 @@ typedef struct {
  * targets in the order they were begun. */
 typedef struct {
     sk_handle_t target; /* 0 = the screen */
-    color_t clear_color;
+    sk_colorf_t clear_color;
 } sk_render_pass_t;
 
 static sk_render_pass_t sk_render_passes[MAX_RENDER_PASSES];
@@ -85,7 +86,7 @@ static void open_sgl_layer(void)
 
 static void reset_frame_commands(void)
 {
-    const color_t screen_clear = sk_render_passes[0].clear_color;
+    const sk_colorf_t screen_clear = sk_render_passes[0].clear_color;
     sk_render_cmd_count = 0;
     sk_render_next_layer = 0;
     sk_render_pass_count = 1;
@@ -230,7 +231,7 @@ void sk_render_init(void)
         },
     });
 
-    sk_render_passes[0].clear_color = (color_t){0.1f, 0.1f, 0.1f, 1.0f};
+    sk_render_passes[0].clear_color = (sk_colorf_t){0.1f, 0.1f, 0.1f, 1.0f};
     reset_frame_commands();
 }
 
@@ -266,9 +267,9 @@ void sk_render_begin(void)
 }
 
 SK_KEEP
-void sk_render_clear_background(sk_handle_t color)
+void sk_render_clear_background(sk_color_t color)
 {
-    sk_render_passes[sk_render_current_pass_index].clear_color = sk_color_get(color);
+    sk_render_passes[sk_render_current_pass_index].clear_color = sk_color_unpack(color);
 }
 
 SK_KEEP
@@ -336,7 +337,7 @@ static void replay_pass(int index)
 /* Clear the pass, or keep what an earlier pass drew into the same target. */
 static sg_pass_action pass_action(int index)
 {
-    const color_t color = sk_render_passes[index].clear_color;
+    const sk_colorf_t color = sk_render_passes[index].clear_color;
     bool drawn_before = false;
     for (int p = 1; p < index && !drawn_before; p++) {
         drawn_before = sk_render_passes[p].target == sk_render_passes[index].target;

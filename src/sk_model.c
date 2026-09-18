@@ -5,6 +5,8 @@
 #include <string.h>
 
 #include "internal/exports.h"
+#include "internal/sk_color.h"
+#include "sk_color.h"
 #include "internal/sk_asset.h"
 #include "internal/sk_camera3d.h"
 #include "internal/sk_environment.h"
@@ -125,7 +127,7 @@ typedef struct {
     vec3_t position;
     vec3_t rotation;
     vec3_t scale;
-    sk_handle_t tint;
+    sk_color_t tint;
     bool visible;
     bool pickable;
     bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
@@ -156,7 +158,7 @@ typedef struct {
     sk_mat4_t model_view; /* for view-space depth when sorting transparent parts */
     sk_mat4_t normal_mat; /* inverse transpose of model_mat */
     vec3_t camera_pos;
-    color_t tint;
+    sk_colorf_t tint;
     int light_env;        /* lighting environment index, -1 = unlit */
     int light_count;      /* lights selected for this placement */
     int lights[SK_MAX_DRAW_LIGHTS]; /* indices into the environment's lights */
@@ -1382,6 +1384,7 @@ static sk_handle_t create_model(sk_handle_t mesh_handle)
     }
     model.mesh = mesh_handle;
     model.scale = (vec3_t){1, 1, 1};
+    model.tint = SK_COLOR_WHITE;
     model.visible = true;
     model.pickable = true;
     model.enabled = true;
@@ -1475,7 +1478,7 @@ SK_KEEP bool sk_model_set_transform(sk_handle_t handle,
     return true;
 }
 
-SK_KEEP bool sk_model_set_tint(sk_handle_t handle, sk_handle_t color)
+SK_KEEP bool sk_model_set_tint(sk_handle_t handle, sk_color_t color)
 {
     sk_model_t *model_ptr = resolve(handle);
     if (model_ptr == NULL) return false;
@@ -1832,14 +1835,14 @@ static sk_mesh_t *lookup_drawable(sk_handle_t handle, sk_model_t **model_out)
     return mesh_ptr;
 }
 
-static color_t model_tint(const sk_model_t *model_ptr)
+static sk_colorf_t model_tint(const sk_model_t *model_ptr)
 {
-    return sk_color_get(model_ptr->tint != 0 ? model_ptr->tint : 0); /* 0 -> white */
+    return sk_color_unpack(model_ptr->tint);
 }
 
 /* A primitive is transparent if its material blends, or if the model's tint
  * makes it translucent (e.g. fading a model out). */
-static bool is_blended(color_t tint, const sk_material_t *material)
+static bool is_blended(sk_colorf_t tint, const sk_material_t *material)
 {
     return material->alpha_mode == SK_MATERIAL_ALPHA_BLEND || tint.a < 1.0f;
 }
@@ -1971,7 +1974,7 @@ static void draw_opaque(sk_handle_t handle)
 {
     sk_model_t *model_ptr = NULL;
     sk_mesh_t *mesh_ptr = lookup_drawable(handle, &model_ptr);
-    color_t tint;
+    sk_colorf_t tint;
     int draw = -1, first = sk_model_item_count;
 
     if (mesh_ptr == NULL) {
@@ -1996,7 +1999,7 @@ static int collect_transparent(sk_handle_t handle, const sk_camera3d_t *cam,
 {
     sk_model_t *model_ptr = NULL;
     sk_mesh_t *mesh_ptr = lookup_drawable(handle, &model_ptr);
-    color_t tint;
+    sk_colorf_t tint;
     sk_mat4_t model_mat;
     int count = 0;
 

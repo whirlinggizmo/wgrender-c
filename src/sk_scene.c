@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "internal/exports.h"
+#include "internal/sk_color.h"
 #include "internal/sk_camera3d.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
@@ -65,7 +66,7 @@ typedef struct {
     int clip_count;
     sk_interaction_t interaction;
     sk_handle_t camera;
-    sk_handle_t ambient_color;  /* 0 = white */
+    sk_color_t ambient_color;
     float ambient_intensity;    /* 0 = no ambient (default) */
     sk_handle_t environment;    /* referenced; 0 = none */
     float environment_intensity;
@@ -467,7 +468,7 @@ void sk_scene_set_active_camera(sk_handle_t scene, sk_handle_t camera)
 }
 
 SK_KEEP
-bool sk_scene_set_ambient(sk_handle_t scene, sk_handle_t color, float intensity)
+bool sk_scene_set_ambient(sk_handle_t scene, sk_color_t color, float intensity)
 {
     sk_scene_t *scene_ptr = resolve(scene);
     if (scene_ptr == NULL) {
@@ -524,7 +525,7 @@ bool sk_scene_set_tonemap(sk_handle_t scene, sk_tonemap_t tonemap, float exposur
 static int push_lighting(const sk_scene_t *scene_ptr)
 {
     static sk_light_env_t env; /* large; built and copied once per scene draw */
-    color_t ambient = sk_color_get(scene_ptr->ambient_color);
+    sk_colorf_t ambient = sk_color_unpack(scene_ptr->ambient_color);
 
     env.count = 0;
     env.environment = scene_ptr->environment;

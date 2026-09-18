@@ -15,7 +15,7 @@
 #define JETBRAINS_PATH "fonts/JetBrainsMono/JetBrainsMono-Regular.ttf"
 #define KOMIKA_PATH    "fonts/Komika/KOMIKAH_.ttf"
 
-static sk_handle_t g_bg;
+static sk_color_t g_bg;
 static sk_handle_t g_mono;
 static sk_handle_t g_komika;
 
@@ -39,7 +39,7 @@ static void on_init(void *user_data)
 {
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
     (void)user_data;
-    g_bg = sk_color_create(248, 248, 250, 255);
+    g_bg = sk_color_rgba(248, 248, 250, 255);
     sk_asset_add_task(sk_asset_ensure_async(JETBRAINS_PATH, NULL, 0), on_mono_loaded, on_failed, NULL);
     sk_asset_add_task(sk_asset_ensure_async(KOMIKA_PATH, NULL, 0), on_komika_loaded, on_failed, NULL);
 }

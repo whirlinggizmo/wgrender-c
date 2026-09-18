@@ -4,6 +4,8 @@
 #include <string.h>
 
 #include "internal/exports.h"
+#include "internal/sk_color.h"
+#include "sk_color.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_light.h"
@@ -15,7 +17,7 @@
  * sk_scene_light_t (world-space, radiance, cone cosines) when a scene draws. */
 typedef struct {
     sk_light_type_t type;
-    sk_handle_t color;
+    sk_color_t color;
     float intensity;
     vec3_t position;
     vec3_t direction;
@@ -82,7 +84,7 @@ sk_handle_t sk_light_create(sk_light_type_t type)
     sk_handle_pool_resolve(&sk_light_pool, handle, &index);
     sk_lights[index] = (sk_light_t){
         .type = type,
-        .color = 0,
+        .color = SK_COLOR_WHITE,
         .intensity = 1.0f,
         .direction = {0.0f, -1.0f, 0.0f},
         .range = 0.0f,
@@ -102,7 +104,7 @@ void sk_light_destroy(sk_handle_t light)
 }
 
 SK_KEEP
-bool sk_light_set_color(sk_handle_t light, sk_handle_t color)
+bool sk_light_set_color(sk_handle_t light, sk_color_t color)
 {
     sk_light_t *light_ptr = resolve(light);
     if (light_ptr == NULL) {
@@ -196,7 +198,7 @@ bool sk_light_get_scene_light(sk_handle_t light, sk_scene_light_t *out)
 {
     uint16_t index = 0;
     const sk_light_t *light_ptr;
-    color_t color;
+    sk_colorf_t color;
 
     /* resolve quietly: scenes check every member, most of which aren't lights */
     if (out == NULL || !sk_handle_pool_resolve(&sk_light_pool, light, &index)) {
@@ -206,7 +208,7 @@ bool sk_light_get_scene_light(sk_handle_t light, sk_scene_light_t *out)
     if (!light_ptr->enabled) {
         return false;
     }
-    color = sk_color_get(light_ptr->color);
+    color = sk_color_unpack(light_ptr->color);
     *out = (sk_scene_light_t){
         .type = (int)light_ptr->type,
         .radiance = {sk_srgb_to_linear(color.r) * light_ptr->intensity,

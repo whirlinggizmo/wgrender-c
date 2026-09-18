@@ -13,7 +13,7 @@
 #define MUSIC_PATH "music/ethernight_club.mp3"
 #define CLICK_PATH "sounds/click_004.ogg"
 
-static sk_handle_t g_bg;
+static sk_color_t g_bg;
 static sk_handle_t g_music;
 static sk_handle_t g_click;
 static bool g_music_on;
@@ -45,7 +45,7 @@ static void on_init(void *user_data)
 {
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
     (void)user_data;
-    g_bg = sk_color_create(18, 20, 28, 255);
+    g_bg = sk_color_rgba(18, 20, 28, 255);
     sk_asset_add_task(sk_asset_ensure_async(MUSIC_PATH, NULL, 0), on_music_loaded, on_failed, NULL);
     sk_asset_add_task(sk_asset_ensure_async(CLICK_PATH, NULL, 0), on_click_loaded, on_failed, NULL);
 }

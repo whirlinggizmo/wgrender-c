@@ -62,6 +62,7 @@ static const test_case_t TESTS[] = {
     {"shape2d", test_shape2d},
     {"nine_slice", test_nine_slice},
     {"text2d_layout", test_text2d_layout},
+    {"color_values", test_color_values},
     {"scene_clip", test_scene_clip},
     {"sprite3d_2d_world", test_sprite3d_2d_world},
     {"text_default_font", test_text_default_font},

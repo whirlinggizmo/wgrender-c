@@ -27,7 +27,7 @@ static struct {
     int ticks;
     int tick_presses;
     int frame_presses;
-    sk_handle_t bg;
+    sk_color_t bg;
 } g;
 
 static void tick(float dt, void *user_data)
@@ -82,7 +82,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
 static void init(void *user_data)
 {
     (void)user_data;
-    g.bg = sk_color_create(24, 26, 34, 255);
+    g.bg = sk_color_rgba(24, 26, 34, 255);
     g.x = g.prev_x = LEFT;
 }
 

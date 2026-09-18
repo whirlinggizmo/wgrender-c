@@ -47,7 +47,7 @@ bool sk_model_set_transform(sk_handle_t handle,
                             float position_x, float position_y, float position_z,
                             float rotation_x, float rotation_y, float rotation_z, /* radians */
                             float scale_x, float scale_y, float scale_z);
-bool sk_model_set_tint(sk_handle_t handle, sk_handle_t color);
+bool sk_model_set_tint(sk_handle_t handle, sk_color_t color);
 /* Draw this model's material slot `slot` (a mesh material slot, 0..31) with
  * `material` instead of the mesh's; -1 sets every slot. 0 restores the mesh's
  * material. Overrides stay when the mesh changes. The model holds its own

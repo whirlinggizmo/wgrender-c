@@ -15,19 +15,19 @@ extern "C" {
  * Immediate primitives draw between sk_render_begin_mode_3d() and
  * sk_render_end_mode_3d(), in call order. */
 void sk_shape3d_draw_line(float x0, float y0, float z0,
-                          float x1, float y1, float z1, sk_handle_t color);
+                          float x1, float y1, float z1, sk_color_t color);
 void sk_shape3d_draw_cube(float cx, float cy, float cz,
-                          float width, float height, float length, sk_handle_t color);
+                          float width, float height, float length, sk_color_t color);
 void sk_shape3d_draw_cube_wires(float cx, float cy, float cz,
-                                float width, float height, float length, sk_handle_t color);
-void sk_shape3d_draw_sphere(float cx, float cy, float cz, float radius, sk_handle_t color);
-void sk_shape3d_draw_grid(int slices, float spacing, sk_handle_t color);
+                                float width, float height, float length, sk_color_t color);
+void sk_shape3d_draw_sphere(float cx, float cy, float cz, float radius, sk_color_t color);
+void sk_shape3d_draw_grid(int slices, float spacing, sk_color_t color);
 /* A filled rectangle / circle outline in their local XY plane, centered at
  * (cx, cy, cz) and turned by euler rotation (radians). */
 void sk_shape3d_draw_rectangle(float cx, float cy, float cz, float width, float height,
-                               float rx, float ry, float rz, sk_handle_t color);
+                               float rx, float ry, float rz, sk_color_t color);
 void sk_shape3d_draw_circle(float cx, float cy, float cz, float radius,
-                            float rx, float ry, float rz, sk_handle_t color);
+                            float rx, float ry, float rz, sk_color_t color);
 
 /* Retained 3D shapes — handle-based drawables that can be added to a scene.
  * A shape has a kind (cube, sphere, rectangle, circle, line, line strip) with
@@ -52,7 +52,7 @@ bool sk_shape3d_set_transform(sk_handle_t shape,
                               float position_x, float position_y, float position_z,
                               float rotation_x, float rotation_y, float rotation_z, /* radians */
                               float scale_x, float scale_y, float scale_z);
-bool sk_shape3d_set_color(sk_handle_t shape, sk_handle_t color);
+bool sk_shape3d_set_color(sk_handle_t shape, sk_color_t color);
 bool sk_shape3d_set_visible(sk_handle_t shape, bool visible);
 bool sk_shape3d_is_visible(sk_handle_t shape);
 bool sk_shape3d_set_pickable(sk_handle_t shape, bool pickable);

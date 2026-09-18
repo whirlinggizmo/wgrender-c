@@ -52,7 +52,7 @@ vec2_t      sk_texture_get_size(sk_handle_t handle);
  * object needed). width or height <= 0 uses the texture's size. Draw outside 3D
  * mode; follows call order. For rotation, source regions or picking use sprite2d. */
 void        sk_texture_draw(sk_handle_t texture, float x, float y, float width, float height,
-                            sk_handle_t tint);
+                            sk_color_t tint);
 /* Drop this handle's reference to the resource. Resources are shared and
  * reference counted (loading the same path again returns the same handle, with
  * one more reference), so a resource is freed when its last reference goes, not

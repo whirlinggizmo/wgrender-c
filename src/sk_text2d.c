@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "internal/exports.h"
+#include "sk_color.h"
 #include "internal/sk_font.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_handle_pool.h"
@@ -27,7 +28,7 @@ typedef struct {
     float size;
     float max_width; /* 0 = no wrap */
     sk_text_align_t align_x, align_y;
-    sk_handle_t color;
+    sk_color_t color;
     bool visible;
     bool pickable;
     bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
@@ -131,7 +132,7 @@ sk_handle_t sk_text2d_create(sk_handle_t font)
         .size = 16.0f,
         .align_x = SK_TEXT_ALIGN_LEFT,
         .align_y = SK_TEXT_ALIGN_TOP,
-        .color = 0,
+        .color = SK_COLOR_WHITE,
         .visible = true,
         .pickable = true,
         .enabled = true,
@@ -187,7 +188,7 @@ bool sk_text2d_set_size(sk_handle_t handle, float size)
 }
 
 SK_KEEP
-bool sk_text2d_set_color(sk_handle_t handle, sk_handle_t color)
+bool sk_text2d_set_color(sk_handle_t handle, sk_color_t color)
 {
     sk_text2d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL) return false;

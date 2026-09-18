@@ -148,6 +148,10 @@ rl_scratch_set_vector2                  dropped  scratch buffer
 rl_scratch_set_vector3                  dropped  scratch buffer
 rl_scratch_set_vector4                  dropped  scratch buffer
 
+# --- rl_color.h ---
+rl_color_create                         ported   sk_color_rgba        colors are values (sk_color_t, packed 0xRRGGBBAA), not handles: nothing to create
+rl_color_destroy                        dropped  a color is a value; there is no lifecycle to end
+
 # --- rl_shape.h ---
 # Shapes are two types in libsk: sk_shape2d (screen space) and sk_shape3d (world),
 # like sprite2d/sprite3d and text2d/text3d, so every rl_shape_* needs an entry.

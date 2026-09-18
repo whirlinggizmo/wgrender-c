@@ -37,7 +37,8 @@ static const float COIN[4] = {32, 16, 16, 16};
 static const float ROCK[4] = {48, 16, 16, 16};
 
 static struct {
-    sk_handle_t scene, camera, texture, bg, shade, text, dim, highlight;
+    sk_handle_t scene, camera, texture;
+    sk_color_t bg, shade, text, dim, highlight;
     sk_handle_t ground[WORLD_W * WORLD_H];
     sk_handle_t props[MAX_PROPS];
     bool is_coin[MAX_PROPS];
@@ -134,11 +135,11 @@ static void init(void *user_data)
 {
     (void)user_data;
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
-    g.bg = sk_color_create(24, 28, 38, 255);
-    g.shade = sk_color_create(18, 20, 28, 190);
-    g.text = sk_color_create(235, 238, 245, 255);
-    g.dim = sk_color_create(140, 146, 158, 255);
-    g.highlight = sk_color_create(255, 230, 140, 255);
+    g.bg = sk_color_rgba(24, 28, 38, 255);
+    g.shade = sk_color_rgba(18, 20, 28, 190);
+    g.text = sk_color_rgba(235, 238, 245, 255);
+    g.dim = sk_color_rgba(140, 146, 158, 255);
+    g.highlight = sk_color_rgba(255, 230, 140, 255);
 
     g.center_x = WORLD_W * 0.5f;
     g.center_y = WORLD_H * 0.5f;
@@ -190,7 +191,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         const sk_button_state_t hover = sk_scene_get_hover(g.scene, g.props[i]);
         if (!g.is_coin[i]) continue;
         sk_sprite3d_set_tint(g.props[i],
-                             hover == SK_BUTTON_PRESSED || hover == SK_BUTTON_DOWN ? g.highlight : 0);
+                             hover == SK_BUTTON_PRESSED || hover == SK_BUTTON_DOWN ? g.highlight : SK_COLOR_WHITE);
         if (sk_scene_is_clicked(g.scene, g.props[i])) {
             sk_sprite3d_set_visible(g.props[i], false);
             sk_sprite3d_set_pickable(g.props[i], false);

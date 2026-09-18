@@ -74,7 +74,6 @@ void test_text2d_layout(void)
     sg_setup(&(sg_desc){.environment = sk_platform_environment()});
     sk_render_init();
     sk_scene_init();
-    sk_color_init();
     sk_font_init();
     sk_text_init();
     sk_text2d_init();
@@ -138,7 +137,6 @@ void test_text2d_layout(void)
     sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
     sk_text2d_deinit();
     sk_font_deinit();
-    sk_color_deinit();
     sk_scene_deinit();
     sk_render_deinit();
     sg_shutdown();
@@ -151,7 +149,6 @@ void test_scene_clip(void)
     sg_setup(&(sg_desc){.environment = sk_platform_environment()});
     sk_render_init();
     sk_scene_init();
-    sk_color_init();
     sk_camera3d_init();
     sk_shape2d_init();
     sk_logger_set_level(SK_LOGGER_LEVEL_ERROR);
@@ -212,7 +209,6 @@ void test_scene_clip(void)
     sk_scene_destroy(scene);
     sk_shape2d_deinit();
     sk_camera3d_deinit();
-    sk_color_deinit();
     sk_scene_deinit();
     sk_render_deinit();
     sg_shutdown();
@@ -227,7 +223,6 @@ void test_sprite3d_2d_world(void)
     sg_setup(&(sg_desc){.environment = sk_platform_environment()});
     sk_render_init();
     sk_scene_init();
-    sk_color_init();
     sk_camera3d_init();
     sk_texture_init();
     sk_sprite3d_init();
@@ -286,7 +281,6 @@ void test_sprite3d_2d_world(void)
     sk_sprite3d_deinit();
     sk_texture_deinit();
     sk_camera3d_deinit();
-    sk_color_deinit();
     sk_scene_deinit();
     sk_render_deinit();
     sg_shutdown();

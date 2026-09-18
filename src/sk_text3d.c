@@ -5,6 +5,8 @@
 #include <string.h>
 
 #include "internal/exports.h"
+#include "internal/sk_color.h"
+#include "sk_color.h"
 #include "internal/sk_camera3d.h"
 #include "internal/sk_font.h"
 #include "internal/sk_handle_pool.h"
@@ -30,7 +32,7 @@ typedef struct {
     vec3_t position;
     vec3_t rotation; /* radians, for SK_SPRITE3D_FACING_FREE */
     sk_sprite3d_facing_t facing;
-    sk_handle_t color;
+    sk_color_t color;
     bool visible;
     bool pickable;
     bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
@@ -98,7 +100,7 @@ static void quad_corners(vec3_t center, vec3_t right, vec3_t up, vec2_t extent, 
 /* Draw text centered at `center`, laid out along right (x) and up (y), in the
  * current 3D projection. */
 static void draw_text(sk_handle_t font, const char *text, float size, vec3_t center, vec3_t right, vec3_t up,
-                      sk_handle_t color)
+                      sk_color_t color)
 {
     FONScontext *fons = sk_font_context();
     FONStextIter iter;
@@ -132,7 +134,7 @@ static void draw_text(sk_handle_t font, const char *text, float size, vec3_t cen
     fonsTextBounds(fons, 0.0f, 0.0f, text, NULL, bounds);
     const float scale = size / RASTER_SIZE;
     const float ox = -(bounds[0] + bounds[2]) * 0.5f, oy = -(bounds[1] + bounds[3]) * 0.5f; /* center the text */
-    const color_t c = sk_color_get(color);
+    const sk_colorf_t c = sk_color_unpack(color);
     const sk_mat4_t model = {{
         right.x * scale, right.y * scale, right.z * scale, 0.0f,
         -up.x * scale, -up.y * scale, -up.z * scale, 0.0f, /* text y runs down; world up runs up */
@@ -263,6 +265,7 @@ sk_handle_t sk_text3d_create(sk_handle_t font)
         .font = font,
         .size = 1.0f,
         .facing = SK_SPRITE3D_FACING_CAMERA,
+        .color = SK_COLOR_WHITE,
         .visible = true,
         .pickable = true,
         .enabled = true,
@@ -338,7 +341,7 @@ bool sk_text3d_set_facing(sk_handle_t handle, sk_sprite3d_facing_t facing)
 }
 
 SK_KEEP
-bool sk_text3d_set_color(sk_handle_t handle, sk_handle_t color)
+bool sk_text3d_set_color(sk_handle_t handle, sk_color_t color)
 {
     sk_text3d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL) return false;
@@ -408,7 +411,7 @@ void sk_text3d_draw(sk_handle_t handle)
 }
 
 SK_KEEP
-void sk_text_draw_3d(sk_handle_t font, const char *text, float x, float y, float z, float size, sk_handle_t color)
+void sk_text_draw_3d(sk_handle_t font, const char *text, float x, float y, float z, float size, sk_color_t color)
 {
     sk_camera3d_t cam;
     vec3_t right, up;

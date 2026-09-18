@@ -22,8 +22,8 @@ enum { MODEL_COUNT = 5 };
 static struct {
     sk_handle_t scene;
     sk_handle_t camera;
-    sk_handle_t bg;
-    sk_handle_t grid;
+    sk_color_t bg;
+    sk_color_t grid;
     sk_handle_t models[MODEL_COUNT];
     sk_handle_t sun;
     sk_handle_t lamp;
@@ -57,13 +57,13 @@ static void init(void *user_data)
 {
     (void)user_data;
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
-    g.bg = sk_color_create(12, 13, 18, 255);
-    g.grid = sk_color_create(40, 42, 50, 255);
+    g.bg = sk_color_rgba(12, 13, 18, 255);
+    g.grid = sk_color_rgba(40, 42, 50, 255);
     g.camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
     sk_camera3d_set_view(g.camera, 0, 4.5f, 10, 0, 1, 0, 0, 1, 0);
     g.scene = sk_scene_create();
     sk_scene_set_active_camera(g.scene, g.camera);
-    sk_scene_set_ambient(g.scene, sk_color_create(90, 110, 160, 255), 0.05f);
+    sk_scene_set_ambient(g.scene, sk_color_rgba(90, 110, 160, 255), 0.05f);
 
     for (int i = 0; i < MODEL_COUNT; i++) {
         g.models[i] = sk_model_create(0);
@@ -75,18 +75,18 @@ static void init(void *user_data)
 
     g.sun = sk_light_create(SK_LIGHT_DIRECTIONAL);
     sk_light_set_direction(g.sun, -0.4f, -1.0f, -0.6f);
-    sk_light_set_color(g.sun, sk_color_create(255, 210, 160, 255));
+    sk_light_set_color(g.sun, sk_color_rgba(255, 210, 160, 255));
     sk_light_set_intensity(g.sun, 1.1f);
     sk_scene_add(g.scene, g.sun, 0);
 
     g.lamp = sk_light_create(SK_LIGHT_POINT);
-    sk_light_set_color(g.lamp, sk_color_create(60, 220, 255, 255));
+    sk_light_set_color(g.lamp, sk_color_rgba(60, 220, 255, 255));
     sk_light_set_intensity(g.lamp, 20.0f);
     sk_light_set_range(g.lamp, 5.0f);
     sk_scene_add(g.scene, g.lamp, 0);
     g.lamp_marker = sk_shape3d_create();
     sk_shape3d_set_sphere(g.lamp_marker, 0.12f);
-    sk_shape3d_set_color(g.lamp_marker, sk_color_create(60, 220, 255, 255));
+    sk_shape3d_set_color(g.lamp_marker, sk_color_rgba(60, 220, 255, 255));
     sk_scene_add(g.scene, g.lamp_marker, 0);
 
     g.spot = sk_light_create(SK_LIGHT_SPOT);

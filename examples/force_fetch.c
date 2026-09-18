@@ -20,7 +20,7 @@
  * https://cdn.example/... URL is passed through the same way. */
 #define MUSIC_FORCE_FETCH_PATH "/assets/music/ethernight_club.mp3"
 
-static sk_handle_t g_bg;
+static sk_color_t g_bg;
 static sk_handle_t g_music;
 static bool g_music_on;
 
@@ -42,7 +42,7 @@ static void on_init(void *user_data)
 {
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
     (void)user_data;
-    g_bg = sk_color_create(18, 20, 28, 255);
+    g_bg = sk_color_rgba(18, 20, 28, 255);
 
     if (strcmp(sk_get_platform(), "web") == 0) {
         /* Web: demonstrate fetch_url + FORCE_FETCH. The key (INVALID_MUSIC_PATH)

@@ -28,7 +28,6 @@ void test_material_srgb(void)
 void test_material_api(void)
 {
     const sk_material_t *data;
-    sk_color_init();
     sk_material_init();
     sk_logger_set_level(SK_LOGGER_LEVEL_FATAL); /* invalid names/handles below log on purpose */
 
@@ -70,7 +69,7 @@ void test_material_api(void)
     CHECK_NEAR(data->base_color[3], 0.4f, EPS);
 
     /* colors are sRGB: converted to linear, alpha kept */
-    sk_handle_t gray = sk_color_create(128, 128, 128, 51);
+    sk_color_t gray = sk_color_rgba(128, 128, 128, 51);
     CHECK(sk_material_set_color(material, "base_color", gray));
     CHECK_NEAR(data->base_color[0], sk_srgb_to_linear(128.0f / 255.0f), EPS);
     CHECK_NEAR(data->base_color[3], 0.2f, EPS);
@@ -127,7 +126,6 @@ void test_material_api(void)
 
     sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
     sk_material_deinit();
-    sk_color_deinit();
 }
 
 /* A unit quad in the xy plane facing +z, two triangles, glTF texture coordinates

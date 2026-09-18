@@ -25,7 +25,6 @@ static sg_view binding(sk_handle_t texture)
 void test_render_targets(void)
 {
     sg_setup(&(sg_desc){.environment = sk_platform_environment()});
-    sk_color_init();
     sk_texture_init();
     sk_render_init();
     sk_text_init();
@@ -80,6 +79,5 @@ void test_render_targets(void)
     sk_text_deinit();
     sk_render_deinit();
     sk_texture_deinit();
-    sk_color_deinit();
     sg_shutdown();
 }

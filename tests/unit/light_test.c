@@ -94,7 +94,6 @@ void test_light_select(void)
 void test_light_api(void)
 {
     sk_scene_light_t data;
-    sk_color_init();
     sk_light_init();
 
     sk_logger_set_level(SK_LOGGER_LEVEL_FATAL); /* invalid handles/types below log on purpose */
@@ -112,7 +111,7 @@ void test_light_api(void)
     CHECK_NEAR(data.cos_inner, 0.8660254f, EPS);
     CHECK_NEAR(data.cos_outer, 0.7071068f, EPS);
 
-    sk_handle_t red = sk_color_create(255, 0, 0, 255);
+    sk_color_t red = sk_color_rgba(255, 0, 0, 255);
     CHECK(sk_light_set_color(light, red));
     CHECK(sk_light_set_intensity(light, 2.0f));
     CHECK(sk_light_set_direction(light, 3, 0, 4));
@@ -138,5 +137,4 @@ void test_light_api(void)
 
     sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
     sk_light_deinit();
-    sk_color_deinit();
 }

@@ -43,8 +43,8 @@ static const char *ROW_NAMES[ROWS] = {"Sponza", "Flight helmet", "Gumshoe", "Dam
 
 static struct {
     sk_handle_t scene, camera, sun;
-    sk_handle_t bg, idle, hover, pressed, disabled, text, text_disabled, highlight, outline, bar_color, row_color,
-        row_selected;
+    sk_color_t bg, idle, hover, pressed, disabled, text, text_disabled, highlight, outline, bar_color,
+        row_color, row_selected;
     sk_handle_t panel, divider, bar_back, bar_fill, bar_tip, note;
     sk_handle_t buttons[BUTTONS], labels[BUTTONS];
     sk_handle_t rows[ROWS], row_labels[ROWS];
@@ -97,25 +97,25 @@ static void init(void *user_data)
 {
     (void)user_data;
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
-    g.bg = sk_color_create(30, 34, 44, 255);
-    g.idle = sk_color_create(70, 80, 105, 255);
-    g.hover = sk_color_create(95, 115, 160, 255);
-    g.pressed = sk_color_create(45, 55, 80, 255);
-    g.disabled = sk_color_create(55, 58, 64, 255);
-    g.text = sk_color_create(235, 238, 245, 255);
-    g.text_disabled = sk_color_create(120, 124, 132, 255);
-    g.highlight = sk_color_create(255, 220, 120, 255);
-    g.outline = sk_color_create(150, 175, 230, 255);
-    g.bar_color = sk_color_create(110, 200, 140, 255);
-    g.row_color = sk_color_create(44, 50, 66, 255);
-    g.row_selected = sk_color_create(80, 110, 90, 255);
+    g.bg = sk_color_rgba(30, 34, 44, 255);
+    g.idle = sk_color_rgba(70, 80, 105, 255);
+    g.hover = sk_color_rgba(95, 115, 160, 255);
+    g.pressed = sk_color_rgba(45, 55, 80, 255);
+    g.disabled = sk_color_rgba(55, 58, 64, 255);
+    g.text = sk_color_rgba(235, 238, 245, 255);
+    g.text_disabled = sk_color_rgba(120, 124, 132, 255);
+    g.highlight = sk_color_rgba(255, 220, 120, 255);
+    g.outline = sk_color_rgba(150, 175, 230, 255);
+    g.bar_color = sk_color_rgba(110, 200, 140, 255);
+    g.row_color = sk_color_rgba(44, 50, 66, 255);
+    g.row_selected = sk_color_rgba(80, 110, 90, 255);
     g.selected = -1;
 
     g.camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
     place_camera();
     g.scene = sk_scene_create();
     sk_scene_set_active_camera(g.scene, g.camera);
-    sk_scene_set_ambient(g.scene, 0, 0.35f);
+    sk_scene_set_ambient(g.scene, SK_COLOR_WHITE, 0.35f);
     sk_scene_set_interactive(g.scene, true);
 
     g.sun = sk_light_create(SK_LIGHT_DIRECTIONAL);
@@ -266,7 +266,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_model_set_tint(g.gumshoe, sk_scene_get_hover(g.scene, g.gumshoe) >= SK_BUTTON_PRESSED &&
                                          sk_scene_get_hover(g.scene, g.gumshoe) != SK_BUTTON_RELEASED
                                      ? g.highlight
-                                     : 0);
+                                     : SK_COLOR_WHITE);
     if (sk_scene_is_clicked(g.scene, g.gumshoe)) {
         g.animating = !g.animating;
     }

@@ -5,6 +5,8 @@
 #include <string.h>
 
 #include "internal/exports.h"
+#include "internal/sk_color.h"
+#include "sk_color.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_math.h"
@@ -39,7 +41,7 @@ typedef struct {
     vec3_t position;
     vec3_t rotation; /* radians */
     vec3_t scale;
-    sk_handle_t color;
+    sk_color_t color;
     bool visible;
     bool pickable;
     bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
@@ -84,15 +86,15 @@ void sk_shape3d_deinit(void)
     sk_handle_pool_reset(&sk_shape3d_pool);
 }
 
-static void set_color(sk_handle_t color)
+static void set_color(sk_color_t color)
 {
-    color_t c = sk_color_get(color);
+    sk_colorf_t c = sk_color_unpack(color);
     sgl_c4f(c.r, c.g, c.b, c.a);
 }
 
 SK_KEEP
 void sk_shape3d_draw_line(float x0, float y0, float z0,
-                           float x1, float y1, float z1, sk_handle_t color)
+                           float x1, float y1, float z1, sk_color_t color)
 {
     sgl_begin_lines();
     set_color(color);
@@ -103,7 +105,7 @@ void sk_shape3d_draw_line(float x0, float y0, float z0,
 
 SK_KEEP
 void sk_shape3d_draw_cube(float cx, float cy, float cz,
-                        float width, float height, float length, sk_handle_t color)
+                        float width, float height, float length, sk_color_t color)
 {
     const float x0 = cx - width * 0.5f, x1 = cx + width * 0.5f;
     const float y0 = cy - height * 0.5f, y1 = cy + height * 0.5f;
@@ -125,7 +127,7 @@ void sk_shape3d_draw_cube(float cx, float cy, float cz,
 
 SK_KEEP
 void sk_shape3d_draw_cube_wires(float cx, float cy, float cz,
-                              float width, float height, float length, sk_handle_t color)
+                              float width, float height, float length, sk_color_t color)
 {
     const float x0 = cx - width * 0.5f, x1 = cx + width * 0.5f;
     const float y0 = cy - height * 0.5f, y1 = cy + height * 0.5f;
@@ -152,7 +154,7 @@ void sk_shape3d_draw_cube_wires(float cx, float cy, float cz,
 }
 
 SK_KEEP
-void sk_shape3d_draw_sphere(float cx, float cy, float cz, float radius, sk_handle_t color)
+void sk_shape3d_draw_sphere(float cx, float cy, float cz, float radius, sk_color_t color)
 {
     const int rings = 16;
     const int sectors = 24;
@@ -196,7 +198,7 @@ static void push_placement(float cx, float cy, float cz, float rx, float ry, flo
     sgl_rotate(rx, 1.0f, 0.0f, 0.0f);
 }
 
-static void rectangle_xy(float width, float height, sk_handle_t color)
+static void rectangle_xy(float width, float height, sk_color_t color)
 {
     const float hw = width * 0.5f, hh = height * 0.5f;
     sgl_begin_quads();
@@ -205,7 +207,7 @@ static void rectangle_xy(float width, float height, sk_handle_t color)
     sgl_end();
 }
 
-static void circle_xy(float radius, sk_handle_t color)
+static void circle_xy(float radius, sk_color_t color)
 {
     sgl_begin_line_strip();
     set_color(color);
@@ -218,7 +220,7 @@ static void circle_xy(float radius, sk_handle_t color)
 
 SK_KEEP
 void sk_shape3d_draw_rectangle(float cx, float cy, float cz, float width, float height,
-                                float rx, float ry, float rz, sk_handle_t color)
+                                float rx, float ry, float rz, sk_color_t color)
 {
     push_placement(cx, cy, cz, rx, ry, rz);
     rectangle_xy(width, height, color);
@@ -227,7 +229,7 @@ void sk_shape3d_draw_rectangle(float cx, float cy, float cz, float width, float 
 
 SK_KEEP
 void sk_shape3d_draw_circle(float cx, float cy, float cz, float radius,
-                             float rx, float ry, float rz, sk_handle_t color)
+                             float rx, float ry, float rz, sk_color_t color)
 {
     push_placement(cx, cy, cz, rx, ry, rz);
     circle_xy(radius, color);
@@ -235,7 +237,7 @@ void sk_shape3d_draw_circle(float cx, float cy, float cz, float radius,
 }
 
 SK_KEEP
-void sk_shape3d_draw_grid(int slices, float spacing, sk_handle_t color)
+void sk_shape3d_draw_grid(int slices, float spacing, sk_color_t color)
 {
     const float half = slices * spacing * 0.5f;
 
@@ -280,7 +282,7 @@ sk_handle_t sk_shape3d_create(void)
         .position = {0.0f, 0.0f, 0.0f},
         .rotation = {0.0f, 0.0f, 0.0f},
         .scale = {1.0f, 1.0f, 1.0f},
-        .color = 0,
+        .color = SK_COLOR_WHITE,
         .visible = true,
         .pickable = true,
         .enabled = true,
@@ -425,7 +427,7 @@ bool sk_shape3d_set_transform(sk_handle_t shape,
 }
 
 SK_KEEP
-bool sk_shape3d_set_color(sk_handle_t shape, sk_handle_t color)
+bool sk_shape3d_set_color(sk_handle_t shape, sk_color_t color)
 {
     sk_shape3d_t *shape_ptr = resolve(shape);
     if (shape_ptr == NULL) {
@@ -540,7 +542,7 @@ static void draw_handle(sk_handle_t shape)
 static bool is_translucent(sk_handle_t shape)
 {
     sk_shape3d_t *shape_ptr = resolve(shape);
-    return shape_ptr != NULL && sk_color_get(shape_ptr->color).a < 1.0f;
+    return shape_ptr != NULL && sk_color_unpack(shape_ptr->color).a < 1.0f;
 }
 
 static void draw_opaque(sk_handle_t shape)

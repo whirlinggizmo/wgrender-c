@@ -36,14 +36,14 @@ static struct {
     float elapsed;
     float countdown_timer;
     sk_handle_t debug_font;
-    sk_handle_t grey_alpha;
+    sk_color_t grey_alpha;
     sk_handle_t komika_font;
     sk_handle_t sprite;
     sk_handle_t model;
     sk_handle_t bgm;
     sk_handle_t camera;
     sk_handle_t scene;
-    sk_handle_t background_color;
+    sk_color_t background_color;
     char message[TEXT_CAPACITY];
     char platform_text[TEXT_CAPACITY];
 } g;
@@ -136,9 +136,9 @@ static void on_init(void *user_data)
     sk_light_set_direction(sun, -0.6f, -1.0f, -0.5f);
     sk_light_set_intensity(sun, 3.0f);
     sk_scene_add(g.scene, sun, 0);
-    sk_scene_set_ambient(g.scene, 0, 0.25f);
-    g.background_color = sk_color_create(245, 245, 245, 255);
-    g.grey_alpha = sk_color_create(0, 0, 0, 128);
+    sk_scene_set_ambient(g.scene, SK_COLOR_WHITE, 0.25f);
+    g.background_color = sk_color_rgba(245, 245, 245, 255);
+    g.grey_alpha = sk_color_rgba(0, 0, 0, 128);
 
     load(BGM_PATH, on_bgm_ready);
     load(MODEL_PATH, on_model_ready);

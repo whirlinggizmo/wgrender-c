@@ -25,7 +25,7 @@ static struct {
     sk_handle_t scene;
     sk_handle_t camera;
     sk_handle_t top_camera;
-    sk_handle_t bg, label_bg, minimap_bg, frame_color;
+    sk_color_t bg, label_bg, minimap_bg, frame_color;
     sk_handle_t pixel_view, minimap, label; /* render target textures */
     sk_handle_t font;
     sk_handle_t gumshoe, globe, ground;
@@ -79,10 +79,10 @@ static void init(void *user_data)
 
     (void)user_data;
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
-    g.bg = sk_color_create(24, 26, 34, 255);
-    g.label_bg = sk_color_create(30, 60, 140, 255);
-    g.minimap_bg = sk_color_create(12, 14, 18, 255);
-    g.frame_color = sk_color_create(90, 96, 110, 255);
+    g.bg = sk_color_rgba(24, 26, 34, 255);
+    g.label_bg = sk_color_rgba(30, 60, 140, 255);
+    g.minimap_bg = sk_color_rgba(12, 14, 18, 255);
+    g.frame_color = sk_color_rgba(90, 96, 110, 255);
 
     g.pixel_view = sk_texture_create_target(PIXEL_W, PIXEL_H);
     sk_texture_set_sampling(g.pixel_view, SK_TEXTURE_WRAP_CLAMP, SK_TEXTURE_WRAP_CLAMP, SK_TEXTURE_FILTER_NEAREST);
@@ -100,7 +100,7 @@ static void init(void *user_data)
     sk_light_set_direction(sun, -0.5f, -1.0f, -0.4f);
     sk_light_set_intensity(sun, 3.0f);
     sk_scene_add(g.scene, sun, 0);
-    sk_scene_set_ambient(g.scene, 0, 0.25f);
+    sk_scene_set_ambient(g.scene, SK_COLOR_WHITE, 0.25f);
 
     /* ground: a flattened sphere */
     material = sk_material_create(SK_MATERIAL_PBR);
@@ -127,7 +127,7 @@ static void init(void *user_data)
 static void draw_panel(sk_handle_t texture, float x, float y, float w, float h, const char *caption)
 {
     sk_shape2d_draw_rectangle((int)x - 2, (int)y - 2, (int)w + 4, (int)h + 4, g.frame_color);
-    sk_texture_draw(texture, x, y, w, h, 0);
+    sk_texture_draw(texture, x, y, w, h, SK_COLOR_WHITE);
     sk_text_draw(caption, (int)x, (int)y - 20, 16, SK_COLOR_LIGHTGRAY);
 }
 

@@ -15,7 +15,6 @@
  * logical pixel, so (0.5, 0.5) is its center. */
 void test_pick_object(void)
 {
-    sk_color_init();
     sk_camera3d_init();
     sk_scene_init();
     sk_shape3d_init();
@@ -69,13 +68,11 @@ void test_pick_object(void)
     sk_shape3d_deinit();
     sk_scene_deinit();
     sk_camera3d_deinit();
-    sk_color_deinit();
 }
 
 /* Rectangles, circles, lines and line strips: building, bounds, picking. */
 void test_shape_3d(void)
 {
-    sk_color_init();
     sk_camera3d_init();
     sk_scene_init();
     sk_shape3d_init();
@@ -134,5 +131,4 @@ void test_shape_3d(void)
     sk_shape3d_deinit();
     sk_scene_deinit();
     sk_camera3d_deinit();
-    sk_color_deinit();
 }

@@ -9,7 +9,7 @@
 
 static sk_handle_t g_scene;
 static sk_handle_t g_camera;
-static sk_handle_t g_bg;
+static sk_color_t g_bg;
 static sk_handle_t g_spinner;
 static sk_handle_t g_selected;
 static sk_handle_t g_ring[8];
@@ -19,7 +19,7 @@ static void on_init(void *user_data)
 {
     (void)user_data;
 
-    g_bg = sk_color_create(24, 26, 34, 255);
+    g_bg = sk_color_rgba(24, 26, 34, 255);
     g_camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
     sk_camera3d_set_view(g_camera, 16.0f, 11.0f, 16.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 

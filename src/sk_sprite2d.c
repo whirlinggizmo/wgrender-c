@@ -4,6 +4,8 @@
 #include <string.h>
 
 #include "internal/exports.h"
+#include "internal/sk_color.h"
+#include "sk_color.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_scene.h"
@@ -26,7 +28,7 @@ typedef struct {
     float width, height; /* <= 0: source size */
     float pivot_x, pivot_y;
     float slice_left, slice_top, slice_right, slice_bottom; /* nine-slice borders in source pixels; all 0: off */
-    sk_handle_t tint;
+    sk_color_t tint;
     bool visible;
     bool pickable;
     bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
@@ -191,9 +193,9 @@ static bool resolve_placement(const sk_sprite2d_t *sprite_ptr, sg_view *view, sg
 
 /* Textured quad in the current (2D) sokol_gl projection. */
 static void draw_quad(sg_view view, sg_sampler smp, const float corners[8], float u0, float v0, float u1,
-                      float v1, bool flip_v, sk_handle_t tint)
+                      float v1, bool flip_v, sk_color_t tint)
 {
-    const color_t c = sk_color_get(tint);
+    const sk_colorf_t c = sk_color_unpack(tint);
     if (flip_v) { /* render target stored bottom-up (see sk_texture_is_flipped) */
         v0 = 1.0f - v0;
         v1 = 1.0f - v1;
@@ -327,6 +329,7 @@ sk_handle_t sk_sprite2d_create(sk_handle_t texture)
         .scale_y = 1.0f,
         .pivot_x = 0.5f,
         .pivot_y = 0.5f,
+        .tint = SK_COLOR_WHITE,
         .visible = true,
         .pickable = true,
         .enabled = true,
@@ -463,7 +466,7 @@ bool sk_sprite2d_set_pivot(sk_handle_t sprite, float x, float y)
 }
 
 SK_KEEP
-bool sk_sprite2d_set_tint(sk_handle_t sprite, sk_handle_t color)
+bool sk_sprite2d_set_tint(sk_handle_t sprite, sk_color_t color)
 {
     sk_sprite2d_t *sprite_ptr = resolve(sprite);
     if (sprite_ptr == NULL) {
@@ -549,7 +552,7 @@ void sk_sprite2d_draw(sk_handle_t sprite)
 }
 
 SK_KEEP
-void sk_texture_draw(sk_handle_t texture, float x, float y, float width, float height, sk_handle_t tint)
+void sk_texture_draw(sk_handle_t texture, float x, float y, float width, float height, sk_color_t tint)
 {
     sg_view view;
     sg_sampler smp;

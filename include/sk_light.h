@@ -41,7 +41,7 @@ typedef enum {
 sk_handle_t sk_light_create(sk_light_type_t type);
 void        sk_light_destroy(sk_handle_t light);
 
-bool sk_light_set_color(sk_handle_t light, sk_handle_t color);   /* default: white (0) */
+bool sk_light_set_color(sk_handle_t light, sk_color_t color);   /* default: SK_COLOR_WHITE */
 bool sk_light_set_intensity(sk_handle_t light, float intensity);  /* default: 1 */
 bool sk_light_set_position(sk_handle_t light, float x, float y, float z);   /* point, spot */
 bool sk_light_set_direction(sk_handle_t light, float x, float y, float z);  /* directional, spot; default (0,-1,0) */

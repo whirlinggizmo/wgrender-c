@@ -33,7 +33,7 @@ void sk_scene_set_active_camera(sk_handle_t scene, sk_handle_t camera);
 
 /* Light added to every lit model in the scene: color x intensity. Default: none
  * (intensity 0). */
-bool sk_scene_set_ambient(sk_handle_t scene, sk_handle_t color, float intensity);
+bool sk_scene_set_ambient(sk_handle_t scene, sk_color_t color, float intensity);
 
 /* Environment lighting (sk_environment.h): lights the scene's PBR models with
  * reflections and diffuse light from the environment, on top of lights and

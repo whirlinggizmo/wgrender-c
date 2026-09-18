@@ -69,7 +69,6 @@ static void setup(void)
     sk_audio_init();
     sk_render_init();
     sk_scene_init();
-    sk_color_init();
     sk_camera3d_init();
     sk_texture_init();
     sk_light_init();
@@ -87,7 +86,6 @@ static void teardown(void)
     sk_light_deinit();
     sk_texture_deinit();
     sk_camera3d_deinit();
-    sk_color_deinit();
     sk_scene_deinit();
     sk_render_deinit();
     sg_shutdown();

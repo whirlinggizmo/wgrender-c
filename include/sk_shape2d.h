@@ -14,13 +14,13 @@ extern "C" {
  *
  * Immediate primitives draw between sk_render_begin() and sk_render_end(), in
  * call order. */
-void sk_shape2d_draw_rectangle(int x, int y, int width, int height, sk_handle_t color);
-void sk_shape2d_draw_rectangle_lines(int x, int y, int width, int height, sk_handle_t color);
-void sk_shape2d_draw_line(int start_x, int start_y, int end_x, int end_y, sk_handle_t color);
-void sk_shape2d_draw_circle(int center_x, int center_y, float radius, sk_handle_t color);
-void sk_shape2d_draw_circle_lines(int center_x, int center_y, float radius, sk_handle_t color);
+void sk_shape2d_draw_rectangle(int x, int y, int width, int height, sk_color_t color);
+void sk_shape2d_draw_rectangle_lines(int x, int y, int width, int height, sk_color_t color);
+void sk_shape2d_draw_line(int start_x, int start_y, int end_x, int end_y, sk_color_t color);
+void sk_shape2d_draw_circle(int center_x, int center_y, float radius, sk_color_t color);
+void sk_shape2d_draw_circle_lines(int center_x, int center_y, float radius, sk_color_t color);
 void sk_shape2d_draw_triangle(float x0, float y0, float x1, float y1, float x2, float y2,
-                              sk_handle_t color);
+                              sk_color_t color);
 
 /* Retained 2D shapes — handle-based drawables with a kind, a transform, a color,
  * and visible / pickable / enabled flags. Add one to a scene (sk_scene_add): 2D
@@ -51,7 +51,7 @@ bool sk_shape2d_set_transform(sk_handle_t shape, float x, float y, float rotatio
 bool sk_shape2d_set_pivot(sk_handle_t shape, float x, float y);
 
 bool sk_shape2d_set_outline(sk_handle_t shape, float thickness); /* rectangles and circles; 0 = filled (default) */
-bool sk_shape2d_set_color(sk_handle_t shape, sk_handle_t color);
+bool sk_shape2d_set_color(sk_handle_t shape, sk_color_t color);
 bool sk_shape2d_set_visible(sk_handle_t shape, bool visible);
 bool sk_shape2d_is_visible(sk_handle_t shape);
 bool sk_shape2d_set_pickable(sk_handle_t shape, bool pickable);

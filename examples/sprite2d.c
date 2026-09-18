@@ -30,9 +30,9 @@ static const char *NAMES[SPRITE_COUNT] = {"sheet", "spin", "swing", "flip", "tin
 static struct {
     sk_handle_t scene;
     sk_handle_t camera;
-    sk_handle_t bg;
+    sk_color_t bg;
     sk_handle_t logo;
-    sk_handle_t palette[PALETTE_SIZE];
+    sk_color_t palette[PALETTE_SIZE];
     sk_handle_t model;
     sk_handle_t sprites[SPRITE_COUNT];
     sk_handle_t hovered;
@@ -77,10 +77,10 @@ static void init(void *user_data)
 {
     (void)user_data;
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
-    g.bg = sk_color_create(28, 30, 38, 255);
+    g.bg = sk_color_rgba(28, 30, 38, 255);
     for (int i = 0; i < PALETTE_SIZE; i++) { /* colors are immutable, so cycle a palette */
         const float a = (float)i / PALETTE_SIZE * 6.2831853f;
-        g.palette[i] = sk_color_create((int)(127 + 127 * sinf(a)), (int)(127 + 127 * sinf(a + 2.1f)),
+        g.palette[i] = sk_color_rgba((int)(127 + 127 * sinf(a)), (int)(127 + 127 * sinf(a + 2.1f)),
                                        (int)(127 + 127 * sinf(a + 4.2f)), 255);
     }
 
@@ -92,7 +92,7 @@ static void init(void *user_data)
     sk_light_set_direction(sun, -0.5f, -1.0f, -0.7f);
     sk_light_set_intensity(sun, 3.0f);
     sk_scene_add(g.scene, sun, 0);
-    sk_scene_set_ambient(g.scene, 0, 0.35f);
+    sk_scene_set_ambient(g.scene, SK_COLOR_WHITE, 0.35f);
 
     g.model = sk_model_create(0);
     sk_model_set_animation(g.model, 3);
@@ -159,7 +159,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_render_begin();
     sk_render_clear_background(g.bg);
     sk_scene_draw(g.scene);
-    sk_texture_draw(g.logo, sk_window_get_screen_size().x - 74, 10, 64, 64, 0); /* one-off, no object */
+    sk_texture_draw(g.logo, sk_window_get_screen_size().x - 74, 10, 64, 64, SK_COLOR_WHITE); /* one-off, no object */
 
     sk_text_draw("libsk sprite2d: source rect, pivot, rotation, flip, picking", 12, 12, 16, SK_COLOR_RAYWHITE);
     snprintf(line, sizeof(line), "mouse (%d, %d)  hover: %s  sheet frame %d", mouse.x, mouse.y, hover_name, g.frame);

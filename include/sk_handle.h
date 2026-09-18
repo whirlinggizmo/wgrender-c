@@ -10,7 +10,7 @@ extern "C" {
 /** Resource kind encoded in the high 6 bits of {@link sk_handle_t}. */
 typedef enum sk_handle_kind_t {
     SK_HANDLE_KIND_NONE = 0,
-    SK_HANDLE_KIND_COLOR = 1,
+    /* 1 retired: colors are values (sk_color_t), not handles */
     SK_HANDLE_KIND_CAMERA3D = 2,
     SK_HANDLE_KIND_FONT = 3,
     SK_HANDLE_KIND_TEXTURE = 4,

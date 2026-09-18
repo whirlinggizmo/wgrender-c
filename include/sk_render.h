@@ -11,7 +11,7 @@ extern "C" {
 
 void sk_render_begin(void);
 void sk_render_end(void);
-void sk_render_clear_background(sk_handle_t color);
+void sk_render_clear_background(sk_color_t color);
 /* Screen space (logical pixels, top-left origin): what sk_render_begin already
  * sets up, so this only matters after 3D mode. */
 void sk_render_begin_mode_2d(void);

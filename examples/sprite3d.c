@@ -14,7 +14,7 @@
 
 static sk_handle_t g_scene;
 static sk_handle_t g_camera;
-static sk_handle_t g_bg;
+static sk_color_t g_bg;
 static sk_handle_t g_sprite; /* set once the texture finishes loading */
 static bool g_loaded;
 
@@ -44,7 +44,7 @@ static void on_init(void *user_data)
 {
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
     (void)user_data;
-    g_bg = sk_color_create(20, 22, 30, 255);
+    g_bg = sk_color_rgba(20, 22, 30, 255);
     g_camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
     sk_camera3d_set_view(g_camera, 12.0f, 7.0f, 12.0f, 0.0f, 2.5f, 0.0f, 0.0f, 1.0f, 0.0f);
     g_scene = sk_scene_create();

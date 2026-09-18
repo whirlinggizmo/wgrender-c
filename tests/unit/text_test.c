@@ -22,7 +22,6 @@ void test_text_default_font(void)
     sg_setup(&(sg_desc){.environment = sk_platform_environment()});
     sk_render_init();
     sk_scene_init();
-    sk_color_init();
     sk_font_init();
     sk_text_init();
     sk_text3d_init();
@@ -69,7 +68,6 @@ void test_text_default_font(void)
     sk_text3d_deinit();
     sk_text_deinit();
     sk_font_deinit();
-    sk_color_deinit();
     sk_scene_deinit();
     sk_render_deinit();
     sg_shutdown();
@@ -82,7 +80,6 @@ void test_text_font_refcount(void)
     sg_setup(&(sg_desc){.environment = sk_platform_environment()});
     sk_render_init();
     sk_scene_init();
-    sk_color_init();
     sk_font_init();
     sk_text3d_init();
 
@@ -108,7 +105,6 @@ void test_text_font_refcount(void)
 
     sk_text3d_deinit();
     sk_font_deinit();
-    sk_color_deinit();
     sk_scene_deinit();
     sk_render_deinit();
     sg_shutdown();

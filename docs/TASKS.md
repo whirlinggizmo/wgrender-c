@@ -92,9 +92,10 @@ tick the box in the same commit.
 - [ ] Light selection uses rest-pose bounds for animated models, so a limb far
       outside the rest pose can miss a nearby point light's range check. Minor;
       could reuse the posed bounds when they're already cached
-- [ ] Colors are immutable (no public `sk_color_set`), so animating a tint means
-      pre-creating a palette (see `examples/sprite2d.c`). Decide whether color
-      handles should be settable
+- [x] Colors are values (2026-09-17): `sk_color_t` is packed 0xRRGGBBAA, so a tint
+      can be computed per frame (`sk_color_rgba`, `sk_color_with_alpha`,
+      `sk_color_lerp`) instead of pre-creating a palette, and the 256-slot pool,
+      the handle kind and the color lifecycle are gone ([PLAN-color.md](PLAN-color.md))
 - [ ] Window flags accepted but ignored: `RESIZABLE`, `UNDECORATED`, `TRANSPARENT`,
       `HIDDEN`, `ALWAYS_RUN` (only fullscreen, high-DPI, MSAA and vsync-off work)
 - [x] Bug: orthographic cameras only affected sokol_gl content; models and

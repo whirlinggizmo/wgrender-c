@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "internal/exports.h"
+#include "internal/sk_color.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_material.h"
@@ -352,11 +353,11 @@ bool sk_material_set_vec4(sk_handle_t material, const char *name, float x, float
 }
 
 SK_KEEP
-bool sk_material_set_color(sk_handle_t material, const char *name, sk_handle_t color)
+bool sk_material_set_color(sk_handle_t material, const char *name, sk_color_t color)
 {
     sk_material_t *material_ptr = NULL;
     const param_t *param = lookup(material, name, PARAM_VEC3, PARAM_VEC4, &material_ptr);
-    const color_t c = sk_color_get(color);
+    const sk_colorf_t c = sk_color_unpack(color);
     float *values;
 
     if (param == NULL) {

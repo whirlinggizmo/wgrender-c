@@ -14,7 +14,7 @@
 
 static sk_handle_t g_scene;
 static sk_handle_t g_camera;
-static sk_handle_t g_bg;
+static sk_color_t g_bg;
 static sk_handle_t g_model;
 static bool g_orbit_camera = true;
 static bool g_spin_model = false;
@@ -50,7 +50,7 @@ static sk_handle_t create_model(const char *mesh_path) {
 static void on_init(void *user_data) {
   sk_asset_set_host(EXAMPLE_ASSET_BASE);
   (void)user_data;
-  g_bg = sk_color_create(30, 32, 40, 255);
+  g_bg = sk_color_rgba(30, 32, 40, 255);
   g_camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
   sk_camera3d_set_view(g_camera, 8, 8, 8, 0, 3, 0, 0, 1, 0);
   g_scene = sk_scene_create();
@@ -61,7 +61,7 @@ static void on_init(void *user_data) {
   sk_light_set_direction(sun, -0.6f, -1.0f, -0.5f);
   sk_light_set_intensity(sun, 3.0f); /* ~pi: a white surface facing the sun shows its full color */
   sk_scene_add(g_scene, sun, 0);
-  sk_scene_set_ambient(g_scene, 0, 0.3f);
+  sk_scene_set_ambient(g_scene, SK_COLOR_WHITE, 0.3f);
   sk_debug_enable_fps(12, 10, 16);
 
   g_model = create_model(MODEL_PATH);

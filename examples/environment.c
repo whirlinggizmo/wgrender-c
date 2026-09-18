@@ -36,8 +36,8 @@ static const float BLURS[] = {0.0f, 0.35f, 0.8f};
 static struct {
     sk_handle_t scene;
     sk_handle_t camera;
-    sk_handle_t bg;
-    sk_handle_t bar;
+    sk_color_t bg;
+    sk_color_t bar;
     sk_handle_t environments[ENVIRONMENT_COUNT];
     sk_handle_t spheres[2 * COLUMNS + 1];
     sk_handle_t gumshoe;
@@ -118,8 +118,8 @@ static void init(void *user_data)
 
     (void)user_data;
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
-    g.bg = sk_color_create(20, 22, 28, 255);
-    g.bar = sk_color_create(0, 0, 0, 150);
+    g.bg = sk_color_rgba(20, 22, 28, 255);
+    g.bar = sk_color_rgba(0, 0, 0, 150);
     g.tonemap = SK_TONEMAP_NEUTRAL;
 
     g.camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);

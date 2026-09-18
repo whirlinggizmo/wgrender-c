@@ -25,7 +25,7 @@ enum { COLUMNS = 5, SPHERE_COUNT = 2 * COLUMNS + 4, GUMSHOE_BODY_SLOT = 1 };
 static struct {
     sk_handle_t scene;
     sk_handle_t camera;
-    sk_handle_t bg;
+    sk_color_t bg;
     sk_handle_t spheres[SPHERE_COUNT];
     sk_handle_t gumshoe;
     sk_handle_t tiles; /* normal-mapped material, gets its texture when it loads */
@@ -95,22 +95,22 @@ static void init(void *user_data)
 
     (void)user_data;
     sk_asset_set_host(EXAMPLE_ASSET_BASE);
-    g.bg = sk_color_create(20, 22, 28, 255);
+    g.bg = sk_color_rgba(20, 22, 28, 255);
 
     g.camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
     sk_camera3d_set_view(g.camera, 0, 1.6f, 7.5f, 0, 1.2f, 0, 0, 1, 0);
     g.scene = sk_scene_create();
     sk_scene_set_active_camera(g.scene, g.camera);
-    sk_scene_set_ambient(g.scene, 0, 0.12f);
+    sk_scene_set_ambient(g.scene, SK_COLOR_WHITE, 0.12f);
 
     g.sun = sk_light_create(SK_LIGHT_DIRECTIONAL);
     sk_light_set_direction(g.sun, -0.4f, -0.7f, -0.6f);
-    sk_light_set_color(g.sun, sk_color_create(255, 244, 228, 255));
+    sk_light_set_color(g.sun, sk_color_rgba(255, 244, 228, 255));
     sk_light_set_intensity(g.sun, 3.0f);
     sk_scene_add(g.scene, g.sun, 0);
 
     g.lamp = sk_light_create(SK_LIGHT_POINT);
-    sk_light_set_color(g.lamp, sk_color_create(120, 190, 255, 255));
+    sk_light_set_color(g.lamp, sk_color_rgba(120, 190, 255, 255));
     sk_light_set_intensity(g.lamp, 8.0f);
     sk_light_set_range(g.lamp, 10.0f);
     sk_scene_add(g.scene, g.lamp, 0);

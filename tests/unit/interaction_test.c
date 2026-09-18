@@ -68,7 +68,6 @@ void test_interaction(void)
     sg_setup(&(sg_desc){.environment = sk_platform_environment()});
     sk_render_init();
     sk_scene_init();
-    sk_color_init();
     sk_camera3d_init();
     sk_texture_init();
     sk_sprite2d_init();
@@ -217,7 +216,6 @@ void test_interaction(void)
     sk_sprite2d_deinit();
     sk_texture_deinit();
     sk_camera3d_deinit();
-    sk_color_deinit();
     sk_scene_deinit();
     sk_render_deinit();
     sg_shutdown();

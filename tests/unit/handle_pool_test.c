@@ -41,7 +41,7 @@ void test_handle_pool(void)
     CHECK(sk_handle_pool_resolve(&p.pool, h1, NULL)); /* index_out is optional */
 
     /* same slot, wrong kind */
-    sk_handle_t wrong_kind = SK_HANDLE_MAKE(SK_HANDLE_KIND_COLOR, SK_HANDLE_INDEX(h2), SK_HANDLE_GENERATION(h2));
+    sk_handle_t wrong_kind = SK_HANDLE_MAKE(SK_HANDLE_KIND_MESH, SK_HANDLE_INDEX(h2), SK_HANDLE_GENERATION(h2));
     CHECK(!sk_handle_pool_resolve(&p.pool, wrong_kind, &index));
     CHECK(!sk_handle_pool_free(&p.pool, wrong_kind));
 

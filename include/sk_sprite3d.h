@@ -44,7 +44,7 @@ bool sk_sprite3d_set_facing(sk_handle_t handle, sk_sprite3d_facing_t facing);
 vec3_t sk_sprite3d_get_position(sk_handle_t handle);
 vec3_t sk_sprite3d_get_rotation(sk_handle_t handle); /* radians */
 vec3_t sk_sprite3d_get_scale(sk_handle_t handle);
-bool sk_sprite3d_set_tint(sk_handle_t handle, sk_handle_t color);
+bool sk_sprite3d_set_tint(sk_handle_t handle, sk_color_t color);
 bool sk_sprite3d_set_visible(sk_handle_t handle, bool visible);
 bool sk_sprite3d_is_visible(sk_handle_t handle);
 bool sk_sprite3d_set_pickable(sk_handle_t handle, bool pickable); /* default: pickable */
