@@ -19,7 +19,7 @@
 
 #define SK_CIRCLE_SEGMENTS 36
 
-#define MAX_SHAPES3D 1024
+#define SHAPES3D_INITIAL 64 /* slots to start with; the pool doubles as needed */
 #define MAX_STRIP_POINTS 65536
 
 typedef enum {
@@ -47,11 +47,8 @@ typedef struct {
     bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
 } sk_shape3d_t;
 
-static sk_shape3d_t sk_shapes3d[MAX_SHAPES3D];
+static sk_shape3d_t *sk_shapes3d; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_shape3d_pool;
-static uint16_t sk_shape3d_free_indices[MAX_SHAPES3D];
-static uint16_t sk_shape3d_generations[MAX_SHAPES3D];
-static unsigned char sk_shape3d_occupied[MAX_SHAPES3D];
 
 static void draw_handle(sk_handle_t shape);
 static void draw_opaque(sk_handle_t shape);
@@ -63,14 +60,10 @@ static bool shape_pick(sk_handle_t shape, vec3_t origin, vec3_t dir, sk_pick_res
 
 void sk_shape3d_init(void)
 {
-    memset(sk_shapes3d, 0, sizeof(sk_shapes3d));
-    sk_handle_pool_init(&sk_shape3d_pool,
-                        SK_HANDLE_KIND_SHAPE3D,
-                        MAX_SHAPES3D,
-                        sk_shape3d_free_indices,
-                        MAX_SHAPES3D,
-                        sk_shape3d_generations,
-                        sk_shape3d_occupied);
+    if (!sk_handle_pool_init(&sk_shape3d_pool, SK_HANDLE_KIND_SHAPE3D, "shape3d", (void **)&sk_shapes3d,
+                             sizeof(sk_shape3d_t), SHAPES3D_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
+        log_error("shape3d: out of memory");
+    }
     sk_scene_register_passes(SK_HANDLE_KIND_SHAPE3D, draw_opaque, collect_transparent, draw_transparent);
     sk_scene_register_bounds(SK_HANDLE_KIND_SHAPE3D, shape_bounds);
     sk_scene_register_pick(SK_HANDLE_KIND_SHAPE3D, shape_pick);
@@ -79,11 +72,10 @@ void sk_shape3d_init(void)
 
 void sk_shape3d_deinit(void)
 {
-    for (int i = 0; i < MAX_SHAPES3D; i++) {
+    for (int i = 0; i < sk_shape3d_pool.capacity; i++) {
         free(sk_shapes3d[i].points);
     }
-    memset(sk_shapes3d, 0, sizeof(sk_shapes3d));
-    sk_handle_pool_reset(&sk_shape3d_pool);
+    sk_handle_pool_destroy(&sk_shape3d_pool);
 }
 
 static void set_color(sk_color_t color)
@@ -272,7 +264,7 @@ sk_handle_t sk_shape3d_create(void)
     uint16_t index = 0;
 
     if (handle == 0) {
-        log_error("MAX_SHAPES3D reached (%d)", MAX_SHAPES3D);
+        log_error("shape3d: pool full (%u)", (unsigned)sk_shape3d_pool.max - 1u);
         return 0;
     }
     sk_handle_pool_resolve(&sk_shape3d_pool, handle, &index);

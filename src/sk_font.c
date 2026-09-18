@@ -15,7 +15,8 @@
 #include "util/sokol_gl.h"
 #include "util/sokol_fontstash.h"
 
-#define MAX_FONTS 64
+#define FONTS_INITIAL 16 /* slots to start with; the pool doubles as needed */
+#define MAX_PARKED 64 /* released fonts fontstash keeps for a later create */
 #define SK_FONT_ATLAS_DIM 1024
 #define SK_FONT_ATLAS_MAX 4096 /* 16 MB of 8-bit coverage at most */
 
@@ -34,12 +35,9 @@ typedef struct {
     char path[256];
 } sk_font_parked_t;
 
-static sk_font_t sk_fonts[MAX_FONTS];
+static sk_font_t *sk_fonts; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_font_pool;
-static uint16_t sk_font_free_indices[MAX_FONTS];
-static uint16_t sk_font_generations[MAX_FONTS];
-static unsigned char sk_font_occupied[MAX_FONTS];
-static sk_font_parked_t sk_font_parked[MAX_FONTS];
+static sk_font_parked_t sk_font_parked[MAX_PARKED];
 static int sk_font_parked_count;
 static int sk_font_added; /* fonts added to fontstash (their names) */
 static FONScontext *sk_fons = NULL;
@@ -75,8 +73,8 @@ static unsigned char *read_file(const char *path, int *out_size)
 
 static sk_handle_t find_by_path(const char *path)
 {
-    for (uint16_t i = 1; i < MAX_FONTS; i++) {
-        if (sk_font_occupied[i] && strcmp(sk_fonts[i].path, path) == 0) {
+    for (uint16_t i = 1; i < sk_font_pool.capacity; i++) {
+        if (sk_font_pool.occupied[i] && strcmp(sk_fonts[i].path, path) == 0) {
             return sk_handle_pool_handle_from_index(&sk_font_pool, i);
         }
     }
@@ -84,11 +82,11 @@ static sk_handle_t find_by_path(const char *path)
 }
 
 /* Keep a fontstash font for a later create of `path`. When the list is full (more
- * than MAX_FONTS distinct files released) it isn't reused: a later create loads the
+ * than MAX_PARKED distinct files released) it isn't reused: a later create loads the
  * file again. */
 static void park(int fons_id, const char *path)
 {
-    if (sk_font_parked_count < MAX_FONTS) {
+    if (sk_font_parked_count < MAX_PARKED) {
         sk_font_parked[sk_font_parked_count].fons_id = fons_id;
         snprintf(sk_font_parked[sk_font_parked_count++].path, sizeof(sk_font_parked[0].path), "%s", path);
     }
@@ -157,7 +155,7 @@ sk_handle_t sk_font_create(const char *path)
     }
     handle = sk_handle_pool_alloc(&sk_font_pool);
     if (handle == 0) {
-        log_error("MAX_FONTS reached (%d)", MAX_FONTS);
+        log_error("font: pool full (%u)", (unsigned)sk_font_pool.max - 1u);
         park(fid, path); /* keep it for later */
         return 0;
     }
@@ -290,17 +288,13 @@ void sk_font_end_frame(void)
 
 void sk_font_init(void)
 {
-    memset(sk_fonts, 0, sizeof(sk_fonts));
     sk_font_parked_count = 0;
     sk_font_grow_pending = false;
     sk_font_added = 0;
-    sk_handle_pool_init(&sk_font_pool,
-                        SK_HANDLE_KIND_FONT,
-                        MAX_FONTS,
-                        sk_font_free_indices,
-                        MAX_FONTS,
-                        sk_font_generations,
-                        sk_font_occupied);
+    if (!sk_handle_pool_init(&sk_font_pool, SK_HANDLE_KIND_FONT, "font", (void **)&sk_fonts,
+                             sizeof(sk_font_t), FONTS_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
+        log_error("font: out of memory");
+    }
 
     sk_fons = sfons_create(&(sfons_desc_t){
         .width = SK_FONT_ATLAS_DIM,
@@ -319,5 +313,5 @@ void sk_font_deinit(void)
         sfons_destroy(sk_fons);
         sk_fons = NULL;
     }
-    sk_handle_pool_reset(&sk_font_pool);
+    sk_handle_pool_destroy(&sk_font_pool);
 }

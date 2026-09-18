@@ -7,6 +7,7 @@ void test_asset_join_relative(void);
 
 void test_audio_streaming(void);
 void test_audio_threads(void);
+void test_audio_many_sounds(void);
 
 void test_environment_mapping(void);
 void test_environment_irradiance(void);
@@ -77,6 +78,7 @@ void test_pipeline_failures(void);
 void test_pipeline_budget(void);
 void test_pipeline_shutdown(void);
 void test_pipeline_group(void);
+void test_pipeline_many(void);
 
 void test_pick_object(void);
 void test_shape_3d(void);

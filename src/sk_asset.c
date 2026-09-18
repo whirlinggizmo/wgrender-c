@@ -21,6 +21,8 @@
  * accumulate into an exactly-sized buffer — no per-file cap, memory tracks the
  * actual asset size. The dev server (tools/serve.py) honours Range for this. */
 #define ASSET_CHUNK_BYTES (1024 * 1024)
+#define MAX_FETCHES 256 /* downloads at once (sokol_fetch's request pool); more tasks wait */
+static int sk_asset_fetching;
 #endif
 
 /* Acquisition layer: "ensure" makes an asset locally available, then fires the
@@ -32,7 +34,7 @@
  * Either way the callback receives a path the sync sk_*_create(path) creators
  * can fopen. */
 
-#define MAX_ASSET_TASKS 256
+#define ASSET_TASKS_INITIAL 64 /* slots to start with; the pool doubles as needed */
 #define MAX_DEPENDENCY_FORMATS 8
 #define MAX_LOADER_FORMATS 16
 
@@ -102,11 +104,8 @@ typedef struct {
     sk_asset_dependencies_fn list;
 } sk_asset_format_t;
 
-static sk_asset_task_t sk_asset_tasks[MAX_ASSET_TASKS];
+static sk_asset_task_t *sk_asset_tasks; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_asset_pool;
-static uint16_t sk_asset_free_indices[MAX_ASSET_TASKS];
-static uint16_t sk_asset_generations[MAX_ASSET_TASKS];
-static unsigned char sk_asset_occupied[MAX_ASSET_TASKS];
 static bool sk_asset_ready = false;
 static char sk_asset_host[256] = "";
 static sk_asset_format_t sk_asset_formats[MAX_DEPENDENCY_FORMATS];
@@ -120,8 +119,16 @@ typedef struct {
 static sk_asset_loader_format_t sk_asset_loaders[MAX_LOADER_FORMATS];
 static int sk_asset_loader_count;
 
-/* Workers and their queues (ring buffers of MAX_ASSET_TASKS: a task has at most
- * one job or result at a time). Guarded by sk_asset_jobs.lock. */
+/* A ring of jobs. Rings hold as many jobs as there are task slots (a task has at
+ * most one job or result at a time), so they never fill up; they grow with the task
+ * pool (alloc_task). */
+typedef struct {
+    sk_asset_job_t *jobs;
+    int capacity, head, count;
+} sk_asset_ring_t;
+
+/* Workers and their queues. Guarded by sk_asset_jobs.lock. The rings are never
+ * freed: on web, workers detached at shutdown may still push to them. */
 static struct {
     sk_mutex_t lock;
     sk_cond_t wake;
@@ -129,14 +136,14 @@ static struct {
     int worker_count;
     bool stop;
     bool lock_live;
-    sk_asset_job_t queue[MAX_ASSET_TASKS];
-    int queue_head, queue_count;
-    sk_asset_job_t done[MAX_ASSET_TASKS];
-    int done_head, done_count;
+    sk_asset_ring_t queue;
+    sk_asset_ring_t done;
 } sk_asset_jobs;
 static int sk_asset_worker_request = -1; /* -1 = default */
 static float sk_asset_upload_budget_ms = DEFAULT_UPLOAD_BUDGET_MS;
 static uint32_t sk_asset_finish_counter;
+
+static sk_handle_t alloc_task(void);
 
 static sk_asset_task_t *resolve(sk_handle_t handle)
 {
@@ -190,6 +197,7 @@ static void on_fetch(const sfetch_response_t *r)
         bool ok = !r->failed && !task->acc_error &&
                   sk_fs_write(task->path, task->acc, (int)task->acc_len);
         task->fetch_result = ok ? FETCH_OK : FETCH_FAILED;
+        sk_asset_fetching--;
         free(task->acc);
         task->acc = NULL;
         task->acc_len = 0;
@@ -233,6 +241,8 @@ static void start_fetch(uint16_t slot)
         free(task->fetch_buf);
         task->fetch_buf = NULL;
         task->fetch_result = FETCH_FAILED;
+    } else {
+        sk_asset_fetching++;
     }
 }
 #endif
@@ -419,14 +429,16 @@ static void add_dependency(const char *uri, bool required, void *context)
         parent_task->dependency_failed = true;
         return;
     }
-    for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) { /* referenced twice: ensure once */
-        if (sk_asset_occupied[i] && sk_asset_tasks[i].parent == parent && strcmp(sk_asset_tasks[i].path, path) == 0) {
+    for (uint16_t i = 1; i < sk_asset_pool.capacity; i++) { /* referenced twice: ensure once */
+        if (sk_asset_pool.occupied[i] && sk_asset_tasks[i].parent == parent &&
+            strcmp(sk_asset_tasks[i].path, path) == 0) {
             return;
         }
     }
-    handle = sk_handle_pool_alloc(&sk_asset_pool);
+    handle = alloc_task();
+    parent_task = &sk_asset_tasks[parent]; /* the allocation may have moved the tasks */
     if (handle == 0) {
-        log_error("MAX_ASSET_TASKS reached (%d) ensuring dependencies of %s", MAX_ASSET_TASKS, parent_task->path);
+        log_error("Asset %s: can't queue its dependency %s", parent_task->path, path);
         parent_task->dependency_failed = true;
         return;
     }
@@ -468,6 +480,7 @@ static void start_dependencies(uint16_t slot)
     }
     list(data, size, add_dependency, &context);
     sk_fs_read_free(data);
+    task = &sk_asset_tasks[slot]; /* queueing dependencies may have moved the tasks */
     if (task->pending > 0) {
         task->state = TASK_WAITING;
     }
@@ -483,9 +496,8 @@ sk_handle_t sk_asset_ensure_async(const char *path, const char *fetch_url,
     if (!sk_asset_ready || path == NULL) {
         return 0;
     }
-    handle = sk_handle_pool_alloc(&sk_asset_pool);
+    handle = alloc_task();
     if (handle == 0) {
-        log_error("MAX_ASSET_TASKS reached (%d)", MAX_ASSET_TASKS);
         return 0;
     }
     task_ptr = resolve(handle);
@@ -517,19 +529,57 @@ sk_asset_add_task_result_t sk_asset_add_task(sk_handle_t handle,
 
 /* ------------------------------------------------------------- workers ---- */
 
-static void push_job(sk_asset_job_t *ring, int *head, int *count, const sk_asset_job_t *job)
+static void push_job(sk_asset_ring_t *ring, const sk_asset_job_t *job)
 {
-    ring[(*head + *count) % MAX_ASSET_TASKS] = *job; /* never full: one entry per task */
-    (*count)++;
+    ring->jobs[(ring->head + ring->count) % ring->capacity] = *job; /* never full: one entry per task */
+    ring->count++;
 }
 
-static bool pop_job(sk_asset_job_t *ring, int *head, int *count, sk_asset_job_t *job)
+static bool pop_job(sk_asset_ring_t *ring, sk_asset_job_t *job)
 {
-    if (*count == 0) return false;
-    *job = ring[*head];
-    *head = (*head + 1) % MAX_ASSET_TASKS;
-    (*count)--;
+    if (ring->count == 0) return false;
+    *job = ring->jobs[ring->head];
+    ring->head = (ring->head + 1) % ring->capacity;
+    ring->count--;
     return true;
+}
+
+/* Grow a ring to `capacity` jobs, keeping their order. Under sk_asset_jobs.lock. */
+static bool grow_ring(sk_asset_ring_t *ring, int capacity)
+{
+    sk_asset_job_t *jobs;
+    if (ring->capacity >= capacity) return true;
+    jobs = (sk_asset_job_t *)malloc(sizeof(sk_asset_job_t) * (size_t)capacity);
+    if (jobs == NULL) return false;
+    for (int i = 0; i < ring->count; i++) {
+        jobs[i] = ring->jobs[(ring->head + i) % ring->capacity];
+    }
+    free(ring->jobs);
+    ring->jobs = jobs;
+    ring->capacity = capacity;
+    ring->head = 0;
+    return true;
+}
+
+/* A new task slot, with the job rings grown to match the pool; 0 when there's none. */
+static sk_handle_t alloc_task(void)
+{
+    const sk_handle_t handle = sk_handle_pool_alloc(&sk_asset_pool);
+    bool ok;
+    if (handle == 0) {
+        log_error("asset: too many tasks (%u)", (unsigned)sk_asset_pool.max - 1u);
+        return 0;
+    }
+    sk_mutex_lock(&sk_asset_jobs.lock);
+    ok = grow_ring(&sk_asset_jobs.queue, sk_asset_pool.capacity) &&
+         grow_ring(&sk_asset_jobs.done, sk_asset_pool.capacity);
+    sk_mutex_unlock(&sk_asset_jobs.lock);
+    if (!ok) {
+        sk_handle_pool_free(&sk_asset_pool, handle);
+        log_error("asset: out of memory");
+        return 0;
+    }
+    return handle;
 }
 
 static void worker_main(void *arg)
@@ -538,15 +588,15 @@ static void worker_main(void *arg)
     (void)arg;
     sk_mutex_lock(&sk_asset_jobs.lock);
     for (;;) {
-        while (!sk_asset_jobs.stop && sk_asset_jobs.queue_count == 0) {
+        while (!sk_asset_jobs.stop && sk_asset_jobs.queue.count == 0) {
             sk_cond_wait(&sk_asset_jobs.wake, &sk_asset_jobs.lock);
         }
         if (sk_asset_jobs.stop) break;
-        pop_job(sk_asset_jobs.queue, &sk_asset_jobs.queue_head, &sk_asset_jobs.queue_count, &job);
+        pop_job(&sk_asset_jobs.queue, &job);
         sk_mutex_unlock(&sk_asset_jobs.lock);
         job.prepared = job.loader->prepare(job.path);
         sk_mutex_lock(&sk_asset_jobs.lock);
-        push_job(sk_asset_jobs.done, &sk_asset_jobs.done_head, &sk_asset_jobs.done_count, &job);
+        push_job(&sk_asset_jobs.done, &job);
     }
     sk_mutex_unlock(&sk_asset_jobs.lock);
 }
@@ -620,9 +670,8 @@ sk_handle_t sk_asset_group_create(void)
     if (!sk_asset_ready) {
         return 0;
     }
-    handle = sk_handle_pool_alloc(&sk_asset_pool);
+    handle = alloc_task();
     if (handle == 0) {
-        log_error("MAX_ASSET_TASKS reached (%d)", MAX_ASSET_TASKS);
         return 0;
     }
     task_ptr = resolve(handle);
@@ -686,8 +735,8 @@ float sk_asset_get_progress(sk_handle_t task)
         return 0.0f;
     }
     sum = (float)(task_ptr->dependency_count - task_ptr->pending); /* finished members */
-    for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) {
-        if (sk_asset_occupied[i] && sk_asset_tasks[i].group == index) {
+    for (uint16_t i = 1; i < sk_asset_pool.capacity; i++) {
+        if (sk_asset_pool.occupied[i] && sk_asset_tasks[i].group == index) {
             sum += task_progress(&sk_asset_tasks[i]);
         }
     }
@@ -696,13 +745,14 @@ float sk_asset_get_progress(sk_handle_t task)
 
 void sk_asset_init(void)
 {
-    memset(sk_asset_tasks, 0, sizeof(sk_asset_tasks));
-    sk_handle_pool_init(&sk_asset_pool, SK_HANDLE_KIND_ASSET_TASK, MAX_ASSET_TASKS,
-                        sk_asset_free_indices, MAX_ASSET_TASKS,
-                        sk_asset_generations, sk_asset_occupied);
+    if (!sk_handle_pool_init(&sk_asset_pool, SK_HANDLE_KIND_ASSET_TASK, "asset", (void **)&sk_asset_tasks,
+                             sizeof(sk_asset_task_t), ASSET_TASKS_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
+        log_error("asset: out of memory");
+    }
 #ifdef __EMSCRIPTEN__
+    sk_asset_fetching = 0;
     sfetch_setup(&(sfetch_desc_t){
-        .max_requests = MAX_ASSET_TASKS,
+        .max_requests = MAX_FETCHES,
         .num_channels = 1,
         .num_lanes = 4,
     });
@@ -712,8 +762,10 @@ void sk_asset_init(void)
         sk_cond_init(&sk_asset_jobs.wake);
         sk_asset_jobs.lock_live = true;
     }
-    sk_asset_jobs.queue_head = sk_asset_jobs.queue_count = 0;
-    sk_asset_jobs.done_head = sk_asset_jobs.done_count = 0;
+    sk_mutex_lock(&sk_asset_jobs.lock);
+    sk_asset_jobs.queue.head = sk_asset_jobs.queue.count = 0;
+    sk_asset_jobs.done.head = sk_asset_jobs.done.count = 0;
+    sk_mutex_unlock(&sk_asset_jobs.lock);
     start_workers(sk_asset_worker_request >= 0 ? sk_asset_worker_request : default_worker_count());
     log_info("sk_asset: %d loading worker(s)%s", sk_asset_jobs.worker_count,
              sk_asset_jobs.worker_count == 0 ? " (loading on the main thread)" : "");
@@ -816,7 +868,7 @@ static void ready(uint16_t i, bool ok)
     job.loader = task->loader;
     snprintf(job.path, sizeof(job.path), "%s", task->local);
     sk_mutex_lock(&sk_asset_jobs.lock);
-    push_job(sk_asset_jobs.queue, &sk_asset_jobs.queue_head, &sk_asset_jobs.queue_count, &job);
+    push_job(&sk_asset_jobs.queue, &job);
     sk_cond_broadcast(&sk_asset_jobs.wake);
     sk_mutex_unlock(&sk_asset_jobs.lock);
 }
@@ -827,6 +879,7 @@ static void resolved(uint16_t i, bool ok)
     sk_asset_task_t *task = &sk_asset_tasks[i];
     if (ok && !task->dependencies_started) {
         start_dependencies(i);
+        task = &sk_asset_tasks[i]; /* it may have moved the tasks */
         if (task->state == TASK_WAITING) {
             return; /* finishes when its last dependency does */
         }
@@ -842,18 +895,18 @@ static void collect_prepared(void)
 
     if (sk_asset_jobs.worker_count == 0) {
         sk_mutex_lock(&sk_asset_jobs.lock);
-        have = pop_job(sk_asset_jobs.queue, &sk_asset_jobs.queue_head, &sk_asset_jobs.queue_count, &job);
+        have = pop_job(&sk_asset_jobs.queue, &job);
         sk_mutex_unlock(&sk_asset_jobs.lock);
         if (have) { /* one per frame, so loads don't stack into one stall */
             job.prepared = job.loader->prepare(job.path);
             sk_mutex_lock(&sk_asset_jobs.lock);
-            push_job(sk_asset_jobs.done, &sk_asset_jobs.done_head, &sk_asset_jobs.done_count, &job);
+            push_job(&sk_asset_jobs.done, &job);
             sk_mutex_unlock(&sk_asset_jobs.lock);
         }
     }
     for (;;) {
         sk_mutex_lock(&sk_asset_jobs.lock);
-        have = pop_job(sk_asset_jobs.done, &sk_asset_jobs.done_head, &sk_asset_jobs.done_count, &job);
+        have = pop_job(&sk_asset_jobs.done, &job);
         sk_mutex_unlock(&sk_asset_jobs.lock);
         if (!have) break;
         sk_asset_task_t *task = &sk_asset_tasks[job.slot];
@@ -872,9 +925,9 @@ static void collect_prepared(void)
 static uint16_t next_finishing(void)
 {
     uint16_t next = 0;
-    for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) {
+    for (uint16_t i = 1; i < sk_asset_pool.capacity; i++) {
         const sk_asset_task_t *task = &sk_asset_tasks[i];
-        if (!sk_asset_occupied[i] || task->state != TASK_FINISHING) continue;
+        if (!sk_asset_pool.occupied[i] || task->state != TASK_FINISHING) continue;
         if (task->finish_started) return i;
         if (next == 0 || task->finish_order < sk_asset_tasks[next].finish_order) next = i;
     }
@@ -923,10 +976,10 @@ void sk_asset_tick(void)
 #ifdef __EMSCRIPTEN__
     sfetch_dowork(); /* fires on_fetch for any completed downloads */
 #endif
-    for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) {
+    for (uint16_t i = 1; i < sk_asset_pool.capacity; i++) {
         sk_asset_task_t *task = &sk_asset_tasks[i];
 
-        if (!sk_asset_occupied[i] || !task->armed || task->state == TASK_PREPARING ||
+        if (!sk_asset_pool.occupied[i] || !task->armed || task->state == TASK_PREPARING ||
             task->state == TASK_FINISHING) {
             continue;
         }
@@ -949,6 +1002,9 @@ void sk_asset_tick(void)
             resolved(i, true);
             continue;
         }
+        if (sk_asset_fetching >= MAX_FETCHES) {
+            continue; /* waits for a download to finish */
+        }
         start_fetch(i); /* miss (or forced): download, cache, resolve on later ticks */
 #else
         /* Desktop has no network fetcher yet, so FORCE_FETCH is a no-op: resolve
@@ -964,8 +1020,8 @@ SK_KEEP
 int sk_asset_pending_count(void)
 {
     int count = 0;
-    for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) {
-        count += sk_asset_occupied[i] ? 1 : 0;
+    for (uint16_t i = 1; i < sk_asset_pool.capacity; i++) {
+        count += sk_asset_pool.occupied[i] ? 1 : 0;
     }
     return count;
 }
@@ -988,14 +1044,14 @@ void sk_asset_deinit(void)
 #endif
     stop_workers(wait);
     sk_mutex_lock(&sk_asset_jobs.lock);
-    sk_asset_jobs.queue_count = 0;
-    while (pop_job(sk_asset_jobs.done, &sk_asset_jobs.done_head, &sk_asset_jobs.done_count, &job)) {
+    sk_asset_jobs.queue.count = 0;
+    while (pop_job(&sk_asset_jobs.done, &job)) {
         if (job.prepared != NULL) job.loader->discard(job.prepared);
     }
     sk_mutex_unlock(&sk_asset_jobs.lock);
-    for (uint16_t i = 1; i < MAX_ASSET_TASKS; i++) {
+    for (uint16_t i = 1; i < sk_asset_pool.capacity; i++) {
         sk_asset_task_t *task = &sk_asset_tasks[i];
-        if (!sk_asset_occupied[i]) continue;
+        if (!sk_asset_pool.occupied[i]) continue;
         if (task->prepared != NULL) {
             task->loader->discard(task->prepared);
             task->prepared = NULL;
@@ -1015,5 +1071,5 @@ void sk_asset_deinit(void)
 #ifdef __EMSCRIPTEN__
     sfetch_shutdown();
 #endif
-    sk_handle_pool_reset(&sk_asset_pool);
+    sk_handle_pool_destroy(&sk_asset_pool);
 }

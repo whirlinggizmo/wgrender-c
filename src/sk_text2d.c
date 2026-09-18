@@ -19,7 +19,7 @@
  * (a font the text uses stays alive: the text holds a reference); a font that
  * isn't set (0) uses the default font. */
 
-#define MAX_TEXT2D 256
+#define TEXT2D_INITIAL 64 /* slots to start with; the pool doubles as needed */
 
 typedef struct {
     sk_handle_t font; /* referenced; 0 = the default font */
@@ -34,11 +34,8 @@ typedef struct {
     bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
 } sk_text2d_t;
 
-static sk_text2d_t sk_texts[MAX_TEXT2D];
+static sk_text2d_t *sk_texts; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_text2d_pool;
-static uint16_t sk_text2d_free_indices[MAX_TEXT2D];
-static uint16_t sk_text2d_generations[MAX_TEXT2D];
-static unsigned char sk_text2d_occupied[MAX_TEXT2D];
 
 static sk_text2d_t *resolve(sk_handle_t handle)
 {
@@ -97,22 +94,22 @@ static bool pick_2d(sk_handle_t handle, float x, float y, sk_pick_result_t *out)
 
 void sk_text2d_init(void)
 {
-    memset(sk_texts, 0, sizeof(sk_texts));
-    sk_handle_pool_init(&sk_text2d_pool, SK_HANDLE_KIND_TEXT2D, MAX_TEXT2D,
-                        sk_text2d_free_indices, MAX_TEXT2D,
-                        sk_text2d_generations, sk_text2d_occupied);
+    if (!sk_handle_pool_init(&sk_text2d_pool, SK_HANDLE_KIND_TEXT2D, "text2d", (void **)&sk_texts,
+                             sizeof(sk_text2d_t), TEXT2D_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
+        log_error("text2d: out of memory");
+    }
     sk_scene_register_2d(SK_HANDLE_KIND_TEXT2D, draw_2d, pick_2d);
     sk_scene_register_enabled(SK_HANDLE_KIND_TEXT2D, sk_text2d_is_enabled);
 }
 
 void sk_text2d_deinit(void)
 {
-    for (int i = 0; i < MAX_TEXT2D; i++) {
-        if (sk_text2d_occupied[i]) sk_font_release(sk_texts[i].font);
+    for (int i = 0; i < sk_text2d_pool.capacity; i++) {
+        if (sk_text2d_pool.occupied[i]) sk_font_release(sk_texts[i].font);
         free(sk_texts[i].text);
         sk_texts[i].text = NULL;
     }
-    sk_handle_pool_reset(&sk_text2d_pool);
+    sk_handle_pool_destroy(&sk_text2d_pool);
 }
 
 SK_KEEP
@@ -121,7 +118,7 @@ sk_handle_t sk_text2d_create(sk_handle_t font)
     sk_handle_t handle = sk_handle_pool_alloc(&sk_text2d_pool);
     uint16_t index = 0;
     if (handle == 0) {
-        log_error("MAX_TEXT2D reached (%d)", MAX_TEXT2D);
+        log_error("text2d: pool full (%u)", (unsigned)sk_text2d_pool.max - 1u);
         return 0;
     }
     sk_handle_pool_resolve(&sk_text2d_pool, handle, &index);

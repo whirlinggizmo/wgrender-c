@@ -545,8 +545,8 @@ void sk_sprite3d_destroy(sk_handle_t handle)
 
 void sk_sprite3d_init(void)
 {
-    if (!sk_handle_pool_init_growable(&sk_sprite_pool, SK_HANDLE_KIND_SPRITE3D, "sprite3d", (void **)&sk_sprites,
-                                      sizeof(sk_sprite3d_t), SPRITES_INITIAL, SK_MAX_SPRITE3D)) {
+    if (!sk_handle_pool_init(&sk_sprite_pool, SK_HANDLE_KIND_SPRITE3D, "sprite3d", (void **)&sk_sprites,
+                             sizeof(sk_sprite3d_t), SPRITES_INITIAL, SK_MAX_SPRITE3D)) {
         log_error("sprite3d: out of memory");
     }
     sk_scene_register_passes(SK_HANDLE_KIND_SPRITE3D, NULL, collect_transparent, draw_transparent);

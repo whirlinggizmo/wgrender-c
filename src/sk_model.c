@@ -32,8 +32,8 @@
  * shader sources + per-backend reflection + the vs_/fs_params_t UB structs */
 #include "internal/sk_shaders.h"
 
-#define MAX_MODELS 256
-#define MAX_MESHES 256
+#define MODELS_INITIAL 32 /* slots to start with; the pool doubles as needed */
+#define MESHES_INITIAL 32 /* slots to start with; the pool doubles as needed */
 #define MAX_MODEL_DRAWS 1024 /* model placements queued per frame */
 #define MAX_MODEL_ITEMS 8192 /* primitives queued per frame */
 #define SK_MAX_JOINTS 128
@@ -180,17 +180,11 @@ typedef struct {
 /* vs_params_t / vs_skin_params_t / fs_params_t are generated into
  * shaders/sk_model.glsl.h (included above) and mirror the shader uniform blocks. */
 
-static sk_mesh_t sk_meshes[MAX_MESHES];
+static sk_mesh_t *sk_meshes; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_mesh_pool;
-static uint16_t sk_mesh_free_indices[MAX_MESHES];
-static uint16_t sk_mesh_generations[MAX_MESHES];
-static unsigned char sk_mesh_occupied[MAX_MESHES];
 
-static sk_model_t sk_models[MAX_MODELS];
+static sk_model_t *sk_models; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_model_pool;
-static uint16_t sk_model_free_indices[MAX_MODELS];
-static uint16_t sk_model_generations[MAX_MODELS];
-static unsigned char sk_model_occupied[MAX_MODELS];
 
 /* [skinned][blended][double_sided] */
 static sg_pipeline sk_pips[2][2][2];
@@ -1208,8 +1202,8 @@ static void release_mesh(sk_handle_t mesh_handle)
 static sk_handle_t find_mesh_by_path(const char *path)
 {
     if (path == NULL || path[0] == '\0') return 0;
-    for (uint16_t i = 1; i < MAX_MESHES; i++) {
-        if (sk_mesh_occupied[i] && sk_meshes[i].has_path &&
+    for (uint16_t i = 1; i < sk_mesh_pool.capacity; i++) {
+        if (sk_mesh_pool.occupied[i] && sk_meshes[i].has_path &&
             strcmp(sk_meshes[i].path, path) == 0) {
             return sk_handle_pool_handle_from_index(&sk_mesh_pool, i);
         }
@@ -1338,7 +1332,7 @@ static sk_loader_step_t finish_mesh(void *data, const char *path, sk_handle_t *r
     prepared->textures.path = NULL;
     const sk_handle_t handle = sk_handle_pool_alloc(&sk_mesh_pool);
     if (handle == 0) {
-        log_error("MAX_MESHES reached (%d)", MAX_MESHES);
+        log_error("mesh: pool full (%u)", (unsigned)sk_mesh_pool.max - 1u);
         return SK_LOADER_FAILED;
     }
     if (path != NULL && path[0] != '\0') {
@@ -1379,7 +1373,7 @@ static sk_handle_t create_model(sk_handle_t mesh_handle)
      * with sk_model_set_mesh(); draw/animate no-op until then. */
     handle = sk_handle_pool_alloc(&sk_model_pool);
     if (handle == 0) {
-        log_error("MAX_MODELS reached (%d)", MAX_MODELS);
+        log_error("model: pool full (%u)", (unsigned)sk_model_pool.max - 1u);
         return 0;
     }
     model.mesh = mesh_handle;
@@ -2290,15 +2284,15 @@ void sk_model_init(void)
     static const unsigned char flat_normal[4] = {128, 128, 255, 255};
     sg_pipeline_desc base;
 
-    memset(sk_models, 0, sizeof(sk_models));
-    memset(sk_meshes, 0, sizeof(sk_meshes));
     sk_model_end_frame();
-    sk_handle_pool_init(&sk_model_pool, SK_HANDLE_KIND_MODEL, MAX_MODELS,
-                        sk_model_free_indices, MAX_MODELS,
-                        sk_model_generations, sk_model_occupied);
-    sk_handle_pool_init(&sk_mesh_pool, SK_HANDLE_KIND_MESH, MAX_MESHES,
-                        sk_mesh_free_indices, MAX_MESHES,
-                        sk_mesh_generations, sk_mesh_occupied);
+    if (!sk_handle_pool_init(&sk_model_pool, SK_HANDLE_KIND_MODEL, "model", (void **)&sk_models,
+                             sizeof(sk_model_t), MODELS_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
+        log_error("model: out of memory");
+    }
+    if (!sk_handle_pool_init(&sk_mesh_pool, SK_HANDLE_KIND_MESH, "mesh", (void **)&sk_meshes,
+                             sizeof(sk_mesh_t), MESHES_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
+        log_error("mesh: out of memory");
+    }
 
     sk_shd_static = make_static_shader();
     sk_shd_skinned = make_skinned_shader();
@@ -2362,15 +2356,15 @@ void sk_model_init(void)
 
 void sk_model_deinit(void)
 {
-    for (uint16_t i = 1; i < MAX_MODELS; i++) {
-        if (sk_model_occupied[i]) {
+    for (uint16_t i = 1; i < sk_model_pool.capacity; i++) {
+        if (sk_model_pool.occupied[i]) {
             sk_handle_t h = sk_handle_pool_handle_from_index(&sk_model_pool, i);
             sk_model_destroy(h);
         }
     }
     /* drop any meshes created explicitly (preloaded) with no live models */
-    for (uint16_t i = 1; i < MAX_MESHES; i++) {
-        if (sk_mesh_occupied[i]) {
+    for (uint16_t i = 1; i < sk_mesh_pool.capacity; i++) {
+        if (sk_mesh_pool.occupied[i]) {
             sk_mesh_t *mesh = &sk_meshes[i];
             free_mesh_data(mesh);
             memset(mesh, 0, sizeof(*mesh));
@@ -2394,6 +2388,6 @@ void sk_model_deinit(void)
     }
     sg_destroy_shader(sk_shd_static);
     sg_destroy_shader(sk_shd_skinned);
-    sk_handle_pool_reset(&sk_model_pool);
-    sk_handle_pool_reset(&sk_mesh_pool);
+    sk_handle_pool_destroy(&sk_model_pool);
+    sk_handle_pool_destroy(&sk_mesh_pool);
 }

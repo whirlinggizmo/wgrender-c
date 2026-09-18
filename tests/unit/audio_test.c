@@ -237,7 +237,19 @@ void test_audio_threads(void)
                 sk_sound_destroy(extra);
                 break;
             }
-            default: sk_sound_set_volume(s, (float)(step % 5) / 4.0f); break;
+            case 8:
+                if (step % 900 == 8) { /* many sounds at once: the pool grows while mixing */
+                    sk_handle_t batch[200];
+                    for (int j = 0; j < 200; j++) {
+                        batch[j] = sk_sound_create(click);
+                        sk_sound_play(batch[j]);
+                    }
+                    for (int j = 0; j < 200; j++) sk_sound_destroy(batch[j]);
+                    break;
+                }
+                sk_sound_set_volume(s, (float)(step % 5) / 4.0f);
+                break;
+            default: break;
         }
     }
     mixer_running = 0;
@@ -247,6 +259,37 @@ void test_audio_threads(void)
     for (int i = 0; i < 4; i++) sk_sound_destroy(sounds[i]);
     sk_audio_release(music);
     sk_audio_release(click);
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    sk_sound_deinit();
+    sk_audio_deinit();
+}
+
+/* Every sound is mixed, however many exist (sounds past the 128th used to be
+ * silently left out). */
+void test_audio_many_sounds(void)
+{
+    enum { COUNT = 300 };
+    static sk_handle_t sounds[COUNT];
+    float out[BLOCK * 2];
+    float peak = 0.0f;
+
+    sk_audio_init();
+    sk_sound_init();
+    sk_logger_set_level(SK_LOGGER_LEVEL_WARN);
+    CHECK(write_test_wav(WAV_PATH, 22050, 22050));
+    sk_handle_t tone = sk_audio_create(WAV_PATH);
+    for (int i = 0; i < COUNT; i++) {
+        sounds[i] = sk_sound_create(i == COUNT - 1 ? tone : 0); /* only the last one has sound */
+        CHECK(sounds[i] != 0);
+    }
+    sk_sound_play(sounds[COUNT - 1]);
+    sk_audio_mix(out, BLOCK, 22050);
+    for (int i = 0; i < BLOCK * 2; i++) peak = fmaxf(peak, fabsf(out[i]));
+    CHECK(peak > 0.1f);
+
+    for (int i = 0; i < COUNT; i++) sk_sound_destroy(sounds[i]);
+    sk_audio_release(tone);
+    remove(WAV_PATH);
     sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
     sk_sound_deinit();
     sk_audio_deinit();

@@ -433,7 +433,9 @@ static void grow_sgl_budgets(sgl_error_t err)
     }
     log_warn("render: a frame ran out of %s (%d vertices, %d commands) and lost the draws past it; "
              "growing to %d vertices, %d commands",
-             vertices_full && commands_full ? "vertices and draw commands" : vertices_full ? "vertices" : "draw commands",
+             vertices_full && commands_full ? "vertices and draw commands"
+             : vertices_full                ? "vertices"
+                                            : "draw commands",
              sk_sgl_vertices, sk_sgl_commands, vertices, commands);
     sgl_destroy_context(sk_sgl_ctx);
     sk_sgl_ctx = ctx;

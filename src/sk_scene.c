@@ -20,7 +20,7 @@
 #include "sk_render.h"
 #include "sk_window.h"
 
-#define MAX_SCENES 64
+#define SCENES_INITIAL 8 /* slots to start with; the pool doubles as needed */
 #define SK_DRAWABLE_KIND_COUNT 64 /* handle kind is 6 bits */
 /* Transparent parts per scene layer: the list starts at TRANSPARENT_INITIAL and doubles
  * as needed, up to SK_MAX_TRANSPARENT_ITEMS (overridable at build time,
@@ -83,11 +83,8 @@ typedef struct {
     float exposure;
 } sk_scene_t;
 
-static sk_scene_t sk_scenes[MAX_SCENES];
+static sk_scene_t *sk_scenes; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_scene_pool;
-static uint16_t sk_scene_free_indices[MAX_SCENES];
-static uint16_t sk_scene_generations[MAX_SCENES];
-static unsigned char sk_scene_occupied[MAX_SCENES];
 
 typedef struct {
     sk_drawable_draw_opaque_fn draw_opaque;
@@ -333,7 +330,7 @@ sk_handle_t sk_scene_create(void)
     uint16_t index = 0;
 
     if (handle == 0) {
-        log_error("MAX_SCENES reached (%d)", MAX_SCENES);
+        log_error("scene: pool full (%u)", (unsigned)sk_scene_pool.max - 1u);
         return 0;
     }
     sk_handle_pool_resolve(&sk_scene_pool, handle, &index);
@@ -578,13 +575,13 @@ static bool grow_transparent_items(void)
     if (sk_transparent_capacity >= SK_MAX_TRANSPARENT_ITEMS) {
         return false;
     }
-    items = realloc(sk_transparent_items,
-                    sizeof(*items) * (size_t)(capacity < SK_MAX_TRANSPARENT_ITEMS ? capacity : SK_MAX_TRANSPARENT_ITEMS));
+    const int size = capacity < SK_MAX_TRANSPARENT_ITEMS ? capacity : SK_MAX_TRANSPARENT_ITEMS;
+    items = realloc(sk_transparent_items, sizeof(*items) * (size_t)size);
     if (items == NULL) {
         return false;
     }
     sk_transparent_items = items;
-    sk_transparent_capacity = capacity < SK_MAX_TRANSPARENT_ITEMS ? capacity : SK_MAX_TRANSPARENT_ITEMS;
+    sk_transparent_capacity = size;
     log_debug("scene: transparent list grown to %d parts", sk_transparent_capacity);
     return true;
 }
@@ -880,14 +877,14 @@ void sk_scene_update_interaction(void)
         sk_input_set_scene_pointer_captured(false); /* captured through the release frame */
         sk_scene_capture_releasing = false;
     }
-    for (int i = 0; i < MAX_SCENES; i++) {
+    for (int i = 0; i < sk_scene_pool.capacity; i++) {
         sk_scene_t *scene_ptr = &sk_scenes[i];
         sk_interaction_t *state = &scene_ptr->interaction;
         sk_handle_t entered = 0, left = 0, pressed_on = 0, released_on = 0, clicked_on = 0;
         bool is_2d = false;
         sk_handle_t hit;
 
-        if (!sk_scene_occupied[i] || !state->interactive) {
+        if (!sk_scene_pool.occupied[i] || !state->interactive) {
             continue;
         }
         hit = pick_member(scene_ptr, x, y, &is_2d);
@@ -921,14 +918,14 @@ void sk_scene_update_interaction(void)
 
 void sk_scene_end_tick_interaction(void)
 {
-    for (int i = 0; i < MAX_SCENES; i++) {
+    for (int i = 0; i < sk_scene_pool.capacity; i++) {
         sk_scenes[i].interaction.tick_edges = (sk_interaction_edges_t){0};
     }
 }
 
 void sk_scene_end_frame_interaction(void)
 {
-    for (int i = 0; i < MAX_SCENES; i++) {
+    for (int i = 0; i < sk_scene_pool.capacity; i++) {
         sk_scenes[i].interaction.frame_edges = (sk_interaction_edges_t){0};
     }
 }
@@ -1011,19 +1008,15 @@ bool sk_scene_is_clicked(sk_handle_t scene, sk_handle_t object)
 
 void sk_scene_init(void)
 {
-    memset(sk_scenes, 0, sizeof(sk_scenes));
     memset(sk_passes_registry, 0, sizeof(sk_passes_registry));
     memset(sk_bounds_registry, 0, sizeof(sk_bounds_registry));
     memset(sk_pick_registry, 0, sizeof(sk_pick_registry));
     memset(sk_enabled_registry, 0, sizeof(sk_enabled_registry));
     sk_scene_capture_releasing = false;
-    sk_handle_pool_init(&sk_scene_pool,
-                        SK_HANDLE_KIND_SCENE,
-                        MAX_SCENES,
-                        sk_scene_free_indices,
-                        MAX_SCENES,
-                        sk_scene_generations,
-                        sk_scene_occupied);
+    if (!sk_handle_pool_init(&sk_scene_pool, SK_HANDLE_KIND_SCENE, "scene", (void **)&sk_scenes,
+                             sizeof(sk_scene_t), SCENES_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
+        log_error("scene: out of memory");
+    }
 }
 
 void sk_scene_deinit(void)
@@ -1031,9 +1024,9 @@ void sk_scene_deinit(void)
     free(sk_transparent_items);
     sk_transparent_items = NULL;
     sk_transparent_capacity = 0;
-    for (int i = 0; i < MAX_SCENES; i++) {
+    for (int i = 0; i < sk_scene_pool.capacity; i++) {
         free(sk_scenes[i].items);
         sk_scenes[i] = (sk_scene_t){0};
     }
-    sk_handle_pool_reset(&sk_scene_pool);
+    sk_handle_pool_destroy(&sk_scene_pool);
 }

@@ -13,13 +13,10 @@
 #include "internal/sk_texture.h"
 #include "sk_logger.h"
 
-#define MAX_MATERIALS 1024
+#define MATERIALS_INITIAL 64 /* slots to start with; the pool doubles as needed */
 
-static sk_material_t sk_materials[MAX_MATERIALS];
+static sk_material_t *sk_materials; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_material_pool;
-static uint16_t sk_material_free_indices[MAX_MATERIALS];
-static uint16_t sk_material_generations[MAX_MATERIALS];
-static unsigned char sk_material_occupied[MAX_MATERIALS];
 
 /* ------------------------------------------------------------ parameters ---- */
 
@@ -168,21 +165,21 @@ void sk_material_release(sk_handle_t material)
 
 void sk_material_init(void)
 {
-    memset(sk_materials, 0, sizeof(sk_materials));
-    sk_handle_pool_init(&sk_material_pool, SK_HANDLE_KIND_MATERIAL, MAX_MATERIALS,
-                        sk_material_free_indices, MAX_MATERIALS,
-                        sk_material_generations, sk_material_occupied);
+    if (!sk_handle_pool_init(&sk_material_pool, SK_HANDLE_KIND_MATERIAL, "material", (void **)&sk_materials,
+                             sizeof(sk_material_t), MATERIALS_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
+        log_error("material: out of memory");
+    }
 }
 
 void sk_material_deinit(void)
 {
-    for (uint16_t i = 1; i < MAX_MATERIALS; i++) {
-        if (sk_material_occupied[i]) {
+    for (uint16_t i = 1; i < sk_material_pool.capacity; i++) {
+        if (sk_material_pool.occupied[i]) {
             clear_textures(&sk_materials[i]);
             memset(&sk_materials[i], 0, sizeof(sk_materials[i]));
         }
     }
-    sk_handle_pool_reset(&sk_material_pool);
+    sk_handle_pool_destroy(&sk_material_pool);
 }
 
 bool sk_material_set_texture_mipmaps(sk_handle_t material, const char *name, bool mipmaps)
@@ -210,7 +207,7 @@ sk_handle_t sk_material_create(sk_material_shading_t shading)
     }
     handle = sk_handle_pool_alloc(&sk_material_pool);
     if (handle == 0) {
-        log_error("MAX_MATERIALS reached (%d)", MAX_MATERIALS);
+        log_error("material: pool full (%u)", (unsigned)sk_material_pool.max - 1u);
         return 0;
     }
     sk_handle_pool_resolve(&sk_material_pool, handle, &index);

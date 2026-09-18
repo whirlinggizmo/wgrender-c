@@ -39,7 +39,7 @@
 /* Slots a pool can have at most: indices are 16 bits, and 0 is never a slot. */
 #define SK_HANDLE_POOL_MAX_SLOTS 65535u
 
-/* Handles into a pool of slots. Index 0 is reserved, so a zero handle is never valid.
+/* Handles into a pool of slots, which starts small and doubles as needed. Index 0 is reserved, so a zero handle is never valid.
  * Freeing a slot bumps its generation, so handles to what it held stop resolving.
  * Freed slots are reused oldest first: churn spreads over all of them, and a stale
  * handle only resolves again after its slot's generation wraps (1023 reuses of that
@@ -51,40 +51,31 @@ typedef struct
     uint16_t max;      /* capacity can grow to this */
     uint16_t next_index;
 
-    uint16_t *free_indices; /* ring: the oldest free slot first */
-    uint16_t free_capacity;
+    uint16_t *free_indices; /* ring of `capacity`: every free slot, the oldest first */
     uint16_t free_head;
     uint16_t free_count;
 
     uint16_t *generations;
     unsigned char *occupied;
 
-    /* growable pools only: the module's item array, grown and zeroed with the slots */
+    /* the module's item array, grown and zeroed with the slots */
     void **items;
     size_t item_size;
     const char *name; /* for log messages */
 } sk_handle_pool_t;
 
-/* A fixed pool over the caller's arrays (each `max` long; free_indices free_capacity long). */
-void sk_handle_pool_init(sk_handle_pool_t *pool,
-                         sk_handle_kind_t kind,
-                         uint16_t max,
-                         uint16_t *free_indices,
-                         uint16_t free_capacity,
-                         uint16_t *generations,
-                         unsigned char *occupied);
-/* A growable pool (`name` for log messages): it allocates its bookkeeping and the module's item array
+/* A pool (`name` for log messages): it allocates its bookkeeping and the module's item array
  * (*items, item_size bytes per slot), starting at `initial` slots and doubling when
  * full, up to `max` (at most SK_HANDLE_POOL_MAX_SLOTS). New slots are zeroed. Growing
  * moves *items, so a pointer into it must not be held across an alloc.
  * sk_handle_pool_destroy frees it all. */
-bool sk_handle_pool_init_growable(sk_handle_pool_t *pool,
-                                  sk_handle_kind_t kind,
-                                  const char *name,
-                                  void **items,
-                                  size_t item_size,
-                                  uint16_t initial,
-                                  uint16_t max);
+bool sk_handle_pool_init(sk_handle_pool_t *pool,
+                         sk_handle_kind_t kind,
+                         const char *name,
+                         void **items,
+                         size_t item_size,
+                         uint16_t initial,
+                         uint16_t max);
 void sk_handle_pool_destroy(sk_handle_pool_t *pool);
 void sk_handle_pool_reset(sk_handle_pool_t *pool);
 

@@ -35,14 +35,13 @@
 #undef STB_VORBIS_HEADER_ONLY
 #include "stb_vorbis.c" /* implementation */
 
-#define MAX_AUDIO 256
-#define SK_MAX_ACTIVE_SOUNDS 128
+#define AUDIO_INITIAL 32 /* slots to start with; the pool doubles as needed */
 #define STREAM_CHUNK_FRAMES 4096 /* frames decoded at a time while streaming */
 
 /* Mixing model (docs/PLAN-audio.md)
  * ---------------------------------
  * sokol_audio calls the mixer from the audio device's thread (on web, from the
- * browser's audio callback). It reads registered Sounds and their Audio, so every
+ * browser's audio callback). It reads every Sound and its Audio, so every
  * change to those happens under sk_audio_lock. Audio is either decoded (PCM held
  * in memory; files up to SK_AUDIO_STREAM_MIN_BYTES) or streamed (the encoded file
  * held in memory, decoded while playing by a per-Sound decoder). Both play through
@@ -82,14 +81,9 @@ struct sk_audio_stream {
     uint64_t next;      /* frame the decoder reads next */
 };
 
-static sk_audio_t sk_audios[MAX_AUDIO];
+static sk_audio_t *sk_audios; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_audio_pool;
-static uint16_t sk_audio_free_indices[MAX_AUDIO];
-static uint16_t sk_audio_generations[MAX_AUDIO];
-static unsigned char sk_audio_occupied[MAX_AUDIO];
 
-static sk_sound_t *sk_active_sounds[SK_MAX_ACTIVE_SOUNDS]; /* registered with the mixer */
-static int sk_active_count;
 
 /* ----------------------------------------------------------------- lock ---- */
 
@@ -313,8 +307,8 @@ static sk_audio_t *resolve_audio(sk_handle_t handle)
 static sk_handle_t find_audio_by_path(const char *path)
 {
     if (path == NULL || path[0] == '\0') return 0;
-    for (uint16_t i = 1; i < MAX_AUDIO; i++) {
-        if (sk_audio_occupied[i] && sk_audios[i].has_path && strcmp(sk_audios[i].path, path) == 0) {
+    for (uint16_t i = 1; i < sk_audio_pool.capacity; i++) {
+        if (sk_audio_pool.occupied[i] && sk_audios[i].has_path && strcmp(sk_audios[i].path, path) == 0) {
             return sk_handle_pool_handle_from_index(&sk_audio_pool, i);
         }
     }
@@ -395,7 +389,7 @@ static sk_loader_step_t finish_audio(void *prepared, const char *path, sk_handle
     *resource = sk_handle_pool_alloc(&sk_audio_pool);
     if (*resource == 0) {
         sk_audio_unlock();
-        log_error("MAX_AUDIO reached (%d)", MAX_AUDIO);
+        log_error("audio: pool full (%u)", (unsigned)sk_audio_pool.max - 1u);
         return SK_LOADER_FAILED;
     }
     sk_handle_pool_resolve(&sk_audio_pool, *resource, &index);
@@ -497,27 +491,6 @@ void sk_audio_release(sk_handle_t handle)
 
 /* -------------------------------------------------------------- mixer ------ */
 
-void sk_audio_register(sk_sound_t *sound)
-{
-    sk_audio_lock();
-    if (sound != NULL && sk_active_count < SK_MAX_ACTIVE_SOUNDS) {
-        sk_active_sounds[sk_active_count++] = sound;
-    }
-    sk_audio_unlock();
-}
-
-void sk_audio_unregister(sk_sound_t *sound)
-{
-    sk_audio_lock();
-    for (int i = 0; i < sk_active_count; i++) {
-        if (sk_active_sounds[i] == sound) {
-            sk_active_sounds[i] = sk_active_sounds[--sk_active_count];
-            break;
-        }
-    }
-    sk_audio_unlock();
-}
-
 void sk_audio_stream_free(sk_sound_t *sound)
 {
     sk_audio_lock();
@@ -613,8 +586,8 @@ void sk_audio_mix(float *out, int frames, int sample_rate)
 {
     memset(out, 0, (size_t)frames * 2 * sizeof(float));
     sk_audio_lock();
-    for (int i = 0; i < sk_active_count; i++) {
-        sk_sound_t *sound = sk_active_sounds[i];
+    for (int i = 1; i < sk_sound_slot_count(); i++) {
+        sk_sound_t *sound = sk_sound_slot(i);
         if (sound == NULL || !sound->playing) {
             continue;
         }
@@ -652,12 +625,11 @@ static void stream_callback(float *buffer, int num_frames, int num_channels)
 
 void sk_audio_init(void)
 {
-    memset(sk_audios, 0, sizeof(sk_audios));
-    sk_active_count = 0;
     lock_init();
-    sk_handle_pool_init(&sk_audio_pool, SK_HANDLE_KIND_AUDIO, MAX_AUDIO,
-                        sk_audio_free_indices, MAX_AUDIO,
-                        sk_audio_generations, sk_audio_occupied);
+    if (!sk_handle_pool_init(&sk_audio_pool, SK_HANDLE_KIND_AUDIO, "audio", (void **)&sk_audios,
+                             sizeof(sk_audio_t), AUDIO_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
+        log_error("audio: out of memory");
+    }
     sk_asset_register_loader(".wav", &sk_audio_loader);
     sk_asset_register_loader(".ogg", &sk_audio_loader);
     sk_asset_register_loader(".mp3", &sk_audio_loader);
@@ -686,19 +658,15 @@ void sk_audio_deinit(void)
         saudio_shutdown(); /* stops the device thread before anything is freed */
     }
 #endif
-    sk_audio_lock();
-    for (int i = 0; i < sk_active_count; i++) {
-        sk_audio_stream_free(sk_active_sounds[i]);
-    }
-    sk_active_count = 0;
+    sk_audio_lock(); /* sounds (and their decoders) are gone: sk_sound_deinit runs first */
     /* free any audio resources still alive (sounds should have released theirs) */
-    for (uint16_t i = 1; i < MAX_AUDIO; i++) {
-        if (sk_audio_occupied[i]) {
+    for (uint16_t i = 1; i < sk_audio_pool.capacity; i++) {
+        if (sk_audio_pool.occupied[i]) {
             free_audio_data(&sk_audios[i]);
             sk_audios[i] = (sk_audio_t){0};
         }
     }
-    sk_handle_pool_reset(&sk_audio_pool);
+    sk_handle_pool_destroy(&sk_audio_pool);
     sk_audio_unlock();
     lock_destroy();
 }

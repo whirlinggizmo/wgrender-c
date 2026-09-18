@@ -21,7 +21,7 @@
  * are logical pixels, top-left origin, y down. The world's shapes are a separate
  * type (sk_shape3d), like sprite2d/sprite3d and text2d/text3d. */
 
-#define MAX_SHAPES2D 1024
+#define SHAPES2D_INITIAL 64 /* slots to start with; the pool doubles as needed */
 #define SK_CIRCLE_SEGMENTS 36
 #define SK_CORNER_SEGMENTS 8
 #define SHAPE_PI ((float)M_PI)
@@ -48,28 +48,25 @@ typedef struct {
     bool enabled; /* false: hits block the pointer but don't react (scene interaction) */
 } sk_shape2d_t;
 
-static sk_shape2d_t sk_shapes2d[MAX_SHAPES2D];
+static sk_shape2d_t *sk_shapes2d; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_shape2d_pool;
-static uint16_t sk_shape2d_free_indices[MAX_SHAPES2D];
-static uint16_t sk_shape2d_generations[MAX_SHAPES2D];
-static unsigned char sk_shape2d_occupied[MAX_SHAPES2D];
 
 static void draw_2d(sk_handle_t shape);
 static bool pick_2d(sk_handle_t shape, float screen_x, float screen_y, sk_pick_result_t *out);
 
 void sk_shape2d_init(void)
 {
-    memset(sk_shapes2d, 0, sizeof(sk_shapes2d));
-    sk_handle_pool_init(&sk_shape2d_pool, SK_HANDLE_KIND_SHAPE2D, MAX_SHAPES2D, sk_shape2d_free_indices,
-                        MAX_SHAPES2D, sk_shape2d_generations, sk_shape2d_occupied);
+    if (!sk_handle_pool_init(&sk_shape2d_pool, SK_HANDLE_KIND_SHAPE2D, "shape2d", (void **)&sk_shapes2d,
+                             sizeof(sk_shape2d_t), SHAPES2D_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
+        log_error("shape2d: out of memory");
+    }
     sk_scene_register_2d(SK_HANDLE_KIND_SHAPE2D, draw_2d, pick_2d);
     sk_scene_register_enabled(SK_HANDLE_KIND_SHAPE2D, sk_shape2d_is_enabled);
 }
 
 void sk_shape2d_deinit(void)
 {
-    memset(sk_shapes2d, 0, sizeof(sk_shapes2d));
-    sk_handle_pool_reset(&sk_shape2d_pool);
+    sk_handle_pool_destroy(&sk_shape2d_pool);
 }
 
 static sk_shape2d_t *resolve(sk_handle_t shape)
@@ -182,7 +179,7 @@ sk_handle_t sk_shape2d_create(void)
     uint16_t index = 0;
 
     if (handle == 0) {
-        log_error("MAX_SHAPES2D reached (%d)", MAX_SHAPES2D);
+        log_error("shape2d: pool full (%u)", (unsigned)sk_shape2d_pool.max - 1u);
         return 0;
     }
     sk_handle_pool_resolve(&sk_shape2d_pool, handle, &index);

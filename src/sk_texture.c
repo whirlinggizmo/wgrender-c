@@ -19,7 +19,7 @@
 #define STBI_NO_STDIO /* we feed bytes; sync path reads the file itself */
 #include "stb_image.h"
 
-#define MAX_TEXTURES 1024
+#define TEXTURES_INITIAL 64 /* slots to start with; the pool doubles as needed */
 #define SK_TEXTURE_BUILTIN_COUNT 2 /* index 1 = default white, 2 = missing-texture checker */
 #define CHECKER_SIZE 64
 #define CHECKER_SQUARE 8
@@ -46,11 +46,8 @@ typedef struct {
     bool has_path;
 } sk_texture_t;
 
-static sk_texture_t sk_textures[MAX_TEXTURES];
+static sk_texture_t *sk_textures; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_texture_pool;
-static uint16_t sk_texture_free_indices[MAX_TEXTURES];
-static uint16_t sk_texture_generations[MAX_TEXTURES];
-static unsigned char sk_texture_occupied[MAX_TEXTURES];
 static sg_sampler sk_default_sampler;
 static sg_sampler sk_texture_samplers[3][3][2]; /* [wrap_u][wrap_v][filter], made on first use */
 static sk_handle_t sk_texture_drawing_into;       /* target being drawn into (render pass), 0 = screen */
@@ -118,8 +115,8 @@ static sk_handle_t find_texture_by_path(const char *path)
     if (path == NULL || path[0] == '\0') {
         return 0;
     }
-    for (uint16_t i = SK_TEXTURE_BUILTIN_COUNT + 1; i < MAX_TEXTURES; i++) {
-        if (sk_texture_occupied[i] && sk_textures[i].has_path &&
+    for (uint16_t i = SK_TEXTURE_BUILTIN_COUNT + 1; i < sk_texture_pool.capacity; i++) {
+        if (sk_texture_pool.occupied[i] && sk_textures[i].has_path &&
             strcmp(sk_textures[i].path, path) == 0) {
             return sk_handle_pool_handle_from_index(&sk_texture_pool, i);
         }
@@ -134,7 +131,7 @@ static sk_handle_t alloc_texture_slot(sk_texture_t *out)
 
     handle = sk_handle_pool_alloc(&sk_texture_pool);
     if (handle == 0) {
-        log_error("MAX_TEXTURES reached (%d)", MAX_TEXTURES);
+        log_error("texture: pool full (%u)", (unsigned)sk_texture_pool.max - 1u);
         return 0;
     }
     sk_handle_pool_resolve(&sk_texture_pool, handle, &index);
@@ -694,14 +691,10 @@ void sk_texture_init(void)
     static const unsigned char white[4] = {255, 255, 255, 255};
     uint16_t index = 0;
 
-    memset(sk_textures, 0, sizeof(sk_textures));
-    sk_handle_pool_init(&sk_texture_pool,
-                        SK_HANDLE_KIND_TEXTURE,
-                        MAX_TEXTURES,
-                        sk_texture_free_indices,
-                        MAX_TEXTURES,
-                        sk_texture_generations,
-                        sk_texture_occupied);
+    if (!sk_handle_pool_init(&sk_texture_pool, SK_HANDLE_KIND_TEXTURE, "texture", (void **)&sk_textures,
+                             sizeof(sk_texture_t), TEXTURES_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
+        log_error("texture: out of memory");
+    }
     sk_asset_register_loader(".png", &sk_texture_loader);
     sk_asset_register_loader(".jpg", &sk_texture_loader);
     sk_asset_register_loader(".jpeg", &sk_texture_loader);
@@ -718,8 +711,8 @@ void sk_texture_init(void)
     sk_texture_self_use_logged = false;
 
     /* reserve + populate the built-in 1x1 white default at index 1 */
-    sk_texture_generations[1] = 1;
-    sk_texture_occupied[1] = 1;
+    sk_texture_pool.generations[1] = 1;
+    sk_texture_pool.occupied[1] = 1;
     sk_texture_pool.next_index = SK_TEXTURE_BUILTIN_COUNT + 1;
     sk_handle_pool_resolve(&sk_texture_pool, SK_TEXTURE_DEFAULT, &index);
     sk_textures[index].width = 1;
@@ -746,8 +739,8 @@ void sk_texture_init(void)
                 p[3] = 255;
             }
         }
-        sk_texture_generations[2] = 1;
-        sk_texture_occupied[2] = 1;
+        sk_texture_pool.generations[2] = 1;
+        sk_texture_pool.occupied[2] = 1;
         sk_handle_pool_resolve(&sk_texture_pool, SK_TEXTURE_CHECKER, &index);
         sk_textures[index].width = CHECKER_SIZE;
         sk_textures[index].height = CHECKER_SIZE;
@@ -762,8 +755,8 @@ void sk_texture_init(void)
 
 void sk_texture_deinit(void)
 {
-    for (uint16_t i = 1; i < MAX_TEXTURES; i++) {
-        if (sk_texture_occupied[i]) {
+    for (uint16_t i = 1; i < sk_texture_pool.capacity; i++) {
+        if (sk_texture_pool.occupied[i]) {
             free_texture_data(&sk_textures[i]);
             sk_textures[i] = (sk_texture_t){0};
         }
@@ -775,7 +768,7 @@ void sk_texture_deinit(void)
     }
     sk_default_sampler = (sg_sampler){0};
     sk_texture_placeholder = 0;
-    sk_handle_pool_reset(&sk_texture_pool);
+    sk_handle_pool_destroy(&sk_texture_pool);
 }
 
 bool sk_texture_get_target(sk_handle_t handle, sg_attachments *attachments, int *width, int *height)

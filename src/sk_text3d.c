@@ -21,7 +21,7 @@
 #include "sokol_gfx.h"
 #include "util/sokol_gl.h"
 
-#define MAX_TEXT3D 512
+#define TEXT3D_INITIAL 64 /* slots to start with; the pool doubles as needed */
 #define RASTER_SIZE 64.0f /* glyphs are rasterized at this pixel size and scaled to world units */
 
 /* Text3d object: a string placed in 3D, drawn with a TrueType font. */
@@ -40,11 +40,8 @@ typedef struct {
     bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
 } sk_text3d_t;
 
-static sk_text3d_t sk_text3ds[MAX_TEXT3D];
+static sk_text3d_t *sk_text3ds; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_text3d_pool;
-static uint16_t sk_text3d_free_indices[MAX_TEXT3D];
-static uint16_t sk_text3d_generations[MAX_TEXT3D];
-static unsigned char sk_text3d_occupied[MAX_TEXT3D];
 static sgl_pipeline sk_text3d_pipeline; /* fontstash's glyph shader, depth-tested */
 static sg_shader sk_text3d_pipeline_shader;
 
@@ -322,7 +319,7 @@ sk_handle_t sk_text3d_create(sk_handle_t font)
     sk_handle_t handle = sk_handle_pool_alloc(&sk_text3d_pool);
     uint16_t index = 0;
     if (handle == 0) {
-        log_error("MAX_TEXT3D reached (%d)", MAX_TEXT3D);
+        log_error("text3d: pool full (%u)", (unsigned)sk_text3d_pool.max - 1u);
         return 0;
     }
     sk_handle_pool_resolve(&sk_text3d_pool, handle, &index);
@@ -518,9 +515,10 @@ void sk_text_draw_3d(sk_handle_t font, const char *text, float x, float y, float
 
 void sk_text3d_init(void)
 {
-    memset(sk_text3ds, 0, sizeof(sk_text3ds));
-    sk_handle_pool_init(&sk_text3d_pool, SK_HANDLE_KIND_TEXT3D, MAX_TEXT3D, sk_text3d_free_indices, MAX_TEXT3D,
-                        sk_text3d_generations, sk_text3d_occupied);
+    if (!sk_handle_pool_init(&sk_text3d_pool, SK_HANDLE_KIND_TEXT3D, "text3d", (void **)&sk_text3ds,
+                             sizeof(sk_text3d_t), TEXT3D_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
+        log_error("text3d: out of memory");
+    }
     sk_scene_register_passes(SK_HANDLE_KIND_TEXT3D, NULL, collect_transparent, draw_transparent);
     sk_scene_register_bounds(SK_HANDLE_KIND_TEXT3D, text_bounds);
     sk_scene_register_pick(SK_HANDLE_KIND_TEXT3D, text_pick);
@@ -529,15 +527,14 @@ void sk_text3d_init(void)
 
 void sk_text3d_deinit(void)
 {
-    for (int i = 0; i < MAX_TEXT3D; i++) {
-        if (sk_text3d_occupied[i]) sk_font_release(sk_text3ds[i].font);
+    for (int i = 0; i < sk_text3d_pool.capacity; i++) {
+        if (sk_text3d_pool.occupied[i]) sk_font_release(sk_text3ds[i].font);
         free(sk_text3ds[i].text);
     }
-    memset(sk_text3ds, 0, sizeof(sk_text3ds));
     if (sk_text3d_pipeline.id != SG_INVALID_ID) {
         sgl_destroy_pipeline(sk_text3d_pipeline);
     }
     sk_text3d_pipeline = (sgl_pipeline){0};
     sk_text3d_pipeline_shader = (sg_shader){0};
-    sk_handle_pool_reset(&sk_text3d_pool);
+    sk_handle_pool_destroy(&sk_text3d_pool);
 }

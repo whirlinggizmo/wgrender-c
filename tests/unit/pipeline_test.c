@@ -416,3 +416,42 @@ void test_pipeline_group(void)
     CHECK(group_ok == 1);
     stop_assets();
 }
+
+static int chained;
+
+/* Each success queues another load from inside its callback, while tasks are in flight. */
+static void on_chain(const char *path, void *user)
+{
+    (void)path;
+    (void)user;
+    got.successes++;
+    if (chained < 200) {
+        chained++;
+        load(TEXTURE, SK_ASSET_NONE, on_chain);
+    }
+}
+
+/* Far more loads in flight than the task pool starts with (and than the old fixed
+ * 256), some queued from completion callbacks while the pool grows under them: all
+ * of them complete. */
+void test_pipeline_many(void)
+{
+    enum { LOADS = 600, CHAINS = 20 };
+
+    start_assets(2, ASSETS);
+    chained = 0;
+    /* loaded once up front: every task then finds it, so this tests the task
+     * bookkeeping rather than decoding the same file hundreds of times */
+    const sk_handle_t texture = sk_texture_create(ASSETS "/" TEXTURE);
+    CHECK(texture != 0);
+    for (int i = 0; i < LOADS; i++) {
+        load(TEXTURE, SK_ASSET_NONE, i < CHAINS ? on_chain : on_nothing);
+    }
+    CHECK(sk_asset_pending_count() == LOADS);
+    CHECK(run_until_done() > 0);
+    CHECK(got.failures == 0);
+    CHECK(got.successes == LOADS + chained);
+    CHECK(chained == 200);
+    sk_texture_release(texture);
+    stop_assets();
+}

@@ -49,8 +49,8 @@ static bool pick_handle(sk_handle_t sprite, float screen_x, float screen_y, sk_p
 
 void sk_sprite2d_init(void)
 {
-    if (!sk_handle_pool_init_growable(&sk_sprite2d_pool, SK_HANDLE_KIND_SPRITE2D, "sprite2d", (void **)&sk_sprites2d,
-                                      sizeof(sk_sprite2d_t), SPRITES_INITIAL, SK_MAX_SPRITE2D)) {
+    if (!sk_handle_pool_init(&sk_sprite2d_pool, SK_HANDLE_KIND_SPRITE2D, "sprite2d", (void **)&sk_sprites2d,
+                             sizeof(sk_sprite2d_t), SPRITES_INITIAL, SK_MAX_SPRITE2D)) {
         log_error("sprite2d: out of memory");
     }
     sk_scene_register_2d(SK_HANDLE_KIND_SPRITE2D, draw_handle, pick_handle);

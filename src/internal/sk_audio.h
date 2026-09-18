@@ -38,9 +38,11 @@ void sk_audio_unlock(void);
  * is sk_audio_create / sk_audio_release; Sound objects add their own references. */
 void sk_audio_retain(sk_handle_t audio);
 
-/* Register/unregister a Sound object with the mixer (take the lock). */
-void sk_audio_register(sk_sound_t *sound);
-void sk_audio_unregister(sk_sound_t *sound);
+/* The sound slots, for the mixer to walk (take the lock): indices 1 up to
+ * sk_sound_slot_count(), NULL for a free slot. Sounds are created and destroyed, and
+ * their pool grows, under the lock. */
+int sk_sound_slot_count(void);
+sk_sound_t *sk_sound_slot(int index);
 
 /* Free a sound's stream decoder, e.g. when it changes Audio or is destroyed
  * (take the lock). */

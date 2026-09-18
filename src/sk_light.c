@@ -11,7 +11,7 @@
 #include "internal/sk_light.h"
 #include "sk_logger.h"
 
-#define MAX_LIGHTS 256
+#define LIGHTS_INITIAL 32 /* slots to start with; the pool doubles as needed */
 
 /* Light object: parameters as set through the API. Resolved into
  * sk_scene_light_t (world-space, radiance, cone cosines) when a scene draws. */
@@ -27,11 +27,8 @@ typedef struct {
     bool enabled;
 } sk_light_t;
 
-static sk_light_t sk_lights[MAX_LIGHTS];
+static sk_light_t *sk_lights; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_light_pool;
-static uint16_t sk_light_free_indices[MAX_LIGHTS];
-static uint16_t sk_light_generations[MAX_LIGHTS];
-static unsigned char sk_light_occupied[MAX_LIGHTS];
 
 static sk_light_env_t sk_light_envs[SK_MAX_LIGHT_ENVS];
 static int sk_light_env_count;
@@ -40,15 +37,16 @@ static bool sk_light_env_full_logged;
 
 void sk_light_init(void)
 {
-    memset(sk_lights, 0, sizeof(sk_lights));
-    sk_handle_pool_init(&sk_light_pool, SK_HANDLE_KIND_LIGHT, MAX_LIGHTS, sk_light_free_indices,
-                        MAX_LIGHTS, sk_light_generations, sk_light_occupied);
+    if (!sk_handle_pool_init(&sk_light_pool, SK_HANDLE_KIND_LIGHT, "light", (void **)&sk_lights,
+                             sizeof(sk_light_t), LIGHTS_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
+        log_error("light: out of memory");
+    }
     sk_light_end_frame();
 }
 
 void sk_light_deinit(void)
 {
-    sk_handle_pool_reset(&sk_light_pool);
+    sk_handle_pool_destroy(&sk_light_pool);
     sk_light_end_frame();
 }
 
@@ -78,7 +76,7 @@ sk_handle_t sk_light_create(sk_light_type_t type)
     }
     handle = sk_handle_pool_alloc(&sk_light_pool);
     if (handle == 0) {
-        log_error("MAX_LIGHTS reached (%d)", MAX_LIGHTS);
+        log_error("light: pool full (%u)", (unsigned)sk_light_pool.max - 1u);
         return 0;
     }
     sk_handle_pool_resolve(&sk_light_pool, handle, &index);

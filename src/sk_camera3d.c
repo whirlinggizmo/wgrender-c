@@ -7,15 +7,12 @@
 #include "internal/sk_handle_pool.h"
 #include "sk_logger.h"
 
-#define MAX_CAMERAS 64
+#define CAMERAS_INITIAL 16 /* slots to start with; the pool doubles as needed */
 #define SK_CAMERA3D_BUILTIN_COUNT 1
 #define SK_CAMERA3D_DYNAMIC_START_INDEX (SK_CAMERA3D_BUILTIN_COUNT + 1)
 
-static sk_camera3d_t sk_cameras[MAX_CAMERAS];
+static sk_camera3d_t *sk_cameras; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_camera_pool;
-static uint16_t sk_camera_free_indices[MAX_CAMERAS];
-static uint16_t sk_camera_generations[MAX_CAMERAS];
-static unsigned char sk_camera_occupied[MAX_CAMERAS];
 static sk_handle_t sk_active_camera = 0;
 
 /* Built-in default camera (index 1, generation 1). */
@@ -54,7 +51,7 @@ sk_handle_t sk_camera3d_create(sk_camera3d_projection_t projection)
     uint16_t index = 0;
 
     if (handle == 0) {
-        log_error("MAX_CAMERAS reached (%d)", MAX_CAMERAS);
+        log_error("camera3d: pool full (%u)", (unsigned)sk_camera_pool.max - 1u);
         return 0;
     }
     sk_handle_pool_resolve(&sk_camera_pool, handle, &index);
@@ -237,18 +234,14 @@ bool sk_camera3d_get_active_data(sk_camera3d_t *out)
 
 void sk_camera3d_init(void)
 {
-    memset(sk_cameras, 0, sizeof(sk_cameras));
-    sk_handle_pool_init(&sk_camera_pool,
-                        SK_HANDLE_KIND_CAMERA3D,
-                        MAX_CAMERAS,
-                        sk_camera_free_indices,
-                        MAX_CAMERAS,
-                        sk_camera_generations,
-                        sk_camera_occupied);
+    if (!sk_handle_pool_init(&sk_camera_pool, SK_HANDLE_KIND_CAMERA3D, "camera3d", (void **)&sk_cameras,
+                             sizeof(sk_camera3d_t), CAMERAS_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
+        log_error("camera3d: out of memory");
+    }
 
     /* reserve the built-in default slot */
-    sk_camera_generations[1] = 1;
-    sk_camera_occupied[1] = 1;
+    sk_camera_pool.generations[1] = 1;
+    sk_camera_pool.occupied[1] = 1;
     sk_camera_pool.next_index = SK_CAMERA3D_DYNAMIC_START_INDEX;
 
     sk_cameras[1] = CAMERA_DEFAULTS;
@@ -258,6 +251,6 @@ void sk_camera3d_init(void)
 
 void sk_camera3d_deinit(void)
 {
-    sk_handle_pool_reset(&sk_camera_pool);
+    sk_handle_pool_destroy(&sk_camera_pool);
     sk_active_camera = 0;
 }

@@ -234,8 +234,14 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       1M vertices and 256K commands. Freed handle slots are reused oldest first, so
       churn no longer wraps one slot's 10-bit generation. spritebench: 32,768 sprites
       in every scene with the default build (was 1,024 sprite3d)
-- [ ] The other fixed pools (models, sounds, text2d, shapes, lights, ...) on the
-      growable handle pool
+- [x] Every handle pool grows (2026-09-18): textures, meshes, models, materials,
+      fonts, text2d/3d, shapes, lights, cameras, scenes, environments, audio, sounds
+      and asset tasks start small and double up to 65,534. Along the way: the mixer
+      walks the sound pool under its lock instead of a 128-entry pointer list, so
+      sounds past the 128th are no longer silent; asset job queues grow with the
+      tasks; web downloads are capped at 256 at once (sokol_fetch's pool) and the
+      rest wait instead of failing; stale task pointers after queueing dependencies
+      are gone
 - [ ] Particle emitters (batched/instanced)
 - [x] Render to texture: `sk_texture_create_target`, `sk_render_begin/end_texture`,
       `sk_texture_set_sampling` ([PLAN-render-target.md](PLAN-render-target.md),

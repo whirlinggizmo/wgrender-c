@@ -8,15 +8,14 @@ enum { POOL_MAX = 4 }; /* index 0 is reserved, so the pool holds 3 handles */
 
 typedef struct {
     sk_handle_pool_t pool;
-    uint16_t free_indices[POOL_MAX];
-    uint16_t generations[POOL_MAX];
-    unsigned char occupied[POOL_MAX];
+    int *items;
 } test_pool_t;
 
+/* A pool capped at POOL_MAX slots (it starts there, so it never grows). */
 static void init_pool(test_pool_t *p)
 {
-    sk_handle_pool_init(&p->pool, SK_HANDLE_KIND_TEXTURE, POOL_MAX, p->free_indices, POOL_MAX,
-                        p->generations, p->occupied);
+    CHECK(sk_handle_pool_init(&p->pool, SK_HANDLE_KIND_TEXTURE, "test", (void **)&p->items, sizeof(int), POOL_MAX,
+                              POOL_MAX));
 }
 
 void test_handle_pool(void)
@@ -49,6 +48,7 @@ void test_handle_pool(void)
     CHECK(!sk_handle_pool_resolve(&p.pool, 0, &index));
     CHECK(!sk_handle_pool_resolve(&p.pool, SK_HANDLE_MAKE(SK_HANDLE_KIND_TEXTURE, 0, 1), &index));
     CHECK(!sk_handle_pool_resolve(&p.pool, SK_HANDLE_MAKE(SK_HANDLE_KIND_TEXTURE, POOL_MAX, 1), &index));
+    sk_handle_pool_destroy(&p.pool);
 }
 
 void test_handle_pool_reuse(void)
@@ -90,6 +90,7 @@ void test_handle_pool_reuse(void)
     h1 = sk_handle_pool_alloc(&p.pool);
     CHECK(SK_HANDLE_INDEX(h1) == 1);
     CHECK(SK_HANDLE_GENERATION(h1) == 1);
+    sk_handle_pool_destroy(&p.pool);
 }
 
 void test_handle_pool_fifo(void)
@@ -112,6 +113,7 @@ void test_handle_pool_fifo(void)
     sk_handle_pool_free(&p.pool, again);
     CHECK(SK_HANDLE_INDEX(sk_handle_pool_alloc(&p.pool)) == SK_HANDLE_INDEX(h3));
     CHECK(SK_HANDLE_INDEX(sk_handle_pool_alloc(&p.pool)) == SK_HANDLE_INDEX(h1));
+    sk_handle_pool_destroy(&p.pool);
 }
 
 typedef struct {
@@ -128,7 +130,7 @@ void test_handle_pool_growable(void)
     uint16_t index = 0;
     bool all_resolve = true;
 
-    CHECK(sk_handle_pool_init_growable(&pool, SK_HANDLE_KIND_SPRITE3D, "test", (void **)&items, sizeof(test_item_t),
+    CHECK(sk_handle_pool_init(&pool, SK_HANDLE_KIND_SPRITE3D, "test", (void **)&items, sizeof(test_item_t),
                                        4, MAX));
     CHECK(items != NULL && pool.capacity == 4);
 

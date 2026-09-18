@@ -5,31 +5,7 @@
 
 #include "sk_logger.h"
 
-void sk_handle_pool_init(sk_handle_pool_t *pool,
-                         sk_handle_kind_t kind,
-                         uint16_t max,
-                         uint16_t *free_indices,
-                         uint16_t free_capacity,
-                         uint16_t *generations,
-                         unsigned char *occupied)
-{
-    if (pool == NULL) {
-        return;
-    }
-
-    *pool = (sk_handle_pool_t){
-        .kind = kind,
-        .capacity = max,
-        .max = max,
-        .free_indices = free_indices,
-        .free_capacity = free_capacity,
-        .generations = generations,
-        .occupied = occupied,
-    };
-    sk_handle_pool_reset(pool);
-}
-
-/* Grow a growable pool's slots, bookkeeping and items to `capacity`, zeroing the new
+/* Grow the pool's slots, bookkeeping and items to `capacity`, zeroing the new
  * slots. Only called with no free slot left, so the free ring is empty. */
 static bool grow(sk_handle_pool_t *pool, uint16_t capacity)
 {
@@ -62,20 +38,19 @@ static bool grow(sk_handle_pool_t *pool, uint16_t capacity)
     memset(generations + old_capacity, 0, sizeof(uint16_t) * (capacity - old_capacity));
     memset(occupied + old_capacity, 0, capacity - old_capacity);
     memset(items + pool->item_size * old_capacity, 0, pool->item_size * (capacity - old_capacity));
-    pool->free_capacity = capacity;
     pool->free_head = 0;
     pool->capacity = capacity;
     return true;
 }
 
-bool sk_handle_pool_init_growable(sk_handle_pool_t *pool,
-                                  sk_handle_kind_t kind,
-                                  const char *name,
-                                  void **items,
-                                  size_t item_size,
-                                  uint16_t initial,
-                                  uint16_t max)
-{
+bool sk_handle_pool_init(sk_handle_pool_t *pool,
+                         sk_handle_kind_t kind,
+                         const char *name,
+                         void **items,
+                         size_t item_size,
+                         uint16_t initial,
+                         uint16_t max)
+                         {
     if (pool == NULL || items == NULL || item_size == 0) {
         return false;
     }
@@ -107,7 +82,7 @@ bool sk_handle_pool_init_growable(sk_handle_pool_t *pool,
 void sk_handle_pool_destroy(sk_handle_pool_t *pool)
 {
     if (pool == NULL || pool->items == NULL) {
-        return; /* fixed pools own nothing */
+        return;
     }
     free(pool->generations);
     free(pool->occupied);
@@ -142,29 +117,20 @@ static uint16_t find_free_slot_index(sk_handle_pool_t *pool)
 {
     if (pool->free_count > 0) {
         const uint16_t index = pool->free_indices[pool->free_head];
-        pool->free_head = (uint16_t)((pool->free_head + 1u) % pool->free_capacity);
+        pool->free_head = (uint16_t)((pool->free_head + 1u) % pool->capacity);
         pool->free_count--;
         return index;
     }
 
-    /* slots never used, then (fixed pools whose free list overflowed) any free one */
+    /* then slots never used (skipping any reserved by hand) */
     for (uint16_t i = pool->next_index; i < pool->capacity; i++) {
         if (!pool->occupied[i]) {
             pool->next_index = (uint16_t)(i + 1u);
             return i;
         }
     }
-    if (pool->items == NULL) {
-        for (uint16_t i = 1; i < pool->next_index && i < pool->capacity; i++) {
-            if (!pool->occupied[i]) {
-                pool->next_index = (uint16_t)(i + 1u);
-                return i;
-            }
-        }
-        return 0;
-    }
 
-    /* a growable pool with every slot in use: double it */
+    /* every slot in use: double the pool */
     if (pool->capacity < pool->max) {
         const uint16_t old_capacity = pool->capacity;
         const uint32_t doubled = (uint32_t)old_capacity * 2u;
@@ -224,10 +190,8 @@ bool sk_handle_pool_free(sk_handle_pool_t *pool, sk_handle_t handle)
     pool->occupied[index] = 0;
     pool->generations[index] = bump_slot_generation(pool->generations[index]);
 
-    if (pool->free_count < pool->free_capacity) {
-        pool->free_indices[(pool->free_head + pool->free_count) % pool->free_capacity] = index;
-        pool->free_count++;
-    }
+    pool->free_indices[(pool->free_head + pool->free_count) % pool->capacity] = index;
+    pool->free_count++;
 
     return true;
 }

@@ -7,13 +7,10 @@
 #include "internal/sk_handle_pool.h"
 #include "sk_logger.h"
 
-#define MAX_SOUNDS 256
+#define SOUNDS_INITIAL 32 /* slots to start with; the pool doubles as needed */
 
-static sk_sound_t sk_sounds[MAX_SOUNDS];
+static sk_sound_t *sk_sounds; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_sound_pool;
-static uint16_t sk_sound_free_indices[MAX_SOUNDS];
-static uint16_t sk_sound_generations[MAX_SOUNDS];
-static unsigned char sk_sound_occupied[MAX_SOUNDS];
 
 static sk_sound_t *resolve(sk_handle_t handle)
 {
@@ -35,13 +32,14 @@ static sk_handle_t create_sound(sk_handle_t audio, bool loop)
     sk_handle_t handle;
     uint16_t index = 0;
 
+    sk_audio_lock(); /* the mixer walks the pool, which may grow here */
     handle = sk_handle_pool_alloc(&sk_sound_pool);
     if (handle == 0) {
-        log_error("MAX_SOUNDS reached (%d)", MAX_SOUNDS);
+        sk_audio_unlock();
+        log_error("sound: pool full (%u)", (unsigned)sk_sound_pool.max - 1u);
         return 0;
     }
     sk_handle_pool_resolve(&sk_sound_pool, handle, &index);
-    sk_audio_lock();
     sk_sounds[index] = (sk_sound_t){
         .audio = audio,
         .volume = 1.0f,
@@ -50,7 +48,6 @@ static sk_handle_t create_sound(sk_handle_t audio, bool loop)
         .playing = false,
     };
     if (audio != 0) sk_audio_retain(audio); /* the sound's own ref to the shared Audio */
-    sk_audio_register(&sk_sounds[index]);
     sk_audio_unlock();
     return handle;
 }
@@ -85,7 +82,6 @@ void sk_sound_destroy(sk_handle_t handle)
     sk_handle_t audio;
     if (sound_ptr == NULL) return;
     sk_audio_lock();
-    sk_audio_unregister(sound_ptr);
     sk_audio_stream_free(sound_ptr);
     audio = sound_ptr->audio;
     memset(sound_ptr, 0, sizeof(*sound_ptr));
@@ -168,23 +164,36 @@ bool sk_sound_is_playing(sk_handle_t handle)
 
 void sk_sound_init(void)
 {
-    memset(sk_sounds, 0, sizeof(sk_sounds));
-    sk_handle_pool_init(&sk_sound_pool, SK_HANDLE_KIND_SOUND, MAX_SOUNDS,
-                        sk_sound_free_indices, MAX_SOUNDS,
-                        sk_sound_generations, sk_sound_occupied);
+    sk_audio_lock(); /* the mixer may be running already */
+    if (!sk_handle_pool_init(&sk_sound_pool, SK_HANDLE_KIND_SOUND, "sound", (void **)&sk_sounds,
+                             sizeof(sk_sound_t), SOUNDS_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
+        log_error("sound: out of memory");
+    }
+    sk_audio_unlock();
 }
 
 void sk_sound_deinit(void)
 {
-    for (uint16_t i = 1; i < MAX_SOUNDS; i++) {
-        if (sk_sound_occupied[i]) {
+    for (uint16_t i = 1; i < sk_sound_pool.capacity; i++) {
+        if (sk_sound_pool.occupied[i]) {
             sk_audio_lock();
-            sk_audio_unregister(&sk_sounds[i]);
             sk_audio_stream_free(&sk_sounds[i]);
             sk_audio_release(sk_sounds[i].audio);
             sk_sounds[i] = (sk_sound_t){0};
             sk_audio_unlock();
         }
     }
-    sk_handle_pool_reset(&sk_sound_pool);
+    sk_audio_lock();
+    sk_handle_pool_destroy(&sk_sound_pool);
+    sk_audio_unlock();
+}
+
+int sk_sound_slot_count(void)
+{
+    return sk_sound_pool.capacity;
+}
+
+sk_sound_t *sk_sound_slot(int index)
+{
+    return index > 0 && index < sk_sound_pool.capacity && sk_sound_pool.occupied[index] ? &sk_sounds[index] : NULL;
 }
