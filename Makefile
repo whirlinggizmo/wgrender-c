@@ -70,13 +70,21 @@ else
   TARGET := desktop
   DEPS_CHECK := deps-check
 endif
+# BENCH_DEFS: extra -D flags for benchmark builds (tools/bench), e.g. raised pool
+# sizes. They get their own build directory (<target>-bench) so the normal
+# libraries, tests and examples never pick them up.
+BENCH_DEFS ?=
+ifneq ($(strip $(BENCH_DEFS)),)
+  TARGET := $(TARGET)-bench
+  CFLAGS += $(BENCH_DEFS)
+endif
 BUILD   := build/$(TARGET)
 LIB     := $(BUILD)/libsk.a
 
 SRCS    := $(wildcard src/*.c)
 OBJS    := $(patsubst src/%.c,$(BUILD)/obj/%.o,$(SRCS))
 
-.PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check parity loadbench \
+.PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check parity loadbench spritebench \
         web print-web-flags FORCE
 
 all: $(LIB)
@@ -168,6 +176,37 @@ else
 	@$(CC) $(STD) -O2 -Iinclude tools/bench/loadbench.c build/headless/libsk.a -ldl -lm -lpthread \
 	    -o build/headless/loadbench
 	@build/headless/loadbench 2>/dev/null
+endif
+
+# --- sprite benchmark (tools/bench) ------------------------------------------
+# Sprite-heavy scenes: which limit breaks first (object pools, sokol_gl's per-frame
+# vertex and command budgets) and frame time past the defaults. Runs twice: against
+# the normal library, then one built with raised caps (BENCH_DEFS, in its own
+# <target>-bench build directory). Headless by default (CPU only); DESKTOP=1 uses
+# the desktop build with vsync off.
+SPRITEBENCH_DEFS := -DSK_MAX_SPRITE3D=40000 -DSK_MAX_SPRITE2D=40000 -DSK_MAX_TRANSPARENT_ITEMS=40000 \
+                    -DSK_SGL_MAX_VERTICES=262144 -DSK_SGL_MAX_COMMANDS=65536
+SPRITEBENCH_INCS := -Iinclude -isystem deps/sokol
+spritebench:
+ifeq ($(DESKTOP),1)
+	@$(MAKE) --no-print-directory -j$(NPROC) all
+	@$(MAKE) --no-print-directory -j$(NPROC) all BENCH_DEFS="$(SPRITEBENCH_DEFS)"
+	@libs="$$($(MAKE) --no-print-directory -s -C examples print-ldlibs)"; \
+	$(CC) $(STD) -O2 -DSOKOL_GLCORE $(SPRITEBENCH_INCS) tools/bench/spritebench.c build/desktop/libsk.a \
+	    $$libs -lm -o build/desktop/spritebench && \
+	$(CC) $(STD) -O2 -DSOKOL_GLCORE $(SPRITEBENCH_DEFS) $(SPRITEBENCH_INCS) tools/bench/spritebench.c \
+	    build/desktop-bench/libsk.a $$libs -lm -o build/desktop-bench/spritebench
+	@build/desktop/spritebench 2>/dev/null
+	@build/desktop-bench/spritebench 2>/dev/null
+else
+	@$(MAKE) --no-print-directory -j$(NPROC) all HEADLESS=1
+	@$(MAKE) --no-print-directory -j$(NPROC) all HEADLESS=1 BENCH_DEFS="$(SPRITEBENCH_DEFS)"
+	@$(CC) $(STD) -O2 -DSK_HEADLESS -DSOKOL_DUMMY_BACKEND $(SPRITEBENCH_INCS) tools/bench/spritebench.c \
+	    build/headless/libsk.a -ldl -lm -lpthread -o build/headless/spritebench
+	@$(CC) $(STD) -O2 -DSK_HEADLESS -DSOKOL_DUMMY_BACKEND $(SPRITEBENCH_DEFS) $(SPRITEBENCH_INCS) \
+	    tools/bench/spritebench.c build/headless-bench/libsk.a -ldl -lm -lpthread -o build/headless-bench/spritebench
+	@build/headless/spritebench 2>/dev/null
+	@build/headless-bench/spritebench 2>/dev/null
 endif
 
 # --- shaders (sokol-shdc) ---------------------------------------------------

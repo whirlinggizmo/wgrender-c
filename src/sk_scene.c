@@ -22,7 +22,11 @@
 
 #define MAX_SCENES 64
 #define SK_DRAWABLE_KIND_COUNT 64 /* handle kind is 6 bits */
-#define MAX_TRANSPARENT_ITEMS 4096 /* per scene layer */
+/* transparent parts per scene layer; overridable at build time (-DSK_MAX_TRANSPARENT_ITEMS=...) for benchmarks. */
+#ifndef SK_MAX_TRANSPARENT_ITEMS
+#define SK_MAX_TRANSPARENT_ITEMS 4096
+#endif
+#define MAX_TRANSPARENT_ITEMS SK_MAX_TRANSPARENT_ITEMS /* per scene layer */
 
 typedef struct {
     sk_handle_t drawable;

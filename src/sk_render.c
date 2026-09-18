@@ -19,6 +19,16 @@
 #include "sokol_gfx.h"
 #include "util/sokol_gl.h"
 
+/* sokol_gl's per-frame budgets (0: sokol's defaults, 65536 vertices and 16384
+ * commands); overridable at build time for benchmarks. Everything drawn through
+ * sokol_gl in a frame shares them: sprites, 2D and 3D shapes, text. */
+#ifndef SK_SGL_MAX_VERTICES
+#define SK_SGL_MAX_VERTICES 0
+#endif
+#ifndef SK_SGL_MAX_COMMANDS
+#define SK_SGL_MAX_COMMANDS 0
+#endif
+
 #define MAX_RENDER_CMDS 1024
 #define MAX_RENDER_PASSES 17 /* the screen + 16 render target passes per frame */
 
@@ -187,6 +197,8 @@ void sk_render_set_3d_transparent(bool transparent)
 void sk_render_init(void)
 {
     sgl_setup(&(sgl_desc_t){
+        .max_vertices = SK_SGL_MAX_VERTICES,
+        .max_commands = SK_SGL_MAX_COMMANDS,
         .logger.func = 0,
     });
 

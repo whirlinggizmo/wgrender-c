@@ -19,7 +19,11 @@
 #include "sokol_gfx.h"
 #include "util/sokol_gl.h"
 
-#define MAX_SPRITES 1024
+/* sprite3d pool size; overridable at build time (-DSK_MAX_SPRITE3D=...) for benchmarks. */
+#ifndef SK_MAX_SPRITE3D
+#define SK_MAX_SPRITE3D 1024
+#endif
+#define MAX_SPRITES SK_MAX_SPRITE3D
 
 typedef struct {
     sk_handle_t texture;

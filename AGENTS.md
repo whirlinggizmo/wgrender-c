@@ -34,6 +34,9 @@ Keep this file short and rule-shaped. The authoritative design doc is
   `deps/sokol/VERSION`.
 - `make loadbench [DESKTOP=1]` — worst frame while loading large glTF models in the
   background vs synchronously (downloads them on first use).
+- `make spritebench [DESKTOP=1]` — sprite-heavy scenes against the default caps and
+  raised ones: sprites created, frame and CPU time, sokol_gl vertex/command use and
+  overflow. Raised caps come from `BENCH_DEFS`, built into `build/<target>-bench`.
 - `make webcheck [BACKEND=webgpu] [WEB_THREADS=0]` — web build smoke test in a
   browser (needs Emscripten, Node >= 22, a Chromium-based browser; WebGPU runs on a
   virtual X display when Xvfb is installed, else in a visible window). Web builds use
