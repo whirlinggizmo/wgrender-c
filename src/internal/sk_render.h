@@ -35,9 +35,24 @@ void sk_render_submit_models(int first, int count);
 typedef void (*sk_render_callback_fn)(int arg);
 void sk_render_submit_callback(sk_render_callback_fn draw, int arg);
 
+/* Append a batch of instanced sprites (sk_sprite_batch.c) to the command list; false
+ * when the list is full. sk_render_sprites_open: whether that batch's command is
+ * still the last thing recorded, so a sprite can join it. */
+bool sk_render_submit_sprites(int batch);
+bool sk_render_sprites_open(int batch);
+
 /* Switch the sokol_gl 3D pipeline between opaque (depth writes on) and
- * transparent (blended, depth writes off). Only valid inside 3D mode. */
+ * transparent (blended, depth writes off). Only valid inside 3D mode.
+ * sk_render_is_3d_transparent: which one is on (sprites follow it). */
 void sk_render_set_3d_transparent(bool transparent);
+bool sk_render_is_3d_transparent(void);
+
+/* Changes whenever the pass, 3D mode or clip changes (and each frame): a cheap check
+ * for whether state derived from them (sprite batches) is still current. */
+unsigned sk_render_state_revision(void);
+
+/* Commands in the frame's list so far. For tests. */
+int sk_render_command_count(void);
 
 /* The pass being recorded: 0 = the screen, >0 = a render target pass. */
 int sk_render_current_pass(void);

@@ -76,6 +76,7 @@ static const test_case_t TESTS[] = {
     {"sprite3d_2d_world", test_sprite3d_2d_world},
     {"sprite3d_facings", test_sprite3d_facings},
     {"sprite_pools_grow", test_sprite_pools_grow},
+    {"sprites_interleaved", test_sprites_interleaved},
     {"text_default_font", test_text_default_font},
     {"text_slices_and_dpi", test_text_slices_and_dpi},
     {"text_font_refcount", test_text_font_refcount},
@@ -102,6 +103,8 @@ static const test_case_t TESTS[] = {
     {"texture_draw_immediate", test_texture_draw_immediate},
     {"scene_view_depth", test_scene_view_depth},
     {"scene_sort_transparent", test_scene_sort_transparent},
+    {"scene_membership", test_scene_membership},
+    {"scene_sort_transparent_many", test_scene_sort_transparent_many},
 };
 
 int sk_test_failures;

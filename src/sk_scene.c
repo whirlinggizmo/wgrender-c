@@ -65,9 +65,12 @@ typedef struct {
 } sk_scene_clip_t;
 
 typedef struct {
-    sk_scene_entry_t *items;
+    sk_scene_entry_t *items; /* members, in layer order once tidy; drawable 0 = removed */
     int count;
     int capacity;
+    int *index;              /* open addressing, handle -> item index + 1 (0 = empty) */
+    int index_capacity;      /* a power of two, at least twice the members */
+    bool dirty;              /* removed members, or layer order to restore: tidy() */
     sk_scene_clip_t clips[MAX_SCENE_CLIPS];
     int clip_count;
     sk_interaction_t interaction;
@@ -153,11 +156,61 @@ static int compare_transparent(const void *lhs, const void *rhs)
     return (a->order > b->order) - (a->order < b->order);
 }
 
+/* A radix key for far-to-near order: floats map to unsigned ints that sort the same
+ * way (flip every bit of negatives, just the sign of the rest), then invert so the
+ * farthest comes first. */
+static uint32_t far_first_key(float depth)
+{
+    uint32_t bits;
+    memcpy(&bits, &depth, sizeof(bits));
+    bits = (bits & 0x80000000u) ? ~bits : (bits | 0x80000000u);
+    return ~bits;
+}
+
+static sk_transparent_item_t *sk_sort_scratch;
+static int sk_sort_scratch_capacity;
+
 void sk_scene_sort_transparent(sk_transparent_item_t *items, int count)
 {
-    if (count > 1) {
-        qsort(items, (size_t)count, sizeof(items[0]), compare_transparent);
+    bool in_order = true;
+    sk_transparent_item_t *from = items, *to;
+
+    if (count < 2) {
+        return;
     }
+    for (int i = 1; i < count && in_order; i++) {
+        in_order = items[i - 1].order < items[i].order;
+    }
+    /* few, or ties not already in submission order: a comparison sort */
+    if (count < 64 || !in_order) {
+        qsort(items, (size_t)count, sizeof(items[0]), compare_transparent);
+        return;
+    }
+    if (count > sk_sort_scratch_capacity) {
+        sk_transparent_item_t *grown = realloc(sk_sort_scratch, sizeof(*grown) * (size_t)count);
+        if (grown == NULL) {
+            qsort(items, (size_t)count, sizeof(items[0]), compare_transparent);
+            return;
+        }
+        sk_sort_scratch = grown;
+        sk_sort_scratch_capacity = count;
+    }
+    /* least significant byte first, 4 stable passes: ties keep submission order */
+    to = sk_sort_scratch;
+    for (int shift = 0; shift < 32; shift += 8) {
+        int offsets[256] = {0};
+        for (int i = 0; i < count; i++) offsets[(far_first_key(from[i].depth) >> shift) & 255]++;
+        for (int b = 0, sum = 0; b < 256; b++) {
+            const int n = offsets[b];
+            offsets[b] = sum;
+            sum += n;
+        }
+        for (int i = 0; i < count; i++) to[offsets[(far_first_key(from[i].depth) >> shift) & 255]++] = from[i];
+        sk_transparent_item_t *swap = from;
+        from = to;
+        to = swap;
+    }
+    /* an even number of passes: the sorted items are back in `items` */
 }
 
 void sk_scene_register_bounds(sk_handle_kind_t kind, sk_drawable_bounds_fn bounds)
@@ -313,14 +366,96 @@ static sk_scene_t *resolve(sk_handle_t scene)
     return &sk_scenes[index];
 }
 
+/* Membership: a hash index from handle to item, so adding, removing, destroying and
+ * relayering are constant time however many members a scene has. Removing leaves a
+ * hole (drawable 0); tidy() closes holes, restores layer order and rebuilds the index
+ * before the members are walked (draw, pick, interaction). */
+static unsigned slot_of(const sk_scene_t *scene_ptr, sk_handle_t drawable)
+{
+    return (unsigned)((drawable * 2654435761u) >> 7) & (unsigned)(scene_ptr->index_capacity - 1);
+}
+
 static int find_entry(sk_scene_t *scene_ptr, sk_handle_t drawable)
 {
+    if (scene_ptr->index_capacity == 0 || drawable == 0) {
+        return -1;
+    }
+    for (unsigned slot = slot_of(scene_ptr, drawable);; slot = (slot + 1) & (unsigned)(scene_ptr->index_capacity - 1)) {
+        const int entry = scene_ptr->index[slot];
+        if (entry == 0) return -1;
+        if (scene_ptr->items[entry - 1].drawable == drawable) return entry - 1;
+    }
+}
+
+static void index_insert(sk_scene_t *scene_ptr, int item)
+{
+    unsigned slot = slot_of(scene_ptr, scene_ptr->items[item].drawable);
+    while (scene_ptr->index[slot] != 0) {
+        slot = (slot + 1) & (unsigned)(scene_ptr->index_capacity - 1);
+    }
+    scene_ptr->index[slot] = item + 1;
+}
+
+/* Rebuild the index for the members as they are now, at a capacity for `wanted`. */
+static bool rebuild_index(sk_scene_t *scene_ptr, int wanted)
+{
+    int capacity = scene_ptr->index_capacity > 0 ? scene_ptr->index_capacity : 16;
+    while (capacity < wanted * 2) capacity *= 2;
+    if (capacity != scene_ptr->index_capacity) {
+        int *index = realloc(scene_ptr->index, sizeof(int) * (size_t)capacity);
+        if (index == NULL) return false;
+        scene_ptr->index = index;
+        scene_ptr->index_capacity = capacity;
+    }
+    memset(scene_ptr->index, 0, sizeof(int) * (size_t)scene_ptr->index_capacity);
     for (int i = 0; i < scene_ptr->count; i++) {
-        if (scene_ptr->items[i].drawable == drawable) {
-            return i;
+        if (scene_ptr->items[i].drawable != 0) index_insert(scene_ptr, i);
+    }
+    return true;
+}
+
+/* Take the member at `item` out of the index (linear probing: shift back the entries
+ * after it that would no longer be found) and leave a hole in the items. */
+static void remove_entry(sk_scene_t *scene_ptr, int item)
+{
+    const unsigned mask = (unsigned)(scene_ptr->index_capacity - 1);
+    unsigned hole = slot_of(scene_ptr, scene_ptr->items[item].drawable);
+    while (scene_ptr->index[hole] != item + 1) hole = (hole + 1) & mask;
+    for (unsigned next = (hole + 1) & mask; scene_ptr->index[next] != 0; next = (next + 1) & mask) {
+        const unsigned home = slot_of(scene_ptr, scene_ptr->items[scene_ptr->index[next] - 1].drawable);
+        /* move it into the hole unless its home lies cyclically in (hole, next] */
+        if (((next - home) & mask) >= ((next - hole) & mask)) {
+            scene_ptr->index[hole] = scene_ptr->index[next];
+            hole = next;
         }
     }
-    return -1;
+    scene_ptr->index[hole] = 0;
+    scene_ptr->items[item].drawable = 0;
+    scene_ptr->dirty = true;
+}
+
+/* Close the holes, put the members in layer order (stable) and rebuild the index. */
+static void tidy(sk_scene_t *scene_ptr)
+{
+    int kept = 0;
+    if (!scene_ptr->dirty) {
+        return;
+    }
+    for (int i = 0; i < scene_ptr->count; i++) {
+        if (scene_ptr->items[i].drawable != 0) scene_ptr->items[kept++] = scene_ptr->items[i];
+    }
+    scene_ptr->count = kept;
+    for (int i = 1; i < scene_ptr->count; i++) {
+        sk_scene_entry_t key = scene_ptr->items[i];
+        int j = i - 1;
+        while (j >= 0 && scene_ptr->items[j].layer > key.layer) {
+            scene_ptr->items[j + 1] = scene_ptr->items[j];
+            j--;
+        }
+        scene_ptr->items[j + 1] = key;
+    }
+    rebuild_index(scene_ptr, scene_ptr->count);
+    scene_ptr->dirty = false;
 }
 
 SK_KEEP
@@ -346,6 +481,7 @@ void sk_scene_destroy(sk_handle_t scene)
         return;
     }
     free(scene_ptr->items);
+    free(scene_ptr->index);
     sk_environment_release(scene_ptr->environment); /* no-op for 0 */
     sk_environment_release(scene_ptr->background);
     *scene_ptr = (sk_scene_t){0};
@@ -365,7 +501,11 @@ bool sk_scene_add(sk_handle_t scene, sk_handle_t drawable, int layer)
     existing = find_entry(scene_ptr, drawable);
     if (existing >= 0) {
         scene_ptr->items[existing].layer = layer;
+        scene_ptr->dirty = true;
         return true;
+    }
+    if ((scene_ptr->count + 1) * 2 > scene_ptr->index_capacity && !rebuild_index(scene_ptr, scene_ptr->count + 1)) {
+        return false;
     }
 
     if (scene_ptr->count >= scene_ptr->capacity) {
@@ -380,7 +520,9 @@ bool sk_scene_add(sk_handle_t scene, sk_handle_t drawable, int layer)
 
     scene_ptr->items[scene_ptr->count].drawable = drawable;
     scene_ptr->items[scene_ptr->count].layer = layer;
+    index_insert(scene_ptr, scene_ptr->count);
     scene_ptr->count++;
+    scene_ptr->dirty = true; /* its layer may not be the last one */
     return true;
 }
 
@@ -397,6 +539,7 @@ bool sk_scene_set_layer(sk_handle_t scene, sk_handle_t drawable, int layer)
         return false;
     }
     scene_ptr->items[idx].layer = layer;
+    scene_ptr->dirty = true;
     return true;
 }
 
@@ -412,10 +555,7 @@ bool sk_scene_remove(sk_handle_t scene, sk_handle_t drawable)
     if (idx < 0) {
         return false;
     }
-    /* preserve order (stable for equal layers) */
-    memmove(&scene_ptr->items[idx], &scene_ptr->items[idx + 1],
-            (size_t)(scene_ptr->count - idx - 1) * sizeof(sk_scene_entry_t));
-    scene_ptr->count--;
+    remove_entry(scene_ptr, idx); /* the rest keep their order */
     return true;
 }
 
@@ -430,10 +570,8 @@ void sk_scene_forget(sk_handle_t object)
         if (!sk_scene_pool.occupied[i]) {
             continue;
         }
-        while ((idx = find_entry(scene_ptr, object)) >= 0) {
-            memmove(&scene_ptr->items[idx], &scene_ptr->items[idx + 1],
-                    (size_t)(scene_ptr->count - idx - 1) * sizeof(sk_scene_entry_t));
-            scene_ptr->count--;
+        if ((idx = find_entry(scene_ptr, object)) >= 0) {
+            remove_entry(scene_ptr, idx);
         }
         if (scene_ptr->interaction.hovered == object) {
             scene_ptr->interaction.hovered = 0;
@@ -455,6 +593,10 @@ void sk_scene_clear(sk_handle_t scene)
         return;
     }
     scene_ptr->count = 0;
+    scene_ptr->dirty = false;
+    if (scene_ptr->index != NULL) {
+        memset(scene_ptr->index, 0, sizeof(int) * (size_t)scene_ptr->index_capacity);
+    }
 }
 
 SK_KEEP
@@ -577,20 +719,6 @@ static int push_lighting(const sk_scene_t *scene_ptr)
     return sk_light_env_push(&env);
 }
 
-/* Stable insertion sort by layer, ascending (member order breaks ties). */
-static void sort_by_layer(sk_scene_t *scene_ptr)
-{
-    for (int i = 1; i < scene_ptr->count; i++) {
-        sk_scene_entry_t key = scene_ptr->items[i];
-        int j = i - 1;
-        while (j >= 0 && scene_ptr->items[j].layer > key.layer) {
-            scene_ptr->items[j + 1] = scene_ptr->items[j];
-            j--;
-        }
-        scene_ptr->items[j + 1] = key;
-    }
-}
-
 /* One layer: opaque parts first, then transparent parts sorted back to front
  * across all drawable kinds. Consecutive parts of the same kind stay batched
  * (the render command list merges adjacent sokol_gl and model runs). */
@@ -683,7 +811,7 @@ void sk_scene_draw(sk_handle_t scene)
         sk_camera3d_set_active(scene_ptr->camera);
     }
 
-    sort_by_layer(scene_ptr);
+    tidy(scene_ptr);
 
     if (!sk_camera3d_get_active_data(&cam)) {
         return;
@@ -761,7 +889,7 @@ sk_pick_result_t sk_scene_pick(sk_handle_t scene, sk_handle_t camera,
 
     /* 2D members are drawn on top of 3D, so they're hit first: topmost (last
      * drawn) first */
-    sort_by_layer(scene_ptr);
+    tidy(scene_ptr);
     for (int i = scene_ptr->count - 1; i >= 0; i--) {
         const sk_drawable_passes_t *passes = lookup_passes(scene_ptr->items[i].drawable);
         if (is_2d_member(scene_ptr->items[i].drawable) &&
@@ -848,7 +976,7 @@ static sk_handle_t pick_member(sk_scene_t *scene_ptr, float x, float y, bool *is
     sk_camera3d_t cam;
 
     *is_2d = false;
-    sort_by_layer(scene_ptr);
+    tidy(scene_ptr);
     for (int i = scene_ptr->count - 1; i >= 0 && hit == 0; i--) {
         const sk_drawable_passes_t *passes = lookup_passes(scene_ptr->items[i].drawable);
         if (is_2d_member(scene_ptr->items[i].drawable) &&
@@ -1049,11 +1177,15 @@ void sk_scene_init(void)
 
 void sk_scene_deinit(void)
 {
+    free(sk_sort_scratch);
+    sk_sort_scratch = NULL;
+    sk_sort_scratch_capacity = 0;
     free(sk_transparent_items);
     sk_transparent_items = NULL;
     sk_transparent_capacity = 0;
     for (int i = 0; i < sk_scene_pool.capacity; i++) {
         free(sk_scenes[i].items);
+        free(sk_scenes[i].index);
         sk_scenes[i] = (sk_scene_t){0};
     }
     sk_handle_pool_destroy(&sk_scene_pool);

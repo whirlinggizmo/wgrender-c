@@ -32,6 +32,9 @@ bool sk_camera3d_ensure_active(void);
 
 /* Fetch the parameters of the currently active camera. */
 bool sk_camera3d_get_active_data(sk_camera3d_t *out);
+/* Changes whenever a camera, or which one is active, changes: a cheap check for
+ * whether camera-derived state (sprite batches) is still current. */
+unsigned sk_camera3d_revision(void);
 /* Fetch a camera's parameters (0: the active camera) without changing which is active. */
 bool sk_camera3d_get_data(sk_handle_t camera, sk_camera3d_t *out);
 

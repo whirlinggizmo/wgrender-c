@@ -1,6 +1,6 @@
 # Plan: a sprite renderer, and particle emitters
 
-Status: proposed (2026-09-18). Nothing built yet.
+Status: step 1 built (2026-09-18); steps 2-4 to come.
 
 ## Why
 
@@ -153,6 +153,60 @@ Each step is its own commit, measured on desktop, headless Chrome and the phone.
    from a texture handle, like sprites), not a sprite flag. Recommend: yes.
 5. **Particles within an emitter aren't sorted** (additive by default). Recommend: yes;
    revisit if a blended effect looks wrong.
+
+## As built
+
+### Step 1: the instanced pipeline, with sprite3d on it (2026-09-18)
+
+- `src/shaders/sk_sprite.glsl` (`@module sprite`) and `src/sk_sprite_batch.c`: one
+  76-byte record per sprite (position, facing, size, pivot, source rectangle, axes for
+  flat and free sprites, tint), a 6-corner quad drawn instanced. Billboard axes are
+  per camera, so they're uniforms, worked out by `sk_sprite3d_facing_basis` like
+  picking's; flat and free sprites carry their own. Pipelines match sokol_gl's 3D ones
+  (blended, depth-tested, depth writes on for direct draws, off in a scene's sorted
+  pass). The frame's records go up in one transient buffer write before the passes.
+- Batches are `RENDER_CMD_SPRITES` render commands: order with sokol_gl layers, model
+  draws, passes and clips is unchanged. A batch records its camera, pass and scissor;
+  consecutive batches only re-apply what differs.
+- Looks the same: webcheck screenshots of `2d`, `pick` and `ui` are pixel-identical to
+  the sokol_gl path (the rest differ only where they animate), on WebGL2 and WebGPU.
+
+Measuring showed the per-sprite CPU work around the draw mattered as much as the
+draw itself, so this step also fixed:
+
+- **Scene membership**: a hash index per scene (handle -> member), with removals left
+  as holes that are closed, layer-sorted and re-indexed once before the members are
+  walked. Adding, removing, destroying (`sk_scene_forget`) and relayering were linear
+  scans, quadratic under churn.
+- **The transparent sort**: a stable radix sort on depth (ties keep submission order)
+  above 64 parts, instead of `qsort`.
+- **Per-sprite state lookups**: the batch's camera, pass and scissor are cached behind
+  `sk_render_state_revision` and `sk_camera3d_revision` instead of being re-read and
+  compared for every sprite.
+
+CPU ms per frame, before -> after:
+
+| 16,000 sprites          | desktop GL   | Chrome, WebGL2 | Pixel, WebGL2 | Pixel, WebGPU |
+|-------------------------|--------------|----------------|---------------|---------------|
+| field, one atlas        | 2.89 -> 0.92 | 5.40 -> 1.28   | 9.61 -> 3.58  | 9.61 -> 5.16  |
+| field, 4 textures       | 7.07 -> 1.35 | 9.21 -> 2.00   | 13.78 -> 5.75 | 15.87 -> 5.49 |
+| particles 3d            | 3.91 -> 0.98 | 6.12 -> 1.44   | 11.15 -> 4.47 | 11.82 -> 5.34 |
+
+- **The render command list grows** (up to 1M a frame) instead of stopping at 1,024:
+  sprites are commands now, so a frame alternating sprites and sokol_gl shapes adds
+  two per switch, where they used to share one sokol_gl stream.
+
+Known cost left: replaying many sokol_gl layers is quadratic (each `sgl_draw_layer`
+scans the frame's commands for its layer). It predates this step (models split
+layers too); 3,000 sprite/shape switches in one frame replay in about 5 ms on
+desktop. Fix: draw each layer's known command range, a small addition to libsk's
+sokol fork (TASKS).
+
+On the phone at 4,000 (the "thousands" games will have): the field from 5.0 to 1.9 ms
+(WebGL2) and 6.3 to 2.7 (WebGPU). 1,000 sprites from 4 textures stay where they were
+(about 2 ms): sorted back to front they make ~780 small batches, and WebGL2 has no
+base-instance draws, so each rebinds the instance buffer. Step 2's cutout mode
+removes the interleaving.
 
 ## Not in this plan
 

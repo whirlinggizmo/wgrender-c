@@ -1,3 +1,4 @@
+#include <time.h>
 /* UI essentials (docs/PLAN-2d.md step 3): nine-slice geometry, text2d wrapping and
  * alignment, and per-layer clip rectangles (which also mask picking). */
 #include <string.h>
@@ -15,7 +16,9 @@
 #include "sk_pick.h"
 #include "sk_render.h"
 #include "sk_scene.h"
+#include "sk.h"
 #include "sk_shape2d.h"
+#include "sk_shape3d.h"
 #include "sk_sprite2d.h"
 #include "sk_sprite3d.h"
 #include "internal/sk_texture.h"
@@ -473,6 +476,52 @@ void test_sprite_pools_grow(void)
     sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
     sk_scene_destroy(scene);
     sk_sprite2d_deinit();
+    sk_sprite3d_deinit();
+    sk_texture_deinit();
+    sk_camera3d_deinit();
+    sk_scene_deinit();
+    sk_render_deinit();
+    sg_shutdown();
+}
+
+static double now_seconds(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+}
+
+/* Sprites and sokol_gl shapes alternating thousands of times in one frame: each switch
+ * is a render command, far past the list's first size, and every sprite still draws. */
+void test_sprites_interleaved(void)
+{
+    enum { SWITCHES = 3000 };
+
+    sg_setup(&(sg_desc){.environment = sk_platform_environment()});
+    sk_render_init();
+    sk_scene_init();
+    sk_camera3d_init();
+    sk_texture_init();
+    sk_sprite3d_init();
+    sk_logger_set_level(SK_LOGGER_LEVEL_ERROR);
+
+    const sk_handle_t sprite = sk_sprite3d_create(sk_texture_get_default());
+    sk_render_begin();
+    sk_render_begin_mode_3d();
+    const double start = now_seconds();
+    for (int i = 0; i < SWITCHES; i++) {
+        sk_sprite3d_draw(sprite);
+        sk_shape3d_draw_line(0, 0, 0, 1, 1, 1, SK_COLOR_WHITE);
+    }
+    sk_render_end_mode_3d();
+    CHECK(sk_render_command_count() >= 2 * SWITCHES); /* a sprite batch and a layer per switch */
+    const double recorded = now_seconds();
+    sk_render_end();
+    fprintf(stderr, "    (%d switches: recorded in %.2f ms, replayed in %.2f ms)\n", SWITCHES,
+            (recorded - start) * 1000.0, (now_seconds() - recorded) * 1000.0);
+
+    sk_sprite3d_destroy(sprite);
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
     sk_sprite3d_deinit();
     sk_texture_deinit();
     sk_camera3d_deinit();

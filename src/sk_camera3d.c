@@ -15,6 +15,7 @@
 static sk_camera3d_t *sk_cameras; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_camera_pool;
 static sk_handle_t sk_active_camera = 0;
+static unsigned sk_camera_revision; /* bumped by every change to a camera or the active one */
 
 /* Built-in default camera (index 1, generation 1). */
 const sk_handle_t SK_CAMERA3D_DEFAULT = SK_HANDLE_MAKE(SK_HANDLE_KIND_CAMERA3D, 1, 1);
@@ -81,6 +82,7 @@ bool sk_camera3d_set_view(sk_handle_t camera,
     camera_ptr->position = (vec3_t){position_x, position_y, position_z};
     camera_ptr->target = (vec3_t){target_x, target_y, target_z};
     camera_ptr->up = (vec3_t){up_x, up_y, up_z};
+    sk_camera_revision++;
     return true;
 }
 
@@ -93,6 +95,7 @@ bool sk_camera3d_set_projection(sk_handle_t camera, sk_camera3d_projection_t pro
         return false;
     }
     camera_ptr->projection = projection;
+    sk_camera_revision++;
     return true;
 }
 
@@ -111,6 +114,7 @@ bool sk_camera3d_set_fov(sk_handle_t camera, float fov)
         return false;
     }
     camera_ptr->fov = fov;
+    sk_camera_revision++;
     return true;
 }
 
@@ -129,6 +133,7 @@ bool sk_camera3d_set_ortho_height(sk_handle_t camera, float height)
         return false;
     }
     camera_ptr->ortho_height = height;
+    sk_camera_revision++;
     return true;
 }
 
@@ -147,6 +152,7 @@ bool sk_camera3d_set_active(sk_handle_t handle)
         return false;
     }
     sk_active_camera = handle;
+    sk_camera_revision++;
     return true;
 }
 
@@ -172,6 +178,7 @@ void sk_camera3d_destroy(sk_handle_t handle)
     }
     sk_scene_forget(handle); /* scenes using it fall back to the active camera */
     sk_cameras[index] = (sk_camera3d_t){0};
+    sk_camera_revision++;
     sk_handle_pool_free(&sk_camera_pool, handle);
 }
 
@@ -182,6 +189,7 @@ bool sk_camera3d_ensure_active(void)
         return true;
     }
     sk_active_camera = SK_CAMERA3D_DEFAULT;
+    sk_camera_revision++;
     return resolve(sk_active_camera, &index);
 }
 
@@ -249,10 +257,17 @@ void sk_camera3d_init(void)
     sk_cameras[1] = CAMERA_DEFAULTS;
     sk_cameras[1].position = (vec3_t){10.0f, 10.0f, 10.0f};
     sk_active_camera = SK_CAMERA3D_DEFAULT;
+    sk_camera_revision++;
 }
 
 void sk_camera3d_deinit(void)
 {
     sk_handle_pool_destroy(&sk_camera_pool);
     sk_active_camera = 0;
+    sk_camera_revision++;
+}
+
+unsigned sk_camera3d_revision(void)
+{
+    return sk_camera_revision;
 }

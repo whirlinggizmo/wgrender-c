@@ -8,6 +8,8 @@
 #include "sk_color.h"
 #include "internal/sk_camera3d.h"
 #include "internal/sk_handle_pool.h"
+#include "internal/sk_render.h"
+#include "internal/sk_sprite_batch.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_math.h"
 #include "internal/sk_pick.h"
@@ -294,11 +296,9 @@ bool sk_sprite3d_is_visible(sk_handle_t handle)
 static void draw_handle(sk_handle_t handle)
 {
     sk_sprite3d_t *sprite_ptr = resolve(handle);
-    sk_camera3d_t cam;
+    sk_sprite_quad_t instance;
     sg_view view;
     sg_sampler smp;
-    sk_colorf_t tint;
-    float uv[4];
     int tw = 0, th = 0;
 
     if (sprite_ptr == NULL || !sprite_ptr->visible) {
@@ -307,32 +307,29 @@ static void draw_handle(sk_handle_t handle)
     if (!sk_texture_get_binding(sprite_ptr->texture, &view, &smp, &tw, &th)) {
         return;
     }
-    source_uv(sprite_ptr, tw, th, uv);
+    instance = (sk_sprite_quad_t){
+        .position = {sprite_ptr->position.x, sprite_ptr->position.y, sprite_ptr->position.z},
+        .facing = (float)sprite_ptr->facing,
+        .size = {sprite_ptr->width * sprite_ptr->scale.x, sprite_ptr->height * sprite_ptr->scale.y},
+        .pivot = {sprite_ptr->pivot_x, sprite_ptr->pivot_y},
+        .color = {(uint8_t)sk_color_get_red(sprite_ptr->tint), (uint8_t)sk_color_get_green(sprite_ptr->tint),
+                  (uint8_t)sk_color_get_blue(sprite_ptr->tint), (uint8_t)sk_color_get_alpha(sprite_ptr->tint)},
+    };
+    source_uv(sprite_ptr, tw, th, instance.uv);
     if (sk_texture_is_flipped(sprite_ptr->texture)) { /* render target stored bottom-up */
-        uv[1] = 1.0f - uv[1];
-        uv[3] = 1.0f - uv[3];
+        instance.uv[1] = 1.0f - instance.uv[1];
+        instance.uv[3] = 1.0f - instance.uv[3];
     }
-    if (!sk_camera3d_get_active_data(&cam)) {
-        return;
+    if (sprite_ptr->facing != SK_SPRITE3D_FACING_CAMERA && sprite_ptr->facing != SK_SPRITE3D_FACING_CAMERA_FIXED_Y) {
+        /* its own axes (the billboards' come from the camera, per batch) */
+        static const sk_camera3d_t unused_camera;
+        vec3_t right, up;
+        sk_sprite3d_facing_basis((sk_sprite3d_facing_t)sprite_ptr->facing, sprite_ptr->rotation, &unused_camera,
+                                 &right, &up);
+        instance.right[0] = right.x, instance.right[1] = right.y, instance.right[2] = right.z;
+        instance.up[0] = up.x, instance.up[1] = up.y, instance.up[2] = up.z;
     }
-
-    tint = sk_color_unpack(sprite_ptr->tint);
-
-    {
-        vec3_t tl, tr, br, bl;
-        sprite_quad_corners(sprite_ptr, &cam, &tl, &tr, &br, &bl);
-
-        sgl_enable_texture();
-        sgl_texture(view, smp);
-        sgl_begin_quads();
-        sgl_c4f(tint.r, tint.g, tint.b, tint.a);
-        sgl_v3f_t2f(tl.x, tl.y, tl.z, uv[0], uv[1]);
-        sgl_v3f_t2f(tr.x, tr.y, tr.z, uv[2], uv[1]);
-        sgl_v3f_t2f(br.x, br.y, br.z, uv[2], uv[3]);
-        sgl_v3f_t2f(bl.x, bl.y, bl.z, uv[0], uv[3]);
-        sgl_end();
-        sgl_disable_texture();
-    }
+    sk_sprite_batch_add_3d(&instance, view.id, smp.id, !sk_render_is_3d_transparent());
 }
 
 /* Scene: sprites are always in the transparent pass (textures usually have

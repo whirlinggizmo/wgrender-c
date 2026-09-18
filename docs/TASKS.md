@@ -253,6 +253,17 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       tasks; web downloads are capped at 256 at once (sokol_fetch's pool) and the
       rest wait instead of failing; stale task pointers after queueing dependencies
       are gone
+- [x] Instanced sprite3d (2026-09-18, [PLAN-sprites.md](PLAN-sprites.md) step 1): one
+      record per sprite, quads and billboards built on the GPU, batches as render
+      commands; with an indexed scene membership, a radix transparent sort and cached
+      batch state, the benchmark field of 16,000 sprites went 2.9 -> 0.9 ms (desktop) and
+      9.6 -> 3.6 ms (phone, WebGL2)
+- [ ] Linear sokol_gl replay: each `sgl_draw_layer` scans all of the frame's commands,
+      so many layers (sprites or models interleaved with shapes and text) replay in
+      quadratic time (3,000 switches: ~5 ms). Draw each layer's known command range
+      instead, via a small addition on a branch of libsk's sokol fork
+- [ ] Sprites, PLAN-sprites steps 2-4: alpha modes (cutout, additive), sprite2d on the
+      instanced path, particle emitters (3D and 2D, simulated on the GPU)
 - [ ] Particle emitters (batched/instanced)
 - [x] Render to texture: `sk_texture_create_target`, `sk_render_begin/end_texture`,
       `sk_texture_set_sampling` ([PLAN-render-target.md](PLAN-render-target.md),

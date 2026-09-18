@@ -104,8 +104,11 @@ void test_scene_clip(void);
 void test_sprite3d_2d_world(void);
 void test_sprite3d_facings(void);
 void test_sprite_pools_grow(void);
+void test_sprites_interleaved(void);
 
 void test_scene_view_depth(void);
 void test_scene_sort_transparent(void);
+void test_scene_membership(void);
+void test_scene_sort_transparent_many(void);
 
 #endif // SK_TESTS_H

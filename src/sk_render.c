@@ -1,6 +1,7 @@
 #include "sk_render.h"
 
 #include <stdbool.h>
+#include <stdlib.h>
 
 #include "internal/exports.h"
 #include "internal/sk_color.h"
@@ -11,6 +12,7 @@
 #include "internal/sk_model.h"
 #include "internal/sk_platform.h"
 #include "internal/sk_render.h"
+#include "internal/sk_sprite_batch.h"
 #include "internal/sk_texture.h"
 #include "sk_camera3d.h"
 #include "sk_logger.h"
@@ -36,7 +38,13 @@
 #define SK_SGL_MAX_COMMANDS (1 << 18)
 #endif
 
-#define MAX_RENDER_CMDS 1024
+/* The frame's command list starts at RENDER_CMDS_INITIAL and doubles as needed, up
+ * to SK_MAX_RENDER_CMDS (overridable at build time). Every switch between sokol_gl
+ * drawing and models, sprites or a callback adds one. */
+#define RENDER_CMDS_INITIAL 256
+#ifndef SK_MAX_RENDER_CMDS
+#define SK_MAX_RENDER_CMDS (1 << 20)
+#endif
 #define MAX_RENDER_PASSES 17 /* the screen + 16 render target passes per frame */
 
 /* Render model
@@ -54,6 +62,7 @@ typedef enum {
     RENDER_CMD_SGL_LAYER,
     RENDER_CMD_MODELS,
     RENDER_CMD_CALLBACK,
+    RENDER_CMD_SPRITES,
 } sk_render_cmd_kind_t;
 
 typedef struct {
@@ -80,22 +89,54 @@ static sgl_pipeline sk_pip_2d;
 static sgl_pipeline sk_pip_3d;
 static sgl_pipeline sk_pip_3d_transparent;
 
-static sk_render_cmd_t sk_render_cmds[MAX_RENDER_CMDS];
+static sk_render_cmd_t *sk_render_cmds;
+static int sk_render_cmd_capacity;
 static int sk_render_cmd_count;
 static int sk_render_next_layer;
 /* sokol_gl totals when the current layer was opened, to detect empty layers */
 static int sk_layer_mark_vertices;
 static int sk_layer_mark_commands;
 static bool sk_render_overflow_logged;
+static unsigned sk_render_revision; /* bumped when the pass, 3D mode or clip changes */
 /* the sokol_gl context everything records into, and its budgets */
 static sgl_context sk_sgl_ctx;
 static int sk_sgl_vertices;
 static int sk_sgl_commands;
 static bool sk_sgl_at_most_logged;
 
+/* Room for `more` commands, growing the list; false at the most there can be (logged
+ * once: what doesn't fit is drawn out of order or dropped). */
+static bool room_for(int more)
+{
+    int capacity = sk_render_cmd_capacity > 0 ? sk_render_cmd_capacity : RENDER_CMDS_INITIAL;
+    sk_render_cmd_t *grown;
+    if (sk_render_cmd_count + more <= sk_render_cmd_capacity) {
+        return true;
+    }
+    while (capacity < sk_render_cmd_count + more && capacity < SK_MAX_RENDER_CMDS) capacity *= 2;
+    if (capacity > SK_MAX_RENDER_CMDS) capacity = SK_MAX_RENDER_CMDS;
+    if (sk_render_cmd_count + more > capacity ||
+        (grown = realloc(sk_render_cmds, sizeof(*grown) * (size_t)capacity)) == NULL) {
+        if (!sk_render_overflow_logged) {
+            log_warn("render: %d render commands in a frame, the most there can be; the rest may be drawn out of "
+                     "order or dropped",
+                     sk_render_cmd_count);
+            sk_render_overflow_logged = true;
+        }
+        return false;
+    }
+    sk_render_cmds = grown;
+    sk_render_cmd_capacity = capacity;
+    return true;
+}
+
 static void open_sgl_layer(void)
 {
-    int layer = sk_render_next_layer++;
+    int layer;
+    if (!room_for(1)) {
+        return; /* keep drawing into the current layer */
+    }
+    layer = sk_render_next_layer++;
     sgl_layer(layer);
     sk_render_cmds[sk_render_cmd_count++] = (sk_render_cmd_t){
         .kind = RENDER_CMD_SGL_LAYER,
@@ -108,6 +149,7 @@ static void open_sgl_layer(void)
 
 static void reset_frame_commands(void)
 {
+    sk_render_revision++;
     const sk_colorf_t screen_clear = sk_render_passes[0].clear_color;
     sk_render_cmd_count = 0;
     sk_render_next_layer = 0;
@@ -155,7 +197,7 @@ void sk_render_submit_models(int first, int count)
     if (last->kind == RENDER_CMD_MODELS && last->pass == sk_render_current_pass_index &&
         last->first + last->count == first) {
         last->count += count; /* extend the adjacent model run */
-    } else if (sk_render_cmd_count < MAX_RENDER_CMDS - 1) {
+    } else if (room_for(2)) { /* the run, and the sgl layer after it */
         sk_render_cmds[sk_render_cmd_count++] = (sk_render_cmd_t){
             .kind = RENDER_CMD_MODELS,
             .pass = sk_render_current_pass_index,
@@ -163,11 +205,7 @@ void sk_render_submit_models(int first, int count)
             .count = count,
         };
     } else {
-        /* out of commands: fold into the last model run (order may be off) */
-        if (!sk_render_overflow_logged) {
-            log_warn("render: MAX_RENDER_CMDS (%d) reached; draw order may be wrong", MAX_RENDER_CMDS);
-            sk_render_overflow_logged = true;
-        }
+        /* out of commands (logged): fold into the last model run (order may be off) */
         for (int i = sk_render_cmd_count - 1; i >= 0; i--) {
             if (sk_render_cmds[i].kind == RENDER_CMD_MODELS && sk_render_cmds[i].pass == sk_render_current_pass_index) {
                 sk_render_cmds[i].count = first + count - sk_render_cmds[i].first;
@@ -181,11 +219,12 @@ void sk_render_submit_models(int first, int count)
 
 void sk_render_submit_callback(sk_render_callback_fn draw, int arg)
 {
-    sk_render_cmd_t *last = &sk_render_cmds[sk_render_cmd_count - 1];
+    sk_render_cmd_t *last;
 
-    if (draw == NULL || sk_render_cmd_count >= MAX_RENDER_CMDS - 1) {
+    if (draw == NULL || !room_for(2)) {
         return;
     }
+    last = &sk_render_cmds[sk_render_cmd_count - 1];
     /* drop the current sgl layer if nothing was recorded into it */
     if (sk_render_cmd_count > 1 && last->kind == RENDER_CMD_SGL_LAYER && last->pass == sk_render_current_pass_index &&
         sgl_num_vertices() == sk_layer_mark_vertices && sgl_num_commands() == sk_layer_mark_commands) {
@@ -201,9 +240,56 @@ void sk_render_submit_callback(sk_render_callback_fn draw, int arg)
     open_sgl_layer();
 }
 
+/* Whether the current sgl layer has had nothing recorded into it since it opened. */
+static bool layer_is_empty(void)
+{
+    return sgl_num_vertices() == sk_layer_mark_vertices && sgl_num_commands() == sk_layer_mark_commands;
+}
+
+bool sk_render_submit_sprites(int batch)
+{
+    sk_render_cmd_t *last;
+
+    if (!room_for(2)) { /* the batch, and the sgl layer after it */
+        return false;
+    }
+    last = &sk_render_cmds[sk_render_cmd_count - 1];
+    /* drop the current sgl layer if nothing was recorded into it */
+    if (sk_render_cmd_count > 1 && last->kind == RENDER_CMD_SGL_LAYER && last->pass == sk_render_current_pass_index &&
+        layer_is_empty()) {
+        sk_render_cmd_count--;
+        sk_render_next_layer--;
+    }
+    sk_render_cmds[sk_render_cmd_count++] = (sk_render_cmd_t){
+        .kind = RENDER_CMD_SPRITES,
+        .pass = sk_render_current_pass_index,
+        .first = batch,
+    };
+    open_sgl_layer();
+    return true;
+}
+
+bool sk_render_sprites_open(int batch)
+{
+    /* the batch's command, then only the (empty) sgl layer opened after it */
+    return batch >= 0 && sk_render_cmd_count >= 2 && layer_is_empty() &&
+           sk_render_cmds[sk_render_cmd_count - 1].kind == RENDER_CMD_SGL_LAYER &&
+           sk_render_cmds[sk_render_cmd_count - 2].kind == RENDER_CMD_SPRITES &&
+           sk_render_cmds[sk_render_cmd_count - 2].first == batch &&
+           sk_render_cmds[sk_render_cmd_count - 2].pass == sk_render_current_pass_index;
+}
+
+static bool sk_render_transparent_3d;
+
 void sk_render_set_3d_transparent(bool transparent)
 {
     sgl_load_pipeline(transparent ? sk_pip_3d_transparent : sk_pip_3d);
+    sk_render_transparent_3d = transparent;
+}
+
+bool sk_render_is_3d_transparent(void)
+{
+    return sk_render_transparent_3d;
 }
 
 void sk_render_init(void)
@@ -265,12 +351,18 @@ void sk_render_init(void)
         },
     });
 
+    sk_sprite_batch_init();
     sk_render_passes[0].clear_color = (sk_colorf_t){0.1f, 0.1f, 0.1f, 1.0f};
     reset_frame_commands();
 }
 
 void sk_render_deinit(void)
 {
+    sk_sprite_batch_deinit();
+    free(sk_render_cmds);
+    sk_render_cmds = NULL;
+    sk_render_cmd_capacity = 0;
+    sk_render_cmd_count = 0;
     sgl_destroy_pipeline(sk_pip_2d);
     sgl_destroy_pipeline(sk_pip_3d);
     sgl_destroy_pipeline(sk_pip_3d_transparent);
@@ -281,6 +373,7 @@ void sk_render_deinit(void)
 
 static void setup_2d_projection(void)
 {
+    sk_render_revision++;
     /* the screen in logical pixels, a render target in its pixels */
     const vec2_t size = sk_render_current_pass_index == 0 ? sk_window_get_screen_size() : sk_render_target_size();
     const float w = size.x;
@@ -328,7 +421,7 @@ bool sk_render_begin_texture(sk_handle_t texture)
         log_warn("sk_render_begin_texture: not a render target texture (see sk_texture_create_target)");
         return false;
     }
-    if (sk_render_pass_count >= MAX_RENDER_PASSES || sk_render_cmd_count >= MAX_RENDER_CMDS - 2) {
+    if (sk_render_pass_count >= MAX_RENDER_PASSES || !room_for(2)) {
         if (!sk_render_pass_overflow_logged) {
             log_warn("render: too many render target passes this frame (max %d)", MAX_RENDER_PASSES - 1);
             sk_render_pass_overflow_logged = true;
@@ -347,6 +440,7 @@ bool sk_render_begin_texture(sk_handle_t texture)
 SK_KEEP
 void sk_render_end_texture(void)
 {
+    sk_render_revision++;
     if (sk_render_current_pass_index == 0) {
         log_warn("sk_render_end_texture: not drawing into a texture");
         return;
@@ -354,9 +448,7 @@ void sk_render_end_texture(void)
     sk_render_current_pass_index = 0;
     sk_texture_set_drawing_into(0);
     clip_end_pass();
-    if (sk_render_cmd_count < MAX_RENDER_CMDS) {
-        open_sgl_layer();
-    }
+    open_sgl_layer();
     setup_2d_projection();
     apply_clip(); /* the screen's clip, in the layer that continues the screen pass */
 }
@@ -364,6 +456,7 @@ void sk_render_end_texture(void)
 /* Replay the commands recorded for pass `index` into the open sg pass. */
 static void replay_pass(int index)
 {
+    bool previous_sprites = false;
     for (int i = 0; i < sk_render_cmd_count; i++) {
         const sk_render_cmd_t *cmd = &sk_render_cmds[i];
         if (cmd->pass != index) {
@@ -373,9 +466,12 @@ static void replay_pass(int index)
             sgl_draw_layer(cmd->layer); /* shapes / sprites / 2D / fontstash text */
         } else if (cmd->kind == RENDER_CMD_MODELS) {
             sk_model_draw_items(cmd->first, cmd->count); /* custom-pipeline meshes */
+        } else if (cmd->kind == RENDER_CMD_SPRITES) {
+            sk_sprite_batch_draw(cmd->first, previous_sprites); /* instanced sprite quads */
         } else {
             cmd->callback(cmd->first);
         }
+        previous_sprites = cmd->kind == RENDER_CMD_SPRITES;
     }
 }
 
@@ -457,6 +553,7 @@ void sk_render_end(void)
     /* upload the font atlas before opening the pass (sg_update_image cannot run
      * inside a render pass) */
     sk_font_flush();
+    sk_sprite_batch_flush(); /* the frame's sprite instances, in one buffer update */
 
     /* render targets first, in the order they were begun, then the screen */
     for (int p = 1; p < sk_render_pass_count; p++) {
@@ -486,6 +583,7 @@ void sk_render_end(void)
     grow_sgl_budgets(sgl_err);
 
     sk_model_end_frame();
+    sk_sprite_batch_end_frame();
     sk_light_end_frame();
     sk_font_end_frame();
     sk_environment_end_frame();
@@ -558,6 +656,7 @@ static clip_rect_t current_clip(void)
 
 static void apply_clip(void)
 {
+    sk_render_revision++;
     const clip_rect_t clip = current_clip();
     set_scissor(clip.x, clip.y, clip.width, clip.height);
 }
@@ -634,6 +733,7 @@ static void clip_end_frame(void)
 SK_KEEP
 void sk_render_begin_mode_3d(void)
 {
+    sk_render_revision++;
     sk_camera3d_t cam;
     const vec2_t size = sk_render_target_size();
     const float aspect = size.y > 0.0f ? size.x / size.y : 1.0f;
@@ -644,6 +744,7 @@ void sk_render_begin_mode_3d(void)
 
     sgl_defaults();
     sgl_load_pipeline(sk_pip_3d);
+    sk_render_transparent_3d = false;
 
     /* same matrices as models and picking (sk_camera3d_projection / _view) */
     sgl_matrix_mode_projection();
@@ -656,4 +757,14 @@ SK_KEEP
 void sk_render_end_mode_3d(void)
 {
     setup_2d_projection();
+}
+
+unsigned sk_render_state_revision(void)
+{
+    return sk_render_revision;
+}
+
+int sk_render_command_count(void)
+{
+    return sk_render_cmd_count;
 }
