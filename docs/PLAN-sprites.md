@@ -196,11 +196,10 @@ CPU ms per frame, before -> after:
   sprites are commands now, so a frame alternating sprites and sokol_gl shapes adds
   two per switch, where they used to share one sokol_gl stream.
 
-Known cost left: replaying many sokol_gl layers is quadratic (each `sgl_draw_layer`
-scans the frame's commands for its layer). It predates this step (models split
-layers too); 3,000 sprite/shape switches in one frame replay in about 5 ms on
-desktop. Fix: draw each layer's known command range, a small addition to libsk's
-sokol fork (TASKS).
+Replaying many sokol_gl layers was quadratic (each `sgl_draw_layer` scanned the
+frame's commands for its layer), which predated this step (models split layers too).
+libsk's sokol fork now has `sgl_draw_layer_range`, and each layer draws its own
+command range: 3,000 sprite/shape switches in one frame replay in 0.6 ms, not 5.4.
 
 On the phone at 4,000 (the "thousands" games will have): the field from 5.0 to 1.9 ms
 (WebGL2) and 6.3 to 2.7 (WebGPU). 1,000 sprites from 4 textures stay where they were

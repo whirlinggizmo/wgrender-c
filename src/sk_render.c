@@ -69,7 +69,8 @@ typedef struct {
     sk_render_cmd_kind_t kind;
     int pass;  /* index into sk_render_passes */
     int layer; /* RENDER_CMD_SGL_LAYER */
-    int first; /* RENDER_CMD_MODELS: item range in sk_model's queue */
+    int first; /* RENDER_CMD_MODELS: item range in sk_model's queue; RENDER_CMD_SGL_LAYER:
+                  the layer's sokol_gl command range; RENDER_CMD_SPRITES: the batch */
     int count;
     sk_render_callback_fn callback; /* RENDER_CMD_CALLBACK: called with `first` */
 } sk_render_cmd_t;
@@ -138,13 +139,14 @@ static void open_sgl_layer(void)
     }
     layer = sk_render_next_layer++;
     sgl_layer(layer);
+    sk_layer_mark_vertices = sgl_num_vertices();
+    sk_layer_mark_commands = sgl_num_commands();
     sk_render_cmds[sk_render_cmd_count++] = (sk_render_cmd_t){
         .kind = RENDER_CMD_SGL_LAYER,
         .pass = sk_render_current_pass_index,
         .layer = layer,
+        .first = sk_layer_mark_commands, /* its sokol_gl commands start here; count: count_layer_commands */
     };
-    sk_layer_mark_vertices = sgl_num_vertices();
-    sk_layer_mark_commands = sgl_num_commands();
 }
 
 static void reset_frame_commands(void)
@@ -454,6 +456,26 @@ void sk_render_end_texture(void)
 }
 
 /* Replay the commands recorded for pass `index` into the open sg pass. */
+/* Each sokol_gl layer's commands run from where it opened to where the next one did
+ * (layers open one after another, and sokol_gl never merges across them). */
+static void count_layer_commands(void)
+{
+    sk_render_cmd_t *previous = NULL;
+    for (int i = 0; i < sk_render_cmd_count; i++) {
+        sk_render_cmd_t *cmd = &sk_render_cmds[i];
+        if (cmd->kind != RENDER_CMD_SGL_LAYER) {
+            continue;
+        }
+        if (previous != NULL) {
+            previous->count = cmd->first - previous->first;
+        }
+        previous = cmd;
+    }
+    if (previous != NULL) {
+        previous->count = sgl_num_commands() - previous->first;
+    }
+}
+
 static void replay_pass(int index)
 {
     bool previous_sprites = false;
@@ -463,7 +485,9 @@ static void replay_pass(int index)
             continue;
         }
         if (cmd->kind == RENDER_CMD_SGL_LAYER) {
-            sgl_draw_layer(cmd->layer); /* shapes / sprites / 2D / fontstash text */
+            /* shapes / 2D / fontstash text: only this layer's own commands, so replaying
+               many layers stays linear */
+            sgl_draw_layer_range(cmd->layer, cmd->first, cmd->count);
         } else if (cmd->kind == RENDER_CMD_MODELS) {
             sk_model_draw_items(cmd->first, cmd->count); /* custom-pipeline meshes */
         } else if (cmd->kind == RENDER_CMD_SPRITES) {
@@ -554,6 +578,7 @@ void sk_render_end(void)
      * inside a render pass) */
     sk_font_flush();
     sk_sprite_batch_flush(); /* the frame's sprite instances, in one buffer update */
+    count_layer_commands();
 
     /* render targets first, in the order they were begun, then the screen */
     for (int p = 1; p < sk_render_pass_count; p++) {

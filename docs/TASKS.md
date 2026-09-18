@@ -258,10 +258,11 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       commands; with an indexed scene membership, a radix transparent sort and cached
       batch state, the benchmark field of 16,000 sprites went 2.9 -> 0.9 ms (desktop) and
       9.6 -> 3.6 ms (phone, WebGL2)
-- [ ] Linear sokol_gl replay: each `sgl_draw_layer` scans all of the frame's commands,
-      so many layers (sprites or models interleaved with shapes and text) replay in
-      quadratic time (3,000 switches: ~5 ms). Draw each layer's known command range
-      instead, via a small addition on a branch of libsk's sokol fork
+- [x] Linear sokol_gl replay (2026-09-18): `sgl_draw_layer` scanned all of the frame's
+      commands for each layer, so many layers (sprites or models interleaved with
+      shapes and text) replayed in quadratic time. libsk's sokol fork adds
+      `sgl_draw_layer_range` (branch perf/sgl-draw-layer-range), and sk_render draws
+      each layer's own command range: 3,000 switches replay in 0.6 ms instead of 5.4
 - [ ] Sprites, PLAN-sprites steps 2-4: alpha modes (cutout, additive), sprite2d on the
       instanced path, particle emitters (3D and 2D, simulated on the GPU)
 - [ ] Particle emitters (batched/instanced)

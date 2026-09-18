@@ -432,6 +432,20 @@
     (in general you should either use either use sgl_draw() or
     sgl_draw_layer() in an application, but not both).
 
+    sgl_draw_layer() looks at all recorded draw commands to find the ones
+    of the layer. With many layers per frame this costs time in proportion
+    to layers times commands. When the application knows which commands a
+    layer has, it can draw only those:
+
+        sgl_draw_layer_range(int layer_id, int first_command, int num_commands)
+
+    (and the context-variant sgl_context_draw_layer_range()). This only
+    looks at the recorded commands from first_command to first_command +
+    num_commands - 1, and draws those of them that have a matching layer.
+    Get the command indices with sgl_num_commands() while recording: the
+    commands recorded after a call to sgl_layer() and before the next one
+    are one range (sokol-gl never merges commands of different layers).
+
     WORKING WITH CONTEXTS:
     ======================
     If you want to render to more than one sokol-gfx render pass you need to
@@ -852,6 +866,8 @@ SOKOL_GL_API_DECL void sgl_draw(void);
 SOKOL_GL_API_DECL void sgl_context_draw(sgl_context ctx);
 SOKOL_GL_API_DECL void sgl_draw_layer(int layer_id);
 SOKOL_GL_API_DECL void sgl_context_draw_layer(sgl_context ctx, int layer_id);
+SOKOL_GL_API_DECL void sgl_draw_layer_range(int layer_id, int first_command, int num_commands);
+SOKOL_GL_API_DECL void sgl_context_draw_layer_range(sgl_context ctx, int layer_id, int first_command, int num_commands);
 
 /* create and destroy pipeline objects */
 SOKOL_GL_API_DECL sgl_pipeline sgl_make_pipeline(const sg_pipeline_desc* desc);
@@ -3576,9 +3592,12 @@ static bool _sgl_is_default_context(sgl_context ctx_id) {
     return ctx_id.id == SGL_DEFAULT_CONTEXT.id;
 }
 
-static void _sgl_draw(_sgl_context_t* ctx, int layer_id) {
+static void _sgl_draw(_sgl_context_t* ctx, int layer_id, int first_command, int num_commands) {
     SOKOL_ASSERT(ctx);
-    if ((ctx->vertices.next > 0) && (ctx->commands.next > 0)) {
+    // clamp the range to the recorded commands
+    const int begin = (first_command > 0) ? first_command : 0;
+    const int end = (num_commands > ctx->commands.next - begin) ? ctx->commands.next : (begin + num_commands);
+    if ((ctx->vertices.next > 0) && (ctx->commands.next > 0) && (begin < end)) {
         sg_push_debug_group("sokol-gl");
 
         uint32_t cur_pip_id = SG_INVALID_ID;
@@ -3598,7 +3617,7 @@ static void _sgl_draw(_sgl_context_t* ctx, int layer_id) {
 
         // render all successfully recorded commands (this may be less than the
         // issued commands if we're in an error state)
-        for (int i = 0; i < ctx->commands.next; i++) {
+        for (int i = begin; i < end; i++) {
             const _sgl_command_t* cmd = &ctx->commands.ptr[i];
             if (cmd->layer_id != layer_id) {
                 continue;
@@ -4507,7 +4526,7 @@ SOKOL_API_IMPL void sgl_draw(void) {
     SOKOL_ASSERT(_SGL_INIT_COOKIE == _sgl.init_cookie);
     _sgl_context_t* ctx = _sgl.cur_ctx;
     if (ctx) {
-        _sgl_draw(ctx, 0);
+        _sgl_draw(ctx, 0, 0, ctx->commands.next);
     }
 }
 
@@ -4515,7 +4534,7 @@ SOKOL_API_IMPL void sgl_draw_layer(int layer_id) {
     SOKOL_ASSERT(_SGL_INIT_COOKIE == _sgl.init_cookie);
     _sgl_context_t* ctx = _sgl.cur_ctx;
     if (ctx) {
-        _sgl_draw(ctx, layer_id);
+        _sgl_draw(ctx, layer_id, 0, ctx->commands.next);
     }
 }
 
@@ -4523,7 +4542,7 @@ SOKOL_API_IMPL void sgl_context_draw(sgl_context ctx_id) {
     SOKOL_ASSERT(_SGL_INIT_COOKIE == _sgl.init_cookie);
     _sgl_context_t* ctx = _sgl_lookup_context(ctx_id.id);
     if (ctx) {
-        _sgl_draw(ctx, 0);
+        _sgl_draw(ctx, 0, 0, ctx->commands.next);
     }
 }
 
@@ -4531,7 +4550,23 @@ SOKOL_API_IMPL void sgl_context_draw_layer(sgl_context ctx_id, int layer_id) {
     SOKOL_ASSERT(_SGL_INIT_COOKIE == _sgl.init_cookie);
     _sgl_context_t* ctx = _sgl_lookup_context(ctx_id.id);
     if (ctx) {
-        _sgl_draw(ctx, layer_id);
+        _sgl_draw(ctx, layer_id, 0, ctx->commands.next);
+    }
+}
+
+SOKOL_API_IMPL void sgl_draw_layer_range(int layer_id, int first_command, int num_commands) {
+    SOKOL_ASSERT(_SGL_INIT_COOKIE == _sgl.init_cookie);
+    _sgl_context_t* ctx = _sgl.cur_ctx;
+    if (ctx) {
+        _sgl_draw(ctx, layer_id, first_command, num_commands);
+    }
+}
+
+SOKOL_API_IMPL void sgl_context_draw_layer_range(sgl_context ctx_id, int layer_id, int first_command, int num_commands) {
+    SOKOL_ASSERT(_SGL_INIT_COOKIE == _sgl.init_cookie);
+    _sgl_context_t* ctx = _sgl_lookup_context(ctx_id.id);
+    if (ctx) {
+        _sgl_draw(ctx, layer_id, first_command, num_commands);
     }
 }
 
