@@ -18,7 +18,11 @@ extern "C" {
 #define SK_WINDOW_FLAG_VSYNC_OFF 0x00000040u /* unlock from vsync (desktop; the web is always vsynced) */
 #define SK_WINDOW_FLAG_WINDOW_HIDDEN 0x00000080u
 #define SK_WINDOW_FLAG_WINDOW_ALWAYS_RUN 0x00000100u
-#define SK_WINDOW_FLAG_WINDOW_HIGHDPI 0x00002000u
+/* Windows render at the display's full resolution (high-DPI): sizes and coordinates
+ * stay in logical pixels, text rasterizes at the real pixel scale. LOW_DPI renders at
+ * one framebuffer pixel per logical pixel instead, scaled up by the display: fewer
+ * pixels to fill (a 2x screen has 4x as many), softer edges and text. */
+#define SK_WINDOW_FLAG_LOW_DPI 0x00002000u
 
 /*
  * Window lifecycle is owned by the core runtime:

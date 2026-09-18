@@ -162,6 +162,16 @@ websize:
 serve:
 	@python3 $(ROOT)/tools/serve.py 8000 $(BUILD_WEB)
 
+# HTTPS on 8443 for other devices on the LAN (a phone): threaded builds need a secure
+# page, and only localhost is secure over plain HTTP. TLS_CERT / TLS_KEY (command line
+# or environment) name a certificate the device trusts and its key.
+serve-tls:
+	@if [ -z "$(TLS_CERT)" ] || [ -z "$(TLS_KEY)" ]; then \
+	    echo "serve-tls: set TLS_CERT and TLS_KEY (PEM files; the certificate must name this machine's LAN address)"; \
+	    exit 1; \
+	fi
+	@python3 $(ROOT)/tools/serve.py 8443 $(BUILD_WEB) --tls "$(TLS_CERT)" "$(TLS_KEY)"
+
 # Web smoke check (tools/webcheck.mjs): needs Node >= 22 and a Chromium-based
 # browser (Brave/Chrome/Chromium). Extra options: WEBCHECK_FLAGS="--headed pick".
 # resolve via the shell: make's direct exec can hit a node/ directory on PATH (emsdk)

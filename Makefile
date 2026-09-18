@@ -141,7 +141,7 @@ deps:
 # (BACKEND=, WASM_EXAMPLE=) propagate to the sub-make automatically.
 examples:
 	@$(MAKE) -C examples
-run wasm wasm-all websize serve webcheck smoke:
+run wasm wasm-all websize serve serve-tls webcheck smoke:
 	@$(MAKE) -C examples $@
 
 # --- tests (delegated to tests/Makefile) -------------------------------------

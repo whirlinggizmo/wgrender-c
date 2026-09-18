@@ -97,7 +97,7 @@ tick the box in the same commit.
       `sk_color_lerp`) instead of pre-creating a palette, and the 256-slot pool,
       the handle kind and the color lifecycle are gone ([PLAN-color.md](PLAN-color.md))
 - [ ] Window flags accepted but ignored: `RESIZABLE`, `UNDECORATED`, `TRANSPARENT`,
-      `HIDDEN`, `ALWAYS_RUN` (only fullscreen, high-DPI, MSAA and vsync-off work)
+      `HIDDEN`, `ALWAYS_RUN` (only fullscreen, low-DPI, MSAA and vsync-off work)
 - [x] Bug: orthographic cameras only affected sokol_gl content; models and
       picking always used perspective (fovy 6 world units became a 6 degree FOV,
       so models drew hugely magnified and picks missed). Fixed: one
@@ -204,6 +204,9 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       the two-finger pan / pinch / twist (`sk_input_get_touch_gesture`), per frame
       and per tick. `examples/touch.c`; checked with CDP touch events and on a Pixel
       9 Pro XL (`tools/serve.py --tls` for a secure page on the LAN)
+- [x] High-DPI by default (2026-09-18): windows render at the display's full
+      resolution; `SK_WINDOW_FLAG_LOW_DPI` opts out (fewer pixels to fill).
+      Replaces `SK_WINDOW_FLAG_WINDOW_HIGHDPI`
 - [ ] Touch later: long-press and swipe/fling recognizers if a game wants them;
       pinch from desktop trackpads (browsers send it as ctrl + wheel)
 - [ ] Native iOS / Android: long stretch goal. sokol supports both (Metal/GLES3,

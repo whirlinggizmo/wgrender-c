@@ -132,5 +132,15 @@ if __name__ == "__main__":
         context.load_cert_chain(certfile=os.path.expanduser(TLS[0]), keyfile=os.path.expanduser(TLS[1]))
         server.socket = context.wrap_socket(server.socket, server_side=True)
         scheme = "https"
-    print(f"libsk: {scheme}://localhost:{PORT}/  ({SITE} at /, examples/assets/ mounted at /assets/)")
+    print(f"libsk: {scheme}://localhost:{PORT}/  ({SITE} at /, examples/assets/ mounted at /assets/)",
+          flush=True)
+    if TLS is not None:
+        import socket
+        try:  # the address other devices reach this machine at (no packet is sent)
+            probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            probe.connect(("192.0.2.1", 9))
+            print(f"       on the LAN: https://{probe.getsockname()[0]}:{PORT}/", flush=True)
+            probe.close()
+        except OSError:
+            pass
     server.serve_forever()

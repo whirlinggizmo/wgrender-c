@@ -378,7 +378,7 @@ int sk_run(void)
     }
 
     bool fullscreen = (sk_rt.window_flags & SK_WINDOW_FLAG_FULLSCREEN_MODE) != 0;
-    bool high_dpi = (sk_rt.window_flags & SK_WINDOW_FLAG_WINDOW_HIGHDPI) != 0;
+    bool high_dpi = (sk_rt.window_flags & SK_WINDOW_FLAG_LOW_DPI) == 0;
     int sample_count = (sk_rt.window_flags & SK_WINDOW_FLAG_MSAA_4X_HINT) != 0 ? 4 : 1;
     /* vsync is on unless explicitly turned off; sk_set_target_fps() caps below it */
     bool disable_vsync = (sk_rt.window_flags & SK_WINDOW_FLAG_VSYNC_OFF) != 0;

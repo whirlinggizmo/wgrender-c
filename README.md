@@ -171,7 +171,8 @@ reference/librl the raylib library this evolves from (read-only reference)
   `sk_*_draw()` calls outside a scene are not sorted against each other.
 - 2D uses logical pixels (top-left origin, y down): 2D drawing, sprites, mouse
   positions and `sk_window_get_screen_size` all divide out the DPI scale, so layouts
-  keep their size on high-DPI displays. Sprites (`sk_sprite2d_*`) in a scene draw
+  keep their size on high-DPI displays, which render at their full resolution
+  (`SK_WINDOW_FLAG_LOW_DPI` renders at one pixel per logical pixel instead). Sprites (`sk_sprite2d_*`) in a scene draw
   after all 3D and are picked first; see `examples/sprite2d.c`.
 - Lighting is explicit: models in a scene are lit only by lights added to that
   scene (`sk_light_create`, `sk_scene_add`) plus its ambient

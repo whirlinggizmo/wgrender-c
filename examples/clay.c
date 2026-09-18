@@ -508,7 +508,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
 int main(void)
 {
-    sk_init_values(1180, 720, "libsk clay", SK_WINDOW_FLAG_MSAA_4X_HINT | SK_WINDOW_FLAG_WINDOW_HIGHDPI);
+    sk_init_values(1180, 720, "libsk clay", SK_WINDOW_FLAG_MSAA_4X_HINT);
     sk_set_init(init, NULL);
     sk_set_frame(frame, NULL);
     return sk_run();
