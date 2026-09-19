@@ -41,7 +41,7 @@ static void tick(float dt, void *user_data)
     }
     g.ticks++;
 
-    if (sk_input_get_keyboard_state().keys[SK_KEY_SPACE] == SK_BUTTON_PRESSED) {
+    if (sk_input_get_key(SK_KEY_SPACE) == SK_BUTTON_PRESSED) {
         g.tick_presses++;
     }
 }

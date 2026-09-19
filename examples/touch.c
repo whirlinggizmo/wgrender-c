@@ -88,7 +88,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     (void)tick_fraction;
     (void)user_data;
 
-    if (sk_input_get_keyboard_state().keys[SK_KEY_ESCAPE] == SK_BUTTON_PRESSED) sk_request_quit();
+    if (sk_input_get_key(SK_KEY_ESCAPE) == SK_BUTTON_PRESSED) sk_request_quit();
 
     /* two fingers move the logo; the wheel zooms it about the mouse */
     if (gesture.active) {

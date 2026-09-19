@@ -214,7 +214,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     if (mouse.left == SK_BUTTON_PRESSED && g_confetti != 0) {
         burst_confetti(mouse.x, mouse.y);
     }
-    if (sk_input_get_keyboard_state().keys[SK_KEY_SPACE] == SK_BUTTON_PRESSED && g_fountain != 0) {
+    if (sk_input_get_key(SK_KEY_SPACE) == SK_BUTTON_PRESSED && g_fountain != 0) {
         set_paused(!g_paused);
     }
 
@@ -237,7 +237,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
     sk_render_end();
 
-    if (sk_input_get_keyboard_state().keys[SK_KEY_ESCAPE] == SK_BUTTON_PRESSED) {
+    if (sk_input_get_key(SK_KEY_ESCAPE) == SK_BUTTON_PRESSED) {
         sk_request_quit();
     }
 }

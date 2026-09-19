@@ -138,7 +138,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
     (void)tick_fraction;
     (void)user_data;
-    if (sk_input_get_keyboard_state().keys[SK_KEY_ESCAPE] == SK_BUTTON_PRESSED) {
+    if (sk_input_get_key(SK_KEY_ESCAPE) == SK_BUTTON_PRESSED) {
         sk_request_quit();
     }
     g.time += dt;

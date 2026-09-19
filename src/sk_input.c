@@ -473,6 +473,16 @@ sk_mouse_state_t sk_input_get_mouse_state(void)
 }
 
 SK_KEEP
+int sk_input_get_key(sk_keycode_t key)
+{
+    const sk_input_edges_t *edges = current_edges();
+    if ((int)key < 0 || (int)key >= SK_KEYBOARD_MAX_KEYS) {
+        return SK_BUTTON_UP;
+    }
+    return button_state(sk_input.key_down[key], edges->key_pressed[key], edges->key_released[key]);
+}
+
+SK_KEEP
 sk_keyboard_state_t sk_input_get_keyboard_state(void)
 {
     const sk_input_edges_t *edges = current_edges();
@@ -480,8 +490,7 @@ sk_keyboard_state_t sk_input_get_keyboard_state(void)
 
     state.max_num_keys = SK_KEYBOARD_MAX_KEYS;
     for (int i = 0; i < SK_KEYBOARD_MAX_KEYS; i++) {
-        state.keys[i] = button_state(sk_input.key_down[i], edges->key_pressed[i],
-                                     edges->key_released[i]);
+        state.keys[i] = sk_input_get_key((sk_keycode_t)i);
     }
 
     state.num_pressed_keys = edges->num_pressed_keys;

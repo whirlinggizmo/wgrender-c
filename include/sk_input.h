@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#include "sk_keys.h"
 #include "sk_types.h"
 
 void sk_input_capture_cursor(void);
@@ -15,6 +16,7 @@ float sk_input_get_mouse_wheel(void);   /* this frame (or tick); fractional on t
 float sk_input_get_mouse_wheel_x(void); /* horizontal */
 int sk_input_get_mouse_button(int button);
 sk_mouse_state_t sk_input_get_mouse_state(void);
+int sk_input_get_key(sk_keycode_t key); /* SK_BUTTON_*; SK_BUTTON_UP for an unknown key */
 sk_keyboard_state_t sk_input_get_keyboard_state(void);
 
 /* Touch

@@ -21,13 +21,17 @@ static void send_key(sapp_event_type type, bool repeat)
 static int key_in(sk_input_context_t context)
 {
     sk_input_set_context(context);
-    return sk_input_get_keyboard_state().keys[KEY];
+    const int key = sk_input_get_key((sk_keycode_t)KEY);
+    CHECK(sk_input_get_keyboard_state().keys[KEY] == key); /* the same state either way */
+    return key;
 }
 
 /* A press must reach exactly one tick, however many ticks a frame runs. */
 void test_input_tick_edges(void)
 {
     sk_input_init();
+    CHECK(sk_input_get_key((sk_keycode_t)-1) == SK_BUTTON_UP); /* out of range */
+    CHECK(sk_input_get_key((sk_keycode_t)SK_KEYBOARD_MAX_KEYS) == SK_BUTTON_UP);
 
     /* frame 1 runs no ticks: the frame sees the press, and so does the next tick */
     send_key(SAPP_EVENTTYPE_KEY_DOWN, false);
