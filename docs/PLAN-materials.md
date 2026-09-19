@@ -188,7 +188,11 @@ sk_handle_t sk_material_create_custom(sk_handle_t shader);
   roughness)` and `sk_environment_brdf(n_dot_v, roughness)`, the same split-sum pieces
   built-in materials use, with `sk_environment_intensity()` 0 (and the functions
   black) without one.
-- **Bindings:** uniform block 0 is libsk's per-object block (matrices, time, joints),
+- **Skinning:** a skinned model's joint matrices come from the frame's joint texture
+  (libsk's slot 12, uploaded once a frame by the model module); the object block
+  carries where this model's start. Before that they were 128 matrices in the object
+  block, per draw (docs/TASKS.md).
+- **Bindings:** uniform block 0 is libsk's per-object block (matrices, time, joint base),
   1 its per-draw fragment block (`sk_frame`: camera, time, tint, ambient, lights,
   output settings, the environment's intensity, rotation and irradiance), 2 the
   shader's fragment parameters, 3 the vertex hook's. The shader's textures are

@@ -126,6 +126,7 @@ void test_pipeline_gltf_ktx(void);
 void test_pipeline_ktx_fallback(void);
 void test_pipeline_redirects(void);
 void test_pipeline_generated_meshes(void);
+void test_pipeline_skinned_joints(void);
 void test_mesh_shapes(void);
 
 void test_scene_view_depth(void);

@@ -22,6 +22,10 @@
 #include "internal/sk_texture.h"
 #include "sk_asset.h"
 #include "sk_pick.h"
+#include "sk_light.h"
+#include "sk_scene.h"
+#include "sk_render.h"
+#include "sokol_time.h"
 #include "sk_audio.h"
 #include "sk_logger.h"
 #include "sk_model.h"
@@ -765,5 +769,43 @@ void test_pipeline_generated_meshes(void)
     sk_mesh_release(other);
     sk_camera3d_destroy(camera);
     sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    teardown();
+}
+
+/* Skinned models draw through the frame's joint texture (src/sk_model.c): several
+ * models, each with its own pose, in one frame. The dummy backend validates the
+ * uniform blocks and bindings; sk_model_flush uploads the joints before the passes. */
+void test_pipeline_skinned_joints(void)
+{
+    enum { MODELS = 3 };
+    sk_handle_t models[MODELS];
+
+    setup();
+    stm_setup(); /* the frame's time */
+    const sk_handle_t mesh = sk_mesh_create(GUMSHOE);
+    CHECK(mesh != 0);
+    const sk_handle_t camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(camera, 0, 2, 8, 0, 1, 0, 0, 1, 0);
+    const sk_handle_t scene = sk_scene_create();
+    sk_scene_set_active_camera(scene, camera);
+    const sk_handle_t sun = sk_light_create(SK_LIGHT_DIRECTIONAL);
+    sk_scene_add(scene, sun, 0);
+    for (int i = 0; i < MODELS; i++) {
+        models[i] = sk_model_create(mesh);
+        sk_model_set_transform(models[i], (float)i * 2.0f - 2.0f, 0, 0, 0, 0, 0, 1, 1, 1);
+        CHECK(sk_model_set_animation(models[i], 0));
+        sk_model_animate(models[i], 0.1f * (float)(i + 1)); /* each in a different pose */
+        sk_scene_add(scene, models[i], 0);
+    }
+    for (int frame = 0; frame < 3; frame++) { /* the joints go up once a frame */
+        for (int i = 0; i < MODELS; i++) sk_model_animate(models[i], 1.0f / 60.0f);
+        sk_render_begin();
+        sk_scene_draw(scene);
+        sk_render_end();
+    }
+    for (int i = 0; i < MODELS; i++) sk_model_destroy(models[i]);
+    sk_mesh_release(mesh);
+    sk_scene_destroy(scene);
+    sk_camera3d_destroy(camera);
     teardown();
 }

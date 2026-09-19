@@ -168,6 +168,7 @@ typedef struct {
     int light_env;        /* lighting environment index, -1 = unlit */
     int light_count;      /* lights selected for this placement */
     int lights[SK_MAX_DRAW_LIGHTS]; /* indices into the environment's lights */
+    int joint_base;       /* its joint matrices in the frame's joint texture, -1 = not skinned */
 } sk_model_draw_t;
 
 /* One primitive to draw, in submission order. sk_render replays ranges of these. */
@@ -200,6 +201,20 @@ static sg_image sk_model_white_img;
 static sg_view sk_model_white_view;
 static sg_image sk_model_flat_normal_img;
 static sg_view sk_model_flat_normal_view;
+
+/* Skinned models' joint matrices for the frame, uploaded once (before the passes) into
+ * one float texture the skinned shader reads: 4 texels a matrix, 256 matrices a row.
+ * Applying them per draw as uniforms instead cost ~8 KB a draw (85% of the frame's CPU
+ * with 100 animated models) and ran into the backends' per-frame uniform buffer. */
+#define JOINT_MATRICES_PER_ROW 256
+#define JOINT_TEXTURE_WIDTH (JOINT_MATRICES_PER_ROW * 4)
+static float *sk_model_joints;     /* 16 floats a matrix */
+static int sk_model_joint_count, sk_model_joint_capacity;
+static sg_image sk_model_joint_image;
+static sg_view sk_model_joint_view;
+static sg_sampler sk_model_joint_sampler;
+static int sk_model_joint_rows;
+static bool sk_model_joints_overflow_logged;
 
 static sk_model_draw_t sk_model_draws[MAX_MODEL_DRAWS];
 static int sk_model_draw_count;
@@ -2231,6 +2246,30 @@ static int begin_draw(sk_handle_t handle, sk_model_t *model_ptr)
 
     /* choose this placement's lights once, from its world bounds */
     e->light_env = env != NULL ? light_env : -1;
+    e->joint_base = -1;
+    if (mesh_ptr != NULL && mesh_ptr->has_skin && mesh_ptr->joint_count > 0) {
+        const int count = mesh_ptr->joint_count;
+        if (sk_model_joint_count + count > sk_model_joint_capacity) {
+            int capacity = sk_model_joint_capacity > 0 ? sk_model_joint_capacity * 2 : 256;
+            while (capacity < sk_model_joint_count + count) capacity *= 2;
+            float *grown = realloc(sk_model_joints, sizeof(float) * 16 * (size_t)capacity);
+            if (grown != NULL) {
+                sk_model_joints = grown;
+                sk_model_joint_capacity = capacity;
+            }
+        }
+        if (sk_model_joint_count + count <= sk_model_joint_capacity) {
+            e->joint_base = sk_model_joint_count;
+            for (int j = 0; j < count; j++) {
+                memcpy(&sk_model_joints[(size_t)(sk_model_joint_count + j) * 16], model_ptr->joint_matrices[j].m,
+                       16 * sizeof(float));
+            }
+            sk_model_joint_count += count;
+        } else if (!sk_model_joints_overflow_logged) {
+            log_error("model: out of memory for the frame's joint matrices");
+            sk_model_joints_overflow_logged = true;
+        }
+    }
     e->light_count = 0;
     if (env != NULL && mesh_ptr != NULL) {
         vec3_t wmin, wmax;
@@ -2360,13 +2399,30 @@ static void draw_transparent(sk_handle_t handle, int part)
     }
 }
 
+/* The scene and light blocks applied last, and whether they still hold: sokol needs
+ * every block applied again after a pipeline change (reset_fs_blocks). */
+static fs_scene_t last_scene;
+static fs_lights_t last_lights;
+static bool scene_applied, lights_applied;
+
+static void reset_fs_blocks(void)
+{
+    scene_applied = lights_applied = false;
+}
+
+/* The material (every draw), and the scene and its lights (only when they change:
+ * they're the same for most draws in a frame). */
 static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material, const sk_environment_binding_t *binding)
 {
     fs_params_t fsp;
+    fs_scene_t scene;
+    fs_lights_t lights;
     const sk_light_env_t *env = sk_light_env_get(e->light_env);
     const bool lit = env != NULL && material->shading == SK_MATERIAL_PBR;
 
     memset(&fsp, 0, sizeof(fsp));
+    memset(&scene, 0, sizeof(scene));
+    memset(&lights, 0, sizeof(lights));
     /* tint is an sRGB color like any color handle; alpha is linear */
     fsp.u_base_color[0] = sk_srgb_to_linear(e->tint.r) * material->base_color[0];
     fsp.u_base_color[1] = sk_srgb_to_linear(e->tint.g) * material->base_color[1];
@@ -2382,9 +2438,6 @@ static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material, co
     fsp.u_pbr[2] = material->occlusion_strength;
     fsp.u_pbr[3] = lit ? 1.0f : 0.0f;
     fsp.u_material[0] = material->alpha_mode == SK_ALPHA_MASK ? material->alpha_cutoff : 0.0f;
-    fsp.u_camera_pos[0] = e->camera_pos.x;
-    fsp.u_camera_pos[1] = e->camera_pos.y;
-    fsp.u_camera_pos[2] = e->camera_pos.z;
     for (int t = 0; t < SK_MATERIAL_TEXTURE_COUNT; t++) {
         float m[6];
         sk_material_uv_matrix(&material->textures[t], m);
@@ -2402,43 +2455,56 @@ static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material, co
         fsp.u_uv_row1[t][2] = m[5];
     }
 
+    scene.u_camera_pos[0] = e->camera_pos.x;
+    scene.u_camera_pos[1] = e->camera_pos.y;
+    scene.u_camera_pos[2] = e->camera_pos.z;
     /* exposure and tone mapping come from the scene; models outside a scene show raw colors */
-    fsp.u_tonemap[0] = env != NULL ? (float)env->tonemap : 0.0f;
-    fsp.u_tonemap[1] = env != NULL ? powf(2.0f, env->exposure) : 1.0f;
+    scene.u_tonemap[0] = env != NULL ? (float)env->tonemap : 0.0f;
+    scene.u_tonemap[1] = env != NULL ? powf(2.0f, env->exposure) : 1.0f;
     if (lit && binding->valid && env->environment_intensity > 0.0f) {
-        fsp.u_env[0] = env->environment_intensity;
-        fsp.u_env[1] = binding->max_lod;
-        fsp.u_env[2] = cosf(env->environment_rotation);
-        fsp.u_env[3] = sinf(env->environment_rotation);
+        scene.u_env[0] = env->environment_intensity;
+        scene.u_env[1] = binding->max_lod;
+        scene.u_env[2] = cosf(env->environment_rotation);
+        scene.u_env[3] = sinf(env->environment_rotation);
         for (int k = 0; k < 9; k++) {
-            fsp.u_sh[k][0] = binding->sh.c[k][0];
-            fsp.u_sh[k][1] = binding->sh.c[k][1];
-            fsp.u_sh[k][2] = binding->sh.c[k][2];
+            scene.u_sh[k][0] = binding->sh.c[k][0];
+            scene.u_sh[k][1] = binding->sh.c[k][1];
+            scene.u_sh[k][2] = binding->sh.c[k][2];
         }
     }
     if (lit) {
-        fsp.u_ambient[0] = env->ambient.x;
-        fsp.u_ambient[1] = env->ambient.y;
-        fsp.u_ambient[2] = env->ambient.z;
+        scene.u_ambient[0] = env->ambient.x;
+        scene.u_ambient[1] = env->ambient.y;
+        scene.u_ambient[2] = env->ambient.z;
         fsp.u_material[1] = (float)e->light_count;
         for (int i = 0; i < e->light_count; i++) {
             const sk_scene_light_t *light = &env->lights[e->lights[i]];
-            fsp.u_light_pos_range[i][0] = light->position.x;
-            fsp.u_light_pos_range[i][1] = light->position.y;
-            fsp.u_light_pos_range[i][2] = light->position.z;
-            fsp.u_light_pos_range[i][3] = light->range;
-            fsp.u_light_dir_type[i][0] = light->direction.x;
-            fsp.u_light_dir_type[i][1] = light->direction.y;
-            fsp.u_light_dir_type[i][2] = light->direction.z;
-            fsp.u_light_dir_type[i][3] = (float)light->type;
-            fsp.u_light_radiance[i][0] = light->radiance.x;
-            fsp.u_light_radiance[i][1] = light->radiance.y;
-            fsp.u_light_radiance[i][2] = light->radiance.z;
-            fsp.u_light_spot[i][0] = light->cos_inner;
-            fsp.u_light_spot[i][1] = light->cos_outer;
+            lights.u_light_pos_range[i][0] = light->position.x;
+            lights.u_light_pos_range[i][1] = light->position.y;
+            lights.u_light_pos_range[i][2] = light->position.z;
+            lights.u_light_pos_range[i][3] = light->range;
+            lights.u_light_dir_type[i][0] = light->direction.x;
+            lights.u_light_dir_type[i][1] = light->direction.y;
+            lights.u_light_dir_type[i][2] = light->direction.z;
+            lights.u_light_dir_type[i][3] = (float)light->type;
+            lights.u_light_radiance[i][0] = light->radiance.x;
+            lights.u_light_radiance[i][1] = light->radiance.y;
+            lights.u_light_radiance[i][2] = light->radiance.z;
+            lights.u_light_spot[i][0] = light->cos_inner;
+            lights.u_light_spot[i][1] = light->cos_outer;
         }
     }
     sg_apply_uniforms(UB_fs_params, &(sg_range){.ptr = &fsp, .size = sizeof(fsp)});
+    if (!scene_applied || memcmp(&scene, &last_scene, sizeof(scene)) != 0) {
+        sg_apply_uniforms(UB_fs_scene, &(sg_range){.ptr = &scene, .size = sizeof(scene)});
+        last_scene = scene;
+        scene_applied = true;
+    }
+    if (!lights_applied || memcmp(&lights, &last_lights, sizeof(lights)) != 0) {
+        sg_apply_uniforms(UB_fs_lights, &(sg_range){.ptr = &lights, .size = sizeof(lights)});
+        last_lights = lights;
+        lights_applied = true;
+    }
 }
 
 static sg_view texture_view(const sk_material_texture_t *texture, sg_view fallback)
@@ -2461,8 +2527,7 @@ typedef struct {
     float mvp[16], model[16], normal_mat[16], time[4];
 } custom_object_t;
 typedef struct {
-    float mvp[16], model[16], normal_mat[16], time[4];
-    float joints[SK_MAX_JOINTS][16];
+    float mvp[16], model[16], normal_mat[16], time_base[4]; /* x seconds, y its first joint matrix */
 } custom_skinned_object_t;
 
 /* A primitive whose material has a custom shader (sk_shader.h). */
@@ -2489,14 +2554,10 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
     }
 
     if (prim->skinned) {
-        static custom_skinned_object_t object; /* 8 KB: not on the stack */
+        custom_skinned_object_t object = {.time_base = {time, (float)(e->joint_base > 0 ? e->joint_base : 0)}};
         memcpy(object.mvp, e->mvp.m, sizeof(object.mvp));
         memcpy(object.model, e->model_mat.m, sizeof(object.model));
         memcpy(object.normal_mat, e->normal_mat.m, sizeof(object.normal_mat));
-        object.time[0] = time;
-        for (int j = 0; j < SK_MAX_JOINTS; j++) {
-            memcpy(object.joints[j], model_ptr->joint_matrices[j].m, sizeof(object.joints[j]));
-        }
         sg_apply_uniforms(SK_SHADER_BLOCK_OBJECT, &(sg_range){.ptr = &object, .size = sizeof(object)});
     } else {
         custom_object_t object = {.time = {time}};
@@ -2579,6 +2640,10 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
     if (program->env_sampler_slot >= 0) bind.samplers[program->env_sampler_slot] = environment.cube_sampler;
     if (program->brdf_view_slot >= 0) bind.views[program->brdf_view_slot] = environment.brdf_lut;
     if (program->brdf_sampler_slot >= 0) bind.samplers[program->brdf_sampler_slot] = environment.lut_sampler;
+    if (program->joint_view_slot >= 0) { /* skinned: the frame's joint matrices */
+        bind.views[program->joint_view_slot] = sk_model_joint_view;
+        if (program->joint_sampler_slot >= 0) bind.samplers[program->joint_sampler_slot] = sk_model_joint_sampler;
+    }
     if (program->sprite_view_slot >= 0) { /* sk_sprite_color(): white on models, so it's the vertex color */
         sg_view white, black_cube;
         sg_sampler linear;
@@ -2607,6 +2672,7 @@ static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr
     if (pip.id != cur_pip->id) {
         sg_apply_pipeline(pip);
         *cur_pip = pip;
+        reset_fs_blocks(); /* a new pipeline needs its uniforms again */
     }
 
     if (prim->skinned) {
@@ -2614,9 +2680,8 @@ static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr
         memcpy(vsp.mvp, e->mvp.m, sizeof(vsp.mvp));
         memcpy(vsp.model, e->model_mat.m, sizeof(vsp.model));
         memcpy(vsp.normal_mat, e->normal_mat.m, sizeof(vsp.normal_mat));
-        for (int j = 0; j < SK_MAX_JOINTS; j++) {
-            memcpy(vsp.joints_mat[j], model_ptr->joint_matrices[j].m, 16 * sizeof(float));
-        }
+        vsp.skin_base[0] = (float)(e->joint_base > 0 ? e->joint_base : 0);
+        vsp.skin_base[1] = vsp.skin_base[2] = vsp.skin_base[3] = 0.0f;
         sg_apply_uniforms(UB_vs_skin_params, &(sg_range){.ptr = &vsp, .size = sizeof(vsp)});
     } else {
         vs_params_t vsp;
@@ -2640,6 +2705,8 @@ static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr
         .samplers[SMP_normal_smp] = texture_sampler(&textures[SK_MATERIAL_TEXTURE_NORMAL]),
         .samplers[SMP_occlusion_smp] = texture_sampler(&textures[SK_MATERIAL_TEXTURE_OCCLUSION]),
         .samplers[SMP_emissive_smp] = texture_sampler(&textures[SK_MATERIAL_TEXTURE_EMISSIVE]),
+        .views[VIEW_joint_tex] = sk_model_joint_view,
+        .samplers[SMP_joint_smp] = sk_model_joint_sampler,
         .views[VIEW_env_tex] = environment.cube,
         .views[VIEW_brdf_tex] = environment.brdf_lut,
         .samplers[SMP_env_smp] = environment.cube_sampler,
@@ -2653,6 +2720,8 @@ void sk_model_draw_items(int first, int count)
 {
     sg_pipeline cur_pip = {0}; /* sokol_gl may have changed the pipeline since last time */
 
+    reset_fs_blocks();
+
     for (int i = first; i < first + count && i < sk_model_item_count; i++) {
         const sk_model_item_t *item = &sk_model_items[i];
         sk_model_draw_t *e = &sk_model_draws[item->draw];
@@ -2665,10 +2734,62 @@ void sk_model_draw_items(int first, int count)
     }
 }
 
+/* The frame's joint matrices, into the joint texture (sk_render: before any pass). */
+void sk_model_flush(void)
+{
+    const int rows = (sk_model_joint_count + JOINT_MATRICES_PER_ROW - 1) / JOINT_MATRICES_PER_ROW;
+    if (sk_model_joint_count == 0) {
+        return;
+    }
+    if (rows > sk_model_joint_rows) {
+        int height = sk_model_joint_rows > 0 ? sk_model_joint_rows : 4;
+        const int max_rows = sg_query_limits().max_image_size_2d;
+        while (height < rows) height *= 2;
+        if (height > max_rows) height = max_rows;
+        sg_destroy_view(sk_model_joint_view);
+        sg_destroy_image(sk_model_joint_image);
+        sk_model_joint_image = sg_make_image(&(sg_image_desc){
+            .width = JOINT_TEXTURE_WIDTH,
+            .height = height,
+            .pixel_format = SG_PIXELFORMAT_RGBA32F,
+            .usage = {.write_transient = true},
+            .label = "sk-model-joints",
+        });
+        sk_model_joint_view = sg_make_view(&(sg_view_desc){.texture.image = sk_model_joint_image});
+        sk_model_joint_rows = height;
+    }
+    if (rows > sk_model_joint_rows) { /* more than the GPU's largest texture holds */
+        if (!sk_model_joints_overflow_logged) {
+            log_error("model: %d joint matrices in a frame, more than the joint texture holds", sk_model_joint_count);
+            sk_model_joints_overflow_logged = true;
+        }
+        return;
+    }
+    if (sk_model_joint_sampler.id == SG_INVALID_ID) {
+        sk_model_joint_sampler = sg_make_sampler(&(sg_sampler_desc){
+            .min_filter = SG_FILTER_NEAREST,
+            .mag_filter = SG_FILTER_NEAREST,
+            .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
+            .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
+            .label = "sk-model-joints",
+        });
+    }
+    /* whole rows: the last one's unused matrices go up as they are */
+    sg_write_image_transient(&(sg_write_image_desc){
+        .src = {.data = {.ptr = sk_model_joints,
+                         .size = sizeof(float) * 16 * (size_t)rows * JOINT_MATRICES_PER_ROW},
+                .bytes_per_row = (int)sizeof(float) * 4 * JOINT_TEXTURE_WIDTH,
+                .bytes_per_slice = (int)sizeof(float) * 4 * JOINT_TEXTURE_WIDTH * rows},
+        .dst = {.image = sk_model_joint_image},
+        .size = {.width = JOINT_TEXTURE_WIDTH, .height = rows, .num_slices = 1},
+    });
+}
+
 void sk_model_end_frame(void)
 {
     sk_model_draw_count = 0;
     sk_model_item_count = 0;
+    sk_model_joint_count = 0;
 }
 
 static void free_mesh_cpu(sk_mesh_t *mesh)
@@ -2800,6 +2921,15 @@ void sk_model_deinit(void)
             memset(mesh, 0, sizeof(*mesh));
         }
     }
+    free(sk_model_joints);
+    sk_model_joints = NULL;
+    sk_model_joint_count = sk_model_joint_capacity = sk_model_joint_rows = 0;
+    sg_destroy_sampler(sk_model_joint_sampler);
+    sg_destroy_view(sk_model_joint_view);
+    sg_destroy_image(sk_model_joint_image);
+    sk_model_joint_sampler = (sg_sampler){0};
+    sk_model_joint_view = (sg_view){0};
+    sk_model_joint_image = (sg_image){0};
     sg_destroy_view(sk_model_white_view);
     sg_destroy_view(sk_model_flat_normal_view);
     sg_destroy_image(sk_model_flat_normal_img);
@@ -2821,5 +2951,6 @@ void sk_model_deinit(void)
 }
 
 /* An optional subsystem: part of the runtime when a program uses it (internal/sk_module.h). */
-static sk_module_t sk_model_module = {.name = "model", .order = 50, .init = sk_model_init, .deinit = sk_model_deinit, .end_frame = sk_model_end_frame};
+static sk_module_t sk_model_module = {.name = "model", .order = 50, .init = sk_model_init, .deinit = sk_model_deinit,
+                                      .flush = sk_model_flush, .end_frame = sk_model_end_frame};
 SK_MODULE(sk_model_module)

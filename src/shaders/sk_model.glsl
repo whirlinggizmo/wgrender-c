@@ -6,7 +6,9 @@
  *
  * Uniform blocks mirror the C structs in sk_model.c (std140):
  *   vs_params      = mvp, model, normal_mat
- *   vs_skin_params = mvp, model, normal_mat, joints_mat[128]
+ *   vs_skin_params = mvp, model, normal_mat, skin_base (x: where this model's joint
+ *                    matrices start in the frame's joint texture, 4 texels each, 256
+ *                    matrices a row; src/sk_model.c uploads it once a frame)
  *   fs_params      = material, camera and lights (below)
  *
  * Color space (docs/PLAN-materials.md): the framebuffer holds sRGB values.
@@ -74,8 +76,21 @@ layout(binding=0) uniform vs_skin_params {
     mat4 mvp;
     mat4 model;
     mat4 normal_mat;
-    mat4 joints_mat[128];
+    vec4 skin_base; /* x: this model's first joint matrix */
 };
+layout(binding=7) uniform texture2D joint_tex;
+layout(binding=7) uniform sampler joint_smp;
+@image_sample_type joint_tex unfilterable_float
+@sampler_type joint_smp nonfiltering
+
+mat4 joint_at(int index) {
+    int m = int(skin_base.x) + index;
+    ivec2 t = ivec2((m % 256) * 4, m / 256);
+    return mat4(texelFetch(sampler2D(joint_tex, joint_smp), t, 0),
+                texelFetch(sampler2D(joint_tex, joint_smp), t + ivec2(1, 0), 0),
+                texelFetch(sampler2D(joint_tex, joint_smp), t + ivec2(2, 0), 0),
+                texelFetch(sampler2D(joint_tex, joint_smp), t + ivec2(3, 0), 0));
+}
 in vec3 position;
 in vec3 normal;
 in vec2 texcoord0;
@@ -91,10 +106,10 @@ out vec2 v_uv1;
 out vec4 v_color;
 out vec3 v_world_pos;
 void main() {
-    mat4 skin = weights.x * joints_mat[int(joints.x)]
-              + weights.y * joints_mat[int(joints.y)]
-              + weights.z * joints_mat[int(joints.z)]
-              + weights.w * joints_mat[int(joints.w)];
+    mat4 skin = weights.x * joint_at(int(joints.x))
+              + weights.y * joint_at(int(joints.y))
+              + weights.z * joint_at(int(joints.z))
+              + weights.w * joint_at(int(joints.w));
     vec4 sp = skin * vec4(position, 1.0);
     gl_Position = mvp * sp;
     /* joints are rigid transforms (plus uniform scale), so mat3(skin) keeps normals perpendicular */
@@ -167,22 +182,29 @@ vec3 env_dir(vec3 dir, vec4 env) {
 
 @fs fs
 @include_block color
+/* Three blocks, not one: the material changes every draw (224 bytes), the scene and
+ * its lights only when the camera, environment or a model's lights do. Sending all of
+ * it per draw cost ~950 bytes a draw, most of a crowded frame's CPU (src/sk_model.c). */
 layout(binding=1) uniform fs_params {
     vec4 u_base_color;
     vec4 u_emissive;
     vec4 u_pbr;
     vec4 u_material;
-    vec4 u_camera_pos;
-    vec4 u_ambient;
     vec4 u_uv_row0[5];
     vec4 u_uv_row1[5];
+};
+layout(binding=2) uniform fs_scene {
+    vec4 u_camera_pos;
+    vec4 u_ambient;
+    vec4 u_env;
+    vec4 u_sh[9];
+    vec4 u_tonemap;
+};
+layout(binding=3) uniform fs_lights {
     vec4 u_light_pos_range[8];
     vec4 u_light_dir_type[8];
     vec4 u_light_radiance[8];
     vec4 u_light_spot[8];
-    vec4 u_env;
-    vec4 u_sh[9];
-    vec4 u_tonemap;
 };
 layout(binding=0) uniform texture2D base_color_tex;
 layout(binding=1) uniform texture2D metallic_roughness_tex;

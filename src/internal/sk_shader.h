@@ -48,6 +48,7 @@ typedef struct {
     int brdf_view_slot, brdf_sampler_slot;    /* and its BRDF table (sk_brdf_tex) */
     int sprite_view_slot, sprite_sampler_slot; /* a sprite's texture (sk_sprite_tex) */
     int data_view_slot, data_sampler_slot;     /* sprites read from a texture (sk_sprite_data) */
+    int joint_view_slot, joint_sampler_slot;   /* skinned models' joints (sk_joint_tex) */
 } sk_shader_program_t;
 
 enum {

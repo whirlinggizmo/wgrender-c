@@ -222,9 +222,10 @@ reference/librl the raylib library this evolves from (read-only reference)
   scene (`sk_light_create`, `sk_scene_add`) plus its ambient
   (`sk_scene_set_ambient`); a new scene is dark. Models drawn outside a scene are
   unlit. Shapes and sprites are unlit. See `examples/lights.c`.
-- `sk_text_draw` without a font uses `sokol_debugtext` (built-in 8x8 bitmap
-  font). TTF fonts (`sk_font_create`, `sk_text_draw_ex`, `text2d`) go through
-  fontstash.
+- All text is TrueType, through fontstash. `sk_text_draw` without a font uses the
+  built-in font (an ASCII subset of JetBrains Mono embedded in the library,
+  `src/fonts/sk_default_font.h`); `sk_font_create` loads others (`sk_text_draw_ex`,
+  `text2d`, `text3d`).
 - Compressed textures: load `name.ktx` and libsk picks the file the GPU can sample,
   `name.bc7.ktx` (desktops), `name.astc.ktx` (phones), `name.etc2.ktx` (older phones)
   or `name.png`; on the web only that file downloads. Make them with

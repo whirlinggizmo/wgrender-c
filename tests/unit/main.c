@@ -98,6 +98,7 @@ static const test_case_t TESTS[] = {
     {"pipeline_ktx_fallback", test_pipeline_ktx_fallback},
     {"pipeline_redirects", test_pipeline_redirects},
     {"pipeline_generated_meshes", test_pipeline_generated_meshes},
+    {"pipeline_skinned_joints", test_pipeline_skinned_joints},
     {"mesh_shapes", test_mesh_shapes},
     {"text_default_font", test_text_default_font},
     {"text_slices_and_dpi", test_text_slices_and_dpi},

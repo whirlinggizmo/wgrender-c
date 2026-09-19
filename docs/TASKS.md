@@ -282,6 +282,16 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       `sk_sprite3d/2d_set_material`, one `.skshader` for models and sprites
       (`sk_sprite_color()`, `sk_sprite_tex`), batched by material; format 3. Shapes stay
       unlit (generated meshes for lit geometry) ([PLAN-materials.md](PLAN-materials.md))
+- [x] Skinning and per-draw uniforms (2026-09-20): a crowd of animated models spent
+      85% of its frame CPU in one call, uploading 128 joint matrices (8.4 KB) as
+      uniforms per skinned draw, and would have overflowed the backends' per-frame
+      uniform buffer past ~450 skinned draws. Now the frame's joint matrices (only the
+      joints a mesh has) go into one float texture, uploaded once before the passes,
+      and the skinned shaders read them with texelFetch; the fragment block is split
+      into material (every draw), scene and lights (applied only when they change).
+      Per draw: ~8.6 KB -> ~430 bytes. Measured in Chromium on the GPU (100 animated
+      gumshoes: 15.2 -> 2.1 ms of frame CPU; 400: 19.4 -> 7.8 ms), with three.js 0.186
+      at 2.0 and 6.1 ms. `.skshader` format 4 (rebuild custom shaders)
 - [ ] Materials, phase 3b: lit 3D sprites (built-in PBR/unlit materials on sprite3d;
       the scene's lights and environment, chosen per batch)
 - [ ] Materials later: particles (emitters) on custom shaders; custom shaders for 2D
@@ -434,7 +444,22 @@ Not supported yet:
       sprite programs ~170, model programs ~240, everything ~300
 - [ ] Web size later: browser-native image/audio decoders on web (async decode
       through JS); the baked BRDF table costs ~14 KB gzipped (half floats barely
-      compress)
+      compress). Measured (2026-09-20, wasm code by library, gzipped, each group on its
+      own so approximate; `--profiling-funcs` builds): hello = libsk 42, C runtime 21,
+      sokol 17, fonts (fontstash, stb_truetype: all text, the built-in font too) 13
+      KB; model adds cgltf 16 and stb_image 16; audio programs add dr_mp3 + dr_wav +
+      stb_vorbis 34. Browser decoders would save ~16 KB (images) and ~34 KB (audio):
+      `simple` 308 -> ~260 KB. For comparison, three.js 0.186 bundled with esbuild:
+      130 KB gzipped for a hello3d, 155 for glTF + animation + lights, 161 with an HDR
+      environment, a shader material, sprites, picking and audio (it leans on the
+      browser's decoders and has no text or worker loading). Speed, same machine and
+      browser (CPU ms a frame, frame-rate cap off; build/perf in a work tree): 2D
+      sprites libsk vs PixiJS 8.21 are level (16k: 2.6 vs 2.6; 64k: 9.6 vs 10.2);
+      3D billboards libsk vs three.js `Sprite` 2.6 vs 26.9 at 16k (its hand-managed
+      `InstancedMesh`: 2.3), and 9.7 vs 85.6 at 64k (`InstancedMesh` 5.1); animated
+      crowds libsk vs three.js 2.1 vs 2.0 at 100 models, 7.8 vs 6.1 at 400. Audio caveat: the browser
+      decodes a whole file at once (decodeAudioData), which undoes libsk's streamed
+      music (PLAN-audio: ~108 MB -> 6 MB for a long track)
 - [ ] Explore (later, own session): libsk's C API as the contract with other
       implementations, e.g. a JS backend (three.js/Babylon) for JS-target games, or
       another implementation language (Zig, Odin, D betterC, Beef; engines like

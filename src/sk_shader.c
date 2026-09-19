@@ -16,7 +16,7 @@
  * backend's sources and makes the static and skinned programs. */
 
 #define SHADERS_INITIAL 8
-#define FORMAT_VERSION 3
+#define FORMAT_VERSION 4
 #define GLSL_NAME_MAX 128 /* texture-sampler pairs join two names: longer than the parameters' */
 
 static sk_shader_t *sk_shaders; /* grown by the pool: don't hold a pointer across a create */
@@ -411,12 +411,14 @@ static sk_loader_step_t finish_shader(void *data, const char *path, sk_handle_t 
             program->sampler_slot[t] = -1;
         }
         /* libsk's textures, by name: where each one's view and sampler go */
-        static const char *libsk_textures[4] = {"sk_env_tex", "sk_brdf_tex", "sk_sprite_tex", "sk_sprite_data"};
-        int *view_slots[4] = {&program->env_view_slot, &program->brdf_view_slot, &program->sprite_view_slot,
-                              &program->data_view_slot};
-        int *sampler_slots[4] = {&program->env_sampler_slot, &program->brdf_sampler_slot,
-                                 &program->sprite_sampler_slot, &program->data_sampler_slot};
-        for (int n = 0; n < 4; n++) {
+        static const char *libsk_textures[5] = {"sk_env_tex", "sk_brdf_tex", "sk_sprite_tex", "sk_sprite_data",
+                                                "sk_joint_tex"};
+        int *view_slots[5] = {&program->env_view_slot, &program->brdf_view_slot, &program->sprite_view_slot,
+                              &program->data_view_slot, &program->joint_view_slot};
+        int *sampler_slots[5] = {&program->env_sampler_slot, &program->brdf_sampler_slot,
+                                 &program->sprite_sampler_slot, &program->data_sampler_slot,
+                                 &program->joint_sampler_slot};
+        for (int n = 0; n < 5; n++) {
             *view_slots[n] = *sampler_slots[n] = -1;
             for (int v = 0; v < SG_MAX_VIEW_BINDSLOTS; v++) {
                 if (strcmp(p->view_names[v], libsk_textures[n]) != 0) continue;

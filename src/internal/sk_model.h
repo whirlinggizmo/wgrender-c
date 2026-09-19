@@ -16,6 +16,7 @@ void sk_model_deinit(void);
 void sk_model_draw_items(int first, int count);
 
 /* Clear the model draw queue after the frame has been drawn. */
+void sk_model_flush(void); /* the frame's joint matrices into the joint texture */
 void sk_model_end_frame(void);
 
 /* The files a glTF file needs (its buffers, and the images its textures use: a

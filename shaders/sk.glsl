@@ -22,8 +22,8 @@
  *     }
  *     @end
  *
- * Textures and samplers 8 to 11 are libsk's (the environment, the sprite's texture,
- * sprite data), as are uniform blocks 0, 1 and 4.
+ * Textures 8 to 12 and samplers 8 to 11 are libsk's (the environment, the sprite's
+ * texture, sprite data, skinned models' joints), as are uniform blocks 0, 1 and 4.
  * Parameters: the members of uniform block binding 2 in the fragment shader and
  * binding 3 in the vertex hook, set by name with sk_material_set_float / _vec2 /
  * _vec3 / _vec4 / _int / _color (float, vec2, vec3, vec4, int; not arrays or
@@ -142,12 +142,25 @@ layout(binding=0) uniform sk_skinned_object {
     mat4 sk_mvp;
     mat4 sk_model;
     mat4 sk_normal_mat;
-    vec4 sk_object_time;
-    mat4 sk_joints[128];
+    vec4 sk_object_time; /* x seconds, y this model's first joint matrix */
 };
+/* the frame's joint matrices, 4 texels each, 256 a row (src/sk_model.c) */
+layout(binding=12) uniform texture2D sk_joint_tex;
+layout(binding=11) uniform sampler sk_joint_smp; /* sampler slots stop at 11; sprite data's, which no skinned program uses */
+@image_sample_type sk_joint_tex unfilterable_float
+@sampler_type sk_joint_smp nonfiltering
 layout(location=6) in vec4 joints;
 layout(location=7) in vec4 weights;
 float sk_time() { return sk_object_time.x; }
+
+mat4 sk_joint_at(int index) {
+    int m = int(sk_object_time.y) + index;
+    ivec2 t = ivec2((m % 256) * 4, m / 256);
+    return mat4(texelFetch(sampler2D(sk_joint_tex, sk_joint_smp), t, 0),
+                texelFetch(sampler2D(sk_joint_tex, sk_joint_smp), t + ivec2(1, 0), 0),
+                texelFetch(sampler2D(sk_joint_tex, sk_joint_smp), t + ivec2(2, 0), 0),
+                texelFetch(sampler2D(sk_joint_tex, sk_joint_smp), t + ivec2(3, 0), 0));
+}
 @end
 
 @block sk_vs_skinned_main
@@ -155,10 +168,10 @@ void main() {
     vec3 p = position;
     vec3 n = normal;
     sk_vertex(p, n);
-    mat4 skin = weights.x * sk_joints[int(joints.x)]
-              + weights.y * sk_joints[int(joints.y)]
-              + weights.z * sk_joints[int(joints.z)]
-              + weights.w * sk_joints[int(joints.w)];
+    mat4 skin = weights.x * sk_joint_at(int(joints.x))
+              + weights.y * sk_joint_at(int(joints.y))
+              + weights.z * sk_joint_at(int(joints.z))
+              + weights.w * sk_joint_at(int(joints.w));
     vec4 sp = skin * vec4(p, 1.0);
     gl_Position = sk_mvp * sp;
     sk_world_pos = (sk_model * sp).xyz;

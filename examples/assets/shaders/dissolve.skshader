@@ -1,4 +1,4 @@
-skshader 3
+skshader 4
 param color vec4 fs 0
 param edge_color vec3 fs 16
 param speed float fs 28
@@ -12,16 +12,21 @@ attr 4 tangent
 attr 5 color0
 attr 6 joints
 attr 7 weights
-ub 0 vertex 8400 sk_skinned_object 525 0
+ub 0 vertex 208 sk_skinned_object 13 0
 ub 1 fragment 736 sk_frame 46 0
 ub 2 fragment 32 params 2 0
 view 0 fragment noise_tex 2d float 0
+view 12 vertex sk_joint_tex 2d unfilterable_float 0
+sampler 11 vertex sk_joint_smp nonfiltering 0
 sampler 0 fragment noise_smp filtering 0
-pair 0 fragment 0 0 noise_tex_noise_smp
-source vs 2624
+pair 0 vertex 12 11 sk_joint_tex_sk_joint_smp
+pair 1 fragment 0 0 noise_tex_noise_smp
+source vs 2619
 #version 410
 
-uniform vec4 sk_skinned_object[525];
+uniform vec4 sk_skinned_object[13];
+uniform sampler2D sk_joint_tex_sk_joint_smp;
+
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 normal;
 layout(location = 7) in vec4 weights;
@@ -42,27 +47,41 @@ void sk_vertex(vec3 position_1, vec3 normal_1)
 {
 }
 
+mat4 sk_joint_at(int index)
+{
+    int _34 = int(sk_skinned_object[12].y) + index;
+    ivec2 _45 = ivec2((_34 % 256) * 4, _34 / 256);
+    return mat4(texelFetch(sk_joint_tex_sk_joint_smp, _45, 0), texelFetch(sk_joint_tex_sk_joint_smp, _45 + ivec2(1, 0), 0), texelFetch(sk_joint_tex_sk_joint_smp, _45 + ivec2(2, 0), 0), texelFetch(sk_joint_tex_sk_joint_smp, _45 + ivec2(3, 0), 0));
+}
+
 void main()
 {
+    vec3 p = position;
+    vec3 n = normal;
     vec3 param = position;
     vec3 param_1 = normal;
     sk_vertex(param, param_1);
-    mat4 _53 = mat4(sk_skinned_object[int(joints.x) * 4 + 13], sk_skinned_object[int(joints.x) * 4 + 14], sk_skinned_object[int(joints.x) * 4 + 15], sk_skinned_object[int(joints.x) * 4 + 16]) * weights.x;
-    mat4 _62 = mat4(sk_skinned_object[int(joints.y) * 4 + 13], sk_skinned_object[int(joints.y) * 4 + 14], sk_skinned_object[int(joints.y) * 4 + 15], sk_skinned_object[int(joints.y) * 4 + 16]) * weights.y;
-    mat4 _84 = mat4(sk_skinned_object[int(joints.z) * 4 + 13], sk_skinned_object[int(joints.z) * 4 + 14], sk_skinned_object[int(joints.z) * 4 + 15], sk_skinned_object[int(joints.z) * 4 + 16]) * weights.z;
-    mat4 _106 = mat4(sk_skinned_object[int(joints.w) * 4 + 13], sk_skinned_object[int(joints.w) * 4 + 14], sk_skinned_object[int(joints.w) * 4 + 15], sk_skinned_object[int(joints.w) * 4 + 16]) * weights.w;
-    vec4 _109 = ((_53[0] + _62[0]) + _84[0]) + _106[0];
-    vec4 _112 = ((_53[1] + _62[1]) + _84[1]) + _106[1];
-    vec4 _115 = ((_53[2] + _62[2]) + _84[2]) + _106[2];
-    vec4 _129 = mat4(_109, _112, _115, ((_53[3] + _62[3]) + _84[3]) + _106[3]) * vec4(param, 1.0);
-    gl_Position = mat4(sk_skinned_object[0], sk_skinned_object[1], sk_skinned_object[2], sk_skinned_object[3]) * _129;
-    mat4 _145 = mat4(sk_skinned_object[4], sk_skinned_object[5], sk_skinned_object[6], sk_skinned_object[7]);
-    sk_world_pos = (_145 * _129).xyz;
-    mat4 _152 = mat4(sk_skinned_object[8], sk_skinned_object[9], sk_skinned_object[10], sk_skinned_object[11]);
-    mat3 _168 = mat3(_109.xyz, _112.xyz, _115.xyz);
-    sk_normal = mat3(_152[0].xyz, _152[1].xyz, _152[2].xyz) * (_168 * param_1);
-    vec3 _194 = mat3(_145[0].xyz, _145[1].xyz, _145[2].xyz) * (_168 * tangent.xyz);
-    sk_tangent = vec4(_194, tangent.w);
+    p = param;
+    n = param_1;
+    int param_2 = int(joints.x);
+    mat4 _139 = sk_joint_at(param_2) * weights.x;
+    int param_3 = int(joints.y);
+    mat4 _147 = sk_joint_at(param_3) * weights.y;
+    int param_4 = int(joints.z);
+    mat4 _169 = sk_joint_at(param_4) * weights.z;
+    int param_5 = int(joints.w);
+    mat4 _191 = sk_joint_at(param_5) * weights.w;
+    vec4 _194 = ((_139[0] + _147[0]) + _169[0]) + _191[0];
+    vec4 _197 = ((_139[1] + _147[1]) + _169[1]) + _191[1];
+    vec4 _200 = ((_139[2] + _147[2]) + _169[2]) + _191[2];
+    vec4 _213 = mat4(_194, _197, _200, ((_139[3] + _147[3]) + _169[3]) + _191[3]) * vec4(p, 1.0);
+    gl_Position = mat4(sk_skinned_object[0], sk_skinned_object[1], sk_skinned_object[2], sk_skinned_object[3]) * _213;
+    mat4 _228 = mat4(sk_skinned_object[4], sk_skinned_object[5], sk_skinned_object[6], sk_skinned_object[7]);
+    sk_world_pos = (_228 * _213).xyz;
+    mat4 _234 = mat4(sk_skinned_object[8], sk_skinned_object[9], sk_skinned_object[10], sk_skinned_object[11]);
+    mat3 _250 = mat3(_194.xyz, _197.xyz, _200.xyz);
+    sk_normal = mat3(_234[0].xyz, _234[1].xyz, _234[2].xyz) * (_250 * n);
+    sk_tangent = vec4(mat3(_228[0].xyz, _228[1].xyz, _228[2].xyz) * (_250 * tangent.xyz), tangent.w);
     sk_uv0 = texcoord0;
     sk_uv1 = texcoord1;
     sk_color = color0;
@@ -1010,16 +1029,21 @@ attr 4 tangent
 attr 5 color0
 attr 6 joints
 attr 7 weights
-ub 0 vertex 8400 sk_skinned_object 525 0
+ub 0 vertex 208 sk_skinned_object 13 0
 ub 1 fragment 736 sk_frame 46 0
 ub 2 fragment 32 params 2 0
 view 0 fragment noise_tex 2d float 0
+view 12 vertex sk_joint_tex 2d unfilterable_float 0
+sampler 11 vertex sk_joint_smp nonfiltering 0
 sampler 0 fragment noise_smp filtering 0
-pair 0 fragment 0 0 noise_tex_noise_smp
-source vs 2480
+pair 0 vertex 12 11 sk_joint_tex_sk_joint_smp
+pair 1 fragment 0 0 noise_tex_noise_smp
+source vs 2481
 #version 300 es
 
-uniform vec4 sk_skinned_object[525];
+uniform vec4 sk_skinned_object[13];
+uniform highp sampler2D sk_joint_tex_sk_joint_smp;
+
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 normal;
 layout(location = 7) in vec4 weights;
@@ -1040,27 +1064,41 @@ void sk_vertex(vec3 position_1, vec3 normal_1)
 {
 }
 
+mat4 sk_joint_at(int index)
+{
+    int _34 = int(sk_skinned_object[12].y) + index;
+    ivec2 _45 = ivec2((_34 % 256) * 4, _34 / 256);
+    return mat4(texelFetch(sk_joint_tex_sk_joint_smp, _45, 0), texelFetch(sk_joint_tex_sk_joint_smp, _45 + ivec2(1, 0), 0), texelFetch(sk_joint_tex_sk_joint_smp, _45 + ivec2(2, 0), 0), texelFetch(sk_joint_tex_sk_joint_smp, _45 + ivec2(3, 0), 0));
+}
+
 void main()
 {
+    vec3 p = position;
+    vec3 n = normal;
     vec3 param = position;
     vec3 param_1 = normal;
     sk_vertex(param, param_1);
-    mat4 _53 = mat4(sk_skinned_object[int(joints.x) * 4 + 13], sk_skinned_object[int(joints.x) * 4 + 14], sk_skinned_object[int(joints.x) * 4 + 15], sk_skinned_object[int(joints.x) * 4 + 16]) * weights.x;
-    mat4 _62 = mat4(sk_skinned_object[int(joints.y) * 4 + 13], sk_skinned_object[int(joints.y) * 4 + 14], sk_skinned_object[int(joints.y) * 4 + 15], sk_skinned_object[int(joints.y) * 4 + 16]) * weights.y;
-    mat4 _84 = mat4(sk_skinned_object[int(joints.z) * 4 + 13], sk_skinned_object[int(joints.z) * 4 + 14], sk_skinned_object[int(joints.z) * 4 + 15], sk_skinned_object[int(joints.z) * 4 + 16]) * weights.z;
-    mat4 _106 = mat4(sk_skinned_object[int(joints.w) * 4 + 13], sk_skinned_object[int(joints.w) * 4 + 14], sk_skinned_object[int(joints.w) * 4 + 15], sk_skinned_object[int(joints.w) * 4 + 16]) * weights.w;
-    vec4 _109 = ((_53[0] + _62[0]) + _84[0]) + _106[0];
-    vec4 _112 = ((_53[1] + _62[1]) + _84[1]) + _106[1];
-    vec4 _115 = ((_53[2] + _62[2]) + _84[2]) + _106[2];
-    vec4 _129 = mat4(_109, _112, _115, ((_53[3] + _62[3]) + _84[3]) + _106[3]) * vec4(param, 1.0);
-    gl_Position = mat4(sk_skinned_object[0], sk_skinned_object[1], sk_skinned_object[2], sk_skinned_object[3]) * _129;
-    mat4 _145 = mat4(sk_skinned_object[4], sk_skinned_object[5], sk_skinned_object[6], sk_skinned_object[7]);
-    sk_world_pos = (_145 * _129).xyz;
-    mat4 _152 = mat4(sk_skinned_object[8], sk_skinned_object[9], sk_skinned_object[10], sk_skinned_object[11]);
-    mat3 _168 = mat3(_109.xyz, _112.xyz, _115.xyz);
-    sk_normal = mat3(_152[0].xyz, _152[1].xyz, _152[2].xyz) * (_168 * param_1);
-    vec3 _194 = mat3(_145[0].xyz, _145[1].xyz, _145[2].xyz) * (_168 * tangent.xyz);
-    sk_tangent = vec4(_194, tangent.w);
+    p = param;
+    n = param_1;
+    int param_2 = int(joints.x);
+    mat4 _139 = sk_joint_at(param_2) * weights.x;
+    int param_3 = int(joints.y);
+    mat4 _147 = sk_joint_at(param_3) * weights.y;
+    int param_4 = int(joints.z);
+    mat4 _169 = sk_joint_at(param_4) * weights.z;
+    int param_5 = int(joints.w);
+    mat4 _191 = sk_joint_at(param_5) * weights.w;
+    vec4 _194 = ((_139[0] + _147[0]) + _169[0]) + _191[0];
+    vec4 _197 = ((_139[1] + _147[1]) + _169[1]) + _191[1];
+    vec4 _200 = ((_139[2] + _147[2]) + _169[2]) + _191[2];
+    vec4 _213 = mat4(_194, _197, _200, ((_139[3] + _147[3]) + _169[3]) + _191[3]) * vec4(p, 1.0);
+    gl_Position = mat4(sk_skinned_object[0], sk_skinned_object[1], sk_skinned_object[2], sk_skinned_object[3]) * _213;
+    mat4 _228 = mat4(sk_skinned_object[4], sk_skinned_object[5], sk_skinned_object[6], sk_skinned_object[7]);
+    sk_world_pos = (_228 * _213).xyz;
+    mat4 _234 = mat4(sk_skinned_object[8], sk_skinned_object[9], sk_skinned_object[10], sk_skinned_object[11]);
+    mat3 _250 = mat3(_194.xyz, _197.xyz, _200.xyz);
+    sk_normal = mat3(_234[0].xyz, _234[1].xyz, _234[2].xyz) * (_250 * n);
+    sk_tangent = vec4(mat3(_228[0].xyz, _228[1].xyz, _228[2].xyz) * (_250 * tangent.xyz), tangent.w);
     sk_uv0 = texcoord0;
     sk_uv1 = texcoord1;
     sk_color = color0;
@@ -2016,16 +2054,17 @@ attr 4 -
 attr 5 -
 attr 6 -
 attr 7 -
-ub 0 vertex 8400 - 0 0
+ub 0 vertex 208 - 0 0
 ub 1 fragment 736 - 0 1
 ub 2 fragment 32 - 0 2
 view 0 fragment noise_tex 2d float 0
+view 12 vertex sk_joint_tex 2d unfilterable_float 12
+sampler 11 vertex sk_joint_smp nonfiltering 43
 sampler 0 fragment noise_smp filtering 32
-pair 0 fragment 0 0 -
-source vs 3310
+pair 0 vertex 12 11 -
+pair 1 fragment 0 0 -
+source vs 4266
 diagnostic(off, derivative_uniformity);
-
-alias Arr = array<mat4x4f, 128u>;
 
 struct sk_skinned_object {
   /* @offset(0) */
@@ -2036,17 +2075,19 @@ struct sk_skinned_object {
   sk_normal_mat : mat4x4f,
   /* @offset(192) */
   sk_object_time : vec4f,
-  /* @offset(208) */
-  sk_joints : Arr,
 }
+
+@binding(0) @group(0) var<uniform> x_25 : sk_skinned_object;
+
+@binding(12) @group(1) var sk_joint_tex : texture_2d<f32>;
+
+@binding(43) @group(1) var sk_joint_smp : sampler;
 
 var<private> position_2 : vec3f;
 
 var<private> normal_1 : vec3f;
 
 var<private> weights : vec4f;
-
-@binding(0) @group(0) var<uniform> x_43 : sk_skinned_object;
 
 var<private> joints : vec4f;
 
@@ -2078,30 +2119,62 @@ fn sk_vertex_vf3_vf3_(position_1 : ptr<function, vec3f>, normal : ptr<function, 
   return;
 }
 
+fn sk_joint_at_i1_(index : ptr<function, i32>) -> mat4x4f {
+  let x_34 = (i32(x_25.sk_object_time.y) + *(index));
+  let x_45 = vec2i(((x_34 % 256i) * 4i), (x_34 / 256i));
+  let x_59 = textureLoad(sk_joint_tex, x_45, 0i);
+  let x_68 = textureLoad(sk_joint_tex, (x_45 + vec2i(1i, 0i)), 0i);
+  let x_77 = textureLoad(sk_joint_tex, (x_45 + vec2i(2i, 0i)), 0i);
+  let x_85 = textureLoad(sk_joint_tex, (x_45 + vec2i(3i, 0i)), 0i);
+  return mat4x4f(x_59, x_68, x_77, x_85);
+}
+
 fn main_1() {
+  var p : vec3f;
+  var n : vec3f;
   var param : vec3f;
   var param_1 : vec3f;
-  let x_20 = normal_1;
-  param = position_2;
-  param_1 = x_20;
+  var param_2 : i32;
+  var param_3 : i32;
+  var param_4 : i32;
+  var param_5 : i32;
+  let x_114 = position_2;
+  p = position_2;
+  let x_117 = normal_1;
+  n = normal_1;
+  param = x_114;
+  param_1 = x_117;
   sk_vertex_vf3_vf3_(&(param), &(param_1));
-  let x_27 = param_1;
-  let x_53 = (x_43.sk_joints[i32(joints.x)] * weights.x);
-  let x_62 = (x_43.sk_joints[i32(joints.y)] * weights.y);
-  let x_84 = (x_43.sk_joints[i32(joints.z)] * weights.z);
-  let x_106 = (x_43.sk_joints[i32(joints.w)] * weights.w);
-  let x_109 = (((x_53[0u] + x_62[0u]) + x_84[0u]) + x_106[0u]);
-  let x_112 = (((x_53[1u] + x_62[1u]) + x_84[1u]) + x_106[1u]);
-  let x_115 = (((x_53[2u] + x_62[2u]) + x_84[2u]) + x_106[2u]);
-  let x_129 = (mat4x4f(x_109, x_112, x_115, (((x_53[3u] + x_62[3u]) + x_84[3u]) + x_106[3u])) * vec4f(param.x, param.y, param.z, 1.0f));
-  gl_Position = (x_43.sk_mvp * x_129);
-  let x_145 = x_43.sk_model;
-  sk_world_pos = ((x_145 * x_129)).xyz;
-  let x_152 = x_43.sk_normal_mat;
-  let x_168 = mat3x3f(x_109.xyz, x_112.xyz, x_115.xyz);
-  sk_normal = (mat3x3f(x_152[0u].xyz, x_152[1u].xyz, x_152[2u].xyz) * (x_168 * x_27));
-  let x_194 = (mat3x3f(x_145[0u].xyz, x_145[1u].xyz, x_145[2u].xyz) * (x_168 * tangent.xyz));
-  sk_tangent = vec4f(x_194.x, x_194.y, x_194.z, tangent.w);
+  p = param;
+  n = param_1;
+  let x_132 = weights.x;
+  param_2 = i32(joints.x);
+  let x_138 = sk_joint_at_i1_(&(param_2));
+  let x_139 = (x_138 * x_132);
+  let x_141 = weights.y;
+  param_3 = i32(joints.y);
+  let x_146 = sk_joint_at_i1_(&(param_3));
+  let x_147 = (x_146 * x_141);
+  let x_163 = weights.z;
+  param_4 = i32(joints.z);
+  let x_168 = sk_joint_at_i1_(&(param_4));
+  let x_169 = (x_168 * x_163);
+  let x_185 = weights.w;
+  param_5 = i32(joints.w);
+  let x_190 = sk_joint_at_i1_(&(param_5));
+  let x_191 = (x_190 * x_185);
+  let x_194 = (((x_139[0u] + x_147[0u]) + x_169[0u]) + x_191[0u]);
+  let x_197 = (((x_139[1u] + x_147[1u]) + x_169[1u]) + x_191[1u]);
+  let x_200 = (((x_139[2u] + x_147[2u]) + x_169[2u]) + x_191[2u]);
+  let x_213 = (mat4x4f(x_194, x_197, x_200, (((x_139[3u] + x_147[3u]) + x_169[3u]) + x_191[3u])) * vec4f(p.x, p.y, p.z, 1.0f));
+  gl_Position = (x_25.sk_mvp * x_213);
+  let x_228 = x_25.sk_model;
+  sk_world_pos = ((x_228 * x_213)).xyz;
+  let x_234 = x_25.sk_normal_mat;
+  let x_250 = mat3x3f(x_194.xyz, x_197.xyz, x_200.xyz);
+  sk_normal = (mat3x3f(x_234[0u].xyz, x_234[1u].xyz, x_234[2u].xyz) * (x_250 * n));
+  let x_276 = (mat3x3f(x_228[0u].xyz, x_228[1u].xyz, x_228[2u].xyz) * (x_250 * tangent.xyz));
+  sk_tangent = vec4f(x_276.x, x_276.y, x_276.z, tangent.w);
   sk_uv0 = texcoord0;
   sk_uv1 = texcoord1;
   sk_color = color0;
