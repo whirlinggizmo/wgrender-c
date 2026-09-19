@@ -50,7 +50,7 @@ BUILD_DESKTOP := build/desktop
 SRCS          := $(wildcard *.c)
 BINS          := $(patsubst %.c,$(BUILD_DESKTOP)/%,$(SRCS))
 
-.PHONY: all run clean wasm wasm-all websize serve serve-tls spritebench-web webcheck smoke headless print-ldlibs FORCE
+.PHONY: all run clean wasm wasm-all websize serve serve-tls spritebench-web webcheck webstart smoke headless print-ldlibs FORCE
 
 all: $(BINS)
 
@@ -199,6 +199,11 @@ serve-tls:
 NODE ?= $(shell command -v node 2>/dev/null || echo node)
 webcheck: wasm-all
 	@$(NODE) $(ROOT)/tools/webcheck.mjs --backend=$(BACKEND) --threads=$(WEB_THREADS) $(WEBCHECK_FLAGS)
+
+# Startup times per example, cold / warm / hot (tools/webstart.mjs). Extra options:
+# WEBSTART_FLAGS="--net=4g simple model".
+webstart: wasm-all
+	@$(NODE) $(ROOT)/tools/webstart.mjs --backend=$(BACKEND) --threads=$(WEB_THREADS) $(WEBSTART_FLAGS)
 
 clean:
 	rm -rf build

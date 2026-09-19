@@ -30,6 +30,7 @@ EM_JS(void, sk_fs_idbfs_begin, (const char *root_c), {
         FS.mount(IDBFS, {}, root);
         FS.syncfs(true, function (err) {
             Module.sk_fs_restore = err ? 2 : 1;
+            performance.mark("sk:fs-ready"); /* tools/webstart.mjs */
             if (err) console.error("sk_fs: idbfs restore failed", err);
         });
     } catch (e) {

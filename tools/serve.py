@@ -6,13 +6,25 @@ tree (examples/assets/) at /assets/ — so assets are never copied or symlinked 
 the site. Single source of truth, works on Windows/macOS/Linux. This mirrors the
 web asset host "/assets/" (the same logical path the desktop fs resolves locally).
 
-    python3 tools/serve.py [port] [site] [--tls CERT KEY]   # default 8000, examples/build/webgl2
+    python3 tools/serve.py [port] [site] [--tls CERT KEY] [--cache] [--gzip]
+                                                            # default 8000, examples/build/webgl2
 
 --tls serves HTTPS with that certificate and key (PEM), e.g. a locally trusted dev
 certificate, so another device on the LAN (a phone) gets a secure page: threaded
 builds need one for SharedArrayBuffer. localhost is secure without it.
+
+By default nothing is cached (no-store: a reload always gets the latest build).
+--cache and --gzip serve the way a host should, for measuring startup
+(tools/webstart.mjs): --cache lets the browser keep versioned files (name?v=<hash>,
+as the page loads code: tools/webdeploy.py) for good (immutable, a year) and
+revalidate the rest every visit (no-cache, answered 304 while unchanged); --gzip
+compresses the page, JS, wasm and JSON (not Range requests: assets stream through
+them).
 """
+import email.utils
+import gzip
 import http.server
+import io
 import os
 import posixpath
 import ssl
@@ -27,6 +39,10 @@ if "--tls" in ARGS:
         sys.exit("serve.py: --tls needs CERT and KEY")
     TLS = (ARGS[i + 1], ARGS[i + 2])
     del ARGS[i:i + 3]
+CACHE = "--cache" in ARGS
+GZIP = "--gzip" in ARGS
+ARGS = [a for a in ARGS if a not in ("--cache", "--gzip")]
+GZIP_TYPES = (".html", ".js", ".wasm", ".json", ".css", ".txt")
 
 ROOT   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SITE   = os.path.abspath(ARGS[1]) if len(ARGS) > 1 else os.path.join(ROOT, "examples", "build", "webgl2")
@@ -82,10 +98,50 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return None
         return start, end
 
+    _gzipped = {}  # (path, mtime) -> compressed bytes
+
+    def _send_gzipped(self, path):
+        """The file compressed (304 while unchanged), or None to serve it as is."""
+        if (not GZIP or not path.endswith(GZIP_TYPES) or
+                "gzip" not in self.headers.get("Accept-Encoding", "")):
+            return None
+        try:
+            fs = os.stat(path)
+        except OSError:
+            return None
+        since = self.headers.get("If-Modified-Since")
+        if since and CACHE:
+            try:
+                if int(fs.st_mtime) <= email.utils.parsedate_to_datetime(since).timestamp():
+                    self.send_response(304)
+                    self.send_header("Last-Modified", self.date_time_string(fs.st_mtime))
+                    self.end_headers()
+                    return io.BytesIO(b"")
+            except (TypeError, ValueError):
+                pass
+        key = (path, fs.st_mtime)
+        if key not in Handler._gzipped:
+            with open(path, "rb") as f:
+                Handler._gzipped[key] = gzip.compress(f.read(), 6)
+        body = Handler._gzipped[key]
+        self.send_response(200)
+        self.send_header("Content-Type", self.guess_type(path))
+        self.send_header("Content-Encoding", "gzip")
+        self.send_header("Vary", "Accept-Encoding")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Last-Modified", self.date_time_string(fs.st_mtime))
+        self.end_headers()
+        return io.BytesIO(body)
+
     def send_head(self):
         # Honor a single Range request (sokol_fetch streams via Range GETs).
         rng_header = self.headers.get("Range")
         if not rng_header:
+            path = self.translate_path(self.path)
+            if not os.path.isdir(path):
+                zipped = self._send_gzipped(path)
+                if zipped is not None:
+                    return zipped
             return super().send_head()
         path = self.translate_path(self.path)
         if os.path.isdir(path):
@@ -116,7 +172,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             raise
 
     def end_headers(self):
-        self.send_header("Cache-Control", "no-store")  # honest reload-on-change
+        # default: honest reload-on-change. --cache: versioned files (?v=<hash>) never
+        # change, keep them; revalidate the rest every load
+        if not CACHE:
+            self.send_header("Cache-Control", "no-store")
+        elif "v=" in urllib.parse.urlparse(self.path).query:
+            self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+        else:
+            self.send_header("Cache-Control", "no-cache")
         self.send_header("Accept-Ranges", "bytes")
         # cross-origin isolation: threaded builds need SharedArrayBuffer
         self.send_header("Cross-Origin-Opener-Policy", "same-origin")

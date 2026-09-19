@@ -39,6 +39,10 @@ double sk_platform_frame_duration(void); /* last frame's raw duration, seconds *
 
 void sk_platform_set_title(const char *title);
 
+/* A named point in startup, for measuring it (web: performance.mark, which DevTools and
+ * tools/webstart.mjs read; elsewhere nothing). */
+void sk_platform_mark(const char *name);
+
 /* Window and monitors (docs/PLAN-window.md). Sizes in logical pixels, positions in
  * the desktop's coordinates. False where the platform can't do it. */
 bool sk_platform_set_window_size(int width, int height);

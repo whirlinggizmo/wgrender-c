@@ -53,6 +53,7 @@ typedef struct {
     double delta_time;      /* this frame's delta (seconds), passed to the frame callback */
     double last_frame_time; /* sk_get_time() when the previous frame ran; 0 before the first */
     double fps_delta;       /* smoothed delta for the FPS counter */
+    bool first_frame_done;
 } sk_runtime_t;
 
 static sk_runtime_t sk_rt;
@@ -148,6 +149,7 @@ static const char *backend_name(sg_backend b)
 
 static void on_init(void)
 {
+    sk_platform_mark("sk:init"); /* startup points: tools/webstart.mjs */
     sg_setup(&(sg_desc){
         .environment = sk_platform_environment(),
         .logger.func = slog_func,
@@ -188,10 +190,12 @@ static void on_init(void)
     sk_debug_init();
 
     sk_initialized = true;
+    sk_platform_mark("sk:subsystems");
 
     if (sk_rt.init_fn != NULL) {
         sk_rt.init_fn(sk_rt.init_user_data);
     }
+    sk_platform_mark("sk:user-init");
 }
 
 #if !defined(__EMSCRIPTEN__)
@@ -319,6 +323,10 @@ static void on_frame(void)
     if (sk_rt.frame_fn != NULL) {
         sk_rt.frame_fn((float)sk_rt.delta_time, sk_tick_clock_fraction(&sk_rt.tick_clock),
                        sk_rt.frame_user_data);
+    }
+    if (!sk_rt.first_frame_done) {
+        sk_rt.first_frame_done = true;
+        sk_platform_mark("sk:first-frame");
     }
 
     /* clear frame input edges after the frame; sokol delivers the next frame's

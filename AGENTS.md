@@ -51,6 +51,10 @@ Keep this file short and rule-shaped. The authoritative design doc is
   COOP/COEP headers, `/assets/` mounted) on http://localhost:8000. `make serve-tls`
   serves HTTPS on 8443 for other devices on the LAN (a phone), which need a secure page
   for threaded builds; it takes `TLS_CERT` / `TLS_KEY` (a certificate they trust).
+- `make webstart [BACKEND=webgpu] [WEB_THREADS=0]` — startup times per web example
+  (`tools/webstart.mjs`): cold, warm and hot visits, locally and on emulated 4G,
+  from libsk's `sk:*` performance marks; `WEBSTART_FLAGS="--devtools=PORT --url=URL"`
+  measures a phone. Run it when touching init, the page shell or web build flags.
 - `make websize [BACKEND=webgpu] [WEB_THREADS=0]` — wasm/JS sizes per web example
   (raw and gzip; brotli if installed), also summarized after `make wasm-all`.
 - Run `make verify` (lib + examples + `make check` + `make test` + `make smoke`,

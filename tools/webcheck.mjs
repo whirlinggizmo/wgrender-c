@@ -32,22 +32,16 @@
 //                       google-chrome, chromium, chromium-browser)
 //
 // Cleanup: the browser and server are always stopped, including when this script
-// crashes or is killed (see RunProcesses below).
+// crashes or is killed (see RunProcesses in weblib.mjs).
 //
 // Note: never call canvas.getContext() from here. A canvas that already has a
 // WebGL context can't be used for WebGPU, which breaks the example under test.
-import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { createServer } from "node:net";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+import { findBrowser, findXvfb, freePort, launchBrowser, openSession, ROOT, RunProcesses, sleep, waitFor } from "./weblib.mjs";
+
 const BACKEND_LOG = { webgl2: "GLES3/WebGL2 backend", webgpu: "WebGPU backend" };
-const BROWSERS = ["brave-browser-stable", "google-chrome-stable", "google-chrome", "chromium", "chromium-browser"];
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function parseArgs(argv) {
     const opts = { backend: "webgl2", headed: false, settle: 20000, quiet: 1500, jobs: 0, out: null,
@@ -75,102 +69,6 @@ function parseArgs(argv) {
     if (!(opts.jobs >= 1)) opts.jobs = 4;
     opts.out ??= join(opts.site, "webcheck");
     return opts;
-}
-
-function findXvfb() {
-    try {
-        return execFileSync("sh", ["-c", "command -v Xvfb"], { encoding: "utf8" }).trim() || null;
-    } catch {
-        return null;
-    }
-}
-
-// Start Xvfb on a free display number; resolves to ":<n>" once its socket exists.
-async function startXvfb(run) {
-    for (let n = 90; n < 200; n++) {
-        if (existsSync(`/tmp/.X11-unix/X${n}`) || existsSync(`/tmp/.X${n}-lock`)) continue;
-        run.spawn(findXvfb(), [`:${n}`, "-screen", "0", "1280x1024x24", "-nolisten", "tcp"]);
-        for (let i = 0; i < 100; i++) {
-            if (existsSync(`/tmp/.X11-unix/X${n}`)) return `:${n}`;
-            await sleep(50);
-        }
-        throw new Error(`Xvfb :${n} did not start`);
-    }
-    throw new Error("no free X display number for Xvfb");
-}
-
-function findBrowser(explicit) {
-    if (explicit) return explicit;
-    for (const name of BROWSERS) {
-        for (const dir of (process.env.PATH || "").split(":")) {
-            if (dir && existsSync(join(dir, name))) return join(dir, name);
-        }
-    }
-    throw new Error(`no Chromium-based browser found (tried ${BROWSERS.join(", ")}); set --browser or WEBCHECK_BROWSER`);
-}
-
-function freePort() {
-    return new Promise((resolvePort, reject) => {
-        const srv = createServer();
-        srv.on("error", reject);
-        srv.listen(0, "127.0.0.1", () => {
-            const { port } = srv.address();
-            srv.close(() => resolvePort(port));
-        });
-    });
-}
-
-async function waitFor(url, what) {
-    for (let i = 0; i < 100; i++) {
-        try {
-            const res = await fetch(url);
-            if (res.ok) return res;
-        } catch { /* not up yet */ }
-        await sleep(100);
-    }
-    throw new Error(`${what} did not start (${url})`);
-}
-
-// Minimal DevTools-protocol session on one page target.
-async function openSession(wsUrl) {
-    const ws = new WebSocket(wsUrl);
-    await new Promise((res, rej) => {
-        const timer = setTimeout(() => rej(new Error(`no DevTools connection to ${wsUrl} in 15000 ms`)), 15000);
-        ws.addEventListener("open", () => { clearTimeout(timer); res(); });
-        ws.addEventListener("error", (ev) => { clearTimeout(timer); rej(new Error(`DevTools connection failed: ${ev.message ?? wsUrl}`)); });
-    });
-    let nextId = 0;
-    const pending = new Map();
-    const listeners = [];
-    ws.addEventListener("message", (ev) => {
-        const msg = JSON.parse(ev.data);
-        if (msg.id !== undefined && pending.has(msg.id)) {
-            pending.get(msg.id)(msg);
-            pending.delete(msg.id);
-        } else if (msg.method) {
-            for (const fn of listeners) fn(msg);
-        }
-    });
-    return {
-        /* Every request times out: a hung or crashed page must fail the check, not
-         * stall the whole run. */
-        send(method, params = {}, timeoutMs = 15000) {
-            return new Promise((res, rej) => {
-                const id = ++nextId;
-                const timer = setTimeout(() => {
-                    pending.delete(id);
-                    rej(new Error(`${method}: no response from the browser in ${timeoutMs} ms`));
-                }, timeoutMs);
-                pending.set(id, (msg) => {
-                    clearTimeout(timer);
-                    msg.error ? rej(new Error(`${method}: ${msg.error.message}`)) : res(msg.result);
-                });
-                ws.send(JSON.stringify({ id, method, params }));
-            });
-        },
-        onEvent(fn) { listeners.push(fn); },
-        close() { ws.close(); },
-    };
 }
 
 async function checkExample(browser, debugBase, baseUrl, example, opts) {
@@ -256,97 +154,6 @@ async function checkExample(browser, debugBase, baseUrl, example, opts) {
     return result;
 }
 
-// Everything this run starts, and how to stop all of it.
-//
-// Killing the spawned browser process isn't enough: Chromium-based browsers leave
-// helper processes (zygotes, renderers, crashpad) that outlive the launcher. So:
-//   - children start in their own process groups, and whole groups are stopped;
-//   - every run has a unique profile directory, and any process whose command line
-//     names it belongs to this run and is swept up afterwards;
-//   - a detached watchdog shell waits for this Node process to disappear (a crash,
-//     `kill -9`) and then does the same, so nothing leaks even if Node never gets
-//     to run its cleanup. It is harmless when cleanup already ran.
-class RunProcesses {
-    constructor() {
-        this.profile = mkdtempSync(join(tmpdir(), "libsk-webcheck-"));
-        this.groups = [];
-        this.stopped = false;
-        const watchdog = spawn("sh", ["-c", `
-            while kill -0 "$WEBCHECK_NODE_PID" 2>/dev/null; do sleep 1; done
-            if [ -f "$WEBCHECK_PROFILE.groups" ]; then
-                for g in $(cat "$WEBCHECK_PROFILE.groups"); do kill -9 "-$g" 2>/dev/null; done  # no "--": dash rejects it
-            fi
-            ps -eo pid=,comm=,args= | awk -v m="$WEBCHECK_PROFILE" '$2 != "sh" && $2 != "awk" && index($0, m) { print $1 }' |
-                xargs -r kill -KILL 2>/dev/null
-            rm -rf "$WEBCHECK_PROFILE" "$WEBCHECK_PROFILE.groups"
-        `], {
-            detached: true,
-            stdio: "ignore",
-            env: { ...process.env, WEBCHECK_NODE_PID: String(process.pid), WEBCHECK_PROFILE: this.profile },
-        });
-        watchdog.unref();
-    }
-
-    // Start a child in its own process group and record the group for the watchdog.
-    spawn(command, args, env = process.env) {
-        const child = spawn(command, args, { stdio: "ignore", detached: true, env });
-        child.unref();
-        if (child.pid) {
-            this.groups.push(child.pid);
-            writeFileSync(`${this.profile}.groups`, this.groups.join(" "));
-        }
-        return child;
-    }
-
-    // Processes (other than this one) whose command line names the run's profile.
-    strays() {
-        let listing = "";
-        try {
-            listing = execFileSync("ps", ["-eo", "pid=,args="], { encoding: "utf8" });
-        } catch {
-            return [];
-        }
-        return listing.split("\n")
-            .filter((line) => line.includes(this.profile))
-            .map((line) => Number.parseInt(line.trim(), 10))
-            .filter((pid) => Number.isInteger(pid) && pid !== process.pid);
-    }
-
-    signalAll(signal) {
-        for (const group of this.groups) {
-            try { process.kill(-group, signal); } catch { /* already gone */ }
-        }
-        for (const pid of this.strays()) {
-            try { process.kill(pid, signal); } catch { /* already gone */ }
-        }
-    }
-
-    removeFiles() {
-        rmSync(this.profile, { recursive: true, force: true });
-        rmSync(`${this.profile}.groups`, { force: true });
-    }
-
-    // Normal path: ask politely, give the browser a moment, then force.
-    async stop() {
-        if (this.stopped) return;
-        this.stopped = true;
-        this.signalAll("SIGTERM");
-        for (let i = 0; i < 20 && this.strays().length > 0; i++) {
-            await sleep(100);
-        }
-        this.signalAll("SIGKILL");
-        this.removeFiles();
-    }
-
-    // Last resort from process 'exit' handlers, where only synchronous work runs.
-    stopNow() {
-        if (this.stopped) return;
-        this.stopped = true;
-        this.signalAll("SIGKILL");
-        this.removeFiles();
-    }
-}
-
 async function main() {
     if (typeof WebSocket === "undefined") {
         throw new Error(`Node ${process.version} has no built-in WebSocket; webcheck needs Node >= 22`);
@@ -363,7 +170,7 @@ async function main() {
 
     const browserPath = findBrowser(opts.browser);
     mkdirSync(opts.out, { recursive: true });
-    const run = new RunProcesses();
+    const run = new RunProcesses("webcheck");
     process.on("exit", () => run.stopNow());
     for (const [signal, code] of [["SIGINT", 130], ["SIGTERM", 143], ["SIGHUP", 129]]) {
         process.on(signal, () => { run.stop().finally(() => process.exit(code)); });
@@ -380,35 +187,10 @@ async function main() {
         const baseUrl = `http://127.0.0.1:${sitePort}`;
         await waitFor(`${baseUrl}/examples.json`, "tools/serve.py");
 
-        let browserEnv = process.env;
-        if (opts.display === "xvfb") {
-            const { WAYLAND_DISPLAY, ...env } = process.env; // X11 on the virtual display
-            browserEnv = { ...env, DISPLAY: await startXvfb(run), XDG_SESSION_TYPE: "x11" };
-        } else if (opts.backend === "webgpu" && !opts.headed) {
+        if (opts.display === "screen" && opts.backend === "webgpu" && !opts.headed) {
             console.log("webcheck: Xvfb not found; WebGPU runs in a window on the real screen");
         }
-
-        const debugPort = await freePort();
-        run.spawn(browserPath, [
-            ...(opts.display === "headless" ? ["--headless=new"] : []),
-            `--remote-debugging-port=${debugPort}`,
-            `--user-data-dir=${run.profile}`,
-            "--no-first-run",
-            "--no-default-browser-check",
-            "--window-size=1024,900",
-            "--autoplay-policy=no-user-gesture-required",
-            /* a fake audio device: examples start audio on load; it still runs, but
-             * nothing reaches PipeWire/PulseAudio or the speakers */
-            "--disable-audio-output",
-            ...(opts.display === "headless" ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] : []),
-            ...(opts.display === "xvfb"
-                ? ["--ozone-platform=x11", "--enable-unsafe-webgpu", "--enable-features=Vulkan", "--use-angle=vulkan"]
-                : []),
-            "about:blank",
-        ], browserEnv);
-        const debugBase = `http://127.0.0.1:${debugPort}`;
-        const version = await (await waitFor(`${debugBase}/json/version`, "browser")).json();
-        const browser = await openSession(version.webSocketDebuggerUrl);
+        const { debugBase, browser } = await launchBrowser(run, browserPath, { display: opts.display, backend: opts.backend });
 
         console.log(`webcheck: ${examples.length} example(s), backend ${opts.backend}, ` +
                     `${opts.display === "xvfb" ? "virtual display (Xvfb)" : opts.display}, ${opts.jobs} at a time, ${browserPath}`);

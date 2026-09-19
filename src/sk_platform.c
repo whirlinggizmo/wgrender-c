@@ -88,6 +88,9 @@ EM_JS(int, screen_width, (void), { return window.screen.width | 0; });
 EM_JS(int, screen_height, (void), { return window.screen.height | 0; });
 EM_JS(int, document_has_focus, (void), { return document.hasFocus() ? 1 : 0; });
 
+EM_JS(void, performance_mark, (const char *name), { performance.mark(UTF8ToString(name)); });
+
+void sk_platform_mark(const char *name) { performance_mark(name); }
 bool sk_platform_set_window_size(int width, int height) { return canvas_set_size(width, height) != 0; }
 bool sk_platform_set_window_position(int x, int y) { (void)x; (void)y; return false; }
 bool sk_platform_get_window_position(int *x, int *y) { *x = 0; *y = 0; return false; }
@@ -108,6 +111,8 @@ bool sk_platform_monitor_rect(int monitor, int *x, int *y, int *width, int *heig
 }
 
 #else
+void sk_platform_mark(const char *name) { (void)name; }
+
 /* Desktop, through deps/sokol_utils. Window and monitor sizes are in the OS's
  * pixels, except on macOS where they're already points (logical). */
 static float desktop_scale(void)
@@ -239,6 +244,7 @@ float sk_platform_dpi_scale(void) { return sk_headless_dpi_scale; }
 void sk_platform_set_headless_dpi_scale(float scale) { sk_headless_dpi_scale = scale > 0.0f ? scale : 1.0f; }
 double sk_platform_frame_duration(void) { return sk_headless.frame_duration; }
 void sk_platform_set_title(const char *title) { (void)title; }
+void sk_platform_mark(const char *name) { (void)name; }
 void sk_platform_lock_mouse(bool locked) { (void)locked; }
 
 int sk_platform_width(void)
