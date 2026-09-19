@@ -111,6 +111,7 @@ void test_emitter_spawning(void);
 void test_emitter_particles(void);
 void test_emitter_scene(void);
 void test_emitter_motion(void);
+void test_emitter_curves(void);
 
 void test_scene_view_depth(void);
 void test_scene_sort_transparent(void);

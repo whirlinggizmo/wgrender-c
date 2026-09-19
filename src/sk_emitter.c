@@ -37,12 +37,14 @@
 #define PARTICLES_INITIAL 1024
 #define DRAWS_INITIAL 16
 #define TAU 6.28318530718f
+#define MAX_KEYS 8    /* per curve */
+#define MAX_PALETTE 8
 
 /* One particle as the shader reads it (per-instance data, 48 bytes). */
 typedef struct {
     float born[4];   /* xyz where, w when (the emitter's clock) */
     float motion[4]; /* xyz velocity, w life (seconds) */
-    float shape[4];  /* x size scale, y spin (radians / s), z angle at birth, w unused */
+    float shape[4];  /* x size scale, y spin (radians / s), z angle at birth, w a random 0..1 */
 } sk_particle_t;
 
 typedef struct {
@@ -69,8 +71,14 @@ typedef struct {
     float drag;         /* per second */
     float stretch;      /* seconds of motion */
     float inherit;      /* of the emitter's own velocity */
-    float size_start, size_end, size_variance;
-    sk_color_t color_start, color_end;
+    float size_times[MAX_KEYS], size_values[MAX_KEYS]; /* over life, keys in order */
+    int size_keys;
+    float size_variance;
+    float color_times[MAX_KEYS];
+    sk_color_t color_values[MAX_KEYS];
+    int color_keys;
+    sk_color_t palette[MAX_PALETTE];
+    int palette_count;
     float spin_min, spin_max;
     sk_alpha_mode_t alpha_mode;
     float alpha_cutoff;
@@ -206,7 +214,7 @@ static void spawn(sk_emitter_t *emitter_ptr, float when, vec3_t at)
                    random_between(emitter_ptr, emitter_ptr->life_min, emitter_ptr->life_max)},
         .shape = {fmaxf(0.0f, 1.0f + emitter_ptr->size_variance * signed_random(emitter_ptr)),
                   random_between(emitter_ptr, emitter_ptr->spin_min, emitter_ptr->spin_max),
-                  TAU * random01(emitter_ptr), 0.0f},
+                  TAU * random01(emitter_ptr), random01(emitter_ptr)},
     };
     emitter_ptr->next = (emitter_ptr->next + 1) % emitter_ptr->max;
     if (emitter_ptr->live < emitter_ptr->max) emitter_ptr->live++;
@@ -305,6 +313,13 @@ static void set4(float out[4], float a, float b, float c, float d)
     out[0] = a, out[1] = b, out[2] = c, out[3] = d;
 }
 
+/* A color as the shader takes it: sRGB values 0..1, like sokol_gl's. */
+static void color4(float out[4], sk_color_t color)
+{
+    set4(out, (float)sk_color_get_red(color) / 255.0f, (float)sk_color_get_green(color) / 255.0f,
+         (float)sk_color_get_blue(color) / 255.0f, (float)sk_color_get_alpha(color) / 255.0f);
+}
+
 /* Record an emitter's particles for this frame's pass: its live window into the frame's
  * buffer, and one draw (blended and added particles never write depth). */
 static void draw_emitter(sk_handle_t handle)
@@ -318,6 +333,7 @@ static void draw_emitter(sk_handle_t handle)
     const float scale = sk_render_pixel_scale();
 
     if (!sk_px.ready || emitter_ptr == NULL || !emitter_ptr->visible || emitter_ptr->live == 0 ||
+        emitter_ptr->size_keys == 0 || emitter_ptr->color_keys == 0 ||
         !sk_texture_get_binding(emitter_ptr->texture, &view, &smp, &tw, &th) || tw <= 0 || th <= 0) {
         return;
     }
@@ -353,19 +369,18 @@ static void draw_emitter(sk_handle_t handle)
     set4(d->params.gravity_now, emitter_ptr->gravity.x, emitter_ptr->gravity.y, emitter_ptr->gravity.z,
          emitter_ptr->time);
     set4(d->params.dynamics, emitter_ptr->drag, emitter_ptr->stretch, 0, 0);
-    set4(d->params.size_mode, emitter_ptr->size_start, emitter_ptr->size_end,
+    set4(d->params.counts, (float)emitter_ptr->size_keys, (float)emitter_ptr->color_keys,
          emitter_ptr->alpha_mode == SK_ALPHA_MASK     ? fmaxf(emitter_ptr->alpha_cutoff, 1e-6f)
          : emitter_ptr->alpha_mode == SK_ALPHA_OPAQUE ? -1.0f
                                                       : 0.0f,
-         0);
-    set4(d->params.color_start, (float)sk_color_get_red(emitter_ptr->color_start) / 255.0f,
-         (float)sk_color_get_green(emitter_ptr->color_start) / 255.0f,
-         (float)sk_color_get_blue(emitter_ptr->color_start) / 255.0f,
-         (float)sk_color_get_alpha(emitter_ptr->color_start) / 255.0f);
-    set4(d->params.color_end, (float)sk_color_get_red(emitter_ptr->color_end) / 255.0f,
-         (float)sk_color_get_green(emitter_ptr->color_end) / 255.0f,
-         (float)sk_color_get_blue(emitter_ptr->color_end) / 255.0f,
-         (float)sk_color_get_alpha(emitter_ptr->color_end) / 255.0f);
+         (float)emitter_ptr->palette_count);
+    for (int i = 0; i < MAX_KEYS; i++) { /* the curves, 4 keys to a vec4 */
+        d->params.size_times[i / 4][i % 4] = emitter_ptr->size_times[i];
+        d->params.size_values[i / 4][i % 4] = emitter_ptr->size_values[i];
+        d->params.color_times[i / 4][i % 4] = emitter_ptr->color_times[i];
+        color4(d->params.color_values[i], emitter_ptr->color_values[i]);
+    }
+    for (int i = 0; i < emitter_ptr->palette_count; i++) color4(d->params.palette[i], emitter_ptr->palette[i]);
     if (emitter_ptr->source[2] > 0.0f && emitter_ptr->source[3] > 0.0f) {
         set4(d->params.source, emitter_ptr->source[0] / (float)tw, emitter_ptr->source[1] / (float)th,
              (emitter_ptr->source[0] + emitter_ptr->source[2]) / (float)tw,
@@ -583,10 +598,12 @@ static sk_handle_t create_emitter(sk_handle_t texture, bool two_d)
         .ring = calloc(DEFAULT_MAX, sizeof(sk_particle_t)),
         .life_min = 1.0f,
         .life_max = 1.0f,
-        .size_start = two_d ? 8.0f : 1.0f,
-        .size_end = two_d ? 8.0f : 1.0f,
-        .color_start = SK_COLOR_WHITE,
-        .color_end = SK_COLOR_WHITE,
+        .size_times = {0.0f, 1.0f},
+        .size_values = {two_d ? 8.0f : 1.0f, two_d ? 8.0f : 1.0f},
+        .size_keys = 2,
+        .color_times = {0.0f, 1.0f},
+        .color_values = {SK_COLOR_WHITE, SK_COLOR_WHITE},
+        .color_keys = 2,
         .alpha_mode = SK_ALPHA_ADD,
         .alpha_cutoff = 0.5f,
         .rng = sk_px.next_seed,
@@ -638,14 +655,24 @@ static int count_alive(const sk_emitter_t *emitter_ptr)
     return alive;
 }
 
-bool sk_emitter_particle(sk_handle_t emitter, int index, float born[4], float motion[4])
+bool sk_emitter_particle(sk_handle_t emitter, int index, float born[4], float motion[4], float shape[4])
 {
     const sk_emitter_t *emitter_ptr = resolve(emitter);
     if (emitter_ptr == NULL || index < 0 || index >= emitter_ptr->live) return false;
     const sk_particle_t *p = &emitter_ptr->ring[(oldest(emitter_ptr) + index) % emitter_ptr->max];
     memcpy(born, p->born, sizeof(p->born));
     memcpy(motion, p->motion, sizeof(p->motion));
+    memcpy(shape, p->shape, sizeof(p->shape));
     return true;
+}
+
+int sk_emitter_size_keys(sk_handle_t emitter, float times[8], float values[8])
+{
+    const sk_emitter_t *emitter_ptr = resolve(emitter);
+    if (emitter_ptr == NULL) return 0;
+    memcpy(times, emitter_ptr->size_times, sizeof(emitter_ptr->size_times));
+    memcpy(values, emitter_ptr->size_values, sizeof(emitter_ptr->size_values));
+    return emitter_ptr->size_keys;
 }
 
 /* ------------------------------------------------------------ public API ---- */
@@ -685,6 +712,60 @@ static void move_to(sk_emitter_t *emitter_ptr, vec3_t position, bool jump)
         emitter_ptr->movement_velocity = (vec3_t){0, 0, 0};
     }
     emitter_ptr->placed = true;
+}
+
+/* A key into a curve, in order of time (after any at the same time: a step). */
+static bool insert_key(float *times, int *count, float t, int *at)
+{
+    int i;
+    if (*count >= MAX_KEYS || !(t >= 0.0f && t <= 1.0f)) return false;
+    for (i = *count; i > 0 && times[i - 1] > t; i--) times[i] = times[i - 1];
+    times[i] = t;
+    (*count)++;
+    *at = i;
+    return true;
+}
+
+static bool add_size_key(sk_emitter_t *emitter_ptr, float t, float size)
+{
+    int at, n = emitter_ptr->size_keys;
+    if (!(size >= 0.0f) || !insert_key(emitter_ptr->size_times, &emitter_ptr->size_keys, t, &at)) return false;
+    memmove(&emitter_ptr->size_values[at + 1], &emitter_ptr->size_values[at], sizeof(float) * (size_t)(n - at));
+    emitter_ptr->size_values[at] = size;
+    return true;
+}
+
+static bool add_color_key(sk_emitter_t *emitter_ptr, float t, sk_color_t color)
+{
+    int at, n = emitter_ptr->color_keys;
+    if (!insert_key(emitter_ptr->color_times, &emitter_ptr->color_keys, t, &at)) return false;
+    memmove(&emitter_ptr->color_values[at + 1], &emitter_ptr->color_values[at], sizeof(sk_color_t) * (size_t)(n - at));
+    emitter_ptr->color_values[at] = color;
+    return true;
+}
+
+static bool set_size(sk_emitter_t *emitter_ptr, float start, float end, float variance)
+{
+    if (!(start >= 0.0f) || !(end >= 0.0f)) return false;
+    emitter_ptr->size_keys = 0;
+    add_size_key(emitter_ptr, 0.0f, start);
+    add_size_key(emitter_ptr, 1.0f, end);
+    emitter_ptr->size_variance = fminf(fmaxf(variance, 0.0f), 1.0f);
+    return true;
+}
+
+static void set_color(sk_emitter_t *emitter_ptr, sk_color_t start, sk_color_t end)
+{
+    emitter_ptr->color_keys = 0;
+    add_color_key(emitter_ptr, 0.0f, start);
+    add_color_key(emitter_ptr, 1.0f, end);
+}
+
+static bool add_palette_color(sk_emitter_t *emitter_ptr, sk_color_t color)
+{
+    if (emitter_ptr->palette_count >= MAX_PALETTE) return false;
+    emitter_ptr->palette[emitter_ptr->palette_count++] = color;
+    return true;
 }
 
 static bool burst(sk_emitter_t *emitter_ptr, int count)
@@ -842,22 +923,58 @@ SK_KEEP bool sk_emitter2d_set_inherit_velocity(sk_handle_t e, float fraction)
 }
 SK_KEEP bool sk_emitter3d_set_size(sk_handle_t e, float start, float end, float variance)
 {
-    WITH_EMITTER(e, false, (emitter_ptr->size_start = fmaxf(start, 0.0f), emitter_ptr->size_end = fmaxf(end, 0.0f),
-                            emitter_ptr->size_variance = fminf(fmaxf(variance, 0.0f), 1.0f)));
+    sk_emitter_t *emitter_ptr = resolve_kind(e, false);
+    return emitter_ptr != NULL && set_size(emitter_ptr, start, end, variance);
 }
 SK_KEEP bool sk_emitter2d_set_size(sk_handle_t e, float start, float end, float variance)
 {
-    WITH_EMITTER(e, true, (emitter_ptr->size_start = fmaxf(start, 0.0f), emitter_ptr->size_end = fmaxf(end, 0.0f),
-                           emitter_ptr->size_variance = fminf(fmaxf(variance, 0.0f), 1.0f)));
+    sk_emitter_t *emitter_ptr = resolve_kind(e, true);
+    return emitter_ptr != NULL && set_size(emitter_ptr, start, end, variance);
 }
+SK_KEEP bool sk_emitter3d_add_size_key(sk_handle_t e, float t, float size)
+{
+    sk_emitter_t *emitter_ptr = resolve_kind(e, false);
+    return emitter_ptr != NULL && add_size_key(emitter_ptr, t, size);
+}
+SK_KEEP bool sk_emitter2d_add_size_key(sk_handle_t e, float t, float size)
+{
+    sk_emitter_t *emitter_ptr = resolve_kind(e, true);
+    return emitter_ptr != NULL && add_size_key(emitter_ptr, t, size);
+}
+SK_KEEP bool sk_emitter3d_clear_size_keys(sk_handle_t e) { WITH_EMITTER(e, false, emitter_ptr->size_keys = 0); }
+SK_KEEP bool sk_emitter2d_clear_size_keys(sk_handle_t e) { WITH_EMITTER(e, true, emitter_ptr->size_keys = 0); }
 SK_KEEP bool sk_emitter3d_set_color(sk_handle_t e, sk_color_t start, sk_color_t end)
 {
-    WITH_EMITTER(e, false, (emitter_ptr->color_start = start, emitter_ptr->color_end = end));
+    WITH_EMITTER(e, false, set_color(emitter_ptr, start, end));
 }
 SK_KEEP bool sk_emitter2d_set_color(sk_handle_t e, sk_color_t start, sk_color_t end)
 {
-    WITH_EMITTER(e, true, (emitter_ptr->color_start = start, emitter_ptr->color_end = end));
+    WITH_EMITTER(e, true, set_color(emitter_ptr, start, end));
 }
+SK_KEEP bool sk_emitter3d_add_color_key(sk_handle_t e, float t, sk_color_t color)
+{
+    sk_emitter_t *emitter_ptr = resolve_kind(e, false);
+    return emitter_ptr != NULL && add_color_key(emitter_ptr, t, color);
+}
+SK_KEEP bool sk_emitter2d_add_color_key(sk_handle_t e, float t, sk_color_t color)
+{
+    sk_emitter_t *emitter_ptr = resolve_kind(e, true);
+    return emitter_ptr != NULL && add_color_key(emitter_ptr, t, color);
+}
+SK_KEEP bool sk_emitter3d_clear_color_keys(sk_handle_t e) { WITH_EMITTER(e, false, emitter_ptr->color_keys = 0); }
+SK_KEEP bool sk_emitter2d_clear_color_keys(sk_handle_t e) { WITH_EMITTER(e, true, emitter_ptr->color_keys = 0); }
+SK_KEEP bool sk_emitter3d_add_palette_color(sk_handle_t e, sk_color_t color)
+{
+    sk_emitter_t *emitter_ptr = resolve_kind(e, false);
+    return emitter_ptr != NULL && add_palette_color(emitter_ptr, color);
+}
+SK_KEEP bool sk_emitter2d_add_palette_color(sk_handle_t e, sk_color_t color)
+{
+    sk_emitter_t *emitter_ptr = resolve_kind(e, true);
+    return emitter_ptr != NULL && add_palette_color(emitter_ptr, color);
+}
+SK_KEEP bool sk_emitter3d_clear_palette(sk_handle_t e) { WITH_EMITTER(e, false, emitter_ptr->palette_count = 0); }
+SK_KEEP bool sk_emitter2d_clear_palette(sk_handle_t e) { WITH_EMITTER(e, true, emitter_ptr->palette_count = 0); }
 SK_KEEP bool sk_emitter3d_set_spin(sk_handle_t e, float min, float max)
 {
     WITH_EMITTER(e, false, (emitter_ptr->spin_min = min, emitter_ptr->spin_max = max));

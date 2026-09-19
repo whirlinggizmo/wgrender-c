@@ -35,6 +35,12 @@ bool sk_emitter2d_set_inherit_velocity(sk_handle_t emitter, float fraction);
 
 bool sk_emitter2d_set_size(sk_handle_t emitter, float start, float end, float variance);
 bool sk_emitter2d_set_color(sk_handle_t emitter, sk_color_t start, sk_color_t end);
+bool sk_emitter2d_add_size_key(sk_handle_t emitter, float t, float size);
+bool sk_emitter2d_clear_size_keys(sk_handle_t emitter);
+bool sk_emitter2d_add_color_key(sk_handle_t emitter, float t, sk_color_t color);
+bool sk_emitter2d_clear_color_keys(sk_handle_t emitter);
+bool sk_emitter2d_add_palette_color(sk_handle_t emitter, sk_color_t color);
+bool sk_emitter2d_clear_palette(sk_handle_t emitter);
 bool sk_emitter2d_set_spin(sk_handle_t emitter, float min, float max);
 bool sk_emitter2d_set_stretch(sk_handle_t emitter, float seconds);
 

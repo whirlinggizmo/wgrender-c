@@ -12,6 +12,7 @@
 #include "internal/sk_sprite_batch.h"
 #include "internal/sk_texture.h"
 #include "sk_camera3d.h"
+#include "sk_color.h"
 #include "sk_emitter2d.h"
 #include "sk_emitter3d.h"
 #include "sk_logger.h"
@@ -92,7 +93,7 @@ void test_emitter_spawning(void)
 
 void test_emitter_particles(void)
 {
-    float born_a[4], motion_a[4], born_b[4], motion_b[4];
+    float born_a[4], motion_a[4], born_b[4], motion_b[4], shape[4];
     bool same = true, in_cone = true, in_fan = true;
     start();
 
@@ -109,7 +110,7 @@ void test_emitter_particles(void)
         CHECK(sk_emitter3d_burst(e, 200));
     }
     for (int i = 0; i < 200; i++) {
-        CHECK(sk_emitter_particle(a, i, born_a, motion_a) && sk_emitter_particle(b, i, born_b, motion_b));
+        CHECK(sk_emitter_particle(a, i, born_a, motion_a, shape) && sk_emitter_particle(b, i, born_b, motion_b, shape));
         for (int c = 0; c < 4; c++) same = same && born_a[c] == born_b[c] && motion_a[c] == motion_b[c];
         /* within the box, the cone (0.3 rad around +y), the speed and the life */
         const float speed = sqrtf(motion_a[0] * motion_a[0] + motion_a[1] * motion_a[1] + motion_a[2] * motion_a[2]);
@@ -119,14 +120,14 @@ void test_emitter_particles(void)
     }
     CHECK(same);
     CHECK(in_cone);
-    CHECK(!sk_emitter_particle(a, 200, born_a, motion_a));
+    CHECK(!sk_emitter_particle(a, 200, born_a, motion_a, shape));
 
     /* 2D: turned up to `spread` either way, in the screen's plane */
     const sk_handle_t flat = sk_emitter2d_create(sk_texture_get_default());
     CHECK(sk_emitter2d_set_velocity(flat, 100, 0, 0.5f, 0));
     CHECK(sk_emitter2d_burst(flat, 100));
     for (int i = 0; i < 100; i++) {
-        sk_emitter_particle(flat, i, born_a, motion_a);
+        sk_emitter_particle(flat, i, born_a, motion_a, shape);
         in_fan = in_fan && motion_a[2] == 0 && fabsf(atan2f(motion_a[1], motion_a[0])) <= 0.5f + 1e-4f;
     }
     CHECK(in_fan);
@@ -188,7 +189,7 @@ void test_emitter_scene(void)
  * move, jumps and the first position aren't moves. */
 void test_emitter_motion(void)
 {
-    float born[4], motion[4];
+    float born[4], motion[4], shape[4];
     bool along = true, inherited = true, jumped = true;
     start();
     const sk_handle_t e = sk_emitter3d_create(sk_texture_get_default());
@@ -197,7 +198,7 @@ void test_emitter_motion(void)
     CHECK(sk_emitter3d_set_rate(e, 100));
     sk_emitter_update(0.1f); /* 10 at x = 5 */
     for (int i = 0; i < 10; i++) {
-        sk_emitter_particle(e, i, born, motion);
+        sk_emitter_particle(e, i, born, motion, shape);
         jumped = jumped && born[0] == 5 && motion[0] == 0;
     }
     CHECK(jumped);
@@ -207,7 +208,7 @@ void test_emitter_motion(void)
     CHECK(sk_emitter3d_set_position(e, 15, 0, 0));
     sk_emitter_update(0.1f);
     for (int i = 0; i < 10; i++) {
-        sk_emitter_particle(e, 10 + i, born, motion);
+        sk_emitter_particle(e, 10 + i, born, motion, shape);
         along = along && fabsf(born[0] - (5.0f + (float)(i + 1))) < 1e-4f;
         inherited = inherited && fabsf(motion[0] - 50.0f) < 1e-2f; /* half of 100 a second */
     }
@@ -219,19 +220,62 @@ void test_emitter_motion(void)
     CHECK(sk_emitter3d_jump(e, 100, 0, 0));
     sk_emitter_update(0.1f);
     for (int i = 0; i < 10; i++) {
-        sk_emitter_particle(e, 20 + i, born, motion);
+        sk_emitter_particle(e, 20 + i, born, motion, shape);
         jumped = jumped && born[0] == 100 && motion[0] == 0;
     }
     CHECK(jumped);
 
     /* standing still: nothing inherited */
     sk_emitter_update(0.1f);
-    sk_emitter_particle(e, 30, born, motion);
+    sk_emitter_particle(e, 30, born, motion, shape);
     CHECK(born[0] == 100 && motion[0] == 0);
 
     CHECK(sk_emitter3d_set_drag(e, 2) && sk_emitter3d_set_stretch(e, 0.05f));
     CHECK(!sk_emitter3d_set_drag(e, -1) && !sk_emitter3d_set_stretch(e, -1));
     CHECK(!sk_emitter2d_jump(e, 0, 0));
+    sk_emitter3d_destroy(e);
+    stop();
+}
+
+/* Curves over life: keys kept in order, bounded; the palette's pick is spread. */
+void test_emitter_curves(void)
+{
+    float times[8], values[8], born[4], motion[4], shape[4];
+    int picks[4] = {0};
+    start();
+    const sk_handle_t e = sk_emitter3d_create(sk_texture_get_default());
+    CHECK(sk_emitter_size_keys(e, times, values) == 2); /* 1 -> 1 */
+    CHECK(sk_emitter3d_set_size(e, 2, 5, 0));
+    CHECK(sk_emitter_size_keys(e, times, values) == 2 && times[0] == 0 && values[0] == 2 && times[1] == 1 &&
+          values[1] == 5);
+
+    /* added out of order: kept in order; the same time twice is a step, in added order */
+    CHECK(sk_emitter3d_clear_size_keys(e));
+    CHECK(sk_emitter_size_keys(e, times, values) == 0);
+    CHECK(sk_emitter3d_add_size_key(e, 1, 0));
+    CHECK(sk_emitter3d_add_size_key(e, 0, 1));
+    CHECK(sk_emitter3d_add_size_key(e, 0.5f, 3));
+    CHECK(sk_emitter3d_add_size_key(e, 0.5f, 4));
+    CHECK(sk_emitter_size_keys(e, times, values) == 4);
+    CHECK(times[0] == 0 && values[0] == 1 && times[1] == 0.5f && values[1] == 3 && times[2] == 0.5f &&
+          values[2] == 4 && times[3] == 1 && values[3] == 0);
+    for (int i = 0; i < 4; i++) CHECK(sk_emitter3d_add_size_key(e, 0.9f, 1));
+    CHECK(!sk_emitter3d_add_size_key(e, 0.9f, 1)); /* 8 at most */
+    CHECK(!sk_emitter3d_add_color_key(e, 1.5f, SK_COLOR_RED)); /* outside the life */
+    CHECK(!sk_emitter3d_add_size_key(e, 0.5f, -1));
+    CHECK(sk_emitter3d_clear_color_keys(e) && sk_emitter3d_add_color_key(e, 0.3f, SK_COLOR_RED));
+
+    /* the palette: 8 at most; particles carry a random pick, spread over it */
+    for (int i = 0; i < 8; i++) CHECK(sk_emitter3d_add_palette_color(e, SK_COLOR_RED));
+    CHECK(!sk_emitter3d_add_palette_color(e, SK_COLOR_RED));
+    CHECK(sk_emitter3d_clear_palette(e));
+    CHECK(sk_emitter3d_set_max(e, 4000) && sk_emitter3d_burst(e, 4000));
+    for (int i = 0; i < 4000; i++) {
+        sk_emitter_particle(e, i, born, motion, shape);
+        CHECK(shape[3] >= 0 && shape[3] < 1);
+        picks[(int)(shape[3] * 4)]++;
+    }
+    for (int k = 0; k < 4; k++) CHECK(picks[k] > 850 && picks[k] < 1150);
     sk_emitter3d_destroy(e);
     stop();
 }

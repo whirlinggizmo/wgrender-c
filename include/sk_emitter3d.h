@@ -68,6 +68,20 @@ bool sk_emitter3d_set_inherit_velocity(sk_handle_t emitter, float fraction);
  * from a random angle. Defaults: size 1 -> 1, white -> white, no spin. */
 bool sk_emitter3d_set_size(sk_handle_t emitter, float start, float end, float variance);
 bool sk_emitter3d_set_color(sk_handle_t emitter, sk_color_t start, sk_color_t end);
+
+/* Curves: set_size and set_color make two keys, at 0 (birth) and 1 (death). For more,
+ * clear the keys and add up to 8, each at `t` (0..1 of a particle's life); between two
+ * keys the value moves in a line, before the first and after the last it holds. Keys
+ * at the same time make a step. An emitter without size or color keys draws nothing. */
+bool sk_emitter3d_add_size_key(sk_handle_t emitter, float t, float size);
+bool sk_emitter3d_clear_size_keys(sk_handle_t emitter);
+bool sk_emitter3d_add_color_key(sk_handle_t emitter, float t, sk_color_t color);
+bool sk_emitter3d_clear_color_keys(sk_handle_t emitter);
+
+/* Palette: up to 8 colors; each particle picks one at birth, and it tints the color over
+ * its life (confetti from one emitter). Empty by default: no tint. */
+bool sk_emitter3d_add_palette_color(sk_handle_t emitter, sk_color_t color);
+bool sk_emitter3d_clear_palette(sk_handle_t emitter);
 bool sk_emitter3d_set_spin(sk_handle_t emitter, float min, float max);
 /* Stretch along the motion (sparks, rain, streaks): each particle's texture points its
  * top along its velocity across the screen, and is as long as the distance it moves in

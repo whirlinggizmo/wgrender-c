@@ -19,7 +19,10 @@ void sk_emitter_flush(void);
 void sk_emitter_end_frame(void);
 
 /* For tests: particle `index` (0 = the oldest in the emitter's window) as written at
- * its birth: born xyz + time, velocity xyz + life. False past the window. */
-bool sk_emitter_particle(sk_handle_t emitter, int index, float born[4], float motion[4]);
+ * its birth: born xyz + time, velocity xyz + life, shape (size scale, spin, angle, a
+ * random 0..1). False past the window. */
+bool sk_emitter_particle(sk_handle_t emitter, int index, float born[4], float motion[4], float shape[4]);
+/* For tests: the size curve's keys (in order) and how many. */
+int sk_emitter_size_keys(sk_handle_t emitter, float times[8], float values[8]);
 
 #endif // SK_INTERNAL_EMITTER_H
