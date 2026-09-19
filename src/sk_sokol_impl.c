@@ -20,7 +20,9 @@
 #include "sokol_glue.h"
 #endif
 #include "sokol_time.h"
+#if defined(__EMSCRIPTEN__) /* downloads (sk_asset); desktop reads files itself */
 #include "sokol_fetch.h"
+#endif
 #if !defined(SK_HEADLESS) /* headless: no audio device */
 #include "sokol_audio.h"
 #endif
