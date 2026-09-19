@@ -11,6 +11,7 @@
 #include "internal/sk_camera3d.h"
 #include "internal/sk_environment.h"
 #include "internal/sk_handle_pool.h"
+#include "internal/sk_ktx.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_light.h"
 #include "internal/sk_loader.h"
@@ -251,6 +252,8 @@ static sg_shader make_skinned_shader(void)
  * created yet). The loader holds one reference to each; materials add their own. */
 typedef struct {
     sk_texture_pixels_t *pixels; /* decoded while preparing; freed once uploaded */
+    unsigned char *ktx_bytes;    /* or a compressed file, read while preparing (ktx points into it) */
+    sk_ktx_t ktx;
     sk_handle_t texture;         /* 0 = not uploaded (yet) */
     bool failed;                 /* couldn't be read or decoded (warned) */
 } sk_gltf_image_t;
@@ -325,6 +328,66 @@ static void decode_image(sk_gltf_textures_t *cache, const cgltf_image *img)
     }
 }
 
+/* Compressed textures (docs/PLAN-textures.md): tools/compress_gltf.py gives a texture
+ * the SK_texture_ktx extension, {"source": <image>}, an image named "name.ktx" beside
+ * its own. The texture module picks the file this GPU can sample (name.bc7.ktx, ...);
+ * without one, the texture uses its own image. */
+#define KTX_EXTENSION "SK_texture_ktx"
+
+static const cgltf_image *ktx_image(const cgltf_data *g, const cgltf_texture *t)
+{
+    for (cgltf_size i = 0; t != NULL && i < t->extensions_count; i++) {
+        const char *source;
+        long index;
+        if (t->extensions[i].name == NULL || strcmp(t->extensions[i].name, KTX_EXTENSION) != 0 ||
+            t->extensions[i].data == NULL || (source = strstr(t->extensions[i].data, "\"source\"")) == NULL ||
+            (source = strchr(source, ':')) == NULL) {
+            continue;
+        }
+        index = strtol(source + 1, NULL, 10);
+        if (index >= 0 && (cgltf_size)index < g->images_count) return &g->images[index];
+    }
+    return NULL;
+}
+
+/* The compressed file this GPU can use for `img` (its URI relative to the glTF file,
+ * in `out`): false when there's none (then the texture's own image is used). */
+static bool ktx_variant(const cgltf_image *img, char *out, size_t out_size)
+{
+    size_t n;
+    if (img == NULL || img->uri == NULL || img->buffer_view != NULL || !sk_asset_is_relative_uri(img->uri) ||
+        !sk_texture_ktx_path(img->uri, out, out_size)) {
+        return false;
+    }
+    n = strlen(out);
+    return n > 4 && strcmp(out + n - 4, ".ktx") == 0;
+}
+
+/* Read a texture's compressed file (any thread): false when it can't be used, so the
+ * texture's own image is decoded instead. */
+static bool read_ktx(sk_gltf_textures_t *cache, const cgltf_image *img, const char *uri)
+{
+    sk_gltf_image_t *slot = &cache->images[img - cache->gltf->images];
+    const char *error = NULL;
+    char path[512];
+    int size = 0;
+
+    if (slot->ktx_bytes != NULL) return true;
+    if (slot->failed || cache->path == NULL || !sk_asset_join_relative(cache->path, uri, path, sizeof(path))) {
+        return false;
+    }
+    slot->ktx_bytes = read_file_bytes(path, &size);
+    if (slot->ktx_bytes == NULL || !sk_ktx_parse(slot->ktx_bytes, (size_t)size, &slot->ktx, &error)) {
+        log_warn("model: %s: %s can't be used (%s); using the texture's own image", cache->path, uri,
+                 error != NULL ? error : "unreadable");
+        free(slot->ktx_bytes);
+        slot->ktx_bytes = NULL;
+        slot->failed = true;
+        return false;
+    }
+    return true;
+}
+
 /* The texture uploaded for a glTF image; 0 when it couldn't be loaded. */
 static sk_handle_t load_image(sk_gltf_textures_t *cache, const cgltf_image *img)
 {
@@ -353,11 +416,16 @@ static void set_texture(sk_gltf_textures_t *cache, sk_handle_t material, const c
     if (view->texture == NULL) {
         return;
     }
-    if (view->texture->image == NULL) {
-        log_warn("model: %s: a texture has no image in a supported format (PNG, JPEG); using the placeholder texture",
-                 cache->path);
+    const cgltf_image *compressed = ktx_image(cache->gltf, view->texture);
+    if (compressed != NULL && load_image(cache, compressed) != 0) {
+        texture = load_image(cache, compressed);
+    } else {
+        if (view->texture->image == NULL) {
+            log_warn("model: %s: a texture has no image in a supported format (PNG, JPEG); using the placeholder "
+                     "texture", cache->path);
+        }
+        texture = load_image(cache, view->texture->image);
     }
-    texture = load_image(cache, view->texture->image);
     if (texture == 0) {
         /* Color textures show the placeholder so the problem is visible. Data
          * textures (normal, metallic-roughness, occlusion) stay empty: a checker
@@ -1254,8 +1322,15 @@ static void *prepare_mesh(const char *path)
     if (prepared->textures.images != NULL) {
         /* images that textures use, decoded here (the slow part of most models) */
         for (cgltf_size t = 0; t < prepared->gltf->textures_count; t++) {
-            if (prepared->gltf->textures[t].image != NULL) {
-                decode_image(&prepared->textures, prepared->gltf->textures[t].image);
+            const cgltf_texture *texture = &prepared->gltf->textures[t];
+            const cgltf_image *compressed = ktx_image(prepared->gltf, texture);
+            char uri[256];
+            if (compressed != NULL && ktx_variant(compressed, uri, sizeof(uri)) &&
+                read_ktx(&prepared->textures, compressed, uri)) {
+                continue; /* uploaded as it is: no decoding */
+            }
+            if (texture->image != NULL) {
+                decode_image(&prepared->textures, texture->image);
             }
         }
     }
@@ -1271,6 +1346,7 @@ static void discard_mesh(void *data)
     if (prepared->textures.images != NULL) {
         for (cgltf_size i = 0; i < prepared->gltf->images_count; i++) {
             sk_texture_pixels_free(prepared->textures.images[i].pixels);
+            free(prepared->textures.images[i].ktx_bytes);
             sk_texture_release(prepared->textures.images[i].texture); /* materials hold what they use */
         }
     }
@@ -1371,6 +1447,13 @@ static sk_loader_step_t finish_mesh(void *data, const char *path, sk_handle_t *r
     if (prepared->textures.images != NULL) {
         while (prepared->next_image < prepared->gltf->images_count) {
             sk_gltf_image_t *image = &prepared->textures.images[prepared->next_image++];
+            if (image->ktx_bytes != NULL) {
+                image->texture = sk_texture_create_ktx(&image->ktx);
+                image->failed = image->texture == 0;
+                free(image->ktx_bytes);
+                image->ktx_bytes = NULL;
+                return SK_LOADER_MORE;
+            }
             if (image->pixels != NULL) {
                 image->texture = sk_texture_create_pixels(image->pixels, NULL, true);
                 image->failed = image->texture == 0;
@@ -2315,8 +2398,8 @@ SK_KEEP void sk_model_destroy(sk_handle_t handle)
 }
 
 /* sk_asset: the buffer and image files a glTF file references. */
-static void list_gltf_dependencies(const unsigned char *data, int size, sk_asset_add_dependency_fn add,
-                                   void *context)
+void sk_model_list_gltf_dependencies(const unsigned char *data, int size, sk_asset_add_dependency_fn add,
+                                     void *context)
 {
     cgltf_options options = {0};
     cgltf_data *g = NULL;
@@ -2327,10 +2410,34 @@ static void list_gltf_dependencies(const unsigned char *data, int size, sk_asset
     for (cgltf_size i = 0; i < g->buffers_count; i++) {
         if (g->buffers[i].uri != NULL) add(g->buffers[i].uri, true, context);
     }
-    for (cgltf_size i = 0; i < g->images_count; i++) {
-        /* optional: a missing image gets the placeholder texture */
-        if (g->images[i].uri != NULL && g->images[i].buffer_view == NULL) add(g->images[i].uri, false, context);
+    /* images, optional (a missing one gets the placeholder texture): a texture with a
+       compressed file this GPU can use needs only that, not its own image; the other
+       compressed files aren't needed at all */
+    unsigned char *need = (unsigned char *)calloc(g->images_count + 1, 1); /* 0 unknown, 1 yes, 2 no */
+    if (need != NULL) {
+        for (cgltf_size t = 0; t < g->textures_count; t++) {
+            const cgltf_image *compressed = ktx_image(g, &g->textures[t]);
+            if (compressed != NULL) need[compressed - g->images] = 2;
+        }
+        for (cgltf_size t = 0; t < g->textures_count; t++) {
+            const cgltf_image *compressed = ktx_image(g, &g->textures[t]);
+            char uri[256];
+            if (compressed != NULL && ktx_variant(compressed, uri, sizeof(uri))) {
+                add(uri, false, context);
+                if (g->textures[t].image != NULL && need[g->textures[t].image - g->images] == 0) {
+                    need[g->textures[t].image - g->images] = 2; /* unless another texture uses it */
+                }
+            } else if (g->textures[t].image != NULL) {
+                need[g->textures[t].image - g->images] = 1;
+            }
+        }
     }
+    for (cgltf_size i = 0; i < g->images_count; i++) {
+        if (g->images[i].uri != NULL && g->images[i].buffer_view == NULL && (need == NULL || need[i] != 2)) {
+            add(g->images[i].uri, false, context);
+        }
+    }
+    free(need);
     cgltf_free(g);
 }
 
@@ -2363,8 +2470,8 @@ void sk_model_init(void)
     sk_scene_register_bounds(SK_HANDLE_KIND_MODEL, model_bounds);
     sk_scene_register_pick(SK_HANDLE_KIND_MODEL, model_pick);
     sk_scene_register_enabled(SK_HANDLE_KIND_MODEL, sk_model_is_enabled);
-    sk_asset_register_dependencies(".gltf", list_gltf_dependencies);
-    sk_asset_register_dependencies(".glb", list_gltf_dependencies);
+    sk_asset_register_dependencies(".gltf", sk_model_list_gltf_dependencies);
+    sk_asset_register_dependencies(".glb", sk_model_list_gltf_dependencies);
     sk_asset_register_loader(".gltf", &sk_mesh_loader);
     sk_asset_register_loader(".glb", &sk_mesh_loader);
 }

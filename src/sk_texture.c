@@ -483,20 +483,29 @@ static void *prepare_ktx(const char *path)
     return file;
 }
 
-static sk_loader_step_t finish_ktx(void *prepared, const char *path, sk_handle_t *resource)
+static sk_handle_t create_ktx(const sk_ktx_t *ktx, const char *path)
 {
-    const sk_ktx_t *ktx = &((const sk_ktx_file_t *)prepared)->ktx;
     sg_image_desc desc = {.width = ktx->width, .height = ktx->height, .pixel_format = ktx->format,
                           .num_mipmaps = ktx->mip_count, .label = "sk-texture-ktx"};
     uint16_t index = 0;
     if (!sg_query_pixelformat(ktx->format).sample) {
-        log_error("Can't load %s: this GPU can't sample its format", path);
-        return SK_LOADER_FAILED;
+        log_error("Can't load %s: this GPU can't sample its format", path != NULL ? path : "a compressed texture");
+        return 0;
     }
     for (int i = 0; i < ktx->mip_count; i++) {
         desc.data.mip_levels[i] = (sg_range){.ptr = ktx->levels[i], .size = ktx->sizes[i]};
     }
-    *resource = add_texture(sg_make_image(&desc), ktx->width, ktx->height, path, &index);
+    return add_texture(sg_make_image(&desc), ktx->width, ktx->height, path, &index);
+}
+
+sk_handle_t sk_texture_create_ktx(const sk_ktx_t *ktx)
+{
+    return create_ktx(ktx, NULL);
+}
+
+static sk_loader_step_t finish_ktx(void *prepared, const char *path, sk_handle_t *resource)
+{
+    *resource = create_ktx(&((const sk_ktx_file_t *)prepared)->ktx, path);
     return *resource != 0 ? SK_LOADER_DONE : SK_LOADER_FAILED;
 }
 

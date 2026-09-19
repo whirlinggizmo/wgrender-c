@@ -92,6 +92,7 @@ static const test_case_t TESTS[] = {
     {"ktx_parse", test_ktx_parse},
     {"ktx_variants", test_ktx_variants},
     {"ktx_load", test_ktx_load},
+    {"pipeline_gltf_ktx", test_pipeline_gltf_ktx},
     {"text_default_font", test_text_default_font},
     {"text_slices_and_dpi", test_text_slices_and_dpi},
     {"text_font_refcount", test_text_font_refcount},

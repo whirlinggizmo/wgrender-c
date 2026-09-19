@@ -469,3 +469,104 @@ void test_pipeline_many(void)
     sk_texture_release(texture);
     stop_assets();
 }
+
+/* ------------------------------------------------- compressed glTF textures ---- */
+
+/* A one-triangle model whose texture has the SK_texture_ktx extension, written by the
+ * test beside copies of the flame texture (tex.png and its .ktx variants). */
+#define KTX_DIR "build/ktx_model"
+static const char KTX_GLTF[] =
+    "{\"asset\":{\"version\":\"2.0\"},\"extensionsUsed\":[\"SK_texture_ktx\"],"
+    "\"buffers\":[{\"byteLength\":60,\"uri\":\"data:application/octet-stream;base64,"
+    "AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/\"}],"
+    "\"bufferViews\":[{\"buffer\":0,\"byteOffset\":0,\"byteLength\":36},{\"buffer\":0,\"byteOffset\":36,\"byteLength\":24}],"
+    "\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\",\"min\":[0,0,0],\"max\":[1,1,0]},"
+    "{\"bufferView\":1,\"componentType\":5126,\"count\":3,\"type\":\"VEC2\"}],"
+    "\"images\":[{\"uri\":\"tex.png\"},{\"uri\":\"tex.ktx\"}],"
+    "\"textures\":[{\"source\":0,\"extensions\":{\"SK_texture_ktx\":{\"source\":1}}}],"
+    "\"materials\":[{\"pbrMetallicRoughness\":{\"baseColorTexture\":{\"index\":0}}}],"
+    "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":1},\"material\":0}]}],"
+    "\"nodes\":[{\"mesh\":0}],\"scenes\":[{\"nodes\":[0]}],\"scene\":0}";
+
+static bool copy_file(const char *from, const char *to)
+{
+    size_t size = 0;
+    unsigned char *bytes = NULL;
+    FILE *f = fopen(from, "rb");
+    bool ok = false;
+    if (f == NULL) return false;
+    fseek(f, 0, SEEK_END);
+    size = (size_t)ftell(f);
+    fseek(f, 0, SEEK_SET);
+    bytes = malloc(size);
+    if (bytes != NULL && fread(bytes, 1, size, f) == size) {
+        FILE *out = fopen(to, "wb");
+        ok = out != NULL && fwrite(bytes, 1, size, out) == size;
+        if (out != NULL) fclose(out);
+    }
+    fclose(f);
+    free(bytes);
+    return ok;
+}
+
+static struct {
+    char uris[8][256];
+    int count;
+} listed;
+
+static void on_dependency(const char *uri, bool required, void *context)
+{
+    (void)required, (void)context;
+    if (listed.count < 8) snprintf(listed.uris[listed.count++], sizeof(listed.uris[0]), "%s", uri);
+}
+
+static bool was_listed(const char *uri)
+{
+    for (int i = 0; i < listed.count; i++) {
+        if (strcmp(listed.uris[i], uri) == 0) return true;
+    }
+    return false;
+}
+
+void test_pipeline_gltf_ktx(void)
+{
+    static const char *variants[] = {".png", ".bc7.ktx", ".astc.ktx", ".etc2.ktx"};
+    char from[256], to[256];
+    FILE *f;
+
+    CHECK(make_dir("build") && make_dir(KTX_DIR));
+    for (int i = 0; i < 4; i++) {
+        snprintf(from, sizeof(from), "../examples/assets/textures/flame%s", variants[i]);
+        snprintf(to, sizeof(to), KTX_DIR "/tex%s", variants[i]);
+        CHECK(copy_file(from, to));
+    }
+    f = fopen(KTX_DIR "/m.gltf", "wb");
+    CHECK(f != NULL);
+    if (f == NULL) return;
+    fputs(KTX_GLTF, f);
+    fclose(f);
+
+    /* what it needs: the compressed file this GPU can use, not the PNG; the PNG when
+       there's none */
+    sk_texture_set_ktx_support(1); /* BC7 */
+    listed.count = 0;
+    sk_model_list_gltf_dependencies((const unsigned char *)KTX_GLTF, (int)strlen(KTX_GLTF), on_dependency, NULL);
+    CHECK(was_listed("tex.bc7.ktx") && !was_listed("tex.png") && !was_listed("tex.ktx"));
+    sk_texture_set_ktx_support(2); /* ASTC */
+    listed.count = 0;
+    sk_model_list_gltf_dependencies((const unsigned char *)KTX_GLTF, (int)strlen(KTX_GLTF), on_dependency, NULL);
+    CHECK(was_listed("tex.astc.ktx") && !was_listed("tex.png"));
+    sk_texture_set_ktx_support(0); /* none */
+    listed.count = 0;
+    sk_model_list_gltf_dependencies((const unsigned char *)KTX_GLTF, (int)strlen(KTX_GLTF), on_dependency, NULL);
+    CHECK(was_listed("tex.png") && !was_listed("tex.ktx") && !was_listed("tex.bc7.ktx") && !was_listed("tex.astc.ktx"));
+    sk_texture_set_ktx_support(-1);
+
+    /* loaded on sokol's dummy backend (no compressed formats): the texture's own image */
+    setup();
+    sk_handle_t mesh = sk_mesh_create(KTX_DIR "/m.gltf");
+    CHECK(mesh != 0);
+    CHECK(loaded_textures(mesh) == 1);
+    sk_mesh_release(mesh);
+    teardown();
+}

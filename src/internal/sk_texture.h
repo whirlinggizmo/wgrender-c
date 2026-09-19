@@ -71,6 +71,10 @@ void sk_texture_set_drawing_into(sk_handle_t handle);
  * stands for on this GPU, written to `out`: rock.bc7.ktx, rock.astc.ktx, rock.etc2.ktx,
  * else rock.png. A variant name is kept as it is. False for other paths. */
 bool sk_texture_ktx_path(const char *path, char *out, size_t out_size);
+/* A texture from a parsed compressed file (a glTF model's, say), with no path: 0 when
+ * the GPU can't sample its format. */
+struct sk_ktx_t;
+sk_handle_t sk_texture_create_ktx(const struct sk_ktx_t *ktx);
 /* For tests: which variants count as usable (bit 0 BC7, 1 ASTC, 2 ETC2); -1 asks the
  * GPU (the default). */
 void sk_texture_set_ktx_support(int mask);

@@ -125,6 +125,13 @@ tick the box in the same commit.
       by `tools/compress_textures.sh`) or `name.png` for the GPU; a 2K texture loads in
       ~1 ms instead of 60-90 ms (desktop) and 1.5 ms instead of 125-200 ms (phone), at a
       quarter of the GPU memory
+- [x] Compressed textures in glTF models (2026-09-19): `compress_textures.sh --gltf`
+      writes `model.ktx.gltf` with the `SK_texture_ktx` extension (portable: other viewers
+      use the original images); only the variant this GPU can use downloads. FlightHelmet
+      on the phone: 2.0 -> 0.45 s in the background, 1.4 -> 0.1 s synchronously
+- [ ] Loading follow-up: the phone's worst frame while a model loads in the background
+      stays ~100 ms (shader compiles on its first draw; several large uploads in one
+      frame could be spread by time)
 - [ ] Loading follow-ups: shader warm-up (the first frame drawing loaded PBR
       models stalls ~220 ms on WebGL2 while programs compile); the zero-worker mode
       prepares a whole glTF in one frame (~1 s for FlightHelmet); `.glb` dependency
@@ -349,8 +356,8 @@ Not supported yet:
 - [ ] Mipmaps average in stored (sRGB) space and don't renormalize normal maps
 - [ ] Other glTF material extensions (clearcoat, transmission, sheen, specular, ior, ...)
 - [ ] Morph targets (animation weights are skipped)
-- [ ] Other image formats: WebP; compressed textures in glTF (KHR_texture_basisu), KTX 2,
-      smaller ASTC blocks (PLAN-textures "Not in this plan")
+- [ ] Other image formats: WebP; compressed textures for `.glb` models and
+      KHR_texture_basisu, KTX 2, smaller ASTC blocks (PLAN-textures "Not in this plan")
 
 ## Lessons from librl to design for
 

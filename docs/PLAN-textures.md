@@ -1,6 +1,6 @@
 # Plan: compressed textures
 
-Status: built (2026-09-19).
+Status: built (2026-09-19), for textures and for glTF models' textures.
 
 ## Why
 
@@ -68,11 +68,52 @@ Checked on desktop GL, WebGL2 (SwiftShader), WebGPU (NVIDIA; BC7 through its
 `texture-compression-bc` feature), the Pixel's WebGL2 (ASTC), and the Windows build
 under Wine (BC7). `examples/textures.c` shows each texture as PNG and compressed.
 
+## glTF models
+
+- `tools/compress_textures.sh --gltf model.gltf` (`tools/compress_gltf.py`) compresses
+  every image the model's textures use and writes `model.ktx.gltf` beside the model,
+  leaving it as it was. Data textures (normal, metallic-roughness and occlusion maps)
+  are compressed as linear, colors (base color, emissive) as sRGB. Each texture gets
+  the `SK_texture_ktx` extension, `{"source": <image>}`, pointing at an added
+  `name.ktx` image; the texture keeps its own image as `source`. The extension is in
+  `extensionsUsed`, not `extensionsRequired`: other viewers ignore it and use the
+  original images, so the file stays a portable glTF. Only `.gltf` files with images
+  in separate PNG or JPEG files: images inside the file (a `.glb`) are left as they are.
+- libsk: for a texture with the extension, the dependency list names the variant this
+  GPU can use instead of the texture's own image (only that file downloads), the
+  worker reads it instead of decoding an image, and the texture is uploaded as it is.
+  Without a usable variant (or if the file can't be read) the texture's own image is
+  used as before.
+- Checked by eye: FlightHelmet with its PNGs and compressed, side by side, match
+  (normal maps included).
+
+Loading Sponza and FlightHelmet (`make loadbench DESKTOP=1 [KTX=1]`), desktop GL
+(NVIDIA), files local:
+
+|                                   | PNG / JPEG textures | compressed   |
+|-----------------------------------|---------------------|--------------|
+| in the background: total          | 0.85-0.92 s         | 0.13 s       |
+| in the background: worst frame    | 31-35 ms            | 21-22 ms     |
+| synchronously                     | 1.35-1.37 s         | 0.11-0.12 s  |
+
+FlightHelmet alone on the Pixel 9 (WebGL2, ASTC), files in its cache:
+
+|                                   | PNG textures        | compressed   |
+|-----------------------------------|---------------------|--------------|
+| in the background: total          | 1.98-2.03 s         | 0.45 s       |
+| in the background: worst frame    | 73-113 ms           | 97-102 ms    |
+| synchronously                     | 1.36-1.41 s         | 0.09-0.10 s  |
+
+The phone's worst frame while loading in the background stays about 100 ms either way:
+the first frame drawing the loaded model compiles its shaders (~220 ms seen before on
+WebGL2), and uploads of several large textures can land in one frame (TASKS).
+
 ## Not in this plan
 
 - Smaller ASTC blocks (6x6, 8x8: 3.6 and 2 bits a pixel) for smaller downloads, at
   some quality.
-- glTF models' textures (their images stay PNG/JPEG); KHR_texture_basisu.
+- Models in a `.glb` (images inside the file): the tool would have to take the images
+  out; KHR_texture_basisu.
 - KTX 2 and its zstd supercompression; Basis transcoding as a second, optional module
   if single-file assets turn out to matter.
 - sRGB formats (with sRGB-correct filtering), when the renderer moves to linear

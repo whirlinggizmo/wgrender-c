@@ -40,8 +40,10 @@ Keep this file short and rule-shaped. The authoritative design doc is
 - `tools/update_clay.sh [ref]` — the same for Clay (used only by `examples/clay.c`),
   from libsk's fork (github.com/robknopf/clay: upstream plus fixes, each on its own
   branch merged into the fork's `main`). Records both commits in `deps/clay/VERSION`.
-- `make loadbench [DESKTOP=1]` — worst frame while loading large glTF models in the
-  background vs synchronously (downloads them on first use).
+- `make loadbench [DESKTOP=1] [KTX=1]` — worst frame while loading large glTF models in
+  the background vs synchronously (downloads them on first use); `KTX=1` with their
+  textures compressed (made the first time; needs `DESKTOP=1`: headless samples no
+  compressed format).
 - `make spritebench [DESKTOP=1]` — sprite-heavy scenes (a grid, a perspective field
   with mixed facings, 3D and 2D particles as sprites and from emitters): frame time,
   CPU split into update / scene / submit, sokol_gl vertex/command use.
@@ -65,7 +67,8 @@ Keep this file short and rule-shaped. The authoritative design doc is
 - `tools/compress_textures.sh [--linear] name.png...` — compressed texture files beside
   each PNG (`name.bc7.ktx`, `.astc.ktx`, `.etc2.ktx`), loaded as `name.ktx`
   (docs/PLAN-textures.md); builds a pinned Basis Universal encoder into `build/tools`
-  the first time.
+  the first time. `--gltf model.gltf` does a model's textures and writes
+  `model.ktx.gltf`.
 - `make brdf-lut` — regenerate the baked BRDF table (`src/data/sk_brdf_lut.h`) after
   changing `sk_environment_brdf_lut` or its size (a unit test fails until you do).
 - `make websize [BACKEND=webgpu] [WEB_THREADS=0]` — wasm/JS sizes per web example

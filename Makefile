@@ -200,11 +200,17 @@ windows-smoke:
 # DESKTOP=1 uses the desktop build, with real GPU uploads, in a window.
 loadbench:
 	@tools/bench/fetch_assets.sh
+ifeq ($(KTX),1)
+	@for m in Sponza/Sponza FlightHelmet/FlightHelmet; do \
+	    [ -f examples/assets/bench/$$m.ktx.gltf ] || tools/compress_textures.sh --gltf examples/assets/bench/$$m.gltf \
+	        >/dev/null || exit 1; \
+	done
+endif
 ifeq ($(DESKTOP),1)
 	@$(MAKE) --no-print-directory -j$(NPROC) all
 	@$(CC) $(STD) -O2 -Iinclude tools/bench/loadbench.c build/desktop/libsk.a \
 	    $$($(MAKE) --no-print-directory -s -C examples print-ldlibs) -o build/desktop/loadbench
-	@build/desktop/loadbench 2>/dev/null
+	@SK_LOADBENCH_KTX=$(KTX) build/desktop/loadbench 2>/dev/null
 else
 	@$(MAKE) --no-print-directory -j$(NPROC) all HEADLESS=1
 	@$(CC) $(STD) -O2 -Iinclude tools/bench/loadbench.c build/headless/libsk.a -ldl -lm -lpthread \

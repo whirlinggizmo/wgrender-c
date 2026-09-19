@@ -5,11 +5,12 @@
 #   name.astc.ktx   ASTC 4x4   phones
 #   name.etc2.ktx   ETC2 RGBA  older phones
 #
-# each with its mipmaps. A program loads "name.ktx" (sk_texture_create, or ensured
+# each with its mipmaps (JPEGs work too). A program loads "name.ktx" (sk_texture_create, or ensured
 # through sk_asset first) and libsk picks the file this GPU can use, falling back to
 # name.png. Keep the PNG: it's the fallback, and pixel-accurate picking reads it.
 #
 #   tools/compress_textures.sh [--linear] image.png...
+#   tools/compress_textures.sh --gltf model.gltf     (a model's textures: tools/compress_gltf.py)
 #
 # --linear: the images hold data, not colors (normal maps, roughness): no sRGB
 # weighting when compressing, and mipmaps averaged as they are.
@@ -24,6 +25,10 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 tools="$root/build/tools"
 basisu="$tools/basis_universal/bin/basisu"
 
+if [ "${1:-}" = "--gltf" ]; then
+    shift
+    exec python3 "$(dirname "$0")/compress_gltf.py" "$@"
+fi
 linear=()
 if [ "${1:-}" = "--linear" ]; then
     linear=(-linear -mip_linear)
@@ -50,15 +55,16 @@ formats=("6:bc7:BC7_RGBA" "10:astc:ASTC_RGBA" "1:etc2:ETC2_RGBA")
 
 for png in "$@"; do
     case "$png" in
-        *.png) ;;
-        *) echo "compress_textures: $png: not a .png" >&2; exit 1 ;;
+        *.png|*.jpg|*.jpeg) ;;
+        *) echo "compress_textures: $png: not a .png or .jpg" >&2; exit 1 ;;
     esac
-    stem="${png%.png}"
+    ext="${png##*.}"
+    stem="${png%.*}"
     name="$(basename "$stem")"
     work="$(mktemp -d "$tools/compress.XXXXXX")"
     trap 'rm -rf "$work"' EXIT
-    cp "$png" "$work/$name.png"
-    (cd "$work" && "$basisu" -uastc -uastc_level 2 -mipmap "${linear[@]}" "$name.png" >encode.log 2>&1) || {
+    cp "$png" "$work/$name.$ext"
+    (cd "$work" && "$basisu" -uastc -uastc_level 2 -mipmap "${linear[@]}" "$name.$ext" >encode.log 2>&1) || {
         echo "compress_textures: $png: encoding failed (see below)" >&2
         tail -n 5 "$work/encode.log" >&2
         exit 1

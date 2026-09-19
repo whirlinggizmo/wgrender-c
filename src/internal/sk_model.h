@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+#include "internal/sk_asset.h"
 #include "internal/sk_math.h"
 #include <sk_texture.h> /* public; "" would find internal/sk_texture.h */
 
@@ -16,6 +17,12 @@ void sk_model_draw_items(int first, int count);
 
 /* Clear the model draw queue after the frame has been drawn. */
 void sk_model_end_frame(void);
+
+/* The files a glTF file needs (its buffers, and the images its textures use: a
+ * compressed one this GPU can use instead of the texture's own), for sk_asset; exposed
+ * for tests. */
+void sk_model_list_gltf_dependencies(const unsigned char *data, int size, sk_asset_add_dependency_fn add,
+                                     void *context);
 
 /* Picking helpers (pure; exposed for tests). */
 

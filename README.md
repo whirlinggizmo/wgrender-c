@@ -229,7 +229,9 @@ reference/librl the raylib library this evolves from (read-only reference)
   or `name.png`; on the web only that file downloads. Make them with
   `tools/compress_textures.sh name.png`. A quarter of the GPU memory, and no decoding
   or mipmap building at load (a 2K texture: ~1 ms instead of 60-200 ms); see
-  `docs/PLAN-textures.md` and `examples/textures.c`.
+  `docs/PLAN-textures.md` and `examples/textures.c`. For a glTF model,
+  `tools/compress_textures.sh --gltf model.gltf` writes `model.ktx.gltf`, which loads
+  its textures the same way (and stays a valid glTF for other viewers).
 
 ## Not yet ported from librl
 

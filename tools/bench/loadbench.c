@@ -4,9 +4,13 @@
  * the worst frame and total time of each. Needs tools/bench/fetch_assets.sh.
  *
  *   make loadbench            headless build: CPU work only (no GPU uploads)
- *   make loadbench DESKTOP=1  desktop build: real GL uploads (opens a window) */
+ *   make loadbench DESKTOP=1  desktop build: real GL uploads (opens a window)
+ *   make loadbench DESKTOP=1 KTX=1   the models with compressed textures
+ *                             (tools/compress_textures.sh --gltf, made the first time;
+ *                             SK_LOADBENCH_KTX=1 loads name.ktx.gltf) */
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "sk.h"
 
@@ -16,8 +20,20 @@
 #  define ASSET_BASE "examples/assets"
 #endif
 
+/* LOADBENCH_HELMET_ONLY: FlightHelmet alone (a phone: less to download);
+ * LOADBENCH_KTX=1: compressed textures where there's no environment (the web) */
+#ifdef LOADBENCH_HELMET_ONLY
+enum { MODELS = 1 };
+static const char *PATHS[MODELS] = {"bench/FlightHelmet/FlightHelmet.gltf"};
+static const char *KTX_PATHS[MODELS] = {"bench/FlightHelmet/FlightHelmet.ktx.gltf"};
+#else
 enum { MODELS = 2 };
 static const char *PATHS[MODELS] = {"bench/Sponza/Sponza.gltf", "bench/FlightHelmet/FlightHelmet.gltf"};
+static const char *KTX_PATHS[MODELS] = {"bench/Sponza/Sponza.ktx.gltf", "bench/FlightHelmet/FlightHelmet.ktx.gltf"};
+#endif
+#ifndef LOADBENCH_KTX
+#define LOADBENCH_KTX 0
+#endif
 
 static struct {
     int phase; /* 0 = background, 1 = sync, 2 = done */
@@ -54,7 +70,10 @@ static void start(bool sync)
 {
     const sk_handle_t group = sk_asset_group_create();
     for (int i = 0; i < MODELS; i++) {
-        const sk_handle_t task = sk_asset_ensure_async(PATHS[i], NULL, sync ? SK_ASSET_FILE_ONLY : SK_ASSET_NONE);
+        const char *env = getenv("SK_LOADBENCH_KTX");
+        const bool ktx = env != NULL ? env[0] == '1' : LOADBENCH_KTX;
+        const char *path = ktx ? KTX_PATHS[i] : PATHS[i];
+        const sk_handle_t task = sk_asset_ensure_async(path, NULL, sync ? SK_ASSET_FILE_ONLY : SK_ASSET_NONE);
         sk_asset_add_task(task, on_file, NULL, (void *)(intptr_t)i);
         sk_asset_group_add(group, task);
     }
