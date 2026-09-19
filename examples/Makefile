@@ -61,7 +61,7 @@ BUILD_DESKTOP := build/$(if $(filter 1,$(WINDOWS)),windows,desktop)
 SRCS          := $(wildcard *.c)
 BINS          := $(patsubst %.c,$(BUILD_DESKTOP)/%$(EXE),$(SRCS))
 
-.PHONY: all run clean wasm wasm-all websize serve serve-tls spritebench-web webcheck webstart smoke headless print-ldlibs FORCE
+.PHONY: all run clean wasm wasm-all websize serve serve-tls spritebench-web loadbench-web webcheck webstart smoke headless print-ldlibs FORCE
 
 all: $(BINS)
 
@@ -161,26 +161,29 @@ $(BUILD_WEB)/%.js: $(WEB_OBJ_DIR)/examples/%.o $(WEB_LIB) $(WEB_LINK_STAMP)
 
 -include $(WEB_EX_OBJS:.o=.d)
 
-# The sprite benchmark (tools/bench/spritebench.c) as a web page of its own,
-# build/<backend>/bench/, so it stays out of the examples list and webcheck. Serve
-# the site (make serve / serve-tls) and open /bench/?ex=spritebench; the results are
-# printed to the browser console.
+# The benchmarks (tools/bench) as web pages of their own, build/<backend>/bench/, so
+# they stay out of the examples list and webcheck. Serve the site (make serve /
+# serve-tls) and open /bench/?ex=spritebench or ?ex=loadbench; the results are
+# printed to the browser console. LOADBENCH_FLAGS picks what loadbench loads, e.g.
+# "-DLOADBENCH_HELMET_ONLY -DLOADBENCH_KTX=1" (FlightHelmet alone, compressed).
 BENCH_WEB := $(BUILD_WEB)/bench
-$(WEB_OBJ_DIR)/bench/spritebench.o: $(ROOT)/tools/bench/spritebench.c $(WEB_FLAGS_STAMP)
+BENCH_FLAGS_spritebench :=
+BENCH_FLAGS_loadbench = $(LOADBENCH_FLAGS)
+$(WEB_OBJ_DIR)/bench/%.o: $(ROOT)/tools/bench/%.c $(WEB_FLAGS_STAMP) FORCE
 	@mkdir -p $(dir $@)
-	@$(EMCC) $(WASM_CFLAGS) -c $< -o $@
+	@$(EMCC) $(WASM_CFLAGS) $(BENCH_FLAGS_$*) -c $< -o $@
 
-$(BENCH_WEB)/spritebench.js: $(WEB_OBJ_DIR)/bench/spritebench.o $(WEB_LIB) $(WEB_LINK_STAMP)
+$(BENCH_WEB)/%.js: $(WEB_OBJ_DIR)/bench/%.o $(WEB_LIB) $(WEB_LINK_STAMP)
 	@mkdir -p $(dir $@)
-	@echo "  wasm[$(WEB_DIR)]: spritebench"
+	@echo "  wasm[$(WEB_DIR)]: $*"
 	@$(EMCC) $< $(WEB_LIB) $(WASM_LINK) -o $@
 
-spritebench-web: $(BENCH_WEB)/spritebench.js
+spritebench-web loadbench-web: %-web: $(BENCH_WEB)/%.js
 	@cp $(WEB_SHELL) $(BENCH_WEB)/index.html
-	@echo '["spritebench"]' > $(BENCH_WEB)/examples.json
-	@echo "built $(BENCH_WEB): serve the site, then open /bench/?ex=spritebench (results in the console)"
+	@ls $(BENCH_WEB)/*.js | sed 's#.*/\(.*\)\.js$$#"\1"#' | paste -sd, | sed 's/.*/[&]/' > $(BENCH_WEB)/examples.json
+	@echo "built $(BENCH_WEB): serve the site, then open /bench/?ex=$* (results in the console)"
 
--include $(WEB_OBJ_DIR)/bench/spritebench.d
+-include $(wildcard $(WEB_OBJ_DIR)/bench/*.d)
 
 wasm:
 	@$(MAKE) --no-print-directory -j$(NPROC) $(BUILD_WEB)/$(WASM_EXAMPLE).js

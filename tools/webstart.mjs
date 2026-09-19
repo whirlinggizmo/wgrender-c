@@ -19,7 +19,7 @@
 //              made, the first animation frame): "sk:init"
 //   libsk      libsk's subsystems set up (shaders, pipelines, pools): "sk:subsystems"
 //   user       the program's init callback done: "sk:user-init"
-//   fs         the IndexedDB file cache restored: "sk:fs-ready"
+//   fs         the IndexedDB file cache opened (its list of files): "sk:fs-ready"
 //   frame      the first frame drawn: "sk:first-frame"
 //   ready      the first frame with no asset loads pending
 // (the sk:* points are performance marks libsk makes in web builds).

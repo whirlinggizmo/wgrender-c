@@ -14,40 +14,106 @@
 #include "sk_logger.h"
 
 /* Local storage. Desktop: stdio relative to the working dir (root defaults to ""
- * so paths resolve as-is). Web: IDBFS mounted at `root` (default "/sk") and
- * restored into MEMFS at init so reads see persisted files; writes flush back.
+ * so paths resolve as-is). Web: files are read and written in MEMFS under `root`
+ * (default "/sk"), and kept between visits in an IndexedDB store, one record per
+ * file: init reads only the store's list of paths, a cached file is read into
+ * MEMFS when it's needed (sk_fs_cache_read_begin), and a write stores the file.
  * No network here — acquisition/fetch lives in sk_asset. */
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #define SK_FS_DEFAULT_ROOT "/sk"
 
-/* Mount IDBFS at `root` and kick a non-blocking IDBFS->MEMFS restore. We can't
- * await it (JSPI can't suspend inside sokol's RAF-driven callbacks — the export
- * isn't promising-wrapped), so this is a polled barrier: Module.sk_fs_restore is
- * 0 pending / 1 ready / 2 failed, surfaced via sk_fs_is_ready(). */
-EM_JS(void, sk_fs_idbfs_begin, (const char *root_c), {
+/* Open the store and read its keys (full MEMFS paths). We can't await it (JSPI
+ * can't suspend inside sokol's RAF-driven callbacks), so this is a polled barrier:
+ * Module.sk_fs_state is 0 pending / 1 ready / 2 no store (files still work in
+ * MEMFS, nothing persists), surfaced via sk_fs_is_ready(). */
+EM_JS(void, sk_fs_store_open, (const char *root_c), {
     const root = UTF8ToString(root_c);
-    Module.sk_fs_restore = 0;
+    Module.sk_fs_state = 0;
+    Module.sk_fs_keys = new Set();
+    Module.sk_fs_reads = new Map();
+    Module.sk_fs_next_read = 1;
+    const done = (state, err) => {
+        Module.sk_fs_state = state;
+        performance.mark("sk:fs-ready"); /* tools/webstart.mjs */
+        if (err) console.warn("sk_fs: no persistent cache", err);
+    };
     try {
         FS.mkdirTree(root);
-        FS.mount(IDBFS, {}, root);
-        FS.syncfs(true, function (err) {
-            Module.sk_fs_restore = err ? 2 : 1;
-            performance.mark("sk:fs-ready"); /* tools/webstart.mjs */
-            if (err) console.error("sk_fs: idbfs restore failed", err);
-        });
+        const open = indexedDB.open("sk_fs:" + root, 1);
+        open.onupgradeneeded = () => open.result.createObjectStore("files");
+        open.onerror = () => done(2, open.error);
+        open.onsuccess = () => {
+            Module.sk_fs_db = open.result;
+            const keys = Module.sk_fs_db.transaction("files").objectStore("files").getAllKeys();
+            keys.onsuccess = () => {
+                for (const key of keys.result) Module.sk_fs_keys.add(key);
+                done(1);
+            };
+            keys.onerror = () => done(2, keys.error);
+            /* the cache as IDBFS kept it, restored whole at every start (before 2026-09-20) */
+            try { indexedDB.deleteDatabase(root); } catch (e) {}
+        };
     } catch (e) {
-        console.error("sk_fs: idbfs mount failed", e);
-        Module.sk_fs_restore = 2;
+        done(2, e);
     }
 });
 
-EM_JS(int, sk_fs_idbfs_state, (void), { return (Module.sk_fs_restore | 0); });
+EM_JS(int, sk_fs_store_state, (void), { return Module.sk_fs_state | 0; });
 
-/* Persist MEMFS -> IDBFS (fire-and-forget; the browser writes it back async). */
-EM_JS(void, sk_fs_idbfs_flush, (void), {
-    FS.syncfs(false, function (err) { if (err) console.error("sk_fs: idbfs flush failed", err); });
+EM_JS(int, sk_fs_store_has, (const char *full_c), {
+    return Module.sk_fs_keys && Module.sk_fs_keys.has(UTF8ToString(full_c)) ? 1 : 0;
+});
+
+/* Read a cached file into MEMFS; returns an id for sk_fs_store_read_state. */
+EM_JS(int, sk_fs_store_read, (const char *full_c), {
+    const full = UTF8ToString(full_c);
+    const id = Module.sk_fs_next_read++;
+    const fail = (err) => {
+        Module.sk_fs_keys.delete(full);
+        Module.sk_fs_reads.set(id, 2);
+        console.warn("sk_fs: couldn't read " + full + " from the cache", err);
+    };
+    Module.sk_fs_reads.set(id, 0);
+    try {
+        const get = Module.sk_fs_db.transaction("files").objectStore("files").get(full);
+        get.onsuccess = () => {
+            if (!(get.result instanceof Blob)) return fail("missing");
+            get.result.arrayBuffer().then((buffer) => { /* read off the main thread */
+                FS.mkdirTree(full.substring(0, full.lastIndexOf("/")) || "/");
+                FS.writeFile(full, new Uint8Array(buffer), { canOwn: true }); /* no copy */
+                Module.sk_fs_reads.set(id, 1);
+            }).catch(fail);
+        };
+        get.onerror = () => fail(get.error);
+    } catch (e) {
+        fail(e);
+    }
+    return id;
+});
+
+/* 0 pending, 1 read (the id is done), 2 failed (the id is done). */
+EM_JS(int, sk_fs_store_read_state, (int id), {
+    const state = Module.sk_fs_reads.get(id) | 0;
+    if (state !== 0) Module.sk_fs_reads.delete(id);
+    return state;
+});
+
+/* Keep a file for later visits (asynchronous; a failure only means it isn't kept). */
+EM_JS(void, sk_fs_store_put, (const char *full_c, const unsigned char *data, int size), {
+    if (!Module.sk_fs_db) return;
+    const full = UTF8ToString(full_c);
+    /* a Blob: reading it back doesn't unpack the bytes on the main thread */
+    const blob = new Blob([HEAPU8.slice(data, data + size)]);
+    try {
+        const tx = Module.sk_fs_db.transaction("files", "readwrite");
+        tx.objectStore("files").put(blob, full);
+        tx.oncomplete = () => Module.sk_fs_keys.add(full);
+        tx.onabort = () => console.warn("sk_fs: couldn't cache " + full, tx.error);
+    } catch (e) {
+        console.warn("sk_fs: couldn't cache " + full, e);
+    }
 });
 #else
 #define SK_FS_DEFAULT_ROOT ""
@@ -104,9 +170,9 @@ void sk_fs_init(const char *root_dir)
     const char *root = (root_dir != NULL) ? root_dir : SK_FS_DEFAULT_ROOT;
     snprintf(sk_fs_root, sizeof(sk_fs_root), "%s", root);
 #ifdef __EMSCRIPTEN__
-    /* Mount idbfs + kick the async restore; sk_fs_is_ready() reflects it. */
-    sk_fs_idbfs_begin(sk_fs_root);
-    log_info("sk_fs: idbfs mounting at %s (restoring cache)", sk_fs_root);
+    /* Open the cache (its list of files); sk_fs_is_ready() reflects it. */
+    sk_fs_store_open(sk_fs_root);
+    log_info("sk_fs: files in %s, kept in IndexedDB", sk_fs_root);
 #else
     char *cwd = getcwd(NULL, 0);
     log_info("sk_fs: using stdio relative to working dir (absolute path=%s/%s)", cwd != NULL ? cwd : "?", sk_fs_root);
@@ -116,14 +182,13 @@ void sk_fs_init(const char *root_dir)
 
 void sk_fs_deinit(void)
 {
-    sk_fs_flush();
     sk_fs_root[0] = '\0';
 }
 
 bool sk_fs_is_ready(void)
 {
 #ifdef __EMSCRIPTEN__
-    return sk_fs_idbfs_state() != 0; /* 1 = restored, 2 = failed (empty cache) */
+    return sk_fs_store_state() != 0; /* 1 = opened, 2 = no cache (files still work) */
 #else
     return true;
 #endif
@@ -194,13 +259,43 @@ bool sk_fs_write(const char *path, const unsigned char *data, int size)
         return false;
     }
     fclose(f);
-    sk_fs_flush();
+#ifdef __EMSCRIPTEN__
+    sk_fs_store_put(full, data, size);
+#endif
     return true;
 }
 
-void sk_fs_flush(void)
+bool sk_fs_is_cached(const char *path)
 {
 #ifdef __EMSCRIPTEN__
-    if (sk_fs_root[0] != '\0') sk_fs_idbfs_flush();
+    char full[512];
+    resolve(path, full, sizeof(full));
+    return full[0] != '\0' && sk_fs_store_has(full);
+#else
+    (void)path;
+    return false;
+#endif
+}
+
+int sk_fs_cache_read_begin(const char *path)
+{
+#ifdef __EMSCRIPTEN__
+    char full[512];
+    resolve(path, full, sizeof(full));
+    return full[0] != '\0' && sk_fs_store_has(full) ? sk_fs_store_read(full) : 0;
+#else
+    (void)path;
+    return 0;
+#endif
+}
+
+int sk_fs_cache_read_poll(int id)
+{
+#ifdef __EMSCRIPTEN__
+    const int state = id > 0 ? sk_fs_store_read_state(id) : 2;
+    return state == 0 ? 0 : (state == 1 ? 1 : -1);
+#else
+    (void)id;
+    return -1;
 #endif
 }

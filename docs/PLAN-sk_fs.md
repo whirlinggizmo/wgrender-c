@@ -10,6 +10,30 @@ the eventual `sk_net` (see "Later"). Kept as the design record.
 Builds on the Phase 1 ensure model (see [PLAN-handle-only-api.md](PLAN-handle-only-api.md))
 and the proven librl `rl_fs` design (cribbed, not vendored — see "Decisions").
 
+**Update (2026-09-20): IDBFS replaced by a per-file cache.** IDBFS restored the
+whole cache into MEMFS at every start: on a Pixel 9 with a 56.5 MB cache that was
+~80 ms of main-thread IndexedDB callbacks (one of 45 ms) before anything loaded,
+and every cached file stayed in memory whether the program used it or not. Now
+`sk_fs` keeps its own IndexedDB store (`sk_fs:<root>`, object store `files`, one
+Blob per file, keyed by its full MEMFS path):
+
+- **Startup** opens the store and reads only its keys (`sk:fs-ready`, ~10 ms after
+  libsk's init); `sk_fs_is_ready()` polls that.
+- **A cached file** is read when it's ensured: `sk_asset` sees it isn't in MEMFS but
+  is cached (`sk_fs_is_cached`), starts `sk_fs_cache_read_begin` and polls it, then
+  resolves the task. A failed read drops the key and the file downloads instead.
+  Blobs, because reading a stored `Uint8Array` unpacked it on the main thread
+  (~6 ms per 5.6 MB file); a Blob's bytes are read off it (`blob.arrayBuffer()`) and
+  handed to MEMFS without a copy.
+- **A write** (a download) goes to MEMFS and is put into the store; there's no
+  flush and no whole-tree sync.
+- The old IDBFS database (named after the mount point, `/sk`) is deleted: its files
+  download once more.
+
+FlightHelmet (compressed) from the cache on the Pixel: loaded in 0.28 s (was 0.35),
+worst frame while loading in the background 27-30 ms (was 60-85). The restore/flush
+design below is kept as the record.
+
 ## Why
 
 Phase 1 gave us `sk_asset_ensure_async(path) → on_ready(path)` → sync

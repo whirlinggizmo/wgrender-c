@@ -1,7 +1,8 @@
 /* Loading benchmark (docs/PLAN-pipeline.md): loads Sponza and FlightHelmet during
  * a running frame loop, first through the asset pipeline (background), then
  * synchronously (files only ensured, meshes created in one callback), and prints
- * the worst frame and total time of each. Needs tools/bench/fetch_assets.sh.
+ * the worst frame and total time of each, then the worst of the first frames that
+ * draw the loaded models. Needs tools/bench/fetch_assets.sh.
  *
  *   make loadbench            headless build: CPU work only (no GPU uploads)
  *   make loadbench DESKTOP=1  desktop build: real GL uploads (opens a window)
@@ -35,12 +36,18 @@ static const char *KTX_PATHS[MODELS] = {"bench/Sponza/Sponza.ktx.gltf", "bench/F
 #define LOADBENCH_KTX 0
 #endif
 
+#define SHOW_FRAMES 30 /* frames drawing the loaded models */
+
 static struct {
     int phase; /* 0 = background, 1 = sync, 2 = done */
     bool loading, failed;
+    int showing; /* frames left drawing the loaded models */
+    double show_worst, show_first[3]; /* the first frames after they're set */
     sk_handle_t meshes[MODELS];
+    sk_handle_t models[MODELS];
+    sk_handle_t scene, camera;
     char paths[MODELS][512];
-    double started, last, worst;
+    double started, last, worst, last_show;
     int frames;
 } b;
 
@@ -89,6 +96,21 @@ static void init(void *user)
     (void)user;
     sk_asset_set_host(ASSET_BASE);
     sk_set_target_fps(0);
+    b.camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(b.camera, 0.0f, 1.0f, 3.0f, 0.0f, 0.5f, 0.0f, 0.0f, 1.0f, 0.0f);
+    b.scene = sk_scene_create();
+    sk_scene_set_active_camera(b.scene, b.camera);
+    /* scenes start unlit: a sun and some ambient, so the models show (and draw with
+       the lit shaders a game would use) */
+    const sk_handle_t sun = sk_light_create(SK_LIGHT_DIRECTIONAL);
+    sk_light_set_direction(sun, -0.6f, -1.0f, -0.5f);
+    sk_light_set_intensity(sun, 3.0f);
+    sk_scene_add(b.scene, sun, 0);
+    sk_scene_set_ambient(b.scene, SK_COLOR_WHITE, 0.3f);
+    for (int i = 0; i < MODELS; i++) {
+        b.models[i] = sk_model_create(0);
+        sk_scene_add(b.scene, b.models[i], 0);
+    }
     start(false);
 }
 
@@ -102,7 +124,30 @@ static void frame(float dt, float fraction, void *user)
     b.last = now;
     b.frames++;
     sk_render_begin();
+    sk_scene_draw(b.scene);
     sk_render_end();
+    if (b.showing > 0) { /* the frame that just ended drew them */
+        const double took = now - b.last_show;
+        if (SHOW_FRAMES - b.showing < 3) b.show_first[SHOW_FRAMES - b.showing] = took;
+        if (took > b.show_worst) b.show_worst = took;
+        b.last_show = now;
+        if (--b.showing > 0) return;
+        printf("loadbench: %-10s drawing them: first frames %.1f, %.1f, %.1f ms, worst of %d %.1f ms\n",
+               b.phase == 0 ? "background" : "sync", b.show_first[0] * 1000.0, b.show_first[1] * 1000.0,
+               b.show_first[2] * 1000.0, SHOW_FRAMES, b.show_worst * 1000.0);
+        fflush(stdout);
+        for (int i = 0; i < MODELS; i++) {
+            sk_model_set_mesh(b.models[i], 0);
+            sk_mesh_release(b.meshes[i]);
+        }
+        if (++b.phase == 1) {
+            start(true);
+        } else {
+            b.phase = 2;
+            sk_request_quit();
+        }
+        return;
+    }
     if (b.loading || b.phase == 2) return;
     if (b.failed) {
         printf("loadbench: loading failed; run tools/bench/fetch_assets.sh first\n");
@@ -113,12 +158,10 @@ static void frame(float dt, float fraction, void *user)
     printf("loadbench: %-10s worst frame %7.1f ms, loaded in %6.2f s over %d frames\n",
            b.phase == 0 ? "background" : "sync", b.worst * 1000.0, now - b.started, b.frames);
     fflush(stdout);
-    for (int i = 0; i < MODELS; i++) sk_mesh_release(b.meshes[i]);
-    if (++b.phase == 1) {
-        start(true);
-    } else {
-        sk_request_quit();
-    }
+    for (int i = 0; i < MODELS; i++) sk_model_set_mesh(b.models[i], b.meshes[i]);
+    b.showing = SHOW_FRAMES;
+    b.show_worst = 0.0;
+    b.last_show = now;
 }
 
 int main(void)

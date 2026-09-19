@@ -72,8 +72,8 @@ else
 endif
 
 WASM_CFLAGS_BACKEND := $(WASM_DEFS) $(WASM_RELEASE_DEFS) $(WASM_THREADS)
-# idbfs for persistent storage; FORCE_FILESYSTEM so the FS/IDBFS JS is linked;
+# FORCE_FILESYSTEM so the FS JS is linked (sk_fs: MEMFS, kept in IndexedDB);
 # grow memory for assets. (No -sJSPI: sapp_run owns the loop, so we can't suspend
-# in callbacks — sk_fs restore is a polled barrier, not an await. See PLAN-sk_fs.)
+# in callbacks — sk_fs's cache is polled, not awaited. See PLAN-sk_fs.)
 WASM_LINK := $(WASM_OPT_LINK) $(WASM_BACKEND_LINK) $(WASM_THREADS_LINK) -sALLOW_MEMORY_GROWTH=1 \
-             -sFORCE_FILESYSTEM -lidbfs.js
+             -sFORCE_FILESYSTEM

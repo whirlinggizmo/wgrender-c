@@ -129,11 +129,17 @@ tick the box in the same commit.
       writes `model.ktx.gltf` with the `SK_texture_ktx` extension (portable: other viewers
       use the original images); only the variant this GPU can use downloads. FlightHelmet
       on the phone: 2.0 -> 0.45 s in the background, 1.4 -> 0.1 s synchronously
-- [ ] Loading follow-up: the phone's worst frame while a model loads in the background
-      stays ~100 ms (shader compiles on its first draw; several large uploads in one
-      frame could be spread by time)
+- [x] Web file cache per file (2026-09-20, [PLAN-sk_fs.md](PLAN-sk_fs.md)): the phone's
+      ~100 ms frame while a model loaded was IDBFS restoring the whole cache (56.5 MB)
+      at startup, not loading or shaders (first draws of loaded models cost nothing
+      extra). Now only the cache's list of files is read at startup and a file is read
+      when it's ensured: FlightHelmet's worst frame 60-85 -> 27-30 ms
+- [ ] Loading follow-up: large texture uploads on the phone take 8-11 ms every few
+      textures (Chrome waiting on its GPU transfer buffer), so loading frames reach
+      25-30 ms: cap uploads by size per frame, not only by time
 - [ ] Loading follow-ups: shader warm-up (the first frame drawing loaded PBR
-      models stalls ~220 ms on WebGL2 while programs compile); the zero-worker mode
+      models stalled ~220 ms on WebGL2 while programs compiled; not seen on the Pixel 9
+      with FlightHelmet in a lit scene: recheck with an environment); the zero-worker mode
       prepares a whole glTF in one frame (~1 s for FlightHelmet); `.glb` dependency
       listing reads the whole file on the main thread
 - [x] Bug: `sk_request_quit` on web aborted in sokol_audio when the main thread

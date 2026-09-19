@@ -29,8 +29,9 @@ static int sk_asset_fetching;
  * callback with a directly-openable local path. Storage is delegated to sk_fs.
  *
  * Desktop: the host is a local base dir (set as the sk_fs root); a missing file
- * is a failure. Web: the host is a fetch origin — a cache miss downloads the
- * asset via sokol_fetch, writes it into the idbfs-backed store, then resolves.
+ * is a failure. Web: the host is a fetch origin — a cached file is read from the
+ * cache (IndexedDB) into the local store; a miss downloads the asset via
+ * sokol_fetch and writes it into the store, which keeps it; then it resolves.
  * Either way the callback receives a path the sync sk_*_create(path) creators
  * can fopen. */
 
@@ -61,6 +62,7 @@ typedef struct {
     bool armed; /* callbacks attached via sk_asset_add_task */
     int state;
     int fetch_result;         /* web: FETCH_* set by the sokol_fetch callback */
+    int cache_read;           /* web: reading the file from the cache (sk_fs_cache_read_begin), or 0 */
     unsigned char *fetch_buf; /* web: chunk buffer bound to the in-flight fetch */
     unsigned char *acc;       /* web: accumulated file bytes across chunks */
     size_t acc_len;
@@ -178,8 +180,8 @@ const char *sk_asset_get_host(void)
 #ifdef __EMSCRIPTEN__
 /* sokol_fetch delivers chunks on the main thread when sfetch_dowork() (called in
  * sk_asset_tick) pumps it. We grow `acc` chunk by chunk; on the final chunk we
- * hand the whole file to sk_fs (which writes + flushes to idbfs) and flag the
- * slot, then tick resolves the task. */
+ * hand the whole file to sk_fs (which writes it and keeps it in the cache) and
+ * flag the slot, then tick resolves the task. */
 static void on_fetch(const sfetch_response_t *r)
 {
     uint16_t slot = *(const uint16_t *)r->user_data;
@@ -1030,8 +1032,8 @@ static bool use_fallback(sk_asset_task_t *task)
 
 void sk_asset_tick(void)
 {
-    /* Nothing can be ensured until storage is up (web: after the idbfs restore
-     * barrier; desktop: immediately). Tasks stay queued until then. */
+    /* Nothing can be ensured until storage is up (web: once the cache's list of
+     * files is read; desktop: immediately). Tasks stay queued until then. */
     if (!sk_asset_ready || !sk_fs_is_ready()) {
         return;
     }
@@ -1054,6 +1056,17 @@ void sk_asset_tick(void)
         }
 
 #ifdef __EMSCRIPTEN__
+        if (task->cache_read != 0) {
+            const int read = sk_fs_cache_read_poll(task->cache_read);
+            if (read == 0) continue; /* still reading */
+            task->cache_read = 0;
+            if (read > 0) {
+                resolved(i, true);
+            } else {
+                task->state = TASK_NEW; /* dropped from the cache: download it */
+            }
+            continue;
+        }
         if (task->state == TASK_FETCHING) {
             if (task->fetch_result == FETCH_PENDING) continue; /* still downloading */
             if (task->fetch_result == FETCH_FAILED && use_fallback(task)) continue;
@@ -1063,6 +1076,11 @@ void sk_asset_tick(void)
         /* FORCE_FETCH re-downloads; otherwise serve the cache when present. */
         if (!(task->flags & SK_ASSET_FORCE_FETCH) && sk_fs_exists(task->path)) {
             resolved(i, true);
+            continue;
+        }
+        if (!(task->flags & SK_ASSET_FORCE_FETCH) && sk_fs_is_cached(task->path)) {
+            task->state = TASK_FETCHING;
+            task->cache_read = sk_fs_cache_read_begin(task->path); /* resolves on a later tick */
             continue;
         }
         if (sk_asset_fetching >= MAX_FETCHES) {
