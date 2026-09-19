@@ -3,6 +3,7 @@
 #   make test                  build the headless library if needed, build and run unit tests
 #   make test TESTS=pick_      only tests whose name starts with "pick_"
 #   make test SANITIZE=thread  build library + tests with a sanitizer (thread, address, undefined)
+#   make test WINDOWS=1        cross-compile with MinGW and run under Wine (tools/wine.sh)
 #   make clean
 #
 # Unit tests (tests/unit/) call library internals directly and link against
@@ -22,10 +23,22 @@ CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 # GL/X11/ALSA libraries needed (runs in CI and with no display).
 LIB     := $(ROOT)/build/headless/libsk.a
 LDLIBS_PLATFORM := -ldl -lm -lpthread
+LIB_FLAGS :=
+EXE       :=
 
 BUILD      := build
+WINDOWS    ?= 0
+MINGW      ?= x86_64-w64-mingw32-
+ifeq ($(WINDOWS),1)
+  CC              := $(MINGW)gcc
+  LIB             := $(ROOT)/build/windows-headless/libsk.a
+  LDLIBS_PLATFORM := -static -lpthread # the tests call POSIX threads and clocks (winpthreads); no DLLs to ship
+  LIB_FLAGS       := WINDOWS=1
+  EXE             := .exe
+  BUILD           := build/windows
+endif
 SANITIZE   ?=
-UNIT_BIN   := $(BUILD)/unit_tests$(if $(SANITIZE),_$(SANITIZE))
+UNIT_BIN   := $(BUILD)/unit_tests$(if $(SANITIZE),_$(SANITIZE))$(EXE)
 UNIT_SRCS  := $(wildcard unit/*.c)
 UNIT_HDRS  := $(wildcard unit/*.h)
 
@@ -36,13 +49,16 @@ test: unit
 # ThreadSanitizer can't map its shadow memory with the high ASLR entropy of newer
 # kernels ("unexpected memory mapping"), so run it with ASLR off.
 RUN := $(if $(filter thread,$(SANITIZE)),setarch $(shell uname -m) -R)
+ifeq ($(WINDOWS),1)
+  RUN := $(abspath $(ROOT))/tools/wine.sh
+endif
 
 unit: $(UNIT_BIN)
 	@$(RUN) ./$(UNIT_BIN) $(TESTS)
 
 # Keep the library current (the root build is a cheap no-op when nothing changed).
 $(LIB): FORCE
-	@$(MAKE) --no-print-directory -C $(ROOT) HEADLESS=1
+	@$(MAKE) --no-print-directory -C $(ROOT) HEADLESS=1 $(LIB_FLAGS)
 
 $(BUILD):
 	mkdir -p $(BUILD)

@@ -105,6 +105,23 @@ times the download, compile, libsk's init, the first frame and the end of asset
 loading from `sk:*` performance marks. `--devtools` and `--url` measure another
 device's browser, such as a phone through `adb forward`.
 
+## Build (Windows, cross-compiled)
+
+With MinGW-w64 (`sudo apt install mingw-w64`), Windows builds come from Linux:
+
+```sh
+make windows          # build/windows/libsk.a, examples/build/windows/*.exe (OpenGL)
+make windows-test     # unit tests, under Wine
+make windows-smoke    # every example headless, under Wine
+```
+
+The tests and smoke run go through `tools/wine.sh`: `$WINE`, else `wine64` / `wine`
+on `PATH`, else the newest Proton in a Steam library (Library > Tools). Its prefix is
+`build/wine`. The `.exe` files are linked statically (no MinGW DLLs to ship).
+`make verify` builds `windows` when MinGW is installed, so Windows code keeps
+compiling. Wine runs the windowed examples too (OpenGL through the host's driver),
+but their windows, audio and gamepads on real Windows are untested.
+
 ## Invariant: no backend leakage
 
 sokol is an implementation detail. The public API (`include/*.h`) and example

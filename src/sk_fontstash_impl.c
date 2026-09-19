@@ -13,6 +13,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32)
+#include <windows.h> /* fontstash opens files through MultiByteToWideChar there */
+#endif
 
 #define FONTSTASH_IMPLEMENTATION
 #include "fontstash.h"

@@ -124,8 +124,7 @@ tick the box in the same commit.
       isn't one long upload; shader warm-up (the first frame drawing loaded PBR
       models stalls ~220 ms on WebGL2 while programs compile); the zero-worker mode
       prepares a whole glTF in one frame (~1 s for FlightHelmet); `.glb` dependency
-      listing reads the whole file on the main thread; Windows threads are written
-      but untested
+      listing reads the whole file on the main thread
 - [x] Bug: `sk_request_quit` on web aborted in sokol_audio when the main thread
       had been busy: audioprocess events queued meanwhile ran after shutdown and
       asserted on the freed buffer. Fixed in libsk's sokol fork
@@ -204,9 +203,18 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       slot, buttons by position with frame and tick edges, sticks with a dead zone,
       triggers as axes and buttons; an optional module (`src/sk_gamepad.c`). Web: the
       Gamepad API; Linux: evdev (the `xpad` driver's X/Y codes swapped), rescanned for
-      hot-plugging; Windows: XInput (written, not compiled or tested here: no
-      toolchain). Checked on a wired Xbox 360 pad, native and in Chrome;
+      hot-plugging; Windows: XInput (compiles; untested with a pad). Checked on a
+      wired Xbox 360 pad, native and in Chrome;
       `examples/gamepad.c`
+- [x] Windows builds (2026-09-19): `make windows` cross-compiles the library and
+      examples with MinGW (OpenGL), `make windows-test` / `windows-smoke` run the unit
+      tests and headless examples under Wine or Steam's Proton (`tools/wine.sh`);
+      `make verify` builds it when MinGW is installed. Two compile fixes (fontstash
+      needs windows.h; `_mkdir`). All 100 tests and 26 examples pass under Proton 11,
+      including the Windows threads (asset workers); `hello` and `model` also draw
+      correctly windowed under Wine
+- [ ] Windows on real Windows: windows (the window flags), WASAPI audio, XInput
+      gamepads; Direct3D 11 (sokol-shdc HLSL output) instead of OpenGL
 - [ ] Gamepads later: macOS (GameController framework), rumble, connect/disconnect
       events, a mapping database for pads the kernel doesn't name by position
 - [x] Touch input (`sk_input_*`, 2026-09-18): the first finger drives the pointer

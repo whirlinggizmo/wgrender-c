@@ -37,18 +37,29 @@ INCS    += -isystem $(ROOT)/deps/sokol -isystem $(ROOT)/deps/sokol_utils -isyste
 CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
 LIB     := $(ROOT)/build/desktop/libsk.a
+# WINDOWS=1: the same examples cross-compiled with MinGW as .exe files (build/windows;
+# the root Makefile's `make windows`). The smoke run goes through Wine.
+WINDOWS ?= 0
+MINGW   ?= x86_64-w64-mingw32-
+LIB_FLAGS :=
+EXE       :=
 
-ifeq ($(UNAME_S),Linux)
+ifeq ($(WINDOWS),1)
+  CC              := $(MINGW)gcc
+  EXE             := .exe
+  LIB             := $(ROOT)/build/windows/libsk.a
+  LIB_FLAGS       := WINDOWS=1
+  LDLIBS_PLATFORM := -static -lopengl32 -lgdi32 -luser32 -lkernel32 -lole32 -lshell32 -lwinmm
+else ifeq ($(UNAME_S),Linux)
   LDLIBS_PLATFORM := -lGL -lX11 -lXi -lXcursor -lXrandr -lasound -ldl -lm -lpthread
-endif
-ifeq ($(UNAME_S),Darwin)
+else ifeq ($(UNAME_S),Darwin)
   LDLIBS_PLATFORM := -framework Cocoa -framework QuartzCore -framework OpenGL \
                      -framework AudioToolbox
 endif
 
-BUILD_DESKTOP := build/desktop
+BUILD_DESKTOP := build/$(if $(filter 1,$(WINDOWS)),windows,desktop)
 SRCS          := $(wildcard *.c)
-BINS          := $(patsubst %.c,$(BUILD_DESKTOP)/%,$(SRCS))
+BINS          := $(patsubst %.c,$(BUILD_DESKTOP)/%$(EXE),$(SRCS))
 
 .PHONY: all run clean wasm wasm-all websize serve serve-tls spritebench-web webcheck webstart smoke headless print-ldlibs FORCE
 
@@ -58,12 +69,12 @@ all: $(BINS)
 # up-to-date check (a cheap no-op when nothing changed) and only re-archives
 # libsk.a when objects actually rebuilt, so examples relink only when needed.
 $(LIB): FORCE
-	@$(MAKE) -C $(ROOT)
+	@$(MAKE) -C $(ROOT) $(LIB_FLAGS)
 
 $(BUILD_DESKTOP):
 	mkdir -p $(BUILD_DESKTOP)
 
-$(BUILD_DESKTOP)/%: %.c $(LIB) | $(BUILD_DESKTOP)
+$(BUILD_DESKTOP)/%$(EXE): %.c $(LIB) | $(BUILD_DESKTOP)
 	$(CC) $(CFLAGS) $< -o $@ $(LIB) $(LDLIBS_PLATFORM)
 
 run: $(BUILD_DESKTOP)/hello
@@ -75,25 +86,26 @@ print-ldlibs:
 # --- headless (no window, GPU or audio device) -------------------------------
 # Same example sources linked against build/headless/libsk.a; runs anywhere, e.g.
 # CI or with the displays asleep. tools/smoke.sh runs each for SMOKE_FRAMES frames.
-BUILD_HEADLESS  := build/headless
-HEADLESS_LIB    := $(ROOT)/build/headless/libsk.a
-HEADLESS_BINS   := $(patsubst %.c,$(BUILD_HEADLESS)/%,$(SRCS))
-LDLIBS_HEADLESS := -ldl -lm -lpthread
+BUILD_HEADLESS  := build/$(if $(filter 1,$(WINDOWS)),windows-headless,headless)
+HEADLESS_LIB    := $(ROOT)/$(BUILD_HEADLESS)/libsk.a
+HEADLESS_BINS   := $(patsubst %.c,$(BUILD_HEADLESS)/%$(EXE),$(SRCS))
+LDLIBS_HEADLESS := $(if $(filter 1,$(WINDOWS)),-static,-ldl -lm -lpthread)
 SMOKE_FRAMES    ?= 180
+SMOKE_RUNNER    := $(if $(filter 1,$(WINDOWS)),$(abspath $(ROOT))/tools/wine.sh)
 
 $(HEADLESS_LIB): FORCE
-	@$(MAKE) --no-print-directory -C $(ROOT) HEADLESS=1
+	@$(MAKE) --no-print-directory -C $(ROOT) HEADLESS=1 $(LIB_FLAGS)
 
 $(BUILD_HEADLESS):
 	mkdir -p $(BUILD_HEADLESS)
 
-$(BUILD_HEADLESS)/%: %.c $(HEADLESS_LIB) | $(BUILD_HEADLESS)
+$(BUILD_HEADLESS)/%$(EXE): %.c $(HEADLESS_LIB) | $(BUILD_HEADLESS)
 	$(CC) $(STD) $(WARN) $(OPT) $(INCS) $< -o $@ $(HEADLESS_LIB) $(LDLIBS_HEADLESS)
 
 headless: $(HEADLESS_BINS)
 
 smoke: headless
-	@$(ROOT)/tools/smoke.sh $(SMOKE_FRAMES) $(HEADLESS_BINS)
+	@SMOKE_RUNNER="$(SMOKE_RUNNER)" $(ROOT)/tools/smoke.sh $(SMOKE_FRAMES) $(HEADLESS_BINS)
 
 # --- wasm (emscripten; WebGL2 or WebGPU) ------------------------------------
 # Each web target has its own site directory, build/<backend> (or

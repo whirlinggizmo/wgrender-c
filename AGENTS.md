@@ -28,6 +28,11 @@ Keep this file short and rule-shaped. The authoritative design doc is
   frames; fails on crashes, timeouts or error logs. Needs no display. Add or update tests alongside code changes; new tests go in
   `tests/unit/tests.h` and the table in `tests/unit/main.c`.
 - `make parity` — librl → libsk parity report (needs `../librl`).
+- `make windows` — the library and examples cross-compiled for Windows with MinGW
+  (`build/windows`, `examples/build/windows/*.exe`; `WINDOWS=1` on any target).
+  `make windows-test` / `make windows-smoke` run the unit tests and the headless
+  examples under Wine (`tools/wine.sh`: wine64/wine, or Steam's Proton). `make verify`
+  builds `windows` when MinGW is installed.
 - `tools/update_sokol.sh [ref]` — update the vendored sokol headers from libsk's sokol
   fork (github.com/robknopf/sokol: upstream plus fixes libsk needs; sync the fork
   with floooh/sokol there first). Records the fork and upstream commits in

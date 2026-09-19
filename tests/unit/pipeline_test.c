@@ -1,8 +1,13 @@
 /* Loading pipeline (docs/PLAN-pipeline.md), on sokol's dummy backend. */
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
+#if defined(_WIN32)
+#include <direct.h>
+#endif
 
 #include "internal/sk_asset.h"
 #include "internal/sk_environment.h"
@@ -269,6 +274,16 @@ void test_pipeline_unclaimed(void)
     stop_assets();
 }
 
+/* A directory for test files (its parent exists); fine when it's already there. */
+static bool make_dir(const char *dir)
+{
+#if defined(_WIN32)
+    return _mkdir(dir) == 0 || errno == EEXIST;
+#else
+    return mkdir(dir, 0755) == 0 || errno == EEXIST;
+#endif
+}
+
 /* Files that can't be loaded fire the failure callback; FILE_ONLY skips loading. */
 void test_pipeline_failures(void)
 {
@@ -276,8 +291,7 @@ void test_pipeline_failures(void)
     char path[256];
     FILE *f;
 
-    snprintf(path, sizeof(path), "mkdir -p %s", dir);
-    CHECK(system(path) == 0);
+    CHECK(make_dir(dir));
     snprintf(path, sizeof(path), "%s/broken.png", dir);
     f = fopen(path, "wb");
     CHECK(f != NULL);

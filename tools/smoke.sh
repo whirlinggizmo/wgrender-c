@@ -5,6 +5,8 @@
 #
 #   tools/smoke.sh <frames> <binary>...
 #
+# SMOKE_RUNNER, when set, runs each binary (tools/wine.sh for Windows builds).
+#
 # Runs from the repo root so examples find examples/assets. Frames are paced at
 # 60 per second in headless builds (so timing-driven code runs as in a real
 # game), so 180 frames is about 3 seconds each. The examples run in parallel;
@@ -26,7 +28,8 @@ i=0
 for bin in "$@"; do
     (
         start=$(date +%s.%N)
-        SK_HEADLESS_FRAMES="$frames" timeout "$timeout_s" "examples/$bin" > "$logs/$i.log" 2>&1
+        SK_HEADLESS_FRAMES="$frames" timeout "$timeout_s" ${SMOKE_RUNNER:+"$SMOKE_RUNNER"} "examples/$bin" \
+            > "$logs/$i.log" 2>&1
         echo "$? $(echo "$(date +%s.%N) - $start" | bc)" > "$logs/$i.status"
     ) &
     pids+=("$!")

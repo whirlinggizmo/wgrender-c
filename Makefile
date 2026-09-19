@@ -19,6 +19,10 @@
 #   make deps       install system build deps (ALSA/GL/X11 dev packages)
 #   make parity     librl -> libsk API parity report (LIBRL_DIR=../librl)
 #   make HEADLESS=1 headless lib (build/headless/libsk.a): no window, GPU or audio
+#   make windows    Windows lib and examples, cross-compiled with MinGW (build/windows,
+#                   examples/build/windows/*.exe); WINDOWS=1 on any target (with
+#                   HEADLESS=1: build/windows-headless). Tests and smoke run under Wine
+#                   (tools/wine.sh): make windows-test, make windows-smoke
 #   make web        web lib (build/webgl2/libsk.a); BACKEND=webgpu, WEB_THREADS=0
 #                   (build/<backend>-nothreads), WEB_DEBUG=1 (-debug); settings in
 #                   mk/web.mk
@@ -42,12 +46,20 @@ OPT     := -O2 # -g  # use -g for debug build.  TODO:  Flag for release/debug?
 HEADLESS ?= 0
 # WEB=1 (set by `make web`): Emscripten, BACKEND and WEB_THREADS as in mk/web.mk.
 WEB ?= 0
+# WINDOWS=1: cross-compile for Windows with MinGW (OpenGL, like Linux: the shaders
+# have no HLSL for Direct3D yet). With HEADLESS=1, the headless library for Windows.
+WINDOWS ?= 0
+MINGW   ?= x86_64-w64-mingw32-
 ifeq ($(WEB),1)
   include mk/web.mk
   CC    := $(EMCC)
   AR    := $(EMAR)
   OPT   := $(WEB_OPT)
   DEFS  := $(WASM_CFLAGS_BACKEND)
+else ifeq ($(WINDOWS),1)
+  CC    := $(MINGW)gcc
+  AR    := $(MINGW)ar
+  DEFS  := $(if $(filter 1,$(HEADLESS)),-DSK_HEADLESS -DSOKOL_DUMMY_BACKEND,-DSOKOL_GLCORE)
 else ifeq ($(HEADLESS),1)
   DEFS  := -DSK_HEADLESS -DSOKOL_DUMMY_BACKEND
 else
@@ -62,6 +74,9 @@ CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
 ifeq ($(WEB),1)
   TARGET := $(WEB_DIR)
+  DEPS_CHECK :=
+else ifeq ($(WINDOWS),1)
+  TARGET := windows$(if $(filter 1,$(HEADLESS)),-headless)
   DEPS_CHECK :=
 else ifeq ($(HEADLESS),1)
   TARGET := headless
@@ -85,7 +100,7 @@ SRCS    := $(wildcard src/*.c)
 OBJS    := $(patsubst src/%.c,$(BUILD)/obj/%.o,$(SRCS))
 
 .PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check parity loadbench spritebench brdf-lut \
-        web print-web-flags FORCE
+        web print-web-flags windows windows-test windows-smoke FORCE
 
 all: $(LIB)
 
@@ -158,7 +173,26 @@ verify:
 	@$(MAKE) --no-print-directory check
 	@$(MAKE) --no-print-directory test
 	@$(MAKE) --no-print-directory smoke
+	@if command -v $(MINGW)gcc >/dev/null 2>&1; then \
+	    echo "verify: Windows build (MinGW)"; \
+	    $(MAKE) --no-print-directory -s windows || exit 1; \
+	fi
 	@echo "verify: PASS"
+
+# --- Windows (cross-compiled with MinGW) ----------------------------------------
+# The library and examples as .exe files (examples/build/windows). The unit tests and
+# the headless smoke run go through Wine (tools/wine.sh: wine64/wine, or Steam's
+# Proton). make verify builds `windows` when MinGW is installed, so Windows code keeps
+# compiling; running it needs Wine, and its window, GL and audio need real Windows.
+windows:
+	@$(MAKE) --no-print-directory -j$(NPROC) all WINDOWS=1
+	@$(MAKE) --no-print-directory -C examples -j$(NPROC) WINDOWS=1
+
+windows-test:
+	@$(MAKE) --no-print-directory -C tests test WINDOWS=1
+
+windows-smoke:
+	@$(MAKE) --no-print-directory -C examples smoke WINDOWS=1
 
 # --- loading benchmark (tools/bench) -----------------------------------------
 # Worst frame while loading Sponza and FlightHelmet, background vs synchronous.

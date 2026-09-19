@@ -5,6 +5,10 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#if defined(_WIN32)
+#include <direct.h> /* _mkdir: Windows' mkdir takes no mode */
+#define mkdir(path, mode) _mkdir(path)
+#endif
 
 #include "internal/sk_internal.h"
 #include "sk_logger.h"
