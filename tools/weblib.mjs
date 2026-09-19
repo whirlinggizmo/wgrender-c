@@ -3,7 +3,7 @@
 // minimal DevTools-protocol session, and a record of every process a run starts so
 // all of it is stopped, whatever happens to the run.
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -57,8 +57,8 @@ export function freePort() {
     });
 }
 
-export async function waitFor(url, what) {
-    for (let i = 0; i < 100; i++) {
+export async function waitFor(url, what, timeoutMs = 10000) {
+    for (let i = 0; i < timeoutMs / 100; i++) {
         try {
             const res = await fetch(url);
             if (res.ok) return res;
@@ -132,7 +132,7 @@ export class RunProcesses {
             fi
             ps -eo pid=,comm=,args= | awk -v m="$LIBSK_WEB_PROFILE" '$2 != "sh" && $2 != "awk" && index($0, m) { print $1 }' |
                 xargs -r kill -KILL 2>/dev/null
-            rm -rf "$LIBSK_WEB_PROFILE" "$LIBSK_WEB_PROFILE.groups"
+            rm -rf "$LIBSK_WEB_PROFILE" "$LIBSK_WEB_PROFILE.groups" "$LIBSK_WEB_PROFILE.log"
         `], {
             detached: true,
             stdio: "ignore",
@@ -142,8 +142,11 @@ export class RunProcesses {
     }
 
     // Start a child in its own process group and record the group for the watchdog.
-    spawn(command, args, env = process.env) {
-        const child = spawn(command, args, { stdio: "ignore", detached: true, env });
+    // `log`: a file for its output (else it's discarded).
+    spawn(command, args, env = process.env, log = null) {
+        const out = log ? openSync(log, "w") : "ignore";
+        const child = spawn(command, args, { stdio: ["ignore", out, out], detached: true, env });
+        if (log) closeSync(out);
         child.unref();
         if (child.pid) {
             this.groups.push(child.pid);
@@ -178,6 +181,7 @@ export class RunProcesses {
     removeFiles() {
         rmSync(this.profile, { recursive: true, force: true });
         rmSync(`${this.profile}.groups`, { force: true });
+        rmSync(`${this.profile}.log`, { force: true });
     }
 
     // Normal path: ask politely, give the browser a moment, then force.
@@ -231,8 +235,16 @@ export async function launchBrowser(run, browserPath, { display, backend, profil
             : []),
         ...extraArgs,
         "about:blank",
-    ], env);
+    ], env, `${profile}.log`);
     const debugBase = `http://127.0.0.1:${debugPort}`;
-    const version = await (await waitFor(`${debugBase}/json/version`, "browser")).json();
+    let version;
+    try {
+        /* a cold start on a busy CI runner can take a while */
+        version = await (await waitFor(`${debugBase}/json/version`, "browser", 30000)).json();
+    } catch (err) {
+        let output = "";
+        try { output = readFileSync(`${profile}.log`, "utf8").trim().split("\n").slice(-20).join("\n"); } catch { /* none */ }
+        throw new Error(`${err.message}; its last output:\n${output || "(nothing)"}`);
+    }
     return { debugBase, browser: await openSession(version.webSocketDebuggerUrl) };
 }
