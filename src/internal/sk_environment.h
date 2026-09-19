@@ -24,7 +24,8 @@
 
 #define SK_ENVIRONMENT_CUBE_SIZE 128   /* prefiltered cubemap face size (mip 0) */
 #define SK_ENVIRONMENT_MIP_COUNT 6     /* 128 .. 4: roughness 0, 0.2, .. 1 */
-#define SK_ENVIRONMENT_LUT_SIZE 64     /* BRDF lookup table */
+#define SK_ENVIRONMENT_LUT_SIZE 64     /* BRDF lookup table (baked: src/data/sk_brdf_lut.h) */
+#define SK_ENVIRONMENT_LUT_SAMPLES 256
 
 /* A linear RGB float image (3 floats per pixel). */
 typedef struct {

@@ -131,6 +131,18 @@ static bool reserve(void **items, int *capacity, int count, size_t item_size, in
 
 void sk_sprite_batch_init(void)
 {
+    memset(&sk_sb, 0, sizeof(sk_sb));
+    sk_sb.base_instance = sg_query_features().draw_base_instance;
+#ifdef SK_SPRITES_PULLED /* build-time switch: read sprites from the texture everywhere (tests, benchmarks) */
+    sk_sb.base_instance = false;
+#endif
+    sk_sb.last_drawn = -1;
+}
+
+/* The shader, pipelines and quad, made with the first sprite drawn rather than at
+ * startup: a program without sprites doesn't compile them (tools/webstart.mjs). */
+static void ensure_gpu(void)
+{
     /* two triangles: the quad's corners, x right, y up */
     static const float corners[12] = {-0.5f, 0.5f, 0.5f, 0.5f, 0.5f, -0.5f, -0.5f, 0.5f, 0.5f, -0.5f, -0.5f, -0.5f};
     sg_pipeline_desc desc = {
@@ -158,11 +170,7 @@ void sk_sprite_batch_init(void)
         .label = "sk-sprite",
     };
 
-    memset(&sk_sb, 0, sizeof(sk_sb));
-    sk_sb.base_instance = sg_query_features().draw_base_instance;
-#ifdef SK_SPRITES_PULLED /* build-time switch: read sprites from the texture everywhere (tests, benchmarks) */
-    sk_sb.base_instance = false;
-#endif
+    if (sk_sb.ready) return;
     if (sk_sb.base_instance) {
         sk_sb.shader = sg_make_shader(sprite_quad_shader_desc(shader_backend()));
     } else { /* the sprites come from a texture: only the quad's corners are attributes */
@@ -202,26 +210,24 @@ void sk_sprite_batch_init(void)
     desc.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE;
     desc.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE;
     sk_sb.pipelines[PIPELINE_2D_ADD] = sg_make_pipeline(&desc);
-    sk_sb.last_drawn = -1;
     sk_sb.quad = sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(corners), .label = "sk-sprite-quad"});
     sk_sb.ready = true;
 }
 
 void sk_sprite_batch_deinit(void)
 {
-    if (!sk_sb.ready) {
-        return;
+    if (sk_sb.ready) {
+        sg_destroy_buffer(sk_sb.instance_buffer);
+        sg_destroy_view(sk_sb.data_view);
+        sg_destroy_image(sk_sb.data_image);
+        sg_destroy_sampler(sk_sb.data_sampler);
+        sg_destroy_buffer(sk_sb.quad);
+        for (int i = 0; i < PIPELINE_COUNT; i++) {
+            sg_destroy_pipeline(sk_sb.pipelines[i]);
+        }
+        sg_destroy_shader(sk_sb.shader);
     }
-    sg_destroy_buffer(sk_sb.instance_buffer);
-    sg_destroy_view(sk_sb.data_view);
-    sg_destroy_image(sk_sb.data_image);
-    sg_destroy_sampler(sk_sb.data_sampler);
     free(sk_sb.data);
-    sg_destroy_buffer(sk_sb.quad);
-    for (int i = 0; i < PIPELINE_COUNT; i++) {
-        sg_destroy_pipeline(sk_sb.pipelines[i]);
-    }
-    sg_destroy_shader(sk_sb.shader);
     free(sk_sb.instances);
     free(sk_sb.batches);
     free(sk_sb.cameras);
@@ -316,9 +322,11 @@ static const sk_sprite_state_t *current_state(bool two_d)
 /* Add one sprite to the frame, joining the open batch when it can. */
 static void record(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, int pipeline)
 {
-    const sk_sprite_state_t *st = sk_sb.ready ? current_state(pipeline >= PIPELINE_2D_OPAQUE) : NULL;
+    const sk_sprite_state_t *st;
     sk_sprite_batch_t *last;
 
+    ensure_gpu();
+    st = sk_sb.ready ? current_state(pipeline >= PIPELINE_2D_OPAQUE) : NULL;
     if (st == NULL) {
         return;
     }

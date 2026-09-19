@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "data/sk_brdf_lut.h"
 #include "internal/exports.h"
 #include "internal/sk_camera3d.h"
 #include "internal/sk_environment.h"
@@ -22,7 +23,6 @@
 #define MIN_SOURCE_CUBE_SIZE 64   /* the source cubemap matches the image: width / 4 per face, */
 #define MAX_SOURCE_CUBE_SIZE 1024 /* rounded down to a power of two */
 #define PREFILTER_SAMPLES 96
-#define LUT_SAMPLES 256
 #define MAX_BACKGROUND_DRAWS 32   /* per frame */
 #define PI_F 3.14159265358979f
 
@@ -780,8 +780,6 @@ void sk_environment_init(void)
     static const float triangle[] = {-1.0f, -1.0f, 3.0f, -1.0f, -1.0f, 3.0f};
     const int n = SK_ENVIRONMENT_LUT_SIZE;
     uint16_t black[6 * 4] = {0};
-    float *lut;
-    uint16_t *lut_half;
 
     memset(&sk_env, 0, sizeof(sk_env));
     if (!sk_handle_pool_init(&sk_environment_pool, SK_HANDLE_KIND_ENVIRONMENT, "environment",
@@ -790,32 +788,18 @@ void sk_environment_init(void)
         log_error("environment: out of memory");
     }
 
-    if (!sg_query_pixelformat(SG_PIXELFORMAT_RGBA16F).filter) {
+    if (!sg_query_pixelformat(SG_PIXELFORMAT_RGBA16F).filter || !sg_query_pixelformat(SG_PIXELFORMAT_RG16F).filter) {
         log_warn("environment: half-float textures can't be filtered on this backend; environments disabled");
         return;
     }
 
-    lut = (float *)malloc((size_t)n * n * 2 * sizeof(float));
-    lut_half = (uint16_t *)malloc((size_t)n * n * 4 * sizeof(uint16_t));
-    if (lut == NULL || lut_half == NULL) {
-        free(lut);
-        free(lut_half);
-        return;
-    }
-    sk_environment_brdf_lut(n, LUT_SAMPLES, lut);
-    for (int i = 0; i < n * n; i++) {
-        lut_half[i * 4] = sk_environment_half_from_float(lut[i * 2]);
-        lut_half[i * 4 + 1] = sk_environment_half_from_float(lut[i * 2 + 1]);
-        lut_half[i * 4 + 2] = 0;
-        lut_half[i * 4 + 3] = sk_environment_half_from_float(1.0f);
-    }
+    /* the split-sum table, baked (tools/gen_brdf_lut.c): computing it here cost tens of
+       milliseconds of every startup */
     sk_env.lut = sg_make_image(&(sg_image_desc){
-        .width = n, .height = n, .pixel_format = SG_PIXELFORMAT_RGBA16F,
-        .data.mip_levels[0] = {.ptr = lut_half, .size = (size_t)n * n * 4 * sizeof(uint16_t)},
+        .width = n, .height = n, .pixel_format = SG_PIXELFORMAT_RG16F,
+        .data.mip_levels[0] = SG_RANGE(sk_brdf_lut),
         .label = "sk-brdf-lut",
     });
-    free(lut);
-    free(lut_half);
     sk_env.lut_view = sg_make_view(&(sg_view_desc){.texture.image = sk_env.lut});
 
     for (int f = 0; f < 6; f++) black[f * 4 + 3] = sk_environment_half_from_float(1.0f);

@@ -84,7 +84,7 @@ LIB     := $(BUILD)/libsk.a
 SRCS    := $(wildcard src/*.c)
 OBJS    := $(patsubst src/%.c,$(BUILD)/obj/%.o,$(SRCS))
 
-.PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check parity loadbench spritebench \
+.PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check parity loadbench spritebench brdf-lut \
         web print-web-flags FORCE
 
 all: $(LIB)
@@ -177,6 +177,15 @@ else
 	    -o build/headless/loadbench
 	@build/headless/loadbench 2>/dev/null
 endif
+
+# --- generated data -----------------------------------------------------------
+# The split-sum BRDF table image-based lighting reads, baked into
+# src/data/sk_brdf_lut.h by the library's own function (tools/gen_brdf_lut.c).
+brdf-lut:
+	@$(MAKE) --no-print-directory -j$(NPROC) all HEADLESS=1
+	@$(CC) $(STD) -O2 -Iinclude -Isrc -isystem deps/sokol tools/gen_brdf_lut.c build/headless/libsk.a \
+	    -ldl -lm -lpthread -o build/headless/gen_brdf_lut
+	@build/headless/gen_brdf_lut src/data/sk_brdf_lut.h
 
 # --- sprite benchmark (tools/bench) ------------------------------------------
 # Sprite-heavy scenes (a grid, a perspective field with mixed facings, 3D and 2D

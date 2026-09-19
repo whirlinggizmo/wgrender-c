@@ -34,9 +34,22 @@
     const statusEl = document.getElementById("status");
     const sel = document.getElementById("ex");
 
-    // Populate the switcher from the build manifest (only examples that were built).
-    fetch("examples.json")
-      .then(r => (r.ok ? r.json() : []))
+    // Each program's version (a hash of its .js and .wasm), written in when the site is
+    // built (tools/webdeploy.py): files are loaded as name.js?v=<hash>, so a host can
+    // keep them for good and a returning visit fetches no code. Empty: unversioned.
+    const VERSIONS = /*sk:versions*/{};
+    const version = VERSIONS[current] || {};
+    const versioned = (file, hash) => (hash ? file + "?v=" + hash : file);
+    const wasmUrl = versioned(current + ".wasm", version.wasm);
+
+    // Start downloading (and compiling, as it streams) the wasm now, alongside the JS,
+    // rather than once the JS has run: one round trip less on a first visit.
+    const wasmResponse = fetch(wasmUrl, { credentials: "same-origin" });
+
+    // Populate the switcher with the examples that were built.
+    (Object.keys(VERSIONS).length
+      ? Promise.resolve(Object.keys(VERSIONS))
+      : fetch("examples.json").then(r => (r.ok ? r.json() : [])))
       .then(list => {
         if (!list.length) list = [current];
         for (const name of list) {
@@ -57,11 +70,28 @@
       print:    (...a) => console.log(...a),
       printErr: (...a) => console.warn(...a),
       onRuntimeInitialized: () => { statusEl.textContent = current; },
+      locateFile: (path, prefix) => (path.endsWith(".wasm") ? wasmUrl : prefix + path),
+      // Instantiate from the download started above (with its module, which worker
+      // threads are sent). A server that doesn't say application/wasm can't stream:
+      // then compile from the bytes.
+      instantiateWasm: (imports, receive) => {
+        const fromBytes = (response) => response.arrayBuffer().then(b => WebAssembly.instantiate(b, imports));
+        wasmResponse
+          .then(response => (WebAssembly.instantiateStreaming
+            ? WebAssembly.instantiateStreaming(response.clone(), imports).catch(() => fromBytes(response))
+            : fromBytes(response)))
+          .then(result => receive(result.instance, result.module))
+          .catch(err => {
+            statusEl.textContent = "failed to load " + wasmUrl;
+            console.error("libsk page:", err);
+          });
+        return {}; // exports arrive through receive()
+      },
     };
 
     // Load the selected example's bundle (each is a standalone emscripten build).
     const s = document.createElement("script");
-    s.src = current + ".js";
+    s.src = versioned(current + ".js", version.js);
     s.onerror = () => {
       statusEl.textContent = "not built: " + current +
         "  (make wasm WASM_EXAMPLE=" + current + ", or make wasm-all)";

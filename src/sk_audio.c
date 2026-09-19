@@ -374,11 +374,14 @@ static void discard_audio(void *prepared)
     }
 }
 
+static void ensure_device(void); /* below: the device starts with the first resource */
+
 static sk_loader_step_t finish_audio(void *prepared, const char *path, sk_handle_t *resource)
 {
     sk_audio_t *audio = (sk_audio_t *)prepared;
     uint16_t index = 0;
 
+    ensure_device();
     if (path != NULL) {
         snprintf(audio->path, sizeof(audio->path), "%s", path);
         audio->has_path = path[0] != '\0';
@@ -623,19 +626,17 @@ static void stream_callback(float *buffer, int num_frames, int num_channels)
 }
 #endif
 
-void sk_audio_init(void)
+/* The audio device starts with the first audio resource, not at startup: a program
+ * without sound doesn't open one (on the web, making the AudioContext was ~30 ms of a
+ * first visit's startup: tools/webstart.mjs). Main thread; not under the lock, which
+ * the device's callback takes. */
+static bool sk_audio_device_tried;
+
+static void ensure_device(void)
 {
-    lock_init();
-    if (!sk_handle_pool_init(&sk_audio_pool, SK_HANDLE_KIND_AUDIO, "audio", (void **)&sk_audios,
-                             sizeof(sk_audio_t), AUDIO_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("audio: out of memory");
-    }
-    sk_asset_register_loader(".wav", &sk_audio_loader);
-    sk_asset_register_loader(".ogg", &sk_audio_loader);
-    sk_asset_register_loader(".mp3", &sk_audio_loader);
-#if defined(SK_HEADLESS)
-    log_info("audio: headless build, no playback");
-#else
+    if (sk_audio_device_tried) return;
+    sk_audio_device_tried = true;
+#if !defined(SK_HEADLESS)
     saudio_setup(&(saudio_desc){
         .num_channels = 2,
         .stream_cb = stream_callback,
@@ -651,13 +652,29 @@ void sk_audio_init(void)
 #endif
 }
 
+void sk_audio_init(void)
+{
+    lock_init();
+    if (!sk_handle_pool_init(&sk_audio_pool, SK_HANDLE_KIND_AUDIO, "audio", (void **)&sk_audios,
+                             sizeof(sk_audio_t), AUDIO_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
+        log_error("audio: out of memory");
+    }
+    sk_asset_register_loader(".wav", &sk_audio_loader);
+    sk_asset_register_loader(".ogg", &sk_audio_loader);
+    sk_asset_register_loader(".mp3", &sk_audio_loader);
+#if defined(SK_HEADLESS)
+    log_info("audio: headless build, no playback");
+#endif
+}
+
 void sk_audio_deinit(void)
 {
 #if !defined(SK_HEADLESS)
-    if (saudio_isvalid()) {
+    if (sk_audio_device_tried && saudio_isvalid()) {
         saudio_shutdown(); /* stops the device thread before anything is freed */
     }
 #endif
+    sk_audio_device_tried = false;
     sk_audio_lock(); /* sounds (and their decoders) are gone: sk_sound_deinit runs first */
     /* free any audio resources still alive (sounds should have released theirs) */
     for (uint16_t i = 1; i < sk_audio_pool.capacity; i++) {

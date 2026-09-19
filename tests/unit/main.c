@@ -25,6 +25,7 @@ static const test_case_t TESTS[] = {
     {"environment_irradiance", test_environment_irradiance},
     {"environment_prefilter", test_environment_prefilter},
     {"environment_brdf_lut", test_environment_brdf_lut},
+    {"environment_brdf_lut_baked", test_environment_brdf_lut_baked},
     {"environment_half_float", test_environment_half_float},
     {"environment_api", test_environment_api},
     {"camera_api", test_camera_api},

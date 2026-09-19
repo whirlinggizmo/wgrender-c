@@ -517,7 +517,9 @@ static bool pick_2d(sk_handle_t handle, float x, float y, sk_pick_result_t *out)
 
 /* ------------------------------------------------------------ lifecycle ---- */
 
-void sk_emitter_init(void)
+/* The shader, pipelines and quad, made with the first emitter rather than at startup:
+ * a program without particles doesn't compile them (tools/webstart.mjs). */
+static void ensure_gpu(void)
 {
     static const float corners[12] = {-0.5f, 0.5f, 0.5f, 0.5f, 0.5f, -0.5f, -0.5f, 0.5f, 0.5f, -0.5f, -0.5f, -0.5f};
     const sg_backend backend = sg_query_backend();
@@ -544,8 +546,7 @@ void sk_emitter_init(void)
     add.dst_factor_rgb = SG_BLENDFACTOR_ONE;
     add.dst_factor_alpha = SG_BLENDFACTOR_ONE;
 
-    memset(&sk_px, 0, sizeof(sk_px));
-    sk_px.next_seed = 0x9e3779b9u;
+    if (sk_px.ready) return;
     sk_px.shader =
         sg_make_shader(sprite_particle_shader_desc(backend == SG_BACKEND_DUMMY ? SG_BACKEND_GLCORE : backend));
     desc.shader = sk_px.shader;
@@ -565,7 +566,12 @@ void sk_emitter_init(void)
     sk_px.pipelines[PIPELINE_2D_ADD] = sg_make_pipeline(&desc);
     sk_px.quad = sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(corners), .label = "sk-particle-quad"});
     sk_px.ready = true;
+}
 
+void sk_emitter_init(void)
+{
+    memset(&sk_px, 0, sizeof(sk_px));
+    sk_px.next_seed = 0x9e3779b9u;
     if (!sk_handle_pool_init(&sk_emitter3d_pool, SK_HANDLE_KIND_EMITTER3D, "emitter3d", (void **)&sk_emitters3d,
                              sizeof(sk_emitter_t), EMITTERS_INITIAL, SK_HANDLE_POOL_MAX_SLOTS) ||
         !sk_handle_pool_init(&sk_emitter2d_pool, SK_HANDLE_KIND_EMITTER2D, "emitter2d", (void **)&sk_emitters2d,
@@ -589,15 +595,16 @@ static void free_emitters(sk_handle_pool_t *pool, sk_emitter_t *items)
 
 void sk_emitter_deinit(void)
 {
-    if (!sk_px.ready) return;
     free_emitters(&sk_emitter3d_pool, sk_emitters3d);
     free_emitters(&sk_emitter2d_pool, sk_emitters2d);
     sk_handle_pool_destroy(&sk_emitter3d_pool);
     sk_handle_pool_destroy(&sk_emitter2d_pool);
-    sg_destroy_buffer(sk_px.buffer);
-    sg_destroy_buffer(sk_px.quad);
-    for (int i = 0; i < PIPELINE_COUNT; i++) sg_destroy_pipeline(sk_px.pipelines[i]);
-    sg_destroy_shader(sk_px.shader);
+    if (sk_px.ready) {
+        sg_destroy_buffer(sk_px.buffer);
+        sg_destroy_buffer(sk_px.quad);
+        for (int i = 0; i < PIPELINE_COUNT; i++) sg_destroy_pipeline(sk_px.pipelines[i]);
+        sg_destroy_shader(sk_px.shader);
+    }
     free(sk_px.particles);
     free(sk_px.draws);
     memset(&sk_px, 0, sizeof(sk_px));
@@ -614,6 +621,7 @@ static sk_handle_t create_emitter(sk_handle_t texture, bool two_d)
         log_error("%s: pool full", two_d ? "emitter2d" : "emitter3d");
         return 0;
     }
+    ensure_gpu();
     sk_handle_pool_resolve(pool, handle, &index);
     emitter_ptr = two_d ? &sk_emitters2d[index] : &sk_emitters3d[index];
     *emitter_ptr = (sk_emitter_t){

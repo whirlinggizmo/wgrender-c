@@ -39,10 +39,14 @@ endif
 ifeq ($(WEB_THREADS),1)
   WEB_DIR           := $(BACKEND)
   WASM_THREADS      := -pthread
-  # workers are started up front, so starting a load never waits on one.
+  # Workers are started with the page, but main() doesn't wait for them to load
+  # (PTHREAD_POOL_DELAY_LOAD): each fetches the JS again, a round trip or more apiece
+  # on a slow network (~500 ms on 4G before, measured by tools/webstart.mjs). A thread
+  # created before its worker is up starts when it is; nothing on the main thread
+  # waits for one to start (asset loads queue for them).
   # Growable memory with threads makes JS glue re-check the heap view on access
   # (emscripten warns about it); assets need the growth.
-  WASM_THREADS_LINK := -pthread -sPTHREAD_POOL_SIZE=4 -Wno-pthreads-mem-growth
+  WASM_THREADS_LINK := -pthread -sPTHREAD_POOL_SIZE=4 -sPTHREAD_POOL_DELAY_LOAD=1 -Wno-pthreads-mem-growth
 else
   WEB_DIR           := $(BACKEND)-nothreads
   WASM_THREADS      :=

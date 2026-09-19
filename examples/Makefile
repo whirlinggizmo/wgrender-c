@@ -116,10 +116,7 @@ WASM_CFLAGS := $(STD) $(WARN) $(WEB_OPT) $(WASM_CFLAGS_BACKEND) $(INCS) -MD -MP
 # Per-example bundles (.js + .wasm) + one shared index.html switcher. The switcher
 # self-populates from examples.json (built examples only).
 define wasm_deploy
-	@cp $(WEB_SHELL) $(BUILD_WEB)/index.html
-	@cd $(BUILD_WEB) && printf '[%s]\n' \
-	    "$$(ls *.js 2>/dev/null | sed 's/\.js$$//;s/^/"/;s/$$/"/' | paste -sd, -)" \
-	    > examples.json
+	@python3 $(ROOT)/tools/webdeploy.py $(BUILD_WEB) $(WEB_SHELL)
 	@echo "deployed $(BUILD_WEB) — 'make serve BACKEND=$(BACKEND)' then open http://localhost:8000/"
 endef
 
@@ -136,11 +133,17 @@ $(WEB_FLAGS_STAMP): FORCE
 	@mkdir -p $(dir $@)
 	@echo '$(WASM_CFLAGS)' | cmp -s - $@ || echo '$(WASM_CFLAGS)' > $@
 
+# ... and relink the programs when the link flags change (mk/web.mk's WASM_LINK).
+WEB_LINK_STAMP := $(WEB_OBJ_DIR)/link-flags
+$(WEB_LINK_STAMP): FORCE
+	@mkdir -p $(dir $@)
+	@echo '$(WASM_LINK)' | cmp -s - $@ || echo '$(WASM_LINK)' > $@
+
 $(WEB_OBJ_DIR)/examples/%.o: %.c $(WEB_FLAGS_STAMP)
 	@mkdir -p $(dir $@)
 	@$(EMCC) $(WASM_CFLAGS) -c $< -o $@
 
-$(BUILD_WEB)/%.js: $(WEB_OBJ_DIR)/examples/%.o $(WEB_LIB)
+$(BUILD_WEB)/%.js: $(WEB_OBJ_DIR)/examples/%.o $(WEB_LIB) $(WEB_LINK_STAMP)
 	@echo "  wasm[$(WEB_DIR)]: $*"
 	@$(EMCC) $(WEB_OBJ_DIR)/examples/$*.o $(WEB_LIB) $(WASM_LINK) -o $@
 
@@ -155,7 +158,7 @@ $(WEB_OBJ_DIR)/bench/spritebench.o: $(ROOT)/tools/bench/spritebench.c $(WEB_FLAG
 	@mkdir -p $(dir $@)
 	@$(EMCC) $(WASM_CFLAGS) -c $< -o $@
 
-$(BENCH_WEB)/spritebench.js: $(WEB_OBJ_DIR)/bench/spritebench.o $(WEB_LIB)
+$(BENCH_WEB)/spritebench.js: $(WEB_OBJ_DIR)/bench/spritebench.o $(WEB_LIB) $(WEB_LINK_STAMP)
 	@mkdir -p $(dir $@)
 	@echo "  wasm[$(WEB_DIR)]: spritebench"
 	@$(EMCC) $< $(WEB_LIB) $(WASM_LINK) -o $@

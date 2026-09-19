@@ -64,6 +64,7 @@ make wasm-all                      # every example -> examples/build/webgl2/
 make serve                         # http://localhost:8000/ (assets mounted at /assets/)
 make webcheck                      # build all, load each in a browser, fail on errors
 make webcheck BACKEND=webgpu       # same for WebGPU (opens visible browser windows)
+make webstart                      # startup times per example: cold, warm and hot visits
 ```
 
 `make webcheck` (`tools/webcheck.mjs`) needs Node >= 22 and a Chromium-based
@@ -78,6 +79,31 @@ GPU adapter. It catches crashes, errors and unfinished loads, not wrong-looking
 output, so glance at the screenshots. The browser and
 server it starts are always stopped, even if Node crashes or is killed (process
 groups, a sweep by the run's unique profile directory, and a watchdog).
+
+### Startup and hosting
+
+A built site (`examples/build/<backend>/`) loads each program as `name.js?v=<hash>`
+and `name.wasm?v=<hash>`: `tools/webdeploy.py` writes every file's hash into
+`index.html`, so a file's URL changes when its content does. The page starts
+downloading the wasm alongside the JS, and it compiles as it streams. To start fast,
+a host should send:
+
+- `Cross-Origin-Opener-Policy: same-origin` and
+  `Cross-Origin-Embedder-Policy: require-corp` (threaded builds; `WEB_THREADS=0`
+  builds don't need them)
+- `Content-Type: application/wasm` for `.wasm` (else it can't compile while streaming)
+- `Cache-Control: public, max-age=31536000, immutable` for versioned requests
+  (`?v=`), and `no-cache` for the page: a returning visit then revalidates only the
+  page and fetches no code (a CDN must keep the query string in its cache key)
+- gzip or brotli for `.js`, `.wasm` and `.html`
+
+`make serve` sends no-store (every reload gets the latest build);
+`tools/serve.py --cache --gzip` serves as above. `make webstart`
+(`tools/webstart.mjs`) opens each example three times in a fresh browser profile
+(cold, warm, and hot: Chrome's compiled-code cache), locally and on emulated 4G, and
+times the download, compile, libsk's init, the first frame and the end of asset
+loading from `sk:*` performance marks. `--devtools` and `--url` measure another
+device's browser, such as a phone through `adb forward`.
 
 ## Invariant: no backend leakage
 

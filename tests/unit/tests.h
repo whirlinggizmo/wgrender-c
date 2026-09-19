@@ -13,6 +13,7 @@ void test_environment_mapping(void);
 void test_environment_irradiance(void);
 void test_environment_prefilter(void);
 void test_environment_brdf_lut(void);
+void test_environment_brdf_lut_baked(void);
 void test_environment_half_float(void);
 void test_environment_api(void);
 

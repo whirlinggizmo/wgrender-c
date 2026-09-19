@@ -337,13 +337,19 @@ Not supported yet:
       from 874 KB wasm + 425 KB JS to 693 + 190 KB (323 KB gzipped; librl's c-simple
       is 653 + 264 KB, 342 KB gzipped). The rest of the gap: every program links
       every subsystem (below)
-- [ ] Web startup goal: one cold start (download + compile, like an install), then
-      warm starts with no redownload or recompile. Measure cold vs warm time to first
-      frame per example plus wasm/JS sizes (raw, gzip, brotli); check compiled-code
-      caching (streaming instantiation, `application/wasm`, cache headers; the dev
-      server sends no-store on purpose). Then size levers: Closure on the JS glue,
-      emmalloc, `-sENVIRONMENT=web,worker`, `-Oz`, browser-native image/audio
-      decoders on web, optional subsystems (below)
+- [x] Web startup (2026-09-19): `make webstart` (`tools/webstart.mjs`) times cold,
+      warm and hot visits from `sk:*` performance marks, locally, on emulated 4G and on
+      a phone. Fixed: worker threads no longer hold up main() (~500 ms on 4G);
+      versioned code (`?v=<hash>`, `tools/webdeploy.py`) cached for good, so a warm
+      visit fetches no code; the wasm downloads alongside the JS; the BRDF table is
+      baked (35-40 ms of every start); sprites, particles, models and the audio device
+      are set up on first use. 4G, `simple`, first frame: cold 1214 -> 744 ms, warm
+      1112 -> 389 ms. Pixel over Wi-Fi: libsk's setup 80-186 -> 15-34 ms, first
+      frame 422-816 -> 241-444 ms. README "Startup and hosting" lists the headers a
+      host needs
+- [ ] Web size levers: Closure on the JS glue, emmalloc, `-sENVIRONMENT=web,worker`,
+      `-Oz`, browser-native image/audio decoders on web, optional subsystems (below);
+      the baked BRDF table costs ~14 KB gzipped (half floats barely compress)
 - [ ] Explore (later, own session): libsk's C API as the contract with other
       implementations, e.g. a JS backend (three.js/Babylon) for JS-target games, or
       another implementation language (Zig, Odin, D betterC, Beef; engines like

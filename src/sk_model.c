@@ -1280,8 +1280,61 @@ static void discard_mesh(void *data)
     free(prepared);
 }
 
+/* The model shaders and pipelines, made when the first mesh reaches the GPU (or a
+ * model is drawn) rather than at startup: a program without models doesn't compile
+ * them (tools/webstart.mjs measures startup). */
+static bool sk_model_pipelines_ready;
+
+static void ensure_pipelines(void)
+{
+    sg_pipeline_desc base;
+    if (sk_model_pipelines_ready) return;
+    sk_model_pipelines_ready = true;
+    sk_shd_static = make_static_shader();
+    sk_shd_skinned = make_skinned_shader();
+
+    base = (sg_pipeline_desc){
+        .index_type = SG_INDEXTYPE_UINT32,
+        .face_winding = SG_FACEWINDING_CCW,
+        .depth = {.compare = SG_COMPAREFUNC_LESS_EQUAL, .write_enabled = true},
+    };
+
+    for (int skinned = 0; skinned < 2; skinned++) {
+        for (int blended = 0; blended < 2; blended++) {
+            for (int double_sided = 0; double_sided < 2; double_sided++) {
+                sg_pipeline_desc d = base;
+                d.shader = skinned ? sk_shd_skinned : sk_shd_static;
+                d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+                d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
+                d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2; /* texcoord0 */
+                d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2; /* texcoord1 */
+                d.layout.attrs[4].format = SG_VERTEXFORMAT_FLOAT4; /* tangent */
+                d.layout.attrs[5].format = SG_VERTEXFORMAT_FLOAT4; /* color0 */
+                if (skinned) {
+                    d.layout.attrs[6].format = SG_VERTEXFORMAT_FLOAT4; /* joints */
+                    d.layout.attrs[7].format = SG_VERTEXFORMAT_FLOAT4; /* weights */
+                }
+                d.cull_mode = double_sided ? SG_CULLMODE_NONE : SG_CULLMODE_BACK;
+                if (blended) {
+                    d.depth.write_enabled = false;
+                    d.colors[0].blend = (sg_blend_state){
+                        .enabled = true,
+                        .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+                        .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                        .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                        .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                    };
+                }
+                d.label = "sk-model-pip";
+                sk_pips[skinned][blended][double_sided] = sg_make_pipeline(&d);
+            }
+        }
+    }
+}
+
 static bool upload_primitive(sk_primitive_t *prim)
 {
+    ensure_pipelines();
     prim->vbuf = sg_make_buffer(&(sg_buffer_desc){
         .usage.vertex_buffer = true,
         .data = {.ptr = prim->upload_vertices, .size = prim->upload_bytes}});
@@ -2160,6 +2213,7 @@ static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr
     const sk_light_env_t *light_env = sk_light_env_get(e->light_env);
     sk_environment_binding_t environment;
     sk_environment_get_binding(light_env != NULL ? light_env->environment : 0, &environment);
+    ensure_pipelines();
     sg_pipeline pip = sk_pips[prim->skinned ? 1 : 0][blended ? 1 : 0][material->double_sided ? 1 : 0];
     if (pip.id != cur_pip->id) {
         sg_apply_pipeline(pip);
@@ -2283,7 +2337,6 @@ void sk_model_init(void)
 {
     static const unsigned char white[4] = {255, 255, 255, 255};
     static const unsigned char flat_normal[4] = {128, 128, 255, 255};
-    sg_pipeline_desc base;
 
     sk_model_end_frame();
     if (!sk_handle_pool_init(&sk_model_pool, SK_HANDLE_KIND_MODEL, "model", (void **)&sk_models,
@@ -2293,47 +2346,6 @@ void sk_model_init(void)
     if (!sk_handle_pool_init(&sk_mesh_pool, SK_HANDLE_KIND_MESH, "mesh", (void **)&sk_meshes,
                              sizeof(sk_mesh_t), MESHES_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
         log_error("mesh: out of memory");
-    }
-
-    sk_shd_static = make_static_shader();
-    sk_shd_skinned = make_skinned_shader();
-
-    base = (sg_pipeline_desc){
-        .index_type = SG_INDEXTYPE_UINT32,
-        .face_winding = SG_FACEWINDING_CCW,
-        .depth = {.compare = SG_COMPAREFUNC_LESS_EQUAL, .write_enabled = true},
-    };
-
-    for (int skinned = 0; skinned < 2; skinned++) {
-        for (int blended = 0; blended < 2; blended++) {
-            for (int double_sided = 0; double_sided < 2; double_sided++) {
-                sg_pipeline_desc d = base;
-                d.shader = skinned ? sk_shd_skinned : sk_shd_static;
-                d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
-                d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
-                d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2; /* texcoord0 */
-                d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2; /* texcoord1 */
-                d.layout.attrs[4].format = SG_VERTEXFORMAT_FLOAT4; /* tangent */
-                d.layout.attrs[5].format = SG_VERTEXFORMAT_FLOAT4; /* color0 */
-                if (skinned) {
-                    d.layout.attrs[6].format = SG_VERTEXFORMAT_FLOAT4; /* joints */
-                    d.layout.attrs[7].format = SG_VERTEXFORMAT_FLOAT4; /* weights */
-                }
-                d.cull_mode = double_sided ? SG_CULLMODE_NONE : SG_CULLMODE_BACK;
-                if (blended) {
-                    d.depth.write_enabled = false;
-                    d.colors[0].blend = (sg_blend_state){
-                        .enabled = true,
-                        .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-                        .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                        .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                        .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                    };
-                }
-                d.label = "sk-model-pip";
-                sk_pips[skinned][blended][double_sided] = sg_make_pipeline(&d);
-            }
-        }
     }
 
     sk_model_white_img = sg_make_image(&(sg_image_desc){
@@ -2380,15 +2392,18 @@ void sk_model_deinit(void)
         if (smp->id != SG_INVALID_ID) sg_destroy_sampler(*smp);
         *smp = (sg_sampler){0};
     }
-    for (int skinned = 0; skinned < 2; skinned++) {
-        for (int blended = 0; blended < 2; blended++) {
-            for (int double_sided = 0; double_sided < 2; double_sided++) {
-                sg_destroy_pipeline(sk_pips[skinned][blended][double_sided]);
+    if (sk_model_pipelines_ready) {
+        for (int skinned = 0; skinned < 2; skinned++) {
+            for (int blended = 0; blended < 2; blended++) {
+                for (int double_sided = 0; double_sided < 2; double_sided++) {
+                    sg_destroy_pipeline(sk_pips[skinned][blended][double_sided]);
+                }
             }
         }
+        sg_destroy_shader(sk_shd_static);
+        sg_destroy_shader(sk_shd_skinned);
+        sk_model_pipelines_ready = false;
     }
-    sg_destroy_shader(sk_shd_static);
-    sg_destroy_shader(sk_shd_skinned);
     sk_handle_pool_destroy(&sk_model_pool);
     sk_handle_pool_destroy(&sk_mesh_pool);
 }

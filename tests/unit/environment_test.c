@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "data/sk_brdf_lut.h"
 #include "internal/sk_environment.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_platform.h"
@@ -192,6 +193,28 @@ void test_environment_brdf_lut(void)
     /* smooth surface seen head-on: specular is F0 exactly (scale 1, bias 0) */
     CHECK_NEAR(lut[((0) * N + (N - 1)) * 2], 1.0f, 0.05f);
     CHECK_NEAR(lut[((0) * N + (N - 1)) * 2 + 1], 0.0f, 0.02f);
+}
+
+/* The baked table (src/data/sk_brdf_lut.h) is the function's: regenerate it with
+ * `make brdf-lut` when the function or its size changes. */
+static float float_from_half(uint16_t h)
+{
+    const int exponent = (h >> 10) & 0x1F, mantissa = h & 0x3FF;
+    const float value = exponent == 0 ? ldexpf((float)mantissa, -24) : ldexpf((float)(mantissa | 0x400), exponent - 25);
+    return (h & 0x8000) ? -value : value;
+}
+
+void test_environment_brdf_lut_baked(void)
+{
+    enum { N = SK_ENVIRONMENT_LUT_SIZE };
+    static float lut[N * N * 2];
+    float worst = 0.0f;
+    sk_environment_brdf_lut(N, SK_ENVIRONMENT_LUT_SAMPLES, lut);
+    for (int i = 0; i < N * N * 2; i++) {
+        const float diff = fabsf(float_from_half(sk_brdf_lut[i]) - lut[i]);
+        worst = diff > worst ? diff : worst;
+    }
+    CHECK(worst < 1e-3f); /* half precision */
 }
 
 void test_environment_half_float(void)
