@@ -458,6 +458,32 @@ bool sk_texture_ktx_path(const char *path, char *out, size_t out_size)
     return snprintf(out, out_size, "%.*s.png", (int)stem, path) < (int)out_size; /* no compressed format here */
 }
 
+/* The PNG beside name.ktx, used when this GPU's variant is missing: false for a path
+ * that isn't a plain name.ktx (a variant named outright has no fallback). */
+static bool ktx_fallback(const char *path, char *out, size_t out_size)
+{
+    if (path == NULL || !ends_with(path, ".ktx")) return false;
+    for (int i = 0; i < KTX_VARIANT_COUNT; i++) {
+        if (ends_with(path, KTX_VARIANTS[i].suffix)) return false;
+    }
+    return snprintf(out, out_size, "%.*s.png", (int)(strlen(path) - 4), path) < (int)out_size;
+}
+
+/* sk_asset's path mapper for .ktx: this GPU's variant, falling back to the PNG. */
+static bool map_ktx(const char *path, char *out, size_t out_size, char *fallback, size_t fallback_size)
+{
+    if (!sk_texture_ktx_path(path, out, out_size)) return false;
+    if (!ends_with(out, ".ktx") || !ktx_fallback(path, fallback, fallback_size)) fallback[0] = '\0';
+    return true;
+}
+
+static bool file_exists(const char *path)
+{
+    FILE *f = fopen(path, "rb");
+    if (f != NULL) fclose(f);
+    return f != NULL;
+}
+
 typedef struct {
     unsigned char *bytes; /* the file; ktx points into it */
     sk_ktx_t ktx;
@@ -760,8 +786,12 @@ bool sk_texture_set_placeholder(sk_handle_t texture)
 SK_KEEP
 sk_handle_t sk_texture_create(const char *path)
 {
-    char mapped[256];
+    char mapped[256], fallback[256];
     if (sk_texture_ktx_path(path, mapped, sizeof(mapped))) { /* rock.ktx: this GPU's variant */
+        if (ends_with(mapped, ".ktx") && !file_exists(mapped) && ktx_fallback(path, fallback, sizeof(fallback))) {
+            log_warn("Texture %s not found; using %s instead", mapped, fallback);
+            snprintf(mapped, sizeof(mapped), "%s", fallback);
+        }
         path = mapped;
     }
     return sk_loader_create(path != NULL && ends_with(path, ".ktx") ? &sk_ktx_loader : &sk_texture_loader, path);
@@ -852,7 +882,7 @@ void sk_texture_init(void)
     sk_asset_register_loader(".jpg", &sk_texture_loader);
     sk_asset_register_loader(".jpeg", &sk_texture_loader);
     sk_asset_register_loader(".ktx", &sk_ktx_loader);
-    sk_asset_register_path_mapper(".ktx", sk_texture_ktx_path);
+    sk_asset_register_path_mapper(".ktx", map_ktx);
 
     sk_default_sampler = sg_make_sampler(&(sg_sampler_desc){
         .min_filter = SG_FILTER_LINEAR,

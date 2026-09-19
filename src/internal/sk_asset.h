@@ -12,8 +12,11 @@
 
 /* `required`: whether the file is unusable without it. A missing required
  * dependency fails the file's ensure; a missing optional one only logs a warning
- * (e.g. an image, which the loader replaces with a placeholder). */
-typedef void (*sk_asset_add_dependency_fn)(const char *uri, bool required, void *context);
+ * (e.g. an image, which the loader replaces with a placeholder). `fallback_uri`
+ * (or NULL): a file to ensure instead when `uri` is missing, e.g. a texture's own
+ * image for its compressed file. */
+typedef void (*sk_asset_add_dependency_fn)(const char *uri, const char *fallback_uri, bool required,
+                                           void *context);
 
 /* Report every URI the file references by calling `add`, as written in the file
  * (non-relative URIs such as data: are skipped by the caller). `data` is the whole

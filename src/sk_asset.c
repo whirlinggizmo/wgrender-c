@@ -52,6 +52,8 @@ enum { FETCH_PENDING = 0, FETCH_OK, FETCH_FAILED };
 typedef struct {
     char path[512];      /* logical key: cache path + default (host + path) source */
     char fetch_url[1024]; /* per-call source override (empty = use host + path) */
+    char fallback[512];   /* ensured instead when `path` is missing ("" = none) */
+    char fallback_url[1024]; /* its source, when fetch_url is set */
     unsigned int flags;
     sk_asset_callback_fn on_success;
     sk_asset_callback_fn on_failure;
@@ -436,12 +438,27 @@ static sk_asset_dependencies_fn lookup_format(const char *path)
     return NULL;
 }
 
+/* A file fetched from an explicit URL finds its dependencies next to that URL (the
+ * browser resolves any ".."); otherwise `out` stays empty (host + path). */
+static void dependency_url(const sk_asset_task_t *parent_task, const char *uri, char *out, size_t out_size)
+{
+    char url[1024];
+    out[0] = '\0';
+    if (parent_task->fetch_url[0] != '\0') {
+        const char *slash = strrchr(parent_task->fetch_url, '/');
+        const int dir_len = slash != NULL ? (int)(slash - parent_task->fetch_url) + 1 : 0;
+        if (snprintf(url, sizeof(url), "%.*s%s", dir_len, parent_task->fetch_url, uri) < (int)sizeof(url)) {
+            snprintf(out, out_size, "%s", url);
+        }
+    }
+}
+
 /* Queue one dependency of the task in `context` (a uint16_t slot). */
-static void add_dependency(const char *uri, bool required, void *context)
+static void add_dependency(const char *uri, const char *fallback_uri, bool required, void *context)
 {
     const uint16_t parent = *(const uint16_t *)context;
     sk_asset_task_t *parent_task = &sk_asset_tasks[parent];
-    char path[512], url[1024];
+    char path[512];
     sk_handle_t handle;
     sk_asset_task_t *task;
 
@@ -469,14 +486,10 @@ static void add_dependency(const char *uri, bool required, void *context)
     task = resolve(handle);
     *task = (sk_asset_task_t){0};
     snprintf(task->path, sizeof(task->path), "%s", path);
-    /* a file fetched from an explicit URL finds its dependencies next to that URL
-     * (the browser resolves any "..") */
-    if (parent_task->fetch_url[0] != '\0') {
-        const char *slash = strrchr(parent_task->fetch_url, '/');
-        const int dir_len = slash != NULL ? (int)(slash - parent_task->fetch_url) + 1 : 0;
-        if (snprintf(url, sizeof(url), "%.*s%s", dir_len, parent_task->fetch_url, uri) < (int)sizeof(url)) {
-            snprintf(task->fetch_url, sizeof(task->fetch_url), "%s", url);
-        }
+    dependency_url(parent_task, uri, task->fetch_url, sizeof(task->fetch_url));
+    if (fallback_uri != NULL && sk_asset_is_relative_uri(fallback_uri) &&
+        sk_asset_join_relative(parent_task->path, fallback_uri, task->fallback, sizeof(task->fallback))) {
+        dependency_url(parent_task, fallback_uri, task->fallback_url, sizeof(task->fallback_url));
     }
     task->flags = parent_task->flags;
     task->parent = parent;
@@ -531,10 +544,11 @@ sk_handle_t sk_asset_ensure_async(const char *path, const char *fetch_url,
         for (int i = 0; i < sk_asset_mapper_count; i++) {
             char mapped[sizeof(task_ptr->path)];
             if (has_extension(path, sk_asset_mappers[i].extension) &&
-                sk_asset_mappers[i].map(path, mapped, sizeof(mapped))) {
+                sk_asset_mappers[i].map(path, mapped, sizeof(mapped), task_ptr->fallback, sizeof(task_ptr->fallback))) {
                 snprintf(task_ptr->path, sizeof(task_ptr->path), "%s", mapped);
                 break;
             }
+            task_ptr->fallback[0] = '\0';
         }
     }
     if (fetch_url != NULL) {
@@ -1000,6 +1014,20 @@ static void load(void)
     }
 }
 
+/* A task's file is missing: ensure its fallback instead, if it has one (a compressed
+ * texture's PNG, say). The task starts over on the next tick. */
+static bool use_fallback(sk_asset_task_t *task)
+{
+    if (task->fallback[0] == '\0') return false;
+    log_warn("Asset not found: %s; using %s instead", task->path, task->fallback);
+    snprintf(task->path, sizeof(task->path), "%s", task->fallback);
+    snprintf(task->fetch_url, sizeof(task->fetch_url), "%s", task->fallback_url);
+    task->fallback[0] = task->fallback_url[0] = '\0';
+    task->state = TASK_NEW;
+    task->fetch_result = FETCH_PENDING;
+    return true;
+}
+
 void sk_asset_tick(void)
 {
     /* Nothing can be ensured until storage is up (web: after the idbfs restore
@@ -1028,6 +1056,7 @@ void sk_asset_tick(void)
 #ifdef __EMSCRIPTEN__
         if (task->state == TASK_FETCHING) {
             if (task->fetch_result == FETCH_PENDING) continue; /* still downloading */
+            if (task->fetch_result == FETCH_FAILED && use_fallback(task)) continue;
             resolved(i, task->fetch_result == FETCH_OK);
             continue;
         }
@@ -1043,6 +1072,7 @@ void sk_asset_tick(void)
 #else
         /* Desktop has no network fetcher yet, so FORCE_FETCH is a no-op: resolve
          * from the jailed local fs (miss = failure). Network fallback is TODO. */
+        if (!sk_fs_exists(task->path) && use_fallback(task)) continue;
         resolved(i, sk_fs_exists(task->path));
 #endif
     }

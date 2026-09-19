@@ -511,13 +511,26 @@ static bool copy_file(const char *from, const char *to)
 
 static struct {
     char uris[8][256];
+    char fallbacks[8][256];
     int count;
 } listed;
 
-static void on_dependency(const char *uri, bool required, void *context)
+static void on_dependency(const char *uri, const char *fallback_uri, bool required, void *context)
 {
     (void)required, (void)context;
-    if (listed.count < 8) snprintf(listed.uris[listed.count++], sizeof(listed.uris[0]), "%s", uri);
+    if (listed.count < 8) {
+        snprintf(listed.fallbacks[listed.count], sizeof(listed.fallbacks[0]), "%s", fallback_uri ? fallback_uri : "");
+        snprintf(listed.uris[listed.count++], sizeof(listed.uris[0]), "%s", uri);
+    }
+}
+
+/* The fallback listed with `uri` ("" for none). */
+static const char *listed_fallback(const char *uri)
+{
+    for (int i = 0; i < listed.count; i++) {
+        if (strcmp(listed.uris[i], uri) == 0) return listed.fallbacks[i];
+    }
+    return "";
 }
 
 static bool was_listed(const char *uri)
@@ -552,6 +565,7 @@ void test_pipeline_gltf_ktx(void)
     listed.count = 0;
     sk_model_list_gltf_dependencies((const unsigned char *)KTX_GLTF, (int)strlen(KTX_GLTF), on_dependency, NULL);
     CHECK(was_listed("tex.bc7.ktx") && !was_listed("tex.png") && !was_listed("tex.ktx"));
+    CHECK(strcmp(listed_fallback("tex.bc7.ktx"), "tex.png") == 0); /* if the compressed file is missing */
     sk_texture_set_ktx_support(2); /* ASTC */
     listed.count = 0;
     sk_model_list_gltf_dependencies((const unsigned char *)KTX_GLTF, (int)strlen(KTX_GLTF), on_dependency, NULL);
@@ -569,4 +583,34 @@ void test_pipeline_gltf_ktx(void)
     CHECK(loaded_textures(mesh) == 1);
     sk_mesh_release(mesh);
     teardown();
+}
+
+/* A compressed texture whose variant for this GPU is missing loads its PNG instead,
+ * through the asset layer and through sk_texture_create; a variant named outright
+ * has no fallback. */
+void test_pipeline_ktx_fallback(void)
+{
+    CHECK(make_dir("build") && make_dir(KTX_DIR));
+    CHECK(copy_file("../examples/assets/textures/flame.png", KTX_DIR "/png_only.png"));
+    remove(KTX_DIR "/png_only.bc7.ktx");
+    start_assets(0, KTX_DIR);
+    sk_texture_set_ktx_support(1); /* BC7, which png_only doesn't have */
+    sk_logger_set_level(SK_LOGGER_LEVEL_ERROR); /* the fallback warns */
+    load("png_only.ktx", SK_ASSET_NONE, on_texture);
+    CHECK(run_until_done() > 0);
+    CHECK(got.successes == 1 && got.failures == 0);
+    CHECK(strstr(got.path, "png_only.png") != NULL);
+    CHECK(sk_texture_get_size(got.texture).x == 256.0f);
+    const sk_handle_t sync = sk_texture_create(KTX_DIR "/png_only.ktx");
+    CHECK(sync == got.texture); /* the same file: deduped */
+    sk_texture_release(sync);
+    sk_texture_release(got.texture);
+
+    sk_logger_set_level(SK_LOGGER_LEVEL_FATAL); /* the failure logs an error */
+    load("png_only.bc7.ktx", SK_ASSET_NONE, on_texture);
+    CHECK(run_until_done() > 0);
+    CHECK(got.successes == 1 && got.failures == 1);
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    sk_texture_set_ktx_support(-1);
+    stop_assets();
 }

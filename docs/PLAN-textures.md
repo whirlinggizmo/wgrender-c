@@ -39,6 +39,11 @@ KB of C to read the files, and no work at load but reading and uploading.
   (`sk_asset_register_path_mapper`), so the web downloads and caches only that file
   and the callback gets its path, and `sk_texture_create` maps it the same way. A
   variant named outright (`name.astc.ktx`) is used as is.
+- **Missing files:** when this GPU's variant is missing (compressed for some formats,
+  or not at all), `name.png` loads instead, with a warning naming the missing file:
+  the asset layer retries the PNG once the variant's fetch fails (a 404 on the web; a
+  task's fallback path, from the path mapper), and `sk_texture_create` checks for the
+  variant before loading. A variant named outright has no fallback.
 - **Loading:** a second loader in the texture module (`.ktx`) reads and checks the file
   on the asset workers (`src/sk_ktx.c`: KTX 1, little-endian, 2D, one of the three
   formats, every level's size matching its dimensions) and uploads the levels as they
@@ -83,7 +88,8 @@ under Wine (BC7). `examples/textures.c` shows each texture as PNG and compressed
   GPU can use instead of the texture's own image (only that file downloads), the
   worker reads it instead of decoding an image, and the texture is uploaded as it is.
   Without a usable variant (or if the file can't be read) the texture's own image is
-  used as before.
+  used as before. A missing variant is a dependency with a fallback: the texture's
+  own image is fetched instead (with a warning), so the web gets it too.
 - Checked by eye: FlightHelmet with its PNGs and compressed, side by side, match
   (normal maps included).
 

@@ -379,7 +379,7 @@ static bool read_ktx(sk_gltf_textures_t *cache, const cgltf_image *img, const ch
     slot->ktx_bytes = read_file_bytes(path, &size);
     if (slot->ktx_bytes == NULL || !sk_ktx_parse(slot->ktx_bytes, (size_t)size, &slot->ktx, &error)) {
         log_warn("model: %s: %s can't be used (%s); using the texture's own image", cache->path, uri,
-                 error != NULL ? error : "unreadable");
+                 error != NULL ? error : "missing or unreadable");
         free(slot->ktx_bytes);
         slot->ktx_bytes = NULL;
         slot->failed = true;
@@ -2408,7 +2408,7 @@ void sk_model_list_gltf_dependencies(const unsigned char *data, int size, sk_ass
         return; /* sk_mesh_create reports the broken file */
     }
     for (cgltf_size i = 0; i < g->buffers_count; i++) {
-        if (g->buffers[i].uri != NULL) add(g->buffers[i].uri, true, context);
+        if (g->buffers[i].uri != NULL) add(g->buffers[i].uri, NULL, true, context);
     }
     /* images, optional (a missing one gets the placeholder texture): a texture with a
        compressed file this GPU can use needs only that, not its own image; the other
@@ -2423,7 +2423,9 @@ void sk_model_list_gltf_dependencies(const unsigned char *data, int size, sk_ass
             const cgltf_image *compressed = ktx_image(g, &g->textures[t]);
             char uri[256];
             if (compressed != NULL && ktx_variant(compressed, uri, sizeof(uri))) {
-                add(uri, false, context);
+                /* the texture's own image if the compressed file is missing */
+                const cgltf_image *own = g->textures[t].image;
+                add(uri, own != NULL && own->buffer_view == NULL ? own->uri : NULL, false, context);
                 if (g->textures[t].image != NULL && need[g->textures[t].image - g->images] == 0) {
                     need[g->textures[t].image - g->images] = 2; /* unless another texture uses it */
                 }
@@ -2434,7 +2436,7 @@ void sk_model_list_gltf_dependencies(const unsigned char *data, int size, sk_ass
     }
     for (cgltf_size i = 0; i < g->images_count; i++) {
         if (g->images[i].uri != NULL && g->images[i].buffer_view == NULL && (need == NULL || need[i] != 2)) {
-            add(g->images[i].uri, false, context);
+            add(g->images[i].uri, NULL, false, context);
         }
     }
     free(need);
