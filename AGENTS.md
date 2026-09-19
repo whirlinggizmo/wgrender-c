@@ -62,6 +62,10 @@ Keep this file short and rule-shaped. The authoritative design doc is
   (`tools/webstart.mjs`): cold, warm and hot visits, locally and on emulated 4G,
   from libsk's `sk:*` performance marks; `WEBSTART_FLAGS="--devtools=PORT --url=URL"`
   measures a phone. Run it when touching init, the page shell or web build flags.
+- `tools/compress_textures.sh [--linear] name.png...` — compressed texture files beside
+  each PNG (`name.bc7.ktx`, `.astc.ktx`, `.etc2.ktx`), loaded as `name.ktx`
+  (docs/PLAN-textures.md); builds a pinned Basis Universal encoder into `build/tools`
+  the first time.
 - `make brdf-lut` — regenerate the baked BRDF table (`src/data/sk_brdf_lut.h`) after
   changing `sk_environment_brdf_lut` or its size (a unit test fails until you do).
 - `make websize [BACKEND=webgpu] [WEB_THREADS=0]` — wasm/JS sizes per web example

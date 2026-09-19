@@ -67,4 +67,12 @@ bool sk_texture_is_flipped(sk_handle_t handle);
  * while recording and while replaying a target's pass. */
 void sk_texture_set_drawing_into(sk_handle_t handle);
 
+/* Compressed textures (docs/PLAN-textures.md): the file `path` (textures/rock.ktx)
+ * stands for on this GPU, written to `out`: rock.bc7.ktx, rock.astc.ktx, rock.etc2.ktx,
+ * else rock.png. A variant name is kept as it is. False for other paths. */
+bool sk_texture_ktx_path(const char *path, char *out, size_t out_size);
+/* For tests: which variants count as usable (bit 0 BC7, 1 ASTC, 2 ETC2); -1 asks the
+ * GPU (the default). */
+void sk_texture_set_ktx_support(int mask);
+
 #endif // SK_INTERNAL_TEXTURE_H

@@ -117,6 +117,9 @@ void test_emitter_start(void);
 void test_module_registry(void);
 void test_gamepad_buttons(void);
 void test_gamepad_axes(void);
+void test_ktx_parse(void);
+void test_ktx_variants(void);
+void test_ktx_load(void);
 
 void test_scene_view_depth(void);
 void test_scene_sort_transparent(void);

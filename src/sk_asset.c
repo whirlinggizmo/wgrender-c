@@ -259,6 +259,30 @@ void sk_asset_register_dependencies(const char *extension, sk_asset_dependencies
     sk_asset_formats[sk_asset_format_count++].list = list;
 }
 
+#define MAX_PATH_MAPPERS 4
+static struct {
+    char extension[16];
+    sk_asset_path_mapper_fn map;
+} sk_asset_mappers[MAX_PATH_MAPPERS];
+static int sk_asset_mapper_count;
+
+void sk_asset_register_path_mapper(const char *extension, sk_asset_path_mapper_fn map)
+{
+    for (int i = 0; i < sk_asset_mapper_count; i++) {
+        if (strcmp(sk_asset_mappers[i].extension, extension) == 0) {
+            sk_asset_mappers[i].map = map;
+            return;
+        }
+    }
+    if (sk_asset_mapper_count >= MAX_PATH_MAPPERS || strlen(extension) >= sizeof(sk_asset_mappers[0].extension)) {
+        log_error("Can't register a path mapper for %s", extension);
+        return;
+    }
+    snprintf(sk_asset_mappers[sk_asset_mapper_count].extension, sizeof(sk_asset_mappers[0].extension), "%s",
+             extension);
+    sk_asset_mappers[sk_asset_mapper_count++].map = map;
+}
+
 void sk_asset_register_loader(const char *extension, const sk_loader_t *loader)
 {
     for (int i = 0; i < sk_asset_loader_count; i++) {
@@ -503,6 +527,16 @@ sk_handle_t sk_asset_ensure_async(const char *path, const char *fetch_url,
     task_ptr = resolve(handle);
     *task_ptr = (sk_asset_task_t){0};
     strncpy(task_ptr->path, path, sizeof(task_ptr->path) - 1);
+    if (fetch_url == NULL) { /* a variant chosen for this device, say (sk_asset_register_path_mapper) */
+        for (int i = 0; i < sk_asset_mapper_count; i++) {
+            char mapped[sizeof(task_ptr->path)];
+            if (has_extension(path, sk_asset_mappers[i].extension) &&
+                sk_asset_mappers[i].map(path, mapped, sizeof(mapped))) {
+                snprintf(task_ptr->path, sizeof(task_ptr->path), "%s", mapped);
+                break;
+            }
+        }
+    }
     if (fetch_url != NULL) {
         strncpy(task_ptr->fetch_url, fetch_url, sizeof(task_ptr->fetch_url) - 1);
     }

@@ -45,4 +45,12 @@ sk_handle_t sk_loader_create(const sk_loader_t *loader, const char *path);
  * Registrations persist across sk_asset_init, like dependency listers. */
 void sk_asset_register_loader(const char *extension, const sk_loader_t *loader);
 
+/* Rewrite paths with `extension` when they're ensured, before anything is fetched or
+ * cached: the texture module turns textures/rock.ktx into the variant this GPU can use
+ * (textures/rock.bc7.ktx, ...). `map` writes the path to use into `out`; false leaves
+ * the path as it was. Not for files fetched from an explicit URL (the caller chose
+ * the file). Registrations persist across sk_asset_init. */
+typedef bool (*sk_asset_path_mapper_fn)(const char *path, char *out, size_t out_size);
+void sk_asset_register_path_mapper(const char *extension, sk_asset_path_mapper_fn map);
+
 #endif // SK_INTERNAL_LOADER_H

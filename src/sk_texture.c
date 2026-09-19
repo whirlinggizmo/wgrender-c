@@ -6,6 +6,7 @@
 
 #include "internal/exports.h"
 #include "internal/sk_handle_pool.h"
+#include "internal/sk_ktx.h"
 #include "internal/sk_loader.h"
 #include "internal/sk_texture.h"
 #include "internal/sk_module.h"
@@ -265,23 +266,23 @@ static sg_image make_image(const sk_texture_pixels_t *pixels)
     return sg_make_image(&desc);
 }
 
-sk_handle_t sk_texture_create_pixels(const sk_texture_pixels_t *pixels, const char *path, bool keep_alpha)
+/* A texture around `image` (taken over; destroyed on failure), loaded from `path` (or
+ * none); its slot index in *index_out. */
+static sk_handle_t add_texture(sg_image image, int width, int height, const char *path, uint16_t *index_out)
 {
     sk_handle_t handle;
     uint16_t index = 0;
     sk_texture_t t = {0};
 
-    if (pixels == NULL) {
-        return 0;
-    }
     handle = alloc_texture_slot(&t);
     if (handle == 0) {
+        sg_destroy_image(image);
         return 0;
     }
     sk_handle_pool_resolve(&sk_texture_pool, handle, &index);
 
-    t.width = pixels->width;
-    t.height = pixels->height;
+    t.width = width;
+    t.height = height;
     t.sampler = sk_default_sampler;
     t.ref_count = 1;
     if (path != NULL && path[0] != '\0') {
@@ -293,7 +294,7 @@ sk_handle_t sk_texture_create_pixels(const sk_texture_pixels_t *pixels, const ch
         t.path[n] = '\0';
         t.has_path = true;
     }
-    t.image = make_image(pixels);
+    t.image = image;
     if (sg_query_image_state(t.image) == SG_RESOURCESTATE_VALID) {
         t.view = sg_make_view(&(sg_view_desc){.texture.image = t.image});
     }
@@ -305,7 +306,20 @@ sk_handle_t sk_texture_create_pixels(const sk_texture_pixels_t *pixels, const ch
         return 0;
     }
     sk_textures[index] = t;
-    if (keep_alpha && pixels->translucent) {
+    *index_out = index;
+    return handle;
+}
+
+sk_handle_t sk_texture_create_pixels(const sk_texture_pixels_t *pixels, const char *path, bool keep_alpha)
+{
+    uint16_t index = 0;
+    sk_handle_t handle;
+
+    if (pixels == NULL) {
+        return 0;
+    }
+    handle = add_texture(make_image(pixels), pixels->width, pixels->height, path, &index);
+    if (handle != 0 && keep_alpha && pixels->translucent) {
         extract_alpha_mask(&sk_textures[index], pixels->levels[0]);
     }
     return handle;
@@ -391,6 +405,118 @@ static const sk_loader_t sk_texture_loader = {
     .release = sk_texture_release,
 };
 
+/* ------------------------------------------------ compressed textures (KTX) ---- */
+
+/* textures/rock.ktx names a texture compressed for GPUs (tools/compress_textures.sh):
+ * rock.bc7.ktx (desktops), rock.astc.ktx (phones), rock.etc2.ktx (older phones), and
+ * rock.png for anything else. The first this GPU can sample is the one loaded (and on
+ * the web, the only one downloaded): the asset layer and sk_texture_create both map
+ * the path. */
+static const struct {
+    const char *suffix;
+    sg_pixel_format format;
+} KTX_VARIANTS[] = {
+    {".bc7.ktx", SG_PIXELFORMAT_BC7_RGBA},
+    {".astc.ktx", SG_PIXELFORMAT_ASTC_4x4_RGBA},
+    {".etc2.ktx", SG_PIXELFORMAT_ETC2_RGBA8},
+};
+enum { KTX_VARIANT_COUNT = sizeof(KTX_VARIANTS) / sizeof(KTX_VARIANTS[0]) };
+static int sk_ktx_support = -1; /* bit i: variant i usable; -1: ask the GPU */
+
+static bool ends_with(const char *s, const char *suffix)
+{
+    const size_t n = strlen(s), m = strlen(suffix);
+    return n >= m && strcmp(s + n - m, suffix) == 0;
+}
+
+void sk_texture_set_ktx_support(int mask)
+{
+    sk_ktx_support = mask;
+}
+
+static bool variant_supported(int i)
+{
+    if (sk_ktx_support >= 0) return (sk_ktx_support >> i) & 1;
+    return sg_query_pixelformat(KTX_VARIANTS[i].format).sample;
+}
+
+bool sk_texture_ktx_path(const char *path, char *out, size_t out_size)
+{
+    size_t stem;
+    if (path == NULL || !ends_with(path, ".ktx")) return false;
+    for (int i = 0; i < KTX_VARIANT_COUNT; i++) {
+        if (ends_with(path, KTX_VARIANTS[i].suffix)) { /* a variant already */
+            return snprintf(out, out_size, "%s", path) < (int)out_size;
+        }
+    }
+    stem = strlen(path) - 4;
+    for (int i = 0; i < KTX_VARIANT_COUNT; i++) {
+        if (variant_supported(i)) {
+            return snprintf(out, out_size, "%.*s%s", (int)stem, path, KTX_VARIANTS[i].suffix) < (int)out_size;
+        }
+    }
+    return snprintf(out, out_size, "%.*s.png", (int)stem, path) < (int)out_size; /* no compressed format here */
+}
+
+typedef struct {
+    unsigned char *bytes; /* the file; ktx points into it */
+    sk_ktx_t ktx;
+} sk_ktx_file_t;
+
+static void *prepare_ktx(const char *path)
+{
+    int size = 0;
+    const char *error = NULL;
+    sk_ktx_file_t *file = calloc(1, sizeof(*file));
+    if (file == NULL) return NULL;
+    file->bytes = read_file_bytes(path, &size);
+    if (file->bytes == NULL) {
+        free(file);
+        return NULL;
+    }
+    if (!sk_ktx_parse(file->bytes, (size_t)size, &file->ktx, &error)) {
+        log_error("Can't load %s: %s", path, error);
+        free(file->bytes);
+        free(file);
+        return NULL;
+    }
+    return file;
+}
+
+static sk_loader_step_t finish_ktx(void *prepared, const char *path, sk_handle_t *resource)
+{
+    const sk_ktx_t *ktx = &((const sk_ktx_file_t *)prepared)->ktx;
+    sg_image_desc desc = {.width = ktx->width, .height = ktx->height, .pixel_format = ktx->format,
+                          .num_mipmaps = ktx->mip_count, .label = "sk-texture-ktx"};
+    uint16_t index = 0;
+    if (!sg_query_pixelformat(ktx->format).sample) {
+        log_error("Can't load %s: this GPU can't sample its format", path);
+        return SK_LOADER_FAILED;
+    }
+    for (int i = 0; i < ktx->mip_count; i++) {
+        desc.data.mip_levels[i] = (sg_range){.ptr = ktx->levels[i], .size = ktx->sizes[i]};
+    }
+    *resource = add_texture(sg_make_image(&desc), ktx->width, ktx->height, path, &index);
+    return *resource != 0 ? SK_LOADER_DONE : SK_LOADER_FAILED;
+}
+
+static void discard_ktx(void *prepared)
+{
+    sk_ktx_file_t *file = (sk_ktx_file_t *)prepared;
+    if (file == NULL) return;
+    free(file->bytes);
+    free(file);
+}
+
+static const sk_loader_t sk_ktx_loader = {
+    .name = "compressed texture",
+    .prepare = prepare_ktx,
+    .finish = finish_ktx,
+    .discard = discard_ktx,
+    .find = find_texture,
+    .release = sk_texture_release,
+};
+
 sk_handle_t sk_texture_create_rgba(const unsigned char *rgba, int width, int height)
 {
     sk_texture_pixels_t *pixels = sk_texture_pixels_from_rgba(rgba, width, height);
@@ -459,7 +585,17 @@ bool sk_texture_ensure_alpha_mask(sk_handle_t handle)
     if (!texture_ptr->has_path) {
         return false;
     }
-    bytes = read_file_bytes(texture_ptr->path, &size);
+    if (ends_with(texture_ptr->path, ".ktx")) { /* compressed: its pixels are in the PNG beside it */
+        char png[sizeof(texture_ptr->path)];
+        const char *dot = strrchr(texture_ptr->path, '.');
+        const char *variant = dot;
+        while (variant > texture_ptr->path && variant[-1] != '.' && variant[-1] != '/') variant--;
+        if (variant > texture_ptr->path && variant[-1] == '.') dot = variant - 1; /* rock.bc7.ktx -> rock */
+        snprintf(png, sizeof(png), "%.*s.png", (int)(dot - texture_ptr->path), texture_ptr->path);
+        bytes = read_file_bytes(png, &size);
+    } else {
+        bytes = read_file_bytes(texture_ptr->path, &size);
+    }
     if (bytes == NULL) {
         return false;
     }
@@ -615,7 +751,11 @@ bool sk_texture_set_placeholder(sk_handle_t texture)
 SK_KEEP
 sk_handle_t sk_texture_create(const char *path)
 {
-    return sk_loader_create(&sk_texture_loader, path);
+    char mapped[256];
+    if (sk_texture_ktx_path(path, mapped, sizeof(mapped))) { /* rock.ktx: this GPU's variant */
+        path = mapped;
+    }
+    return sk_loader_create(path != NULL && ends_with(path, ".ktx") ? &sk_ktx_loader : &sk_texture_loader, path);
 }
 
 SK_KEEP
@@ -702,6 +842,8 @@ void sk_texture_init(void)
     sk_asset_register_loader(".png", &sk_texture_loader);
     sk_asset_register_loader(".jpg", &sk_texture_loader);
     sk_asset_register_loader(".jpeg", &sk_texture_loader);
+    sk_asset_register_loader(".ktx", &sk_ktx_loader);
+    sk_asset_register_path_mapper(".ktx", sk_texture_ktx_path);
 
     sk_default_sampler = sg_make_sampler(&(sg_sampler_desc){
         .min_filter = SG_FILTER_LINEAR,

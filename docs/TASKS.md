@@ -120,8 +120,12 @@ tick the box in the same commit.
       → 17 ms (desktop, headless) and 1.98 s → 70 ms (WebGL2)
 - [x] Bug: sokol's default pools (128 buffers, images) made Sponza fail to load;
       pools raised, and a failed GPU buffer or image fails the load
-- [ ] Loading follow-ups: compressed textures (KTX2 / Basis) so a large texture
-      isn't one long upload; shader warm-up (the first frame drawing loaded PBR
+- [x] Compressed textures (2026-09-19, [PLAN-textures.md](PLAN-textures.md)): a program
+      loads `name.ktx` and libsk picks `name.bc7.ktx` / `.astc.ktx` / `.etc2.ktx` (made
+      by `tools/compress_textures.sh`) or `name.png` for the GPU; a 2K texture loads in
+      ~1 ms instead of 60-90 ms (desktop) and 1.5 ms instead of 125-200 ms (phone), at a
+      quarter of the GPU memory
+- [ ] Loading follow-ups: shader warm-up (the first frame drawing loaded PBR
       models stalls ~220 ms on WebGL2 while programs compile); the zero-worker mode
       prepares a whole glTF in one frame (~1 s for FlightHelmet); `.glb` dependency
       listing reads the whole file on the main thread
@@ -345,7 +349,8 @@ Not supported yet:
 - [ ] Mipmaps average in stored (sRGB) space and don't renormalize normal maps
 - [ ] Other glTF material extensions (clearcoat, transmission, sheen, specular, ior, ...)
 - [ ] Morph targets (animation weights are skipped)
-- [ ] Compressed / other image formats (KTX2/Basis, WebP)
+- [ ] Other image formats: WebP; compressed textures in glTF (KHR_texture_basisu), KTX 2,
+      smaller ASTC blocks (PLAN-textures "Not in this plan")
 
 ## Lessons from librl to design for
 
