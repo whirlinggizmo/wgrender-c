@@ -17,6 +17,7 @@
 #include "internal/sk_sprite3d.h"
 #include "internal/sk_texture.h"
 #include "internal/sk_module.h"
+#include "internal/sk_material.h"
 #include "sk_logger.h"
 
 #include "sokol_gfx.h"
@@ -46,7 +47,24 @@ typedef struct {
     float pick_alpha_threshold;
     sk_alpha_mode_t alpha_mode;
     float alpha_cutoff; /* SK_ALPHA_MASK */
+    sk_handle_t material; /* a custom material (referenced), or 0 */
 } sk_sprite3d_t;
+
+/* Swap `*slot` for `material` (a custom material, or 0), keeping one reference. */
+static bool assign_material(sk_handle_t *slot, sk_handle_t material, const char *who)
+{
+    const sk_material_t *material_ptr = material != 0 ? sk_material_get(material) : NULL;
+    if (material != 0 && (material_ptr == NULL || material_ptr->shader == 0)) {
+        log_warn("%s: sprites take custom materials (sk_material_create_custom) or 0", who);
+        return false;
+    }
+    if (*slot != material) {
+        sk_material_retain(material); /* no-op for 0 */
+        sk_material_release(*slot);
+        *slot = material;
+    }
+    return true;
+}
 
 static sk_sprite3d_t *sk_sprites; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_sprite_pool;
@@ -338,7 +356,7 @@ static void draw_handle(sk_handle_t handle)
                      : sprite_ptr->alpha_mode == SK_ALPHA_OPAQUE ? -1.0f
                                                                  : 0.0f;
     sk_sprite_batch_add_3d(&instance, view.id, smp.id, (sk_alpha_mode_t)sprite_ptr->alpha_mode,
-                           !sk_render_is_3d_transparent());
+                           !sk_render_is_3d_transparent(), sprite_ptr->material);
 }
 
 /* Scene passes: opaque and masked sprites in the opaque pass, blended ones sorted in the
@@ -377,6 +395,20 @@ bool sk_sprite3d_set_alpha_mode(sk_handle_t handle, sk_alpha_mode_t mode, float 
     sprite_ptr->alpha_mode = mode;
     sprite_ptr->alpha_cutoff = cutoff < 0.0f ? 0.0f : cutoff > 1.0f ? 1.0f : cutoff;
     return true;
+}
+
+SK_KEEP
+bool sk_sprite3d_set_material(sk_handle_t handle, sk_handle_t material)
+{
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    return sprite_ptr != NULL && assign_material(&sprite_ptr->material, material, "sk_sprite3d_set_material");
+}
+
+SK_KEEP
+sk_handle_t sk_sprite3d_get_material(sk_handle_t handle)
+{
+    const sk_sprite3d_t *sprite_ptr = resolve(handle);
+    return sprite_ptr != NULL ? sprite_ptr->material : 0;
 }
 
 SK_KEEP
@@ -589,6 +621,7 @@ void sk_sprite3d_destroy(sk_handle_t handle)
     }
     sk_scene_forget(handle);
     texture = sprite_ptr->texture;
+    sk_material_release(sprite_ptr->material); /* no-op for 0 */
     *sprite_ptr = (sk_sprite3d_t){0};
     sk_handle_pool_free(&sk_sprite_pool, handle);
     if (texture != 0) {

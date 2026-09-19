@@ -6,6 +6,8 @@
  *     glowing edge (time, a texture, discard)
  *   - right: a sphere of water rippling in waves (a vertex hook moves the surface)
  *     reflecting the scene's environment
+ *   - a logo sprite, in the world and in the screen's corner: one material outlines
+ *     it and pulses a flash (its shader reads the sprite's own texture)
  * The shaders are the .glsl files in examples/shaders, compiled for every backend by
  * tools/shaderpack.py into .skshader files in examples/assets/shaders (make example-shaders).
  * They load through sk_asset like any other file. A sun, a point light circling in front and
@@ -19,15 +21,17 @@
 
 #define GUMSHOE_PATH "models/gumshoe/gumshoe.glb"
 #define NOISE_PATH "textures/noise.png"
+#define LOGO_PATH "sprites/logo/wg-logo-white-alpha.png"
 #define ENVIRONMENT_PATH "environments/venice_sunset_1k.hdr"
 #define FLOOR_Y -0.3f
 #define SPHERE_Y (FLOOR_Y + 0.5f) /* spheres 1 m across, resting on the floor */
 
-enum { SHADER_TOON, SHADER_DISSOLVE, SHADER_WAVE, SHADER_COUNT, GUMSHOE_BODY_SLOT = 1 };
+enum { SHADER_TOON, SHADER_DISSOLVE, SHADER_WAVE, SHADER_SPRITE_FX, SHADER_COUNT, GUMSHOE_BODY_SLOT = 1 };
 static const char *SHADER_PATHS[SHADER_COUNT] = {
     "shaders/toon.skshader",
     "shaders/dissolve.skshader",
     "shaders/wave.skshader",
+    "shaders/sprite_fx.skshader",
 };
 
 static struct {
@@ -38,6 +42,7 @@ static struct {
     sk_handle_t floor;
     sk_handle_t dissolve;                      /* its material gets the noise texture */
     sk_handle_t sun, lamp, lamp_marker;
+    sk_handle_t logo3d, logo2d; /* sprites, drawn by the sprite effects shader */
     float time;
 } g;
 
@@ -61,6 +66,15 @@ static void on_environment_loaded(const char *path, void *user)
     (void)user;
     sk_scene_set_environment(g.scene, environment, 1.0f, 0.0f); /* lighting only: the background stays dark */
     sk_environment_release(environment); /* the scene holds its own reference */
+}
+
+static void on_logo_loaded(const char *path, void *user)
+{
+    sk_handle_t texture = sk_texture_create(path);
+    (void)user;
+    sk_sprite3d_set_texture(g.logo3d, texture);
+    sk_sprite2d_set_texture(g.logo2d, texture);
+    sk_texture_release(texture); /* the sprites hold their own references */
 }
 
 static void on_noise_loaded(const char *path, void *user)
@@ -105,6 +119,14 @@ static void on_shader_loaded(const char *path, void *user)
             sk_material_set_float(material, "roughness", 0.05f);
             sk_material_set_float(material, "reflectivity", 0.35f); /* real water is 0.02: more, so it shows */
             sk_model_set_material(g.rippling, 0, material);
+            break;
+        case SHADER_SPRITE_FX: /* one material, a 3D and a 2D sprite */
+            sk_material_set_vec4(material, "outline_color", 1.0f, 0.45f, 0.1f, 1.0f);
+            sk_material_set_float(material, "outline_width", 2.5f);
+            sk_material_set_float(material, "flash", 0.8f);
+            sk_material_set_float(material, "pulse_speed", 5.0f);
+            sk_sprite3d_set_material(g.logo3d, material);
+            sk_sprite2d_set_material(g.logo2d, material);
             break;
     }
     sk_material_release(material); /* the models hold their own references */
@@ -167,6 +189,18 @@ static void init(void *user_data)
     sk_mesh_release(sphere);
     sk_mesh_release(fine_sphere);
 
+    /* the logo, in the world above the middle and in the screen's corner */
+    g.logo3d = sk_sprite3d_create(0);
+    sk_sprite3d_set_transform(g.logo3d, 0.0f, 1.55f, -0.8f, 0, 0, 0, 1, 1, 1);
+    sk_sprite3d_set_size(g.logo3d, 0.9f);
+    sk_sprite3d_set_tint(g.logo3d, sk_color_rgba(90, 190, 255, 255)); /* so the white flash shows */
+    sk_scene_add(g.scene, g.logo3d, 0);
+    g.logo2d = sk_sprite2d_create(0);
+    sk_sprite2d_set_size(g.logo2d, 96.0f, 96.0f);
+    sk_sprite2d_set_pivot(g.logo2d, 1.0f, 1.0f);
+    sk_sprite2d_set_tint(g.logo2d, sk_color_rgba(90, 190, 255, 255));
+    sk_asset_add_task(sk_asset_ensure_async(LOGO_PATH, NULL, SK_ASSET_NONE), on_logo_loaded, on_failed, NULL);
+
     for (int i = 0; i < SHADER_COUNT; i++) {
         sk_asset_add_task(sk_asset_ensure_async(SHADER_PATHS[i], NULL, SK_ASSET_NONE), on_shader_loaded, on_failed,
                           (void *)(intptr_t)i);
@@ -207,7 +241,10 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_render_begin();
     sk_render_clear_background(g.bg);
     sk_scene_draw(g.scene);
-    sk_text_draw("libsk custom shaders: toon, dissolve, water", 12, 12, 20, SK_COLOR_RAYWHITE);
+    const vec2_t screen = sk_window_get_screen_size();
+    sk_sprite2d_set_position(g.logo2d, screen.x - 16.0f, screen.y - 16.0f); /* bottom right */
+    sk_sprite2d_draw(g.logo2d);
+    sk_text_draw("libsk custom shaders: toon, dissolve, water, sprite effects", 12, 12, 20, SK_COLOR_RAYWHITE);
     sk_text_draw("1 sun, 2 point light, ESC quit", 12, 40, 16, SK_COLOR_LIGHTGRAY);
     sk_render_end();
 }

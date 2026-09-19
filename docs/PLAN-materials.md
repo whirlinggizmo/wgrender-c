@@ -3,7 +3,8 @@
 Status: **phase 1 implemented (2026-09-16)** (built-in materials for models; see
 `include/sk_material.h` and `examples/materials.c`) and **phase 2 (2026-09-20)**
 (custom shaders; see "Phase 2 as built", `include/sk_shader.h`, `shaders/sk.glsl` and
-`examples/shaders.c`). Phase 3 is not started.
+`examples/shaders.c`). Phase 3a (2026-09-20): custom shaders on sprites; see "Phase 3a
+as built". 3b (lit sprites) is next.
 Decisions 1–5 below were accepted as proposed; "Phase 1 as built" records where the
 implementation refined the proposal.
 Roadmap item 1. Builds on lighting ([PLAN-lighting.md](PLAN-lighting.md)), render
@@ -227,6 +228,43 @@ sk_handle_t sk_material_create_custom(sk_handle_t shader);
 - Checked on desktop GL, WebGL2 and WebGPU (`examples/shaders.c`: toon on the
   animated gumshoe, a dissolve with a noise texture, waves from a vertex hook), and
   headless (the dummy backend validates every uniform size and binding).
+
+## Phase 3a as built: custom shaders on sprites
+
+- **Scope decided:** sprites (2D and 3D) take materials; shapes stay unlit (debug,
+  gizmos, UI): lit geometry is a generated mesh (`sk_mesh_create_*`) on a model. Text
+  and particles are unchanged for now.
+- **One shader for models and sprites.** `tools/shaderpack.py` builds two more
+  programs from libsk's sprite vertex shaders in `shaders/sk.glsl`: per-instance
+  attributes, and sprites read from a texture where the backend can't draw from a base
+  instance (WebGL2), as libsk's own sprite shader does. `.skshader` format 3; older
+  files are refused. The vertex hook is models only.
+- **What a fragment shader sees on a sprite:** the quad's world position (a 2D
+  sprite's: its pixel), normal and tangent (its facing and right), `sk_uv0` its
+  texture region, `sk_uv1` 0..1 across the quad (each slice of a nine-slice sprite),
+  `sk_color` its tint in linear. `sk_sprite_color()` is the sprite's texture at its
+  region times its tint; the texture is also `sk_sprite_tex` / `sk_sprite_smp` (slot
+  10) for shaders that sample around (an outline). On a model it's a white texture,
+  so `sk_sprite_color()` is the vertex color and a shader works on both.
+- **Alpha:** the sprite's alpha mode picks the pipeline as before, and reaches the
+  shader as `sk_sprite_alpha` (a cutoff, opaque, or as is), applied in `sk_output`.
+  No tone mapping on sprites, as today.
+- **API:** `sk_sprite3d_set_material` / `sk_sprite2d_set_material` (+ `_get_material`):
+  a custom material, or 0 for libsk's sprite shader; built-in materials are refused
+  until 3b. The sprite holds a reference.
+- **Batching:** the material joins texture, alpha mode, camera and clip in what a batch
+  shares, and in how a scene's unordered sprites are grouped. A custom batch applies
+  its whole state (the next batch too); libsk's blocks: 0 the sprite view (camera
+  axes, time), 1 `sk_frame` (camera, time; no lights yet), 4 the batch's first sprite
+  (read from a texture); the shader module gives fallback textures (white, a black
+  cube) for libsk's slots with nothing to show.
+- **On the way:** the material texture samplers moved from the model module into the
+  texture module (`sk_texture_sampler`), shared by models and sprites; `sk_frame`'s C
+  layout is shared (`sk_shader_frame_t`); GLSL names in a `.skshader` can be longer
+  than parameter names (a texture-sampler pair joins two).
+- Checked: desktop GL, WebGL2 (sprites read from a texture), WebGPU; unit tests on
+  both sprite paths (`-DSK_SPRITES_PULLED`); `examples/shaders.c` outlines and flashes a
+  logo sprite in the world and on screen with one material.
 
 ## Decisions
 

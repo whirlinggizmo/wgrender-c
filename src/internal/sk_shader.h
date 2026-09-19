@@ -28,6 +28,7 @@ typedef enum {
     SK_SHADER_BLOCK_FRAME = 1,     /* libsk's fragment block: sk_frame in shaders/sk.glsl */
     SK_SHADER_BLOCK_FS_PARAMS = 2, /* the shader's fragment parameters */
     SK_SHADER_BLOCK_VS_PARAMS = 3, /* the vertex hook's parameters */
+    SK_SHADER_BLOCK_SPRITE_BATCH = 4, /* sprites read from a texture: the batch's first sprite */
     SK_SHADER_BLOCK_COUNT,
 } sk_shader_block_t;
 
@@ -45,11 +46,23 @@ typedef struct {
     int sampler_slot[SK_SHADER_MAX_TEXTURES]; /* the sampler it's paired with, -1 none */
     int env_view_slot, env_sampler_slot;      /* libsk's environment cubemap (sk_env_tex), -1 unused */
     int brdf_view_slot, brdf_sampler_slot;    /* and its BRDF table (sk_brdf_tex) */
+    int sprite_view_slot, sprite_sampler_slot; /* a sprite's texture (sk_sprite_tex) */
+    int data_view_slot, data_sampler_slot;     /* sprites read from a texture (sk_sprite_data) */
 } sk_shader_program_t;
 
+enum {
+    SK_SHADER_PROGRAM_STATIC,
+    SK_SHADER_PROGRAM_SKINNED,
+    SK_SHADER_PROGRAM_SPRITE,        /* per-instance attributes */
+    SK_SHADER_PROGRAM_SPRITE_PULLED, /* sprites read from a texture (no base instance: WebGL2) */
+    SK_SHADER_PROGRAM_COUNT,
+};
+#define SK_SHADER_SPRITE_PIPELINES 8 /* the sprite batch's pipeline kinds (src/sk_sprite_batch.c) */
+
 typedef struct {
-    sk_shader_program_t programs[2]; /* [0] static, [1] skinned */
+    sk_shader_program_t programs[SK_SHADER_PROGRAM_COUNT];
     sg_pipeline pipelines[2][2][2];  /* [skinned][blended][double_sided], made by sk_model on first use */
+    sg_pipeline sprite_pipelines[SK_SHADER_SPRITE_PIPELINES]; /* made by the sprite batch on first use */
     sk_shader_param_t params[SK_SHADER_MAX_PARAMS];
     int param_count;
     int block_size[SK_SHADER_BLOCK_COUNT]; /* FS_PARAMS / VS_PARAMS: bytes (std140, 16-byte multiple) */
@@ -75,12 +88,29 @@ int sk_shader_find_texture(const sk_shader_t *shader, const char *name);
  * shader doesn't link the shader module: it fills them in when it starts (it's linked
  * when sk_shader_create is), and they stay NULL otherwise, when no material can have
  * a shader. Defined in sk_material.c. */
+/* The per-draw block every custom shader reads (sk_frame in shaders/sk.glsl), std140. */
+typedef struct {
+    float camera_time[4];   /* xyz camera position, w seconds */
+    float tint[4];          /* linear rgba */
+    float ambient_count[4]; /* rgb ambient, w number of lights */
+    float output[4];        /* x alpha cutoff, y tone mapping, z exposure scale */
+    float light_pos_range[8][4];
+    float light_dir_type[8][4];
+    float light_radiance[8][4];
+    float light_spot[8][4];
+    float env[4];
+    float sh[9][4];
+} sk_shader_frame_t;
+
 typedef struct {
     sk_shader_t *(*get)(sk_handle_t shader);
     void (*retain)(sk_handle_t shader);
     void (*release)(sk_handle_t shader);
     int (*find_param)(const sk_shader_t *shader, const char *name);
     int (*find_texture)(const sk_shader_t *shader, const char *name);
+    /* Textures for libsk's slots when there's nothing to show: white (2D), black
+     * (cube), with a linear sampler. Made on first use. */
+    void (*fallbacks)(sg_view *white, sg_view *black_cube, sg_sampler *linear);
 } sk_shader_hooks_t;
 extern sk_shader_hooks_t sk_shader_hooks;
 

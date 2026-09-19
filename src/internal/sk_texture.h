@@ -12,6 +12,12 @@ void sk_texture_deinit(void);
 
 /* Resolve a texture handle to its sokol view + sampler (for sokol_gl drawing).
  * Falls back to the 1x1 white default for handle 0 / invalid handles. */
+/* A sampler for these settings (shared, made on first use; freed with the textures):
+ * materials' textures (models and sprites) are sampled with these. mipmaps false:
+ * the base level only. */
+sg_sampler sk_texture_sampler(sk_texture_wrap_t wrap_u, sk_texture_wrap_t wrap_v, sk_texture_filter_t filter,
+                              bool mipmaps);
+
 bool sk_texture_get_binding(sk_handle_t handle, sg_view *view, sg_sampler *smp,
                             int *width, int *height);
 

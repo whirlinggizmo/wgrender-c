@@ -6,7 +6,19 @@
 #include <string.h>
 
 #include "internal/sk_material.h"
+#include "internal/sk_internal.h"
 #include "internal/sk_platform.h"
+#include "internal/sk_render.h"
+#include "internal/sk_scene.h"
+#include "internal/sk_camera3d.h"
+#include "internal/sk_sprite3d.h"
+#include "internal/sk_sprite2d.h"
+#include "internal/sk_sprite_batch.h"
+#include "sk_render.h"
+#include "sk_scene.h"
+#include "sk_camera3d.h"
+#include "sk_sprite3d.h"
+#include "sk_sprite2d.h"
 #include "internal/sk_shader.h"
 #include "internal/sk_texture.h"
 #include "sk_color.h"
@@ -19,6 +31,7 @@
 #include "tests.h"
 
 #include "sokol_gfx.h"
+#include "sokol_time.h"
 
 #define SHADERS "../examples/assets/shaders/"
 #define EPS 1e-5f
@@ -132,5 +145,96 @@ void test_shader_custom_material(void)
     sk_material_deinit();
     sk_shader_deinit();
     sk_texture_deinit();
+    sg_shutdown();
+}
+
+/* Custom materials on sprites: the sprite programs in a .skshader (both ways of
+ * getting sprite data), set_material taking custom materials only and holding a
+ * reference, batches split by material, and a frame drawn through them (the dummy
+ * backend validates every pipeline, uniform block and binding). */
+void test_shader_sprites(void)
+{
+    enum { COUNT = 40 };
+    sk_handle_t sprites[COUNT];
+
+    sg_setup(&(sg_desc){.environment = sk_platform_environment()});
+    stm_setup(); /* custom shaders get the time (sk_get_time), which sk_run starts */
+    sk_render_init();
+    sk_scene_init();
+    sk_camera3d_init();
+    sk_texture_init();
+    sk_shader_init();
+    sk_material_init();
+    sk_sprite3d_init();
+    sk_sprite2d_init();
+    sk_logger_set_level(SK_LOGGER_LEVEL_FATAL); /* refusals below log on purpose */
+
+    const sk_handle_t shader = sk_shader_create(SHADERS "sprite_fx.skshader");
+    const sk_shader_t *shader_ptr = sk_shader_get(shader);
+    CHECK(shader_ptr != NULL);
+    if (shader_ptr == NULL) return;
+    CHECK(shader_ptr->programs[SK_SHADER_PROGRAM_SPRITE].sprite_view_slot == 10);
+    CHECK(shader_ptr->programs[SK_SHADER_PROGRAM_SPRITE].data_view_slot < 0);
+    CHECK(shader_ptr->programs[SK_SHADER_PROGRAM_SPRITE_PULLED].data_view_slot == 11);
+    CHECK(shader_ptr->programs[SK_SHADER_PROGRAM_SPRITE_PULLED].has_block[SK_SHADER_BLOCK_SPRITE_BATCH]);
+    CHECK(shader_ptr->programs[SK_SHADER_PROGRAM_STATIC].sprite_view_slot == 10); /* white on models */
+    const sk_handle_t custom = sk_material_create_custom(shader);
+    sk_shader_release(shader); /* the material holds it */
+    const sk_handle_t pbr = sk_material_create(SK_MATERIAL_PBR);
+
+    const unsigned char pixel[4] = {255, 255, 255, 255};
+    const sk_handle_t texture = sk_texture_create_rgba(pixel, 1, 1);
+    const sk_handle_t scene = sk_scene_create();
+    const sk_handle_t camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(camera, 0, 5, 30, 0, 0, 0, 0, 1, 0);
+    sk_scene_set_active_camera(scene, camera);
+    for (int i = 0; i < COUNT; i++) {
+        sprites[i] = sk_sprite3d_create(texture);
+        sk_sprite3d_set_transform(sprites[i], (float)(i % 8) - 4.0f, 0, (float)(i / 8) - 4.0f, 0, 0, 0, 1, 1, 1);
+        sk_sprite3d_set_alpha_mode(sprites[i], SK_ALPHA_MASK, 0.5f); /* unordered: grouped */
+        if (i % 2 == 0) CHECK(sk_sprite3d_set_material(sprites[i], custom)); /* alternating */
+        sk_scene_add(scene, sprites[i], 0);
+    }
+    CHECK(!sk_sprite3d_set_material(sprites[1], pbr)); /* built-in: not on sprites yet */
+    CHECK(sk_sprite3d_get_material(sprites[0]) == custom && sk_sprite3d_get_material(sprites[1]) == 0);
+    const sk_handle_t sprite2d = sk_sprite2d_create(texture);
+    CHECK(sk_sprite2d_set_material(sprite2d, custom));
+    CHECK(!sk_sprite2d_set_material(sprite2d, pbr));
+
+    /* one texture, two materials: two batches, however they interleave */
+    sk_render_begin();
+    sk_scene_draw(scene);
+    CHECK(sk_sprite_batch_count() == 2);
+    sk_sprite2d_draw(sprite2d);
+    CHECK(sk_sprite_batch_count() == 3);
+    sk_render_end(); /* drawn: the custom batches through the shader's sprite program */
+
+    /* 0 goes back to libsk's shader: one batch again */
+    for (int i = 0; i < COUNT; i++) CHECK(sk_sprite3d_set_material(sprites[i], 0));
+    sk_render_begin();
+    sk_scene_draw(scene);
+    CHECK(sk_sprite_batch_count() == 1);
+    sk_render_end();
+
+    /* the sprites held the material: it goes with the last of them */
+    sk_material_release(custom);
+    CHECK(sk_material_get(custom) != NULL); /* sprite2d still has it */
+    sk_sprite2d_destroy(sprite2d);
+    CHECK(sk_material_get(custom) == NULL);
+    CHECK(sk_shader_get(shader) == NULL); /* and the material held the shader */
+
+    for (int i = 0; i < COUNT; i++) sk_sprite3d_destroy(sprites[i]);
+    sk_material_release(pbr);
+    sk_texture_release(texture);
+    sk_scene_destroy(scene);
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    sk_sprite2d_deinit();
+    sk_sprite3d_deinit();
+    sk_material_deinit();
+    sk_shader_deinit();
+    sk_texture_deinit();
+    sk_camera3d_deinit();
+    sk_scene_deinit();
+    sk_render_deinit();
     sg_shutdown();
 }

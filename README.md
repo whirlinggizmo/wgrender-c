@@ -239,7 +239,9 @@ reference/librl the raylib library this evolves from (read-only reference)
   compiles it for GL, WebGL2 and WebGPU into `name.skshader`; load that with
   `sk_shader_create` (or through `sk_asset`) and use it with
   `sk_material_create_custom`. Its parameters and textures are set by the names in
-  the shader. See `docs/PLAN-materials.md` and `examples/shaders.c`.
+  the shader. The same shader draws sprites (`sk_sprite3d_set_material`,
+  `sk_sprite2d_set_material`; `sk_sprite_color()` is the sprite's texture and tint).
+  See `docs/PLAN-materials.md` and `examples/shaders.c`.
 
 ## Not yet ported from librl
 

@@ -16,10 +16,39 @@
  * backend's sources and makes the static and skinned programs. */
 
 #define SHADERS_INITIAL 8
-#define FORMAT_VERSION 2
+#define FORMAT_VERSION 3
+#define GLSL_NAME_MAX 128 /* texture-sampler pairs join two names: longer than the parameters' */
 
 static sk_shader_t *sk_shaders; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_shader_pool;
+
+/* sk_shader_hooks.fallbacks */
+static struct {
+    sg_image white, black_cube;
+    sg_view white_view, black_cube_view;
+    sg_sampler linear;
+} sk_shader_fallback;
+
+static void fallbacks(sg_view *white, sg_view *black_cube, sg_sampler *linear)
+{
+    if (sk_shader_fallback.linear.id == SG_INVALID_ID) {
+        static const uint32_t white_texel = 0xFFFFFFFFu, black_texels[6] = {0xFF000000u, 0xFF000000u, 0xFF000000u,
+                                                                            0xFF000000u, 0xFF000000u, 0xFF000000u};
+        sg_image_desc cube = {.type = SG_IMAGETYPE_CUBE, .width = 1, .height = 1, .num_slices = 6,
+                              .label = "sk-shader-black-cube"};
+        cube.data.mip_levels[0] = (sg_range){.ptr = black_texels, .size = sizeof(black_texels)};
+        sk_shader_fallback.white = sg_make_image(&(sg_image_desc){
+            .width = 1, .height = 1, .data.mip_levels[0] = SG_RANGE(white_texel), .label = "sk-shader-white"});
+        sk_shader_fallback.black_cube = sg_make_image(&cube);
+        sk_shader_fallback.white_view = sg_make_view(&(sg_view_desc){.texture.image = sk_shader_fallback.white});
+        sk_shader_fallback.black_cube_view = sg_make_view(&(sg_view_desc){.texture.image = sk_shader_fallback.black_cube});
+        sk_shader_fallback.linear = sg_make_sampler(&(sg_sampler_desc){
+            .min_filter = SG_FILTER_LINEAR, .mag_filter = SG_FILTER_LINEAR, .label = "sk-shader-linear"});
+    }
+    *white = sk_shader_fallback.white_view;
+    *black_cube = sk_shader_fallback.black_cube_view;
+    *linear = sk_shader_fallback.linear;
+}
 
 static sk_shader_t *resolve(sk_handle_t handle)
 {
@@ -92,7 +121,7 @@ static const char *backend_slang(void)
 typedef struct {
     sg_shader_desc desc;
     char *sources[2];          /* vertex, fragment: NUL-terminated copies */
-    char names[64][SK_SHADER_NAME_MAX]; /* glsl names the desc points at */
+    char names[64][GLSL_NAME_MAX]; /* glsl names the desc points at */
     int name_count;
     char view_names[SG_MAX_VIEW_BINDSLOTS][SK_SHADER_NAME_MAX];
     int pair_view[SG_MAX_TEXTURE_SAMPLER_PAIRS];
@@ -105,14 +134,14 @@ typedef struct {
 static const char *keep_name(program_desc_t *p, const char *name)
 {
     if (strcmp(name, "-") == 0 || p->name_count >= 64) return NULL;
-    snprintf(p->names[p->name_count], SK_SHADER_NAME_MAX, "%.*s", SK_SHADER_NAME_MAX - 1, name);
+    snprintf(p->names[p->name_count], GLSL_NAME_MAX, "%.*s", GLSL_NAME_MAX - 1, name);
     return p->names[p->name_count++];
 }
 
 /* One description line of a program (attr, ub, view, sampler, pair). */
 static bool describe(program_desc_t *p, const char *line)
 {
-    char a[64], b[64], c[64], d[64];
+    char a[64], b[GLSL_NAME_MAX], c[64], d[GLSL_NAME_MAX];
     int slot, n1, n2, n3;
     sg_shader_desc *desc = &p->desc;
 
@@ -122,7 +151,7 @@ static bool describe(program_desc_t *p, const char *line)
         desc->attrs[slot].glsl_name = keep_name(p, a);
         return true;
     }
-    if (sscanf(line, "ub %d %63s %d %63s %d %d", &slot, a, &n1, b, &n2, &n3) == 6) {
+    if (sscanf(line, "ub %d %63s %d %127s %d %d", &slot, a, &n1, b, &n2, &n3) == 6) {
         if (slot < 0 || slot >= SK_SHADER_BLOCK_COUNT) return false;
         desc->uniform_blocks[slot].stage = stage_of(a);
         desc->uniform_blocks[slot].layout = SG_UNIFORMLAYOUT_STD140;
@@ -138,12 +167,15 @@ static bool describe(program_desc_t *p, const char *line)
     }
     if (sscanf(line, "view %d %63s %63s %63s %63s %d", &slot, a, b, d, c, &n1) == 6) {
         const bool cube = strcmp(d, "cube") == 0;
-        if (slot < 0 || slot >= SG_MAX_VIEW_BINDSLOTS || strcmp(c, "float") != 0 || (!cube && strcmp(d, "2d") != 0)) {
+        const bool unfilterable = strcmp(c, "unfilterable_float") == 0;
+        if (slot < 0 || slot >= SG_MAX_VIEW_BINDSLOTS || (!unfilterable && strcmp(c, "float") != 0) ||
+            (!cube && strcmp(d, "2d") != 0)) {
             return false;
         }
         desc->views[slot].texture.stage = stage_of(a);
         desc->views[slot].texture.image_type = cube ? SG_IMAGETYPE_CUBE : SG_IMAGETYPE_2D;
-        desc->views[slot].texture.sample_type = SG_IMAGESAMPLETYPE_FLOAT;
+        desc->views[slot].texture.sample_type = unfilterable ? SG_IMAGESAMPLETYPE_UNFILTERABLE_FLOAT
+                                                             : SG_IMAGESAMPLETYPE_FLOAT;
         desc->views[slot].texture.wgsl_group1_binding_n = (uint8_t)n1;
         snprintf(p->view_names[slot], SK_SHADER_NAME_MAX, "%.*s", SK_SHADER_NAME_MAX - 1, b);
         return true;
@@ -156,7 +188,7 @@ static bool describe(program_desc_t *p, const char *line)
         desc->samplers[slot].wgsl_group1_binding_n = (uint8_t)n1;
         return true;
     }
-    if (sscanf(line, "pair %d %63s %d %d %63s", &slot, a, &n1, &n2, d) == 5) {
+    if (sscanf(line, "pair %d %63s %d %d %127s", &slot, a, &n1, &n2, d) == 5) {
         if (slot < 0 || slot >= SG_MAX_TEXTURE_SAMPLER_PAIRS) return false;
         desc->texture_sampler_pairs[slot].stage = stage_of(a);
         desc->texture_sampler_pairs[slot].view_slot = (uint8_t)n1;
@@ -193,10 +225,10 @@ static int param_size(sk_shader_param_type_t type)
     }
 }
 
-/* Read a .skshader: parameters and textures into `out`, and the two programs for
+/* Read a .skshader: parameters and textures into `out`, and its programs for
  * `slang` into `programs`. False (with *error) when the file can't be used. */
 static bool parse(const unsigned char *bytes, size_t size, const char *slang, sk_shader_t *out,
-                  program_desc_t programs[2], const char **error)
+                  program_desc_t programs[SK_SHADER_PROGRAM_COUNT], const char **error)
 {
     reader_t r = {(const char *)bytes, (const char *)bytes + size};
     char line[512], a[64], b[64], c[64];
@@ -239,7 +271,11 @@ static bool parse(const unsigned char *bytes, size_t size, const char *slang, sk
             }
             snprintf(out->textures[out->texture_count++], SK_SHADER_NAME_MAX, "%s", a);
         } else if (sscanf(line, "program %63s %63s", a, b) == 2) {
-            const int which = strcmp(a, "static") == 0 ? 0 : (strcmp(a, "skinned") == 0 ? 1 : -1);
+            const int which = strcmp(a, "static") == 0          ? SK_SHADER_PROGRAM_STATIC
+                              : strcmp(a, "skinned") == 0       ? SK_SHADER_PROGRAM_SKINNED
+                              : strcmp(a, "sprite") == 0        ? SK_SHADER_PROGRAM_SPRITE
+                              : strcmp(a, "sprite_pulled") == 0 ? SK_SHADER_PROGRAM_SPRITE_PULLED
+                                                                : -1;
             current = which >= 0 && strcmp(b, slang) == 0 ? &programs[which] : NULL;
             if (current != NULL) current->found = true;
         } else if (sscanf(line, "source %63s %d", a, &n) == 2) {
@@ -265,7 +301,7 @@ static bool parse(const unsigned char *bytes, size_t size, const char *slang, sk
             return false;
         }
     }
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < SK_SHADER_PROGRAM_COUNT; i++) {
         if (!programs[i].found || programs[i].sources[0] == NULL || programs[i].sources[1] == NULL) {
             *error = "no program for this graphics backend";
             return false;
@@ -274,9 +310,9 @@ static bool parse(const unsigned char *bytes, size_t size, const char *slang, sk
     return true;
 }
 
-static void free_programs(program_desc_t programs[2])
+static void free_programs(program_desc_t programs[SK_SHADER_PROGRAM_COUNT])
 {
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < SK_SHADER_PROGRAM_COUNT; i++) {
         free(programs[i].sources[0]);
         free(programs[i].sources[1]);
     }
@@ -290,6 +326,11 @@ static void destroy_gpu(sk_shader_t *shader)
                 if (shader->pipelines[s][b][d].id != SG_INVALID_ID) sg_destroy_pipeline(shader->pipelines[s][b][d]);
             }
         }
+    }
+    for (int p = 0; p < SK_SHADER_SPRITE_PIPELINES; p++) {
+        if (shader->sprite_pipelines[p].id != SG_INVALID_ID) sg_destroy_pipeline(shader->sprite_pipelines[p]);
+    }
+    for (int s = 0; s < SK_SHADER_PROGRAM_COUNT; s++) {
         if (shader->programs[s].shader.id != SG_INVALID_ID) sg_destroy_shader(shader->programs[s].shader);
     }
 }
@@ -351,34 +392,37 @@ static sk_loader_step_t finish_shader(void *data, const char *path, sk_handle_t 
         log_error("sk_shader_create: %s: custom shaders aren't supported on this graphics backend", path);
         return SK_LOADER_FAILED;
     }
-    programs = calloc(2, sizeof(program_desc_t));
+    programs = calloc(SK_SHADER_PROGRAM_COUNT, sizeof(program_desc_t));
     memset(&shader, 0, sizeof(shader));
     ok = programs != NULL && parse(file->bytes, file->size, slang, &shader, programs, &error);
-    for (int i = 0; ok && i < 2; i++) {
+    for (int i = 0; ok && i < SK_SHADER_PROGRAM_COUNT; i++) {
         program_desc_t *p = &programs[i];
         sk_shader_program_t *program = &shader.programs[i];
         p->desc.vertex_func.source = p->sources[0];
         p->desc.vertex_func.entry = "main";
         p->desc.fragment_func.source = p->sources[1];
         p->desc.fragment_func.entry = "main";
-        p->desc.label = i == 0 ? "sk-custom-static" : "sk-custom-skinned";
+        static const char *labels[SK_SHADER_PROGRAM_COUNT] = {"sk-custom-static", "sk-custom-skinned",
+                                                               "sk-custom-sprite", "sk-custom-sprite-pulled"};
+        p->desc.label = labels[i];
         memcpy(program->has_block, p->has_block, sizeof(program->has_block));
         for (int t = 0; t < SK_SHADER_MAX_TEXTURES; t++) {
             program->view_slot[t] = -1;
             program->sampler_slot[t] = -1;
         }
-        program->env_view_slot = program->env_sampler_slot = -1;
-        program->brdf_view_slot = program->brdf_sampler_slot = -1;
-        for (int v = 0; v < SG_MAX_VIEW_BINDSLOTS; v++) {
-            int *view = strcmp(p->view_names[v], "sk_env_tex") == 0    ? &program->env_view_slot
-                        : strcmp(p->view_names[v], "sk_brdf_tex") == 0 ? &program->brdf_view_slot
-                                                                       : NULL;
-            if (view == NULL) continue;
-            *view = v;
-            for (int k = 0; k < p->pair_count; k++) {
-                if (p->pair_view[k] == v) {
-                    *(view == &program->env_view_slot ? &program->env_sampler_slot : &program->brdf_sampler_slot) =
-                        p->pair_sampler[k];
+        /* libsk's textures, by name: where each one's view and sampler go */
+        static const char *libsk_textures[4] = {"sk_env_tex", "sk_brdf_tex", "sk_sprite_tex", "sk_sprite_data"};
+        int *view_slots[4] = {&program->env_view_slot, &program->brdf_view_slot, &program->sprite_view_slot,
+                              &program->data_view_slot};
+        int *sampler_slots[4] = {&program->env_sampler_slot, &program->brdf_sampler_slot,
+                                 &program->sprite_sampler_slot, &program->data_sampler_slot};
+        for (int n = 0; n < 4; n++) {
+            *view_slots[n] = *sampler_slots[n] = -1;
+            for (int v = 0; v < SG_MAX_VIEW_BINDSLOTS; v++) {
+                if (strcmp(p->view_names[v], libsk_textures[n]) != 0) continue;
+                *view_slots[n] = v;
+                for (int k = 0; k < p->pair_count; k++) {
+                    if (p->pair_view[k] == v) *sampler_slots[n] = p->pair_sampler[k];
                 }
             }
         }
@@ -484,6 +528,7 @@ void sk_shader_init(void)
         .release = sk_shader_release,
         .find_param = sk_shader_find_param,
         .find_texture = sk_shader_find_texture,
+        .fallbacks = fallbacks,
     };
 }
 
@@ -493,6 +538,14 @@ void sk_shader_deinit(void)
         if (sk_shader_pool.occupied[i]) destroy_gpu(&sk_shaders[i]);
     }
     sk_handle_pool_destroy(&sk_shader_pool);
+    if (sk_shader_fallback.linear.id != SG_INVALID_ID) {
+        sg_destroy_sampler(sk_shader_fallback.linear);
+        sg_destroy_view(sk_shader_fallback.white_view);
+        sg_destroy_view(sk_shader_fallback.black_cube_view);
+        sg_destroy_image(sk_shader_fallback.white);
+        sg_destroy_image(sk_shader_fallback.black_cube);
+    }
+    memset(&sk_shader_fallback, 0, sizeof(sk_shader_fallback));
     sk_shader_hooks = (sk_shader_hooks_t){0};
 }
 

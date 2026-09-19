@@ -52,7 +52,7 @@ typedef struct {
 static sk_texture_t *sk_textures; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_texture_pool;
 static sg_sampler sk_default_sampler;
-static sg_sampler sk_texture_samplers[3][3][2]; /* [wrap_u][wrap_v][filter], made on first use */
+static sg_sampler sk_texture_samplers[3][3][2][2]; /* [wrap_u][wrap_v][filter][mipmaps], made on first use */
 static sk_handle_t sk_texture_drawing_into;       /* target being drawn into (render pass), 0 = screen */
 static bool sk_texture_self_use_logged;
 
@@ -672,7 +672,6 @@ bool sk_texture_set_sampling(sk_handle_t texture, sk_texture_wrap_t wrap_u, sk_t
                              sk_texture_filter_t filter)
 {
     sk_texture_t *texture_ptr = resolve(texture);
-    sg_sampler *smp;
 
     if (texture_ptr == NULL) {
         return false;
@@ -682,19 +681,29 @@ bool sk_texture_set_sampling(sk_handle_t texture, sk_texture_wrap_t wrap_u, sk_t
         log_warn("sk_texture_set_sampling: invalid wrap or filter");
         return false;
     }
-    smp = &sk_texture_samplers[wrap_u][wrap_v][filter];
+    texture_ptr->sampler = sk_texture_sampler(wrap_u, wrap_v, filter, true);
+    return true;
+}
+
+sg_sampler sk_texture_sampler(sk_texture_wrap_t wrap_u, sk_texture_wrap_t wrap_v, sk_texture_filter_t filter,
+                              bool mipmaps)
+{
+    const int u = wrap_u >= 0 && wrap_u < 3 ? (int)wrap_u : 0;
+    const int v = wrap_v >= 0 && wrap_v < 3 ? (int)wrap_v : 0;
+    const int nearest = filter == SK_TEXTURE_FILTER_NEAREST ? 1 : 0;
+    sg_sampler *smp = &sk_texture_samplers[u][v][nearest][mipmaps ? 1 : 0];
     if (smp->id == SG_INVALID_ID) {
-        const sg_filter f = filter == SK_TEXTURE_FILTER_NEAREST ? SG_FILTER_NEAREST : SG_FILTER_LINEAR;
+        const sg_filter f = nearest ? SG_FILTER_NEAREST : SG_FILTER_LINEAR;
         *smp = sg_make_sampler(&(sg_sampler_desc){
             .min_filter = f,
             .mag_filter = f,
             .mipmap_filter = f,
-            .wrap_u = to_sg_wrap(wrap_u),
-            .wrap_v = to_sg_wrap(wrap_v),
+            .max_lod = mipmaps ? 1000.0f : 0.0f, /* 0: the base level only */
+            .wrap_u = to_sg_wrap((sk_texture_wrap_t)u),
+            .wrap_v = to_sg_wrap((sk_texture_wrap_t)v),
         });
     }
-    texture_ptr->sampler = *smp;
-    return true;
+    return *smp;
 }
 
 SK_KEEP
@@ -891,7 +900,7 @@ void sk_texture_init(void)
         .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
         .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
     });
-    sk_texture_samplers[SK_TEXTURE_WRAP_CLAMP][SK_TEXTURE_WRAP_CLAMP][SK_TEXTURE_FILTER_LINEAR] = sk_default_sampler;
+    sk_texture_samplers[SK_TEXTURE_WRAP_CLAMP][SK_TEXTURE_WRAP_CLAMP][SK_TEXTURE_FILTER_LINEAR][1] = sk_default_sampler;
     sk_texture_drawing_into = 0;
     sk_texture_self_use_logged = false;
 
@@ -948,7 +957,7 @@ void sk_texture_deinit(void)
             sk_textures[i] = (sk_texture_t){0};
         }
     }
-    for (int i = 0; i < 3 * 3 * 2; i++) {
+    for (int i = 0; i < 3 * 3 * 2 * 2; i++) {
         sg_sampler *smp = &((sg_sampler *)sk_texture_samplers)[i];
         if (smp->id != SG_INVALID_ID) sg_destroy_sampler(*smp); /* includes the default */
         *smp = (sg_sampler){0};

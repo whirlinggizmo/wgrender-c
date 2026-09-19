@@ -5,7 +5,8 @@
 
 Your file has a fragment shader `@fs fs` and may have a vertex hook `@block vertex`;
 shaders/sk.glsl says what libsk gives them. This puts shaders/sk.glsl in front of the
-file, adds libsk's vertex shaders (static and skinned models), compiles it for every
+file, adds libsk's vertex shaders (static and skinned models, and sprites: instanced,
+and read from a texture where there's no base instance), compiles it for every
 backend libsk runs on (GL 4.1, WebGL2, WebGPU) with sokol-shdc, and writes one
 .skshader file: each backend's sources, what sokol needs to know about them, and the
 parameters by name. Load it with sk_shader_create(path). Only needed to make the file,
@@ -21,7 +22,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHDC = os.path.join(ROOT, "tools", "sokol-shdc")
 INTERFACE = os.path.join(ROOT, "shaders", "sk.glsl")
 SLANGS = ["glsl410", "glsl300es", "wgsl"]
-FORMAT_VERSION = 2
+FORMAT_VERSION = 3
 
 FS_PARAMS_BINDING = 2  # binding 0 is libsk's vertex block, 1 its sk_frame block
 VS_PARAMS_BINDING = 3
@@ -149,8 +150,20 @@ def main():
 @end
 """)
     combined = interface + "\n" + user + "\n" + "".join(programs) + """
+@vs sk_vs_sprite
+@include_block sk_vs_sprite_common
+@include_block sk_vs_sprite_main
+@end
+
+@vs sk_vs_sprite_pulled
+@include_block sk_vs_sprite_common
+@include_block sk_vs_sprite_pulled_main
+@end
+
 @program static sk_vs_static fs
 @program skinned sk_vs_skinned fs
+@program sprite sk_vs_sprite fs
+@program sprite_pulled sk_vs_sprite_pulled fs
 """
     user_first_line = interface.count("\n") + 2  # the user's line 1 in the combined file
 
@@ -207,8 +220,8 @@ def main():
 def check_program(slang, program, fs_block, fs_params, vs_block, vs_params):
     for block in program.get("uniform_blocks", []):
         slot, stage, size = block["slot"], block["stage"], block["size"]
-        if slot in (0, 1):
-            continue
+        if slot in (0, 1, 4):
+            continue  # libsk's: per object (or sprite view), per draw, sprite batch
         expected = {FS_PARAMS_BINDING: ("fragment", fs_params), VS_PARAMS_BINDING: ("vertex", vs_params)}.get(slot)
         if expected is None or stage != expected[0]:
             fail(f"uniform block binding {slot} ({stage}): parameters go in binding {FS_PARAMS_BINDING} "

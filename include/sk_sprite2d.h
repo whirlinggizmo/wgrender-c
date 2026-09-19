@@ -64,6 +64,11 @@ bool sk_sprite2d_is_enabled(sk_handle_t sprite);
  * sprites always draw in order; the mode only changes how they're blended. */
 bool sk_sprite2d_set_alpha_mode(sk_handle_t sprite, sk_alpha_mode_t mode, float cutoff);
 sk_alpha_mode_t sk_sprite2d_get_alpha_mode(sk_handle_t sprite);
+/* As sk_sprite3d_set_material: a custom material's shader draws the sprite (in screen
+ * pixels: sk_world_pos is the pixel, and the scene's lights don't reach 2D). A
+ * nine-slice sprite's sk_uv1 spans each slice. 0: libsk's sprite shader. */
+bool sk_sprite2d_set_material(sk_handle_t sprite, sk_handle_t material);
+sk_handle_t sk_sprite2d_get_material(sk_handle_t sprite); /* borrowed; 0 = none */
 
 /* When enabled, picks on texels with alpha below `threshold` (0..1) pass through. */
 bool sk_sprite2d_set_pick_alpha_test(sk_handle_t sprite, bool enable, float threshold);

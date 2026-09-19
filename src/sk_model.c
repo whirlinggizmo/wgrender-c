@@ -196,8 +196,6 @@ static sk_handle_pool_t sk_model_pool;
 static sg_pipeline sk_pips[2][2][2];
 static sg_shader sk_shd_static;
 static sg_shader sk_shd_skinned;
-/* material texture samplers, made on first use: [wrap_u][wrap_v][filter][mipmaps] */
-static sg_sampler sk_model_samplers[3][3][2][2];
 static sg_image sk_model_white_img;
 static sg_view sk_model_white_view;
 static sg_image sk_model_flat_normal_img;
@@ -2452,38 +2450,13 @@ static sg_view texture_view(const sk_material_texture_t *texture, sg_view fallba
     return view;
 }
 
-static sg_wrap sampler_wrap(sk_texture_wrap_t wrap)
-{
-    switch (wrap) {
-        case SK_TEXTURE_WRAP_CLAMP: return SG_WRAP_CLAMP_TO_EDGE;
-        case SK_TEXTURE_WRAP_MIRROR: return SG_WRAP_MIRRORED_REPEAT;
-        default: return SG_WRAP_REPEAT;
-    }
-}
-
 static sg_sampler texture_sampler(const sk_material_texture_t *texture)
 {
-    const int u = texture->wrap_u >= 0 && texture->wrap_u < 3 ? (int)texture->wrap_u : 0;
-    const int v = texture->wrap_v >= 0 && texture->wrap_v < 3 ? (int)texture->wrap_v : 0;
-    const int nearest = texture->filter == SK_TEXTURE_FILTER_NEAREST ? 1 : 0;
-    const int mipmaps = texture->mipmaps ? 1 : 0;
-    sg_sampler *smp = &sk_model_samplers[u][v][nearest][mipmaps];
-
-    if (smp->id == SG_INVALID_ID) {
-        const sg_filter filter = nearest ? SG_FILTER_NEAREST : SG_FILTER_LINEAR;
-        *smp = sg_make_sampler(&(sg_sampler_desc){
-            .min_filter = filter,
-            .mag_filter = filter,
-            .mipmap_filter = filter,
-            .max_lod = mipmaps ? 1000.0f : 0.0f, /* 0: base level only */
-            .wrap_u = sampler_wrap(texture->wrap_u),
-            .wrap_v = sampler_wrap(texture->wrap_v),
-        });
-    }
-    return *smp;
+    return sk_texture_sampler(texture->wrap_u, texture->wrap_v, texture->filter, texture->mipmaps);
 }
 
-/* Uniform blocks of custom shaders (shaders/sk.glsl), std140. */
+/* Uniform blocks of custom shaders (shaders/sk.glsl), std140; sk_frame is
+ * sk_shader_frame_t (internal/sk_shader.h). */
 typedef struct {
     float mvp[16], model[16], normal_mat[16], time[4];
 } custom_object_t;
@@ -2491,18 +2464,6 @@ typedef struct {
     float mvp[16], model[16], normal_mat[16], time[4];
     float joints[SK_MAX_JOINTS][16];
 } custom_skinned_object_t;
-typedef struct {
-    float camera_time[4];
-    float tint[4];
-    float ambient_count[4];
-    float output[4];
-    float light_pos_range[SK_MAX_DRAW_LIGHTS][4];
-    float light_dir_type[SK_MAX_DRAW_LIGHTS][4];
-    float light_radiance[SK_MAX_DRAW_LIGHTS][4];
-    float light_spot[SK_MAX_DRAW_LIGHTS][4];
-    float env[4];
-    float sh[9][4];
-} custom_frame_t;
 
 /* A primitive whose material has a custom shader (sk_shader.h). */
 static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, const sk_primitive_t *prim,
@@ -2546,7 +2507,7 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
     }
 
     if (program->has_block[SK_SHADER_BLOCK_FRAME]) {
-        custom_frame_t frame;
+        sk_shader_frame_t frame;
         memset(&frame, 0, sizeof(frame));
         frame.camera_time[0] = e->camera_pos.x;
         frame.camera_time[1] = e->camera_pos.y;
@@ -2618,6 +2579,13 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
     if (program->env_sampler_slot >= 0) bind.samplers[program->env_sampler_slot] = environment.cube_sampler;
     if (program->brdf_view_slot >= 0) bind.views[program->brdf_view_slot] = environment.brdf_lut;
     if (program->brdf_sampler_slot >= 0) bind.samplers[program->brdf_sampler_slot] = environment.lut_sampler;
+    if (program->sprite_view_slot >= 0) { /* sk_sprite_color(): white on models, so it's the vertex color */
+        sg_view white, black_cube;
+        sg_sampler linear;
+        sk_shader_hooks.fallbacks(&white, &black_cube, &linear);
+        bind.views[program->sprite_view_slot] = white;
+        if (program->sprite_sampler_slot >= 0) bind.samplers[program->sprite_sampler_slot] = linear;
+    }
     sg_apply_bindings(&bind);
     sg_draw(0, prim->index_count, 1);
 }
@@ -2836,11 +2804,6 @@ void sk_model_deinit(void)
     sg_destroy_view(sk_model_flat_normal_view);
     sg_destroy_image(sk_model_flat_normal_img);
     sg_destroy_image(sk_model_white_img);
-    for (int i = 0; i < 3 * 3 * 2 * 2; i++) {
-        sg_sampler *smp = &((sg_sampler *)sk_model_samplers)[i];
-        if (smp->id != SG_INVALID_ID) sg_destroy_sampler(*smp);
-        *smp = (sg_sampler){0};
-    }
     if (sk_model_pipelines_ready) {
         for (int skinned = 0; skinned < 2; skinned++) {
             for (int blended = 0; blended < 2; blended++) {

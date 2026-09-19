@@ -1,13 +1,15 @@
 /* libsk custom shaders: what libsk gives a material's shader (docs/PLAN-materials.md,
  * "Custom shaders"). tools/shaderpack.py puts this file in front of yours, adds libsk's
- * vertex shaders (static and skinned models) and compiles the result for every backend
- * into a .skshader file (sk_shader_create).
+ * vertex shaders (static and skinned models, and sprites) and compiles the result for
+ * every backend into a .skshader file (sk_shader_create). One shader draws models and
+ * sprites (sk_sprite3d_set_material, sk_sprite2d_set_material) alike.
  *
  * Your file has a fragment shader named `fs`, and may have a vertex hook:
  *
  *     @block vertex                           (optional)
  *     void sk_vertex(inout vec3 position, inout vec3 normal) { ... }   object space,
- *     @end                                    before skinning; sk_time() is available
+ *     @end                                    before skinning; sk_time() is available.
+ *                                             Models only: sprites don't run it.
  *
  *     @fs fs
  *     @include_block sk_surface
@@ -20,7 +22,8 @@
  *     }
  *     @end
  *
- * Textures 8 and 9 (and samplers 8 and 9) are libsk's (the environment).
+ * Textures and samplers 8 to 11 are libsk's (the environment, the sprite's texture,
+ * sprite data), as are uniform blocks 0, 1 and 4.
  * Parameters: the members of uniform block binding 2 in the fragment shader and
  * binding 3 in the vertex hook, set by name with sk_material_set_float / _vec2 /
  * _vec3 / _vec4 / _int / _color (float, vec2, vec3, vec4, int; not arrays or
@@ -30,13 +33,15 @@
  * and sampled with the sampler it's paired with in texture(sampler2D(...)), set up
  * by sk_material_set_texture_sampling. A texture that isn't set is white.
  *
- * Fragment inputs (sk_surface), world space:
+ * Fragment inputs (sk_surface), world space (a 2D sprite's: screen pixels):
  *   sk_world_pos   vec3   the surface point
  *   sk_normal      vec3   interpolated vertex normal (not normalized; facing out of
- *                         the front face)
- *   sk_tangent     vec4   xyz tangent, w bitangent sign (glTF)
- *   sk_uv0, sk_uv1 vec2   texture coordinate sets 0 and 1
- *   sk_color       vec4   vertex color, linear (white when the mesh has none)
+ *                         the front face; a sprite's faces its front)
+ *   sk_tangent     vec4   xyz tangent, w bitangent sign (glTF; a sprite's: its right)
+ *   sk_uv0, sk_uv1 vec2   texture coordinate sets 0 and 1. A sprite's: its texture
+ *                         region (uv0), and 0..1 across the quad whatever the region (uv1)
+ *   sk_color       vec4   vertex color, linear (white when the mesh has none); a
+ *                         sprite's: its tint, linear
  * and functions:
  *   sk_time()             seconds since the program started
  *   sk_camera_position()  world space
@@ -55,11 +60,15 @@
  *   sk_environment_brdf(n_dot_v, roughness)   split-sum scale (x) and bias (y): specular
  *                         reflection = sk_environment_specular(...) * (f0 * x + y)
  *   Built-in materials use exactly these (docs/PLAN-environment.md).
+ *   sk_sprite_color()     a sprite's texture at its region times its tint, linear rgba
+ *                         (on a model: its vertex color). The texture itself is
+ *                         sk_sprite_tex / sk_sprite_smp, to sample it yourself (an
+ *                         outline reads the texels around), converting its rgb to linear
  *   sk_srgb_to_linear(c), sk_linear_to_srgb(c)
  *   sk_output(color, alpha)   write the pixel: `color` is linear rgb. Applies the
- *                         model's tint, the material's alpha cutoff (SK_ALPHA_MASK),
- *                         and the scene's exposure and tone mapping, then encodes sRGB.
- *                         Call it once, at the end.
+ *                         model's tint, the material's (or sprite's) alpha mode, and
+ *                         the scene's exposure and tone mapping (not on sprites), then
+ *                         encodes sRGB. Call it once, at the end.
  * Lighting is linear and, like built-in materials, the framebuffer holds sRGB.
  * Names starting with sk_ are libsk's. */
 
@@ -92,6 +101,7 @@ layout(location=2) out vec4 sk_tangent;
 layout(location=3) out vec2 sk_uv0;
 layout(location=4) out vec2 sk_uv1;
 layout(location=5) out vec4 sk_color;
+layout(location=6) out float sk_sprite_alpha; /* sprites: their alpha mode (0 for models) */
 /* locations match libsk's vertex buffers */
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 normal;
@@ -123,6 +133,7 @@ void main() {
     sk_uv0 = texcoord0;
     sk_uv1 = texcoord1;
     sk_color = color0;
+    sk_sprite_alpha = 0.0;
 }
 @end
 
@@ -156,6 +167,86 @@ void main() {
     sk_uv0 = texcoord0;
     sk_uv1 = texcoord1;
     sk_color = color0;
+    sk_sprite_alpha = 0.0;
+}
+@end
+
+/* Sprites (src/sk_sprite_batch.c): one quad per sprite, placed as libsk's own sprite
+ * shader places it (src/shaders/sk_sprite.glsl), from per-instance attributes, or from
+ * a texture of sprite data where the backend can't draw from a base instance (WebGL2). */
+@block sk_vs_sprite_common
+@include_block sk_color
+layout(binding=0) uniform sk_sprite_view {
+    mat4 sk_view_proj;
+    vec4 sk_camera_right; /* xyz: camera-facing sprites' right */
+    vec4 sk_camera_up;
+    vec4 sk_upright;      /* xyz: upright sprites' right (their up is world Y) */
+    vec4 sk_sprite_time;  /* x seconds */
+};
+layout(location=0) out vec3 sk_world_pos;
+layout(location=1) out vec3 sk_normal;
+layout(location=2) out vec4 sk_tangent;
+layout(location=3) out vec2 sk_uv0;
+layout(location=4) out vec2 sk_uv1;
+layout(location=5) out vec4 sk_color;
+layout(location=6) out float sk_sprite_alpha;
+float sk_time() { return sk_sprite_time.x; }
+
+/* corner: -0.5..0.5 each way (y up). pos: where the pivot goes, w facing. size: world
+   size, then pivot (0..1, y down). source: its texture region. right, up: its own axes
+   (facing 2+); up.w its alpha mode. tint: sRGB. */
+void sk_place(vec2 corner, vec4 pos, vec4 size, vec4 source, vec3 right_axis, vec4 up_axis, vec4 tint) {
+    vec3 right = right_axis;
+    vec3 up = up_axis.xyz;
+    if (pos.w < 0.5) {
+        right = sk_camera_right.xyz;
+        up = sk_camera_up.xyz;
+    } else if (pos.w < 1.5) {
+        right = sk_upright.xyz;
+        up = vec3(0.0, 1.0, 0.0);
+    }
+    vec2 local = vec2((corner.x + 0.5 - size.z) * size.x, (corner.y - 0.5 + size.w) * size.y);
+    vec3 world = pos.xyz + right * local.x + up * local.y;
+    gl_Position = sk_view_proj * vec4(world, 1.0);
+    sk_world_pos = world;
+    sk_normal = cross(right, up);
+    sk_tangent = vec4(right, 1.0);
+    sk_uv0 = vec2(mix(source.x, source.z, corner.x + 0.5), mix(source.y, source.w, 0.5 - corner.y));
+    sk_uv1 = vec2(corner.x + 0.5, 0.5 - corner.y);
+    sk_color = vec4(sk_srgb_to_linear(tint.rgb), tint.a);
+    sk_sprite_alpha = up_axis.w;
+}
+@end
+
+@block sk_vs_sprite_main
+layout(location=0) in vec2 corner;
+layout(location=1) in vec4 inst_pos;
+layout(location=2) in vec4 inst_size;
+layout(location=3) in vec4 inst_uv;
+layout(location=4) in vec3 inst_right;
+layout(location=5) in vec4 inst_up;
+layout(location=6) in vec4 inst_color;
+void main() {
+    sk_place(corner, inst_pos, inst_size, inst_uv, inst_right, inst_up, inst_color);
+}
+@end
+
+@block sk_vs_sprite_pulled_main
+layout(binding=4) uniform sk_sprite_batch {
+    vec4 sk_batch; /* x: the batch's first sprite */
+};
+layout(binding=11) uniform texture2D sk_sprite_data;
+layout(binding=11) uniform sampler sk_sprite_data_smp;
+@image_sample_type sk_sprite_data unfilterable_float
+@sampler_type sk_sprite_data_smp nonfiltering
+layout(location=0) in vec2 corner;
+vec4 sk_sprite_texel(int sprite, int k) {
+    return texelFetch(sampler2D(sk_sprite_data, sk_sprite_data_smp), ivec2((sprite % 256) * 6 + k, sprite / 256), 0);
+}
+void main() {
+    int sprite = int(sk_batch.x) + gl_InstanceIndex;
+    sk_place(corner, sk_sprite_texel(sprite, 0), sk_sprite_texel(sprite, 1), sk_sprite_texel(sprite, 2),
+             sk_sprite_texel(sprite, 3).xyz, sk_sprite_texel(sprite, 4), sk_sprite_texel(sprite, 5));
 }
 @end
 
@@ -185,7 +276,15 @@ layout(location=2) in vec4 sk_tangent;
 layout(location=3) in vec2 sk_uv0;
 layout(location=4) in vec2 sk_uv1;
 layout(location=5) in vec4 sk_color;
+layout(location=6) in float sk_sprite_alpha;
+layout(binding=10) uniform texture2D sk_sprite_tex;
+layout(binding=10) uniform sampler sk_sprite_smp;
 out vec4 sk_frag_color;
+
+vec4 sk_sprite_color() {
+    vec4 t = texture(sampler2D(sk_sprite_tex, sk_sprite_smp), sk_uv0); /* white on models */
+    return vec4(sk_srgb_to_linear(t.rgb), t.a) * sk_color;
+}
 
 float sk_time() { return sk_camera_time.w; }
 vec3 sk_camera_position() { return sk_camera_time.xyz; }
@@ -275,8 +374,13 @@ vec3 sk_tonemap_aces(vec3 color) {
 void sk_output(vec3 color, float alpha) {
     color *= sk_tint.rgb;
     alpha *= sk_tint.a;
-    if (alpha < sk_output_params.x) {
+    /* the material's cutoff, or a sprite's (its alpha mode: > 0 a cutoff, < 0 opaque) */
+    float cutoff = max(sk_output_params.x, max(sk_sprite_alpha, 0.0));
+    if (alpha < cutoff) {
         discard;
+    }
+    if (sk_sprite_alpha != 0.0) {
+        alpha = 1.0; /* opaque and masked sprites */
     }
     color *= sk_output_params.z;
     int mode = int(sk_output_params.y + 0.5);

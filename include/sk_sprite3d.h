@@ -60,6 +60,14 @@ bool sk_sprite3d_is_enabled(sk_handle_t sprite);
  * sprites are grouped by texture, so they draw in fewer batches. */
 bool sk_sprite3d_set_alpha_mode(sk_handle_t handle, sk_alpha_mode_t mode, float cutoff);
 sk_alpha_mode_t sk_sprite3d_get_alpha_mode(sk_handle_t handle);
+/* Draw the sprite with a custom material's shader (sk_material_create_custom, see
+ * shaders/sk.glsl: sk_sprite_color() is the sprite's texture times its tint); 0 goes
+ * back to libsk's sprite shader. The sprite keeps its texture, region, tint, facing
+ * and alpha mode; the material holds the shader's parameters and textures, shared by
+ * every sprite using it. The sprite holds its own reference. False for a built-in
+ * material (lit sprites come later). */
+bool sk_sprite3d_set_material(sk_handle_t handle, sk_handle_t material);
+sk_handle_t sk_sprite3d_get_material(sk_handle_t handle); /* borrowed; 0 = none */
 
 /* When enabled, picking ignores hits on texels whose alpha is below `threshold`
  * (0..1). Builds a CPU alpha mask from the texture's source path on demand. */

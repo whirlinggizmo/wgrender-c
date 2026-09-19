@@ -29,17 +29,19 @@ void sk_sprite_batch_init(void);
 void sk_sprite_batch_deinit(void);
 
 /* Record a 3D sprite for the current pass, seen by the active camera, drawn with its
- * alpha mode (the quad's `alpha` says how the shader treats alpha). blend_depth_write:
+ * alpha mode (the quad's `alpha` says how the shader treats alpha) and material (a
+ * custom material's shader draws it; 0: libsk's sprite shader). blend_depth_write:
  * whether a blended sprite writes depth (direct draws do; a scene's sorted pass
  * doesn't). view and sampler: the texture's sokol ids (sk_texture_get_binding). */
 void sk_sprite_batch_add_3d(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, sk_alpha_mode_t mode,
-                            bool blend_depth_write);
+                            bool blend_depth_write, sk_handle_t material);
 
 /* Record a 2D sprite (screen space: logical pixels, top-left origin, y down) for the
  * current pass, in order, with its alpha mode; no depth test. Its quad: position the
  * top-left corner, right and up the top and left edges (up points up the screen),
  * size (1, 1), pivot (0, 0), facing 2 (its own axes). */
-void sk_sprite_batch_add_2d(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, sk_alpha_mode_t mode);
+void sk_sprite_batch_add_2d(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, sk_alpha_mode_t mode,
+                            sk_handle_t material);
 
 /* Sprites added between these don't need their order (opaque, masked and additive
  * sprites in a scene): they're grouped by texture and mode, so 4 textures in any

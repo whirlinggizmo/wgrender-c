@@ -4,12 +4,16 @@
 #include <string.h>
 
 #include "internal/sk_camera3d.h"
+#include "internal/sk_material.h"
 #include "internal/sk_math.h"
 #include "internal/sk_module.h"
 #include "internal/sk_render.h"
 #include "internal/sk_scene.h"
+#include "internal/sk_shader.h"
 #include "internal/sk_shaders.h"
 #include "internal/sk_sprite3d.h"
+#include "internal/sk_texture.h"
+#include "sk.h" /* sk_get_time */
 #include "sk_logger.h"
 #include "sk_window.h"
 
@@ -54,11 +58,13 @@ typedef struct {
     sk_sprite_quad_t quad;
     uint32_t view, sampler;
     int pipeline;
+    sk_handle_t material;
 } sk_sprite_pending_t;
 
 typedef struct {
     uint32_t view, sampler;
     int pipeline;
+    sk_handle_t material; /* a custom material (its shader draws the batch), or 0 */
     int camera; /* index into the frame's camera uniforms */
     int pass;
     float scissor[4]; /* framebuffer pixels: x, y, width, height (the clip, or the whole target) */
@@ -148,12 +154,10 @@ void sk_sprite_batch_init(void)
     sk_sb.last_drawn = -1;
 }
 
-/* The shader, pipelines and quad, made with the first sprite drawn rather than at
- * startup: a program without sprites doesn't compile them (tools/webstart.mjs). */
-static void ensure_gpu(void)
+/* The pipeline kinds (PIPELINE_*) for `shader`: libsk's sprite shader, or a custom
+ * shader's sprite program (the same vertex layout: shaders/sk.glsl). */
+static void make_pipelines(sg_shader shader, sg_pipeline out[PIPELINE_COUNT])
 {
-    /* two triangles: the quad's corners, x right, y up */
-    static const float corners[12] = {-0.5f, 0.5f, 0.5f, 0.5f, 0.5f, -0.5f, -0.5f, 0.5f, 0.5f, -0.5f, -0.5f, -0.5f};
     sg_pipeline_desc desc = {
         .layout = {
             .buffers[1] = {.step_func = SG_VERTEXSTEP_PER_INSTANCE},
@@ -179,14 +183,49 @@ static void ensure_gpu(void)
         .label = "sk-sprite",
     };
 
-    if (sk_sb.ready) return;
-    if (sk_sb.base_instance) {
-        sk_sb.shader = sg_make_shader(sprite_quad_shader_desc(shader_backend()));
-    } else { /* the sprites come from a texture: only the quad's corners are attributes */
-        sk_sb.shader = sg_make_shader(sprite_quad_pulled_shader_desc(shader_backend()));
+    if (!sk_sb.base_instance) { /* the sprites come from a texture: only the quad's corners are attributes */
         desc.layout = (sg_vertex_layout_state){
             .attrs[ATTR_sprite_quad_pulled_corner] = {.format = SG_VERTEXFORMAT_FLOAT2},
         };
+    }
+    desc.shader = shader;
+    out[PIPELINE_BLEND_DEPTH_WRITE] = sg_make_pipeline(&desc);
+    desc.depth.write_enabled = false;
+    out[PIPELINE_BLEND] = sg_make_pipeline(&desc);
+    desc.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE; /* added: src x alpha + dst */
+    desc.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE;
+    out[PIPELINE_ADD] = sg_make_pipeline(&desc);
+    desc.colors[0].blend = (sg_blend_state){0};
+    desc.depth.write_enabled = true;
+    out[PIPELINE_OPAQUE] = sg_make_pipeline(&desc);
+    /* 2D, like sokol_gl's 2D pipeline: no depth test or write */
+    desc.depth = (sg_depth_state){.compare = SG_COMPAREFUNC_ALWAYS, .write_enabled = false};
+    out[PIPELINE_2D_OPAQUE] = sg_make_pipeline(&desc);
+    desc.colors[0].blend = (sg_blend_state){
+        .enabled = true,
+        .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+        .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+        .src_factor_alpha = SG_BLENDFACTOR_ONE,
+        .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+    };
+    out[PIPELINE_2D_BLEND] = sg_make_pipeline(&desc);
+    desc.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE;
+    desc.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE;
+    out[PIPELINE_2D_ADD] = sg_make_pipeline(&desc);
+}
+
+/* The shader, pipelines and quad, made with the first sprite drawn rather than at
+ * startup: a program without sprites doesn't compile them (tools/webstart.mjs). */
+static void ensure_gpu(void)
+{
+    /* two triangles: the quad's corners, x right, y up */
+    static const float corners[12] = {-0.5f, 0.5f, 0.5f, 0.5f, 0.5f, -0.5f, -0.5f, 0.5f, 0.5f, -0.5f, -0.5f, -0.5f};
+
+    if (sk_sb.ready) return;
+    if (sk_sb.base_instance) {
+        sk_sb.shader = sg_make_shader(sprite_quad_shader_desc(shader_backend()));
+    } else {
+        sk_sb.shader = sg_make_shader(sprite_quad_pulled_shader_desc(shader_backend()));
         sk_sb.data_sampler = sg_make_sampler(&(sg_sampler_desc){
             .min_filter = SG_FILTER_NEAREST,
             .mag_filter = SG_FILTER_NEAREST,
@@ -195,30 +234,7 @@ static void ensure_gpu(void)
             .label = "sk-sprite-data",
         });
     }
-    desc.shader = sk_sb.shader;
-    sk_sb.pipelines[PIPELINE_BLEND_DEPTH_WRITE] = sg_make_pipeline(&desc);
-    desc.depth.write_enabled = false;
-    sk_sb.pipelines[PIPELINE_BLEND] = sg_make_pipeline(&desc);
-    desc.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE; /* added: src x alpha + dst */
-    desc.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE;
-    sk_sb.pipelines[PIPELINE_ADD] = sg_make_pipeline(&desc);
-    desc.colors[0].blend = (sg_blend_state){0};
-    desc.depth.write_enabled = true;
-    sk_sb.pipelines[PIPELINE_OPAQUE] = sg_make_pipeline(&desc);
-    /* 2D, like sokol_gl's 2D pipeline: no depth test or write */
-    desc.depth = (sg_depth_state){.compare = SG_COMPAREFUNC_ALWAYS, .write_enabled = false};
-    sk_sb.pipelines[PIPELINE_2D_OPAQUE] = sg_make_pipeline(&desc);
-    desc.colors[0].blend = (sg_blend_state){
-        .enabled = true,
-        .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-        .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-        .src_factor_alpha = SG_BLENDFACTOR_ONE,
-        .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-    };
-    sk_sb.pipelines[PIPELINE_2D_BLEND] = sg_make_pipeline(&desc);
-    desc.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE;
-    desc.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE;
-    sk_sb.pipelines[PIPELINE_2D_ADD] = sg_make_pipeline(&desc);
+    make_pipelines(sk_sb.shader, sk_sb.pipelines);
     sk_sb.quad = sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(corners), .label = "sk-sprite-quad"});
     sk_sb.ready = true;
 }
@@ -333,7 +349,8 @@ static const sk_sprite_state_t *current_state(bool two_d)
 }
 
 /* Add one sprite to the frame, joining the open batch when it can. */
-static void record(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, int pipeline)
+static void record(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, int pipeline,
+                   sk_handle_t material)
 {
     const sk_sprite_state_t *st;
     sk_sprite_batch_t *last;
@@ -350,6 +367,7 @@ static void record(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sam
     last = sk_sb.batch_count > 0 ? &sk_sb.batches[sk_sb.batch_count - 1] : NULL;
     /* extend the open batch when nothing else was drawn since and everything matches */
     if (last == NULL || last->view != view || last->sampler != sampler || last->pipeline != pipeline ||
+        last->material != material ||
         last->camera != st->camera || last->pass != st->pass ||
         memcmp(last->scissor, st->scissor, sizeof(last->scissor)) != 0 ||
         !sk_render_sprites_open(sk_sb.batch_count - 1)) {
@@ -365,6 +383,7 @@ static void record(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sam
             .view = view,
             .sampler = sampler,
             .pipeline = pipeline,
+            .material = material,
             .camera = st->camera,
             .pass = st->pass,
             .first = sk_sb.instance_count,
@@ -376,14 +395,14 @@ static void record(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sam
 }
 
 void sk_sprite_batch_add_3d(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, sk_alpha_mode_t mode,
-                            bool blend_depth_write)
+                            bool blend_depth_write, sk_handle_t material)
 {
     const int pipeline = mode == SK_ALPHA_OPAQUE || mode == SK_ALPHA_MASK ? PIPELINE_OPAQUE
                          : mode == SK_ALPHA_ADD                           ? PIPELINE_ADD
                          : blend_depth_write                              ? PIPELINE_BLEND_DEPTH_WRITE
                                                                           : PIPELINE_BLEND;
     if (!sk_sb.unordered) {
-        record(instance, view, sampler, pipeline);
+        record(instance, view, sampler, pipeline, material);
         return;
     }
     if (!reserve((void **)&sk_sb.pending, &sk_sb.pending_capacity, sk_sb.pending_count, sizeof(sk_sprite_pending_t),
@@ -391,15 +410,16 @@ void sk_sprite_batch_add_3d(const sk_sprite_quad_t *instance, uint32_t view, uin
         return;
     }
     sk_sb.pending[sk_sb.pending_count++] = (sk_sprite_pending_t){
-        .quad = *instance, .view = view, .sampler = sampler, .pipeline = pipeline};
+        .quad = *instance, .view = view, .sampler = sampler, .pipeline = pipeline, .material = material};
 }
 
-void sk_sprite_batch_add_2d(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, sk_alpha_mode_t mode)
+void sk_sprite_batch_add_2d(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, sk_alpha_mode_t mode,
+                            sk_handle_t material)
 {
     const int pipeline = mode == SK_ALPHA_OPAQUE || mode == SK_ALPHA_MASK ? PIPELINE_2D_OPAQUE
                          : mode == SK_ALPHA_ADD                           ? PIPELINE_2D_ADD
                                                                           : PIPELINE_2D_BLEND;
-    record(instance, view, sampler, pipeline); /* 2D keeps its order: never grouped */
+    record(instance, view, sampler, pipeline, material); /* 2D keeps its order: never grouped */
 }
 
 void sk_sprite_batch_begin_unordered(void)
@@ -412,6 +432,7 @@ void sk_sprite_batch_begin_unordered(void)
 typedef struct {
     uint32_t view, sampler;
     int pipeline;
+    sk_handle_t material;
     int count, next; /* sprites in it; where its next one goes in the grouped order */
 } sk_sprite_group_t;
 
@@ -421,24 +442,31 @@ static int compare_groups(const void *lhs, const void *rhs)
 {
     const sk_sprite_group_t *a = lhs, *b = rhs;
     if (a->pipeline != b->pipeline) return a->pipeline < b->pipeline ? -1 : 1;
+    if (a->material != b->material) return a->material < b->material ? -1 : 1;
     if (a->view != b->view) return a->view < b->view ? -1 : 1;
     return (a->sampler > b->sampler) - (a->sampler < b->sampler);
 }
 
 /* The group a pending sprite belongs to, adding it; -1 when there are too many. */
+static bool in_group(const sk_sprite_group_t *group, const sk_sprite_pending_t *p)
+{
+    return group->view == p->view && group->sampler == p->sampler && group->pipeline == p->pipeline &&
+           group->material == p->material;
+}
+
 static int group_of(sk_sprite_group_t *groups, int *count, const sk_sprite_pending_t *p, int hint)
 {
-    if (hint >= 0 && groups[hint].view == p->view && groups[hint].sampler == p->sampler &&
-        groups[hint].pipeline == p->pipeline) {
+    if (hint >= 0 && in_group(&groups[hint], p)) {
         return hint;
     }
     for (int g = 0; g < *count; g++) {
-        if (groups[g].view == p->view && groups[g].sampler == p->sampler && groups[g].pipeline == p->pipeline) {
+        if (in_group(&groups[g], p)) {
             return g;
         }
     }
     if (*count >= MAX_GROUPS) return -1;
-    groups[*count] = (sk_sprite_group_t){.view = p->view, .sampler = p->sampler, .pipeline = p->pipeline};
+    groups[*count] = (sk_sprite_group_t){
+        .view = p->view, .sampler = p->sampler, .pipeline = p->pipeline, .material = p->material};
     return (*count)++;
 }
 
@@ -468,7 +496,8 @@ void sk_sprite_batch_end_unordered(void)
     }
     if (group_count == 0 || sk_sb.order_capacity < sk_sb.pending_count) {
         for (int i = 0; i < sk_sb.pending_count; i++) {
-            record(&sk_sb.pending[i].quad, sk_sb.pending[i].view, sk_sb.pending[i].sampler, sk_sb.pending[i].pipeline);
+            record(&sk_sb.pending[i].quad, sk_sb.pending[i].view, sk_sb.pending[i].sampler, sk_sb.pending[i].pipeline,
+                   sk_sb.pending[i].material);
         }
         sk_sb.pending_count = 0;
         return;
@@ -486,7 +515,7 @@ void sk_sprite_batch_end_unordered(void)
     }
     for (int k = 0; k < sk_sb.pending_count; k++) {
         const sk_sprite_pending_t *p = &sk_sb.pending[sk_sb.order[k]];
-        record(&p->quad, p->view, p->sampler, p->pipeline);
+        record(&p->quad, p->view, p->sampler, p->pipeline, p->material);
     }
     sk_sb.pending_count = 0;
 }
@@ -580,6 +609,106 @@ void sk_sprite_batch_flush(void)
     });
 }
 
+/* Uniform block 0 of a custom shader's sprite programs (sk_sprite_view in shaders/sk.glsl). */
+typedef struct {
+    float view_proj[16];
+    float camera_right[4];
+    float camera_up[4];
+    float upright[4];
+    float time[4];
+} sk_sprite_custom_view_t;
+
+/* A batch whose sprites have a custom material: drawn by its shader's sprite program,
+ * with libsk's blocks and textures and the material's parameters and textures. False
+ * when the material or its shader has gone (the batch then draws as usual). */
+static bool draw_custom(const sk_sprite_batch_t *b)
+{
+    const sk_material_t *material = sk_material_get(b->material);
+    sk_shader_t *shader = material != NULL && material->shader != 0 && sk_shader_hooks.get != NULL
+                              ? sk_shader_hooks.get(material->shader)
+                              : NULL;
+    const sk_sprite_camera_t *cam = &sk_sb.cameras[b->camera];
+    const float time = (float)sk_get_time();
+    const sk_shader_program_t *program;
+    sk_sprite_custom_view_t view;
+    sg_bindings bind = {0};
+    sg_view white, black_cube;
+    sg_sampler linear;
+
+    if (shader == NULL) return false;
+    program = &shader->programs[sk_sb.base_instance ? SK_SHADER_PROGRAM_SPRITE : SK_SHADER_PROGRAM_SPRITE_PULLED];
+    if (shader->sprite_pipelines[0].id == SG_INVALID_ID) {
+        make_pipelines(program->shader, shader->sprite_pipelines);
+    }
+    sg_apply_pipeline(shader->sprite_pipelines[b->pipeline]);
+
+    memcpy(view.view_proj, cam->params.view_proj, sizeof(view.view_proj));
+    memcpy(view.camera_right, cam->params.camera_right, sizeof(view.camera_right));
+    memcpy(view.camera_up, cam->params.camera_up, sizeof(view.camera_up));
+    memcpy(view.upright, cam->params.upright, sizeof(view.upright));
+    view.time[0] = time;
+    view.time[1] = view.time[2] = view.time[3] = 0.0f;
+    sg_apply_uniforms(SK_SHADER_BLOCK_OBJECT, &SG_RANGE(view));
+    if (program->has_block[SK_SHADER_BLOCK_FRAME]) {
+        /* no lights, environment or tone mapping yet (lit sprites: materials phase 3b) */
+        sk_shader_frame_t frame;
+        memset(&frame, 0, sizeof(frame));
+        if (cam->aspect >= 0.0f) { /* 3D: the camera's position (2D has none) */
+            frame.camera_time[0] = cam->source.position.x;
+            frame.camera_time[1] = cam->source.position.y;
+            frame.camera_time[2] = cam->source.position.z;
+        }
+        frame.camera_time[3] = time;
+        frame.tint[0] = frame.tint[1] = frame.tint[2] = frame.tint[3] = 1.0f; /* each sprite's is in sk_color */
+        frame.output[2] = 1.0f;                                               /* exposure */
+        sg_apply_uniforms(SK_SHADER_BLOCK_FRAME, &SG_RANGE(frame));
+    }
+    if (program->has_block[SK_SHADER_BLOCK_FS_PARAMS]) {
+        sg_apply_uniforms(SK_SHADER_BLOCK_FS_PARAMS,
+                          &(sg_range){.ptr = material->custom_params,
+                                      .size = (size_t)shader->block_size[SK_SHADER_BLOCK_FS_PARAMS]});
+    }
+    if (program->has_block[SK_SHADER_BLOCK_VS_PARAMS]) {
+        sg_apply_uniforms(SK_SHADER_BLOCK_VS_PARAMS,
+                          &(sg_range){.ptr = material->custom_params + shader->block_size[SK_SHADER_BLOCK_FS_PARAMS],
+                                      .size = (size_t)shader->block_size[SK_SHADER_BLOCK_VS_PARAMS]});
+    }
+    if (!sk_sb.base_instance && program->has_block[SK_SHADER_BLOCK_SPRITE_BATCH]) {
+        const float first[4] = {(float)b->first, 0.0f, 0.0f, 0.0f};
+        sg_apply_uniforms(SK_SHADER_BLOCK_SPRITE_BATCH, &SG_RANGE(first));
+    }
+
+    sk_shader_hooks.fallbacks(&white, &black_cube, &linear);
+    bind.vertex_buffers[0] = sk_sb.quad;
+    if (sk_sb.base_instance) bind.vertex_buffers[1] = sk_sb.instance_buffer;
+    for (int t = 0; t < shader->texture_count; t++) { /* the material's (a texture not set: white) */
+        const sk_material_texture_t *texture = &material->textures[t];
+        sg_view texture_view = white;
+        if (texture->texture != 0) sk_texture_get_binding(texture->texture, &texture_view, NULL, NULL, NULL);
+        if (program->view_slot[t] >= 0) bind.views[program->view_slot[t]] = texture_view;
+        if (program->sampler_slot[t] >= 0) {
+            bind.samplers[program->sampler_slot[t]] =
+                sk_texture_sampler(texture->wrap_u, texture->wrap_v, texture->filter, texture->mipmaps);
+        }
+    }
+    if (program->sprite_view_slot >= 0) bind.views[program->sprite_view_slot] = (sg_view){b->view};
+    if (program->sprite_sampler_slot >= 0) bind.samplers[program->sprite_sampler_slot] = (sg_sampler){b->sampler};
+    if (program->data_view_slot >= 0) bind.views[program->data_view_slot] = sk_sb.data_view;
+    if (program->data_sampler_slot >= 0) bind.samplers[program->data_sampler_slot] = sk_sb.data_sampler;
+    if (program->env_view_slot >= 0) bind.views[program->env_view_slot] = black_cube; /* no environment on sprites yet */
+    if (program->env_sampler_slot >= 0) bind.samplers[program->env_sampler_slot] = linear;
+    if (program->brdf_view_slot >= 0) bind.views[program->brdf_view_slot] = white;
+    if (program->brdf_sampler_slot >= 0) bind.samplers[program->brdf_sampler_slot] = linear;
+    sg_apply_bindings(&bind);
+    sg_apply_scissor_rectf(b->scissor[0], b->scissor[1], b->scissor[2], b->scissor[3], true);
+    if (sk_sb.base_instance) {
+        sg_draw_ex(0, 6, b->count, 0, b->first);
+    } else {
+        sg_draw(0, 6, b->count);
+    }
+    return true;
+}
+
 void sk_sprite_batch_draw(int batch, bool follows)
 {
     const sk_sprite_batch_t *b, *before;
@@ -589,6 +718,10 @@ void sk_sprite_batch_draw(int batch, bool follows)
     }
     b = &sk_sb.batches[batch];
     if (b->count == 0) {
+        return;
+    }
+    if (b->material != 0 && draw_custom(b)) {
+        sk_sb.last_drawn = -1; /* the next batch applies everything again */
         return;
     }
     /* right after another batch, only what differs is applied again (sorted sprites

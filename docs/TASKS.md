@@ -278,7 +278,14 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       older files are refused, rebuild them); the shaders example's water reflects a sunset
 - [ ] Custom shaders later: arrays and matrices as parameters; D3D11/Metal sources when
       those backends come
-- [ ] Materials, phase 3: shapes and sprites on materials (with the batched renderer)
+- [x] Materials, phase 3a (2026-09-20): custom shaders on sprites (2D and 3D):
+      `sk_sprite3d/2d_set_material`, one `.skshader` for models and sprites
+      (`sk_sprite_color()`, `sk_sprite_tex`), batched by material; format 3. Shapes stay
+      unlit (generated meshes for lit geometry) ([PLAN-materials.md](PLAN-materials.md))
+- [ ] Materials, phase 3b: lit 3D sprites (built-in PBR/unlit materials on sprite3d;
+      the scene's lights and environment, chosen per batch)
+- [ ] Materials later: particles (emitters) on custom shaders; custom shaders for 2D
+      shapes
 - [x] 2D / UI layer: `enabled` and pointer interaction per scene member, touch as a
       pointer, retained 2D shapes, nine-slice sprites, text alignment and wrapping,
       per-layer clipping, and sprite3d source/extent/pivot for 2D worlds on an
