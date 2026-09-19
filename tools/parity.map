@@ -118,8 +118,8 @@ rl_scratch_clear                        dropped  scratch buffer
 rl_scratch_deinit                       dropped  scratch buffer
 rl_scratch_get_base                     dropped  scratch buffer
 rl_scratch_get_color                    dropped  scratch buffer
-rl_scratch_get_gamepad                  dropped  scratch buffer (gamepad input is a separate todo in docs/TASKS.md)
-rl_scratch_get_gamepads                 dropped  scratch buffer (gamepad input is a separate todo in docs/TASKS.md)
+rl_scratch_get_gamepad                  dropped  scratch buffer; use sk_input_get_gamepad_button / _axis
+rl_scratch_get_gamepads                 dropped  scratch buffer; use sk_input_is_gamepad_connected per slot
 rl_scratch_get_keyboard                 dropped  scratch buffer; use sk_input_get_keyboard_state
 rl_scratch_get_matrix                   dropped  scratch buffer
 rl_scratch_get_offsets                  dropped  scratch buffer

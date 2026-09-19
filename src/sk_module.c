@@ -44,6 +44,27 @@ void sk_module_deinit_all(void)
     sk_modules_started = false;
 }
 
+void sk_module_begin_frame_all(void)
+{
+    for (sk_module_t *m = sk_modules; m != NULL; m = m->next) {
+        if (m->begin_frame != NULL) m->begin_frame();
+    }
+}
+
+void sk_module_end_tick_all(void)
+{
+    for (sk_module_t *m = sk_modules; m != NULL; m = m->next) {
+        if (m->end_tick != NULL) m->end_tick();
+    }
+}
+
+void sk_module_frame_done_all(void)
+{
+    for (sk_module_t *m = sk_modules; m != NULL; m = m->next) {
+        if (m->frame_done != NULL) m->frame_done();
+    }
+}
+
 void sk_module_update_all(float dt)
 {
     for (sk_module_t *m = sk_modules; m != NULL; m = m->next) {

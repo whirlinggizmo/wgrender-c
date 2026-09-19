@@ -51,6 +51,60 @@ int sk_input_get_touch_count(void);
 sk_touch_t sk_input_get_touch(int index);
 sk_touch_gesture_t sk_input_get_touch_gesture(void);
 
+/* Gamepads
+ * --------
+ * Up to SK_INPUT_MAX_GAMEPADS at once. A pad keeps its slot (0 .. 3) while it's
+ * connected; a new one takes the lowest free slot, so pad 0 stays "player 1" until
+ * it's unplugged. Buttons are named by position on an Xbox-style layout (SOUTH is A
+ * on Xbox, cross on PlayStation, B on Switch) and have edges like keys: since the
+ * previous frame in the frame callback, since the previous tick in a tick. Sticks run
+ * -1 .. 1 with y down, like the screen, with a dead zone (sk_input_set_gamepad_deadzone);
+ * triggers 0 .. 1, and also count as buttons past half-way.
+ *
+ * Web: the browser lists a gamepad only after one of its buttons is pressed on the
+ * page. Linux: evdev (the kernel's input devices), checked for new ones every couple
+ * of seconds. Windows: XInput. macOS: none yet. */
+#define SK_INPUT_MAX_GAMEPADS 4
+
+typedef enum {
+    SK_GAMEPAD_BUTTON_SOUTH,
+    SK_GAMEPAD_BUTTON_EAST,
+    SK_GAMEPAD_BUTTON_WEST,
+    SK_GAMEPAD_BUTTON_NORTH,
+    SK_GAMEPAD_BUTTON_LEFT_BUMPER,
+    SK_GAMEPAD_BUTTON_RIGHT_BUMPER,
+    SK_GAMEPAD_BUTTON_LEFT_TRIGGER,
+    SK_GAMEPAD_BUTTON_RIGHT_TRIGGER,
+    SK_GAMEPAD_BUTTON_BACK,  /* view / select / share / minus */
+    SK_GAMEPAD_BUTTON_START, /* menu / options / plus */
+    SK_GAMEPAD_BUTTON_GUIDE, /* the logo button */
+    SK_GAMEPAD_BUTTON_LEFT_STICK,
+    SK_GAMEPAD_BUTTON_RIGHT_STICK,
+    SK_GAMEPAD_BUTTON_DPAD_UP,
+    SK_GAMEPAD_BUTTON_DPAD_DOWN,
+    SK_GAMEPAD_BUTTON_DPAD_LEFT,
+    SK_GAMEPAD_BUTTON_DPAD_RIGHT,
+    SK_GAMEPAD_BUTTON_COUNT
+} sk_gamepad_button_t;
+
+typedef enum {
+    SK_GAMEPAD_AXIS_LEFT_X,
+    SK_GAMEPAD_AXIS_LEFT_Y,
+    SK_GAMEPAD_AXIS_RIGHT_X,
+    SK_GAMEPAD_AXIS_RIGHT_Y,
+    SK_GAMEPAD_AXIS_LEFT_TRIGGER,
+    SK_GAMEPAD_AXIS_RIGHT_TRIGGER,
+    SK_GAMEPAD_AXIS_COUNT
+} sk_gamepad_axis_t;
+
+bool sk_input_is_gamepad_connected(int pad);
+const char *sk_input_get_gamepad_name(int pad); /* "" when none */
+int sk_input_get_gamepad_button(int pad, sk_gamepad_button_t button); /* SK_BUTTON_* */
+float sk_input_get_gamepad_axis(int pad, sk_gamepad_axis_t axis);
+/* Sticks: how far from the middle counts as the middle (0 .. 0.9; default 0.15).
+ * Past it, values rescale to reach 1 at the edge. */
+bool sk_input_set_gamepad_deadzone(float radius);
+
 /* Whether game controls (camera drags, 3D selection, hotkeys) should leave the pointer
  * or the keyboard alone because a UI has it. Advisory: libsk keeps reporting input;
  * game code checks these first.

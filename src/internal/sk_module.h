@@ -15,7 +15,10 @@ typedef struct sk_module {
     int order;                /* init order among modules, lower first; deinit reversed */
     void (*init)(void);       /* after the core is up (graphics, scenes, files, assets) */
     void (*deinit)(void);     /* before the core goes */
-    void (*update)(float dt); /* once a frame, after the ticks, before the frame callback */
+    void (*begin_frame)(void); /* each frame, before the ticks (poll input devices) */
+    void (*end_tick)(void);    /* after each tick (clear tick input edges) */
+    void (*update)(float dt);  /* once a frame, after the ticks, before the frame callback */
+    void (*frame_done)(void);  /* after the frame callback (clear frame input edges) */
     void (*flush)(void);      /* sk_render_end: upload the frame's data, before any pass */
     void (*end_frame)(void);  /* sk_render_end: after the frame is submitted */
     struct sk_module *next;
@@ -29,7 +32,10 @@ void sk_module_register(sk_module_t *module);
  * must tolerate not having been initialized. */
 void sk_module_init_all(void);
 void sk_module_deinit_all(void);
+void sk_module_begin_frame_all(void);
+void sk_module_end_tick_all(void);
 void sk_module_update_all(float dt);
+void sk_module_frame_done_all(void);
 void sk_module_flush_all(void);
 void sk_module_end_frame_all(void);
 

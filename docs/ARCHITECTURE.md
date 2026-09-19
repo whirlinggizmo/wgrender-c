@@ -362,13 +362,14 @@ runtime (`sk.c`), platform and window, input, rendering (sokol_gl), cameras, sce
 picking math, files and assets, fonts and text, 2D/3D shapes, events and debug. The
 rest are **optional modules** (`src/internal/sk_module.h`): textures, lights,
 materials, environments, models (with glTF), sprites and their batcher, particles,
-2D/3D text objects, audio and sounds (with their decoders).
+2D/3D text objects, audio and sounds (with their decoders), and gamepads.
 
 - An optional subsystem registers itself from a constructor in its own source file
   (`SK_MODULE`): a static library links that file only when the program references
   something in it (`sk_model_create`, `sk_sound_play`, ...). The registration gives
-  the runtime its init order, init / deinit, and per-frame work (update after the
-  ticks; flush before the render passes; end of frame after them). The runtime starts
+  the runtime its init order, init / deinit, and per-frame work (input: begin the
+  frame before the ticks, end each tick, finish the frame after its callback; update
+  after the ticks; flush before the render passes; end of frame after them). The runtime starts
   the linked modules after the core, in order, and stops them before it, in reverse.
 - The core never calls an optional subsystem by name. What it needs from one goes
   through hooks the subsystem sets in its init: `sk_render_hooks` (draw models and

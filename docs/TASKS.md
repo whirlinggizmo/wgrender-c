@@ -197,7 +197,15 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       up *hint*, normally (0, 1, 0) — so both modes were upright there; in libsk before
       this fix, both tilted. `CAMERA_FIXED_Y` also no longer collapses to an invisible
       zero-width quad when the camera looks straight down
-- [ ] Gamepad input (`sk_input_*`)
+- [x] Gamepad input (2026-09-19): `sk_input_get_gamepad_button/axis`, up to 4 pads by
+      slot, buttons by position with frame and tick edges, sticks with a dead zone,
+      triggers as axes and buttons; an optional module (`src/sk_gamepad.c`). Web: the
+      Gamepad API; Linux: evdev (the `xpad` driver's X/Y codes swapped), rescanned for
+      hot-plugging; Windows: XInput (written, not compiled or tested here: no
+      toolchain). Checked on a wired Xbox 360 pad, native and in Chrome;
+      `examples/gamepad.c`
+- [ ] Gamepads later: macOS (GameController framework), rumble, connect/disconnect
+      events, a mapping database for pads the kernel doesn't name by position
 - [x] Touch input (`sk_input_*`, 2026-09-18): the first finger drives the pointer
       (since 2026-09-17), and a second one cancels its press (released off-screen,
       no click); every finger with ids, edges and deltas (`sk_input_get_touch`), and

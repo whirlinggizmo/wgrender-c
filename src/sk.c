@@ -291,6 +291,7 @@ static void run_ticks(double elapsed)
         }
         sk_rt.tick_fn(step, sk_rt.tick_user_data);
         sk_input_end_tick();
+        sk_module_end_tick_all();
         sk_scene_end_tick_interaction();
     }
     sk_input_set_context(SK_INPUT_CONTEXT_FRAME);
@@ -304,6 +305,7 @@ static void on_frame(void)
     if (!pace_frame()) {
         return;
     }
+    sk_module_begin_frame_all(); /* e.g. gamepads: polled, so ticks and the frame see them */
     sk_scene_update_interaction(); /* before the ticks: they read it too */
     run_ticks(update_frame_timing());
     sk_module_update_all((float)sk_rt.delta_time); /* e.g. particles: spawn and retire, once a frame */
@@ -320,9 +322,11 @@ static void on_frame(void)
     /* clear frame input edges after the frame; sokol delivers the next frame's
      * events before the next frame_cb */
     sk_input_end_frame();
+    sk_module_frame_done_all();
     sk_scene_end_frame_interaction();
     if (sk_rt.tick_fn == NULL) { /* nothing reads tick edges: don't let them pile up */
         sk_input_end_tick();
+        sk_module_end_tick_all();
         sk_scene_end_tick_interaction();
     }
 }

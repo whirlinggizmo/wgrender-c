@@ -13,7 +13,7 @@ static void count_end_frame(void) { ended++; }
 
 void test_module_registry(void)
 {
-    static const char *expected[] = {"texture", "light", "material", "environment", "model", "sprite_batch",
+    static const char *expected[] = {"gamepad", "texture", "light", "material", "environment", "model", "sprite_batch",
                                      "sprite3d", "sprite2d", "emitter", "text2d", "text3d", "audio", "sound"};
     static sk_module_t probe = {.name = "probe", .order = 15, .flush = count_flush, .end_frame = count_end_frame};
     int found = 0, previous_order = -1000, position = 0, probe_at = -1, light_at = -1, texture_at = -1;

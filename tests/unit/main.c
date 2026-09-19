@@ -87,6 +87,8 @@ static const test_case_t TESTS[] = {
     {"emitter_curves", test_emitter_curves},
     {"emitter_start", test_emitter_start},
     {"module_registry", test_module_registry},
+    {"gamepad_buttons", test_gamepad_buttons},
+    {"gamepad_axes", test_gamepad_axes},
     {"text_default_font", test_text_default_font},
     {"text_slices_and_dpi", test_text_slices_and_dpi},
     {"text_font_refcount", test_text_font_refcount},
