@@ -8,6 +8,8 @@
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_loader.h"
 #include "internal/sk_texture.h"
+#include "internal/sk_module.h"
+#include "internal/sk_render.h"
 #include "sk_logger.h"
 
 #include "sokol_gfx.h"
@@ -688,6 +690,8 @@ bool sk_texture_get_binding(sk_handle_t handle, sg_view *view, sg_sampler *smp,
 
 void sk_texture_init(void)
 {
+    sk_render_hooks.texture_target = sk_texture_get_target;
+    sk_render_hooks.texture_drawing_into = sk_texture_set_drawing_into;
     static const unsigned char white[4] = {255, 255, 255, 255};
     uint16_t index = 0;
 
@@ -755,6 +759,8 @@ void sk_texture_init(void)
 
 void sk_texture_deinit(void)
 {
+    sk_render_hooks.texture_target = NULL;
+    sk_render_hooks.texture_drawing_into = NULL;
     for (uint16_t i = 1; i < sk_texture_pool.capacity; i++) {
         if (sk_texture_pool.occupied[i]) {
             free_texture_data(&sk_textures[i]);
@@ -798,3 +804,7 @@ void sk_texture_set_drawing_into(sk_handle_t handle)
 {
     sk_texture_drawing_into = handle;
 }
+
+/* An optional subsystem: part of the runtime when a program uses it (internal/sk_module.h). */
+static sk_module_t sk_texture_module = {.name = "texture", .order = 10, .init = sk_texture_init, .deinit = sk_texture_deinit};
+SK_MODULE(sk_texture_module)

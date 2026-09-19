@@ -16,6 +16,7 @@
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_loader.h"
 #include "internal/sk_internal.h"
+#include "internal/sk_module.h"
 #include "sk_handle.h"
 #include "sk_logger.h"
 
@@ -687,3 +688,7 @@ void sk_audio_deinit(void)
     sk_audio_unlock();
     lock_destroy();
 }
+
+/* An optional subsystem: part of the runtime when a program uses it (internal/sk_module.h). */
+static sk_module_t sk_audio_module = {.name = "audio", .order = 90, .init = sk_audio_init, .deinit = sk_audio_deinit};
+SK_MODULE(sk_audio_module)

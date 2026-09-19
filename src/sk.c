@@ -11,14 +11,10 @@
 #include "internal/exports.h"
 #include "internal/sk_frame_pace.h"
 #include "internal/sk_internal.h"
-#include "internal/sk_emitter.h"
-#include "internal/sk_environment.h"
-#include "internal/sk_light.h"
-#include "internal/sk_material.h"
+#include "internal/sk_module.h"
 #include "internal/sk_platform.h"
 #include "internal/sk_render.h"
 #include "internal/sk_scene.h"
-#include "internal/sk_sprite2d.h"
 #include "internal/sk_tick_clock.h"
 #include "sk_logger.h"
 #include "sk_version.h"
@@ -166,28 +162,20 @@ static void on_init(void)
     sk_scene_init();  /* registry must exist before drawables register */
     sk_shape2d_init();
     sk_shape3d_init();
-    sk_texture_init();
-    sk_sprite3d_init();
-    sk_sprite2d_init();
-    sk_emitter_init();
-    sk_light_init();
-    sk_material_init();
-    sk_environment_init();
-    sk_model_init();
     sk_font_init();
     sk_text_init();
-    sk_text2d_init(); /* retained text; delegates to the text layer */
-    sk_text3d_init();
 
     /* CPU-side stores */
     sk_camera3d_init();
     sk_fs_init(NULL);   /* local storage; asset acquisition sits on top */
     sk_asset_init();
-    sk_audio_init();
-    sk_sound_init();
     sk_event_init();
     sk_input_init();
     sk_debug_init();
+
+    /* the optional subsystems the program uses (textures, models, sprites, particles,
+       audio, ...): those linked, in their order (internal/sk_module.h) */
+    sk_module_init_all();
 
     sk_initialized = true;
     sk_platform_mark("sk:subsystems");
@@ -318,7 +306,7 @@ static void on_frame(void)
     }
     sk_scene_update_interaction(); /* before the ticks: they read it too */
     run_ticks(update_frame_timing());
-    sk_emitter_update((float)sk_rt.delta_time); /* particles: spawn and retire, once a frame */
+    sk_module_update_all((float)sk_rt.delta_time); /* e.g. particles: spawn and retire, once a frame */
 
     if (sk_rt.frame_fn != NULL) {
         sk_rt.frame_fn((float)sk_rt.delta_time, sk_tick_clock_fraction(&sk_rt.tick_clock),
@@ -350,27 +338,16 @@ static void on_cleanup(void)
         sk_rt.cleanup_fn(sk_rt.cleanup_user_data);
     }
 
+    sk_module_deinit_all(); /* before the core they use */
     sk_debug_deinit();
     sk_input_deinit();
     sk_event_deinit();
-    sk_sound_deinit();
-    sk_audio_deinit();
     sk_asset_deinit();
     sk_fs_deinit();
     sk_camera3d_deinit();
 
-    sk_text3d_deinit();
-    sk_text2d_deinit();
     sk_text_deinit();
     sk_font_deinit();
-    sk_model_deinit();
-    sk_environment_deinit();
-    sk_material_deinit();
-    sk_light_deinit();
-    sk_emitter_deinit();
-    sk_sprite2d_deinit();
-    sk_sprite3d_deinit();
-    sk_texture_deinit();
     sk_shape2d_deinit();
     sk_shape3d_deinit();
     sk_scene_deinit();

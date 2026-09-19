@@ -352,15 +352,19 @@ Not supported yet:
       and run Closure on the JS glue with `-sENVIRONMENT=web,worker`: hello 361 -> 311
       KB gzipped (wasm 316 -> 284, JS 45 -> 27). Measured and not worth it: `-Oz` at
       link (-5 KB, slower code), emmalloc (-2 KB)
-- [ ] Web size, structure: link only the subsystems a program uses (optional
-      subsystems, below); browser-native image/audio decoders on web; the baked BRDF
-      table costs ~14 KB gzipped (half floats barely compress)
+- [x] Web size, structure (2026-09-19): programs link only the subsystems they use
+      (ARCHITECTURE.md §7b: optional modules register themselves, the core reaches
+      them through hooks; `make check` guards it). Gzipped: hello 311 -> 134 KB,
+      sprite programs ~170, model programs ~240, everything ~300
+- [ ] Web size later: browser-native image/audio decoders on web (async decode
+      through JS); the baked BRDF table costs ~14 KB gzipped (half floats barely
+      compress)
 - [ ] Explore (later, own session): libsk's C API as the contract with other
       implementations, e.g. a JS backend (three.js/Babylon) for JS-target games, or
       another implementation language (Zig, Odin, D betterC, Beef; engines like
       Sedulous). Compare footprint and caching against the C + sokol build first
-- [ ] Optional subsystems: exclude modules at build time to shrink wasm, with a
-      per-example size report
+- [x] Optional subsystems (2026-09-19): linked by use, no build flags (see web size,
+      structure, above); `make websize` reports per example
 - [x] Scripting and language bindings stay out of the core repo (decided; see ROADMAP)
 
 ## Open decisions

@@ -230,6 +230,7 @@ shaders:
 check:
 	@tools/check_no_backend_leak.sh
 	@tools/check_naming.sh
+	@tools/check_modules.sh
 
 # librl -> libsk API parity: every librl function is matched, mapped as ported /
 # dropped / todo in tools/parity.map, or the report fails. PARITY_FLAGS=--strict

@@ -132,6 +132,14 @@ file is local* and fires a **path-only** callback
 (`sk_asset_callback_fn(const char *path, void *user)`); the consumer then calls
 the sync `sk_*_create(path)`. Bytes never cross into user code.
 
+## Core and optional subsystems
+
+- Optional subsystems (textures, models, sprites, particles, audio, ...) register with
+  `SK_MODULE` (`src/internal/sk_module.h`), so a program links only what it uses. The
+  core (`sk.c`, `sk_render`, `sk_scene`, ...) never calls them by name: add a module
+  callback or a hook (`sk_render_hooks`, `sk_scene_hooks`) instead. `make check`
+  enforces it (`tools/check_modules.sh`). Details: ARCHITECTURE.md §7b.
+
 ## Naming
 
 - **Prefix:** all library symbols are `sk_`.

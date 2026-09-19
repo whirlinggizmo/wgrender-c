@@ -5,6 +5,7 @@
 #include "internal/exports.h"
 #include "internal/sk_audio.h"
 #include "internal/sk_handle_pool.h"
+#include "internal/sk_module.h"
 #include "sk_logger.h"
 
 #define SOUNDS_INITIAL 32 /* slots to start with; the pool doubles as needed */
@@ -197,3 +198,7 @@ sk_sound_t *sk_sound_slot(int index)
 {
     return index > 0 && index < sk_sound_pool.capacity && sk_sound_pool.occupied[index] ? &sk_sounds[index] : NULL;
 }
+
+/* An optional subsystem: part of the runtime when a program uses it (internal/sk_module.h). */
+static sk_module_t sk_sound_module = {.name = "sound", .order = 91, .init = sk_sound_init, .deinit = sk_sound_deinit};
+SK_MODULE(sk_sound_module)

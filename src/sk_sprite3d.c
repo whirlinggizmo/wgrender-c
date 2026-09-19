@@ -16,6 +16,7 @@
 #include "internal/sk_scene.h"
 #include "internal/sk_sprite3d.h"
 #include "internal/sk_texture.h"
+#include "internal/sk_module.h"
 #include "sk_logger.h"
 
 #include "sokol_gfx.h"
@@ -597,6 +598,7 @@ void sk_sprite3d_destroy(sk_handle_t handle)
 
 void sk_sprite3d_init(void)
 {
+    sk_sprite_batch_init(); /* shared with sprite2d: counted */
     if (!sk_handle_pool_init(&sk_sprite_pool, SK_HANDLE_KIND_SPRITE3D, "sprite3d", (void **)&sk_sprites,
                              sizeof(sk_sprite3d_t), SPRITES_INITIAL, SK_MAX_SPRITE3D)) {
         log_error("sprite3d: out of memory");
@@ -611,4 +613,9 @@ void sk_sprite3d_init(void)
 void sk_sprite3d_deinit(void)
 {
     sk_handle_pool_destroy(&sk_sprite_pool);
+    sk_sprite_batch_deinit();
 }
+
+/* An optional subsystem: part of the runtime when a program uses it (internal/sk_module.h). */
+static sk_module_t sk_sprite3d_module = {.name = "sprite3d", .order = 60, .init = sk_sprite3d_init, .deinit = sk_sprite3d_deinit};
+SK_MODULE(sk_sprite3d_module)

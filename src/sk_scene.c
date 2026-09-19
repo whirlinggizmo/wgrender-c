@@ -8,11 +8,8 @@
 #include "internal/sk_camera3d.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_internal.h"
-#include "internal/sk_environment.h"
-#include "internal/sk_light.h"
 #include "internal/sk_math.h"
 #include "internal/sk_scene.h"
-#include "internal/sk_sprite_batch.h"
 #include "internal/sk_pick.h"
 #include "internal/sk_render.h"
 #include "sk_camera3d.h"
@@ -20,6 +17,30 @@
 #include "sk_logger.h"
 #include "sk_render.h"
 #include "sk_window.h"
+
+sk_scene_hooks_t sk_scene_hooks;
+
+/* Environments and lights are optional modules (internal/sk_module.h): a scene reaches
+ * them through its hooks, and does without when they aren't linked. */
+static void retain_environment(sk_handle_t environment)
+{
+    if (environment != 0 && sk_scene_hooks.environment_retain != NULL) sk_scene_hooks.environment_retain(environment);
+}
+
+static void release_environment(sk_handle_t environment)
+{
+    if (environment != 0 && sk_scene_hooks.environment_release != NULL) sk_scene_hooks.environment_release(environment);
+}
+
+static void begin_unordered(void)
+{
+    if (sk_scene_hooks.sprites_begin_unordered != NULL) sk_scene_hooks.sprites_begin_unordered();
+}
+
+static void end_unordered(void)
+{
+    if (sk_scene_hooks.sprites_end_unordered != NULL) sk_scene_hooks.sprites_end_unordered();
+}
 
 #define SCENES_INITIAL 8 /* slots to start with; the pool doubles as needed */
 #define SK_DRAWABLE_KIND_COUNT 64 /* handle kind is 6 bits */
@@ -492,8 +513,8 @@ void sk_scene_destroy(sk_handle_t scene)
     }
     free(scene_ptr->items);
     free(scene_ptr->index);
-    sk_environment_release(scene_ptr->environment); /* no-op for 0 */
-    sk_environment_release(scene_ptr->background);
+    release_environment(scene_ptr->environment); /* no-op for 0 */
+    release_environment(scene_ptr->background);
     *scene_ptr = (sk_scene_t){0};
     sk_handle_pool_free(&sk_scene_pool, scene);
 }
@@ -670,8 +691,8 @@ bool sk_scene_set_environment(sk_handle_t scene, sk_handle_t environment, float 
     if (scene_ptr == NULL || (environment != 0 && sk_handle_get_kind(environment) != SK_HANDLE_KIND_ENVIRONMENT)) {
         return false;
     }
-    sk_environment_retain(environment); /* no-op for 0 */
-    sk_environment_release(scene_ptr->environment);
+    retain_environment(environment); /* no-op for 0 */
+    release_environment(scene_ptr->environment);
     scene_ptr->environment = environment;
     scene_ptr->environment_intensity = intensity > 0.0f ? intensity : 0.0f;
     scene_ptr->environment_rotation = rotation;
@@ -685,8 +706,8 @@ bool sk_scene_set_background(sk_handle_t scene, sk_handle_t environment, float b
     if (scene_ptr == NULL || (environment != 0 && sk_handle_get_kind(environment) != SK_HANDLE_KIND_ENVIRONMENT)) {
         return false;
     }
-    sk_environment_retain(environment);
-    sk_environment_release(scene_ptr->background);
+    retain_environment(environment);
+    release_environment(scene_ptr->background);
     scene_ptr->background = environment;
     scene_ptr->background_blur = blur < 0.0f ? 0.0f : (blur > 1.0f ? 1.0f : blur);
     return true;
@@ -722,11 +743,11 @@ static int push_lighting(const sk_scene_t *scene_ptr)
                            sk_srgb_to_linear(ambient.b) * scene_ptr->ambient_intensity};
     for (int i = 0; i < scene_ptr->count && env.count < SK_MAX_SCENE_LIGHTS; i++) {
         if (sk_handle_get_kind(scene_ptr->items[i].drawable) == SK_HANDLE_KIND_LIGHT &&
-            sk_light_get_scene_light(scene_ptr->items[i].drawable, &env.lights[env.count])) {
+            sk_scene_hooks.scene_light(scene_ptr->items[i].drawable, &env.lights[env.count])) {
             env.count++;
         }
     }
-    return sk_light_env_push(&env);
+    return sk_scene_hooks.light_env_push(&env);
 }
 
 /* One layer: opaque parts first, then transparent parts sorted back to front
@@ -757,14 +778,14 @@ static void draw_layer(const sk_scene_entry_t *entries, int count, const sk_came
     int transparent_count = 0;
 
     /* opaque (and masked) parts: order doesn't matter, so sprites group by texture */
-    sk_sprite_batch_begin_unordered();
+    begin_unordered();
     for (int i = 0; i < count; i++) {
         const sk_drawable_passes_t *passes = lookup_passes(entries[i].drawable);
         if (passes != NULL && passes->draw_opaque != NULL) {
             passes->draw_opaque(entries[i].drawable);
         }
     }
-    sk_sprite_batch_end_unordered();
+    end_unordered();
 
     for (int i = 0; i < count; i++) {
         const sk_drawable_passes_t *passes = lookup_passes(entries[i].drawable);
@@ -810,14 +831,14 @@ static void draw_layer(const sk_scene_entry_t *entries, int count, const sk_came
     }
 
     /* additive parts, after the blended ones, unsorted */
-    sk_sprite_batch_begin_unordered();
+    begin_unordered();
     for (int i = 0; i < count; i++) {
         const sk_drawable_passes_t *passes = lookup_passes(entries[i].drawable);
         if (passes != NULL && passes->draw_additive != NULL) {
             passes->draw_additive(entries[i].drawable);
         }
     }
-    sk_sprite_batch_end_unordered();
+    end_unordered();
 }
 
 SK_KEEP
@@ -839,10 +860,12 @@ void sk_scene_draw(sk_handle_t scene)
         return;
     }
 
-    sk_light_env_set_current(push_lighting(scene_ptr));
-    if (scene_ptr->background != 0) {
+    if (sk_scene_hooks.light_env_push != NULL) { /* lights linked: what the models drawn here see */
+        sk_scene_hooks.light_env_set_current(push_lighting(scene_ptr));
+    }
+    if (scene_ptr->background != 0 && sk_scene_hooks.environment_background != NULL) {
         const bool same = scene_ptr->background == scene_ptr->environment;
-        sk_environment_submit_background(scene_ptr->background, scene_ptr->background_blur,
+        sk_scene_hooks.environment_background(scene_ptr->background, scene_ptr->background_blur,
                                          same ? scene_ptr->environment_intensity : 1.0f,
                                          same ? scene_ptr->environment_rotation : 0.0f,
                                          (int)scene_ptr->tonemap, scene_ptr->exposure);
@@ -858,7 +881,9 @@ void sk_scene_draw(sk_handle_t scene)
         start = end;
     }
     sk_render_end_mode_3d();
-    sk_light_env_set_current(-1); /* models drawn outside a scene are unlit */
+    if (sk_scene_hooks.light_env_set_current != NULL) {
+        sk_scene_hooks.light_env_set_current(-1); /* models drawn outside a scene are unlit */
+    }
 
     /* 2D members on top of all 3D, in layer then member order, each layer inside
      * its clip rectangle (sk_scene_set_clip) if it has one */

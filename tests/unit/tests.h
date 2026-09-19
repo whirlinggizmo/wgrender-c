@@ -114,6 +114,7 @@ void test_emitter_scene(void);
 void test_emitter_motion(void);
 void test_emitter_curves(void);
 void test_emitter_start(void);
+void test_module_registry(void);
 
 void test_scene_view_depth(void);
 void test_scene_sort_transparent(void);

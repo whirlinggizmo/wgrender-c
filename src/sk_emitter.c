@@ -16,6 +16,7 @@
 #include "internal/sk_shaders.h"
 #include "internal/sk_sprite3d.h"
 #include "internal/sk_texture.h"
+#include "internal/sk_module.h"
 #include "sk_color.h"
 #include "sk_logger.h"
 #include "sk_window.h"
@@ -1129,3 +1130,7 @@ SK_KEEP void sk_emitter2d_draw(sk_handle_t e)
 {
     if (resolve_kind(e, true) != NULL) draw_emitter(e);
 }
+
+/* An optional subsystem: part of the runtime when a program uses it (internal/sk_module.h). */
+static sk_module_t sk_emitter_module = {.name = "emitter", .order = 70, .init = sk_emitter_init, .deinit = sk_emitter_deinit, .update = sk_emitter_update, .flush = sk_emitter_flush, .end_frame = sk_emitter_end_frame};
+SK_MODULE(sk_emitter_module)

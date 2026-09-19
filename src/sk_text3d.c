@@ -15,6 +15,7 @@
 #include "internal/sk_pick.h"
 #include "internal/sk_scene.h"
 #include "internal/sk_sprite3d.h"
+#include "internal/sk_module.h"
 #include "sk_logger.h"
 #include "sk_text.h"
 
@@ -539,3 +540,7 @@ void sk_text3d_deinit(void)
     sk_text3d_pipeline_shader = (sg_shader){0};
     sk_handle_pool_destroy(&sk_text3d_pool);
 }
+
+/* An optional subsystem: part of the runtime when a program uses it (internal/sk_module.h). */
+static sk_module_t sk_text3d_module = {.name = "text3d", .order = 81, .init = sk_text3d_init, .deinit = sk_text3d_deinit};
+SK_MODULE(sk_text3d_module)

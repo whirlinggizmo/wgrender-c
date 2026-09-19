@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #include "internal/sk_camera3d.h"
+#include "internal/sk_light.h"
 #include "sk_handle.h"
 #include "sk_math.h"
 #include "sk_types.h"
@@ -95,5 +96,20 @@ void sk_scene_register_pick(sk_handle_kind_t kind, sk_drawable_pick_fn pick);
 typedef bool (*sk_drawable_enabled_fn)(sk_handle_t handle);
 void sk_scene_register_enabled(sk_handle_kind_t kind, sk_drawable_enabled_fn enabled);
 bool sk_drawable_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_result_t *out);
+
+/* What scenes reach through optional modules (internal/sk_module.h): set by each
+ * module's init, cleared by its deinit; NULL while it isn't linked or running. */
+typedef struct {
+    void (*environment_retain)(sk_handle_t environment); /* sk_environment */
+    void (*environment_release)(sk_handle_t environment);
+    void (*environment_background)(sk_handle_t environment, float blur, float intensity, float rotation,
+                                   int tonemap, float exposure);
+    bool (*scene_light)(sk_handle_t light, sk_scene_light_t *out); /* sk_light */
+    int (*light_env_push)(const sk_light_env_t *env);
+    void (*light_env_set_current)(int index);
+    void (*sprites_begin_unordered)(void); /* sk_sprite_batch */
+    void (*sprites_end_unordered)(void);
+} sk_scene_hooks_t;
+extern sk_scene_hooks_t sk_scene_hooks;
 
 #endif // SK_INTERNAL_SCENE_H

@@ -5,7 +5,9 @@
 
 #include "internal/sk_camera3d.h"
 #include "internal/sk_math.h"
+#include "internal/sk_module.h"
 #include "internal/sk_render.h"
+#include "internal/sk_scene.h"
 #include "internal/sk_shaders.h"
 #include "internal/sk_sprite3d.h"
 #include "sk_logger.h"
@@ -129,8 +131,15 @@ static bool reserve(void **items, int *capacity, int count, size_t item_size, in
     return true;
 }
 
+/* Started by sprite3d and sprite2d, whichever come first, and stopped with the last. */
+static int sk_sb_users;
+
 void sk_sprite_batch_init(void)
 {
+    if (sk_sb_users++ > 0) return;
+    sk_render_hooks.draw_sprites = sk_sprite_batch_draw;
+    sk_scene_hooks.sprites_begin_unordered = sk_sprite_batch_begin_unordered;
+    sk_scene_hooks.sprites_end_unordered = sk_sprite_batch_end_unordered;
     memset(&sk_sb, 0, sizeof(sk_sb));
     sk_sb.base_instance = sg_query_features().draw_base_instance;
 #ifdef SK_SPRITES_PULLED /* build-time switch: read sprites from the texture everywhere (tests, benchmarks) */
@@ -216,6 +225,10 @@ static void ensure_gpu(void)
 
 void sk_sprite_batch_deinit(void)
 {
+    if (sk_sb_users == 0 || --sk_sb_users > 0) return;
+    sk_render_hooks.draw_sprites = NULL;
+    sk_scene_hooks.sprites_begin_unordered = NULL;
+    sk_scene_hooks.sprites_end_unordered = NULL;
     if (sk_sb.ready) {
         sg_destroy_buffer(sk_sb.instance_buffer);
         sg_destroy_view(sk_sb.data_view);
@@ -634,3 +647,9 @@ int sk_sprite_batch_count(void)
 {
     return sk_sb.batch_count;
 }
+
+/* Part of the runtime when sprites are (sprite3d and sprite2d start and stop it): the
+ * frame's instances go up before any pass, and start over after (internal/sk_module.h). */
+static sk_module_t sk_sprite_batch_module = {.name = "sprite_batch", .order = 55, .flush = sk_sprite_batch_flush,
+                                             .end_frame = sk_sprite_batch_end_frame};
+SK_MODULE(sk_sprite_batch_module)

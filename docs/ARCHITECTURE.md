@@ -355,6 +355,36 @@ sk_asset_add_task(sk_asset_ensure_async(path, NULL, SK_ASSET_NONE), on_ready, on
 
 ---
 
+## 7b. Core and optional subsystems
+
+A program links only the subsystems it uses. The **core** is always there: the
+runtime (`sk.c`), platform and window, input, rendering (sokol_gl), cameras, scenes,
+picking math, files and assets, fonts and text, 2D/3D shapes, events and debug. The
+rest are **optional modules** (`src/internal/sk_module.h`): textures, lights,
+materials, environments, models (with glTF), sprites and their batcher, particles,
+2D/3D text objects, audio and sounds (with their decoders).
+
+- An optional subsystem registers itself from a constructor in its own source file
+  (`SK_MODULE`): a static library links that file only when the program references
+  something in it (`sk_model_create`, `sk_sound_play`, ...). The registration gives
+  the runtime its init order, init / deinit, and per-frame work (update after the
+  ticks; flush before the render passes; end of frame after them). The runtime starts
+  the linked modules after the core, in order, and stops them before it, in reverse.
+- The core never calls an optional subsystem by name. What it needs from one goes
+  through hooks the subsystem sets in its init: `sk_render_hooks` (draw models and
+  sprite batches, render-target textures) and `sk_scene_hooks` (environments,
+  lighting, sprite grouping). A hook that isn't set means the subsystem isn't linked,
+  and the core does without (no lighting, no background).
+- Asset loaders register in the subsystem's init, at startup, so assets still
+  decode in the background before the program asks for them.
+- `make check` (`tools/check_modules.sh`) fails when a core object references an
+  optional one's symbols.
+
+Effect on the web (gzipped): `hello` 134 KB, a sprite program ~170 KB, a program
+drawing models ~240 KB, one using everything ~300 KB (all ~311 KB before).
+
+---
+
 ## 8. Status
 
 - **Done — Mesh/Model split + vocabulary (Phase 1).** `sk_model.c` separates a

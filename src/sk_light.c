@@ -10,6 +10,7 @@
 #include "internal/sk_internal.h"
 #include "internal/sk_light.h"
 #include "internal/sk_scene.h"
+#include "internal/sk_module.h"
 #include "sk_logger.h"
 
 #define LIGHTS_INITIAL 32 /* slots to start with; the pool doubles as needed */
@@ -38,6 +39,9 @@ static bool sk_light_env_full_logged;
 
 void sk_light_init(void)
 {
+    sk_scene_hooks.scene_light = sk_light_get_scene_light;
+    sk_scene_hooks.light_env_push = sk_light_env_push;
+    sk_scene_hooks.light_env_set_current = sk_light_env_set_current;
     if (!sk_handle_pool_init(&sk_light_pool, SK_HANDLE_KIND_LIGHT, "light", (void **)&sk_lights,
                              sizeof(sk_light_t), LIGHTS_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
         log_error("light: out of memory");
@@ -47,6 +51,9 @@ void sk_light_init(void)
 
 void sk_light_deinit(void)
 {
+    sk_scene_hooks.scene_light = NULL;
+    sk_scene_hooks.light_env_push = NULL;
+    sk_scene_hooks.light_env_set_current = NULL;
     sk_handle_pool_destroy(&sk_light_pool);
     sk_light_end_frame();
 }
@@ -368,3 +375,7 @@ void sk_light_end_frame(void)
     sk_light_env_count = 0;
     sk_light_env_current_index = -1;
 }
+
+/* An optional subsystem: part of the runtime when a program uses it (internal/sk_module.h). */
+static sk_module_t sk_light_module = {.name = "light", .order = 20, .init = sk_light_init, .deinit = sk_light_deinit, .end_frame = sk_light_end_frame};
+SK_MODULE(sk_light_module)

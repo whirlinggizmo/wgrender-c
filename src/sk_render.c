@@ -7,20 +7,29 @@
 #include "internal/sk_color.h"
 #include "internal/sk_camera3d.h"
 #include "internal/sk_internal.h"
-#include "internal/sk_environment.h"
-#include "internal/sk_light.h"
-#include "internal/sk_model.h"
+#include "internal/sk_module.h"
 #include "internal/sk_platform.h"
-#include "internal/sk_emitter.h"
 #include "internal/sk_render.h"
-#include "internal/sk_sprite_batch.h"
-#include "internal/sk_texture.h"
 #include "sk_camera3d.h"
 #include "sk_logger.h"
 #include "sk_window.h"
 
 #include "sokol_gfx.h"
 #include "util/sokol_gl.h"
+
+sk_render_hooks_t sk_render_hooks;
+
+/* Render targets are textures (sk_texture, through its hooks): false when `texture`
+ * isn't one, or textures aren't linked. */
+static bool target_of(sk_handle_t texture, sg_attachments *attachments, int *w, int *h)
+{
+    return sk_render_hooks.texture_target != NULL && sk_render_hooks.texture_target(texture, attachments, w, h);
+}
+
+static void drawing_into(sk_handle_t texture)
+{
+    if (sk_render_hooks.texture_drawing_into != NULL) sk_render_hooks.texture_drawing_into(texture);
+}
 
 /* sokol_gl's per-frame budgets, shared by everything drawn through it in a frame:
  * sprites, 2D and 3D shapes, text. They start at SK_SGL_VERTICES / SK_SGL_COMMANDS
@@ -159,7 +168,7 @@ static void reset_frame_commands(void)
     sk_render_pass_count = 1;
     sk_render_current_pass_index = 0;
     sk_render_passes[0] = (sk_render_pass_t){.target = 0, .clear_color = screen_clear}; /* the screen keeps its clear color */
-    sk_texture_set_drawing_into(0);
+    drawing_into(0);
     open_sgl_layer();
 }
 
@@ -173,7 +182,7 @@ vec2_t sk_render_target_size(void)
     const sk_handle_t target = sk_render_passes[sk_render_current_pass_index].target;
     sg_attachments attachments;
     int w = 0, h = 0;
-    if (target != 0 && sk_texture_get_target(target, &attachments, &w, &h)) {
+    if (target != 0 && target_of(target, &attachments, &w, &h)) {
         return (vec2_t){(float)w, (float)h};
     }
     return (vec2_t){(float)sk_platform_width(), (float)sk_platform_height()};
@@ -354,14 +363,12 @@ void sk_render_init(void)
         },
     });
 
-    sk_sprite_batch_init();
     sk_render_passes[0].clear_color = (sk_colorf_t){0.1f, 0.1f, 0.1f, 1.0f};
     reset_frame_commands();
 }
 
 void sk_render_deinit(void)
 {
-    sk_sprite_batch_deinit();
     free(sk_render_cmds);
     sk_render_cmds = NULL;
     sk_render_cmd_capacity = 0;
@@ -420,7 +427,7 @@ bool sk_render_begin_texture(sk_handle_t texture)
         log_warn("sk_render_begin_texture: already drawing into a texture (call sk_render_end_texture first)");
         return false;
     }
-    if (!sk_texture_get_target(texture, &attachments, &w, &h)) {
+    if (!target_of(texture, &attachments, &w, &h)) {
         log_warn("sk_render_begin_texture: not a render target texture (see sk_texture_create_target)");
         return false;
     }
@@ -434,7 +441,7 @@ bool sk_render_begin_texture(sk_handle_t texture)
     sk_render_passes[sk_render_pass_count] = (sk_render_pass_t){.target = texture};
     sk_render_current_pass_index = sk_render_pass_count++;
     clip_begin_pass();
-    sk_texture_set_drawing_into(texture);
+    drawing_into(texture);
     open_sgl_layer();
     setup_2d_projection();
     return true;
@@ -449,7 +456,7 @@ void sk_render_end_texture(void)
         return;
     }
     sk_render_current_pass_index = 0;
-    sk_texture_set_drawing_into(0);
+    drawing_into(0);
     clip_end_pass();
     open_sgl_layer();
     setup_2d_projection();
@@ -490,9 +497,13 @@ static void replay_pass(int index)
                many layers stays linear */
             sgl_draw_layer_range(cmd->layer, cmd->first, cmd->count);
         } else if (cmd->kind == RENDER_CMD_MODELS) {
-            sk_model_draw_items(cmd->first, cmd->count); /* custom-pipeline meshes */
+            if (sk_render_hooks.draw_models != NULL) { /* custom-pipeline meshes */
+                sk_render_hooks.draw_models(cmd->first, cmd->count);
+            }
         } else if (cmd->kind == RENDER_CMD_SPRITES) {
-            sk_sprite_batch_draw(cmd->first, previous_sprites); /* instanced sprite quads */
+            if (sk_render_hooks.draw_sprites != NULL) { /* instanced sprite quads */
+                sk_render_hooks.draw_sprites(cmd->first, previous_sprites);
+            }
         } else {
             cmd->callback(cmd->first);
         }
@@ -578,18 +589,17 @@ void sk_render_end(void)
     /* upload the font atlas before opening the pass (sg_update_image cannot run
      * inside a render pass) */
     sk_font_flush();
-    sk_sprite_batch_flush(); /* the frame's sprite instances, in one buffer update */
-    sk_emitter_flush();      /* and its particles */
+    sk_module_flush_all(); /* the frame's sprite instances, particles, ... in one update each */
     count_layer_commands();
 
     /* render targets first, in the order they were begun, then the screen */
     for (int p = 1; p < sk_render_pass_count; p++) {
         sg_attachments attachments;
         int w = 0, h = 0;
-        if (!sk_texture_get_target(sk_render_passes[p].target, &attachments, &w, &h)) {
+        if (!target_of(sk_render_passes[p].target, &attachments, &w, &h)) {
             continue; /* destroyed during the frame */
         }
-        sk_texture_set_drawing_into(sk_render_passes[p].target);
+        drawing_into(sk_render_passes[p].target);
         sg_begin_pass(&(sg_pass){
             .action = pass_action(p),
             .attachments = attachments,
@@ -598,7 +608,7 @@ void sk_render_end(void)
         replay_pass(p);
         sg_end_pass();
     }
-    sk_texture_set_drawing_into(0);
+    drawing_into(0);
     sg_begin_pass(&(sg_pass){
         .action = pass_action(0),
         .swapchain = sk_platform_swapchain(),
@@ -609,12 +619,8 @@ void sk_render_end(void)
     sg_commit();
     grow_sgl_budgets(sgl_err);
 
-    sk_model_end_frame();
-    sk_sprite_batch_end_frame();
-    sk_emitter_end_frame();
-    sk_light_end_frame();
+    sk_module_end_frame_all(); /* models, sprites, particles, lights, ... start over */
     sk_font_end_frame();
-    sk_environment_end_frame();
     reset_frame_commands();
 }
 

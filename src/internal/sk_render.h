@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #include "sk_types.h"
+#include "sokol_gfx.h"
 
 /* sokol_gfx resource pool sizes (sg_setup). sokol's defaults (128 buffers and
  * images) run out at ~60 textured materials or glTF primitives. */
@@ -25,6 +26,17 @@
 
 void sk_render_init(void);
 void sk_render_deinit(void);
+
+/* What sk_render reaches through optional modules (internal/sk_module.h): each module
+ * sets its hooks in its init and clears them in its deinit; NULL while it isn't linked
+ * or running. */
+typedef struct {
+    void (*draw_models)(int first, int count);     /* sk_model: model items */
+    void (*draw_sprites)(int batch, bool follows); /* sk_sprite_batch: a sprite batch */
+    bool (*texture_target)(sk_handle_t texture, sg_attachments *attachments, int *width, int *height);
+    void (*texture_drawing_into)(sk_handle_t texture); /* sk_texture: the target being drawn */
+} sk_render_hooks_t;
+extern sk_render_hooks_t sk_render_hooks;
 
 /* Append model items [first, first + count) (indices into sk_model's item
  * queue) to the command list, after everything recorded so far. */

@@ -9,6 +9,7 @@
 #include "internal/sk_internal.h"
 #include "internal/sk_handle_pool.h"
 #include "internal/sk_scene.h"
+#include "internal/sk_module.h"
 #include "sk_handle.h"
 #include "sk_logger.h"
 #include "sk_text.h" /* draw/measure delegate (resolves font 0 to the default font) */
@@ -305,3 +306,7 @@ void sk_text2d_destroy(sk_handle_t handle)
     memset(text_ptr, 0, sizeof(*text_ptr));
     sk_handle_pool_free(&sk_text2d_pool, handle);
 }
+
+/* An optional subsystem: part of the runtime when a program uses it (internal/sk_module.h). */
+static sk_module_t sk_text2d_module = {.name = "text2d", .order = 80, .init = sk_text2d_init, .deinit = sk_text2d_deinit};
+SK_MODULE(sk_text2d_module)

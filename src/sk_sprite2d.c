@@ -12,6 +12,7 @@
 #include "internal/sk_sprite2d.h"
 #include "internal/sk_sprite_batch.h"
 #include "internal/sk_texture.h"
+#include "internal/sk_module.h"
 #include "sk_logger.h"
 #include "sk_texture.h"
 
@@ -52,6 +53,7 @@ static bool pick_handle(sk_handle_t sprite, float screen_x, float screen_y, sk_p
 
 void sk_sprite2d_init(void)
 {
+    sk_sprite_batch_init(); /* shared with sprite3d: counted */
     if (!sk_handle_pool_init(&sk_sprite2d_pool, SK_HANDLE_KIND_SPRITE2D, "sprite2d", (void **)&sk_sprites2d,
                              sizeof(sk_sprite2d_t), SPRITES_INITIAL, SK_MAX_SPRITE2D)) {
         log_error("sprite2d: out of memory");
@@ -68,6 +70,7 @@ void sk_sprite2d_deinit(void)
         }
     }
     sk_handle_pool_destroy(&sk_sprite2d_pool);
+    sk_sprite_batch_deinit();
 }
 
 static sk_sprite2d_t *resolve(sk_handle_t sprite)
@@ -669,3 +672,7 @@ void sk_texture_draw_nine_slice(sk_handle_t texture, float source_x, float sourc
         sk_texture_draw_ex(texture, source[0], source[1], source[2], source[3], x, y, width, height, tint);
     }
 }
+
+/* An optional subsystem: part of the runtime when a program uses it (internal/sk_module.h). */
+static sk_module_t sk_sprite2d_module = {.name = "sprite2d", .order = 61, .init = sk_sprite2d_init, .deinit = sk_sprite2d_deinit};
+SK_MODULE(sk_sprite2d_module)

@@ -11,6 +11,7 @@
 #include "internal/sk_material.h"
 #include "internal/sk_math.h"
 #include "internal/sk_texture.h"
+#include "internal/sk_module.h"
 #include "sk_logger.h"
 
 #define MATERIALS_INITIAL 64 /* slots to start with; the pool doubles as needed */
@@ -415,3 +416,7 @@ bool sk_material_set_texture_sampling(sk_handle_t material, const char *name, sk
     texture->filter = filter;
     return true;
 }
+
+/* An optional subsystem: part of the runtime when a program uses it (internal/sk_module.h). */
+static sk_module_t sk_material_module = {.name = "material", .order = 30, .init = sk_material_init, .deinit = sk_material_deinit};
+SK_MODULE(sk_material_module)
