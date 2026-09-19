@@ -119,7 +119,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
 int main(void)
 {
-    sk_init_values(680, 720, "libsk gamepad", SK_WINDOW_FLAG_MSAA_4X_HINT);
+    sk_init_values(680, 720, "libsk gamepad", SK_WINDOW_FLAG_MSAA_4X_HINT | SK_WINDOW_FLAG_WINDOW_RESIZABLE);
     sk_set_frame(frame, NULL);
     return sk_run();
 }

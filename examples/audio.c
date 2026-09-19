@@ -91,7 +91,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
 int main(void)
 {
-    sk_init_values(720, 240, "libsk audio", 0);
+    sk_init_values(720, 240, "libsk audio", SK_WINDOW_FLAG_WINDOW_RESIZABLE);
     sk_set_init(on_init, NULL);
     sk_set_frame(frame, NULL);
     return sk_run();

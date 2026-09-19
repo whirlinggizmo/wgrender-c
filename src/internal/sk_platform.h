@@ -18,6 +18,7 @@ typedef struct {
     bool high_dpi;
     int sample_count;           /* 1 or 4 */
     bool disable_vsync;
+    bool transparent;           /* the framebuffer's alpha shows what's behind the window */
     void (*init)(void);
     void (*frame)(void);
     void (*cleanup)(void);
@@ -50,6 +51,13 @@ bool sk_platform_set_window_position(int x, int y);
 bool sk_platform_get_window_position(int *x, int *y);
 bool sk_platform_set_fullscreen(bool fullscreen);
 bool sk_platform_is_fullscreen(void);
+/* The window's style (desktop): resizable by the user, decorated (title bar and
+ * border). Kept through fullscreen, which sets its own. Elsewhere nothing. */
+void sk_platform_set_window_style(bool resizable, bool decorated);
+bool sk_platform_set_window_visible(bool visible);
+bool sk_platform_is_window_visible(void);
+/* SK_WINDOW_FLAG_WINDOW_TRANSPARENT: the screen composites premultiplied */
+bool sk_platform_is_window_transparent(void);
 bool sk_platform_is_focused(void);
 int sk_platform_monitor_count(void);
 int sk_platform_current_monitor(void);

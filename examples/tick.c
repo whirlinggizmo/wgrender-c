@@ -88,7 +88,7 @@ static void init(void *user_data)
 
 int main(void)
 {
-    sk_init_values(SCREEN_WIDTH, SCREEN_HEIGHT, "libsk tick", SK_WINDOW_FLAG_MSAA_4X_HINT);
+    sk_init_values(SCREEN_WIDTH, SCREEN_HEIGHT, "libsk tick", SK_WINDOW_FLAG_MSAA_4X_HINT | SK_WINDOW_FLAG_WINDOW_RESIZABLE);
     sk_set_init(init, NULL);
     sk_set_tick(tick, NULL, TICK_HZ);
     sk_set_frame(frame, NULL);

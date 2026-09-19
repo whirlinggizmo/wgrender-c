@@ -7,9 +7,17 @@ extern "C" {
 
 #include "sk_types.h"
 
-/* Window flags. Only a subset is honored by the sokol_app backend; the rest are
- * accepted for source compatibility and ignored where the backend has no
- * equivalent. */
+/* Window flags (sk_init_values). The window style ones apply on the desktop; on the
+ * web the page lays out the canvas.
+ *   RESIZABLE    the user can resize the window; without it the window keeps its
+ *                size (sk_window_set_size still changes it)
+ *   UNDECORATED  no title bar or border
+ *   HIDDEN       the window starts hidden: sk_window_set_visible(true) shows it (after
+ *                loading, say). sokol_app makes the window visible, so it can show for
+ *                a moment first on some desktops. Web: the canvas is hidden.
+ *   TRANSPARENT  the framebuffer's alpha shows what's behind the window: clear with
+ *                alpha 0. Web (the page: its canvas mustn't paint a background) and
+ *                macOS; not X11 with OpenGL. */
 #define SK_WINDOW_FLAG_FULLSCREEN_MODE 0x00000002u
 #define SK_WINDOW_FLAG_WINDOW_RESIZABLE 0x00000004u
 #define SK_WINDOW_FLAG_WINDOW_UNDECORATED 0x00000008u
@@ -17,7 +25,6 @@ extern "C" {
 #define SK_WINDOW_FLAG_MSAA_4X_HINT 0x00000020u
 #define SK_WINDOW_FLAG_VSYNC_OFF 0x00000040u /* unlock from vsync (desktop; the web is always vsynced) */
 #define SK_WINDOW_FLAG_WINDOW_HIDDEN 0x00000080u
-#define SK_WINDOW_FLAG_WINDOW_ALWAYS_RUN 0x00000100u
 /* Windows render at the display's full resolution (high-DPI): sizes and coordinates
  * stay in logical pixels, text rasterizes at the real pixel scale. LOW_DPI renders at
  * one framebuffer pixel per logical pixel instead, scaled up by the display: fewer
@@ -50,6 +57,10 @@ bool   sk_window_set_position(int x, int y);
 vec2_t sk_window_get_position(void); /* (0, 0) where there's no position */
 bool   sk_window_set_fullscreen(bool fullscreen);
 bool   sk_window_is_fullscreen(void);
+/* Show or hide the window (SK_WINDOW_FLAG_WINDOW_HIDDEN starts it hidden); it keeps
+ * running either way. Web: the canvas. */
+bool   sk_window_set_visible(bool visible);
+bool   sk_window_is_visible(void);
 bool   sk_window_is_focused(void);
 
 /* Monitors, 0 .. count - 1. Size and position are (0, 0) for an invalid index. */

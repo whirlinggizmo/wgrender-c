@@ -23,6 +23,13 @@ void test_window_headless(void)
     CHECK(!sk_window_is_fullscreen());
     CHECK(sk_window_is_focused());
 
+    /* shown by default; hiding and showing are remembered */
+    CHECK(sk_window_is_visible());
+    CHECK(sk_window_set_visible(false));
+    CHECK(!sk_window_is_visible());
+    CHECK(sk_window_set_visible(true));
+    CHECK(sk_window_is_visible());
+
     CHECK(sk_window_get_monitor_count() == 1);
     CHECK(sk_window_get_monitor() == 0);
     CHECK(sk_window_set_monitor(0));

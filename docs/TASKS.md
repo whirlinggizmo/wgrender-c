@@ -96,8 +96,7 @@ tick the box in the same commit.
       can be computed per frame (`sk_color_rgba`, `sk_color_with_alpha`,
       `sk_color_lerp`) instead of pre-creating a palette, and the 256-slot pool,
       the handle kind and the color lifecycle are gone ([PLAN-color.md](PLAN-color.md))
-- [ ] Window flags accepted but ignored: `RESIZABLE`, `UNDECORATED`, `TRANSPARENT`,
-      `HIDDEN`, `ALWAYS_RUN` (only fullscreen, low-DPI, MSAA and vsync-off work)
+- [x] Window flags accepted but ignored (2026-09-19): honored now (below)
 - [x] Bug: orthographic cameras only affected sokol_gl content; models and
       picking always used perspective (fovy 6 world units became a 6 degree FOV,
       so models drew hugely magnified and picks missed). Fixed: one
@@ -182,8 +181,12 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 - [x] Window and monitor control (2026-09-17, [PLAN-window.md](PLAN-window.md),
       `examples/window.c`): size, position, fullscreen, focus, monitors, through
       `deps/sokol_utils` (squk/sokol_utils, vendored with fixes)
-- [ ] Window flags: honor `RESIZABLE`, `UNDECORATED`, `HIDDEN`; remove `ALWAYS_RUN`;
-      `TRANSPARENT` web only (PLAN-window.md, phase 2)
+- [x] Window flags (2026-09-19, PLAN-window.md phase 2): `RESIZABLE` (without it the
+      window keeps its size, as in raylib; the examples set it), `UNDECORATED`,
+      `HIDDEN` with `sk_window_set_visible` / `sk_window_is_visible`, `TRANSPARENT`
+      (sokol's premultiplied compositing; the screen's clear color is premultiplied);
+      `ALWAYS_RUN` removed. Applied through the vendored sokol_utils header after the
+      window exists, so a hidden window can show for a moment first
 - [x] Assets: ensure many files at once: asset groups (`sk_asset_group_create`,
       `sk_asset_group_add`) with `sk_asset_get_progress`
 - [ ] Assets: host ping (with the `sk_net` rework)

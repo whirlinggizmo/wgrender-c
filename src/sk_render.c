@@ -514,7 +514,12 @@ static void replay_pass(int index)
 /* Clear the pass, or keep what an earlier pass drew into the same target. */
 static sg_pass_action pass_action(int index)
 {
-    const sk_colorf_t color = sk_render_passes[index].clear_color;
+    sk_colorf_t color = sk_render_passes[index].clear_color;
+    if (index == 0 && sk_platform_is_window_transparent()) {
+        /* a transparent window composites premultiplied: clearing to (1, 0, 0, 0)
+           would add red to what's behind it, so the clear color's alpha applies */
+        color.r *= color.a, color.g *= color.a, color.b *= color.a;
+    }
     bool drawn_before = false;
     for (int p = 1; p < index && !drawn_before; p++) {
         drawn_before = sk_render_passes[p].target == sk_render_passes[index].target;

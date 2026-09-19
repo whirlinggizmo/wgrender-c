@@ -24,9 +24,12 @@ static void forward_event(const sapp_event *ev)
     }
 }
 
+static bool sk_platform_transparent;
+
 void sk_platform_run(const sk_platform_desc_t *desc)
 {
     sk_platform_event_fn = desc->event;
+    sk_platform_transparent = desc->transparent;
     sapp_run(&(sapp_desc){
         .init_cb = desc->init,
         .frame_cb = desc->frame,
@@ -40,6 +43,7 @@ void sk_platform_run(const sk_platform_desc_t *desc)
         .sample_count = desc->sample_count,
         .swap_interval = 1,
         .disable_vsync = desc->disable_vsync,
+        .composite_mode = desc->transparent ? SAPP_COMPOSITEMODE_PREMULTIPLIED : SAPP_COMPOSITEMODE_OPAQUE,
         .logger.func = slog_func,
     });
 }
@@ -62,10 +66,40 @@ float sk_platform_dpi_scale(void)
 
 /* ---------------------------------------------------- window and monitors ---- */
 
+/* The style the program asked for: applied while windowed, and again on leaving
+ * fullscreen (Win32's toggle resets it; a fixed size could keep X11 window managers
+ * from making the window fullscreen). */
+static bool sk_style_resizable = true;
+static bool sk_style_decorated = true;
+
+static void apply_style(void)
+{
+    sapp_set_window_resizable(sk_style_resizable);
+    sapp_set_window_decorated(sk_style_decorated);
+}
+
+void sk_platform_set_window_style(bool resizable, bool decorated)
+{
+    sk_style_resizable = resizable;
+    sk_style_decorated = decorated;
+    if (!sapp_is_fullscreen()) apply_style();
+}
+
+bool sk_platform_set_window_visible(bool visible)
+{
+    sapp_set_window_visible(visible);
+    return true;
+}
+
+bool sk_platform_is_window_visible(void) { return sapp_window_visible(); }
+bool sk_platform_is_window_transparent(void) { return sk_platform_transparent; }
+
 bool sk_platform_set_fullscreen(bool fullscreen)
 {
     if (sapp_is_fullscreen() != fullscreen) {
+        if (fullscreen) sapp_set_window_resizable(true);
         sapp_toggle_fullscreen(); /* on web, only takes effect during a user gesture */
+        if (!fullscreen) apply_style();
     }
     return true;
 }
@@ -178,6 +212,7 @@ const char *sk_platform_monitor_name(int monitor)
 static struct {
     sk_platform_desc_t desc;
     bool quit;
+    bool hidden;
     double frame_duration;
 } sk_headless;
 
@@ -189,6 +224,7 @@ void sk_platform_run(const sk_platform_desc_t *desc)
 
     sk_headless.desc = *desc;
     sk_headless.quit = false;
+    sk_headless.hidden = false;
     sk_headless.frame_duration = 1.0 / 60.0;
 
     stm_setup();
@@ -223,6 +259,14 @@ bool sk_platform_set_window_position(int x, int y) { (void)x; (void)y; return fa
 bool sk_platform_get_window_position(int *x, int *y) { *x = 0; *y = 0; return false; }
 bool sk_platform_set_fullscreen(bool fullscreen) { (void)fullscreen; return false; }
 bool sk_platform_is_fullscreen(void) { return false; }
+void sk_platform_set_window_style(bool resizable, bool decorated) { (void)resizable, (void)decorated; }
+bool sk_platform_set_window_visible(bool visible)
+{
+    sk_headless.hidden = !visible;
+    return true;
+}
+bool sk_platform_is_window_visible(void) { return !sk_headless.hidden; }
+bool sk_platform_is_window_transparent(void) { return sk_headless.desc.transparent; }
 bool sk_platform_is_focused(void) { return true; }
 int sk_platform_monitor_count(void) { return 1; }
 int sk_platform_current_monitor(void) { return 0; }

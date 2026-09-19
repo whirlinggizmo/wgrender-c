@@ -146,6 +146,13 @@ static const char *backend_name(sg_backend b)
 static void on_init(void)
 {
     sk_platform_mark("sk:init"); /* startup points: tools/webstart.mjs */
+    /* the window's style, as soon as it exists (sokol_app made it, visible, before
+       this: a hidden window can show for a moment first) */
+    sk_platform_set_window_style((sk_rt.window_flags & SK_WINDOW_FLAG_WINDOW_RESIZABLE) != 0,
+                                 (sk_rt.window_flags & SK_WINDOW_FLAG_WINDOW_UNDECORATED) == 0);
+    if ((sk_rt.window_flags & SK_WINDOW_FLAG_WINDOW_HIDDEN) != 0) {
+        sk_platform_set_window_visible(false);
+    }
     sg_setup(&(sg_desc){
         .environment = sk_platform_environment(),
         .logger.func = slog_func,
@@ -388,6 +395,7 @@ int sk_run(void)
         .high_dpi = high_dpi,
         .sample_count = sample_count,
         .disable_vsync = disable_vsync,
+        .transparent = (sk_rt.window_flags & SK_WINDOW_FLAG_WINDOW_TRANSPARENT) != 0,
     });
     return 0;
 }

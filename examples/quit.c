@@ -92,7 +92,7 @@ static void cleanup(void *user_data)
 
 int main(void)
 {
-    sk_init_values(640, 200, "libsk quit", 0);
+    sk_init_values(640, 200, "libsk quit", SK_WINDOW_FLAG_WINDOW_RESIZABLE);
     sk_set_init(init, NULL);
     sk_set_frame(frame, NULL);
     sk_set_cleanup(cleanup, NULL);

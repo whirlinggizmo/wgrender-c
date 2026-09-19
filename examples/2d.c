@@ -221,7 +221,7 @@ int main(void)
 {
     /* no MSAA: tiles are blended quads that meet edge to edge, and multisampled
        edges let the background through as a hairline seam between them */
-    sk_init_values(960, 600, "libsk 2d", 0);
+    sk_init_values(960, 600, "libsk 2d", SK_WINDOW_FLAG_WINDOW_RESIZABLE);
     sk_set_init(init, NULL);
     sk_set_frame(frame, NULL);
     return sk_run();

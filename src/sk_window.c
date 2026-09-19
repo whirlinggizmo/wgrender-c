@@ -76,6 +76,8 @@ bool sk_window_set_fullscreen(bool fullscreen)
 }
 
 SK_KEEP bool sk_window_is_fullscreen(void) { return sk_platform_is_fullscreen(); }
+SK_KEEP bool sk_window_set_visible(bool visible) { return sk_platform_set_window_visible(visible); }
+SK_KEEP bool sk_window_is_visible(void) { return sk_platform_is_window_visible(); }
 SK_KEEP bool sk_window_is_focused(void) { return sk_platform_is_focused(); }
 SK_KEEP int sk_window_get_monitor_count(void) { return sk_platform_monitor_count(); }
 SK_KEEP int sk_window_get_monitor(void) { return sk_platform_current_monitor(); }

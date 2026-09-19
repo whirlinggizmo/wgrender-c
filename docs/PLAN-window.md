@@ -1,7 +1,7 @@
 # Plan: Window and monitor control
 
 Status: **phase 1 implemented (2026-09-17)** with decisions 1–3 and 5 as
-recommended; window flags (decision 4) are phase 2. See "As built".
+recommended; window flags (decision 4) are phase 2. Both built: see "As built".
 
 ## Problem
 
@@ -124,6 +124,35 @@ window, so a visible window may flash in its default style first on some platfor
   - Windows and macOS: sokol_utils' code, untested by us.
 - The same test found a desktop quit abort in sokol_audio (the device callback
   called `saudio_sample_rate` during shutdown), fixed in `sk_audio.c`.
+
+## As built (phase 2: window flags)
+
+- Applied from libsk after sokol_app made the window, through `[libsk]` functions in
+  the vendored `deps/sokol_utils` header (`sapp_set_window_resizable`,
+  `sapp_set_window_decorated`, `sapp_set_window_visible`, `sapp_window_visible`), not
+  a sokol fork change: it keeps the fork small enough to upstream by hand. The cost is
+  that a hidden window can show for a moment first.
+  - X11: a fixed size is minimum = maximum in the size hints, moved along by
+    `sk_window_set_size`; no decorations is the `_MOTIF_WM_HINTS` property; hidden is
+    unmapped.
+  - Win32: the window style (no resize frame or maximize box; a popup when
+    undecorated), keeping the client size; `ShowWindow`.
+  - macOS: the window's style mask; `orderOut` / `makeKeyAndOrderFront`.
+  - Web: only visibility (the canvas's CSS visibility); the page lays out the canvas.
+  - The style is set again on leaving fullscreen (Win32's toggle resets it), and the
+    size limit lifted on entering it.
+- `RESIZABLE` has raylib's meaning (decided: without it the window keeps its size);
+  every example sets it.
+- `TRANSPARENT` is sokol_app's premultiplied composite mode: blended drawing already
+  produces premultiplied output, and libsk premultiplies the screen's clear color, so
+  clearing to any color with alpha 0 shows what's behind.
+- `ALWAYS_RUN` removed.
+- Tested: on Xvfb with `xprop` / `xwininfo` (size hints fixed and following a resize,
+  Motif hints, unmapped when hidden and mapped when shown); on the COSMIC desktop
+  (XWayland) the hints reach the window manager, which publishes no frame or
+  allowed-action properties to confirm what it does with them; web transparency by the
+  page's pixel through a transparent window (and red through an opaque one). Windows
+  and macOS: written, untested.
 
 ## Order
 

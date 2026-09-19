@@ -4,7 +4,11 @@
  *   = / -       grow / shrink the window by 10%
  *   F           toggle fullscreen
  *   M           move to the next monitor
+ *   H           hide the window for two seconds (sk_window_set_visible)
  *   ESC         quit
+ *
+ * The window is resizable (SK_WINDOW_FLAG_WINDOW_RESIZABLE); without that flag it
+ * keeps its size, and =/- still change it.
  *
  * Under XWayland (Linux on a Wayland desktop) the compositor usually ignores moves.
  * On web the canvas is the window: resizing works, moving and other monitors don't. */
@@ -15,6 +19,7 @@
 static struct {
     sk_color_t bg;
     char status[96];
+    float hidden_for; /* seconds left hidden */
 } g;
 
 static void report(const char *what, bool ok)
@@ -37,7 +42,6 @@ static void frame(float dt, float tick_fraction, void *user_data)
     char line[160];
     int y = 12;
 
-    (void)dt;
     (void)tick_fraction;
     (void)user_data;
     if (kb.keys[SK_KEY_ESCAPE] == SK_BUTTON_PRESSED) sk_request_quit();
@@ -52,13 +56,20 @@ static void frame(float dt, float tick_fraction, void *user_data)
         report("shrink", sk_window_set_size((int)(size.x / 1.1f), (int)(size.y / 1.1f)));
     }
     if (kb.keys[SK_KEY_F] == SK_BUTTON_PRESSED) report("fullscreen", sk_window_set_fullscreen(!sk_window_is_fullscreen()));
+    if (kb.keys[SK_KEY_H] == SK_BUTTON_PRESSED && sk_window_set_visible(false)) {
+        g.hidden_for = 2.0f;
+        report("hide for 2 s", true);
+    }
+    if (g.hidden_for > 0.0f && (g.hidden_for -= dt) <= 0.0f) { /* it keeps running while hidden */
+        report("show", sk_window_set_visible(true));
+    }
     if (kb.keys[SK_KEY_M] == SK_BUTTON_PRESSED) {
         report("monitor", sk_window_set_monitor((sk_window_get_monitor() + 1) % sk_window_get_monitor_count()));
     }
 
     sk_render_begin();
     sk_render_clear_background(g.bg);
-    sk_text_draw("libsk window   arrows: move   =/-: size   F: fullscreen   M: next monitor", 12, y, 16,
+    sk_text_draw("libsk window   arrows: move   =/-: size   F: fullscreen   M: next monitor   H: hide", 12, y, 16,
                  SK_COLOR_RAYWHITE);
     y += 32;
     snprintf(line, sizeof(line), "window: %.0f x %.0f at (%.0f, %.0f)   fullscreen: %s   focused: %s", size.x, size.y,
@@ -81,7 +92,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
 int main(void)
 {
-    sk_init_values(900, 400, "libsk window", 0);
+    sk_init_values(900, 400, "libsk window", SK_WINDOW_FLAG_WINDOW_RESIZABLE);
     sk_set_init(init, NULL);
     sk_set_frame(frame, NULL);
     return sk_run();

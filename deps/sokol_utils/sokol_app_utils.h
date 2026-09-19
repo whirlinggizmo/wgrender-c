@@ -72,6 +72,16 @@ SOKOL_APP_UTILS_API_DECL const char* sapp_display_name(int index);
 SOKOL_APP_UTILS_API_DECL void sapp_display_position(int index, int *x, int *y);
 /* sets fullscreen mode (wrapper around platform specific logic) */
 SOKOL_APP_UTILS_API_DECL void sapp_set_fullscreen(bool enable);
+/* [libsk] window style, after sokol_app made the window (desktop; no-ops elsewhere):
+   whether the user can resize it (not: it keeps its current size, and
+   sapp_set_window_size moves the limit along), and whether it has a title bar and
+   border. sokol's own fullscreen toggle resets the style on Win32: set them again
+   after leaving fullscreen. */
+SOKOL_APP_UTILS_API_DECL void sapp_set_window_resizable(bool resizable);
+SOKOL_APP_UTILS_API_DECL void sapp_set_window_decorated(bool decorated);
+/* [libsk] show or hide the window (web: the canvas) */
+SOKOL_APP_UTILS_API_DECL void sapp_set_window_visible(bool visible);
+SOKOL_APP_UTILS_API_DECL bool sapp_window_visible(void);
 /* set the swap interval:
     0: VSync off (unthrottled rendering)
     1: VSync on (standard refresh rate, e.g. 60 FPS)
@@ -330,6 +340,34 @@ _SOKOL_PRIVATE void _sapp_macos_set_swap_interval(int interval) {
     }
     #endif
 }
+/* [libsk] window style and visibility */
+static bool _sapp_utils_resizable = true;
+static bool _sapp_utils_decorated = true;
+
+_SOKOL_PRIVATE void _sapp_macos_apply_style(void) {
+  NSUInteger style = _sapp_utils_decorated
+      ? (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable)
+      : NSWindowStyleMaskBorderless;
+  if (_sapp_utils_resizable) {
+    style |= NSWindowStyleMaskResizable;
+  }
+  const NSRect content = [_sapp.macos.window contentRectForFrameRect:_sapp.macos.window.frame];
+  _sapp.macos.window.styleMask = style;
+  [_sapp.macos.window setFrame:[_sapp.macos.window frameRectForContentRect:content] display:YES];
+}
+
+_SOKOL_PRIVATE void _sapp_macos_set_window_visible(bool visible) {
+  if (visible) {
+    [_sapp.macos.window makeKeyAndOrderFront:nil];
+  } else {
+    [_sapp.macos.window orderOut:nil];
+  }
+}
+
+_SOKOL_PRIVATE bool _sapp_macos_window_visible(void) {
+  return _sapp.macos.window.isVisible;
+}
+
 #endif /* _SAPP_MACOS */
 
 #if defined(_SAPP_IOS)
@@ -590,15 +628,88 @@ _SOKOL_PRIVATE void _sapp_win32_set_swap_interval(int interval) {
     _sapp_vk_recreate_swapchain();
     #endif
 }
+/* [libsk] window style and visibility: the style sokol_app creates, less the
+   resize frame and maximize box when not resizable, or a popup when undecorated;
+   the client area keeps its size */
+static bool _sapp_utils_resizable = true;
+static bool _sapp_utils_decorated = true;
+
+_SOKOL_PRIVATE void _sapp_win32_apply_style(void) {
+  RECT client;
+  const LONG_PTR visible = GetWindowLongPtr(_sapp.win32.hwnd, GWL_STYLE) & WS_VISIBLE;
+  DWORD style = WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
+  if (_sapp_utils_decorated) {
+    style |= WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+    if (_sapp_utils_resizable) {
+      style |= WS_MAXIMIZEBOX | WS_SIZEBOX;
+    }
+  } else {
+    style |= WS_POPUP;
+  }
+  GetClientRect(_sapp.win32.hwnd, &client);
+  SetWindowLongPtr(_sapp.win32.hwnd, GWL_STYLE, (LONG_PTR)style | visible);
+  RECT outer = client;
+  AdjustWindowRectEx(&outer, style, FALSE, WS_EX_APPWINDOW | WS_EX_WINDOWEDGE);
+  SetWindowPos(_sapp.win32.hwnd, NULL, 0, 0, outer.right - outer.left, outer.bottom - outer.top,
+               SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+}
+
+_SOKOL_PRIVATE void _sapp_win32_set_window_visible(bool visible) {
+  ShowWindow(_sapp.win32.hwnd, visible ? SW_SHOW : SW_HIDE);
+}
+
+_SOKOL_PRIVATE bool _sapp_win32_window_visible(void) {
+  return IsWindowVisible(_sapp.win32.hwnd) != 0;
+}
+
 #endif /* _SAPP_WIN32 */
 
 #if defined(_SAPP_LINUX)
+
+/* [libsk] window style and visibility: a fixed size is minimum = maximum size in
+   the size hints (window managers then offer no resizing); no decorations is the
+   Motif hints property most X11 window managers honor */
+static bool _sapp_utils_resizable = true;
+
+_SOKOL_PRIVATE void _sapp_x11_size_hints(int w, int h) {
+  XSizeHints* hints = XAllocSizeHints();
+  hints->flags = PWinGravity;
+  hints->win_gravity = CenterGravity;
+  if (!_sapp_utils_resizable) {
+    hints->flags |= PMinSize | PMaxSize;
+    hints->min_width = hints->max_width = w;
+    hints->min_height = hints->max_height = h;
+  }
+  XSetWMNormalHints(_sapp.x11.display, _sapp.x11.window, hints);
+  XFree(hints);
+  XFlush(_sapp.x11.display);
+}
+
+_SOKOL_PRIVATE void _sapp_x11_set_window_decorated(bool decorated) {
+  struct {
+    unsigned long flags, functions, decorations;
+    long input_mode;
+    unsigned long status;
+  } motif = {2 /* MWM_HINTS_DECORATIONS */, 0, decorated ? 1UL : 0UL, 0, 0};
+  const Atom atom = XInternAtom(_sapp.x11.display, "_MOTIF_WM_HINTS", False);
+  XChangeProperty(_sapp.x11.display, _sapp.x11.window, atom, atom, 32, PropModeReplace,
+                  (unsigned char*)&motif, 5);
+  XFlush(_sapp.x11.display);
+}
+
+_SOKOL_PRIVATE void _sapp_x11_apply_size_hints(void) {
+  XWindowAttributes attribs;
+  XGetWindowAttributes(_sapp.x11.display, _sapp.x11.window, &attribs);
+  _sapp_x11_size_hints(attribs.width, attribs.height);
+}
+
 #include <X11/extensions/Xrandr.h>
 _SOKOL_PRIVATE void _sapp_x11_set_window_position(int x, int y) {
   XMoveWindow(_sapp.x11.display, _sapp.x11.window, x, y);
 }
 
 _SOKOL_PRIVATE void _sapp_x11_set_window_size(int w, int h) {
+  _sapp_x11_size_hints(w, h); /* [libsk] a fixed size moves with it */
   XResizeWindow(_sapp.x11.display, _sapp.x11.window, (unsigned int)w,
                 (unsigned int)h);
 }
@@ -794,6 +905,78 @@ _SOKOL_PRIVATE void _sapp_linux_set_swap_interval(int interval) {
 #if defined(_SAPP_EMSCRIPTEN)
 #include <emscripten.h>
 #endif
+
+#if defined(_SAPP_EMSCRIPTEN)
+/* [libsk] the canvas is the window: hidden keeps its place in the page */
+EM_JS(void, _sapp_emsc_set_canvas_visible, (int visible), {
+  if (Module.canvas) Module.canvas.style.visibility = visible ? "" : "hidden";
+});
+EM_JS(int, _sapp_emsc_canvas_visible, (void), {
+  return Module.canvas && Module.canvas.style.visibility === "hidden" ? 0 : 1;
+});
+#endif
+
+/* [libsk] window style and visibility */
+SOKOL_API_IMPL void sapp_set_window_resizable(bool resizable) {
+#if defined(_SAPP_MACOS)
+  _sapp_utils_resizable = resizable;
+  _sapp_macos_apply_style();
+#elif defined(_SAPP_WIN32)
+  _sapp_utils_resizable = resizable;
+  _sapp_win32_apply_style();
+#elif defined(_SAPP_LINUX)
+  _sapp_utils_resizable = resizable;
+  _sapp_x11_apply_size_hints();
+#else
+  (void)resizable;
+#endif
+}
+
+SOKOL_API_IMPL void sapp_set_window_decorated(bool decorated) {
+#if defined(_SAPP_MACOS)
+  _sapp_utils_decorated = decorated;
+  _sapp_macos_apply_style();
+#elif defined(_SAPP_WIN32)
+  _sapp_utils_decorated = decorated;
+  _sapp_win32_apply_style();
+#elif defined(_SAPP_LINUX)
+  _sapp_x11_set_window_decorated(decorated);
+#else
+  (void)decorated;
+#endif
+}
+
+SOKOL_API_IMPL void sapp_set_window_visible(bool visible) {
+#if defined(_SAPP_MACOS)
+  _sapp_macos_set_window_visible(visible);
+#elif defined(_SAPP_WIN32)
+  _sapp_win32_set_window_visible(visible);
+#elif defined(_SAPP_LINUX)
+  if (visible) {
+    _sapp_x11_show_window();
+  } else {
+    _sapp_x11_hide_window();
+  }
+#elif defined(_SAPP_EMSCRIPTEN)
+  _sapp_emsc_set_canvas_visible(visible ? 1 : 0);
+#else
+  (void)visible;
+#endif
+}
+
+SOKOL_API_IMPL bool sapp_window_visible(void) {
+#if defined(_SAPP_MACOS)
+  return _sapp_macos_window_visible();
+#elif defined(_SAPP_WIN32)
+  return _sapp_win32_window_visible();
+#elif defined(_SAPP_LINUX)
+  return _sapp_x11_window_visible();
+#elif defined(_SAPP_EMSCRIPTEN)
+  return _sapp_emsc_canvas_visible() != 0;
+#else
+  return true;
+#endif
+}
 
 SOKOL_API_IMPL void sapp_set_window_position(int x, int y) {
 #if defined(_SAPP_MACOS)
