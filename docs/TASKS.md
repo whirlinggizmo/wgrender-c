@@ -134,9 +134,12 @@ tick the box in the same commit.
       at startup, not loading or shaders (first draws of loaded models cost nothing
       extra). Now only the cache's list of files is read at startup and a file is read
       when it's ensured: FlightHelmet's worst frame 60-85 -> 27-30 ms
-- [ ] Loading follow-up: large texture uploads on the phone take 8-11 ms every few
-      textures (Chrome waiting on its GPU transfer buffer), so loading frames reach
-      25-30 ms: cap uploads by size per frame, not only by time
+- [ ] Loading follow-up: on the phone, frames reach 25-30 ms while a model's large
+      textures upload. Tried (2026-09-20) and dropped: capping uploads by size per frame
+      (4, 8, 16 MB): no better (at 4 MB, one 2K ASTC texture a frame, frames still reach
+      ~30 ms) and slower to load; the cost is each large upload itself. Left: smaller
+      files (ASTC 6x6 blocks, about half the bytes, some quality), or one mip level per
+      frame (needs a change to libsk's sokol fork)
 - [ ] Loading follow-ups: shader warm-up (the first frame drawing loaded PBR
       models stalled ~220 ms on WebGL2 while programs compiled; not seen on the Pixel 9
       with FlightHelmet in a lit scene: recheck with an environment); the zero-worker mode
