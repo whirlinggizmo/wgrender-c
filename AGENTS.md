@@ -67,8 +67,11 @@ Keep this file short and rule-shaped. The authoritative design doc is
 - `make websize [BACKEND=webgpu] [WEB_THREADS=0]` — wasm/JS sizes per web example
   (raw and gzip; brotli if installed), also summarized after `make wasm-all`.
 - Run `make verify` (lib + examples + `make check` + `make test` + `make smoke`,
-  about 10 s) before calling a change done; run `make webcheck` (and
-  `BACKEND=webgpu`) too when touching rendering, assets or web code.
+  about 15 s) before calling a change done; run `make webcheck` (and
+  `BACKEND=webgpu`) too when touching rendering, assets or web code, and
+  `make windows-test` and `make windows-smoke` (under Wine) when touching threads,
+  files and paths, the platform layer (`sk_platform.c`, `deps/sokol_utils`) or the
+  build.
 
 ## Process
 
