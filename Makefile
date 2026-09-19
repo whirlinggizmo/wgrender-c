@@ -13,6 +13,7 @@
 #   make webcheck   web build + browser smoke check (-> examples/Makefile)
 #   make websize    wasm/JS sizes per web example   (-> examples/Makefile)
 #   make shaders    regenerate shdc shader headers
+#   make example-shaders   repack examples/shaders/*.glsl (custom material shaders)
 #   make check      naming / backend-leak guardrails
 #   make test       build and run unit tests        (-> tests/Makefile)
 #   make verify     build + check + test + smoke: run before calling a change done
@@ -99,7 +100,7 @@ LIB     := $(BUILD)/libsk.a
 SRCS    := $(wildcard src/*.c)
 OBJS    := $(patsubst src/%.c,$(BUILD)/obj/%.o,$(SRCS))
 
-.PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check parity loadbench spritebench brdf-lut \
+.PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check parity loadbench spritebench brdf-lut example-shaders \
         web print-web-flags windows windows-test windows-smoke FORCE
 
 all: $(LIB)
@@ -263,6 +264,15 @@ shaders:
 	@for s in $(SHADERS); do \
 	    echo "  shdc: $$s"; \
 	    $(SHDC) -i $$s -o $$s.h -l $(SHDC_SLANG) --ifdef || exit 1; \
+	done
+
+# The custom material shaders of examples/shaders.c (examples/shaders/*.glsl), packed
+# by tools/shaderpack.py into the committed examples/assets/shaders/*.skshader.
+# Rebuild them after changing one, or shaders/sk.glsl.
+EXAMPLE_SHADERS := $(wildcard examples/shaders/*.glsl)
+example-shaders:
+	@for s in $(EXAMPLE_SHADERS); do \
+	    python3 tools/shaderpack.py $$s -o examples/assets/shaders/$$(basename $${s%.glsl}).skshader || exit 1; \
 	done
 
 # Enforce project invariants: no backend (sokol) leakage into the public

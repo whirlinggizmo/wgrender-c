@@ -262,7 +262,14 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 - [x] Materials, phase 1: material resource, glTF metallic-roughness and unlit
       shading, normal/occlusion/emissive maps, sRGB-correct lighting, per-model
       slot overrides ([PLAN-materials.md](PLAN-materials.md), `examples/materials.c`)
-- [ ] Materials, phase 2: custom shaders (`.skshader` packages from sokol-shdc)
+- [x] Materials, phase 2 (2026-09-20): custom shaders. A fragment shader (and an
+      optional vertex hook) written against `shaders/sk.glsl`, packed for GL, WebGL2 and
+      WebGPU by `tools/shaderpack.py` into a `.skshader` file; `sk_shader_create`,
+      `sk_material_create_custom`, parameters and textures by the shader's names.
+      Static and skinned models, scene lights, tint, alpha modes, tone mapping
+      ([PLAN-materials.md](PLAN-materials.md), `examples/shaders.c`)
+- [ ] Custom shaders later: environment lighting in custom shaders; arrays and
+      matrices as parameters; D3D11/Metal sources when those backends come
 - [ ] Materials, phase 3: shapes and sprites on materials (with the batched renderer)
 - [x] 2D / UI layer: `enabled` and pointer interaction per scene member, touch as a
       pointer, retained 2D shapes, nine-slice sprites, text alignment and wrapping,

@@ -57,11 +57,21 @@ extern "C" {
  * glTF vertex colors (COLOR_0) multiply the base color of models that have them. */
 
 typedef enum {
-    SK_MATERIAL_PBR = 0,   /* glTF metallic-roughness, lit by scene lights */
-    SK_MATERIAL_UNLIT = 1, /* base color x texture x tint; ignores lights (KHR_materials_unlit) */
+    SK_MATERIAL_PBR = 0,    /* glTF metallic-roughness, lit by scene lights */
+    SK_MATERIAL_UNLIT = 1,  /* base color x texture x tint; ignores lights (KHR_materials_unlit) */
+    SK_MATERIAL_CUSTOM = 2, /* a custom shader (sk_material_create_custom); not for create/set_shading */
 } sk_material_shading_t;
 
 sk_handle_t sk_material_create(sk_material_shading_t shading);
+/* A material drawn by a custom shader (sk_shader.h). Its parameters and textures are
+ * the ones the shader declares, set by those names with the setters below (texture
+ * transforms like <t>_offset are the shader's business); the built-in names above
+ * don't apply. Alpha mode and double-sided work as for built-in materials. Picking
+ * treats its surfaces as solid everywhere. The material holds its own reference to
+ * the shader. */
+sk_handle_t sk_material_create_custom(sk_handle_t shader);
+/* The material's custom shader, or 0 for built-in shading. */
+sk_handle_t sk_material_get_shader(sk_handle_t material);
 /* Drop this handle's reference to the resource. Resources are shared and
  * reference counted (loading the same path again returns the same handle, with
  * one more reference), so a resource is freed when its last reference goes, not

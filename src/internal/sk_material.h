@@ -18,6 +18,10 @@ typedef enum {
     SK_MATERIAL_TEXTURE_COUNT,
 } sk_material_texture_slot_t;
 
+/* Texture slots a material has: the built-in ones above, or a custom shader's
+ * textures in the order of its list (sk_shader_t.textures). */
+#define SK_MATERIAL_MAX_TEXTURES 8
+
 /* A material texture and how it's sampled. */
 typedef struct {
     sk_handle_t texture; /* referenced; 0 = none */
@@ -42,7 +46,11 @@ typedef struct {
     float roughness;
     float normal_scale;
     float occlusion_strength;
-    sk_material_texture_t textures[SK_MATERIAL_TEXTURE_COUNT];
+    sk_material_texture_t textures[SK_MATERIAL_MAX_TEXTURES];
+    /* SK_MATERIAL_CUSTOM: the shader (referenced) and its parameter values, the
+     * fragment block then the vertex block (std140, as the shader lays them out) */
+    sk_handle_t shader;
+    unsigned char *custom_params;
     int ref_count;
 } sk_material_t;
 

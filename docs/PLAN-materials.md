@@ -1,7 +1,9 @@
 # Plan: Materials and shaders
 
-Status: **phase 1 implemented (2026-09-16)** (built-in materials for models). See
-`include/sk_material.h` and `examples/materials.c`. Phases 2 and 3 are not started.
+Status: **phase 1 implemented (2026-09-16)** (built-in materials for models; see
+`include/sk_material.h` and `examples/materials.c`) and **phase 2 (2026-09-20)**
+(custom shaders; see "Phase 2 as built", `include/sk_shader.h`, `shaders/sk.glsl` and
+`examples/shaders.c`). Phase 3 is not started.
 Decisions 1–5 below were accepted as proposed; "Phase 1 as built" records where the
 implementation refined the proposal.
 Roadmap item 1. Builds on lighting ([PLAN-lighting.md](PLAN-lighting.md)), render
@@ -166,6 +168,59 @@ sk_handle_t sk_material_create_custom(sk_handle_t shader);
   isn't distorted. Missing buffers still fail the ensure.
 - **Not yet:** environment lighting (wanted next), tone mapping, and others tracked
   in TASKS.md under "Materials: glTF coverage".
+
+## Phase 2 as built
+
+- **Fragment shaders plus an optional vertex hook**, not whole vertex shaders.
+  libsk keeps its vertex shaders (static and skinned), so custom shaders work on
+  animated models without writing skinning. The hook,
+  `void sk_vertex(inout vec3 position, inout vec3 normal)`, moves vertices in object
+  space before skinning (waves, wind) and has its own parameters.
+- **The interface is one file, `shaders/sk.glsl`.** A fragment shader includes
+  `sk_surface`: world position, normal, tangent, both texture coordinate sets and
+  vertex color; `sk_time()`, `sk_camera_position()`, `sk_ambient()`, the scene's
+  lights (`sk_light_count()`, `sk_light(i, pos, out to_light)`, with the same falloff
+  as built-in materials), sRGB helpers, and `sk_output(color, alpha)`, which applies
+  the model's tint, the MASK cutoff, exposure and tone mapping and encodes sRGB, so a
+  custom material fades, masks and tone-maps like a built-in one. Environment lighting
+  isn't in the interface yet.
+- **Bindings:** uniform block 0 is libsk's per-object block (matrices, time, joints),
+  1 its per-draw fragment block (`sk_frame`: camera, time, tint, ambient, lights,
+  output settings), 2 the shader's fragment parameters, 3 the vertex hook's.
+  Textures are texture2D in the fragment shader, bindings 0-7, each paired with a
+  sampler. Vertex inputs have fixed locations matching libsk's vertex buffers (without
+  them sokol-shdc numbered the skinned shader's inputs in declaration order).
+- **`tools/shaderpack.py`** puts `shaders/sk.glsl` in front of the file, adds the two
+  vertex shaders (with the hook or an empty one), compiles with sokol-shdc
+  (`-f bare_yaml`: sources plus a reflection file) for glsl410, glsl300es and wgsl,
+  and writes one text `.skshader`: parameters (name, type, block, std140 offset; the
+  tool computes the offsets, which sokol-shdc's reflection doesn't give, and checks
+  them against its block sizes), texture names, then per backend and program the
+  vertex attributes, uniform blocks, views, samplers and texture-sampler pairs, and
+  the sources. Errors in the user's file are reported at its own line numbers. The
+  output is deterministic. About 50 KB per shader (three backends, two programs).
+- **Runtime (`src/sk_shader.c`, an optional module):** a resource like textures:
+  deduplicated by path, reference counted, loaded through `sk_asset` (read on a
+  worker; parsed and made on the main thread), so it downloads on the web.
+  Finishing picks the running backend's sources (the dummy backend takes the GL
+  description) and builds `sg_shader_desc` from the file. Materials and models reach
+  it through hooks (`sk_shader_hooks`), so programs that never load a shader don't
+  link it.
+- **Materials:** `sk_material_create_custom(shader)`; shading reads
+  `SK_MATERIAL_CUSTOM`, which create and set_shading refuse. The existing setters
+  find the shader's parameters by name and type (float, int, vec2, vec3, vec4;
+  `set_color` converts sRGB to linear) and write them into the material's copy of
+  the two blocks; textures and their sampling by the shader's texture names (a
+  texture not set is white). Built-in names don't apply. Picking treats custom
+  surfaces as solid everywhere: libsk can't know where a shader discards.
+- **Drawing:** per shader, pipelines for (static or skinned, blended, double-sided)
+  made on first use and freed with the shader; blocks the compiler dropped because
+  the shader doesn't use them aren't applied.
+- **Not yet:** environment lighting inside custom shaders, arrays and matrices as
+  parameters, shaders for sprites and shapes (phase 3), D3D11/Metal sources.
+- Checked on desktop GL, WebGL2 and WebGPU (`examples/shaders.c`: toon on the
+  animated gumshoe, a dissolve with a noise texture, waves from a vertex hook), and
+  headless (the dummy backend validates every uniform size and binding).
 
 ## Decisions
 

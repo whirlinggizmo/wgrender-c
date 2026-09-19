@@ -21,7 +21,9 @@
 #include "internal/sk_pick.h"
 #include "internal/sk_render.h"
 #include "internal/sk_scene.h"
+#include "internal/sk_shader.h"
 #include "internal/sk_texture.h"
+#include "sk.h" /* sk_get_time */
 #include "sk_material.h"
 #include "sk_logger.h"
 
@@ -1362,48 +1364,51 @@ static void discard_mesh(void *data)
  * them (tools/webstart.mjs measures startup). */
 static bool sk_model_pipelines_ready;
 
+/* A pipeline drawing model primitives with `shader` (built-in or custom: the vertex
+ * layout is libsk's either way; shaders/sk.glsl pins the same attribute locations). */
+static sg_pipeline make_pipeline(sg_shader shader, bool skinned, bool blended, bool double_sided)
+{
+    sg_pipeline_desc d = {
+        .shader = shader,
+        .index_type = SG_INDEXTYPE_UINT32,
+        .face_winding = SG_FACEWINDING_CCW,
+        .depth = {.compare = SG_COMPAREFUNC_LESS_EQUAL, .write_enabled = !blended},
+        .cull_mode = double_sided ? SG_CULLMODE_NONE : SG_CULLMODE_BACK,
+        .label = "sk-model-pip",
+    };
+    d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+    d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
+    d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2; /* texcoord0 */
+    d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2; /* texcoord1 */
+    d.layout.attrs[4].format = SG_VERTEXFORMAT_FLOAT4; /* tangent */
+    d.layout.attrs[5].format = SG_VERTEXFORMAT_FLOAT4; /* color0 */
+    if (skinned) {
+        d.layout.attrs[6].format = SG_VERTEXFORMAT_FLOAT4; /* joints */
+        d.layout.attrs[7].format = SG_VERTEXFORMAT_FLOAT4; /* weights */
+    }
+    if (blended) {
+        d.colors[0].blend = (sg_blend_state){
+            .enabled = true,
+            .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+            .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+            .src_factor_alpha = SG_BLENDFACTOR_ONE,
+            .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+        };
+    }
+    return sg_make_pipeline(&d);
+}
+
 static void ensure_pipelines(void)
 {
-    sg_pipeline_desc base;
     if (sk_model_pipelines_ready) return;
     sk_model_pipelines_ready = true;
     sk_shd_static = make_static_shader();
     sk_shd_skinned = make_skinned_shader();
-
-    base = (sg_pipeline_desc){
-        .index_type = SG_INDEXTYPE_UINT32,
-        .face_winding = SG_FACEWINDING_CCW,
-        .depth = {.compare = SG_COMPAREFUNC_LESS_EQUAL, .write_enabled = true},
-    };
-
     for (int skinned = 0; skinned < 2; skinned++) {
         for (int blended = 0; blended < 2; blended++) {
             for (int double_sided = 0; double_sided < 2; double_sided++) {
-                sg_pipeline_desc d = base;
-                d.shader = skinned ? sk_shd_skinned : sk_shd_static;
-                d.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
-                d.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
-                d.layout.attrs[2].format = SG_VERTEXFORMAT_FLOAT2; /* texcoord0 */
-                d.layout.attrs[3].format = SG_VERTEXFORMAT_FLOAT2; /* texcoord1 */
-                d.layout.attrs[4].format = SG_VERTEXFORMAT_FLOAT4; /* tangent */
-                d.layout.attrs[5].format = SG_VERTEXFORMAT_FLOAT4; /* color0 */
-                if (skinned) {
-                    d.layout.attrs[6].format = SG_VERTEXFORMAT_FLOAT4; /* joints */
-                    d.layout.attrs[7].format = SG_VERTEXFORMAT_FLOAT4; /* weights */
-                }
-                d.cull_mode = double_sided ? SG_CULLMODE_NONE : SG_CULLMODE_BACK;
-                if (blended) {
-                    d.depth.write_enabled = false;
-                    d.colors[0].blend = (sg_blend_state){
-                        .enabled = true,
-                        .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-                        .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                        .src_factor_alpha = SG_BLENDFACTOR_ONE,
-                        .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                    };
-                }
-                d.label = "sk-model-pip";
-                sk_pips[skinned][blended][double_sided] = sg_make_pipeline(&d);
+                sk_pips[skinned][blended][double_sided] =
+                    make_pipeline(skinned ? sk_shd_skinned : sk_shd_static, skinned, blended, double_sided);
             }
         }
     }
@@ -1871,8 +1876,8 @@ static bool is_solid_at(const sk_primitive_t *prim, const sk_material_t *materia
     const unsigned char *mask;
     int width, height;
 
-    if (material->alpha_mode == SK_ALPHA_OPAQUE) {
-        return true;
+    if (material->alpha_mode == SK_ALPHA_OPAQUE || material->shader != 0) {
+        return true; /* custom shaders: libsk can't know where they're see-through */
     }
 
     if (prim->pick_alpha != NULL) {
@@ -2289,10 +2294,133 @@ static sg_sampler texture_sampler(const sk_material_texture_t *texture)
     return *smp;
 }
 
+/* Uniform blocks of custom shaders (shaders/sk.glsl), std140. */
+typedef struct {
+    float mvp[16], model[16], normal_mat[16], time[4];
+} custom_object_t;
+typedef struct {
+    float mvp[16], model[16], normal_mat[16], time[4];
+    float joints[SK_MAX_JOINTS][16];
+} custom_skinned_object_t;
+typedef struct {
+    float camera_time[4];
+    float tint[4];
+    float ambient_count[4];
+    float output[4];
+    float light_pos_range[SK_MAX_DRAW_LIGHTS][4];
+    float light_dir_type[SK_MAX_DRAW_LIGHTS][4];
+    float light_radiance[SK_MAX_DRAW_LIGHTS][4];
+    float light_spot[SK_MAX_DRAW_LIGHTS][4];
+} custom_frame_t;
+
+/* A primitive whose material has a custom shader (sk_shader.h). */
+static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, const sk_primitive_t *prim,
+                        const sk_material_t *material, bool blended, sg_pipeline *cur_pip)
+{
+    sk_shader_t *shader = sk_shader_hooks.get != NULL ? sk_shader_hooks.get(material->shader) : NULL;
+    const int s = prim->skinned ? 1 : 0, b = blended ? 1 : 0, d = material->double_sided ? 1 : 0;
+    const sk_shader_program_t *program;
+    const sk_light_env_t *env = sk_light_env_get(e->light_env);
+    const float time = (float)sk_get_time();
+    sg_bindings bind = {.vertex_buffers[0] = prim->vbuf, .index_buffer = prim->ibuf};
+
+    if (shader == NULL) return; /* released while the material was queued */
+    program = &shader->programs[s];
+    if (shader->pipelines[s][b][d].id == SG_INVALID_ID) {
+        shader->pipelines[s][b][d] = make_pipeline(program->shader, prim->skinned, blended, material->double_sided);
+    }
+    if (shader->pipelines[s][b][d].id != cur_pip->id) {
+        sg_apply_pipeline(shader->pipelines[s][b][d]);
+        *cur_pip = shader->pipelines[s][b][d];
+    }
+
+    if (prim->skinned) {
+        static custom_skinned_object_t object; /* 8 KB: not on the stack */
+        memcpy(object.mvp, e->mvp.m, sizeof(object.mvp));
+        memcpy(object.model, e->model_mat.m, sizeof(object.model));
+        memcpy(object.normal_mat, e->normal_mat.m, sizeof(object.normal_mat));
+        object.time[0] = time;
+        for (int j = 0; j < SK_MAX_JOINTS; j++) {
+            memcpy(object.joints[j], model_ptr->joint_matrices[j].m, sizeof(object.joints[j]));
+        }
+        sg_apply_uniforms(SK_SHADER_BLOCK_OBJECT, &(sg_range){.ptr = &object, .size = sizeof(object)});
+    } else {
+        custom_object_t object = {.time = {time}};
+        memcpy(object.mvp, e->mvp.m, sizeof(object.mvp));
+        memcpy(object.model, e->model_mat.m, sizeof(object.model));
+        memcpy(object.normal_mat, e->normal_mat.m, sizeof(object.normal_mat));
+        sg_apply_uniforms(SK_SHADER_BLOCK_OBJECT, &(sg_range){.ptr = &object, .size = sizeof(object)});
+    }
+
+    if (program->has_block[SK_SHADER_BLOCK_FRAME]) {
+        custom_frame_t frame;
+        memset(&frame, 0, sizeof(frame));
+        frame.camera_time[0] = e->camera_pos.x;
+        frame.camera_time[1] = e->camera_pos.y;
+        frame.camera_time[2] = e->camera_pos.z;
+        frame.camera_time[3] = time;
+        frame.tint[0] = sk_srgb_to_linear(e->tint.r); /* tint is an sRGB color; alpha is linear */
+        frame.tint[1] = sk_srgb_to_linear(e->tint.g);
+        frame.tint[2] = sk_srgb_to_linear(e->tint.b);
+        frame.tint[3] = e->tint.a;
+        frame.output[0] = material->alpha_mode == SK_ALPHA_MASK ? material->alpha_cutoff : 0.0f;
+        frame.output[1] = env != NULL ? (float)env->tonemap : 0.0f;
+        frame.output[2] = env != NULL ? powf(2.0f, env->exposure) : 1.0f;
+        if (env != NULL) {
+            frame.ambient_count[0] = env->ambient.x;
+            frame.ambient_count[1] = env->ambient.y;
+            frame.ambient_count[2] = env->ambient.z;
+            frame.ambient_count[3] = (float)e->light_count;
+            for (int i = 0; i < e->light_count; i++) {
+                const sk_scene_light_t *light = &env->lights[e->lights[i]];
+                frame.light_pos_range[i][0] = light->position.x;
+                frame.light_pos_range[i][1] = light->position.y;
+                frame.light_pos_range[i][2] = light->position.z;
+                frame.light_pos_range[i][3] = light->range;
+                frame.light_dir_type[i][0] = light->direction.x;
+                frame.light_dir_type[i][1] = light->direction.y;
+                frame.light_dir_type[i][2] = light->direction.z;
+                frame.light_dir_type[i][3] = (float)light->type;
+                frame.light_radiance[i][0] = light->radiance.x;
+                frame.light_radiance[i][1] = light->radiance.y;
+                frame.light_radiance[i][2] = light->radiance.z;
+                frame.light_spot[i][0] = light->cos_inner;
+                frame.light_spot[i][1] = light->cos_outer;
+            }
+        }
+        sg_apply_uniforms(SK_SHADER_BLOCK_FRAME, &(sg_range){.ptr = &frame, .size = sizeof(frame)});
+    }
+    if (program->has_block[SK_SHADER_BLOCK_FS_PARAMS]) {
+        sg_apply_uniforms(SK_SHADER_BLOCK_FS_PARAMS,
+                          &(sg_range){.ptr = material->custom_params,
+                                      .size = (size_t)shader->block_size[SK_SHADER_BLOCK_FS_PARAMS]});
+    }
+    if (program->has_block[SK_SHADER_BLOCK_VS_PARAMS]) {
+        sg_apply_uniforms(SK_SHADER_BLOCK_VS_PARAMS,
+                          &(sg_range){.ptr = material->custom_params + shader->block_size[SK_SHADER_BLOCK_FS_PARAMS],
+                                      .size = (size_t)shader->block_size[SK_SHADER_BLOCK_VS_PARAMS]});
+    }
+
+    for (int t = 0; t < shader->texture_count; t++) {
+        if (program->view_slot[t] >= 0) {
+            bind.views[program->view_slot[t]] = texture_view(&material->textures[t], sk_model_white_view);
+        }
+        if (program->sampler_slot[t] >= 0) {
+            bind.samplers[program->sampler_slot[t]] = texture_sampler(&material->textures[t]);
+        }
+    }
+    sg_apply_bindings(&bind);
+    sg_draw(0, prim->index_count, 1);
+}
+
 static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr, const sk_mesh_t *mesh_ptr,
                            const sk_primitive_t *prim, bool blended, sg_pipeline *cur_pip)
 {
     const sk_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
+    if (material->shader != 0) {
+        draw_custom(e, model_ptr, prim, material, blended, cur_pip);
+        return;
+    }
     const sk_material_texture_t *textures = material->textures;
     const sk_light_env_t *light_env = sk_light_env_get(e->light_env);
     sk_environment_binding_t environment;

@@ -1,0 +1,1676 @@
+skshader 1
+param color vec4 fs 0
+param edge_color vec3 fs 16
+param speed float fs 28
+texture noise_tex
+program skinned glsl410
+attr 0 position
+attr 1 normal
+attr 2 texcoord0
+attr 3 texcoord1
+attr 4 tangent
+attr 5 color0
+attr 6 joints
+attr 7 weights
+ub 0 vertex 8400 sk_skinned_object 525 0
+ub 1 fragment 576 sk_frame 36 0
+ub 2 fragment 32 params 2 0
+view 0 fragment noise_tex float 0
+sampler 0 fragment noise_smp filtering 0
+pair 0 fragment 0 0 noise_tex_noise_smp
+source vs 2549
+#version 410
+
+uniform vec4 sk_skinned_object[525];
+layout(location = 0) in vec3 position;
+layout(location = 1) in vec3 normal;
+layout(location = 7) in vec4 weights;
+layout(location = 6) in vec4 joints;
+layout(location = 0) out vec3 sk_world_pos;
+layout(location = 1) out vec3 sk_normal;
+layout(location = 2) out vec4 sk_tangent;
+layout(location = 4) in vec4 tangent;
+layout(location = 3) out vec2 sk_uv0;
+layout(location = 2) in vec2 texcoord0;
+layout(location = 4) out vec2 sk_uv1;
+layout(location = 3) in vec2 texcoord1;
+layout(location = 5) out vec4 sk_color;
+layout(location = 5) in vec4 color0;
+
+void sk_vertex(vec3 position_1, vec3 normal_1)
+{
+}
+
+void main()
+{
+    vec3 param = position;
+    vec3 param_1 = normal;
+    sk_vertex(param, param_1);
+    mat4 _53 = mat4(sk_skinned_object[int(joints.x) * 4 + 13], sk_skinned_object[int(joints.x) * 4 + 14], sk_skinned_object[int(joints.x) * 4 + 15], sk_skinned_object[int(joints.x) * 4 + 16]) * weights.x;
+    mat4 _62 = mat4(sk_skinned_object[int(joints.y) * 4 + 13], sk_skinned_object[int(joints.y) * 4 + 14], sk_skinned_object[int(joints.y) * 4 + 15], sk_skinned_object[int(joints.y) * 4 + 16]) * weights.y;
+    mat4 _84 = mat4(sk_skinned_object[int(joints.z) * 4 + 13], sk_skinned_object[int(joints.z) * 4 + 14], sk_skinned_object[int(joints.z) * 4 + 15], sk_skinned_object[int(joints.z) * 4 + 16]) * weights.z;
+    mat4 _106 = mat4(sk_skinned_object[int(joints.w) * 4 + 13], sk_skinned_object[int(joints.w) * 4 + 14], sk_skinned_object[int(joints.w) * 4 + 15], sk_skinned_object[int(joints.w) * 4 + 16]) * weights.w;
+    vec4 _109 = ((_53[0] + _62[0]) + _84[0]) + _106[0];
+    vec4 _112 = ((_53[1] + _62[1]) + _84[1]) + _106[1];
+    vec4 _115 = ((_53[2] + _62[2]) + _84[2]) + _106[2];
+    vec4 _129 = mat4(_109, _112, _115, ((_53[3] + _62[3]) + _84[3]) + _106[3]) * vec4(param, 1.0);
+    gl_Position = mat4(sk_skinned_object[0], sk_skinned_object[1], sk_skinned_object[2], sk_skinned_object[3]) * _129;
+    mat4 _145 = mat4(sk_skinned_object[4], sk_skinned_object[5], sk_skinned_object[6], sk_skinned_object[7]);
+    sk_world_pos = (_145 * _129).xyz;
+    mat4 _152 = mat4(sk_skinned_object[8], sk_skinned_object[9], sk_skinned_object[10], sk_skinned_object[11]);
+    mat3 _168 = mat3(_109.xyz, _112.xyz, _115.xyz);
+    sk_normal = mat3(_152[0].xyz, _152[1].xyz, _152[2].xyz) * (_168 * param_1);
+    vec3 _194 = mat3(_145[0].xyz, _145[1].xyz, _145[2].xyz) * (_168 * tangent.xyz);
+    sk_tangent = vec4(_194, tangent.w);
+    sk_uv0 = texcoord0;
+    sk_uv1 = texcoord1;
+    sk_color = color0;
+}
+
+
+source fs 4834
+#version 410
+
+uniform vec4 sk_frame[36];
+uniform vec4 params[2];
+uniform sampler2D noise_tex_noise_smp;
+
+layout(location = 0) out vec4 sk_frag_color;
+layout(location = 3) in vec2 sk_uv0;
+layout(location = 1) in vec3 sk_normal;
+layout(location = 0) in vec3 sk_world_pos;
+layout(location = 2) in vec4 sk_tangent;
+layout(location = 4) in vec2 sk_uv1;
+layout(location = 5) in vec4 sk_color;
+
+float sk_time()
+{
+    return sk_frame[0].w;
+}
+
+vec3 sk_ambient()
+{
+    return sk_frame[2].xyz;
+}
+
+int sk_light_count()
+{
+    return int(sk_frame[2].w + 0.5);
+}
+
+vec3 sk_light(int i, vec3 pos, out vec3 to_light)
+{
+    int _109 = int(sk_frame[i * 1 + 12].w + 0.5);
+    if (_109 == 0)
+    {
+        to_light = -normalize(sk_frame[i * 1 + 12].xyz);
+        return sk_frame[i * 1 + 20].xyz;
+    }
+    vec3 _134 = pos - sk_frame[i * 1 + 4].xyz;
+    float _137 = length(_134);
+    vec3 _142;
+    if (_137 > 9.9999999747524270787835121154785e-07)
+    {
+        _142 = _134 / vec3(_137);
+    }
+    else
+    {
+        _142 = vec3(0.0, -1.0, 0.0);
+    }
+    to_light = -_142;
+    float falloff = 1.0 / max(_137 * _137, 0.00999999977648258209228515625);
+    if (sk_frame[i * 1 + 4].w > 0.0)
+    {
+        float _173 = _137 / sk_frame[i * 1 + 4].w;
+        float _183 = clamp(1.0 - (((_173 * _173) * _173) * _173), 0.0, 1.0);
+        falloff *= (_183 * _183);
+    }
+    if (_109 == 2)
+    {
+        float _200 = dot(_142, normalize(sk_frame[i * 1 + 12].xyz));
+        float _216;
+        if ((sk_frame[i * 1 + 28].x - sk_frame[i * 1 + 28].y) <= 9.9999999747524270787835121154785e-07)
+        {
+            _216 = float(_200 >= sk_frame[i * 1 + 28].y);
+        }
+        else
+        {
+            _216 = smoothstep(sk_frame[i * 1 + 28].y, sk_frame[i * 1 + 28].x, _200);
+        }
+        falloff *= _216;
+    }
+    return sk_frame[i * 1 + 20].xyz * falloff;
+}
+
+vec3 sk_tonemap_neutral(inout vec3 color)
+{
+    float _248 = min(color.x, min(color.y, color.z));
+    float _253;
+    if (_248 < 0.07999999821186065673828125)
+    {
+        _253 = _248 - ((6.25 * _248) * _248);
+    }
+    else
+    {
+        _253 = 0.039999999105930328369140625;
+    }
+    color -= vec3(_253);
+    float _272 = color.x;
+    float _274 = color.y;
+    float _276 = color.z;
+    float _278 = max(_272, max(_274, _276));
+    if (_278 < 0.7599999904632568359375)
+    {
+        return color;
+    }
+    float _293 = 1.0 - (0.057599999010562896728515625 / (_278 + (-0.519999980926513671875)));
+    color *= (_293 / _278);
+    return mix(color, vec3(_293), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_278 - _293)) + 1.0))));
+}
+
+vec3 sk_tonemap_aces(inout vec3 color)
+{
+    color *= 0.60000002384185791015625;
+    return clamp((color * ((color * 2.5099999904632568359375) + vec3(0.02999999932944774627685546875))) / ((color * ((color * 2.4300000667572021484375) + vec3(0.589999973773956298828125))) + vec3(0.14000000059604644775390625)), vec3(0.0), vec3(1.0));
+}
+
+vec3 sk_linear_to_srgb(inout vec3 c)
+{
+    c = clamp(c, vec3(0.0), vec3(1.0));
+    return mix(c * 12.9200000762939453125, (pow(max(c, vec3(0.003130800090730190277099609375)), vec3(0.4166666567325592041015625)) * 1.05499994754791259765625) - vec3(0.054999999701976776123046875), step(vec3(0.003130800090730190277099609375), c));
+}
+
+void sk_output(inout vec3 color, inout float alpha)
+{
+    color *= sk_frame[1].xyz;
+    alpha *= sk_frame[1].w;
+    if (alpha < sk_frame[3].x)
+    {
+        discard;
+    }
+    color *= sk_frame[3].z;
+    int _370 = int(sk_frame[3].y + 0.5);
+    if (_370 == 1)
+    {
+        vec3 param = color;
+        vec3 _377 = sk_tonemap_neutral(param);
+        color = _377;
+    }
+    else
+    {
+        if (_370 == 2)
+        {
+            vec3 param_1 = color;
+            vec3 _385 = sk_tonemap_aces(param_1);
+            color = _385;
+        }
+    }
+    vec3 param_2 = color;
+    vec3 _390 = sk_linear_to_srgb(param_2);
+    sk_frag_color = vec4(_390, alpha);
+}
+
+void main()
+{
+    vec4 _413 = texture(noise_tex_noise_smp, sk_uv0 * 2.0);
+    float _414 = _413.x;
+    float _429 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((sk_time() * params[1].w) * 6.283185482025146484375));
+    if (_414 < _429)
+    {
+        discard;
+    }
+    vec3 _445 = normalize(sk_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
+    vec3 light = sk_ambient();
+    vec3 param_2;
+    for (int i = 0; i < 8; i++)
+    {
+        if (i >= sk_light_count())
+        {
+            break;
+        }
+        int param = i;
+        vec3 param_1 = sk_world_pos;
+        vec3 _471 = sk_light(param, param_1, param_2);
+        light += ((_471 * max(dot(_445, param_2), 0.0)) * vec3(0.3183098733425140380859375));
+    }
+    vec3 param_3 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _414 - _429)));
+    float param_4 = params[0].w;
+    sk_output(param_3, param_4);
+}
+
+
+program static glsl410
+attr 0 position
+attr 1 normal
+attr 2 texcoord0
+attr 3 texcoord1
+attr 4 tangent
+attr 5 color0
+ub 0 vertex 208 sk_object 13 0
+ub 1 fragment 576 sk_frame 36 0
+ub 2 fragment 32 params 2 0
+view 0 fragment noise_tex float 0
+sampler 0 fragment noise_smp filtering 0
+pair 0 fragment 0 0 noise_tex_noise_smp
+source vs 1211
+#version 410
+
+uniform vec4 sk_object[13];
+layout(location = 0) in vec3 position;
+layout(location = 1) in vec3 normal;
+layout(location = 0) out vec3 sk_world_pos;
+layout(location = 1) out vec3 sk_normal;
+layout(location = 2) out vec4 sk_tangent;
+layout(location = 4) in vec4 tangent;
+layout(location = 3) out vec2 sk_uv0;
+layout(location = 2) in vec2 texcoord0;
+layout(location = 4) out vec2 sk_uv1;
+layout(location = 3) in vec2 texcoord1;
+layout(location = 5) out vec4 sk_color;
+layout(location = 5) in vec4 color0;
+
+void sk_vertex(vec3 position_1, vec3 normal_1)
+{
+}
+
+void main()
+{
+    vec3 param = position;
+    vec3 param_1 = normal;
+    sk_vertex(param, param_1);
+    vec4 _49 = vec4(param, 1.0);
+    gl_Position = mat4(sk_object[0], sk_object[1], sk_object[2], sk_object[3]) * _49;
+    mat4 _57 = mat4(sk_object[4], sk_object[5], sk_object[6], sk_object[7]);
+    sk_world_pos = (_57 * _49).xyz;
+    mat4 _68 = mat4(sk_object[8], sk_object[9], sk_object[10], sk_object[11]);
+    sk_normal = mat3(_68[0].xyz, _68[1].xyz, _68[2].xyz) * param_1;
+    sk_tangent = vec4(mat3(_57[0].xyz, _57[1].xyz, _57[2].xyz) * tangent.xyz, tangent.w);
+    sk_uv0 = texcoord0;
+    sk_uv1 = texcoord1;
+    sk_color = color0;
+}
+
+
+source fs 4834
+#version 410
+
+uniform vec4 sk_frame[36];
+uniform vec4 params[2];
+uniform sampler2D noise_tex_noise_smp;
+
+layout(location = 0) out vec4 sk_frag_color;
+layout(location = 3) in vec2 sk_uv0;
+layout(location = 1) in vec3 sk_normal;
+layout(location = 0) in vec3 sk_world_pos;
+layout(location = 2) in vec4 sk_tangent;
+layout(location = 4) in vec2 sk_uv1;
+layout(location = 5) in vec4 sk_color;
+
+float sk_time()
+{
+    return sk_frame[0].w;
+}
+
+vec3 sk_ambient()
+{
+    return sk_frame[2].xyz;
+}
+
+int sk_light_count()
+{
+    return int(sk_frame[2].w + 0.5);
+}
+
+vec3 sk_light(int i, vec3 pos, out vec3 to_light)
+{
+    int _109 = int(sk_frame[i * 1 + 12].w + 0.5);
+    if (_109 == 0)
+    {
+        to_light = -normalize(sk_frame[i * 1 + 12].xyz);
+        return sk_frame[i * 1 + 20].xyz;
+    }
+    vec3 _134 = pos - sk_frame[i * 1 + 4].xyz;
+    float _137 = length(_134);
+    vec3 _142;
+    if (_137 > 9.9999999747524270787835121154785e-07)
+    {
+        _142 = _134 / vec3(_137);
+    }
+    else
+    {
+        _142 = vec3(0.0, -1.0, 0.0);
+    }
+    to_light = -_142;
+    float falloff = 1.0 / max(_137 * _137, 0.00999999977648258209228515625);
+    if (sk_frame[i * 1 + 4].w > 0.0)
+    {
+        float _173 = _137 / sk_frame[i * 1 + 4].w;
+        float _183 = clamp(1.0 - (((_173 * _173) * _173) * _173), 0.0, 1.0);
+        falloff *= (_183 * _183);
+    }
+    if (_109 == 2)
+    {
+        float _200 = dot(_142, normalize(sk_frame[i * 1 + 12].xyz));
+        float _216;
+        if ((sk_frame[i * 1 + 28].x - sk_frame[i * 1 + 28].y) <= 9.9999999747524270787835121154785e-07)
+        {
+            _216 = float(_200 >= sk_frame[i * 1 + 28].y);
+        }
+        else
+        {
+            _216 = smoothstep(sk_frame[i * 1 + 28].y, sk_frame[i * 1 + 28].x, _200);
+        }
+        falloff *= _216;
+    }
+    return sk_frame[i * 1 + 20].xyz * falloff;
+}
+
+vec3 sk_tonemap_neutral(inout vec3 color)
+{
+    float _248 = min(color.x, min(color.y, color.z));
+    float _253;
+    if (_248 < 0.07999999821186065673828125)
+    {
+        _253 = _248 - ((6.25 * _248) * _248);
+    }
+    else
+    {
+        _253 = 0.039999999105930328369140625;
+    }
+    color -= vec3(_253);
+    float _272 = color.x;
+    float _274 = color.y;
+    float _276 = color.z;
+    float _278 = max(_272, max(_274, _276));
+    if (_278 < 0.7599999904632568359375)
+    {
+        return color;
+    }
+    float _293 = 1.0 - (0.057599999010562896728515625 / (_278 + (-0.519999980926513671875)));
+    color *= (_293 / _278);
+    return mix(color, vec3(_293), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_278 - _293)) + 1.0))));
+}
+
+vec3 sk_tonemap_aces(inout vec3 color)
+{
+    color *= 0.60000002384185791015625;
+    return clamp((color * ((color * 2.5099999904632568359375) + vec3(0.02999999932944774627685546875))) / ((color * ((color * 2.4300000667572021484375) + vec3(0.589999973773956298828125))) + vec3(0.14000000059604644775390625)), vec3(0.0), vec3(1.0));
+}
+
+vec3 sk_linear_to_srgb(inout vec3 c)
+{
+    c = clamp(c, vec3(0.0), vec3(1.0));
+    return mix(c * 12.9200000762939453125, (pow(max(c, vec3(0.003130800090730190277099609375)), vec3(0.4166666567325592041015625)) * 1.05499994754791259765625) - vec3(0.054999999701976776123046875), step(vec3(0.003130800090730190277099609375), c));
+}
+
+void sk_output(inout vec3 color, inout float alpha)
+{
+    color *= sk_frame[1].xyz;
+    alpha *= sk_frame[1].w;
+    if (alpha < sk_frame[3].x)
+    {
+        discard;
+    }
+    color *= sk_frame[3].z;
+    int _370 = int(sk_frame[3].y + 0.5);
+    if (_370 == 1)
+    {
+        vec3 param = color;
+        vec3 _377 = sk_tonemap_neutral(param);
+        color = _377;
+    }
+    else
+    {
+        if (_370 == 2)
+        {
+            vec3 param_1 = color;
+            vec3 _385 = sk_tonemap_aces(param_1);
+            color = _385;
+        }
+    }
+    vec3 param_2 = color;
+    vec3 _390 = sk_linear_to_srgb(param_2);
+    sk_frag_color = vec4(_390, alpha);
+}
+
+void main()
+{
+    vec4 _413 = texture(noise_tex_noise_smp, sk_uv0 * 2.0);
+    float _414 = _413.x;
+    float _429 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((sk_time() * params[1].w) * 6.283185482025146484375));
+    if (_414 < _429)
+    {
+        discard;
+    }
+    vec3 _445 = normalize(sk_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
+    vec3 light = sk_ambient();
+    vec3 param_2;
+    for (int i = 0; i < 8; i++)
+    {
+        if (i >= sk_light_count())
+        {
+            break;
+        }
+        int param = i;
+        vec3 param_1 = sk_world_pos;
+        vec3 _471 = sk_light(param, param_1, param_2);
+        light += ((_471 * max(dot(_445, param_2), 0.0)) * vec3(0.3183098733425140380859375));
+    }
+    vec3 param_3 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _414 - _429)));
+    float param_4 = params[0].w;
+    sk_output(param_3, param_4);
+}
+
+
+program skinned glsl300es
+attr 0 position
+attr 1 normal
+attr 2 texcoord0
+attr 3 texcoord1
+attr 4 tangent
+attr 5 color0
+attr 6 joints
+attr 7 weights
+ub 0 vertex 8400 sk_skinned_object 525 0
+ub 1 fragment 576 sk_frame 36 0
+ub 2 fragment 32 params 2 0
+view 0 fragment noise_tex float 0
+sampler 0 fragment noise_smp filtering 0
+pair 0 fragment 0 0 noise_tex_noise_smp
+source vs 2426
+#version 300 es
+
+uniform vec4 sk_skinned_object[525];
+layout(location = 0) in vec3 position;
+layout(location = 1) in vec3 normal;
+layout(location = 7) in vec4 weights;
+layout(location = 6) in vec4 joints;
+out vec3 sk_world_pos;
+out vec3 sk_normal;
+out vec4 sk_tangent;
+layout(location = 4) in vec4 tangent;
+out vec2 sk_uv0;
+layout(location = 2) in vec2 texcoord0;
+out vec2 sk_uv1;
+layout(location = 3) in vec2 texcoord1;
+out vec4 sk_color;
+layout(location = 5) in vec4 color0;
+
+void sk_vertex(vec3 position_1, vec3 normal_1)
+{
+}
+
+void main()
+{
+    vec3 param = position;
+    vec3 param_1 = normal;
+    sk_vertex(param, param_1);
+    mat4 _53 = mat4(sk_skinned_object[int(joints.x) * 4 + 13], sk_skinned_object[int(joints.x) * 4 + 14], sk_skinned_object[int(joints.x) * 4 + 15], sk_skinned_object[int(joints.x) * 4 + 16]) * weights.x;
+    mat4 _62 = mat4(sk_skinned_object[int(joints.y) * 4 + 13], sk_skinned_object[int(joints.y) * 4 + 14], sk_skinned_object[int(joints.y) * 4 + 15], sk_skinned_object[int(joints.y) * 4 + 16]) * weights.y;
+    mat4 _84 = mat4(sk_skinned_object[int(joints.z) * 4 + 13], sk_skinned_object[int(joints.z) * 4 + 14], sk_skinned_object[int(joints.z) * 4 + 15], sk_skinned_object[int(joints.z) * 4 + 16]) * weights.z;
+    mat4 _106 = mat4(sk_skinned_object[int(joints.w) * 4 + 13], sk_skinned_object[int(joints.w) * 4 + 14], sk_skinned_object[int(joints.w) * 4 + 15], sk_skinned_object[int(joints.w) * 4 + 16]) * weights.w;
+    vec4 _109 = ((_53[0] + _62[0]) + _84[0]) + _106[0];
+    vec4 _112 = ((_53[1] + _62[1]) + _84[1]) + _106[1];
+    vec4 _115 = ((_53[2] + _62[2]) + _84[2]) + _106[2];
+    vec4 _129 = mat4(_109, _112, _115, ((_53[3] + _62[3]) + _84[3]) + _106[3]) * vec4(param, 1.0);
+    gl_Position = mat4(sk_skinned_object[0], sk_skinned_object[1], sk_skinned_object[2], sk_skinned_object[3]) * _129;
+    mat4 _145 = mat4(sk_skinned_object[4], sk_skinned_object[5], sk_skinned_object[6], sk_skinned_object[7]);
+    sk_world_pos = (_145 * _129).xyz;
+    mat4 _152 = mat4(sk_skinned_object[8], sk_skinned_object[9], sk_skinned_object[10], sk_skinned_object[11]);
+    mat3 _168 = mat3(_109.xyz, _112.xyz, _115.xyz);
+    sk_normal = mat3(_152[0].xyz, _152[1].xyz, _152[2].xyz) * (_168 * param_1);
+    vec3 _194 = mat3(_145[0].xyz, _145[1].xyz, _145[2].xyz) * (_168 * tangent.xyz);
+    sk_tangent = vec4(_194, tangent.w);
+    sk_uv0 = texcoord0;
+    sk_uv1 = texcoord1;
+    sk_color = color0;
+}
+
+
+source fs 5081
+#version 300 es
+precision mediump float;
+precision highp int;
+
+uniform highp vec4 sk_frame[36];
+uniform highp vec4 params[2];
+uniform highp sampler2D noise_tex_noise_smp;
+
+layout(location = 0) out highp vec4 sk_frag_color;
+in highp vec2 sk_uv0;
+in highp vec3 sk_normal;
+in highp vec3 sk_world_pos;
+in highp vec4 sk_tangent;
+in highp vec2 sk_uv1;
+in highp vec4 sk_color;
+
+highp float sk_time()
+{
+    return sk_frame[0].w;
+}
+
+highp vec3 sk_ambient()
+{
+    return sk_frame[2].xyz;
+}
+
+int sk_light_count()
+{
+    return int(sk_frame[2].w + 0.5);
+}
+
+highp vec3 sk_light(int i, highp vec3 pos, out highp vec3 to_light)
+{
+    int _109 = int(sk_frame[i * 1 + 12].w + 0.5);
+    if (_109 == 0)
+    {
+        to_light = -normalize(sk_frame[i * 1 + 12].xyz);
+        return sk_frame[i * 1 + 20].xyz;
+    }
+    highp vec3 _134 = pos - sk_frame[i * 1 + 4].xyz;
+    highp float _137 = length(_134);
+    highp vec3 _142;
+    if (_137 > 9.9999999747524270787835121154785e-07)
+    {
+        _142 = _134 / vec3(_137);
+    }
+    else
+    {
+        _142 = vec3(0.0, -1.0, 0.0);
+    }
+    to_light = -_142;
+    highp float falloff = 1.0 / max(_137 * _137, 0.00999999977648258209228515625);
+    if (sk_frame[i * 1 + 4].w > 0.0)
+    {
+        highp float _173 = _137 / sk_frame[i * 1 + 4].w;
+        highp float _183 = clamp(1.0 - (((_173 * _173) * _173) * _173), 0.0, 1.0);
+        falloff *= (_183 * _183);
+    }
+    if (_109 == 2)
+    {
+        highp float _200 = dot(_142, normalize(sk_frame[i * 1 + 12].xyz));
+        highp float _216;
+        if ((sk_frame[i * 1 + 28].x - sk_frame[i * 1 + 28].y) <= 9.9999999747524270787835121154785e-07)
+        {
+            _216 = float(_200 >= sk_frame[i * 1 + 28].y);
+        }
+        else
+        {
+            _216 = smoothstep(sk_frame[i * 1 + 28].y, sk_frame[i * 1 + 28].x, _200);
+        }
+        falloff *= _216;
+    }
+    return sk_frame[i * 1 + 20].xyz * falloff;
+}
+
+highp vec3 sk_tonemap_neutral(inout highp vec3 color)
+{
+    highp float _248 = min(color.x, min(color.y, color.z));
+    highp float _253;
+    if (_248 < 0.07999999821186065673828125)
+    {
+        _253 = _248 - ((6.25 * _248) * _248);
+    }
+    else
+    {
+        _253 = 0.039999999105930328369140625;
+    }
+    color -= vec3(_253);
+    highp float _272 = color.x;
+    highp float _274 = color.y;
+    highp float _276 = color.z;
+    highp float _278 = max(_272, max(_274, _276));
+    if (_278 < 0.7599999904632568359375)
+    {
+        return color;
+    }
+    highp float _293 = 1.0 - (0.057599999010562896728515625 / (_278 + (-0.519999980926513671875)));
+    color *= (_293 / _278);
+    return mix(color, vec3(_293), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_278 - _293)) + 1.0))));
+}
+
+highp vec3 sk_tonemap_aces(inout highp vec3 color)
+{
+    color *= 0.60000002384185791015625;
+    return clamp((color * ((color * 2.5099999904632568359375) + vec3(0.02999999932944774627685546875))) / ((color * ((color * 2.4300000667572021484375) + vec3(0.589999973773956298828125))) + vec3(0.14000000059604644775390625)), vec3(0.0), vec3(1.0));
+}
+
+highp vec3 sk_linear_to_srgb(inout highp vec3 c)
+{
+    c = clamp(c, vec3(0.0), vec3(1.0));
+    return mix(c * 12.9200000762939453125, (pow(max(c, vec3(0.003130800090730190277099609375)), vec3(0.4166666567325592041015625)) * 1.05499994754791259765625) - vec3(0.054999999701976776123046875), step(vec3(0.003130800090730190277099609375), c));
+}
+
+void sk_output(inout highp vec3 color, inout highp float alpha)
+{
+    color *= sk_frame[1].xyz;
+    alpha *= sk_frame[1].w;
+    if (alpha < sk_frame[3].x)
+    {
+        discard;
+    }
+    color *= sk_frame[3].z;
+    int _370 = int(sk_frame[3].y + 0.5);
+    if (_370 == 1)
+    {
+        highp vec3 param = color;
+        highp vec3 _377 = sk_tonemap_neutral(param);
+        color = _377;
+    }
+    else
+    {
+        if (_370 == 2)
+        {
+            highp vec3 param_1 = color;
+            highp vec3 _385 = sk_tonemap_aces(param_1);
+            color = _385;
+        }
+    }
+    highp vec3 param_2 = color;
+    highp vec3 _390 = sk_linear_to_srgb(param_2);
+    sk_frag_color = vec4(_390, alpha);
+}
+
+void main()
+{
+    highp vec4 _413 = texture(noise_tex_noise_smp, sk_uv0 * 2.0);
+    highp float _414 = _413.x;
+    highp float _429 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((sk_time() * params[1].w) * 6.283185482025146484375));
+    if (_414 < _429)
+    {
+        discard;
+    }
+    highp vec3 _445 = normalize(sk_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
+    highp vec3 light = sk_ambient();
+    highp vec3 param_2;
+    for (int i = 0; i < 8; i++)
+    {
+        if (i >= sk_light_count())
+        {
+            break;
+        }
+        int param = i;
+        highp vec3 param_1 = sk_world_pos;
+        highp vec3 _471 = sk_light(param, param_1, param_2);
+        light += ((_471 * max(dot(_445, param_2), 0.0)) * vec3(0.3183098733425140380859375));
+    }
+    highp vec3 param_3 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _414 - _429)));
+    highp float param_4 = params[0].w;
+    sk_output(param_3, param_4);
+}
+
+
+program static glsl300es
+attr 0 position
+attr 1 normal
+attr 2 texcoord0
+attr 3 texcoord1
+attr 4 tangent
+attr 5 color0
+ub 0 vertex 208 sk_object 13 0
+ub 1 fragment 576 sk_frame 36 0
+ub 2 fragment 32 params 2 0
+view 0 fragment noise_tex float 0
+sampler 0 fragment noise_smp filtering 0
+pair 0 fragment 0 0 noise_tex_noise_smp
+source vs 1088
+#version 300 es
+
+uniform vec4 sk_object[13];
+layout(location = 0) in vec3 position;
+layout(location = 1) in vec3 normal;
+out vec3 sk_world_pos;
+out vec3 sk_normal;
+out vec4 sk_tangent;
+layout(location = 4) in vec4 tangent;
+out vec2 sk_uv0;
+layout(location = 2) in vec2 texcoord0;
+out vec2 sk_uv1;
+layout(location = 3) in vec2 texcoord1;
+out vec4 sk_color;
+layout(location = 5) in vec4 color0;
+
+void sk_vertex(vec3 position_1, vec3 normal_1)
+{
+}
+
+void main()
+{
+    vec3 param = position;
+    vec3 param_1 = normal;
+    sk_vertex(param, param_1);
+    vec4 _49 = vec4(param, 1.0);
+    gl_Position = mat4(sk_object[0], sk_object[1], sk_object[2], sk_object[3]) * _49;
+    mat4 _57 = mat4(sk_object[4], sk_object[5], sk_object[6], sk_object[7]);
+    sk_world_pos = (_57 * _49).xyz;
+    mat4 _68 = mat4(sk_object[8], sk_object[9], sk_object[10], sk_object[11]);
+    sk_normal = mat3(_68[0].xyz, _68[1].xyz, _68[2].xyz) * param_1;
+    sk_tangent = vec4(mat3(_57[0].xyz, _57[1].xyz, _57[2].xyz) * tangent.xyz, tangent.w);
+    sk_uv0 = texcoord0;
+    sk_uv1 = texcoord1;
+    sk_color = color0;
+}
+
+
+source fs 5081
+#version 300 es
+precision mediump float;
+precision highp int;
+
+uniform highp vec4 sk_frame[36];
+uniform highp vec4 params[2];
+uniform highp sampler2D noise_tex_noise_smp;
+
+layout(location = 0) out highp vec4 sk_frag_color;
+in highp vec2 sk_uv0;
+in highp vec3 sk_normal;
+in highp vec3 sk_world_pos;
+in highp vec4 sk_tangent;
+in highp vec2 sk_uv1;
+in highp vec4 sk_color;
+
+highp float sk_time()
+{
+    return sk_frame[0].w;
+}
+
+highp vec3 sk_ambient()
+{
+    return sk_frame[2].xyz;
+}
+
+int sk_light_count()
+{
+    return int(sk_frame[2].w + 0.5);
+}
+
+highp vec3 sk_light(int i, highp vec3 pos, out highp vec3 to_light)
+{
+    int _109 = int(sk_frame[i * 1 + 12].w + 0.5);
+    if (_109 == 0)
+    {
+        to_light = -normalize(sk_frame[i * 1 + 12].xyz);
+        return sk_frame[i * 1 + 20].xyz;
+    }
+    highp vec3 _134 = pos - sk_frame[i * 1 + 4].xyz;
+    highp float _137 = length(_134);
+    highp vec3 _142;
+    if (_137 > 9.9999999747524270787835121154785e-07)
+    {
+        _142 = _134 / vec3(_137);
+    }
+    else
+    {
+        _142 = vec3(0.0, -1.0, 0.0);
+    }
+    to_light = -_142;
+    highp float falloff = 1.0 / max(_137 * _137, 0.00999999977648258209228515625);
+    if (sk_frame[i * 1 + 4].w > 0.0)
+    {
+        highp float _173 = _137 / sk_frame[i * 1 + 4].w;
+        highp float _183 = clamp(1.0 - (((_173 * _173) * _173) * _173), 0.0, 1.0);
+        falloff *= (_183 * _183);
+    }
+    if (_109 == 2)
+    {
+        highp float _200 = dot(_142, normalize(sk_frame[i * 1 + 12].xyz));
+        highp float _216;
+        if ((sk_frame[i * 1 + 28].x - sk_frame[i * 1 + 28].y) <= 9.9999999747524270787835121154785e-07)
+        {
+            _216 = float(_200 >= sk_frame[i * 1 + 28].y);
+        }
+        else
+        {
+            _216 = smoothstep(sk_frame[i * 1 + 28].y, sk_frame[i * 1 + 28].x, _200);
+        }
+        falloff *= _216;
+    }
+    return sk_frame[i * 1 + 20].xyz * falloff;
+}
+
+highp vec3 sk_tonemap_neutral(inout highp vec3 color)
+{
+    highp float _248 = min(color.x, min(color.y, color.z));
+    highp float _253;
+    if (_248 < 0.07999999821186065673828125)
+    {
+        _253 = _248 - ((6.25 * _248) * _248);
+    }
+    else
+    {
+        _253 = 0.039999999105930328369140625;
+    }
+    color -= vec3(_253);
+    highp float _272 = color.x;
+    highp float _274 = color.y;
+    highp float _276 = color.z;
+    highp float _278 = max(_272, max(_274, _276));
+    if (_278 < 0.7599999904632568359375)
+    {
+        return color;
+    }
+    highp float _293 = 1.0 - (0.057599999010562896728515625 / (_278 + (-0.519999980926513671875)));
+    color *= (_293 / _278);
+    return mix(color, vec3(_293), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_278 - _293)) + 1.0))));
+}
+
+highp vec3 sk_tonemap_aces(inout highp vec3 color)
+{
+    color *= 0.60000002384185791015625;
+    return clamp((color * ((color * 2.5099999904632568359375) + vec3(0.02999999932944774627685546875))) / ((color * ((color * 2.4300000667572021484375) + vec3(0.589999973773956298828125))) + vec3(0.14000000059604644775390625)), vec3(0.0), vec3(1.0));
+}
+
+highp vec3 sk_linear_to_srgb(inout highp vec3 c)
+{
+    c = clamp(c, vec3(0.0), vec3(1.0));
+    return mix(c * 12.9200000762939453125, (pow(max(c, vec3(0.003130800090730190277099609375)), vec3(0.4166666567325592041015625)) * 1.05499994754791259765625) - vec3(0.054999999701976776123046875), step(vec3(0.003130800090730190277099609375), c));
+}
+
+void sk_output(inout highp vec3 color, inout highp float alpha)
+{
+    color *= sk_frame[1].xyz;
+    alpha *= sk_frame[1].w;
+    if (alpha < sk_frame[3].x)
+    {
+        discard;
+    }
+    color *= sk_frame[3].z;
+    int _370 = int(sk_frame[3].y + 0.5);
+    if (_370 == 1)
+    {
+        highp vec3 param = color;
+        highp vec3 _377 = sk_tonemap_neutral(param);
+        color = _377;
+    }
+    else
+    {
+        if (_370 == 2)
+        {
+            highp vec3 param_1 = color;
+            highp vec3 _385 = sk_tonemap_aces(param_1);
+            color = _385;
+        }
+    }
+    highp vec3 param_2 = color;
+    highp vec3 _390 = sk_linear_to_srgb(param_2);
+    sk_frag_color = vec4(_390, alpha);
+}
+
+void main()
+{
+    highp vec4 _413 = texture(noise_tex_noise_smp, sk_uv0 * 2.0);
+    highp float _414 = _413.x;
+    highp float _429 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((sk_time() * params[1].w) * 6.283185482025146484375));
+    if (_414 < _429)
+    {
+        discard;
+    }
+    highp vec3 _445 = normalize(sk_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
+    highp vec3 light = sk_ambient();
+    highp vec3 param_2;
+    for (int i = 0; i < 8; i++)
+    {
+        if (i >= sk_light_count())
+        {
+            break;
+        }
+        int param = i;
+        highp vec3 param_1 = sk_world_pos;
+        highp vec3 _471 = sk_light(param, param_1, param_2);
+        light += ((_471 * max(dot(_445, param_2), 0.0)) * vec3(0.3183098733425140380859375));
+    }
+    highp vec3 param_3 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _414 - _429)));
+    highp float param_4 = params[0].w;
+    sk_output(param_3, param_4);
+}
+
+
+program skinned wgsl
+attr 0 -
+attr 1 -
+attr 2 -
+attr 3 -
+attr 4 -
+attr 5 -
+attr 6 -
+attr 7 -
+ub 0 vertex 8400 - 0 0
+ub 1 fragment 576 - 0 1
+ub 2 fragment 32 - 0 2
+view 0 fragment noise_tex float 0
+sampler 0 fragment noise_smp filtering 32
+pair 0 fragment 0 0 -
+source vs 3188
+diagnostic(off, derivative_uniformity);
+
+alias Arr = array<mat4x4f, 128u>;
+
+struct sk_skinned_object {
+  /* @offset(0) */
+  sk_mvp : mat4x4f,
+  /* @offset(64) */
+  sk_model : mat4x4f,
+  /* @offset(128) */
+  sk_normal_mat : mat4x4f,
+  /* @offset(192) */
+  sk_object_time : vec4f,
+  /* @offset(208) */
+  sk_joints : Arr,
+}
+
+var<private> position_2 : vec3f;
+
+var<private> normal_1 : vec3f;
+
+var<private> weights : vec4f;
+
+@binding(0) @group(0) var<uniform> x_43 : sk_skinned_object;
+
+var<private> joints : vec4f;
+
+var<private> sk_world_pos : vec3f;
+
+var<private> sk_normal : vec3f;
+
+var<private> sk_tangent : vec4f;
+
+var<private> tangent : vec4f;
+
+var<private> sk_uv0 : vec2f;
+
+var<private> texcoord0 : vec2f;
+
+var<private> sk_uv1 : vec2f;
+
+var<private> texcoord1 : vec2f;
+
+var<private> sk_color : vec4f;
+
+var<private> color0 : vec4f;
+
+var<private> gl_Position : vec4f;
+
+fn sk_vertex_vf3_vf3_(position_1 : ptr<function, vec3f>, normal : ptr<function, vec3f>) {
+  return;
+}
+
+fn main_1() {
+  var param : vec3f;
+  var param_1 : vec3f;
+  let x_20 = normal_1;
+  param = position_2;
+  param_1 = x_20;
+  sk_vertex_vf3_vf3_(&(param), &(param_1));
+  let x_27 = param_1;
+  let x_53 = (x_43.sk_joints[i32(joints.x)] * weights.x);
+  let x_62 = (x_43.sk_joints[i32(joints.y)] * weights.y);
+  let x_84 = (x_43.sk_joints[i32(joints.z)] * weights.z);
+  let x_106 = (x_43.sk_joints[i32(joints.w)] * weights.w);
+  let x_109 = (((x_53[0u] + x_62[0u]) + x_84[0u]) + x_106[0u]);
+  let x_112 = (((x_53[1u] + x_62[1u]) + x_84[1u]) + x_106[1u]);
+  let x_115 = (((x_53[2u] + x_62[2u]) + x_84[2u]) + x_106[2u]);
+  let x_129 = (mat4x4f(x_109, x_112, x_115, (((x_53[3u] + x_62[3u]) + x_84[3u]) + x_106[3u])) * vec4f(param.x, param.y, param.z, 1.0f));
+  gl_Position = (x_43.sk_mvp * x_129);
+  let x_145 = x_43.sk_model;
+  sk_world_pos = ((x_145 * x_129)).xyz;
+  let x_152 = x_43.sk_normal_mat;
+  let x_168 = mat3x3f(x_109.xyz, x_112.xyz, x_115.xyz);
+  sk_normal = (mat3x3f(x_152[0u].xyz, x_152[1u].xyz, x_152[2u].xyz) * (x_168 * x_27));
+  let x_194 = (mat3x3f(x_145[0u].xyz, x_145[1u].xyz, x_145[2u].xyz) * (x_168 * tangent.xyz));
+  sk_tangent = vec4f(x_194.x, x_194.y, x_194.z, tangent.w);
+  sk_uv0 = texcoord0;
+  sk_uv1 = texcoord1;
+  sk_color = color0;
+  return;
+}
+
+struct main_out {
+  @builtin(position)
+  gl_Position : vec4f,
+  @location(0)
+  sk_world_pos_1 : vec3f,
+  @location(1)
+  sk_normal_1 : vec3f,
+  @location(2)
+  sk_tangent_1 : vec4f,
+  @location(3)
+  sk_uv0_1 : vec2f,
+  @location(4)
+  sk_uv1_1 : vec2f,
+  @location(5)
+  sk_color_1 : vec4f,
+}
+
+@vertex
+fn main(@location(0) position_2_param : vec3f, @location(1) normal_1_param : vec3f, @location(7) weights_param : vec4f, @location(6) joints_param : vec4f, @location(4) tangent_param : vec4f, @location(2) texcoord0_param : vec2f, @location(3) texcoord1_param : vec2f, @location(5) color0_param : vec4f) -> main_out {
+  position_2 = position_2_param;
+  normal_1 = normal_1_param;
+  weights = weights_param;
+  joints = joints_param;
+  tangent = tangent_param;
+  texcoord0 = texcoord0_param;
+  texcoord1 = texcoord1_param;
+  color0 = color0_param;
+  main_1();
+  return main_out(gl_Position, sk_world_pos, sk_normal, sk_tangent, sk_uv0, sk_uv1, sk_color);
+}
+
+source fs 7312
+diagnostic(off, derivative_uniformity);
+
+alias Arr = array<vec4f, 8u>;
+
+alias Arr_1 = array<vec4f, 8u>;
+
+alias Arr_2 = array<vec4f, 8u>;
+
+alias Arr_3 = array<vec4f, 8u>;
+
+struct sk_frame {
+  /* @offset(0) */
+  sk_camera_time : vec4f,
+  /* @offset(16) */
+  sk_tint : vec4f,
+  /* @offset(32) */
+  sk_ambient_count : vec4f,
+  /* @offset(48) */
+  sk_output_params : vec4f,
+  /* @offset(64) */
+  sk_light_pos_range : Arr,
+  /* @offset(192) */
+  sk_light_dir_type : Arr_1,
+  /* @offset(320) */
+  sk_light_radiance : Arr_2,
+  /* @offset(448) */
+  sk_light_spot : Arr_3,
+}
+
+struct params {
+  /* @offset(0) */
+  color : vec4f,
+  /* @offset(16) */
+  edge_color : vec3f,
+  /* @offset(28) */
+  speed : f32,
+}
+
+@binding(1) @group(0) var<uniform> x_81 : sk_frame;
+
+var<private> sk_frag_color : vec4f;
+
+@binding(0) @group(1) var noise_tex : texture_2d<f32>;
+
+@binding(32) @group(1) var noise_smp : sampler;
+
+var<private> sk_uv0 : vec2f;
+
+@binding(2) @group(0) var<uniform> x_421 : params;
+
+var<private> sk_normal : vec3f;
+
+var<private> gl_FrontFacing : bool;
+
+var<private> sk_world_pos : vec3f;
+
+var<private> sk_tangent : vec4f;
+
+var<private> sk_uv1 : vec2f;
+
+var<private> sk_color : vec4f;
+
+fn sk_time_() -> f32 {
+  let x_86 = x_81.sk_camera_time.w;
+  return x_86;
+}
+
+fn sk_ambient_() -> vec3f {
+  let x_92 = x_81.sk_ambient_count;
+  return x_92.xyz;
+}
+
+fn sk_light_count_() -> i32 {
+  let x_97 = x_81.sk_ambient_count.w;
+  return i32((x_97 + 0.5f));
+}
+
+fn sk_light_i1_vf3_vf3_(i : ptr<function, i32>, pos : ptr<function, vec3f>, to_light : ptr<function, vec3f>) -> vec3f {
+  var x_142 : vec3f;
+  var falloff : f32;
+  var x_216 : f32;
+  let x_109 = i32((x_81.sk_light_dir_type[*(i)].w + 0.5f));
+  if ((x_109 == 0i)) {
+    *(to_light) = -(normalize(x_81.sk_light_dir_type[*(i)].xyz));
+    let x_124 = x_81.sk_light_radiance[*(i)];
+    return x_124.xyz;
+  }
+  let x_134 = (*(pos) - x_81.sk_light_pos_range[*(i)].xyz);
+  let x_137 = length(x_134);
+  if ((x_137 > 0.00000099999999747524f)) {
+    x_142 = (x_134 / vec3f(x_137));
+  } else {
+    x_142 = vec3f(0.0f, -1.0f, 0.0f);
+  }
+  let x_152 = x_142;
+  *(to_light) = -(x_142);
+  falloff = (1.0f / max((x_137 * x_137), 0.00999999977648258209f));
+  let x_165 = x_81.sk_light_pos_range[*(i)].w;
+  if ((x_165 > 0.0f)) {
+    let x_173 = (x_137 / x_165);
+    let x_183 = clamp((1.0f - (((x_173 * x_173) * x_173) * x_173)), 0.0f, 1.0f);
+    falloff = (falloff * (x_183 * x_183));
+  }
+  if ((x_109 == 2i)) {
+    let x_200 = dot(x_152, normalize(x_81.sk_light_dir_type[*(i)].xyz));
+    let x_206 = x_81.sk_light_spot[*(i)].x;
+    let x_211 = x_81.sk_light_spot[*(i)].y;
+    if (((x_206 - x_211) <= 0.00000099999999747524f)) {
+      x_216 = select(0.0f, 1.0f, (x_200 >= x_211));
+    } else {
+      x_216 = smoothstep(x_211, x_206, x_200);
+    }
+    falloff = (falloff * x_216);
+  }
+  let x_233 = x_81.sk_light_radiance[*(i)];
+  let x_235 = falloff;
+  return (x_233.xyz * x_235);
+}
+
+fn sk_tonemap_neutral_vf3_(color : ptr<function, vec3f>) -> vec3f {
+  var x_253 : f32;
+  let x_248 = min((*(color)).x, min((*(color)).y, (*(color)).z));
+  if ((x_248 < 0.07999999821186065674f)) {
+    x_253 = (x_248 - ((6.25f * x_248) * x_248));
+  } else {
+    x_253 = 0.03999999910593032837f;
+  }
+  *(color) = (*(color) - vec3f(x_253));
+  let x_278 = max((*(color)).x, max((*(color)).y, (*(color)).z));
+  if ((x_278 < 0.75999999046325683594f)) {
+    let x_284 = *(color);
+    return x_284;
+  }
+  let x_293 = (1.0f - (0.05759999901056289673f / (x_278 + -0.51999998092651367188f)));
+  *(color) = (*(color) * (x_293 / x_278));
+  let x_307 = (1.0f - (1.0f / ((0.15000000596046447754f * (x_278 - x_293)) + 1.0f)));
+  let x_308 = *(color);
+  return mix(x_308, vec3f(x_293), vec3f(x_307));
+}
+
+const x_46 = vec3f(1.0f);
+
+fn sk_tonemap_aces_vf3_(color_1 : ptr<function, vec3f>) -> vec3f {
+  *(color_1) = (*(color_1) * 0.60000002384185791016f);
+  let x_319 = *(color_1);
+  let x_321 = *(color_1);
+  let x_327 = *(color_1);
+  let x_329 = *(color_1);
+  return clamp(((x_319 * ((x_321 * 2.50999999046325683594f) + vec3f(0.02999999932944774628f))) / ((x_327 * ((x_329 * 2.43000006675720214844f) + vec3f(0.58999997377395629883f))) + vec3f(0.14000000059604644775f))), vec3f(), x_46);
+}
+
+const x_56 = vec3f(0.00313080009073019028f);
+
+fn sk_linear_to_srgb_vf3_(c : ptr<function, vec3f>) -> vec3f {
+  *(c) = clamp(*(c), vec3f(), x_46);
+  let x_49 = *(c);
+  let x_54 = *(c);
+  let x_67 = *(c);
+  return mix((x_49 * 12.9200000762939453125f), ((pow(max(x_54, x_56), vec3f(0.4166666567325592041f)) * 1.05499994754791259766f) - vec3f(0.05499999970197677612f)), step(x_56, x_67));
+}
+
+fn sk_output_vf3_f1_(color_2 : ptr<function, vec3f>, alpha : ptr<function, f32>) {
+  var param : vec3f;
+  var param_1 : vec3f;
+  var param_2 : vec3f;
+  *(color_2) = (*(color_2) * x_81.sk_tint.xyz);
+  *(alpha) = (*(alpha) * x_81.sk_tint.w);
+  if ((*(alpha) < x_81.sk_output_params.x)) {
+    discard;
+  }
+  var x_370 : i32;
+  *(color_2) = (*(color_2) * x_81.sk_output_params.z);
+  x_370 = i32((x_81.sk_output_params.y + 0.5f));
+  if ((x_370 == 1i)) {
+    param = *(color_2);
+    let x_377 = sk_tonemap_neutral_vf3_(&(param));
+    *(color_2) = x_377;
+  } else {
+    if ((x_370 == 2i)) {
+      param_1 = *(color_2);
+      let x_385 = sk_tonemap_aces_vf3_(&(param_1));
+      *(color_2) = x_385;
+    }
+  }
+  param_2 = *(color_2);
+  let x_390 = sk_linear_to_srgb_vf3_(&(param_2));
+  sk_frag_color = vec4f(x_390.x, x_390.y, x_390.z, *(alpha));
+  return;
+}
+
+fn main_1() {
+  var light : vec3f;
+  var i_1 : i32;
+  var param_3 : i32;
+  var param_4 : vec3f;
+  var param_5 : vec3f;
+  var param_6 : vec3f;
+  var param_7 : f32;
+  let x_410 = sk_uv0;
+  let x_413 = textureSample(noise_tex, noise_smp, (x_410 * 2.0f));
+  let x_414 = x_413.x;
+  let x_418 = sk_time_();
+  let x_429 = (0.30000001192092895508f + (0.40000000596046447754f * sin(((x_418 * x_421.speed) * 6.28318548202514648438f))));
+  if ((x_414 < x_429)) {
+    discard;
+  }
+  let x_445 = (normalize(sk_normal) * select(-1.0f, 1.0f, gl_FrontFacing));
+  let x_447 = sk_ambient_();
+  light = x_447;
+  i_1 = 0i;
+  loop {
+    if ((i_1 < 8i)) {
+    } else {
+      break;
+    }
+    let x_457 = i_1;
+    let x_458 = sk_light_count_();
+    if ((x_457 >= x_458)) {
+      break;
+    }
+    param_3 = i_1;
+    param_4 = sk_world_pos;
+    let x_471 = sk_light_i1_vf3_vf3_(&(param_3), &(param_4), &(param_5));
+    light = (light + ((x_471 * max(dot(x_445, param_5), 0.0f)) * vec3f(0.31830987334251403809f)));
+
+    continuing {
+      i_1 = (i_1 + 1i);
+    }
+  }
+  param_6 = ((x_421.color.xyz * light) + (x_421.edge_color * (1.0f - smoothstep(0.0f, 0.05999999865889549255f, (x_414 - x_429)))));
+  param_7 = x_421.color.w;
+  sk_output_vf3_f1_(&(param_6), &(param_7));
+  return;
+}
+
+struct main_out {
+  @location(0)
+  sk_frag_color_1 : vec4f,
+}
+
+@fragment
+fn main(@location(3) sk_uv0_param : vec2f, @location(1) sk_normal_param : vec3f, @builtin(front_facing) gl_FrontFacing_param : bool, @location(0) sk_world_pos_param : vec3f, @location(2) sk_tangent_param : vec4f, @location(4) sk_uv1_param : vec2f, @location(5) sk_color_param : vec4f) -> main_out {
+  sk_uv0 = sk_uv0_param;
+  sk_normal = sk_normal_param;
+  gl_FrontFacing = gl_FrontFacing_param;
+  sk_world_pos = sk_world_pos_param;
+  sk_tangent = sk_tangent_param;
+  sk_uv1 = sk_uv1_param;
+  sk_color = sk_color_param;
+  main_1();
+  return main_out(sk_frag_color);
+}
+
+program static wgsl
+attr 0 -
+attr 1 -
+attr 2 -
+attr 3 -
+attr 4 -
+attr 5 -
+ub 0 vertex 208 - 0 0
+ub 1 fragment 576 - 0 1
+ub 2 fragment 32 - 0 2
+view 0 fragment noise_tex float 0
+sampler 0 fragment noise_smp filtering 32
+pair 0 fragment 0 0 -
+source vs 2313
+diagnostic(off, derivative_uniformity);
+
+struct sk_object {
+  /* @offset(0) */
+  sk_mvp : mat4x4f,
+  /* @offset(64) */
+  sk_model : mat4x4f,
+  /* @offset(128) */
+  sk_normal_mat : mat4x4f,
+  /* @offset(192) */
+  sk_object_time : vec4f,
+}
+
+var<private> position_2 : vec3f;
+
+var<private> normal_1 : vec3f;
+
+@binding(0) @group(0) var<uniform> x_40 : sk_object;
+
+var<private> sk_world_pos : vec3f;
+
+var<private> sk_normal : vec3f;
+
+var<private> sk_tangent : vec4f;
+
+var<private> tangent : vec4f;
+
+var<private> sk_uv0 : vec2f;
+
+var<private> texcoord0 : vec2f;
+
+var<private> sk_uv1 : vec2f;
+
+var<private> texcoord1 : vec2f;
+
+var<private> sk_color : vec4f;
+
+var<private> color0 : vec4f;
+
+var<private> gl_Position : vec4f;
+
+fn sk_vertex_vf3_vf3_(position_1 : ptr<function, vec3f>, normal : ptr<function, vec3f>) {
+  return;
+}
+
+fn main_1() {
+  var param : vec3f;
+  var param_1 : vec3f;
+  let x_20 = normal_1;
+  param = position_2;
+  param_1 = x_20;
+  sk_vertex_vf3_vf3_(&(param), &(param_1));
+  let x_27 = param_1;
+  let x_49 = vec4f(param.x, param.y, param.z, 1.0f);
+  gl_Position = (x_40.sk_mvp * x_49);
+  let x_57 = x_40.sk_model;
+  sk_world_pos = ((x_57 * x_49)).xyz;
+  let x_68 = x_40.sk_normal_mat;
+  sk_normal = (mat3x3f(x_68[0u].xyz, x_68[1u].xyz, x_68[2u].xyz) * x_27);
+  let x_93 = (mat3x3f(x_57[0u].xyz, x_57[1u].xyz, x_57[2u].xyz) * tangent.xyz);
+  sk_tangent = vec4f(x_93.x, x_93.y, x_93.z, tangent.w);
+  sk_uv0 = texcoord0;
+  sk_uv1 = texcoord1;
+  sk_color = color0;
+  return;
+}
+
+struct main_out {
+  @builtin(position)
+  gl_Position : vec4f,
+  @location(0)
+  sk_world_pos_1 : vec3f,
+  @location(1)
+  sk_normal_1 : vec3f,
+  @location(2)
+  sk_tangent_1 : vec4f,
+  @location(3)
+  sk_uv0_1 : vec2f,
+  @location(4)
+  sk_uv1_1 : vec2f,
+  @location(5)
+  sk_color_1 : vec4f,
+}
+
+@vertex
+fn main(@location(0) position_2_param : vec3f, @location(1) normal_1_param : vec3f, @location(4) tangent_param : vec4f, @location(2) texcoord0_param : vec2f, @location(3) texcoord1_param : vec2f, @location(5) color0_param : vec4f) -> main_out {
+  position_2 = position_2_param;
+  normal_1 = normal_1_param;
+  tangent = tangent_param;
+  texcoord0 = texcoord0_param;
+  texcoord1 = texcoord1_param;
+  color0 = color0_param;
+  main_1();
+  return main_out(gl_Position, sk_world_pos, sk_normal, sk_tangent, sk_uv0, sk_uv1, sk_color);
+}
+
+source fs 7312
+diagnostic(off, derivative_uniformity);
+
+alias Arr = array<vec4f, 8u>;
+
+alias Arr_1 = array<vec4f, 8u>;
+
+alias Arr_2 = array<vec4f, 8u>;
+
+alias Arr_3 = array<vec4f, 8u>;
+
+struct sk_frame {
+  /* @offset(0) */
+  sk_camera_time : vec4f,
+  /* @offset(16) */
+  sk_tint : vec4f,
+  /* @offset(32) */
+  sk_ambient_count : vec4f,
+  /* @offset(48) */
+  sk_output_params : vec4f,
+  /* @offset(64) */
+  sk_light_pos_range : Arr,
+  /* @offset(192) */
+  sk_light_dir_type : Arr_1,
+  /* @offset(320) */
+  sk_light_radiance : Arr_2,
+  /* @offset(448) */
+  sk_light_spot : Arr_3,
+}
+
+struct params {
+  /* @offset(0) */
+  color : vec4f,
+  /* @offset(16) */
+  edge_color : vec3f,
+  /* @offset(28) */
+  speed : f32,
+}
+
+@binding(1) @group(0) var<uniform> x_81 : sk_frame;
+
+var<private> sk_frag_color : vec4f;
+
+@binding(0) @group(1) var noise_tex : texture_2d<f32>;
+
+@binding(32) @group(1) var noise_smp : sampler;
+
+var<private> sk_uv0 : vec2f;
+
+@binding(2) @group(0) var<uniform> x_421 : params;
+
+var<private> sk_normal : vec3f;
+
+var<private> gl_FrontFacing : bool;
+
+var<private> sk_world_pos : vec3f;
+
+var<private> sk_tangent : vec4f;
+
+var<private> sk_uv1 : vec2f;
+
+var<private> sk_color : vec4f;
+
+fn sk_time_() -> f32 {
+  let x_86 = x_81.sk_camera_time.w;
+  return x_86;
+}
+
+fn sk_ambient_() -> vec3f {
+  let x_92 = x_81.sk_ambient_count;
+  return x_92.xyz;
+}
+
+fn sk_light_count_() -> i32 {
+  let x_97 = x_81.sk_ambient_count.w;
+  return i32((x_97 + 0.5f));
+}
+
+fn sk_light_i1_vf3_vf3_(i : ptr<function, i32>, pos : ptr<function, vec3f>, to_light : ptr<function, vec3f>) -> vec3f {
+  var x_142 : vec3f;
+  var falloff : f32;
+  var x_216 : f32;
+  let x_109 = i32((x_81.sk_light_dir_type[*(i)].w + 0.5f));
+  if ((x_109 == 0i)) {
+    *(to_light) = -(normalize(x_81.sk_light_dir_type[*(i)].xyz));
+    let x_124 = x_81.sk_light_radiance[*(i)];
+    return x_124.xyz;
+  }
+  let x_134 = (*(pos) - x_81.sk_light_pos_range[*(i)].xyz);
+  let x_137 = length(x_134);
+  if ((x_137 > 0.00000099999999747524f)) {
+    x_142 = (x_134 / vec3f(x_137));
+  } else {
+    x_142 = vec3f(0.0f, -1.0f, 0.0f);
+  }
+  let x_152 = x_142;
+  *(to_light) = -(x_142);
+  falloff = (1.0f / max((x_137 * x_137), 0.00999999977648258209f));
+  let x_165 = x_81.sk_light_pos_range[*(i)].w;
+  if ((x_165 > 0.0f)) {
+    let x_173 = (x_137 / x_165);
+    let x_183 = clamp((1.0f - (((x_173 * x_173) * x_173) * x_173)), 0.0f, 1.0f);
+    falloff = (falloff * (x_183 * x_183));
+  }
+  if ((x_109 == 2i)) {
+    let x_200 = dot(x_152, normalize(x_81.sk_light_dir_type[*(i)].xyz));
+    let x_206 = x_81.sk_light_spot[*(i)].x;
+    let x_211 = x_81.sk_light_spot[*(i)].y;
+    if (((x_206 - x_211) <= 0.00000099999999747524f)) {
+      x_216 = select(0.0f, 1.0f, (x_200 >= x_211));
+    } else {
+      x_216 = smoothstep(x_211, x_206, x_200);
+    }
+    falloff = (falloff * x_216);
+  }
+  let x_233 = x_81.sk_light_radiance[*(i)];
+  let x_235 = falloff;
+  return (x_233.xyz * x_235);
+}
+
+fn sk_tonemap_neutral_vf3_(color : ptr<function, vec3f>) -> vec3f {
+  var x_253 : f32;
+  let x_248 = min((*(color)).x, min((*(color)).y, (*(color)).z));
+  if ((x_248 < 0.07999999821186065674f)) {
+    x_253 = (x_248 - ((6.25f * x_248) * x_248));
+  } else {
+    x_253 = 0.03999999910593032837f;
+  }
+  *(color) = (*(color) - vec3f(x_253));
+  let x_278 = max((*(color)).x, max((*(color)).y, (*(color)).z));
+  if ((x_278 < 0.75999999046325683594f)) {
+    let x_284 = *(color);
+    return x_284;
+  }
+  let x_293 = (1.0f - (0.05759999901056289673f / (x_278 + -0.51999998092651367188f)));
+  *(color) = (*(color) * (x_293 / x_278));
+  let x_307 = (1.0f - (1.0f / ((0.15000000596046447754f * (x_278 - x_293)) + 1.0f)));
+  let x_308 = *(color);
+  return mix(x_308, vec3f(x_293), vec3f(x_307));
+}
+
+const x_46 = vec3f(1.0f);
+
+fn sk_tonemap_aces_vf3_(color_1 : ptr<function, vec3f>) -> vec3f {
+  *(color_1) = (*(color_1) * 0.60000002384185791016f);
+  let x_319 = *(color_1);
+  let x_321 = *(color_1);
+  let x_327 = *(color_1);
+  let x_329 = *(color_1);
+  return clamp(((x_319 * ((x_321 * 2.50999999046325683594f) + vec3f(0.02999999932944774628f))) / ((x_327 * ((x_329 * 2.43000006675720214844f) + vec3f(0.58999997377395629883f))) + vec3f(0.14000000059604644775f))), vec3f(), x_46);
+}
+
+const x_56 = vec3f(0.00313080009073019028f);
+
+fn sk_linear_to_srgb_vf3_(c : ptr<function, vec3f>) -> vec3f {
+  *(c) = clamp(*(c), vec3f(), x_46);
+  let x_49 = *(c);
+  let x_54 = *(c);
+  let x_67 = *(c);
+  return mix((x_49 * 12.9200000762939453125f), ((pow(max(x_54, x_56), vec3f(0.4166666567325592041f)) * 1.05499994754791259766f) - vec3f(0.05499999970197677612f)), step(x_56, x_67));
+}
+
+fn sk_output_vf3_f1_(color_2 : ptr<function, vec3f>, alpha : ptr<function, f32>) {
+  var param : vec3f;
+  var param_1 : vec3f;
+  var param_2 : vec3f;
+  *(color_2) = (*(color_2) * x_81.sk_tint.xyz);
+  *(alpha) = (*(alpha) * x_81.sk_tint.w);
+  if ((*(alpha) < x_81.sk_output_params.x)) {
+    discard;
+  }
+  var x_370 : i32;
+  *(color_2) = (*(color_2) * x_81.sk_output_params.z);
+  x_370 = i32((x_81.sk_output_params.y + 0.5f));
+  if ((x_370 == 1i)) {
+    param = *(color_2);
+    let x_377 = sk_tonemap_neutral_vf3_(&(param));
+    *(color_2) = x_377;
+  } else {
+    if ((x_370 == 2i)) {
+      param_1 = *(color_2);
+      let x_385 = sk_tonemap_aces_vf3_(&(param_1));
+      *(color_2) = x_385;
+    }
+  }
+  param_2 = *(color_2);
+  let x_390 = sk_linear_to_srgb_vf3_(&(param_2));
+  sk_frag_color = vec4f(x_390.x, x_390.y, x_390.z, *(alpha));
+  return;
+}
+
+fn main_1() {
+  var light : vec3f;
+  var i_1 : i32;
+  var param_3 : i32;
+  var param_4 : vec3f;
+  var param_5 : vec3f;
+  var param_6 : vec3f;
+  var param_7 : f32;
+  let x_410 = sk_uv0;
+  let x_413 = textureSample(noise_tex, noise_smp, (x_410 * 2.0f));
+  let x_414 = x_413.x;
+  let x_418 = sk_time_();
+  let x_429 = (0.30000001192092895508f + (0.40000000596046447754f * sin(((x_418 * x_421.speed) * 6.28318548202514648438f))));
+  if ((x_414 < x_429)) {
+    discard;
+  }
+  let x_445 = (normalize(sk_normal) * select(-1.0f, 1.0f, gl_FrontFacing));
+  let x_447 = sk_ambient_();
+  light = x_447;
+  i_1 = 0i;
+  loop {
+    if ((i_1 < 8i)) {
+    } else {
+      break;
+    }
+    let x_457 = i_1;
+    let x_458 = sk_light_count_();
+    if ((x_457 >= x_458)) {
+      break;
+    }
+    param_3 = i_1;
+    param_4 = sk_world_pos;
+    let x_471 = sk_light_i1_vf3_vf3_(&(param_3), &(param_4), &(param_5));
+    light = (light + ((x_471 * max(dot(x_445, param_5), 0.0f)) * vec3f(0.31830987334251403809f)));
+
+    continuing {
+      i_1 = (i_1 + 1i);
+    }
+  }
+  param_6 = ((x_421.color.xyz * light) + (x_421.edge_color * (1.0f - smoothstep(0.0f, 0.05999999865889549255f, (x_414 - x_429)))));
+  param_7 = x_421.color.w;
+  sk_output_vf3_f1_(&(param_6), &(param_7));
+  return;
+}
+
+struct main_out {
+  @location(0)
+  sk_frag_color_1 : vec4f,
+}
+
+@fragment
+fn main(@location(3) sk_uv0_param : vec2f, @location(1) sk_normal_param : vec3f, @builtin(front_facing) gl_FrontFacing_param : bool, @location(0) sk_world_pos_param : vec3f, @location(2) sk_tangent_param : vec4f, @location(4) sk_uv1_param : vec2f, @location(5) sk_color_param : vec4f) -> main_out {
+  sk_uv0 = sk_uv0_param;
+  sk_normal = sk_normal_param;
+  gl_FrontFacing = gl_FrontFacing_param;
+  sk_world_pos = sk_world_pos_param;
+  sk_tangent = sk_tangent_param;
+  sk_uv1 = sk_uv1_param;
+  sk_color = sk_color_param;
+  main_1();
+  return main_out(sk_frag_color);
+}
+
+end

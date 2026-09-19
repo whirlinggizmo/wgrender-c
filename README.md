@@ -190,6 +190,7 @@ compiled with `SOKOL_NO_ENTRY` so sokol does not generate its own entry point.
 
 ```
 include/        public sk_*.h headers
+shaders/sk.glsl what custom material shaders get from libsk (tools/shaderpack.py)
 src/            implementation (one TU per subsystem)
 src/internal/   shared, non-public declarations (handle pool, lifecycle hooks)
 src/sk_sokol_impl.c   single TU that compiles the sokol headers (SOKOL_IMPL)
@@ -232,6 +233,13 @@ reference/librl the raylib library this evolves from (read-only reference)
   `docs/PLAN-textures.md` and `examples/textures.c`. For a glTF model,
   `tools/compress_textures.sh --gltf model.gltf` writes `model.ktx.gltf`, which loads
   its textures the same way (and stays a valid glTF for other viewers).
+- Custom shaders: write a fragment shader (and optionally a vertex hook) against
+  `shaders/sk.glsl`, which gives it the surface, time, camera, the scene's lights and
+  `sk_output` (tint, alpha cutoff, tone mapping, sRGB). `tools/shaderpack.py name.glsl`
+  compiles it for GL, WebGL2 and WebGPU into `name.skshader`; load that with
+  `sk_shader_create` (or through `sk_asset`) and use it with
+  `sk_material_create_custom`. Its parameters and textures are set by the names in
+  the shader. See `docs/PLAN-materials.md` and `examples/shaders.c`.
 
 ## Not yet ported from librl
 

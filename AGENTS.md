@@ -69,6 +69,10 @@ Keep this file short and rule-shaped. The authoritative design doc is
   (docs/PLAN-textures.md); builds a pinned Basis Universal encoder into `build/tools`
   the first time. `--gltf model.gltf` does a model's textures and writes
   `model.ktx.gltf`.
+- `tools/shaderpack.py name.glsl` — compile a custom material shader (written against
+  `shaders/sk.glsl`) into `name.skshader` for every backend (needs `tools/sokol-shdc`).
+  `make example-shaders` repacks `examples/shaders/*.glsl` into the committed
+  `examples/assets/shaders/`; run it after changing one of them or `shaders/sk.glsl`.
 - `make brdf-lut` — regenerate the baked BRDF table (`src/data/sk_brdf_lut.h`) after
   changing `sk_environment_brdf_lut` or its size (a unit test fails until you do).
 - `make websize [BACKEND=webgpu] [WEB_THREADS=0]` — wasm/JS sizes per web example

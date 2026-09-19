@@ -21,6 +21,7 @@
 #include "sk_pick.h"    // IWYU pragma: keep
 #include "sk_render.h"  // IWYU pragma: keep
 #include "sk_scene.h"   // IWYU pragma: keep
+#include "sk_shader.h"  // IWYU pragma: keep
 #include "sk_shape2d.h" // IWYU pragma: keep
 #include "sk_shape3d.h" // IWYU pragma: keep
 #include "sk_sound.h"   // IWYU pragma: keep
