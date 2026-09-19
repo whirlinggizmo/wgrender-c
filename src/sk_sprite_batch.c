@@ -20,7 +20,20 @@
 #define BATCHES_INITIAL 64
 #define CAMERAS_INITIAL 8
 
-enum { PIPELINE_DEPTH_WRITE, PIPELINE_NO_DEPTH_WRITE, PIPELINE_COUNT };
+enum {
+    PIPELINE_OPAQUE,             /* opaque and masked: no blending, depth written */
+    PIPELINE_BLEND_DEPTH_WRITE,  /* blended, depth written (direct draws) */
+    PIPELINE_BLEND,              /* blended, depth not written (a scene's sorted pass) */
+    PIPELINE_ADD,                /* added, depth not written */
+    PIPELINE_COUNT
+};
+
+/* A sprite held back while unordered, to be grouped with others like it. */
+typedef struct {
+    sk_sprite_quad_t quad;
+    uint32_t view, sampler;
+    int pipeline;
+} sk_sprite_pending_t;
 
 typedef struct {
     uint32_t view, sampler;
@@ -40,6 +53,7 @@ typedef struct {
 
 static struct {
     bool ready;
+    bool base_instance; /* the backend can draw from a base instance (not WebGL2) */
     sg_shader shader;
     sg_pipeline pipelines[PIPELINE_COUNT];
     sg_buffer quad;
@@ -51,6 +65,11 @@ static struct {
     int batch_count, batch_capacity;
     sk_sprite_camera_t *cameras;
     int camera_count, camera_capacity;
+    bool unordered;
+    sk_sprite_pending_t *pending;
+    int pending_count, pending_capacity;
+    int *order; /* pending sprites grouped by texture and mode (order_capacity long) */
+    int order_capacity;
     bool overflow_logged;
     int last_drawn; /* the batch drawn last (replay), whose state may still be applied */
     /* the camera, pass and scissor sprites are drawn with now, until the render state
@@ -102,7 +121,7 @@ void sk_sprite_batch_init(void)
                 [ATTR_sprite_quad_inst_size] = {.format = SG_VERTEXFORMAT_FLOAT4, .buffer_index = 1},
                 [ATTR_sprite_quad_inst_uv] = {.format = SG_VERTEXFORMAT_FLOAT4, .buffer_index = 1},
                 [ATTR_sprite_quad_inst_right] = {.format = SG_VERTEXFORMAT_FLOAT3, .buffer_index = 1},
-                [ATTR_sprite_quad_inst_up] = {.format = SG_VERTEXFORMAT_FLOAT3, .buffer_index = 1},
+                [ATTR_sprite_quad_inst_up] = {.format = SG_VERTEXFORMAT_FLOAT4, .buffer_index = 1},
                 [ATTR_sprite_quad_inst_color] = {.format = SG_VERTEXFORMAT_UBYTE4N, .buffer_index = 1},
             },
         },
@@ -121,10 +140,17 @@ void sk_sprite_batch_init(void)
     memset(&sk_sb, 0, sizeof(sk_sb));
     sk_sb.shader = sg_make_shader(sprite_quad_shader_desc(shader_backend()));
     desc.shader = sk_sb.shader;
-    sk_sb.pipelines[PIPELINE_DEPTH_WRITE] = sg_make_pipeline(&desc);
+    sk_sb.pipelines[PIPELINE_BLEND_DEPTH_WRITE] = sg_make_pipeline(&desc);
     desc.depth.write_enabled = false;
-    sk_sb.pipelines[PIPELINE_NO_DEPTH_WRITE] = sg_make_pipeline(&desc);
+    sk_sb.pipelines[PIPELINE_BLEND] = sg_make_pipeline(&desc);
+    desc.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE; /* added: src x alpha + dst */
+    desc.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE;
+    sk_sb.pipelines[PIPELINE_ADD] = sg_make_pipeline(&desc);
+    desc.colors[0].blend = (sg_blend_state){0};
+    desc.depth.write_enabled = true;
+    sk_sb.pipelines[PIPELINE_OPAQUE] = sg_make_pipeline(&desc);
     sk_sb.last_drawn = -1;
+    sk_sb.base_instance = sg_query_features().draw_base_instance;
     sk_sb.quad = sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(corners), .label = "sk-sprite-quad"});
     sk_sb.ready = true;
 }
@@ -143,6 +169,8 @@ void sk_sprite_batch_deinit(void)
     free(sk_sb.instances);
     free(sk_sb.batches);
     free(sk_sb.cameras);
+    free(sk_sb.pending);
+    free(sk_sb.order);
     memset(&sk_sb, 0, sizeof(sk_sb));
 }
 
@@ -209,9 +237,9 @@ static bool current_state(void)
     return true;
 }
 
-void sk_sprite_batch_add_3d(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, bool depth_write)
+/* Add one sprite to the frame, joining the open batch when it can. */
+static void record(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, int pipeline)
 {
-    const int pipeline = depth_write ? PIPELINE_DEPTH_WRITE : PIPELINE_NO_DEPTH_WRITE;
     sk_sprite_batch_t *last;
 
     if (!sk_sb.ready || !current_state()) {
@@ -247,6 +275,114 @@ void sk_sprite_batch_add_3d(const sk_sprite_quad_t *instance, uint32_t view, uin
     }
     sk_sb.instances[sk_sb.instance_count++] = *instance;
     last->count++;
+}
+
+void sk_sprite_batch_add_3d(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, sk_alpha_mode_t mode,
+                            bool blend_depth_write)
+{
+    const int pipeline = mode == SK_ALPHA_OPAQUE || mode == SK_ALPHA_MASK ? PIPELINE_OPAQUE
+                         : mode == SK_ALPHA_ADD                           ? PIPELINE_ADD
+                         : blend_depth_write                              ? PIPELINE_BLEND_DEPTH_WRITE
+                                                                          : PIPELINE_BLEND;
+    if (!sk_sb.unordered) {
+        record(instance, view, sampler, pipeline);
+        return;
+    }
+    if (!reserve((void **)&sk_sb.pending, &sk_sb.pending_capacity, sk_sb.pending_count, sizeof(sk_sprite_pending_t),
+                 INSTANCES_INITIAL)) {
+        return;
+    }
+    sk_sb.pending[sk_sb.pending_count++] = (sk_sprite_pending_t){
+        .quad = *instance, .view = view, .sampler = sampler, .pipeline = pipeline};
+}
+
+void sk_sprite_batch_begin_unordered(void)
+{
+    sk_sb.unordered = true;
+    sk_sb.pending_count = 0;
+}
+
+/* A group of unordered sprites: one texture, sampler and pipeline. */
+typedef struct {
+    uint32_t view, sampler;
+    int pipeline;
+    int count, next; /* sprites in it; where its next one goes in the grouped order */
+} sk_sprite_group_t;
+
+#define MAX_GROUPS 64 /* distinct texture / mode combinations grouped in one pass */
+
+static int compare_groups(const void *lhs, const void *rhs)
+{
+    const sk_sprite_group_t *a = lhs, *b = rhs;
+    if (a->pipeline != b->pipeline) return a->pipeline < b->pipeline ? -1 : 1;
+    if (a->view != b->view) return a->view < b->view ? -1 : 1;
+    return (a->sampler > b->sampler) - (a->sampler < b->sampler);
+}
+
+/* The group a pending sprite belongs to, adding it; -1 when there are too many. */
+static int group_of(sk_sprite_group_t *groups, int *count, const sk_sprite_pending_t *p, int hint)
+{
+    if (hint >= 0 && groups[hint].view == p->view && groups[hint].sampler == p->sampler &&
+        groups[hint].pipeline == p->pipeline) {
+        return hint;
+    }
+    for (int g = 0; g < *count; g++) {
+        if (groups[g].view == p->view && groups[g].sampler == p->sampler && groups[g].pipeline == p->pipeline) {
+            return g;
+        }
+    }
+    if (*count >= MAX_GROUPS) return -1;
+    groups[*count] = (sk_sprite_group_t){.view = p->view, .sampler = p->sampler, .pipeline = p->pipeline};
+    return (*count)++;
+}
+
+void sk_sprite_batch_end_unordered(void)
+{
+    sk_sprite_group_t groups[MAX_GROUPS];
+    int group_count = 0, hint = -1, placed = 0;
+
+    sk_sb.unordered = false;
+    /* group by texture and mode, keeping each group's sprites in the order they came
+       (a counting sort over the few groups: linear, and stable) */
+    for (int i = 0; i < sk_sb.pending_count; i++) {
+        const int g = group_of(groups, &group_count, &sk_sb.pending[i], hint);
+        if (g < 0) { /* too many kinds to group: record them as they came */
+            group_count = 0;
+            break;
+        }
+        groups[g].count++;
+        hint = g;
+    }
+    if (group_count > 0 && sk_sb.order_capacity < sk_sb.pending_count) {
+        int *grown = realloc(sk_sb.order, sizeof(int) * (size_t)sk_sb.pending_capacity);
+        if (grown != NULL) {
+            sk_sb.order = grown;
+            sk_sb.order_capacity = sk_sb.pending_capacity;
+        }
+    }
+    if (group_count == 0 || sk_sb.order_capacity < sk_sb.pending_count) {
+        for (int i = 0; i < sk_sb.pending_count; i++) {
+            record(&sk_sb.pending[i].quad, sk_sb.pending[i].view, sk_sb.pending[i].sampler, sk_sb.pending[i].pipeline);
+        }
+        sk_sb.pending_count = 0;
+        return;
+    }
+    qsort(groups, (size_t)group_count, sizeof(groups[0]), compare_groups); /* a handful */
+    for (int g = 0; g < group_count; g++) {
+        groups[g].next = placed;
+        placed += groups[g].count;
+    }
+    hint = -1;
+    for (int i = 0; i < sk_sb.pending_count; i++) {
+        const int g = group_of(groups, &group_count, &sk_sb.pending[i], hint);
+        sk_sb.order[groups[g].next++] = i;
+        hint = g;
+    }
+    for (int k = 0; k < sk_sb.pending_count; k++) {
+        const sk_sprite_pending_t *p = &sk_sb.pending[sk_sb.order[k]];
+        record(&p->quad, p->view, p->sampler, p->pipeline);
+    }
+    sk_sb.pending_count = 0;
 }
 
 void sk_sprite_batch_flush(void)
@@ -292,9 +428,12 @@ void sk_sprite_batch_draw(int batch, bool follows)
         sg_apply_pipeline(sk_sb.pipelines[b->pipeline]);
         before = NULL; /* a new pipeline needs its uniforms again */
     }
+    /* where the backend can, every batch binds the instances at offset 0 and draws from
+       its first one, so consecutive batches only change the texture; WebGL2 can't, so
+       there each batch binds its range */
     sg_apply_bindings(&(sg_bindings){
         .vertex_buffers = {sk_sb.quad, sk_sb.instance_buffer},
-        .vertex_buffer_offsets[1] = (int)(sizeof(sk_sprite_quad_t) * (size_t)b->first),
+        .vertex_buffer_offsets[1] = sk_sb.base_instance ? 0 : (int)(sizeof(sk_sprite_quad_t) * (size_t)b->first),
         .views[VIEW_sprite_tex] = {.id = b->view},
         .samplers[SMP_sprite_smp] = {.id = b->sampler},
     });
@@ -306,7 +445,11 @@ void sk_sprite_batch_draw(int batch, bool follows)
     if (before == NULL || memcmp(before->scissor, b->scissor, sizeof(b->scissor)) != 0) {
         sg_apply_scissor_rectf(b->scissor[0], b->scissor[1], b->scissor[2], b->scissor[3], true);
     }
-    sg_draw(0, 6, b->count);
+    if (sk_sb.base_instance) {
+        sg_draw_ex(0, 6, b->count, 0, b->first);
+    } else {
+        sg_draw(0, 6, b->count);
+    }
 }
 
 void sk_sprite_batch_end_frame(void)
@@ -316,4 +459,9 @@ void sk_sprite_batch_end_frame(void)
     sk_sb.camera_count = 0;
     sk_sb.state.valid = false; /* its camera uniforms are gone */
     sk_sb.last_drawn = -1;
+}
+
+int sk_sprite_batch_count(void)
+{
+    return sk_sb.batch_count;
 }

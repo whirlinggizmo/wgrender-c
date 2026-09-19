@@ -213,7 +213,7 @@ sk_handle_t sk_material_create(sk_material_shading_t shading)
     sk_handle_pool_resolve(&sk_material_pool, handle, &index);
     sk_materials[index] = (sk_material_t){
         .shading = shading,
-        .alpha_mode = SK_MATERIAL_ALPHA_OPAQUE,
+        .alpha_mode = SK_ALPHA_OPAQUE,
         .alpha_cutoff = 0.5f,
         .base_color = {1.0f, 1.0f, 1.0f, 1.0f},
         .metallic = 1.0f,
@@ -247,10 +247,10 @@ sk_material_shading_t sk_material_get_shading(sk_handle_t material)
 }
 
 SK_KEEP
-bool sk_material_set_alpha_mode(sk_handle_t material, sk_material_alpha_t mode, float cutoff)
+bool sk_material_set_alpha_mode(sk_handle_t material, sk_alpha_mode_t mode, float cutoff)
 {
     sk_material_t *material_ptr = resolve(material);
-    if (material_ptr == NULL || mode < SK_MATERIAL_ALPHA_OPAQUE || mode > SK_MATERIAL_ALPHA_BLEND) {
+    if (material_ptr == NULL || mode < SK_ALPHA_OPAQUE || mode > SK_ALPHA_BLEND) {
         return false;
     }
     material_ptr->alpha_mode = mode;
@@ -259,10 +259,10 @@ bool sk_material_set_alpha_mode(sk_handle_t material, sk_material_alpha_t mode, 
 }
 
 SK_KEEP
-sk_material_alpha_t sk_material_get_alpha_mode(sk_handle_t material)
+sk_alpha_mode_t sk_material_get_alpha_mode(sk_handle_t material)
 {
     sk_material_t *material_ptr = resolve(material);
-    return material_ptr != NULL ? material_ptr->alpha_mode : SK_MATERIAL_ALPHA_OPAQUE;
+    return material_ptr != NULL ? material_ptr->alpha_mode : SK_ALPHA_OPAQUE;
 }
 
 SK_KEEP

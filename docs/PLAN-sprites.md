@@ -1,6 +1,6 @@
 # Plan: a sprite renderer, and particle emitters
 
-Status: step 1 built (2026-09-18); steps 2-4 to come.
+Status: steps 1 and 2 built (2026-09-18); steps 3-4 to come.
 
 ## Why
 
@@ -189,8 +189,14 @@ CPU ms per frame, before -> after:
 | 16,000 sprites          | desktop GL   | Chrome, WebGL2 | Pixel, WebGL2 | Pixel, WebGPU |
 |-------------------------|--------------|----------------|---------------|---------------|
 | field, one atlas        | 2.89 -> 0.92 | 5.40 -> 1.28   | 9.61 -> 3.58  | 9.61 -> 5.16  |
-| field, 4 textures       | 7.07 -> 1.35 | 9.21 -> 2.00   | 13.78 -> 5.75 | 15.87 -> 5.49 |
 | particles 3d            | 3.91 -> 0.98 | 6.12 -> 1.44   | 11.15 -> 4.47 | 11.82 -> 5.34 |
+
+**Correction** (found in step 2): the "field, 4 textures" numbers first reported for
+this step (desktop 7.07 -> 1.35 and similar) were wrong. They were measured while the
+render command list still stopped at 1,024, so most of that scene's ~12,000 batches
+were dropped, not drawn, and the benchmark didn't notice (dropped sprites aren't a
+sokol_gl error). Drawn in full, blended sprites from 4 interleaved textures cost about
+what they did on sokol_gl on desktop GL (7.1 ms), and more on WebGL2 (see step 2).
 
 - **The render command list grows** (up to 1M a frame) instead of stopping at 1,024:
   sprites are commands now, so a frame alternating sprites and sokol_gl shapes adds
@@ -206,6 +212,49 @@ On the phone at 4,000 (the "thousands" games will have): the field from 5.0 to 1
 (about 2 ms): sorted back to front they make ~780 small batches, and WebGL2 has no
 base-instance draws, so each rebinds the instance buffer. Step 2's cutout mode
 removes the interleaving.
+
+### Step 2: alpha modes (2026-09-18)
+
+- `sk_alpha_mode_t` in `sk_types.h` (`SK_ALPHA_OPAQUE`, `_MASK`, `_BLEND`, `_ADD`), one
+  vocabulary for sprites and materials (it replaces `sk_material_alpha_t`; materials
+  refuse `ADD` for now). `sk_sprite3d_set_alpha_mode(sprite, mode, cutoff)`; blend
+  stays the default.
+- In a scene, opaque and masked sprites draw in the opaque pass and additive ones in a
+  new additive pass after the blended parts (`sk_scene_register_additive`). Neither
+  is sorted: the batcher groups them by texture and mode (a counting sort over the
+  few groups, stable, so overlapping sprites at one depth keep member order), so 400
+  masked sprites alternating 4 textures draw in 4 batches (unit test).
+- The shader gets the mode per sprite (the up axis's `w`): a mask cutoff discards,
+  opaque and masked write alpha 1. Pipelines: opaque (no blending, depth written),
+  blended with or without depth writes, added.
+- Batches draw from a base instance where the backend can (GL 4.2+, WebGPU, Metal,
+  D3D11): the instance buffer stays bound and consecutive batches only change the
+  texture. WebGL2 can't, so it rebinds the instances per batch.
+- `examples/2d.c` uses it: opaque ground tiles, masked props. Its pixel art has no soft
+  edges, so it looks the same (pixel-identical screenshots) and needs no sorting.
+
+CPU ms per frame, 16,000 sprites, 4 textures interleaved (field):
+
+| mode                 | desktop GL          | Chrome, WebGL2      | Pixel, WebGL2 | Pixel, WebGPU |
+|----------------------|---------------------|---------------------|---------------|---------------|
+| blended, sokol_gl    | 7.1                 | 9.2                 | 13.8          | 15.9          |
+| blended, instanced   | 5.7                 | 12.2                | 20.5          | 10.0          |
+| masked, instanced    | **1.4** (4 batches) | **1.2** (4 batches) | **3.3**       | 9.8 (?)       |
+
+On the phone at 4,000 sprites, blended from 4 textures is a little cheaper than on
+sokol_gl (WebGL2 3.8 vs 4.4 ms); it's at 16,000 that WebGL2's rebinding dominates.
+The phone's WebGPU masked number is suspect: its scene step (the same code as
+WebGL2's, 2.9 ms) measured 9.1 ms in a run right after the long WebGL2 one; likely
+thermal throttling, to re-measure cold.
+
+Additive particles cost the same as blended ones here (their one texture already made
+few batches); the gain is that they need no sorting.
+
+**Open: blended sprites from several textures on WebGL2.** Sorted back to front they
+make thousands of tiny batches, and without base-instance draws each one rebinds six
+instance attributes, where sokol_gl only switched the texture: 30% slower than before
+in Chrome. Atlases and masking avoid it. The fix would be reading instances from a
+data texture by index on WebGL2 (bind once, a uniform per batch).
 
 ## Not in this plan
 

@@ -43,6 +43,8 @@ typedef struct {
     bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
     bool pick_alpha_test;
     float pick_alpha_threshold;
+    sk_alpha_mode_t alpha_mode;
+    float alpha_cutoff; /* SK_ALPHA_MASK */
 } sk_sprite3d_t;
 
 static sk_sprite3d_t *sk_sprites; /* grown by the pool: don't hold a pointer across a create */
@@ -106,6 +108,8 @@ static sk_handle_t create_sprite(sk_handle_t texture)
         .visible = true,
         .pickable = true,
         .enabled = true,
+        .alpha_mode = SK_ALPHA_BLEND,
+        .alpha_cutoff = 0.5f,
     };
     if (texture != 0) {
         sk_texture_retain(texture);
@@ -329,7 +333,56 @@ static void draw_handle(sk_handle_t handle)
         instance.right[0] = right.x, instance.right[1] = right.y, instance.right[2] = right.z;
         instance.up[0] = up.x, instance.up[1] = up.y, instance.up[2] = up.z;
     }
-    sk_sprite_batch_add_3d(&instance, view.id, smp.id, !sk_render_is_3d_transparent());
+    instance.alpha = sprite_ptr->alpha_mode == SK_ALPHA_MASK     ? fmaxf(sprite_ptr->alpha_cutoff, 1e-6f)
+                     : sprite_ptr->alpha_mode == SK_ALPHA_OPAQUE ? -1.0f
+                                                                 : 0.0f;
+    sk_sprite_batch_add_3d(&instance, view.id, smp.id, (sk_alpha_mode_t)sprite_ptr->alpha_mode,
+                           !sk_render_is_3d_transparent());
+}
+
+/* Scene passes: opaque and masked sprites in the opaque pass, blended ones sorted in the
+ * transparent pass, additive ones after it. */
+static bool in_mode(sk_handle_t handle, bool opaque, bool blend, bool add)
+{
+    const sk_sprite3d_t *sprite_ptr = resolve(handle);
+    if (sprite_ptr == NULL || !sprite_ptr->visible || sprite_ptr->texture == 0) {
+        return false;
+    }
+    switch (sprite_ptr->alpha_mode) {
+        case SK_ALPHA_OPAQUE:
+        case SK_ALPHA_MASK: return opaque;
+        case SK_ALPHA_ADD: return add;
+        default: return blend;
+    }
+}
+
+static void draw_opaque(sk_handle_t handle)
+{
+    if (in_mode(handle, true, false, false)) draw_handle(handle);
+}
+
+static void draw_additive(sk_handle_t handle)
+{
+    if (in_mode(handle, false, false, true)) draw_handle(handle);
+}
+
+SK_KEEP
+bool sk_sprite3d_set_alpha_mode(sk_handle_t handle, sk_alpha_mode_t mode, float cutoff)
+{
+    sk_sprite3d_t *sprite_ptr = resolve(handle);
+    if (sprite_ptr == NULL || mode < SK_ALPHA_OPAQUE || mode > SK_ALPHA_ADD) {
+        return false;
+    }
+    sprite_ptr->alpha_mode = mode;
+    sprite_ptr->alpha_cutoff = cutoff < 0.0f ? 0.0f : cutoff > 1.0f ? 1.0f : cutoff;
+    return true;
+}
+
+SK_KEEP
+sk_alpha_mode_t sk_sprite3d_get_alpha_mode(sk_handle_t handle)
+{
+    const sk_sprite3d_t *sprite_ptr = resolve(handle);
+    return sprite_ptr != NULL ? sprite_ptr->alpha_mode : SK_ALPHA_BLEND;
 }
 
 /* Scene: sprites are always in the transparent pass (textures usually have
@@ -339,7 +392,8 @@ static int collect_transparent(sk_handle_t handle, const sk_camera3d_t *cam,
                                sk_transparent_item_t *out, int max_items)
 {
     sk_sprite3d_t *sprite_ptr = resolve(handle);
-    if (sprite_ptr == NULL || !sprite_ptr->visible || sprite_ptr->texture == 0 || max_items < 1) {
+    if (sprite_ptr == NULL || !sprite_ptr->visible || sprite_ptr->texture == 0 || max_items < 1 ||
+        sprite_ptr->alpha_mode != SK_ALPHA_BLEND) {
         return 0;
     }
     out[0] = (sk_transparent_item_t){
@@ -547,7 +601,8 @@ void sk_sprite3d_init(void)
                              sizeof(sk_sprite3d_t), SPRITES_INITIAL, SK_MAX_SPRITE3D)) {
         log_error("sprite3d: out of memory");
     }
-    sk_scene_register_passes(SK_HANDLE_KIND_SPRITE3D, NULL, collect_transparent, draw_transparent);
+    sk_scene_register_passes(SK_HANDLE_KIND_SPRITE3D, draw_opaque, collect_transparent, draw_transparent);
+    sk_scene_register_additive(SK_HANDLE_KIND_SPRITE3D, draw_additive);
     sk_scene_register_bounds(SK_HANDLE_KIND_SPRITE3D, sprite_bounds);
     sk_scene_register_pick(SK_HANDLE_KIND_SPRITE3D, sprite_pick);
     sk_scene_register_enabled(SK_HANDLE_KIND_SPRITE3D, sk_sprite3d_is_enabled);

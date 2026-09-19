@@ -11,6 +11,8 @@
  *     bottom edge (sk_sprite3d_set_pivot(0.5, 1))
  *   - drag or use the arrow keys to scroll, the wheel to zoom (the camera's
  *     orthographic height)
+ *   - the sheet is pixel art (alpha 0 or 1): ground tiles are SK_ALPHA_OPAQUE, props
+ *     SK_ALPHA_MASK, so nothing needs sorting and each layer draws in one batch
  *   - coins react to the pointer through the scene's interaction state: hovering
  *     lights them up, clicking collects them. Their picks are alpha-tested, so the
  *     transparent corners of a coin let the tile behind it take the click.
@@ -56,7 +58,7 @@ static void place_camera(void)
 }
 
 /* One cell of the sheet in the world. Ground tiles sit at z 0, props just in front
- * of them so they draw over the ground (sprites sort back to front). */
+ * of them so they draw over the ground (by depth). */
 static sk_handle_t add_sprite(const float cell[4], float x, float y, float z, float width, float height,
                               float pivot_y, int layer)
 {
@@ -66,6 +68,9 @@ static sk_handle_t add_sprite(const float cell[4], float x, float y, float z, fl
     sk_sprite3d_set_extent(sprite, width, height);
     sk_sprite3d_set_pivot(sprite, 0.5f, pivot_y);
     sk_sprite3d_set_transform(sprite, x, y, z, 0, 0, 0, 1, 1, 1);
+    /* pixel art has no soft edges: ground tiles are opaque, props cut out their
+       transparent texels; neither needs sorting, so they draw in one batch each */
+    sk_sprite3d_set_alpha_mode(sprite, layer == LAYER_GROUND ? SK_ALPHA_OPAQUE : SK_ALPHA_MASK, 0.5f);
     sk_scene_add(g.scene, sprite, layer);
     return sprite;
 }

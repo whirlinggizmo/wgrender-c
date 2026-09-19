@@ -40,7 +40,7 @@ void test_material_api(void)
     data = sk_material_get(material);
     CHECK(data != NULL);
     CHECK(sk_material_get_shading(material) == SK_MATERIAL_PBR);
-    CHECK(sk_material_get_alpha_mode(material) == SK_MATERIAL_ALPHA_OPAQUE);
+    CHECK(sk_material_get_alpha_mode(material) == SK_ALPHA_OPAQUE);
     CHECK(!sk_material_is_double_sided(material));
     CHECK_NEAR(data->base_color[0], 1, EPS);
     CHECK_NEAR(data->base_color[3], 1, EPS);
@@ -107,10 +107,10 @@ void test_material_api(void)
     CHECK(!sk_material_set_texture(material, "normal_texture", gray));
     CHECK(!sk_material_set_texture(material, "roughness", 0));
 
-    CHECK(sk_material_set_alpha_mode(material, SK_MATERIAL_ALPHA_MASK, 0.3f));
-    CHECK(sk_material_get_alpha_mode(material) == SK_MATERIAL_ALPHA_MASK);
+    CHECK(sk_material_set_alpha_mode(material, SK_ALPHA_MASK, 0.3f));
+    CHECK(sk_material_get_alpha_mode(material) == SK_ALPHA_MASK);
     CHECK_NEAR(data->alpha_cutoff, 0.3f, EPS);
-    CHECK(!sk_material_set_alpha_mode(material, (sk_material_alpha_t)5, 0.3f));
+    CHECK(!sk_material_set_alpha_mode(material, (sk_alpha_mode_t)5, 0.3f));
     CHECK(sk_material_set_double_sided(material, true));
     CHECK(sk_material_is_double_sided(material));
     CHECK(sk_material_set_shading(material, SK_MATERIAL_UNLIT));

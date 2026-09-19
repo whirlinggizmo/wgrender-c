@@ -33,7 +33,7 @@ typedef struct {
 
 typedef struct {
     sk_material_shading_t shading;
-    sk_material_alpha_t alpha_mode;
+    sk_alpha_mode_t alpha_mode;
     float alpha_cutoff;
     bool double_sided;
     float base_color[4]; /* linear rgba */

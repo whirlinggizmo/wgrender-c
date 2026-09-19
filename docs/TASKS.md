@@ -263,8 +263,14 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       shapes and text) replayed in quadratic time. libsk's sokol fork adds
       `sgl_draw_layer_range` (branch perf/sgl-draw-layer-range), and sk_render draws
       each layer's own command range: 3,000 switches replay in 0.6 ms instead of 5.4
-- [ ] Sprites, PLAN-sprites steps 2-4: alpha modes (cutout, additive), sprite2d on the
-      instanced path, particle emitters (3D and 2D, simulated on the GPU)
+- [x] Sprite alpha modes (2026-09-18, PLAN-sprites step 2): `sk_alpha_mode_t` shared with
+      materials; opaque, masked and additive sprites aren't sorted and group by texture
+      (16,000 masked sprites from 4 textures: 4 batches, 1.4 ms desktop / 1.2 ms Chrome)
+- [ ] Blended sprites from several textures on WebGL2: thousands of tiny sorted batches,
+      each rebinding the instances (no base-instance draws): ~30% slower than sokol_gl
+      in Chrome. Read instances from a data texture by index there instead
+- [ ] Sprites, PLAN-sprites steps 3-4: sprite2d on the instanced path, particle emitters
+      (3D and 2D, simulated on the GPU)
 - [ ] Particle emitters (batched/instanced)
 - [x] Render to texture: `sk_texture_create_target`, `sk_render_begin/end_texture`,
       `sk_texture_set_sampling` ([PLAN-render-target.md](PLAN-render-target.md),

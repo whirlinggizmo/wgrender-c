@@ -11,6 +11,7 @@
 #include "internal/sk_scene.h"
 #include "internal/sk_sprite2d.h"
 #include "internal/sk_sprite3d.h"
+#include "internal/sk_sprite_batch.h"
 #include "sk_camera3d.h"
 #include "sk_logger.h"
 #include "sk_pick.h"
@@ -521,6 +522,73 @@ void test_sprites_interleaved(void)
             (recorded - start) * 1000.0, (now_seconds() - recorded) * 1000.0);
 
     sk_sprite3d_destroy(sprite);
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    sk_sprite3d_deinit();
+    sk_texture_deinit();
+    sk_camera3d_deinit();
+    sk_scene_deinit();
+    sk_render_deinit();
+    sg_shutdown();
+}
+
+/* Alpha modes: masked and additive sprites aren't sorted, so a scene groups them by
+ * texture whatever their order; blended ones are sorted and interleave. */
+void test_sprite3d_alpha_modes(void)
+{
+    enum { COUNT = 400, TEXTURES = 4 };
+    static sk_handle_t sprites[COUNT];
+    sk_handle_t textures[TEXTURES];
+
+    sg_setup(&(sg_desc){.environment = sk_platform_environment()});
+    sk_render_init();
+    sk_scene_init();
+    sk_camera3d_init();
+    sk_texture_init();
+    sk_sprite3d_init();
+    sk_logger_set_level(SK_LOGGER_LEVEL_ERROR);
+
+    for (int t = 0; t < TEXTURES; t++) {
+        const unsigned char pixel[4] = {(unsigned char)(60 * t), 200, 100, 255};
+        textures[t] = sk_texture_create_rgba(pixel, 1, 1);
+    }
+    const sk_handle_t scene = sk_scene_create();
+    const sk_handle_t camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(camera, 0, 5, 30, 0, 0, 0, 0, 1, 0);
+    sk_scene_set_active_camera(scene, camera);
+    for (int i = 0; i < COUNT; i++) {
+        sprites[i] = sk_sprite3d_create(textures[i % TEXTURES]); /* textures alternate */
+        sk_sprite3d_set_transform(sprites[i], (float)(i % 20) - 10.0f, 0, (float)(i / 20) - 10.0f, 0, 0, 0, 1, 1, 1);
+        sk_scene_add(scene, sprites[i], 0);
+    }
+
+    CHECK(sk_sprite3d_get_alpha_mode(sprites[0]) == SK_ALPHA_BLEND); /* the default */
+    CHECK(!sk_sprite3d_set_alpha_mode(sprites[0], (sk_alpha_mode_t)7, 0.5f));
+    CHECK(!sk_sprite3d_set_alpha_mode(0, SK_ALPHA_MASK, 0.5f));
+
+    /* blended: sorted back to front, the textures interleave */
+    sk_render_begin();
+    sk_scene_draw(scene);
+    CHECK(sk_sprite_batch_count() > 100);
+    sk_render_end();
+
+    /* masked: one batch per texture */
+    for (int i = 0; i < COUNT; i++) CHECK(sk_sprite3d_set_alpha_mode(sprites[i], SK_ALPHA_MASK, 0.5f));
+    CHECK(sk_sprite3d_get_alpha_mode(sprites[7]) == SK_ALPHA_MASK);
+    sk_render_begin();
+    sk_scene_draw(scene);
+    CHECK(sk_sprite_batch_count() == TEXTURES);
+    sk_render_end();
+
+    /* additive: one batch per texture too; opaque the same */
+    for (int i = 0; i < COUNT; i++) sk_sprite3d_set_alpha_mode(sprites[i], i < COUNT / 2 ? SK_ALPHA_ADD : SK_ALPHA_OPAQUE, 0);
+    sk_render_begin();
+    sk_scene_draw(scene);
+    CHECK(sk_sprite_batch_count() == 2 * TEXTURES);
+    sk_render_end();
+
+    for (int i = 0; i < COUNT; i++) sk_sprite3d_destroy(sprites[i]);
+    for (int t = 0; t < TEXTURES; t++) sk_texture_release(textures[t]);
+    sk_scene_destroy(scene);
     sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
     sk_sprite3d_deinit();
     sk_texture_deinit();

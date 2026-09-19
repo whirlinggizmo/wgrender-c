@@ -58,7 +58,7 @@ bool sk_material_set_color(sk_handle_t material, const char *name, sk_handle_t c
 bool sk_material_set_texture(sk_handle_t material, const char *name, sk_handle_t texture);
 
 /* Blending and culling, per material (from glTF when loaded from a mesh). */
-bool sk_material_set_alpha_mode(sk_handle_t material, sk_material_alpha_t mode, float cutoff);
+bool sk_material_set_alpha_mode(sk_handle_t material, sk_alpha_mode_t mode, float cutoff);
 bool sk_material_set_double_sided(sk_handle_t material, bool double_sided);
 ```
 

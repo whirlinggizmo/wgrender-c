@@ -50,6 +50,9 @@ void sk_scene_register_passes(sk_handle_kind_t kind,
                               sk_drawable_draw_opaque_fn draw_opaque,
                               sk_drawable_collect_transparent_fn collect_transparent,
                               sk_drawable_draw_transparent_fn draw_transparent);
+/* Additive parts: drawn after a layer's blended parts, unsorted (the order of added
+ * light doesn't matter). */
+void sk_scene_register_additive(sk_handle_kind_t kind, sk_drawable_draw_opaque_fn draw_additive);
 
 /* 2D drawables (screen space). A scene draws them after all 3D layers, in layer
  * then member order, and picks them before 3D, topmost first. `pick` returns true

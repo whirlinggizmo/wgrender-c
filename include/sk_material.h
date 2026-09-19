@@ -61,12 +61,6 @@ typedef enum {
     SK_MATERIAL_UNLIT = 1, /* base color x texture x tint; ignores lights (KHR_materials_unlit) */
 } sk_material_shading_t;
 
-typedef enum {
-    SK_MATERIAL_ALPHA_OPAQUE = 0, /* alpha ignored */
-    SK_MATERIAL_ALPHA_MASK = 1,   /* fully opaque or fully transparent, split at the cutoff */
-    SK_MATERIAL_ALPHA_BLEND = 2,  /* alpha blended, drawn after opaque surfaces, back to front */
-} sk_material_alpha_t;
-
 sk_handle_t sk_material_create(sk_material_shading_t shading);
 /* Drop this handle's reference to the resource. Resources are shared and
  * reference counted (loading the same path again returns the same handle, with
@@ -78,9 +72,10 @@ void        sk_material_release(sk_handle_t material);
 bool sk_material_set_shading(sk_handle_t material, sk_material_shading_t shading);
 sk_material_shading_t sk_material_get_shading(sk_handle_t material);
 
-/* cutoff applies to MASK (default 0.5). */
-bool sk_material_set_alpha_mode(sk_handle_t material, sk_material_alpha_t mode, float cutoff);
-sk_material_alpha_t sk_material_get_alpha_mode(sk_handle_t material);
+/* cutoff applies to SK_ALPHA_MASK (default 0.5). SK_ALPHA_ADD isn't supported for
+ * materials yet: refused. */
+bool sk_material_set_alpha_mode(sk_handle_t material, sk_alpha_mode_t mode, float cutoff);
+sk_alpha_mode_t sk_material_get_alpha_mode(sk_handle_t material);
 /* Double-sided surfaces aren't back-face culled; back faces are lit from their side. */
 bool sk_material_set_double_sided(sk_handle_t material, bool double_sided);
 bool sk_material_is_double_sided(sk_handle_t material);

@@ -145,7 +145,7 @@ static void init(void *user_data)
     /* alpha blended glass */
     material = create_pbr(0.3f, 0.9f, 0.5f, 0.0f, 0.1f);
     sk_material_set_vec4(material, "base_color", 0.3f, 0.9f, 0.5f, 0.35f);
-    sk_material_set_alpha_mode(material, SK_MATERIAL_ALPHA_BLEND, 0.5f);
+    sk_material_set_alpha_mode(material, SK_ALPHA_BLEND, 0.5f);
     g.spheres[n++] = create_sphere(spacing, 0.0f, material);
 
     /* gumshoe: slot 1 is its body ("gumshoe" material); slot 0, the blob shadow, is kept */

@@ -53,6 +53,14 @@ bool sk_sprite3d_is_pickable(sk_handle_t handle);
  * Disabled: still drawn and picked, and still blocks the pointer, but doesn't react. */
 bool sk_sprite3d_set_enabled(sk_handle_t sprite, bool enabled);
 bool sk_sprite3d_is_enabled(sk_handle_t sprite);
+/* How the sprite uses its texture's alpha (default SK_ALPHA_BLEND). In a scene, blended
+ * sprites are sorted back to front with the other transparent parts; opaque and
+ * masked sprites (cutoff: texels below it are cut out, 0..1) write depth and aren't
+ * sorted, and additive ones are drawn after the blended parts, unsorted. Unsorted
+ * sprites are grouped by texture, so they draw in fewer batches. */
+bool sk_sprite3d_set_alpha_mode(sk_handle_t handle, sk_alpha_mode_t mode, float cutoff);
+sk_alpha_mode_t sk_sprite3d_get_alpha_mode(sk_handle_t handle);
+
 /* When enabled, picking ignores hits on texels whose alpha is below `threshold`
  * (0..1). Builds a CPU alpha mask from the texture's source path on demand. */
 bool sk_sprite3d_set_pick_alpha_test(sk_handle_t handle, bool enable, float threshold);

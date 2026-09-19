@@ -12,6 +12,7 @@
 #include "internal/sk_light.h"
 #include "internal/sk_math.h"
 #include "internal/sk_scene.h"
+#include "internal/sk_sprite_batch.h"
 #include "internal/sk_pick.h"
 #include "internal/sk_render.h"
 #include "sk_camera3d.h"
@@ -93,6 +94,7 @@ typedef struct {
     sk_drawable_draw_opaque_fn draw_opaque;
     sk_drawable_collect_transparent_fn collect_transparent;
     sk_drawable_draw_transparent_fn draw_transparent;
+    sk_drawable_draw_opaque_fn draw_additive;
     sk_drawable_draw_2d_fn draw_2d;
     sk_drawable_pick_2d_fn pick_2d;
 } sk_drawable_passes_t;
@@ -119,6 +121,14 @@ void sk_scene_register_passes(sk_handle_kind_t kind,
     sk_passes_registry[kind].draw_opaque = draw_opaque;
     sk_passes_registry[kind].collect_transparent = collect_transparent;
     sk_passes_registry[kind].draw_transparent = draw_transparent;
+}
+
+void sk_scene_register_additive(sk_handle_kind_t kind, sk_drawable_draw_opaque_fn draw_additive)
+{
+    if ((int)kind < 0 || (int)kind >= SK_DRAWABLE_KIND_COUNT) {
+        return;
+    }
+    sk_passes_registry[kind].draw_additive = draw_additive;
 }
 
 void sk_scene_register_2d(sk_handle_kind_t kind, sk_drawable_draw_2d_fn draw, sk_drawable_pick_2d_fn pick)
@@ -746,12 +756,15 @@ static void draw_layer(const sk_scene_entry_t *entries, int count, const sk_came
 {
     int transparent_count = 0;
 
+    /* opaque (and masked) parts: order doesn't matter, so sprites group by texture */
+    sk_sprite_batch_begin_unordered();
     for (int i = 0; i < count; i++) {
         const sk_drawable_passes_t *passes = lookup_passes(entries[i].drawable);
         if (passes != NULL && passes->draw_opaque != NULL) {
             passes->draw_opaque(entries[i].drawable);
         }
     }
+    sk_sprite_batch_end_unordered();
 
     for (int i = 0; i < count; i++) {
         const sk_drawable_passes_t *passes = lookup_passes(entries[i].drawable);
@@ -783,19 +796,28 @@ static void draw_layer(const sk_scene_entry_t *entries, int count, const sk_came
         }
     }
 
-    if (transparent_count == 0) {
-        return;
+    if (transparent_count > 0) {
+        sk_scene_sort_transparent(sk_transparent_items, transparent_count);
+        sk_render_set_3d_transparent(true);
+        for (int t = 0; t < transparent_count; t++) {
+            const sk_transparent_item_t *item = &sk_transparent_items[t];
+            const sk_drawable_passes_t *passes = lookup_passes(item->handle);
+            if (passes != NULL && passes->draw_transparent != NULL) {
+                passes->draw_transparent(item->handle, item->part);
+            }
+        }
+        sk_render_set_3d_transparent(false);
     }
-    sk_scene_sort_transparent(sk_transparent_items, transparent_count);
-    sk_render_set_3d_transparent(true);
-    for (int t = 0; t < transparent_count; t++) {
-        const sk_transparent_item_t *item = &sk_transparent_items[t];
-        const sk_drawable_passes_t *passes = lookup_passes(item->handle);
-        if (passes != NULL && passes->draw_transparent != NULL) {
-            passes->draw_transparent(item->handle, item->part);
+
+    /* additive parts, after the blended ones, unsorted */
+    sk_sprite_batch_begin_unordered();
+    for (int i = 0; i < count; i++) {
+        const sk_drawable_passes_t *passes = lookup_passes(entries[i].drawable);
+        if (passes != NULL && passes->draw_additive != NULL) {
+            passes->draw_additive(entries[i].drawable);
         }
     }
-    sk_render_set_3d_transparent(false);
+    sk_sprite_batch_end_unordered();
 }
 
 SK_KEEP

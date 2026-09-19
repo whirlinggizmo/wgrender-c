@@ -413,8 +413,8 @@ static sk_handle_t create_gltf_material(sk_gltf_textures_t *cache, const cgltf_m
         return material;
     }
     switch (src->alpha_mode) {
-        case cgltf_alpha_mode_mask: sk_material_set_alpha_mode(material, SK_MATERIAL_ALPHA_MASK, src->alpha_cutoff); break;
-        case cgltf_alpha_mode_blend: sk_material_set_alpha_mode(material, SK_MATERIAL_ALPHA_BLEND, src->alpha_cutoff); break;
+        case cgltf_alpha_mode_mask: sk_material_set_alpha_mode(material, SK_ALPHA_MASK, src->alpha_cutoff); break;
+        case cgltf_alpha_mode_blend: sk_material_set_alpha_mode(material, SK_ALPHA_BLEND, src->alpha_cutoff); break;
         default: break;
     }
     sk_material_set_double_sided(material, src->double_sided);
@@ -1734,7 +1734,7 @@ static bool is_solid_at(const sk_primitive_t *prim, const sk_material_t *materia
     const unsigned char *mask;
     int width, height;
 
-    if (material->alpha_mode == SK_MATERIAL_ALPHA_OPAQUE) {
+    if (material->alpha_mode == SK_ALPHA_OPAQUE) {
         return true;
     }
 
@@ -1749,7 +1749,7 @@ static bool is_solid_at(const sk_primitive_t *prim, const sk_material_t *materia
         alpha *= sk_model_sample_alpha(mask, width, height, m[0] * su + m[1] * sv + m[2], m[3] * su + m[4] * sv + m[5],
                                        base->wrap_u, base->wrap_v);
     }
-    return alpha >= (material->alpha_mode == SK_MATERIAL_ALPHA_MASK ? material->alpha_cutoff : 0.5f);
+    return alpha >= (material->alpha_mode == SK_ALPHA_MASK ? material->alpha_cutoff : 0.5f);
 }
 
 static bool model_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_result_t *out)
@@ -1838,7 +1838,7 @@ static sk_colorf_t model_tint(const sk_model_t *model_ptr)
  * makes it translucent (e.g. fading a model out). */
 static bool is_blended(sk_colorf_t tint, const sk_material_t *material)
 {
-    return material->alpha_mode == SK_MATERIAL_ALPHA_BLEND || tint.a < 1.0f;
+    return material->alpha_mode == SK_ALPHA_BLEND || tint.a < 1.0f;
 }
 
 static vec3_t prim_center(const sk_primitive_t *prim)
@@ -2052,7 +2052,7 @@ static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material, co
     fsp.u_pbr[1] = material->roughness;
     fsp.u_pbr[2] = material->occlusion_strength;
     fsp.u_pbr[3] = lit ? 1.0f : 0.0f;
-    fsp.u_material[0] = material->alpha_mode == SK_MATERIAL_ALPHA_MASK ? material->alpha_cutoff : 0.0f;
+    fsp.u_material[0] = material->alpha_mode == SK_ALPHA_MASK ? material->alpha_cutoff : 0.0f;
     fsp.u_camera_pos[0] = e->camera_pos.x;
     fsp.u_camera_pos[1] = e->camera_pos.y;
     fsp.u_camera_pos[2] = e->camera_pos.z;

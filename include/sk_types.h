@@ -13,6 +13,16 @@ typedef unsigned int sk_handle_t;
 /* Packed 8-bit RGBA, 0xRRGGBBAA — a value, not a handle (see sk_color.h). */
 typedef uint32_t sk_color_t;
 
+/* How a sprite or material uses alpha. Blended surfaces are drawn after the opaque
+ * ones, back to front; the others aren't sorted. */
+typedef enum
+{
+    SK_ALPHA_OPAQUE = 0, /* alpha ignored */
+    SK_ALPHA_MASK = 1,   /* fully opaque or fully transparent, split at a cutoff; depth written */
+    SK_ALPHA_BLEND = 2,  /* alpha blended, back to front */
+    SK_ALPHA_ADD = 3,    /* added to what's behind (glows, sparks); not sorted, no depth write */
+} sk_alpha_mode_t;
+
 typedef enum
 {
     SK_BUTTON_UP = 0,

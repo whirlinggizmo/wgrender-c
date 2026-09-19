@@ -8,8 +8,10 @@
  *                   camera, facings mixed as a game would (camera-facing coins,
  *                   upright trees that turn about Y, flat decals), blended and sorted
  *                   back to front each frame; from one atlas, or from 4 textures;
+ *                   and the 4-texture field masked (SK_ALPHA_MASK: not sorted);
  *   - particles 3d: camera-facing sprite3d thrown up and falling, each moved every
- *                   frame, 1/120 of them replaced every frame (a 2 s life);
+ *                   frame, 1/120 of them replaced every frame (a 2 s life); blended,
+ *                   and additive (SK_ALPHA_ADD: not sorted);
  *   - particles 2d: the same with sprite2d in screen space.
  *
  * For each it reports the sprites created, frame time (desktop), and CPU time in the
@@ -45,12 +47,21 @@ enum { TEXTURES = 4 };
 static const char *TEXTURE_PATHS[TEXTURES] = {"textures/tiles.png", "textures/ui_panel.png",
                                               "textures/blobshadow.png", "sprites/logo/wg-logo-bw-alpha.png"};
 
-typedef enum { SCENE_GRID, SCENE_FIELD_ATLAS, SCENE_FIELD_MIXED, SCENE_PARTICLES_3D, SCENE_PARTICLES_2D } scene_kind_t;
-static const char *SCENE_NAMES[] = {"grid, ortho, atlas", "field, atlas", "field, 4 textures", "particles 3d",
-                                    "particles 2d"};
+typedef enum {
+    SCENE_GRID,
+    SCENE_FIELD_ATLAS,
+    SCENE_FIELD_MIXED,
+    SCENE_FIELD_MIXED_MASK,
+    SCENE_PARTICLES_3D,
+    SCENE_PARTICLES_3D_ADD,
+    SCENE_PARTICLES_2D,
+    SCENES
+} scene_kind_t;
+static const char *SCENE_NAMES[] = {"grid, ortho, atlas", "field, atlas", "field, 4 textures", "field, 4 tex, mask",
+                                    "particles 3d",       "particles 3d, add", "particles 2d"};
 
 static const int COUNTS[] = {1000, 4000, 16000};
-enum { COUNT_STEPS = sizeof(COUNTS) / sizeof(COUNTS[0]), SCENES = 5 };
+enum { COUNT_STEPS = sizeof(COUNTS) / sizeof(COUNTS[0]) };
 
 typedef struct {
     int wanted, created;
@@ -146,6 +157,9 @@ static void spawn_particle(int i, int age)
         if (sprite == 0) return;
         sk_sprite3d_set_source(sprite, 32, 16, 16, 16);
         sk_sprite3d_set_size(sprite, 0.3f);
+        if (current_kind() == SCENE_PARTICLES_3D_ADD) {
+            sk_sprite3d_set_alpha_mode(sprite, SK_ALPHA_ADD, 0);
+        }
     }
     b.sprites[i] = sprite;
     sk_scene_add(b.scene, sprite, 0);
@@ -160,9 +174,10 @@ static void add_field_sprite(int i)
 {
     const float r = b.radius * sqrtf(random01()), angle = random01() * 6.2831853f;
     const float x = cosf(angle) * r, z = sinf(angle) * r;
-    const sk_handle_t texture = current_kind() == SCENE_FIELD_MIXED ? b.textures[i % TEXTURES] : b.textures[0];
+    const bool mixed = current_kind() == SCENE_FIELD_MIXED || current_kind() == SCENE_FIELD_MIXED_MASK;
+    const sk_handle_t texture = mixed ? b.textures[i % TEXTURES] : b.textures[0];
     const sk_handle_t sprite = sk_sprite3d_create(texture);
-    const bool atlas = current_kind() != SCENE_FIELD_MIXED;
+    const bool atlas = !mixed;
 
     if (sprite == 0) return;
     switch (i % 3) {
@@ -184,6 +199,9 @@ static void add_field_sprite(int i)
             if (atlas) sk_sprite3d_set_source(sprite, 0, 0, 16, 16);
             sk_sprite3d_set_transform(sprite, x, 0.01f, z, 0, 0, 0, 1, 1, 1);
             break;
+    }
+    if (current_kind() == SCENE_FIELD_MIXED_MASK) {
+        sk_sprite3d_set_alpha_mode(sprite, SK_ALPHA_MASK, 0.5f);
     }
     b.sprites[i] = sprite;
     sk_scene_add(b.scene, sprite, 0);
@@ -214,7 +232,7 @@ static void setup(void)
             b.sprites[i] = sprite;
             sk_scene_add(b.scene, sprite, 0);
         }
-    } else if (kind == SCENE_FIELD_ATLAS || kind == SCENE_FIELD_MIXED) {
+    } else if (kind == SCENE_FIELD_ATLAS || kind == SCENE_FIELD_MIXED || kind == SCENE_FIELD_MIXED_MASK) {
         sk_scene_set_active_camera(b.scene, b.perspective);
         for (int i = 0; i < n; i++) add_field_sprite(i);
     } else {
@@ -233,11 +251,11 @@ static void update(void)
 {
     const scene_kind_t kind = current_kind();
 
-    if (kind == SCENE_FIELD_ATLAS || kind == SCENE_FIELD_MIXED) {
+    if (kind == SCENE_FIELD_ATLAS || kind == SCENE_FIELD_MIXED || kind == SCENE_FIELD_MIXED_MASK) {
         const float angle = (float)b.frame * 0.01f, distance = b.radius * 1.3f + 4.0f;
         sk_camera3d_set_view(b.perspective, cosf(angle) * distance, b.radius * 0.35f + 2.0f, sinf(angle) * distance,
                              0, 0, 0, 0, 1, 0);
-    } else if (kind == SCENE_PARTICLES_3D || kind == SCENE_PARTICLES_2D) {
+    } else if (kind == SCENE_PARTICLES_3D || kind == SCENE_PARTICLES_3D_ADD || kind == SCENE_PARTICLES_2D) {
         for (int i = 0; i < b.count; i++) {
             particle_t *p = &b.particles[i];
             if (b.sprites[i] == 0) continue;
