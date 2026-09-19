@@ -12,7 +12,10 @@
  *   - particles 3d: camera-facing sprite3d thrown up and falling, each moved every
  *                   frame, 1/120 of them replaced every frame (a 2 s life); blended,
  *                   and additive (SK_ALPHA_ADD: not sorted);
- *   - particles 2d: the same with sprite2d in screen space.
+ *   - particles 2d: the same with sprite2d in screen space;
+ *   - emitter 3d / 2d: the same particles from one emitter (sk_emitter3d.h,
+ *                   sk_emitter2d.h), each written once at birth and moved by the GPU;
+ *                   blended, additive, and 2D.
  *
  * For each it reports the sprites created, frame time (desktop), and CPU time in the
  * frame split into update (the benchmark's own calls: camera, particles), scene
@@ -55,10 +58,14 @@ typedef enum {
     SCENE_PARTICLES_3D,
     SCENE_PARTICLES_3D_ADD,
     SCENE_PARTICLES_2D,
+    SCENE_EMITTER_3D,
+    SCENE_EMITTER_3D_ADD,
+    SCENE_EMITTER_2D,
     SCENES
 } scene_kind_t;
 static const char *SCENE_NAMES[] = {"grid, ortho, atlas", "field, atlas", "field, 4 textures", "field, 4 tex, mask",
-                                    "particles 3d",       "particles 3d, add", "particles 2d"};
+                                    "particles 3d",       "particles 3d, add", "particles 2d",
+                                    "emitter 3d",         "emitter 3d, add",   "emitter 2d"};
 
 static const int COUNTS[] = {1000, 4000, 16000};
 enum { COUNT_STEPS = sizeof(COUNTS) / sizeof(COUNTS[0]) };
@@ -81,6 +88,7 @@ static struct {
     bool failed;
     sk_handle_t scene, ortho, perspective;
     sk_handle_t sprites[MAX_BENCH_SPRITES];
+    sk_handle_t emitter;
     particle_t particles[MAX_BENCH_SPRITES];
     int count;      /* sprites in the step */
     float radius;   /* of the field */
@@ -133,6 +141,53 @@ static void teardown(void)
     for (int i = 0; i < MAX_BENCH_SPRITES; i++) {
         destroy_sprite(i);
     }
+    if (b.emitter != 0) {
+        if (current_kind() == SCENE_EMITTER_2D) {
+            sk_emitter2d_destroy(b.emitter);
+        } else {
+            sk_emitter3d_destroy(b.emitter);
+        }
+        b.emitter = 0;
+    }
+}
+
+/* The particle scenes' particles from one emitter: as many alive, as long a life (2 s),
+   thrown and pulled as fast. Burst full at once, so the steady state starts at once:
+   from then on the rate replaces the oldest. */
+static void add_emitter(int n)
+{
+    const float life = PARTICLE_LIFE / 60.0f;
+    if (current_kind() == SCENE_EMITTER_2D) {
+        const vec2_t screen = sk_window_get_screen_size();
+        b.emitter = sk_emitter2d_create(b.textures[0]);
+        if (b.emitter == 0) return;
+        sk_emitter2d_set_source(b.emitter, 32, 16, 16, 16); /* the coin */
+        sk_emitter2d_set_size(b.emitter, 10, 10, 0);
+        sk_emitter2d_set_position(b.emitter, screen.x * 0.5f, screen.y * 0.9f);
+        sk_emitter2d_set_velocity(b.emitter, 0, -540, 0.5f, 0.5f);
+        sk_emitter2d_set_gravity(b.emitter, 0, 540);
+        sk_emitter2d_set_alpha_mode(b.emitter, SK_ALPHA_BLEND, 0);
+        sk_emitter2d_set_max(b.emitter, n);
+        sk_emitter2d_set_life(b.emitter, life, life);
+        sk_emitter2d_set_seed(b.emitter, 12345u);
+        sk_emitter2d_set_rate(b.emitter, (float)n / life);
+        sk_emitter2d_burst(b.emitter, n);
+    } else {
+        b.emitter = sk_emitter3d_create(b.textures[0]);
+        if (b.emitter == 0) return;
+        sk_emitter3d_set_source(b.emitter, 32, 16, 16, 16);
+        sk_emitter3d_set_size(b.emitter, 0.3f, 0.3f, 0);
+        sk_emitter3d_set_velocity(b.emitter, 0, 16, 0, 0.3f, 0.25f);
+        sk_emitter3d_set_gravity(b.emitter, 0, -18, 0);
+        sk_emitter3d_set_alpha_mode(b.emitter, current_kind() == SCENE_EMITTER_3D_ADD ? SK_ALPHA_ADD : SK_ALPHA_BLEND,
+                                    0);
+        sk_emitter3d_set_max(b.emitter, n);
+        sk_emitter3d_set_life(b.emitter, life, life);
+        sk_emitter3d_set_seed(b.emitter, 12345u);
+        sk_emitter3d_set_rate(b.emitter, (float)n / life);
+        sk_emitter3d_burst(b.emitter, n);
+    }
+    sk_scene_add(b.scene, b.emitter, 0);
 }
 
 /* A particle, new: from the fountain's mouth, thrown up and out. */
@@ -238,10 +293,17 @@ static void setup(void)
     } else {
         sk_scene_set_active_camera(b.scene, b.perspective);
         sk_camera3d_set_view(b.perspective, 0, 4, 12, 0, 3, 0, 0, 1, 0);
-        for (int i = 0; i < n; i++) spawn_particle(i, i * PARTICLE_LIFE / n);
+        if (kind >= SCENE_EMITTER_3D) {
+            add_emitter(n);
+        } else {
+            for (int i = 0; i < n; i++) spawn_particle(i, i * PARTICLE_LIFE / n);
+        }
     }
     r->created = 0;
     for (int i = 0; i < n; i++) r->created += b.sprites[i] != 0 ? 1 : 0;
+    if (b.emitter != 0) {
+        r->created = kind == SCENE_EMITTER_2D ? sk_emitter2d_get_count(b.emitter) : sk_emitter3d_get_count(b.emitter);
+    }
     b.frame = 0;
     b.frame_sum = b.cpu_sum = b.update_sum = b.scene_sum = b.submit_sum = b.worst = b.cpu_worst = 0.0;
 }

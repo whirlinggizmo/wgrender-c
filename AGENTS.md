@@ -38,9 +38,10 @@ Keep this file short and rule-shaped. The authoritative design doc is
 - `make loadbench [DESKTOP=1]` — worst frame while loading large glTF models in the
   background vs synchronously (downloads them on first use).
 - `make spritebench [DESKTOP=1]` — sprite-heavy scenes (a grid, a perspective field
-  with mixed facings, 3D and 2D particles): frame time, CPU split into update / scene /
-  submit, sokol_gl vertex/command use. `make spritebench-web` builds it as a page,
-  `/bench/?ex=spritebench` (results in the browser console).
+  with mixed facings, 3D and 2D particles as sprites and from emitters): frame time,
+  CPU split into update / scene / submit, sokol_gl vertex/command use.
+  `make spritebench-web` builds it as a page, `/bench/?ex=spritebench` (results in the
+  browser console).
 - `make webcheck [BACKEND=webgpu] [WEB_THREADS=0]` — web build smoke test in a
   browser (needs Emscripten, Node >= 22, a Chromium-based browser; WebGPU runs on a
   virtual X display when Xvfb is installed, else in a visible window). Web builds use

@@ -95,6 +95,52 @@ void main() {
 }
 @end
 
+@vs vs_particle
+/* A particle from its birth record and its age (docs/PLAN-sprites.md, step 4): the CPU
+   writes a particle once, when it's born; where it is, how big, what color and how
+   turned all follow from how long ago that was. One draw per emitter. */
+layout(binding=0) uniform particle_params {
+    mat4 view_proj;
+    vec4 axis_x;      /* xyz: the quad's right before spin (3D: the camera's right; 2D: +x) */
+    vec4 axis_y;      /* xyz: its up (3D: the camera's up; 2D: up the screen) */
+    vec4 gravity_now; /* xyz gravity, w the emitter's time now (seconds) */
+    vec4 size_mode;   /* x size at birth, y size at death, z alpha (as sprites' up.w) */
+    vec4 color_start;
+    vec4 color_end;
+    vec4 source;      /* the texture region: u0, v0, u1, v1 */
+};
+in vec2 corner;
+in vec4 born;   /* xyz where, w when */
+in vec4 motion; /* xyz velocity, w life (seconds) */
+in vec4 shape;  /* x size scale, y spin (radians / s), z angle at birth */
+out vec2 uv;
+out vec4 color;
+out float alpha_mode;
+
+void main() {
+    float age = gravity_now.w - born.w;
+    float t = age / motion.w;
+    if (age < 0.0 || t >= 1.0) { /* not born yet, or dead: nothing to draw */
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        uv = vec2(0.0);
+        color = vec4(0.0);
+        alpha_mode = 0.0;
+        return;
+    }
+    vec3 pos = born.xyz + motion.xyz * age + 0.5 * gravity_now.xyz * age * age;
+    float size = mix(size_mode.x, size_mode.y, t) * shape.x;
+    float angle = shape.z + shape.y * age; /* positive turns clockwise on screen */
+    float c = cos(angle);
+    float s = sin(angle);
+    vec3 right = axis_x.xyz * c - axis_y.xyz * s;
+    vec3 up = axis_x.xyz * s + axis_y.xyz * c;
+    gl_Position = view_proj * vec4(pos + (right * corner.x + up * corner.y) * size, 1.0);
+    uv = vec2(mix(source.x, source.z, corner.x + 0.5), mix(source.y, source.w, 0.5 - corner.y));
+    color = mix(color_start, color_end, t);
+    alpha_mode = size_mode.z;
+}
+@end
+
 @fs fs
 layout(binding=0) uniform texture2D tex;
 layout(binding=0) uniform sampler smp;
@@ -116,3 +162,4 @@ void main() {
 
 @program quad vs fs
 @program quad_pulled vs_pulled fs
+@program particle vs_particle fs

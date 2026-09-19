@@ -11,6 +11,7 @@
 #include "internal/sk_light.h"
 #include "internal/sk_model.h"
 #include "internal/sk_platform.h"
+#include "internal/sk_emitter.h"
 #include "internal/sk_render.h"
 #include "internal/sk_sprite_batch.h"
 #include "internal/sk_texture.h"
@@ -578,6 +579,7 @@ void sk_render_end(void)
      * inside a render pass) */
     sk_font_flush();
     sk_sprite_batch_flush(); /* the frame's sprite instances, in one buffer update */
+    sk_emitter_flush();      /* and its particles */
     count_layer_commands();
 
     /* render targets first, in the order they were begun, then the screen */
@@ -609,6 +611,7 @@ void sk_render_end(void)
 
     sk_model_end_frame();
     sk_sprite_batch_end_frame();
+    sk_emitter_end_frame();
     sk_light_end_frame();
     sk_font_end_frame();
     sk_environment_end_frame();

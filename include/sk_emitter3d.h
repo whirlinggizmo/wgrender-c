@@ -1,0 +1,74 @@
+#ifndef SK_EMITTER3D_H
+#define SK_EMITTER3D_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "sk_types.h"
+
+/* Particle emitters in the 3D world (docs/PLAN-sprites.md, step 4). An emitter is one
+ * object that owns many particles, drawn from a texture (Texture -> Emitter, as
+ * Texture -> Sprite). A particle is decided when it's born (where, how fast, how long
+ * it lives, how big, how it spins, all within the ranges set here) and the GPU works
+ * out where it is from its age: gravity pulls it, and its size and color move from
+ * their start values to their end values over its life. The CPU only spawns, so
+ * thousands of particles cost about what spawning them does.
+ *
+ * libsk advances every emitter once a frame, by the frame's time. Particles stay where
+ * they were born when the emitter moves (trails), face the camera, and aren't sorted
+ * among themselves; in a scene an emitter is one member (sk_scene_add), sorted as a
+ * whole when blended. Destroying an emitter takes it out of its scenes. */
+
+sk_handle_t sk_emitter3d_create(sk_handle_t texture);
+void sk_emitter3d_destroy(sk_handle_t emitter);
+
+/* Region of the texture each particle shows, in texture pixels (an atlas cell).
+ * Default: the whole texture; width or height <= 0 resets to that. */
+bool sk_emitter3d_set_source(sk_handle_t emitter, float x, float y, float width, float height);
+bool sk_emitter3d_set_position(sk_handle_t emitter, float x, float y, float z);
+vec3_t sk_emitter3d_get_position(sk_handle_t emitter);
+
+/* Emission: a steady rate (particles per second; 0 for bursts only), and bursts of
+ * `count` at once. set_emitting(false) stops the steady rate; the particles alive
+ * finish their lives. At most `max` are alive at once (default 1024): new ones
+ * replace the oldest. Life: each particle's, seconds, between min and max. */
+bool sk_emitter3d_set_rate(sk_handle_t emitter, float per_second);
+bool sk_emitter3d_burst(sk_handle_t emitter, int count);
+bool sk_emitter3d_set_emitting(sk_handle_t emitter, bool emitting);
+bool sk_emitter3d_is_emitting(sk_handle_t emitter);
+bool sk_emitter3d_set_max(sk_handle_t emitter, int count);
+bool sk_emitter3d_set_life(sk_handle_t emitter, float min_seconds, float max_seconds);
+
+/* Birth: anywhere in a box around the position (half sizes; default a point), moving
+ * along (x, y, z) at its length's speed, turned up to `spread` radians off it (a
+ * cone) and faster or slower by up to `speed_variance` (0..1) of it. Gravity: an
+ * acceleration, world units per second squared (default none). */
+bool sk_emitter3d_set_spawn_box(sk_handle_t emitter, float half_x, float half_y, float half_z);
+bool sk_emitter3d_set_velocity(sk_handle_t emitter, float x, float y, float z, float spread, float speed_variance);
+bool sk_emitter3d_set_gravity(sk_handle_t emitter, float x, float y, float z);
+
+/* Over a particle's life: its size (world units; each particle's scaled by up to
+ * `variance`, 0..1) and color (tint, alpha included, so a fade) move from start to
+ * end. Spin: radians per second between min and max, positive clockwise on screen,
+ * from a random angle. Defaults: size 1 -> 1, white -> white, no spin. */
+bool sk_emitter3d_set_size(sk_handle_t emitter, float start, float end, float variance);
+bool sk_emitter3d_set_color(sk_handle_t emitter, sk_color_t start, sk_color_t end);
+bool sk_emitter3d_set_spin(sk_handle_t emitter, float min, float max);
+
+/* How particles use alpha (default SK_ALPHA_ADD: glows, sparks, fire). */
+bool sk_emitter3d_set_alpha_mode(sk_handle_t emitter, sk_alpha_mode_t mode, float cutoff);
+/* Where the emitter's random numbers start: the same seed and settings give the same
+ * particles (default: a different seed per emitter). */
+bool sk_emitter3d_set_seed(sk_handle_t emitter, unsigned int seed);
+
+int sk_emitter3d_get_count(sk_handle_t emitter); /* particles alive now */
+void sk_emitter3d_clear(sk_handle_t emitter);    /* all of them gone */
+bool sk_emitter3d_set_visible(sk_handle_t emitter, bool visible);
+void sk_emitter3d_draw(sk_handle_t emitter);     /* immediate, in 3D mode; or add it to a scene */
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // SK_EMITTER3D_H

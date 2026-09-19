@@ -29,7 +29,9 @@ typedef enum sk_handle_kind_t {
     SK_HANDLE_KIND_MATERIAL = 17, /* resource: shading model + parameters + textures */
     SK_HANDLE_KIND_ENVIRONMENT = 18, /* resource: prefiltered environment map for lighting */
     SK_HANDLE_KIND_SHAPE2D = 19,  /* object: screen-space shape (rectangle, circle, line) */
-    /* 18-31 reserved for future drawable / presentation / resource kinds */
+    SK_HANDLE_KIND_EMITTER3D = 20, /* object: particles in the world */
+    SK_HANDLE_KIND_EMITTER2D = 21, /* object: particles in screen space */
+    /* 22-31 reserved for future drawable / presentation / resource kinds */
     SK_HANDLE_KIND_ASSET_TASK = 32,
 } sk_handle_kind_t;
 

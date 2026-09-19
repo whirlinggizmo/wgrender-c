@@ -1,6 +1,6 @@
 # Plan: a sprite renderer, and particle emitters
 
-Status: steps 1-3 built (2026-09-18); step 4 (emitters) to come.
+Status: built (2026-09-18), steps 1-4.
 
 ## Why
 
@@ -289,9 +289,64 @@ base-instance draws (reading by index is no faster there: native GL calls are ch
 2D particles, 16,000, CPU ms: desktop GL 1.43 -> 1.07, Chrome 2.39 -> 1.63, Pixel
 WebGL2 5.55 -> 3.89.
 
+### Step 4: particle emitters (2026-09-18)
+
+- `sk_emitter3d_*` and `sk_emitter2d_*` (include/sk_emitter3d.h, sk_emitter2d.h):
+  objects created from a texture. Emission: `set_rate`, `burst`, `set_emitting`,
+  `set_max` (default 1024, at most 65,536; new particles replace the oldest),
+  `set_life(min, max)`. Birth: `set_spawn_box`, `set_velocity(dir, spread,
+  speed_variance)` (a cone in 3D, ± an angle in 2D), `set_gravity`. Over a life:
+  `set_size(start, end, variance)`, `set_color(start, end)` (alpha included: fades),
+  `set_spin(min, max)`. Plus `set_source` (an atlas cell), `set_alpha_mode` (additive
+  by default), `set_seed`, `get_count`, `clear`, `set_visible`, `draw`. Configured in
+  code; editor formats are for later (see below).
+- Stateless on the GPU: a particle is a 48-byte record written once, at birth (where
+  and when, velocity and life, size scale, spin and starting angle). `vs_particle`
+  (src/shaders/sk_sprite.glsl) works out its position (`p0 + v t + g t² / 2`), size,
+  color and angle from its age, and moves dead or unborn ones off screen. The CPU only
+  spawns (spread evenly through the frame, so a steady rate doesn't clump) and drops
+  the dead from the front of each emitter's ring.
+- libsk advances every emitter once a frame, after the ticks and before the frame
+  callback. The emitter's clock is rebased every 4,096 s to keep the shader's float time
+  precise.
+- Drawing: one instanced draw per emitter. Its live particles are copied into the
+  frame's particle buffer (uploaded once, before the passes) and drawn with the
+  emitter's uniforms: the camera's right and up in 3D, the 2D projection in 2D. Emitters
+  go through render commands like sprite batches, so they keep their place among sokol_gl
+  drawing and their scissor.
+- In scenes: a 3D emitter is one member. Opaque and masked emitters draw in the
+  opaque pass; blended ones are sorted as a whole with the other transparent members;
+  additive ones draw with the additive sprites. A 2D emitter draws in layer and
+  member order and isn't pickable. Particles within an emitter aren't sorted.
+- `examples/particles.c`: a fountain (blended), sparks from a moving source
+  (additive, trailing), smoke (blended, growing, turning) and 2D confetti bursts where
+  you click or tap (squares cut from the particle texture with `set_source`, so their
+  spin shows). Unit tests (tests/unit/emitter_test.c) with fixed seeds: rates, bursts,
+  the ring's max, retiring the dead, the clock rebase, birth records, and scene
+  membership.
+
+spritebench's particle scenes, the same particles from one emitter (the sprite
+versions stay as the baseline), 16,000 alive, CPU ms per frame:
+
+| scene             | desktop GL   | Chrome (WebGL2) | Pixel (WebGL2) |
+|-------------------|--------------|-----------------|----------------|
+| 3D, blended       | 1.13 -> 0.12 | 2.19 -> 0.30    | 6.20 -> 0.63   |
+| 3D, additive      | 1.00 -> 0.11 | 1.93 -> 0.27    | 5.61 -> 0.59   |
+| 2D                | 1.08 -> 0.10 | 1.83 -> 0.27    | 3.98 -> 0.76   |
+
+Desktop frame time (vsync off) 1.25 -> 0.26 ms for 3D. What's left is copying and
+uploading each emitter's live particles every frame (48 bytes each); spawning happens
+in the runtime before the frame callback, outside these CPU columns but inside the
+frame time. The example runs at 60 FPS on the phone. If uploads show up, an emitter's
+ring could live in a GPU buffer and upload only its new particles.
+
 ## Not in this plan
 
 - Lit sprites / sprites on materials (TASKS: materials phase 3).
 - Texture arrays or bindless textures to batch blended sprites across textures;
   atlases do that today.
 - Moving shapes and text off sokol_gl.
+- Particles: curves over life (more than start -> end), drag, particles that react
+  after birth (collisions, attractors: a CPU-simulated mode), sorting within an
+  emitter, and loading effects made in editors (e.g. Cocos/particle-designer plists,
+  Effekseer) as resources.

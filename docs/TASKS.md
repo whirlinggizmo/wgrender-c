@@ -272,8 +272,12 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       13.8), 12.2 -> 7.1 in Chrome
 - [x] sprite2d on the instanced sprite path (2026-09-18, PLAN-sprites step 3), with
       `sk_sprite2d_set_alpha_mode`; immediate `sk_texture_draw*` stays on sokol_gl
-- [ ] Particle emitters, 3D and 2D, simulated on the GPU (PLAN-sprites step 4)
-- [ ] Particle emitters (batched/instanced)
+- [x] Particle emitters, 3D and 2D, simulated on the GPU (2026-09-18, PLAN-sprites
+      step 4): `sk_emitter3d_*` / `sk_emitter2d_*`, configured in code; particles written
+      once at birth and moved by the GPU; `examples/particles.c`. 16,000 particles:
+      CPU 1.1 -> 0.1 ms (desktop), 6.2 -> 0.6 ms (phone)
+- [ ] Particles later: curves over life, drag, a CPU-simulated mode for particles that
+      react after birth, effect resources loaded from editor formats
 - [x] Render to texture: `sk_texture_create_target`, `sk_render_begin/end_texture`,
       `sk_texture_set_sampling` ([PLAN-render-target.md](PLAN-render-target.md),
       `examples/render_target.c`)

@@ -11,6 +11,7 @@
 #include "internal/exports.h"
 #include "internal/sk_frame_pace.h"
 #include "internal/sk_internal.h"
+#include "internal/sk_emitter.h"
 #include "internal/sk_environment.h"
 #include "internal/sk_light.h"
 #include "internal/sk_material.h"
@@ -166,6 +167,7 @@ static void on_init(void)
     sk_texture_init();
     sk_sprite3d_init();
     sk_sprite2d_init();
+    sk_emitter_init();
     sk_light_init();
     sk_material_init();
     sk_environment_init();
@@ -312,6 +314,7 @@ static void on_frame(void)
     }
     sk_scene_update_interaction(); /* before the ticks: they read it too */
     run_ticks(update_frame_timing());
+    sk_emitter_update((float)sk_rt.delta_time); /* particles: spawn and retire, once a frame */
 
     if (sk_rt.frame_fn != NULL) {
         sk_rt.frame_fn((float)sk_rt.delta_time, sk_tick_clock_fraction(&sk_rt.tick_clock),
@@ -356,6 +359,7 @@ static void on_cleanup(void)
     sk_environment_deinit();
     sk_material_deinit();
     sk_light_deinit();
+    sk_emitter_deinit();
     sk_sprite2d_deinit();
     sk_sprite3d_deinit();
     sk_texture_deinit();
