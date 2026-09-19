@@ -35,6 +35,12 @@ void sk_sprite_batch_deinit(void);
 void sk_sprite_batch_add_3d(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, sk_alpha_mode_t mode,
                             bool blend_depth_write);
 
+/* Record a 2D sprite (screen space: logical pixels, top-left origin, y down) for the
+ * current pass, in order, with its alpha mode; no depth test. Its quad: position the
+ * top-left corner, right and up the top and left edges (up points up the screen),
+ * size (1, 1), pivot (0, 0), facing 2 (its own axes). */
+void sk_sprite_batch_add_2d(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, sk_alpha_mode_t mode);
+
 /* Sprites added between these don't need their order (opaque, masked and additive
  * sprites in a scene): they're grouped by texture and mode, so 4 textures in any
  * order make 4 draws. end_unordered records them. */

@@ -78,6 +78,7 @@ static const test_case_t TESTS[] = {
     {"sprite_pools_grow", test_sprite_pools_grow},
     {"sprites_interleaved", test_sprites_interleaved},
     {"sprite3d_alpha_modes", test_sprite3d_alpha_modes},
+    {"sprite2d_batches", test_sprite2d_batches},
     {"text_default_font", test_text_default_font},
     {"text_slices_and_dpi", test_text_slices_and_dpi},
     {"text_font_refcount", test_text_font_refcount},

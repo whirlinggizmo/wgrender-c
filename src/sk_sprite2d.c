@@ -10,6 +10,7 @@
 #include "internal/sk_internal.h"
 #include "internal/sk_scene.h"
 #include "internal/sk_sprite2d.h"
+#include "internal/sk_sprite_batch.h"
 #include "internal/sk_texture.h"
 #include "sk_logger.h"
 #include "sk_texture.h"
@@ -39,6 +40,8 @@ typedef struct {
     bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
     bool alpha_test;
     float alpha_threshold;
+    sk_alpha_mode_t alpha_mode;
+    float alpha_cutoff; /* SK_ALPHA_MASK */
 } sk_sprite2d_t;
 
 static sk_sprite2d_t *sk_sprites2d; /* grown by the pool: don't hold a pointer across a create */
@@ -194,14 +197,34 @@ static bool resolve_placement(const sk_sprite2d_t *sprite_ptr, sg_view *view, sg
     return true;
 }
 
-/* Textured quad in the current (2D) sokol_gl projection. */
-static void draw_quad(sg_view view, sg_sampler smp, const float corners[8], float u0, float v0, float u1,
-                      float v1, bool flip_v, sk_color_t tint)
+/* Textured quad in 2D: a sprite's goes to the instanced sprite path with its alpha
+ * mode (sprite_ptr), an immediate one (sk_texture_draw*, sprite_ptr NULL) through
+ * sokol_gl's 2D projection. corners: top-left, top-right, bottom-right, bottom-left. */
+static void draw_quad(const sk_sprite2d_t *sprite_ptr, sg_view view, sg_sampler smp, const float corners[8], float u0,
+                      float v0, float u1, float v1, bool flip_v, sk_color_t tint)
 {
     const sk_colorf_t c = sk_color_unpack(tint);
     if (flip_v) { /* render target stored bottom-up (see sk_texture_is_flipped) */
         v0 = 1.0f - v0;
         v1 = 1.0f - v1;
+    }
+    if (sprite_ptr != NULL) {
+        /* the top-left corner, and the top and left edges as the quad's axes */
+        const sk_sprite_quad_t quad = {
+            .position = {corners[0], corners[1], 0.0f},
+            .facing = 2.0f,
+            .size = {1.0f, 1.0f},
+            .uv = {u0, v0, u1, v1},
+            .right = {corners[2] - corners[0], corners[3] - corners[1], 0.0f},
+            .up = {corners[0] - corners[6], corners[1] - corners[7], 0.0f},
+            .alpha = sprite_ptr->alpha_mode == SK_ALPHA_MASK     ? fmaxf(sprite_ptr->alpha_cutoff, 1e-6f)
+                     : sprite_ptr->alpha_mode == SK_ALPHA_OPAQUE ? -1.0f
+                                                                 : 0.0f,
+            .color = {(uint8_t)sk_color_get_red(tint), (uint8_t)sk_color_get_green(tint),
+                      (uint8_t)sk_color_get_blue(tint), (uint8_t)sk_color_get_alpha(tint)},
+        };
+        sk_sprite_batch_add_2d(&quad, view.id, smp.id, sprite_ptr->alpha_mode);
+        return;
     }
     sgl_enable_texture();
     sgl_texture(view, smp);
@@ -218,8 +241,9 @@ static void draw_quad(sg_view view, sg_sampler smp, const float corners[8], floa
 /* Nine-slice: the corners keep their size, the edges stretch along one axis and the
  * middle along both. An axis without borders stays one span, so a sprite sliced on
  * one axis draws three patches, not nine. False when nothing is sliced. */
-static bool draw_nine_slice(sg_view view, sg_sampler smp, bool flip_v, const float source[4], int tw, int th,
-                            const sk_sprite2d_placement_t *p, const float slice[4], sk_color_t tint)
+static bool draw_nine_slice(const sk_sprite2d_t *sprite_ptr, sg_view view, sg_sampler smp, bool flip_v,
+                            const float source[4], int tw, int th, const sk_sprite2d_placement_t *p,
+                            const float slice[4], sk_color_t tint)
 {
     float du[4] = {0.0f, 1.0f, 0.0f, 0.0f}, su[4] = {0.0f, 1.0f, 0.0f, 0.0f};
     float dv[4] = {0.0f, 1.0f, 0.0f, 0.0f}, sv[4] = {0.0f, 1.0f, 0.0f, 0.0f};
@@ -250,7 +274,7 @@ static bool draw_nine_slice(sg_view view, sg_sampler smp, bool flip_v, const flo
             point_at(p, du[i + 1], dv[j], &corners[2], &corners[3]);
             point_at(p, du[i + 1], dv[j + 1], &corners[4], &corners[5]);
             point_at(p, du[i], dv[j + 1], &corners[6], &corners[7]);
-            draw_quad(view, smp, corners, (source[0] + su[i] * source[2]) / (float)tw,
+            draw_quad(sprite_ptr, view, smp, corners, (source[0] + su[i] * source[2]) / (float)tw,
                       (source[1] + sv[j] * source[3]) / (float)th,
                       (source[0] + su[i + 1] * source[2]) / (float)tw,
                       (source[1] + sv[j + 1] * source[3]) / (float)th, flip_v, tint);
@@ -274,12 +298,12 @@ static void draw_handle(sk_handle_t sprite)
     }
     const float slice[4] = {sprite_ptr->slice_left, sprite_ptr->slice_top, sprite_ptr->slice_right,
                             sprite_ptr->slice_bottom};
-    if (draw_nine_slice(view, smp, sk_texture_is_flipped(sprite_ptr->texture), source, tw, th, &placement, slice,
-                        sprite_ptr->tint)) {
+    if (draw_nine_slice(sprite_ptr, view, smp, sk_texture_is_flipped(sprite_ptr->texture), source, tw, th, &placement,
+                        slice, sprite_ptr->tint)) {
         return;
     }
     sk_sprite2d_corners(&placement, corners);
-    draw_quad(view, smp, corners, source[0] / (float)tw, source[1] / (float)th,
+    draw_quad(sprite_ptr, view, smp, corners, source[0] / (float)tw, source[1] / (float)th,
               (source[0] + source[2]) / (float)tw, (source[1] + source[3]) / (float)th,
               sk_texture_is_flipped(sprite_ptr->texture), sprite_ptr->tint);
 }
@@ -340,6 +364,8 @@ sk_handle_t sk_sprite2d_create(sk_handle_t texture)
         .pickable = true,
         .enabled = true,
         .alpha_threshold = 0.5f,
+        .alpha_mode = SK_ALPHA_BLEND,
+        .alpha_cutoff = 0.5f,
     };
     if (texture != 0) {
         sk_texture_retain(texture);
@@ -553,6 +579,25 @@ bool sk_sprite2d_set_pick_alpha_test(sk_handle_t sprite, bool enable, float thre
 }
 
 SK_KEEP
+bool sk_sprite2d_set_alpha_mode(sk_handle_t sprite, sk_alpha_mode_t mode, float cutoff)
+{
+    sk_sprite2d_t *sprite_ptr = resolve(sprite);
+    if (sprite_ptr == NULL || mode < SK_ALPHA_OPAQUE || mode > SK_ALPHA_ADD) {
+        return false;
+    }
+    sprite_ptr->alpha_mode = mode;
+    sprite_ptr->alpha_cutoff = cutoff < 0.0f ? 0.0f : cutoff > 1.0f ? 1.0f : cutoff;
+    return true;
+}
+
+SK_KEEP
+sk_alpha_mode_t sk_sprite2d_get_alpha_mode(sk_handle_t sprite)
+{
+    const sk_sprite2d_t *sprite_ptr = resolve(sprite);
+    return sprite_ptr != NULL ? sprite_ptr->alpha_mode : SK_ALPHA_BLEND;
+}
+
+SK_KEEP
 void sk_sprite2d_draw(sk_handle_t sprite)
 {
     draw_handle(sprite);
@@ -596,8 +641,9 @@ void sk_texture_draw_ex(sk_handle_t texture, float source_x, float source_y, flo
     corners[2] = x + width; corners[3] = y;
     corners[4] = x + width; corners[5] = y + height;
     corners[6] = x;         corners[7] = y + height;
-    draw_quad(view, smp, corners, source[0] / (float)tw, source[1] / (float)th, (source[0] + source[2]) / (float)tw,
-              (source[1] + source[3]) / (float)th, sk_texture_is_flipped(texture), tint);
+    draw_quad(NULL, view, smp, corners, source[0] / (float)tw, source[1] / (float)th,
+              (source[0] + source[2]) / (float)tw, (source[1] + source[3]) / (float)th, sk_texture_is_flipped(texture),
+              tint);
 }
 
 SK_KEEP
@@ -619,7 +665,7 @@ void sk_texture_draw_nine_slice(sk_handle_t texture, float source_x, float sourc
         return;
     }
     texture_source(source_x, source_y, source_width, source_height, tw, th, source);
-    if (!draw_nine_slice(view, smp, sk_texture_is_flipped(texture), source, tw, th, &placement, slice, tint)) {
+    if (!draw_nine_slice(NULL, view, smp, sk_texture_is_flipped(texture), source, tw, th, &placement, slice, tint)) {
         sk_texture_draw_ex(texture, source[0], source[1], source[2], source[3], x, y, width, height, tint);
     }
 }

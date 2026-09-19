@@ -597,3 +597,72 @@ void test_sprite3d_alpha_modes(void)
     sk_render_deinit();
     sg_shutdown();
 }
+
+/* sprite2d on the instanced sprite path: one batch for a run of the same texture, a
+ * nine-slice sprite included; alternating textures keep their order (2D is never
+ * regrouped); alpha modes. */
+void test_sprite2d_batches(void)
+{
+    enum { COUNT = 40 };
+    static sk_handle_t sprites[COUNT];
+    sk_handle_t textures[2];
+
+    sg_setup(&(sg_desc){.environment = sk_platform_environment()});
+    sk_render_init();
+    sk_scene_init();
+    sk_camera3d_init();
+    sk_texture_init();
+    sk_sprite2d_init();
+    sk_logger_set_level(SK_LOGGER_LEVEL_ERROR);
+
+    for (int t = 0; t < 2; t++) {
+        const unsigned char pixels[16] = {255, 255, 255, 255, 255, 255, 255, 255,
+                                          255, 255, 255, 255, 255, 255, 255, (unsigned char)(100 * t)};
+        textures[t] = sk_texture_create_rgba(pixels, 2, 2);
+    }
+    const sk_handle_t scene = sk_scene_create();
+    for (int i = 0; i < COUNT; i++) {
+        sprites[i] = sk_sprite2d_create(textures[0]);
+        sk_sprite2d_set_position(sprites[i], (float)(i * 10), 50);
+        sk_scene_add(scene, sprites[i], 0);
+    }
+    CHECK(sk_sprite2d_set_nine_slice(sprites[3], 1, 1, 1, 1)); /* several quads, one sprite */
+    CHECK(sk_sprite2d_set_size(sprites[3], 60, 30));
+
+    sk_render_begin();
+    sk_scene_draw(scene);
+    CHECK(sk_sprite_batch_count() == 1);
+    sk_render_end();
+
+    /* alternating textures: in order, a batch each */
+    for (int i = 0; i < COUNT; i++) sk_sprite2d_set_texture(sprites[i], textures[i % 2]);
+    sk_render_begin();
+    sk_scene_draw(scene);
+    CHECK(sk_sprite_batch_count() == COUNT);
+    sk_render_end();
+
+    /* alpha modes */
+    CHECK(sk_sprite2d_get_alpha_mode(sprites[0]) == SK_ALPHA_BLEND);
+    CHECK(sk_sprite2d_set_alpha_mode(sprites[0], SK_ALPHA_ADD, 0));
+    CHECK(sk_sprite2d_get_alpha_mode(sprites[0]) == SK_ALPHA_ADD);
+    CHECK(!sk_sprite2d_set_alpha_mode(sprites[0], (sk_alpha_mode_t)9, 0));
+    for (int i = 0; i < COUNT; i++) {
+        sk_sprite2d_set_texture(sprites[i], textures[0]);
+        sk_sprite2d_set_alpha_mode(sprites[i], i < COUNT / 2 ? SK_ALPHA_MASK : SK_ALPHA_BLEND, 0.5f);
+    }
+    sk_render_begin();
+    sk_scene_draw(scene);
+    CHECK(sk_sprite_batch_count() == 2); /* the masked run, then the blended run */
+    sk_render_end();
+
+    for (int i = 0; i < COUNT; i++) sk_sprite2d_destroy(sprites[i]);
+    for (int t = 0; t < 2; t++) sk_texture_release(textures[t]);
+    sk_scene_destroy(scene);
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    sk_sprite2d_deinit();
+    sk_texture_deinit();
+    sk_camera3d_deinit();
+    sk_scene_deinit();
+    sk_render_deinit();
+    sg_shutdown();
+}

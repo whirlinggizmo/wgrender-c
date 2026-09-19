@@ -59,6 +59,12 @@ bool sk_sprite2d_is_pickable(sk_handle_t sprite);
 bool sk_sprite2d_set_enabled(sk_handle_t sprite, bool enabled);
 bool sk_sprite2d_is_enabled(sk_handle_t sprite);
 
+/* How the sprite uses its texture's alpha (default SK_ALPHA_BLEND): blended, added
+ * (glows), opaque (alpha ignored) or masked (texels below `cutoff`, 0..1, cut out). 2D
+ * sprites always draw in order; the mode only changes how they're blended. */
+bool sk_sprite2d_set_alpha_mode(sk_handle_t sprite, sk_alpha_mode_t mode, float cutoff);
+sk_alpha_mode_t sk_sprite2d_get_alpha_mode(sk_handle_t sprite);
+
 /* When enabled, picks on texels with alpha below `threshold` (0..1) pass through. */
 bool sk_sprite2d_set_pick_alpha_test(sk_handle_t sprite, bool enable, float threshold);
 

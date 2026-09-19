@@ -1,6 +1,6 @@
 # Plan: a sprite renderer, and particle emitters
 
-Status: steps 1 and 2 built (2026-09-18); steps 3-4 to come.
+Status: steps 1-3 built (2026-09-18); step 4 (emitters) to come.
 
 ## Why
 
@@ -270,6 +270,24 @@ forces this path on any backend (the unit tests pass on both).
 The cost: packing and uploading the texels, about 1 ms more at 16,000 on the phone
 when batches were few anyway (one atlas: 4.6 -> 5.5-6.3 ms). Desktop GL keeps
 base-instance draws (reading by index is no faster there: native GL calls are cheap).
+
+### Step 3: sprite2d on the instanced path (2026-09-18)
+
+- A 2D sprite's quads (one, or up to nine when nine-sliced) go to the batcher as
+  instances: position the top-left corner, axes the top and left edges, so rotation,
+  pivot, scale, flips and nine-slices are worked out as before and come out the same.
+  `sk_sprite_batch_add_2d` records them in order (2D is never regrouped) under a 2D
+  projection matching sokol_gl's (`sk_mat4_ortho` over the target's logical pixels),
+  with 2D pipelines (no depth test): blended, added, opaque/masked.
+- `sk_sprite2d_set_alpha_mode` / `get_alpha_mode`, like sprite3d's; blend the default.
+- The immediate `sk_texture_draw*` calls stay on sokol_gl (UI draws few, interleaved
+  with shapes and text).
+- Screenshots of `sprite2d`, `touch`, `ui` and `clay` match the sokol_gl build (the
+  differences are the page's dropdown and animation). Unit test: a run of one texture
+  (a nine-slice included) is one batch; alternating textures stay in order.
+
+2D particles, 16,000, CPU ms: desktop GL 1.43 -> 1.07, Chrome 2.39 -> 1.63, Pixel
+WebGL2 5.55 -> 3.89.
 
 ## Not in this plan
 

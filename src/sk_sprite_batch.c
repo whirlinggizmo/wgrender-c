@@ -9,6 +9,7 @@
 #include "internal/sk_shaders.h"
 #include "internal/sk_sprite3d.h"
 #include "sk_logger.h"
+#include "sk_window.h"
 
 /* Instanced sprites (docs/PLAN-sprites.md). During the frame, sprites are appended to
  * one instance array in call order and grouped into batches: consecutive sprites
@@ -31,8 +32,20 @@ enum {
     PIPELINE_BLEND_DEPTH_WRITE,  /* blended, depth written (direct draws) */
     PIPELINE_BLEND,              /* blended, depth not written (a scene's sorted pass) */
     PIPELINE_ADD,                /* added, depth not written */
+    PIPELINE_2D_OPAQUE,          /* 2D: no depth test; opaque and masked */
+    PIPELINE_2D_BLEND,
+    PIPELINE_2D_ADD,
     PIPELINE_COUNT
 };
+
+/* What sprites drawn now are drawn with: camera uniforms, pass and scissor. Kept until
+ * the render state or a camera changes. */
+typedef struct {
+    bool valid;
+    unsigned render_revision, camera_revision;
+    int camera, pass;
+    float scissor[4];
+} sk_sprite_state_t;
 
 /* A sprite held back while unordered, to be grouped with others like it. */
 typedef struct {
@@ -87,12 +100,7 @@ static struct {
     int last_drawn; /* the batch drawn last (replay), whose state may still be applied */
     /* the camera, pass and scissor sprites are drawn with now, until the render state
        or a camera changes */
-    struct {
-        bool valid;
-        unsigned render_revision, camera_revision;
-        int camera, pass;
-        float scissor[4];
-    } state;
+    sk_sprite_state_t state_3d, state_2d;
 } sk_sb;
 
 static sg_backend shader_backend(void)
@@ -180,6 +188,20 @@ void sk_sprite_batch_init(void)
     desc.colors[0].blend = (sg_blend_state){0};
     desc.depth.write_enabled = true;
     sk_sb.pipelines[PIPELINE_OPAQUE] = sg_make_pipeline(&desc);
+    /* 2D, like sokol_gl's 2D pipeline: no depth test or write */
+    desc.depth = (sg_depth_state){.compare = SG_COMPAREFUNC_ALWAYS, .write_enabled = false};
+    sk_sb.pipelines[PIPELINE_2D_OPAQUE] = sg_make_pipeline(&desc);
+    desc.colors[0].blend = (sg_blend_state){
+        .enabled = true,
+        .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+        .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+        .src_factor_alpha = SG_BLENDFACTOR_ONE,
+        .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+    };
+    sk_sb.pipelines[PIPELINE_2D_BLEND] = sg_make_pipeline(&desc);
+    desc.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE;
+    desc.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE;
+    sk_sb.pipelines[PIPELINE_2D_ADD] = sg_make_pipeline(&desc);
     sk_sb.last_drawn = -1;
     sk_sb.quad = sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(corners), .label = "sk-sprite-quad"});
     sk_sb.ready = true;
@@ -245,38 +267,59 @@ static int current_camera(void)
     return sk_sb.camera_count++;
 }
 
-/* The camera uniforms, pass and scissor for sprites drawn now; false without a camera. */
-static bool current_state(void)
+/* 2D: the current target in logical pixels (render targets in their own pixels), top-left
+ * origin, y down, as sokol_gl's 2D projection (setup_2d_projection). */
+static int current_camera_2d(void)
 {
-    const unsigned render_revision = sk_render_state_revision(), camera_revision = sk_camera3d_revision();
+    const vec2_t size = sk_render_current_pass() == 0 ? sk_window_get_screen_size() : sk_render_target_size();
+    const sk_mat4_t ortho = sk_mat4_ortho(0.0f, size.x, size.y, 0.0f, -1.0f, 1.0f);
+    sk_sprite_camera_t *c;
+
+    if (!reserve((void **)&sk_sb.cameras, &sk_sb.camera_capacity, sk_sb.camera_count, sizeof(sk_sprite_camera_t),
+                 CAMERAS_INITIAL)) {
+        return -1;
+    }
+    c = &sk_sb.cameras[sk_sb.camera_count];
+    *c = (sk_sprite_camera_t){.aspect = -1.0f}; /* never matches a 3D camera */
+    memcpy(c->params.view_proj, ortho.m, sizeof(c->params.view_proj));
+    return sk_sb.camera_count++;
+}
+
+/* The camera uniforms, pass and scissor for sprites drawn now (3D: the active camera;
+ * 2D: the screen's pixels); NULL without a camera. */
+static const sk_sprite_state_t *current_state(bool two_d)
+{
+    sk_sprite_state_t *st = two_d ? &sk_sb.state_2d : &sk_sb.state_3d;
+    const unsigned render_revision = sk_render_state_revision();
+    const unsigned camera_revision = two_d ? 0u : sk_camera3d_revision();
     float x, y, w, h, scale;
 
-    if (sk_sb.state.valid && sk_sb.state.render_revision == render_revision &&
-        sk_sb.state.camera_revision == camera_revision) {
-        return true;
+    if (st->valid && st->render_revision == render_revision && st->camera_revision == camera_revision) {
+        return st;
     }
-    sk_sb.state.camera = current_camera();
-    if (sk_sb.state.camera < 0) {
-        sk_sb.state.valid = false;
-        return false;
+    st->camera = two_d ? current_camera_2d() : current_camera();
+    if (st->camera < 0) {
+        st->valid = false;
+        return NULL;
     }
-    sk_sb.state.pass = sk_render_current_pass();
+    st->pass = sk_render_current_pass();
     sk_render_get_clip(&x, &y, &w, &h); /* the whole target when nothing is pushed */
     scale = sk_render_pixel_scale();
-    sk_sb.state.scissor[0] = x * scale, sk_sb.state.scissor[1] = y * scale;
-    sk_sb.state.scissor[2] = w * scale, sk_sb.state.scissor[3] = h * scale;
-    sk_sb.state.render_revision = render_revision;
-    sk_sb.state.camera_revision = camera_revision;
-    sk_sb.state.valid = true;
-    return true;
+    st->scissor[0] = x * scale, st->scissor[1] = y * scale;
+    st->scissor[2] = w * scale, st->scissor[3] = h * scale;
+    st->render_revision = render_revision;
+    st->camera_revision = camera_revision;
+    st->valid = true;
+    return st;
 }
 
 /* Add one sprite to the frame, joining the open batch when it can. */
 static void record(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, int pipeline)
 {
+    const sk_sprite_state_t *st = sk_sb.ready ? current_state(pipeline >= PIPELINE_2D_OPAQUE) : NULL;
     sk_sprite_batch_t *last;
 
-    if (!sk_sb.ready || !current_state()) {
+    if (st == NULL) {
         return;
     }
     if (!reserve((void **)&sk_sb.instances, &sk_sb.instance_capacity, sk_sb.instance_count, sizeof(sk_sprite_quad_t),
@@ -286,8 +329,8 @@ static void record(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sam
     last = sk_sb.batch_count > 0 ? &sk_sb.batches[sk_sb.batch_count - 1] : NULL;
     /* extend the open batch when nothing else was drawn since and everything matches */
     if (last == NULL || last->view != view || last->sampler != sampler || last->pipeline != pipeline ||
-        last->camera != sk_sb.state.camera || last->pass != sk_sb.state.pass ||
-        memcmp(last->scissor, sk_sb.state.scissor, sizeof(last->scissor)) != 0 ||
+        last->camera != st->camera || last->pass != st->pass ||
+        memcmp(last->scissor, st->scissor, sizeof(last->scissor)) != 0 ||
         !sk_render_sprites_open(sk_sb.batch_count - 1)) {
         if (!reserve((void **)&sk_sb.batches, &sk_sb.batch_capacity, sk_sb.batch_count, sizeof(sk_sprite_batch_t),
                      BATCHES_INITIAL)) {
@@ -301,11 +344,11 @@ static void record(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sam
             .view = view,
             .sampler = sampler,
             .pipeline = pipeline,
-            .camera = sk_sb.state.camera,
-            .pass = sk_sb.state.pass,
+            .camera = st->camera,
+            .pass = st->pass,
             .first = sk_sb.instance_count,
         };
-        memcpy(last->scissor, sk_sb.state.scissor, sizeof(last->scissor));
+        memcpy(last->scissor, st->scissor, sizeof(last->scissor));
     }
     sk_sb.instances[sk_sb.instance_count++] = *instance;
     last->count++;
@@ -328,6 +371,14 @@ void sk_sprite_batch_add_3d(const sk_sprite_quad_t *instance, uint32_t view, uin
     }
     sk_sb.pending[sk_sb.pending_count++] = (sk_sprite_pending_t){
         .quad = *instance, .view = view, .sampler = sampler, .pipeline = pipeline};
+}
+
+void sk_sprite_batch_add_2d(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, sk_alpha_mode_t mode)
+{
+    const int pipeline = mode == SK_ALPHA_OPAQUE || mode == SK_ALPHA_MASK ? PIPELINE_2D_OPAQUE
+                         : mode == SK_ALPHA_ADD                           ? PIPELINE_2D_ADD
+                                                                          : PIPELINE_2D_BLEND;
+    record(instance, view, sampler, pipeline); /* 2D keeps its order: never grouped */
 }
 
 void sk_sprite_batch_begin_unordered(void)
@@ -566,7 +617,8 @@ void sk_sprite_batch_end_frame(void)
     sk_sb.instance_count = 0;
     sk_sb.batch_count = 0;
     sk_sb.camera_count = 0;
-    sk_sb.state.valid = false; /* its camera uniforms are gone */
+    sk_sb.state_3d.valid = false; /* their camera uniforms are gone */
+    sk_sb.state_2d.valid = false;
     sk_sb.last_drawn = -1;
 }
 

@@ -270,8 +270,9 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       base-instance draws, sprites are read by index from a float texture instead of
       rebinding per batch: 16,000 from 4 textures 20.5 -> 11 ms on the phone (sokol_gl:
       13.8), 12.2 -> 7.1 in Chrome
-- [ ] Sprites, PLAN-sprites steps 3-4: sprite2d on the instanced path, particle emitters
-      (3D and 2D, simulated on the GPU)
+- [x] sprite2d on the instanced sprite path (2026-09-18, PLAN-sprites step 3), with
+      `sk_sprite2d_set_alpha_mode`; immediate `sk_texture_draw*` stays on sokol_gl
+- [ ] Particle emitters, 3D and 2D, simulated on the GPU (PLAN-sprites step 4)
 - [ ] Particle emitters (batched/instanced)
 - [x] Render to texture: `sk_texture_create_target`, `sk_render_begin/end_texture`,
       `sk_texture_set_sampling` ([PLAN-render-target.md](PLAN-render-target.md),
