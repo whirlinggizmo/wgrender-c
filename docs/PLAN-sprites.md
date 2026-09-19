@@ -253,11 +253,23 @@ a surprising phone number needs a second run before it means anything.
 Additive particles cost the same as blended ones here (their one texture already made
 few batches); the gain is that they need no sorting.
 
-**Open: blended sprites from several textures on WebGL2.** Sorted back to front they
-make thousands of tiny batches, and without base-instance draws each one rebinds six
-instance attributes, where sokol_gl only switched the texture: 30% slower than before
-in Chrome. Atlases and masking avoid it. The fix would be reading instances from a
-data texture by index on WebGL2 (bind once, a uniform per batch).
+**Blended sprites from several textures on WebGL2** (fixed after step 2). Sorted back
+to front they make thousands of tiny batches, and WebGL2 has no base-instance draws,
+so each batch rebound six instance attributes, where sokol_gl only switched the
+texture: slower than before. Now, without base-instance draws (WebGL2, GL before
+4.2), the sprites go into an RGBA32F texture, 6 texels a sprite and 256 a row, and a
+second vertex shader (`quad_pulled`) reads them by index (first + instance); a batch
+sets one small uniform. The frame writes only the rows in use. `-DSK_SPRITES_PULLED`
+forces this path on any backend (the unit tests pass on both).
+
+| 16,000, 4 textures, blended | sokol_gl | rebinding | read by index |
+|-----------------------------|----------|-----------|---------------|
+| Chrome, WebGL2              | 9.2      | 12.2      | **7.1**       |
+| Pixel, WebGL2 (two runs)    | 13.8     | 20.5      | **11.0, 11.2**|
+
+The cost: packing and uploading the texels, about 1 ms more at 16,000 on the phone
+when batches were few anyway (one atlas: 4.6 -> 5.5-6.3 ms). Desktop GL keeps
+base-instance draws (reading by index is no faster there: native GL calls are cheap).
 
 ## Not in this plan
 

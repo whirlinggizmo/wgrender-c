@@ -17,6 +17,12 @@
  * then draws its range with one instanced draw. */
 
 #define INSTANCES_INITIAL 1024
+/* Without base-instance draws (WebGL2, GL before 4.2) the sprites go into a float
+ * texture the shader reads by index (quad_pulled in sk_sprite.glsl): 6 texels a
+ * sprite, 256 sprites a row. */
+#define PULLED_TEXELS 6
+#define PULLED_SPRITES_PER_ROW 256
+#define PULLED_WIDTH (PULLED_TEXELS * PULLED_SPRITES_PER_ROW)
 #define BATCHES_INITIAL 64
 #define CAMERAS_INITIAL 8
 
@@ -56,6 +62,13 @@ static struct {
     bool base_instance; /* the backend can draw from a base instance (not WebGL2) */
     sg_shader shader;
     sg_pipeline pipelines[PIPELINE_COUNT];
+    /* no base instance: the sprites as texels, read by index */
+    sg_image data_image;
+    sg_view data_view;
+    sg_sampler data_sampler;
+    int data_rows;         /* the image's height */
+    float *data;           /* texels for the frame's sprites, PULLED_WIDTH floats x 4 a row */
+    int data_capacity;     /* sprites `data` holds */
     sg_buffer quad;
     sg_buffer instance_buffer;
     int instance_buffer_capacity;
@@ -138,7 +151,25 @@ void sk_sprite_batch_init(void)
     };
 
     memset(&sk_sb, 0, sizeof(sk_sb));
-    sk_sb.shader = sg_make_shader(sprite_quad_shader_desc(shader_backend()));
+    sk_sb.base_instance = sg_query_features().draw_base_instance;
+#ifdef SK_SPRITES_PULLED /* build-time switch: read sprites from the texture everywhere (tests, benchmarks) */
+    sk_sb.base_instance = false;
+#endif
+    if (sk_sb.base_instance) {
+        sk_sb.shader = sg_make_shader(sprite_quad_shader_desc(shader_backend()));
+    } else { /* the sprites come from a texture: only the quad's corners are attributes */
+        sk_sb.shader = sg_make_shader(sprite_quad_pulled_shader_desc(shader_backend()));
+        desc.layout = (sg_vertex_layout_state){
+            .attrs[ATTR_sprite_quad_pulled_corner] = {.format = SG_VERTEXFORMAT_FLOAT2},
+        };
+        sk_sb.data_sampler = sg_make_sampler(&(sg_sampler_desc){
+            .min_filter = SG_FILTER_NEAREST,
+            .mag_filter = SG_FILTER_NEAREST,
+            .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
+            .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
+            .label = "sk-sprite-data",
+        });
+    }
     desc.shader = sk_sb.shader;
     sk_sb.pipelines[PIPELINE_BLEND_DEPTH_WRITE] = sg_make_pipeline(&desc);
     desc.depth.write_enabled = false;
@@ -150,7 +181,6 @@ void sk_sprite_batch_init(void)
     desc.depth.write_enabled = true;
     sk_sb.pipelines[PIPELINE_OPAQUE] = sg_make_pipeline(&desc);
     sk_sb.last_drawn = -1;
-    sk_sb.base_instance = sg_query_features().draw_base_instance;
     sk_sb.quad = sg_make_buffer(&(sg_buffer_desc){.data = SG_RANGE(corners), .label = "sk-sprite-quad"});
     sk_sb.ready = true;
 }
@@ -161,6 +191,10 @@ void sk_sprite_batch_deinit(void)
         return;
     }
     sg_destroy_buffer(sk_sb.instance_buffer);
+    sg_destroy_view(sk_sb.data_view);
+    sg_destroy_image(sk_sb.data_image);
+    sg_destroy_sampler(sk_sb.data_sampler);
+    free(sk_sb.data);
     sg_destroy_buffer(sk_sb.quad);
     for (int i = 0; i < PIPELINE_COUNT; i++) {
         sg_destroy_pipeline(sk_sb.pipelines[i]);
@@ -385,11 +419,76 @@ void sk_sprite_batch_end_unordered(void)
     sk_sb.pending_count = 0;
 }
 
+/* No base instance: write the frame's sprites into the data texture, growing it. */
+static void flush_pulled(void)
+{
+    const int rows = (sk_sb.instance_count + PULLED_SPRITES_PER_ROW - 1) / PULLED_SPRITES_PER_ROW;
+    const int max_rows = sg_query_limits().max_image_size_2d;
+
+    if (rows > max_rows) {
+        if (!sk_sb.overflow_logged) {
+            log_error("sprites: %d in a frame, more than the sprite texture holds", sk_sb.instance_count);
+            sk_sb.overflow_logged = true;
+        }
+        sk_sb.instance_count = max_rows * PULLED_SPRITES_PER_ROW;
+    }
+    if (sk_sb.data_capacity < rows * PULLED_SPRITES_PER_ROW) {
+        const int capacity = rows * PULLED_SPRITES_PER_ROW;
+        float *grown = realloc(sk_sb.data, sizeof(float) * 4 * PULLED_TEXELS * (size_t)capacity);
+        if (grown == NULL) {
+            sk_sb.instance_count = 0;
+            return;
+        }
+        sk_sb.data = grown;
+        sk_sb.data_capacity = capacity;
+    }
+    if (rows > sk_sb.data_rows) {
+        int height = sk_sb.data_rows > 0 ? sk_sb.data_rows : 4;
+        while (height < rows) height *= 2;
+        if (height > max_rows) height = max_rows;
+        sg_destroy_view(sk_sb.data_view);
+        sg_destroy_image(sk_sb.data_image);
+        sk_sb.data_image = sg_make_image(&(sg_image_desc){
+            .width = PULLED_WIDTH,
+            .height = height,
+            .pixel_format = SG_PIXELFORMAT_RGBA32F,
+            .usage = {.write_transient = true},
+            .label = "sk-sprite-data",
+        });
+        sk_sb.data_view = sg_make_view(&(sg_view_desc){.texture.image = sk_sb.data_image});
+        sk_sb.data_rows = height;
+    }
+    for (int i = 0; i < sk_sb.instance_count; i++) {
+        const sk_sprite_quad_t *q = &sk_sb.instances[i];
+        float *t = &sk_sb.data[(size_t)i * 4 * PULLED_TEXELS]; /* rows are whole sprites */
+        const float texels[4 * PULLED_TEXELS] = {
+            q->position[0], q->position[1], q->position[2], q->facing,
+            q->size[0], q->size[1], q->pivot[0], q->pivot[1],
+            q->uv[0], q->uv[1], q->uv[2], q->uv[3],
+            q->right[0], q->right[1], q->right[2], 0.0f,
+            q->up[0], q->up[1], q->up[2], q->alpha,
+            q->color[0] / 255.0f, q->color[1] / 255.0f, q->color[2] / 255.0f, q->color[3] / 255.0f,
+        };
+        memcpy(t, texels, sizeof(texels));
+    }
+    sg_write_image_transient(&(sg_write_image_desc){
+        .src = {.data = {.ptr = sk_sb.data, .size = sizeof(float) * 4 * PULLED_WIDTH * (size_t)rows},
+                .bytes_per_row = (int)sizeof(float) * 4 * PULLED_WIDTH,
+                .bytes_per_slice = (int)sizeof(float) * 4 * PULLED_WIDTH * rows}, /* just the rows in use */
+        .dst = {.image = sk_sb.data_image},
+        .size = {.width = PULLED_WIDTH, .height = rows, .num_slices = 1},
+    });
+}
+
 void sk_sprite_batch_flush(void)
 {
     const size_t bytes = sizeof(sk_sprite_quad_t) * (size_t)sk_sb.instance_count;
 
     if (!sk_sb.ready || sk_sb.instance_count == 0) {
+        return;
+    }
+    if (!sk_sb.base_instance) {
+        flush_pulled();
         return;
     }
     if (sk_sb.instance_count > sk_sb.instance_buffer_capacity) {
@@ -428,15 +527,23 @@ void sk_sprite_batch_draw(int batch, bool follows)
         sg_apply_pipeline(sk_sb.pipelines[b->pipeline]);
         before = NULL; /* a new pipeline needs its uniforms again */
     }
-    /* where the backend can, every batch binds the instances at offset 0 and draws from
-       its first one, so consecutive batches only change the texture; WebGL2 can't, so
-       there each batch binds its range */
-    sg_apply_bindings(&(sg_bindings){
-        .vertex_buffers = {sk_sb.quad, sk_sb.instance_buffer},
-        .vertex_buffer_offsets[1] = sk_sb.base_instance ? 0 : (int)(sizeof(sk_sprite_quad_t) * (size_t)b->first),
-        .views[VIEW_sprite_tex] = {.id = b->view},
-        .samplers[SMP_sprite_smp] = {.id = b->sampler},
-    });
+    /* every batch binds the same instances (base instance) or sprite texture (read by
+       index), so consecutive batches only change the texture and where they start */
+    if (sk_sb.base_instance) {
+        sg_apply_bindings(&(sg_bindings){
+            .vertex_buffers = {sk_sb.quad, sk_sb.instance_buffer},
+            .views[VIEW_sprite_tex] = {.id = b->view},
+            .samplers[SMP_sprite_smp] = {.id = b->sampler},
+        });
+    } else {
+        sg_apply_bindings(&(sg_bindings){
+            .vertex_buffers[0] = sk_sb.quad,
+            .views[VIEW_sprite_tex] = {.id = b->view},
+            .samplers[SMP_sprite_smp] = {.id = b->sampler},
+            .views[VIEW_sprite_sprite_data] = sk_sb.data_view,
+            .samplers[SMP_sprite_sprite_data_smp] = sk_sb.data_sampler,
+        });
+    }
     if (before == NULL || before->camera != b->camera) {
         sg_apply_uniforms(UB_sprite_vs_params, &SG_RANGE(sk_sb.cameras[b->camera].params));
     }
@@ -447,7 +554,9 @@ void sk_sprite_batch_draw(int batch, bool follows)
     }
     if (sk_sb.base_instance) {
         sg_draw_ex(0, 6, b->count, 0, b->first);
-    } else {
+    } else { /* the shader reads sprites first .. first + count - 1 */
+        const sprite_vs_batch_t batch_params = {.batch = {(float)b->first, 0.0f, 0.0f, 0.0f}};
+        sg_apply_uniforms(UB_sprite_vs_batch, &SG_RANGE(batch_params));
         sg_draw(0, 6, b->count);
     }
 }
