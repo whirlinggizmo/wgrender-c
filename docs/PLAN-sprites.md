@@ -239,13 +239,15 @@ CPU ms per frame, 16,000 sprites, 4 textures interleaved (field):
 |----------------------|---------------------|---------------------|---------------|---------------|
 | blended, sokol_gl    | 7.1                 | 9.2                 | 13.8          | 15.9          |
 | blended, instanced   | 5.7                 | 12.2                | 20.5          | 10.0          |
-| masked, instanced    | **1.4** (4 batches) | **1.2** (4 batches) | **3.3**       | 9.8 (?)       |
+| masked, instanced    | **1.4** (4 batches) | **1.2** (4 batches) | **3.3**       | 9.8 (see below) |
 
 On the phone at 4,000 sprites, blended from 4 textures is a little cheaper than on
 sokol_gl (WebGL2 3.8 vs 4.4 ms); it's at 16,000 that WebGL2's rebinding dominates.
-The phone's WebGPU masked number is suspect: its scene step (the same code as
-WebGL2's, 2.9 ms) measured 9.1 ms in a run right after the long WebGL2 one; likely
-thermal throttling, to re-measure cold.
+The phone's WebGPU masked number is real but not understood: its scene step runs the
+same CPU code as WebGL2's (2.9 ms) and measured 9.1 ms, also on a cold phone. The
+step makes no GPU calls, so the main thread is probably being held up while the GPU
+is busy (masked sprites write depth and discard, which costs early depth rejection).
+To confirm with a Chrome trace from the phone.
 
 Additive particles cost the same as blended ones here (their one texture already made
 few batches); the gain is that they need no sorting.

@@ -269,6 +269,8 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 - [ ] Blended sprites from several textures on WebGL2: thousands of tiny sorted batches,
       each rebinding the instances (no base-instance draws): ~30% slower than sokol_gl
       in Chrome. Read instances from a data texture by index there instead
+- [ ] WebGPU on the phone: the masked-sprite scene step measures 9.1 ms at 16,000
+      (WebGL2, same code: 2.9 ms). Take a Chrome trace from the phone to see why
 - [ ] Sprites, PLAN-sprites steps 3-4: sprite2d on the instanced path, particle emitters
       (3D and 2D, simulated on the GPU)
 - [ ] Particle emitters (batched/instanced)
