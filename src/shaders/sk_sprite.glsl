@@ -107,6 +107,7 @@ layout(binding=0) uniform particle_params {
     vec4 counts;      /* x size keys, y color keys, z alpha (as sprites' up.w), w palette colors */
     vec4 source;      /* the texture region: u0, v0, u1, v1 */
     vec4 dynamics;    /* x drag (per second), y stretch (seconds of motion; 0 none) */
+    vec4 frames;      /* flipbook: x columns, y rows, z frames (< 2: none), w per second (0: over life) */
     vec4 size_times[2];  /* up to 8 keys over life (0..1), in order */
     vec4 size_values[2];
     vec4 color_times[2];
@@ -201,7 +202,16 @@ void main() {
         up = axis_x.xyz * s + axis_y.xyz * c;
     }
     gl_Position = view_proj * vec4(pos + right * (corner.x * size) + up * (corner.y * along), 1.0);
-    uv = vec2(mix(source.x, source.z, corner.x + 0.5), mix(source.y, source.w, 0.5 - corner.y));
+    /* the flipbook's frame: played once over the life, or looped from a random frame */
+    vec4 cell = source;
+    if (frames.z > 1.5) {
+        float frame = frames.w > 0.0 ? mod(floor(age * frames.w + fract(shape.w * 7.31) * frames.z), frames.z)
+                                     : min(floor(t * frames.z), frames.z - 1.0);
+        vec2 step = (source.zw - source.xy) / frames.xy;
+        cell.xy = source.xy + step * vec2(mod(frame, frames.x), floor(frame / frames.x));
+        cell.zw = cell.xy + step;
+    }
+    uv = vec2(mix(cell.x, cell.z, corner.x + 0.5), mix(cell.y, cell.w, 0.5 - corner.y));
     color = color_at(t);
     int colors = int(counts.w);
     if (colors > 0) {

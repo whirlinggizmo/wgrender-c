@@ -1,10 +1,11 @@
 /* libsk particles example — emitters (sk_emitter3d.h, sk_emitter2d.h).
  *
- * Three 3D emitters in a scene: a fountain (blended drops under gravity), sparks
+ * 3D emitters in a scene: a fountain (blended drops under gravity), sparks
  * (added, from a point circling the fountain: they trail behind it, are thrown along
- * by it, slowed by drag and stretched along their motion) and smoke
- * (blended, with size and color curves: a dark puff that spreads, lightens and fades
- * as it rises). Click or tap anywhere for a 2D confetti burst there: squares cut from
+ * by it, slowed by drag and stretched along their motion), and a campfire: flames
+ * (added puffs from a flipbook texture, colored by a curve) under smoke (blended, with
+ * size and color curves: a dark puff that spreads, lightens and fades as it rises).
+ * The steady ones are prewarmed, so they're already going when they appear. Click or tap anywhere for a 2D confetti burst there: squares cut from
  * the middle of the particle texture (so their spin shows), each tinted by a color
  * picked from the emitter's palette. Space pauses the
  * steady emitters; the particles alive finish their lives. */
@@ -16,12 +17,14 @@
 #include "example_assets.h"
 
 #define PARTICLE_PATH "textures/particle.png"
+#define FLAME_PATH    "textures/flame.png" /* a 4x4 flipbook (tools/gen_particles.py) */
 
 static sk_handle_t g_scene;
 static sk_handle_t g_camera;
 static sk_handle_t g_fountain;
 static sk_handle_t g_sparks;
 static sk_handle_t g_smoke;
+static sk_handle_t g_flame;
 static sk_handle_t g_confetti;
 static bool g_paused;
 static float g_time;
@@ -39,6 +42,7 @@ static void make_fountain(sk_handle_t texture)
     sk_emitter3d_set_size(g_fountain, 0.22f, 0.12f, 0.4f);
     sk_emitter3d_set_color(g_fountain, sk_color_rgba(150, 210, 255, 230), sk_color_rgba(60, 120, 255, 0));
     sk_emitter3d_set_alpha_mode(g_fountain, SK_ALPHA_BLEND, 0.0f);
+    sk_emitter3d_prewarm(g_fountain, 2.0f); /* already running when the page opens */
     sk_scene_add(g_scene, g_fountain, 0);
 }
 
@@ -63,10 +67,10 @@ static void make_smoke(sk_handle_t texture)
 {
     g_smoke = sk_emitter3d_create(texture);
     sk_emitter3d_set_max(g_smoke, 512);
-    sk_emitter3d_set_rate(g_smoke, 40.0f);
+    sk_emitter3d_set_rate(g_smoke, 30.0f);
     sk_emitter3d_set_life(g_smoke, 3.0f, 4.5f);
-    sk_emitter3d_set_position(g_smoke, -5.0f, 0.3f, -2.0f);
-    sk_emitter3d_set_spawn_box(g_smoke, 0.3f, 0.0f, 0.3f);
+    sk_emitter3d_set_position(g_smoke, -5.0f, 1.5f, -2.0f); /* above the fire */
+    sk_emitter3d_set_spawn_sphere(g_smoke, 0.3f);
     sk_emitter3d_set_velocity(g_smoke, 0.0f, 1.4f, 0.0f, 0.35f, 0.3f);
     sk_emitter3d_set_gravity(g_smoke, 0.35f, 0.0f, 0.0f); /* a breeze */
     sk_emitter3d_set_spin(g_smoke, -0.8f, 0.8f);
@@ -81,7 +85,41 @@ static void make_smoke(sk_handle_t texture)
     sk_emitter3d_add_color_key(g_smoke, 0.5f, sk_color_rgba(130, 130, 140, 120));
     sk_emitter3d_add_color_key(g_smoke, 1.0f, sk_color_rgba(170, 170, 180, 0));
     sk_emitter3d_set_alpha_mode(g_smoke, SK_ALPHA_BLEND, 0.0f);
+    sk_emitter3d_prewarm(g_smoke, 5.0f);
     sk_scene_add(g_scene, g_smoke, 0);
+}
+
+/* A campfire's flames: puffs from a flipbook, played once over each one's life, glowing
+ * white-yellow, then orange, red and out as they rise and break up. */
+static void on_flame_loaded(const char *path, void *user)
+{
+    sk_handle_t texture = sk_texture_create(path);
+    (void)user;
+    if (texture == 0) {
+        return;
+    }
+    g_flame = sk_emitter3d_create(texture);
+    sk_texture_release(texture);
+    sk_emitter3d_set_frames(g_flame, 4, 4, 0, 0.0f);
+    sk_emitter3d_set_rate(g_flame, 40.0f);
+    sk_emitter3d_set_life(g_flame, 0.7f, 1.1f);
+    sk_emitter3d_set_position(g_flame, -5.0f, 0.3f, -2.0f);
+    sk_emitter3d_set_spawn_sphere(g_flame, 0.3f);
+    sk_emitter3d_set_velocity(g_flame, 0.0f, 1.8f, 0.0f, 0.2f, 0.3f);
+    sk_emitter3d_set_drag(g_flame, 0.8f);
+    sk_emitter3d_set_spin(g_flame, -1.5f, 1.5f);
+    sk_emitter3d_clear_size_keys(g_flame);
+    sk_emitter3d_add_size_key(g_flame, 0.0f, 0.6f);
+    sk_emitter3d_add_size_key(g_flame, 0.3f, 1.1f);
+    sk_emitter3d_add_size_key(g_flame, 1.0f, 0.4f);
+    sk_emitter3d_clear_color_keys(g_flame);
+    sk_emitter3d_add_color_key(g_flame, 0.0f, sk_color_rgba(255, 235, 190, 0));
+    sk_emitter3d_add_color_key(g_flame, 0.08f, sk_color_rgba(255, 235, 190, 110));
+    sk_emitter3d_add_color_key(g_flame, 0.25f, sk_color_rgba(255, 150, 40, 100));
+    sk_emitter3d_add_color_key(g_flame, 0.65f, sk_color_rgba(200, 50, 15, 60));
+    sk_emitter3d_add_color_key(g_flame, 1.0f, sk_color_rgba(80, 15, 5, 0));
+    sk_emitter3d_prewarm(g_flame, 1.0f);
+    sk_scene_add(g_scene, g_flame, 0); /* added: SK_ALPHA_ADD, the default */
 }
 
 static void make_confetti(sk_handle_t texture)
@@ -146,6 +184,7 @@ static void on_init(void *user_data)
     sk_scene_set_active_camera(g_scene, g_camera);
 
     sk_asset_add_task(sk_asset_ensure_async(PARTICLE_PATH, NULL, 0), on_texture_loaded, on_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(FLAME_PATH, NULL, 0), on_flame_loaded, on_failed, NULL);
     sk_debug_enable_fps(12, 10, 16);
 }
 
@@ -155,6 +194,7 @@ static void set_paused(bool paused)
     sk_emitter3d_set_emitting(g_fountain, !paused);
     sk_emitter3d_set_emitting(g_sparks, !paused);
     sk_emitter3d_set_emitting(g_smoke, !paused);
+    sk_emitter3d_set_emitting(g_flame, !paused);
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)
@@ -190,8 +230,8 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_text_draw("libsk + sokol — particles", 12, 36, 24, SK_COLOR_RAYWHITE);
     sk_text_draw(g_paused ? "click / tap: confetti   space: resume" : "click / tap: confetti   space: pause",
                  12, 70, 16, SK_COLOR_LIGHTGRAY);
-    snprintf(line, sizeof(line), "fountain %d   sparks %d   smoke %d   confetti %d",
-             sk_emitter3d_get_count(g_fountain), sk_emitter3d_get_count(g_sparks),
+    snprintf(line, sizeof(line), "fountain %d   sparks %d   flame %d   smoke %d   confetti %d",
+             sk_emitter3d_get_count(g_fountain), sk_emitter3d_get_count(g_sparks), sk_emitter3d_get_count(g_flame),
              sk_emitter3d_get_count(g_smoke), sk_emitter2d_get_count(g_confetti));
     sk_text_draw(line, 12, 94, 16, SK_COLOR_LIGHTGRAY);
 

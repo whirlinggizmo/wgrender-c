@@ -26,6 +26,11 @@ void sk_emitter3d_destroy(sk_handle_t emitter);
 /* Region of the texture each particle shows, in texture pixels (an atlas cell).
  * Default: the whole texture; width or height <= 0 resets to that. */
 bool sk_emitter3d_set_source(sk_handle_t emitter, float x, float y, float width, float height);
+/* Flipbook: the source split into `columns` x `rows` frames (left to right, top to
+ * bottom), of which the first `count` are used (<= 0: all). With `per_second` 0 each
+ * particle plays them once over its life (puffs, explosions); above 0 it loops at that
+ * rate from a random frame (flames). Default: one frame. */
+bool sk_emitter3d_set_frames(sk_handle_t emitter, int columns, int rows, int count, float per_second);
 
 /* set_position moves the emitter: the next frame's steady spawns are spread along the
  * way from where it was (a smooth trail however fast it goes), and the move is the
@@ -45,12 +50,18 @@ bool sk_emitter3d_set_emitting(sk_handle_t emitter, bool emitting);
 bool sk_emitter3d_is_emitting(sk_handle_t emitter);
 bool sk_emitter3d_set_max(sk_handle_t emitter, int count);
 bool sk_emitter3d_set_life(sk_handle_t emitter, float min_seconds, float max_seconds);
+/* Start over as if the steady rate had been running for `seconds` (smoke already rising
+ * when a scene appears): the particles alive go, and those the rate would have made
+ * over that time, and still alive now, are made where the emitter is. */
+bool sk_emitter3d_prewarm(sk_handle_t emitter, float seconds);
 
-/* Birth: anywhere in a box around the position (half sizes; default a point), moving
+/* Birth: anywhere in a box around the position (half sizes; default a point), or evenly
+ * within a sphere (each replaces the other), moving
  * along (x, y, z) at its length's speed, turned up to `spread` radians off it (a
  * cone) and faster or slower by up to `speed_variance` (0..1) of it. Gravity: an
  * acceleration, world units per second squared (default none). */
 bool sk_emitter3d_set_spawn_box(sk_handle_t emitter, float half_x, float half_y, float half_z);
+bool sk_emitter3d_set_spawn_sphere(sk_handle_t emitter, float radius);
 bool sk_emitter3d_set_velocity(sk_handle_t emitter, float x, float y, float z, float spread, float speed_variance);
 bool sk_emitter3d_set_gravity(sk_handle_t emitter, float x, float y, float z);
 

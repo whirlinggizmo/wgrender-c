@@ -230,6 +230,13 @@ void test_emitter_motion(void)
     sk_emitter_particle(e, 30, born, motion, shape);
     CHECK(born[0] == 100 && motion[0] == 0);
 
+    /* uneven frames: the move was made over the last frame (0.1 s), not the next (0.02 s) */
+    CHECK(sk_emitter3d_set_position(e, 110, 0, 0));
+    sk_emitter_update(0.02f);
+    CHECK(sk_emitter3d_get_count(e) == 42);
+    sk_emitter_particle(e, 41, born, motion, shape);
+    CHECK(fabsf(motion[0] - 50.0f) < 1e-2f); /* half of 10 / 0.1 s */
+
     CHECK(sk_emitter3d_set_drag(e, 2) && sk_emitter3d_set_stretch(e, 0.05f));
     CHECK(!sk_emitter3d_set_drag(e, -1) && !sk_emitter3d_set_stretch(e, -1));
     CHECK(!sk_emitter2d_jump(e, 0, 0));
@@ -277,5 +284,62 @@ void test_emitter_curves(void)
     }
     for (int k = 0; k < 4; k++) CHECK(picks[k] > 850 && picks[k] < 1150);
     sk_emitter3d_destroy(e);
+    stop();
+}
+
+/* Prewarming, the spawn sphere and circle, flipbook settings. */
+void test_emitter_start(void)
+{
+    float born[4], motion[4], shape[4];
+    bool inside = true, filled = false;
+    start();
+    const sk_handle_t e = sk_emitter3d_create(sk_texture_get_default());
+
+    /* as if running for 5 s at 100 a second, each living 1 s: about 100 alive at once */
+    CHECK(sk_emitter3d_set_rate(e, 100) && sk_emitter3d_set_life(e, 1, 1));
+    CHECK(sk_emitter3d_burst(e, 10));
+    CHECK(sk_emitter3d_prewarm(e, 5));
+    CHECK(sk_emitter3d_get_count(e) >= 99 && sk_emitter3d_get_count(e) <= 100); /* the burst went */
+    sk_emitter_update(0.5f); /* the steady state goes on */
+    CHECK(sk_emitter3d_get_count(e) >= 99 && sk_emitter3d_get_count(e) <= 101);
+    /* only as many as fit; less time, fewer */
+    CHECK(sk_emitter3d_set_max(e, 50) && sk_emitter3d_prewarm(e, 5));
+    CHECK(sk_emitter3d_get_count(e) == 50);
+    CHECK(sk_emitter3d_set_max(e, 1000) && sk_emitter3d_prewarm(e, 0.25f));
+    CHECK(sk_emitter3d_get_count(e) >= 24 && sk_emitter3d_get_count(e) <= 25);
+    CHECK(!sk_emitter3d_prewarm(e, -1));
+
+    /* the sphere: within its radius, and not only near the middle */
+    CHECK(sk_emitter3d_set_position(e, 1, 2, 3) && sk_emitter3d_set_spawn_sphere(e, 2));
+    CHECK(sk_emitter3d_burst(e, 500));
+    for (int i = 0; i < 500; i++) {
+        sk_emitter_particle(e, sk_emitter3d_get_count(e) - 500 + i, born, motion, shape);
+        const float r = sqrtf((born[0] - 1) * (born[0] - 1) + (born[1] - 2) * (born[1] - 2) + (born[2] - 3) * (born[2] - 3));
+        inside = inside && r <= 2 + 1e-4f;
+        filled = filled || r > 1.8f;
+    }
+    CHECK(inside && filled);
+    CHECK(!sk_emitter3d_set_spawn_sphere(e, -1));
+
+    /* 2D: the circle stays in the screen's plane */
+    const sk_handle_t flat = sk_emitter2d_create(sk_texture_get_default());
+    CHECK(sk_emitter2d_set_spawn_circle(flat, 10) && sk_emitter2d_burst(flat, 100));
+    inside = true;
+    for (int i = 0; i < 100; i++) {
+        sk_emitter_particle(flat, i, born, motion, shape);
+        inside = inside && born[2] == 0 && born[0] * born[0] + born[1] * born[1] <= 100 + 1e-3f;
+    }
+    CHECK(inside);
+
+    /* flipbooks */
+    CHECK(sk_emitter3d_set_frames(e, 4, 4, 0, 0));
+    CHECK(sk_emitter3d_set_frames(e, 4, 4, 13, 24));
+    CHECK(!sk_emitter3d_set_frames(e, 4, 4, 17, 0)); /* more frames than cells */
+    CHECK(!sk_emitter3d_set_frames(e, 0, 4, 0, 0));
+    CHECK(!sk_emitter3d_set_frames(e, 4, 4, 0, -1));
+    CHECK(!sk_emitter2d_set_frames(e, 4, 4, 0, 0));
+
+    sk_emitter3d_destroy(e);
+    sk_emitter2d_destroy(flat);
     stop();
 }

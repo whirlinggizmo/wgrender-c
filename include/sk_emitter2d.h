@@ -16,6 +16,7 @@ sk_handle_t sk_emitter2d_create(sk_handle_t texture);
 void sk_emitter2d_destroy(sk_handle_t emitter);
 
 bool sk_emitter2d_set_source(sk_handle_t emitter, float x, float y, float width, float height);
+bool sk_emitter2d_set_frames(sk_handle_t emitter, int columns, int rows, int count, float per_second);
 bool sk_emitter2d_set_position(sk_handle_t emitter, float x, float y);
 bool sk_emitter2d_jump(sk_handle_t emitter, float x, float y);
 vec2_t sk_emitter2d_get_position(sk_handle_t emitter);
@@ -26,8 +27,10 @@ bool sk_emitter2d_set_emitting(sk_handle_t emitter, bool emitting);
 bool sk_emitter2d_is_emitting(sk_handle_t emitter);
 bool sk_emitter2d_set_max(sk_handle_t emitter, int count);
 bool sk_emitter2d_set_life(sk_handle_t emitter, float min_seconds, float max_seconds);
+bool sk_emitter2d_prewarm(sk_handle_t emitter, float seconds);
 
 bool sk_emitter2d_set_spawn_box(sk_handle_t emitter, float half_width, float half_height);
+bool sk_emitter2d_set_spawn_circle(sk_handle_t emitter, float radius); /* 3D's sphere */
 bool sk_emitter2d_set_velocity(sk_handle_t emitter, float x, float y, float spread, float speed_variance);
 bool sk_emitter2d_set_gravity(sk_handle_t emitter, float x, float y);
 bool sk_emitter2d_set_drag(sk_handle_t emitter, float per_second);

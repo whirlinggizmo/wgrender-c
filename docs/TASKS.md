@@ -276,8 +276,12 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       step 4): `sk_emitter3d_*` / `sk_emitter2d_*`, configured in code; particles written
       once at birth and moved by the GPU; `examples/particles.c`. 16,000 particles:
       CPU 1.1 -> 0.1 ms (desktop), 6.2 -> 0.6 ms (phone)
-- [ ] Particles later: curves over life, drag, a CPU-simulated mode for particles that
-      react after birth, effect resources loaded from editor formats
+- [x] More for particles (2026-09-18, PLAN-sprites step 5), still stateless: drag,
+      stretch along the motion, inherited velocity and spawning along a moving
+      emitter's path; size and color curves (8 keys), a palette; flipbooks, prewarm, a
+      spawn sphere / circle
+- [ ] Particles later: a CPU-simulated mode for particles that react after birth
+      (collisions, attractors), effects saved to files as resources
 - [x] Render to texture: `sk_texture_create_target`, `sk_render_begin/end_texture`,
       `sk_texture_set_sampling` ([PLAN-render-target.md](PLAN-render-target.md),
       `examples/render_target.c`)

@@ -1,6 +1,6 @@
 # Plan: a sprite renderer, and particle emitters
 
-Status: built (2026-09-18), steps 1-4.
+Status: built (2026-09-18), steps 1-4, and more for particles after (step 5).
 
 ## Why
 
@@ -340,13 +340,47 @@ in the runtime before the frame callback, outside these CPU columns but inside t
 frame time. The example runs at 60 FPS on the phone. If uploads show up, an emitter's
 ring could live in a GPU buffer and upload only its new particles.
 
+### Step 5: more for particles (2026-09-18)
+
+Still stateless: everything is decided at birth or worked out from a particle's age
+in `vs_particle`; the record stays 48 bytes (its spare float now a random 0..1).
+
+- Motion:
+  - `set_drag`: slowing in proportion to speed, with gravity, in closed form: towards
+    gravity / drag.
+  - `set_stretch(seconds)`: the quad's top follows the velocity across the screen, as
+    long as the distance moved in that time, trailing behind.
+  - `set_inherit_velocity(fraction)`: a share of the emitter's own movement at birth,
+    measured over the frame the game moved it in (the previous update's time).
+  - A moving emitter's steady spawns are spread along the way it moved, so a fast
+    source leaves a smooth trail. The first position isn't a move; `jump` moves without
+    a trail.
+- Over life:
+  - Curves: up to 8 size keys and 8 color keys (`add_size_key`, `add_color_key`, and
+    `clear_*`), linear between keys, held outside them, a step where two share a time.
+    `set_size` and `set_color` make the two-key curve they always did.
+  - Palette: up to 8 colors; each particle picks one at birth, tinting its color.
+- Look and start:
+  - `set_frames(columns, rows, count, per_second)`: a flipbook within the source,
+    played once over the life (0) or looped from a random frame.
+  - `prewarm(seconds)`: start over as if the rate had been running that long.
+  - `set_spawn_sphere` (2D: `set_spawn_circle`): evenly within a radius, instead of the
+    box.
+- `examples/particles.c`: sparks with drag, stretch and inherited velocity; a campfire
+  (flipbook flames colored by a curve, under smoke with size and color curves); the
+  steady emitters prewarmed; confetti from one emitter with a palette.
+  `tools/gen_particles.py` makes the particle textures (the dot, and the flame's 4x4
+  flipbook).
+- Cost: the same CPU as step 4 on the phone (16,000 particles: 0.61-0.79 ms, within
+  noise). The example (about 3,000 particles, plus 300 confetti) holds 60 FPS there.
+
 ## Not in this plan
 
 - Lit sprites / sprites on materials (TASKS: materials phase 3).
 - Texture arrays or bindless textures to batch blended sprites across textures;
   atlases do that today.
 - Moving shapes and text off sokol_gl.
-- Particles: curves over life (more than start -> end), drag, particles that react
-  after birth (collisions, attractors: a CPU-simulated mode), sorting within an
-  emitter, and loading effects made in editors (e.g. Cocos/particle-designer plists,
-  Effekseer) as resources.
+- Particles: particles that react after birth (collisions, attractors: a CPU-simulated
+  mode), sorting within an emitter, and effects saved to files as resources (a format
+  of our own, later ones made in editors, e.g. Cocos/particle-designer plists,
+  Effekseer).

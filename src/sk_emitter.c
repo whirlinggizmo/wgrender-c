@@ -56,6 +56,7 @@ typedef struct {
     vec3_t position;
     vec3_t previous;    /* where it was at the last update: steady spawns spread along the way */
     vec3_t movement_velocity; /* how fast it moved over the last update */
+    float last_dt;      /* the frame time the game moved it by since then */
     bool placed;        /* positioned once (the first position doesn't count as a move) */
     float rate;      /* per second */
     float owed;      /* particles due but not yet spawned (fractions carry over) */
@@ -65,6 +66,7 @@ typedef struct {
     int live;        /* particles in the window: the `live` before `next` may be alive */
     float life_min, life_max;
     vec3_t box;      /* spawn box half sizes */
+    float sphere;    /* > 0: spawn in a sphere (2D: a circle) of this radius instead */
     vec3_t velocity; /* direction x speed */
     float spread, speed_variance;
     vec3_t gravity;
@@ -80,6 +82,8 @@ typedef struct {
     sk_color_t palette[MAX_PALETTE];
     int palette_count;
     float spin_min, spin_max;
+    int columns, rows, frames; /* flipbook: frames < 2 none */
+    float frames_per_second;   /* 0: once over the life */
     sk_alpha_mode_t alpha_mode;
     float alpha_cutoff;
     uint32_t rng;
@@ -198,18 +202,36 @@ static vec3_t birth_velocity(sk_emitter_t *emitter_ptr)
     return (vec3_t){dir.x * speed, dir.y * speed, dir.z * speed};
 }
 
+/* Where in the spawn shape, from its middle: anywhere in the box, or evenly within the
+ * sphere (circle). */
+static vec3_t spawn_offset(sk_emitter_t *emitter_ptr)
+{
+    const vec3_t box = emitter_ptr->box;
+    if (emitter_ptr->sphere > 0.0f) {
+        const float phi = TAU * random01(emitter_ptr);
+        if (emitter_ptr->two_d) {
+            const float r = emitter_ptr->sphere * sqrtf(random01(emitter_ptr));
+            return (vec3_t){cosf(phi) * r, sinf(phi) * r, 0.0f};
+        }
+        const float z = signed_random(emitter_ptr), ring = sqrtf(fmaxf(0.0f, 1.0f - z * z));
+        const float r = emitter_ptr->sphere * cbrtf(random01(emitter_ptr));
+        return (vec3_t){cosf(phi) * ring * r, sinf(phi) * ring * r, z * r};
+    }
+    return (vec3_t){box.x * signed_random(emitter_ptr), box.y * signed_random(emitter_ptr),
+                    box.z * signed_random(emitter_ptr)};
+}
+
 /* A new particle, born at `when` on the emitter's clock around `at` (replacing the
  * oldest when the ring is full). */
 static void spawn(sk_emitter_t *emitter_ptr, float when, vec3_t at)
 {
     const vec3_t v = birth_velocity(emitter_ptr);
-    const vec3_t box = emitter_ptr->box;
+    const vec3_t offset = spawn_offset(emitter_ptr);
     const vec3_t moving = sk_v3_scale(emitter_ptr->movement_velocity, emitter_ptr->inherit);
     sk_particle_t *p = &emitter_ptr->ring[emitter_ptr->next];
 
     *p = (sk_particle_t){
-        .born = {at.x + box.x * signed_random(emitter_ptr), at.y + box.y * signed_random(emitter_ptr),
-                 emitter_ptr->two_d ? 0.0f : at.z + box.z * signed_random(emitter_ptr), when},
+        .born = {at.x + offset.x, at.y + offset.y, emitter_ptr->two_d ? 0.0f : at.z + offset.z, when},
         .motion = {v.x + moving.x, v.y + moving.y, emitter_ptr->two_d ? 0.0f : v.z + moving.z,
                    random_between(emitter_ptr, emitter_ptr->life_min, emitter_ptr->life_max)},
         .shape = {fmaxf(0.0f, 1.0f + emitter_ptr->size_variance * signed_random(emitter_ptr)),
@@ -249,8 +271,11 @@ static void update_emitter(sk_emitter_t *emitter_ptr, float dt)
         emitter_ptr->time -= REBASE_SECONDS;
     }
     retire(emitter_ptr);
+    /* the move was made after the last update, in a frame of that update's length (the
+       game moves things by the frame's time): how fast it went is over that, not this */
     emitter_ptr->previous = emitter_ptr->position;
-    if (dt > 0.0f) emitter_ptr->movement_velocity = sk_v3_scale(moved, 1.0f / dt);
+    if (emitter_ptr->last_dt > 0.0f) emitter_ptr->movement_velocity = sk_v3_scale(moved, 1.0f / emitter_ptr->last_dt);
+    emitter_ptr->last_dt = dt;
     if (!emitter_ptr->emitting || emitter_ptr->rate <= 0.0f || dt <= 0.0f) {
         emitter_ptr->owed = 0.0f;
         return;
@@ -369,6 +394,8 @@ static void draw_emitter(sk_handle_t handle)
     set4(d->params.gravity_now, emitter_ptr->gravity.x, emitter_ptr->gravity.y, emitter_ptr->gravity.z,
          emitter_ptr->time);
     set4(d->params.dynamics, emitter_ptr->drag, emitter_ptr->stretch, 0, 0);
+    set4(d->params.frames, (float)emitter_ptr->columns, (float)emitter_ptr->rows, (float)emitter_ptr->frames,
+         emitter_ptr->frames_per_second);
     set4(d->params.counts, (float)emitter_ptr->size_keys, (float)emitter_ptr->color_keys,
          emitter_ptr->alpha_mode == SK_ALPHA_MASK     ? fmaxf(emitter_ptr->alpha_cutoff, 1e-6f)
          : emitter_ptr->alpha_mode == SK_ALPHA_OPAQUE ? -1.0f
@@ -604,6 +631,9 @@ static sk_handle_t create_emitter(sk_handle_t texture, bool two_d)
         .color_times = {0.0f, 1.0f},
         .color_values = {SK_COLOR_WHITE, SK_COLOR_WHITE},
         .color_keys = 2,
+        .columns = 1,
+        .rows = 1,
+        .frames = 1,
         .alpha_mode = SK_ALPHA_ADD,
         .alpha_cutoff = 0.5f,
         .rng = sk_px.next_seed,
@@ -768,6 +798,38 @@ static bool add_palette_color(sk_emitter_t *emitter_ptr, sk_color_t color)
     return true;
 }
 
+static bool set_frames(sk_emitter_t *emitter_ptr, int columns, int rows, int count, float per_second)
+{
+    if (columns < 1 || rows < 1 || columns * rows > 4096 || count > columns * rows || !(per_second >= 0.0f)) {
+        return false;
+    }
+    emitter_ptr->columns = columns;
+    emitter_ptr->rows = rows;
+    emitter_ptr->frames = count > 0 ? count : columns * rows;
+    emitter_ptr->frames_per_second = per_second;
+    return true;
+}
+
+/* Start over as if the steady rate had been running for `seconds`: particles born over
+ * that time (as many as can still be alive, and fit), where the emitter is now. */
+static bool prewarm(sk_emitter_t *emitter_ptr, float seconds)
+{
+    float window;
+    int count;
+    if (!(seconds >= 0.0f)) return false;
+    emitter_ptr->live = 0;
+    emitter_ptr->next = 0;
+    if (!emitter_ptr->emitting || emitter_ptr->rate <= 0.0f) return true;
+    window = fminf(seconds, emitter_ptr->life_max);
+    count = (int)(emitter_ptr->rate * window);
+    if (count > emitter_ptr->max) count = emitter_ptr->max; /* the newest */
+    for (int k = 0; k < count; k++) {
+        spawn(emitter_ptr, emitter_ptr->time - (float)(count - 1 - k) / emitter_ptr->rate, emitter_ptr->position);
+    }
+    retire(emitter_ptr);
+    return true;
+}
+
 static bool burst(sk_emitter_t *emitter_ptr, int count)
 {
     if (count < 0) return false;
@@ -869,11 +931,41 @@ SK_KEEP bool sk_emitter2d_set_life(sk_handle_t e, float min_s, float max_s)
 }
 SK_KEEP bool sk_emitter3d_set_spawn_box(sk_handle_t e, float hx, float hy, float hz)
 {
-    WITH_EMITTER(e, false, emitter_ptr->box = ((vec3_t){fabsf(hx), fabsf(hy), fabsf(hz)}));
+    WITH_EMITTER(e, false, (emitter_ptr->box = (vec3_t){fabsf(hx), fabsf(hy), fabsf(hz)}, emitter_ptr->sphere = 0));
 }
 SK_KEEP bool sk_emitter2d_set_spawn_box(sk_handle_t e, float hw, float hh)
 {
-    WITH_EMITTER(e, true, emitter_ptr->box = ((vec3_t){fabsf(hw), fabsf(hh), 0.0f}));
+    WITH_EMITTER(e, true, (emitter_ptr->box = (vec3_t){fabsf(hw), fabsf(hh), 0.0f}, emitter_ptr->sphere = 0));
+}
+SK_KEEP bool sk_emitter3d_set_spawn_sphere(sk_handle_t e, float radius)
+{
+    if (!(radius >= 0.0f)) return false;
+    WITH_EMITTER(e, false, (emitter_ptr->sphere = radius, emitter_ptr->box = (vec3_t){0, 0, 0}));
+}
+SK_KEEP bool sk_emitter2d_set_spawn_circle(sk_handle_t e, float radius)
+{
+    if (!(radius >= 0.0f)) return false;
+    WITH_EMITTER(e, true, (emitter_ptr->sphere = radius, emitter_ptr->box = (vec3_t){0, 0, 0}));
+}
+SK_KEEP bool sk_emitter3d_set_frames(sk_handle_t e, int columns, int rows, int count, float per_second)
+{
+    sk_emitter_t *emitter_ptr = resolve_kind(e, false);
+    return emitter_ptr != NULL && set_frames(emitter_ptr, columns, rows, count, per_second);
+}
+SK_KEEP bool sk_emitter2d_set_frames(sk_handle_t e, int columns, int rows, int count, float per_second)
+{
+    sk_emitter_t *emitter_ptr = resolve_kind(e, true);
+    return emitter_ptr != NULL && set_frames(emitter_ptr, columns, rows, count, per_second);
+}
+SK_KEEP bool sk_emitter3d_prewarm(sk_handle_t e, float seconds)
+{
+    sk_emitter_t *emitter_ptr = resolve_kind(e, false);
+    return emitter_ptr != NULL && prewarm(emitter_ptr, seconds);
+}
+SK_KEEP bool sk_emitter2d_prewarm(sk_handle_t e, float seconds)
+{
+    sk_emitter_t *emitter_ptr = resolve_kind(e, true);
+    return emitter_ptr != NULL && prewarm(emitter_ptr, seconds);
 }
 SK_KEEP bool sk_emitter3d_set_velocity(sk_handle_t e, float x, float y, float z, float spread, float speed_variance)
 {
