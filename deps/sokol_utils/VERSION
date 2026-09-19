@@ -15,3 +15,5 @@ sokol_utils https://github.com/squk/sokol_utils 65cbd2a6fbc2bd9a9eb716f1f478b6dc
 #   window flags (docs/PLAN-window.md, phase 2)
 # - added sapp_can_move_window(): false under XWayland (the XWAYLAND extension), where
 #   the compositor ignores a program's window moves
+# - the size hints libsk sets use static gravity (sokol_app: center), so a window
+#   position set is read back the same, whatever the window manager's frame

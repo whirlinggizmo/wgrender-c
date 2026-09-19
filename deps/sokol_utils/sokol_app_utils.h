@@ -677,8 +677,10 @@ static bool _sapp_utils_resizable = true;
 
 _SOKOL_PRIVATE void _sapp_x11_size_hints(int w, int h) {
   XSizeHints* hints = XAllocSizeHints();
+  /* static gravity (sokol_app sets center): a position set is the content area's,
+     the same as sapp_get_window_position reads, whatever the frame */
   hints->flags = PWinGravity;
-  hints->win_gravity = CenterGravity;
+  hints->win_gravity = StaticGravity;
   if (!_sapp_utils_resizable) {
     hints->flags |= PMinSize | PMaxSize;
     hints->min_width = hints->max_width = w;

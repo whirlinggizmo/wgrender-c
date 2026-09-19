@@ -149,8 +149,15 @@ window, so a visible window may flash in its default style first on some platfor
   produces premultiplied output, and libsk premultiplies the screen's clear color, so
   clearing to any color with alpha 0 shows what's behind.
 - `ALWAYS_RUN` removed.
-- Tested: on Xvfb with `xprop` / `xwininfo` (size hints fixed and following a resize,
-  Motif hints, unmapped when hidden and mapped when shown); on the COSMIC desktop
+- Window positions use static gravity in the size hints (sokol_app sets center), so a
+  position set is read back the same under a window manager's frame: before, (120, 90)
+  read back as (121, 116) under Openbox, and each move drifted.
+- Tested: in Xephyr with Openbox (a real X11 window manager): a fixed window offers
+  no resize or maximize, an undecorated one has no frame, a resizable one offers both,
+  and positions round-trip; Xephyr reports one monitor even with Xinerama, so changing
+  monitor isn't tested. On Xvfb with `xprop` / `xwininfo` (size hints fixed and
+  following a resize, Motif hints, unmapped when hidden and mapped when shown); on the
+  COSMIC desktop
   (XWayland) the hints reach the window manager, which publishes no frame or
   allowed-action properties to confirm what it does with them; web transparency by the
   page's pixel through a transparent window (and red through an opaque one). Windows
