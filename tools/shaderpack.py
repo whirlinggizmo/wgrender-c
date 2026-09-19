@@ -21,7 +21,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHDC = os.path.join(ROOT, "tools", "sokol-shdc")
 INTERFACE = os.path.join(ROOT, "shaders", "sk.glsl")
 SLANGS = ["glsl410", "glsl300es", "wgsl"]
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 
 FS_PARAMS_BINDING = 2  # binding 0 is libsk's vertex block, 1 its sk_frame block
 VS_PARAMS_BINDING = 3
@@ -180,7 +180,8 @@ def main():
         for shader in reflection["shaders"]:
             for program in shader["programs"]:
                 check_program(shader["slang"], program, fs_block, fs_params, vs_block, vs_params)
-                program_textures = sorted(v["texture"]["name"] for v in program.get("views", []))
+                program_textures = sorted(v["texture"]["name"] for v in program.get("views", [])
+                                          if not v["texture"]["name"].startswith("sk_"))
                 if textures is None:
                     textures = program_textures
                     for name in textures:
@@ -218,6 +219,8 @@ def check_program(slang, program, fs_block, fs_params, vs_block, vs_params):
             fail(f"{slang}: the parameter block at binding {slot} is {size} bytes; expected {(end + 15) // 16 * 16}")
     for view in program.get("views", []):
         texture = view["texture"]
+        if texture["name"].startswith("sk_"):
+            continue  # libsk's (the environment), at bindings 8 and 9
         if len(texture["name"]) >= NAME_MAX:
             fail(f"texture {texture['name']}: names are at most {NAME_MAX - 1} characters")
         if texture["stage"] != "fragment" or texture["type"] != "2d" or texture["slot"] >= MAX_TEXTURES:
@@ -235,7 +238,7 @@ def describe(slang, program):
                      f"{glsl.get('array_count', 0)} {block.get('wgsl_group0_binding_n', 0)}")
     for view in program.get("views", []):
         texture = view["texture"]
-        lines.append(f"view {texture['slot']} {texture['stage']} {texture['name']} {texture['sample_type']} "
+        lines.append(f"view {texture['slot']} {texture['stage']} {texture['name']} {texture['type']} {texture['sample_type']} "
                      f"{texture.get('wgsl_group1_binding_n', 0)}")
     for sampler in program.get("samplers", []):
         lines.append(f"sampler {sampler['slot']} {sampler['stage']} {sampler['name']} {sampler['sampler_type']} "

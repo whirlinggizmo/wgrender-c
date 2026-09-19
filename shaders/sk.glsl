@@ -20,6 +20,7 @@
  *     }
  *     @end
  *
+ * Textures 8 and 9 (and samplers 8 and 9) are libsk's (the environment).
  * Parameters: the members of uniform block binding 2 in the fragment shader and
  * binding 3 in the vertex hook, set by name with sk_material_set_float / _vec2 /
  * _vec3 / _vec4 / _int / _color (float, vec2, vec3, vec4, int; not arrays or
@@ -44,6 +45,16 @@
  *   sk_light(i, pos, out to_light)   light i's radiance arriving at world position
  *                         `pos` (linear rgb, attenuated), and the unit direction from
  *                         `pos` toward the light
+ *   sk_environment_intensity()   the scene's environment lighting strength (0: none;
+ *                         the functions below then return black)
+ *   sk_environment_diffuse(n)    light from the environment arriving around normal n
+ *                         (irradiance / pi, linear rgb): times the diffuse color
+ *   sk_environment_specular(n, v, roughness)   the environment reflected toward the
+ *                         viewer (v: unit vector from the surface to the camera), blurred
+ *                         for perceptual roughness 0..1 (linear rgb)
+ *   sk_environment_brdf(n_dot_v, roughness)   split-sum scale (x) and bias (y): specular
+ *                         reflection = sk_environment_specular(...) * (f0 * x + y)
+ *   Built-in materials use exactly these (docs/PLAN-environment.md).
  *   sk_srgb_to_linear(c), sk_linear_to_srgb(c)
  *   sk_output(color, alpha)   write the pixel: `color` is linear rgb. Applies the
  *                         model's tint, the material's alpha cutoff (SK_ALPHA_MASK),
@@ -161,7 +172,13 @@ layout(binding=1) uniform sk_frame {
     vec4 sk_light_dir_type[8];   /* xyz direction the light travels, w type (0 directional, 1 point, 2 spot) */
     vec4 sk_light_radiance[8];   /* rgb color x intensity, linear */
     vec4 sk_light_spot[8];       /* x cos(inner angle), y cos(outer angle) */
+    vec4 sk_env;                 /* x intensity (0 none), y the cubemap's last mip, z/w cos/sin of its rotation */
+    vec4 sk_sh[9];               /* environment irradiance / pi, spherical harmonics (xyz) */
 };
+layout(binding=8) uniform textureCube sk_env_tex;
+layout(binding=8) uniform sampler sk_env_smp;
+layout(binding=9) uniform texture2D sk_brdf_tex;
+layout(binding=9) uniform sampler sk_brdf_smp;
 layout(location=0) in vec3 sk_world_pos;
 layout(location=1) in vec3 sk_normal;
 layout(location=2) in vec4 sk_tangent;
@@ -201,6 +218,36 @@ vec3 sk_light(int i, vec3 pos, out vec3 to_light) {
                                                  : smoothstep(cos_outer, cos_inner, cos_angle);
     }
     return sk_light_radiance[i].rgb * falloff;
+}
+
+float sk_environment_intensity() { return sk_env.x; }
+
+/* A world direction in the environment's frame (rotated by -rotation around +y). */
+vec3 sk_environment_dir(vec3 dir) {
+    return vec3(sk_env.z * dir.x - sk_env.w * dir.z, dir.y, sk_env.w * dir.x + sk_env.z * dir.z);
+}
+
+vec3 sk_environment_diffuse(vec3 n) {
+    vec3 d = sk_environment_dir(n);
+    vec3 irradiance = sk_sh[0].xyz * 0.282095
+                    + sk_sh[1].xyz * (0.488603 * d.y)
+                    + sk_sh[2].xyz * (0.488603 * d.z)
+                    + sk_sh[3].xyz * (0.488603 * d.x)
+                    + sk_sh[4].xyz * (1.092548 * d.x * d.y)
+                    + sk_sh[5].xyz * (1.092548 * d.y * d.z)
+                    + sk_sh[6].xyz * (0.315392 * (3.0 * d.z * d.z - 1.0))
+                    + sk_sh[7].xyz * (1.092548 * d.x * d.z)
+                    + sk_sh[8].xyz * (0.546274 * (d.x * d.x - d.y * d.y));
+    return max(irradiance, vec3(0.0)) * sk_env.x;
+}
+
+vec3 sk_environment_specular(vec3 n, vec3 v, float roughness) {
+    vec3 r = sk_environment_dir(reflect(-v, n));
+    return textureLod(samplerCube(sk_env_tex, sk_env_smp), r, clamp(roughness, 0.0, 1.0) * sk_env.y).rgb * sk_env.x;
+}
+
+vec2 sk_environment_brdf(float n_dot_v, float roughness) {
+    return texture(sampler2D(sk_brdf_tex, sk_brdf_smp), vec2(clamp(n_dot_v, 0.0, 1.0), clamp(roughness, 0.0, 1.0))).rg;
 }
 
 vec3 sk_tonemap_neutral(vec3 color) {

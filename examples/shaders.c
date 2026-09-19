@@ -4,11 +4,12 @@
  *     gumshoe: custom shaders work on skinned models too
  *   - middle: a sphere dissolving and coming back through a noise texture, with a
  *     glowing edge (time, a texture, discard)
- *   - right: a sphere rippling in waves: a vertex hook moves the surface
+ *   - right: a sphere of water rippling in waves (a vertex hook moves the surface)
+ *     reflecting the scene's environment
  * The shaders are the .glsl files in examples/shaders, compiled for every backend by
  * tools/shaderpack.py into .skshader files in examples/assets/shaders (make example-shaders).
- * They load through sk_asset like any other file. A sun and an orbiting point light
- * light the scene. Keys: 1 sun, 2 point light, ESC quit. */
+ * They load through sk_asset like any other file. A sun, a point light circling in front and
+ * an environment (a sunset, not shown as the background) light the scene. Keys: 1 sun, 2 point light, ESC quit. */
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -19,6 +20,9 @@
 #define SPHERE_PATH "models/sphere/sphere.glb"
 #define GUMSHOE_PATH "models/gumshoe/gumshoe.glb"
 #define NOISE_PATH "textures/noise.png"
+#define ENVIRONMENT_PATH "environments/venice_sunset_1k.hdr"
+#define FLOOR_Y -0.3f
+#define SPHERE_Y (FLOOR_Y + 0.5f) /* the sphere mesh is 1 m across: resting on the floor */
 
 enum { SHADER_TOON, SHADER_DISSOLVE, SHADER_WAVE, SHADER_COUNT, GUMSHOE_BODY_SLOT = 1 };
 static const char *SHADER_PATHS[SHADER_COUNT] = {
@@ -32,6 +36,7 @@ static struct {
     sk_handle_t camera;
     sk_color_t bg;
     sk_handle_t gumshoe, dissolving, rippling; /* models */
+    sk_handle_t floor;                         /* the sphere, flattened: a lit disc to stand on */
     sk_handle_t dissolve;                      /* its material gets the noise texture */
     sk_handle_t sun, lamp, lamp_marker;
     float time;
@@ -49,6 +54,7 @@ static void on_sphere_loaded(const char *path, void *user)
     (void)user;
     sk_model_set_mesh(g.dissolving, mesh);
     sk_model_set_mesh(g.rippling, mesh);
+    sk_model_set_mesh(g.floor, mesh);
     sk_mesh_release(mesh); /* the models hold their own references */
 }
 
@@ -58,6 +64,14 @@ static void on_gumshoe_loaded(const char *path, void *user)
     (void)user;
     sk_model_set_mesh(g.gumshoe, mesh);
     sk_mesh_release(mesh);
+}
+
+static void on_environment_loaded(const char *path, void *user)
+{
+    sk_handle_t environment = sk_environment_create(path);
+    (void)user;
+    sk_scene_set_environment(g.scene, environment, 1.0f, 0.0f); /* lighting only: the background stays dark */
+    sk_environment_release(environment); /* the scene holds its own reference */
 }
 
 static void on_noise_loaded(const char *path, void *user)
@@ -97,8 +111,10 @@ static void on_shader_loaded(const char *path, void *user)
             sk_material_set_float(material, "amplitude", 0.03f);
             sk_material_set_float(material, "frequency", 2.5f);
             sk_material_set_float(material, "wave_speed", 3.0f);
-            sk_material_set_vec4(material, "low_color", 0.02f, 0.1f, 0.35f, 1.0f);
-            sk_material_set_vec4(material, "high_color", 0.3f, 0.85f, 0.9f, 1.0f);
+            sk_material_set_vec4(material, "low_color", 0.0f, 0.03f, 0.1f, 1.0f); /* deep water */
+            sk_material_set_vec4(material, "high_color", 0.05f, 0.3f, 0.35f, 1.0f);
+            sk_material_set_float(material, "roughness", 0.05f);
+            sk_material_set_float(material, "reflectivity", 0.35f); /* real water is 0.02: more, so it shows */
             sk_model_set_material(g.rippling, 0, material);
             break;
     }
@@ -112,7 +128,7 @@ static void init(void *user_data)
     g.bg = sk_color_rgba(20, 22, 28, 255);
 
     g.camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
-    sk_camera3d_set_view(g.camera, 0, 1.2f, 5.0f, 0, 0.6f, 0, 0, 1, 0);
+    sk_camera3d_set_view(g.camera, 0, 1.2f, 5.0f, 0, 0.3f, 0, 0, 1, 0);
     g.scene = sk_scene_create();
     sk_scene_set_active_camera(g.scene, g.camera);
     sk_scene_set_ambient(g.scene, SK_COLOR_WHITE, 0.15f);
@@ -120,12 +136,12 @@ static void init(void *user_data)
     g.sun = sk_light_create(SK_LIGHT_DIRECTIONAL);
     sk_light_set_direction(g.sun, -0.4f, -0.7f, -0.6f);
     sk_light_set_color(g.sun, sk_color_rgba(255, 244, 228, 255));
-    sk_light_set_intensity(g.sun, 3.0f);
+    sk_light_set_intensity(g.sun, 1.5f); /* soft: the point light and the environment show too */
     sk_scene_add(g.scene, g.sun, 0);
 
     g.lamp = sk_light_create(SK_LIGHT_POINT);
     sk_light_set_color(g.lamp, sk_color_rgba(120, 190, 255, 255));
-    sk_light_set_intensity(g.lamp, 6.0f);
+    sk_light_set_intensity(g.lamp, 9.0f); /* falls off with distance squared: ~2.3 at 2 m */
     sk_light_set_range(g.lamp, 8.0f);
     sk_scene_add(g.scene, g.lamp, 0);
     g.lamp_marker = sk_shape3d_create();
@@ -133,15 +149,26 @@ static void init(void *user_data)
     sk_shape3d_set_color(g.lamp_marker, SK_COLOR_SKYBLUE);
     sk_scene_add(g.scene, g.lamp_marker, 0);
 
+    /* a floor, so the models stand somewhere: the sphere squashed flat, built-in PBR */
+    g.floor = sk_model_create(0);
+    sk_model_set_transform(g.floor, 0.0f, FLOOR_Y - 0.01f, 0.0f, 0, 0, 0, 5.0f, 0.02f, 5.0f); /* top at FLOOR_Y */
+    sk_handle_t ground = sk_material_create(SK_MATERIAL_PBR);
+    sk_material_set_vec4(ground, "base_color", 0.04f, 0.04f, 0.045f, 1.0f); /* dark: the lights show on it */
+    sk_material_set_float(ground, "metallic", 0.0f);
+    sk_material_set_float(ground, "roughness", 0.8f);
+    sk_model_set_material(g.floor, -1, ground);
+    sk_material_release(ground); /* the model holds its own reference */
+    sk_scene_add(g.scene, g.floor, 0);
+
     g.gumshoe = sk_model_create(0); /* meshes attach when they load */
-    sk_model_set_transform(g.gumshoe, -1.9f, -0.3f, 0, 0, 0.4f, 0, 0.5f, 0.5f, 0.5f);
+    sk_model_set_transform(g.gumshoe, -1.9f, FLOOR_Y, 0, 0, 0.4f, 0, 0.5f, 0.5f, 0.5f); /* feet at its origin */
     sk_model_set_animation(g.gumshoe, 3);
     sk_scene_add(g.scene, g.gumshoe, 0);
     g.dissolving = sk_model_create(0);
-    sk_model_set_transform(g.dissolving, 0.0f, 0.6f, 0, 0, 0, 0, 0.75f, 0.75f, 0.75f);
+    sk_model_set_transform(g.dissolving, 0.0f, SPHERE_Y, 0, 0, 0, 0, 1, 1, 1);
     sk_scene_add(g.scene, g.dissolving, 0);
     g.rippling = sk_model_create(0);
-    sk_model_set_transform(g.rippling, 1.9f, 0.6f, 0, 0, 0, 0, 0.75f, 0.75f, 0.75f);
+    sk_model_set_transform(g.rippling, 1.9f, SPHERE_Y, 0, 0, 0, 0, 1, 1, 1);
     sk_scene_add(g.scene, g.rippling, 0);
 
     for (int i = 0; i < SHADER_COUNT; i++) {
@@ -149,6 +176,8 @@ static void init(void *user_data)
                           (void *)(intptr_t)i);
     }
     sk_asset_add_task(sk_asset_ensure_async(SPHERE_PATH, NULL, SK_ASSET_NONE), on_sphere_loaded, on_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(ENVIRONMENT_PATH, NULL, SK_ASSET_NONE), on_environment_loaded, on_failed,
+                      NULL);
     sk_asset_add_task(sk_asset_ensure_async(GUMSHOE_PATH, NULL, SK_ASSET_NONE), on_gumshoe_loaded, on_failed, NULL);
 }
 
@@ -169,19 +198,21 @@ static void frame(float dt, float tick_fraction, void *user_data)
     }
 
     g.time += dt;
-    lx = cosf(g.time * 0.7f) * 3.0f;
-    ly = 1.2f + sinf(g.time * 0.9f) * 0.8f;
-    lz = sinf(g.time * 0.7f) * 1.0f + 1.8f;
+    /* circling in front of the models, facing the camera: always in view, and 1.8 m or
+       more from them (closer, it would wash them out) */
+    lx = cosf(g.time * 0.7f) * 2.2f;
+    ly = 0.8f + sinf(g.time * 0.7f) * 1.0f;
+    lz = 1.8f;
     sk_light_set_position(g.lamp, lx, ly, lz);
     sk_shape3d_set_transform(g.lamp_marker, lx, ly, lz, 0, 0, 0, 1, 1, 1);
     sk_shape3d_set_visible(g.lamp_marker, sk_light_is_enabled(g.lamp));
-    sk_model_set_transform(g.dissolving, 0.0f, 0.6f, 0, 0, g.time * 0.4f, 0, 0.75f, 0.75f, 0.75f);
+    sk_model_set_transform(g.dissolving, 0.0f, SPHERE_Y, 0, 0, g.time * 0.4f, 0, 1, 1, 1);
     sk_model_animate(g.gumshoe, dt);
 
     sk_render_begin();
     sk_render_clear_background(g.bg);
     sk_scene_draw(g.scene);
-    sk_text_draw("libsk custom shaders: toon, dissolve, waves", 12, 12, 20, SK_COLOR_RAYWHITE);
+    sk_text_draw("libsk custom shaders: toon, dissolve, water", 12, 12, 20, SK_COLOR_RAYWHITE);
     sk_text_draw("1 sun, 2 point light, ESC quit", 12, 40, 16, SK_COLOR_LIGHTGRAY);
     sk_render_end();
 }

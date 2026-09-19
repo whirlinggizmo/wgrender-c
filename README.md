@@ -235,7 +235,7 @@ reference/librl the raylib library this evolves from (read-only reference)
   its textures the same way (and stays a valid glTF for other viewers).
 - Custom shaders: write a fragment shader (and optionally a vertex hook) against
   `shaders/sk.glsl`, which gives it the surface, time, camera, the scene's lights and
-  `sk_output` (tint, alpha cutoff, tone mapping, sRGB). `tools/shaderpack.py name.glsl`
+  environment, and `sk_output` (tint, alpha cutoff, tone mapping, sRGB). `tools/shaderpack.py name.glsl`
   compiles it for GL, WebGL2 and WebGPU into `name.skshader`; load that with
   `sk_shader_create` (or through `sk_asset`) and use it with
   `sk_material_create_custom`. Its parameters and textures are set by the names in

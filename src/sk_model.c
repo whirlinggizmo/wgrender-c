@@ -2336,6 +2336,8 @@ typedef struct {
     float light_dir_type[SK_MAX_DRAW_LIGHTS][4];
     float light_radiance[SK_MAX_DRAW_LIGHTS][4];
     float light_spot[SK_MAX_DRAW_LIGHTS][4];
+    float env[4];
+    float sh[9][4];
 } custom_frame_t;
 
 /* A primitive whose material has a custom shader (sk_shader.h). */
@@ -2348,6 +2350,8 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
     const sk_light_env_t *env = sk_light_env_get(e->light_env);
     const float time = (float)sk_get_time();
     sg_bindings bind = {.vertex_buffers[0] = prim->vbuf, .index_buffer = prim->ibuf};
+    sk_environment_binding_t environment;
+    sk_environment_get_binding(env != NULL ? env->environment : 0, &environment);
 
     if (shader == NULL) return; /* released while the material was queued */
     program = &shader->programs[s];
@@ -2412,6 +2416,17 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
                 frame.light_spot[i][0] = light->cos_inner;
                 frame.light_spot[i][1] = light->cos_outer;
             }
+            if (environment.valid && env->environment_intensity > 0.0f) {
+                frame.env[0] = env->environment_intensity;
+                frame.env[1] = environment.max_lod;
+                frame.env[2] = cosf(env->environment_rotation);
+                frame.env[3] = sinf(env->environment_rotation);
+                for (int k = 0; k < 9; k++) {
+                    frame.sh[k][0] = environment.sh.c[k][0];
+                    frame.sh[k][1] = environment.sh.c[k][1];
+                    frame.sh[k][2] = environment.sh.c[k][2];
+                }
+            }
         }
         sg_apply_uniforms(SK_SHADER_BLOCK_FRAME, &(sg_range){.ptr = &frame, .size = sizeof(frame)});
     }
@@ -2434,6 +2449,11 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
             bind.samplers[program->sampler_slot[t]] = texture_sampler(&material->textures[t]);
         }
     }
+    /* the environment (a black cube without one: sk_frame's intensity is 0 then) */
+    if (program->env_view_slot >= 0) bind.views[program->env_view_slot] = environment.cube;
+    if (program->env_sampler_slot >= 0) bind.samplers[program->env_sampler_slot] = environment.cube_sampler;
+    if (program->brdf_view_slot >= 0) bind.views[program->brdf_view_slot] = environment.brdf_lut;
+    if (program->brdf_sampler_slot >= 0) bind.samplers[program->brdf_sampler_slot] = environment.lut_sampler;
     sg_apply_bindings(&bind);
     sg_draw(0, prim->index_count, 1);
 }

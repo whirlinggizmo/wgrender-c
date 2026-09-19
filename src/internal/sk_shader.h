@@ -43,6 +43,8 @@ typedef struct {
     bool has_block[SK_SHADER_BLOCK_COUNT]; /* blocks the program uses (unused ones are compiled out) */
     int view_slot[SK_SHADER_MAX_TEXTURES];    /* per texture: its view slot, -1 when unused */
     int sampler_slot[SK_SHADER_MAX_TEXTURES]; /* the sampler it's paired with, -1 none */
+    int env_view_slot, env_sampler_slot;      /* libsk's environment cubemap (sk_env_tex), -1 unused */
+    int brdf_view_slot, brdf_sampler_slot;    /* and its BRDF table (sk_brdf_tex) */
 } sk_shader_program_t;
 
 typedef struct {

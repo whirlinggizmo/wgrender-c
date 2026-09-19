@@ -16,7 +16,7 @@
  * backend's sources and makes the static and skinned programs. */
 
 #define SHADERS_INITIAL 8
-#define FORMAT_VERSION 1
+#define FORMAT_VERSION 2
 
 static sk_shader_t *sk_shaders; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_shader_pool;
@@ -136,17 +136,20 @@ static bool describe(program_desc_t *p, const char *line)
         p->has_block[slot] = true;
         return true;
     }
-    if (sscanf(line, "view %d %63s %63s %63s %d", &slot, a, b, c, &n1) == 5) {
-        if (slot < 0 || slot >= SK_SHADER_MAX_TEXTURES || strcmp(c, "float") != 0) return false;
+    if (sscanf(line, "view %d %63s %63s %63s %63s %d", &slot, a, b, d, c, &n1) == 6) {
+        const bool cube = strcmp(d, "cube") == 0;
+        if (slot < 0 || slot >= SG_MAX_VIEW_BINDSLOTS || strcmp(c, "float") != 0 || (!cube && strcmp(d, "2d") != 0)) {
+            return false;
+        }
         desc->views[slot].texture.stage = stage_of(a);
-        desc->views[slot].texture.image_type = SG_IMAGETYPE_2D;
+        desc->views[slot].texture.image_type = cube ? SG_IMAGETYPE_CUBE : SG_IMAGETYPE_2D;
         desc->views[slot].texture.sample_type = SG_IMAGESAMPLETYPE_FLOAT;
         desc->views[slot].texture.wgsl_group1_binding_n = (uint8_t)n1;
         snprintf(p->view_names[slot], SK_SHADER_NAME_MAX, "%.*s", SK_SHADER_NAME_MAX - 1, b);
         return true;
     }
     if (sscanf(line, "sampler %d %63s %63s %63s %d", &slot, a, b, c, &n1) == 5) {
-        if (slot < 0 || slot >= SK_SHADER_MAX_TEXTURES) return false;
+        if (slot < 0 || slot >= SG_MAX_SAMPLER_BINDSLOTS) return false;
         desc->samplers[slot].stage = stage_of(a);
         desc->samplers[slot].sampler_type = strcmp(c, "nonfiltering") == 0 ? SG_SAMPLERTYPE_NONFILTERING
                                                                             : SG_SAMPLERTYPE_FILTERING;
@@ -363,6 +366,21 @@ static sk_loader_step_t finish_shader(void *data, const char *path, sk_handle_t 
         for (int t = 0; t < SK_SHADER_MAX_TEXTURES; t++) {
             program->view_slot[t] = -1;
             program->sampler_slot[t] = -1;
+        }
+        program->env_view_slot = program->env_sampler_slot = -1;
+        program->brdf_view_slot = program->brdf_sampler_slot = -1;
+        for (int v = 0; v < SG_MAX_VIEW_BINDSLOTS; v++) {
+            int *view = strcmp(p->view_names[v], "sk_env_tex") == 0    ? &program->env_view_slot
+                        : strcmp(p->view_names[v], "sk_brdf_tex") == 0 ? &program->brdf_view_slot
+                                                                       : NULL;
+            if (view == NULL) continue;
+            *view = v;
+            for (int k = 0; k < p->pair_count; k++) {
+                if (p->pair_view[k] == v) {
+                    *(view == &program->env_view_slot ? &program->env_sampler_slot : &program->brdf_sampler_slot) =
+                        p->pair_sampler[k];
+                }
+            }
         }
         for (int t = 0; t < shader.texture_count; t++) {
             for (int v = 0; v < SK_SHADER_MAX_TEXTURES; v++) {

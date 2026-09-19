@@ -1,6 +1,7 @@
-/* Waves (examples/shaders.c): a vertex hook moves the surface along its normals in
- * travelling waves; the fragment shader colors it by height. Built with
- * tools/shaderpack.py (make example-shaders). */
+/* Water (examples/shaders.c): a vertex hook moves the surface along its normals in
+ * travelling waves; the fragment shader colors it by height and reflects the scene's
+ * environment, strongest at grazing angles. Built with tools/shaderpack.py
+ * (make example-shaders). */
 @block vertex
 layout(binding=3) uniform wave_params {
     float amplitude;  /* object-space units */
@@ -18,11 +19,14 @@ void sk_vertex(inout vec3 position, inout vec3 normal) {
 layout(binding=2) uniform params {
     vec4 low_color;  /* linear rgba */
     vec4 high_color;
+    float roughness;    /* of the reflections, 0..1 */
+    float reflectivity; /* facing the viewer (f0); rises to 1 at grazing angles */
 };
 
 void main() {
     vec3 n = normalize(sk_normal);
-    vec3 light = sk_ambient();
+    vec3 v = normalize(sk_camera_position() - sk_world_pos);
+    vec3 light = sk_ambient() + sk_environment_diffuse(n);
     for (int i = 0; i < 8; i++) {
         if (i >= sk_light_count()) {
             break;
@@ -32,6 +36,8 @@ void main() {
     }
     float height = clamp(sk_world_pos.y * 0.5 + 0.5, 0.0, 1.0);
     vec4 color = mix(low_color, high_color, height);
-    sk_output(color.rgb * light, color.a);
+    vec2 ab = sk_environment_brdf(max(dot(n, v), 1e-4), roughness);
+    vec3 reflection = sk_environment_specular(n, v, roughness) * (vec3(reflectivity) * ab.x + ab.y);
+    sk_output(color.rgb * light * (1.0 - reflectivity) + reflection, color.a);
 }
 @end

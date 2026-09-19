@@ -273,8 +273,11 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       `sk_material_create_custom`, parameters and textures by the shader's names.
       Static and skinned models, scene lights, tint, alpha modes, tone mapping
       ([PLAN-materials.md](PLAN-materials.md), `examples/shaders.c`)
-- [ ] Custom shaders later: environment lighting in custom shaders; arrays and
-      matrices as parameters; D3D11/Metal sources when those backends come
+- [x] Environment lighting in custom shaders (2026-09-20): `sk_environment_diffuse`,
+      `_specular`, `_brdf`, `_intensity` in `shaders/sk.glsl` (`.skshader` format 2;
+      older files are refused, rebuild them); the shaders example's water reflects a sunset
+- [ ] Custom shaders later: arrays and matrices as parameters; D3D11/Metal sources when
+      those backends come
 - [ ] Materials, phase 3: shapes and sprites on materials (with the batched renderer)
 - [x] 2D / UI layer: `enabled` and pointer interaction per scene member, touch as a
       pointer, retained 2D shapes, nine-slice sprites, text alignment and wrapping,

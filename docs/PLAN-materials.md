@@ -182,13 +182,19 @@ sk_handle_t sk_material_create_custom(sk_handle_t shader);
   lights (`sk_light_count()`, `sk_light(i, pos, out to_light)`, with the same falloff
   as built-in materials), sRGB helpers, and `sk_output(color, alpha)`, which applies
   the model's tint, the MASK cutoff, exposure and tone mapping and encodes sRGB, so a
-  custom material fades, masks and tone-maps like a built-in one. Environment lighting
-  isn't in the interface yet.
+  custom material fades, masks and tone-maps like a built-in one. The scene's
+  environment (2026-09-20): `sk_environment_diffuse(n)`, `sk_environment_specular(n, v,
+  roughness)` and `sk_environment_brdf(n_dot_v, roughness)`, the same split-sum pieces
+  built-in materials use, with `sk_environment_intensity()` 0 (and the functions
+  black) without one.
 - **Bindings:** uniform block 0 is libsk's per-object block (matrices, time, joints),
   1 its per-draw fragment block (`sk_frame`: camera, time, tint, ambient, lights,
-  output settings), 2 the shader's fragment parameters, 3 the vertex hook's.
-  Textures are texture2D in the fragment shader, bindings 0-7, each paired with a
-  sampler. Vertex inputs have fixed locations matching libsk's vertex buffers (without
+  output settings, the environment's intensity, rotation and irradiance), 2 the
+  shader's fragment parameters, 3 the vertex hook's. The shader's textures are
+  texture2D in the fragment shader, bindings 0-7, each paired with a sampler; 8 and 9
+  are libsk's (the environment cubemap and BRDF table), bound only if used. The file
+  format has a version: a change to `sk_frame` (version 2 added the environment) makes
+  older files refused ("rebuild it") rather than drawn wrongly. Vertex inputs have fixed locations matching libsk's vertex buffers (without
   them sokol-shdc numbered the skinned shader's inputs in declaration order).
 - **`tools/shaderpack.py`** puts `shaders/sk.glsl` in front of the file, adds the two
   vertex shaders (with the hook or an empty one), compiles with sokol-shdc
@@ -216,8 +222,8 @@ sk_handle_t sk_material_create_custom(sk_handle_t shader);
 - **Drawing:** per shader, pipelines for (static or skinned, blended, double-sided)
   made on first use and freed with the shader; blocks the compiler dropped because
   the shader doesn't use them aren't applied.
-- **Not yet:** environment lighting inside custom shaders, arrays and matrices as
-  parameters, shaders for sprites and shapes (phase 3), D3D11/Metal sources.
+- **Not yet:** arrays and matrices as parameters, shaders for sprites and shapes
+  (phase 3), D3D11/Metal sources.
 - Checked on desktop GL, WebGL2 and WebGPU (`examples/shaders.c`: toon on the
   animated gumshoe, a dissolve with a noise texture, waves from a vertex hook), and
   headless (the dummy backend validates every uniform size and binding).

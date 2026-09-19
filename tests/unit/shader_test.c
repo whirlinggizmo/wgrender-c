@@ -55,6 +55,7 @@ void test_shader_custom_material(void)
     CHECK(shader->programs[0].has_block[SK_SHADER_BLOCK_OBJECT] && shader->programs[1].has_block[SK_SHADER_BLOCK_OBJECT]);
     CHECK(shader->programs[0].has_block[SK_SHADER_BLOCK_FRAME]);
     CHECK(shader->programs[0].view_slot[0] == 0 && shader->programs[0].sampler_slot[0] == 0);
+    CHECK(shader->programs[0].env_view_slot < 0 && shader->programs[0].brdf_view_slot < 0); /* doesn't use them */
 
     /* a material using it: the shader's names, not the built-in ones */
     const sk_handle_t material = sk_material_create_custom(toon);
@@ -99,14 +100,28 @@ void test_shader_custom_material(void)
     sk_shader_release(wave);
     shader = sk_shader_get(wave);
     CHECK(shader != NULL && shader->texture_count == 0);
-    CHECK(shader->block_size[SK_SHADER_BLOCK_FS_PARAMS] == 32 && shader->block_size[SK_SHADER_BLOCK_VS_PARAMS] == 16);
+    CHECK(shader->block_size[SK_SHADER_BLOCK_FS_PARAMS] == 48 && shader->block_size[SK_SHADER_BLOCK_VS_PARAMS] == 16);
     CHECK(shader->programs[0].has_block[SK_SHADER_BLOCK_VS_PARAMS]);
+    /* it reflects the environment: libsk's slots 8 and 9, in both programs */
+    for (int p = 0; p < 2; p++) {
+        CHECK(shader->programs[p].env_view_slot == 8 && shader->programs[p].env_sampler_slot == 8);
+        CHECK(shader->programs[p].brdf_view_slot == 9 && shader->programs[p].brdf_sampler_slot == 9);
+    }
     CHECK(sk_material_set_float(rippling, "amplitude", 0.5f));
     CHECK(sk_material_set_float(rippling, "wave_speed", 2.0f));
     CHECK(sk_material_set_vec4(rippling, "high_color", 1, 1, 1, 1));
     CHECK_NEAR(value_at(rippling, "amplitude", 0), 0.5f, EPS);
     CHECK_NEAR(value_at(rippling, "wave_speed", 0), 2.0f, EPS);
     sk_material_release(rippling);
+
+    /* made by an older shaderpack: refused (sk_frame changed), not drawn wrongly */
+    FILE *old = fopen("build/old.skshader", "wb");
+    CHECK(old != NULL);
+    if (old != NULL) {
+        fputs("skshader 1\nend\n", old);
+        fclose(old);
+    }
+    CHECK(sk_shader_create("build/old.skshader") == 0);
 
     /* not shaders */
     CHECK(sk_shader_create("../examples/assets/textures/noise.png") == 0);
