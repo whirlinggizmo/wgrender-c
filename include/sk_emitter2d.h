@@ -17,6 +17,7 @@ void sk_emitter2d_destroy(sk_handle_t emitter);
 
 bool sk_emitter2d_set_source(sk_handle_t emitter, float x, float y, float width, float height);
 bool sk_emitter2d_set_position(sk_handle_t emitter, float x, float y);
+bool sk_emitter2d_jump(sk_handle_t emitter, float x, float y);
 vec2_t sk_emitter2d_get_position(sk_handle_t emitter);
 
 bool sk_emitter2d_set_rate(sk_handle_t emitter, float per_second);
@@ -29,10 +30,13 @@ bool sk_emitter2d_set_life(sk_handle_t emitter, float min_seconds, float max_sec
 bool sk_emitter2d_set_spawn_box(sk_handle_t emitter, float half_width, float half_height);
 bool sk_emitter2d_set_velocity(sk_handle_t emitter, float x, float y, float spread, float speed_variance);
 bool sk_emitter2d_set_gravity(sk_handle_t emitter, float x, float y);
+bool sk_emitter2d_set_drag(sk_handle_t emitter, float per_second);
+bool sk_emitter2d_set_inherit_velocity(sk_handle_t emitter, float fraction);
 
 bool sk_emitter2d_set_size(sk_handle_t emitter, float start, float end, float variance);
 bool sk_emitter2d_set_color(sk_handle_t emitter, sk_color_t start, sk_color_t end);
 bool sk_emitter2d_set_spin(sk_handle_t emitter, float min, float max);
+bool sk_emitter2d_set_stretch(sk_handle_t emitter, float seconds);
 
 bool sk_emitter2d_set_alpha_mode(sk_handle_t emitter, sk_alpha_mode_t mode, float cutoff);
 bool sk_emitter2d_set_seed(sk_handle_t emitter, unsigned int seed);

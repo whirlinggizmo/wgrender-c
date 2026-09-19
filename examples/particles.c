@@ -1,7 +1,8 @@
 /* libsk particles example — emitters (sk_emitter3d.h, sk_emitter2d.h).
  *
  * Three 3D emitters in a scene: a fountain (blended drops under gravity), sparks
- * (added, from a point circling the fountain, so they trail behind it) and smoke
+ * (added, from a point circling the fountain: they trail behind it, are thrown along
+ * by it, slowed by drag and stretched along their motion) and smoke
  * (blended, growing, turning and fading as it rises). Click or tap anywhere for a 2D
  * confetti burst there (squares cut from the middle of the particle texture, so their
  * spin shows): one emitter per color, all bursting at once. Space pauses the
@@ -47,9 +48,12 @@ static void make_sparks(sk_handle_t texture)
     sk_emitter3d_set_max(g_sparks, 2048);
     sk_emitter3d_set_rate(g_sparks, 600.0f);
     sk_emitter3d_set_life(g_sparks, 0.5f, 1.2f);
-    sk_emitter3d_set_velocity(g_sparks, 0.0f, 2.5f, 0.0f, 1.2f, 0.6f);
+    sk_emitter3d_set_velocity(g_sparks, 0.0f, 4.0f, 0.0f, 1.2f, 0.6f);
     sk_emitter3d_set_gravity(g_sparks, 0.0f, -6.0f, 0.0f);
-    sk_emitter3d_set_size(g_sparks, 0.18f, 0.02f, 0.5f);
+    sk_emitter3d_set_drag(g_sparks, 1.5f);               /* they slow down */
+    sk_emitter3d_set_inherit_velocity(g_sparks, 0.4f);   /* thrown along by the moving source */
+    sk_emitter3d_set_stretch(g_sparks, 0.04f);           /* streaks along their motion */
+    sk_emitter3d_set_size(g_sparks, 0.08f, 0.02f, 0.5f);
     sk_emitter3d_set_color(g_sparks, sk_color_rgba(255, 220, 120, 255), sk_color_rgba(255, 60, 10, 0));
     /* SK_ALPHA_ADD is the default */
     sk_scene_add(g_scene, g_sparks, 0);

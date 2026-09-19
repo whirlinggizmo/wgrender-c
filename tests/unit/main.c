@@ -82,6 +82,7 @@ static const test_case_t TESTS[] = {
     {"emitter_spawning", test_emitter_spawning},
     {"emitter_particles", test_emitter_particles},
     {"emitter_scene", test_emitter_scene},
+    {"emitter_motion", test_emitter_motion},
     {"text_default_font", test_text_default_font},
     {"text_slices_and_dpi", test_text_slices_and_dpi},
     {"text_font_refcount", test_text_font_refcount},

@@ -26,7 +26,13 @@ void sk_emitter3d_destroy(sk_handle_t emitter);
 /* Region of the texture each particle shows, in texture pixels (an atlas cell).
  * Default: the whole texture; width or height <= 0 resets to that. */
 bool sk_emitter3d_set_source(sk_handle_t emitter, float x, float y, float width, float height);
+
+/* set_position moves the emitter: the next frame's steady spawns are spread along the
+ * way from where it was (a smooth trail however fast it goes), and the move is the
+ * velocity particles inherit (set_inherit_velocity). The first position isn't a move.
+ * jump puts it somewhere without either: nothing spawns along the way. */
 bool sk_emitter3d_set_position(sk_handle_t emitter, float x, float y, float z);
+bool sk_emitter3d_jump(sk_handle_t emitter, float x, float y, float z);
 vec3_t sk_emitter3d_get_position(sk_handle_t emitter);
 
 /* Emission: a steady rate (particles per second; 0 for bursts only), and bursts of
@@ -48,6 +54,14 @@ bool sk_emitter3d_set_spawn_box(sk_handle_t emitter, float half_x, float half_y,
 bool sk_emitter3d_set_velocity(sk_handle_t emitter, float x, float y, float z, float spread, float speed_variance);
 bool sk_emitter3d_set_gravity(sk_handle_t emitter, float x, float y, float z);
 
+/* After birth: drag slows particles in proportion to their speed (per second: 1 loses
+ * about 63% of the speed in a second, less gravity's pull; gravity / drag is how fast
+ * they end up falling). Inherit velocity adds that fraction of the emitter's own
+ * velocity (its movement, from set_position) at birth: 1 carries them along with it.
+ * Defaults 0. */
+bool sk_emitter3d_set_drag(sk_handle_t emitter, float per_second);
+bool sk_emitter3d_set_inherit_velocity(sk_handle_t emitter, float fraction);
+
 /* Over a particle's life: its size (world units; each particle's scaled by up to
  * `variance`, 0..1) and color (tint, alpha included, so a fade) move from start to
  * end. Spin: radians per second between min and max, positive clockwise on screen,
@@ -55,6 +69,11 @@ bool sk_emitter3d_set_gravity(sk_handle_t emitter, float x, float y, float z);
 bool sk_emitter3d_set_size(sk_handle_t emitter, float start, float end, float variance);
 bool sk_emitter3d_set_color(sk_handle_t emitter, sk_color_t start, sk_color_t end);
 bool sk_emitter3d_set_spin(sk_handle_t emitter, float min, float max);
+/* Stretch along the motion (sparks, rain, streaks): each particle's texture points its
+ * top along its velocity across the screen, and is as long as the distance it moves in
+ * `seconds` (plus its size), trailing behind it. Stretched particles don't spin.
+ * Default 0: off. */
+bool sk_emitter3d_set_stretch(sk_handle_t emitter, float seconds);
 
 /* How particles use alpha (default SK_ALPHA_ADD: glows, sparks, fire). */
 bool sk_emitter3d_set_alpha_mode(sk_handle_t emitter, sk_alpha_mode_t mode, float cutoff);

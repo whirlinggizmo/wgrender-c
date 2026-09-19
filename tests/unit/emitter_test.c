@@ -183,3 +183,55 @@ void test_emitter_scene(void)
     sk_scene_destroy(scene);
     stop();
 }
+
+/* Moving emitters: steady spawns spread along the way, velocity inherited from the
+ * move, jumps and the first position aren't moves. */
+void test_emitter_motion(void)
+{
+    float born[4], motion[4];
+    bool along = true, inherited = true, jumped = true;
+    start();
+    const sk_handle_t e = sk_emitter3d_create(sk_texture_get_default());
+    CHECK(sk_emitter3d_set_life(e, 10, 10));
+    CHECK(sk_emitter3d_set_position(e, 5, 0, 0)); /* the first position: not a move */
+    CHECK(sk_emitter3d_set_rate(e, 100));
+    sk_emitter_update(0.1f); /* 10 at x = 5 */
+    for (int i = 0; i < 10; i++) {
+        sk_emitter_particle(e, i, born, motion);
+        jumped = jumped && born[0] == 5 && motion[0] == 0;
+    }
+    CHECK(jumped);
+
+    /* moved 10 in 0.1 s: the next 10 spread from 5 to 15, a tenth of the way each */
+    CHECK(sk_emitter3d_set_inherit_velocity(e, 0.5f));
+    CHECK(sk_emitter3d_set_position(e, 15, 0, 0));
+    sk_emitter_update(0.1f);
+    for (int i = 0; i < 10; i++) {
+        sk_emitter_particle(e, 10 + i, born, motion);
+        along = along && fabsf(born[0] - (5.0f + (float)(i + 1))) < 1e-4f;
+        inherited = inherited && fabsf(motion[0] - 50.0f) < 1e-2f; /* half of 100 a second */
+    }
+    CHECK(along);
+    CHECK(inherited);
+
+    /* a jump: no trail, nothing to inherit */
+    jumped = true;
+    CHECK(sk_emitter3d_jump(e, 100, 0, 0));
+    sk_emitter_update(0.1f);
+    for (int i = 0; i < 10; i++) {
+        sk_emitter_particle(e, 20 + i, born, motion);
+        jumped = jumped && born[0] == 100 && motion[0] == 0;
+    }
+    CHECK(jumped);
+
+    /* standing still: nothing inherited */
+    sk_emitter_update(0.1f);
+    sk_emitter_particle(e, 30, born, motion);
+    CHECK(born[0] == 100 && motion[0] == 0);
+
+    CHECK(sk_emitter3d_set_drag(e, 2) && sk_emitter3d_set_stretch(e, 0.05f));
+    CHECK(!sk_emitter3d_set_drag(e, -1) && !sk_emitter3d_set_stretch(e, -1));
+    CHECK(!sk_emitter2d_jump(e, 0, 0));
+    sk_emitter3d_destroy(e);
+    stop();
+}

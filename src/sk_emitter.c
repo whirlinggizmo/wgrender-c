@@ -52,6 +52,9 @@ typedef struct {
     sk_handle_t texture;
     float source[4]; /* texture pixels; width or height <= 0: the whole texture */
     vec3_t position;
+    vec3_t previous;    /* where it was at the last update: steady spawns spread along the way */
+    vec3_t movement_velocity; /* how fast it moved over the last update */
+    bool placed;        /* positioned once (the first position doesn't count as a move) */
     float rate;      /* per second */
     float owed;      /* particles due but not yet spawned (fractions carry over) */
     int max;
@@ -63,6 +66,9 @@ typedef struct {
     vec3_t velocity; /* direction x speed */
     float spread, speed_variance;
     vec3_t gravity;
+    float drag;         /* per second */
+    float stretch;      /* seconds of motion */
+    float inherit;      /* of the emitter's own velocity */
     float size_start, size_end, size_variance;
     sk_color_t color_start, color_end;
     float spin_min, spin_max;
@@ -184,19 +190,20 @@ static vec3_t birth_velocity(sk_emitter_t *emitter_ptr)
     return (vec3_t){dir.x * speed, dir.y * speed, dir.z * speed};
 }
 
-/* A new particle, born at `when` on the emitter's clock (replacing the oldest when the
- * ring is full). */
-static void spawn(sk_emitter_t *emitter_ptr, float when)
+/* A new particle, born at `when` on the emitter's clock around `at` (replacing the
+ * oldest when the ring is full). */
+static void spawn(sk_emitter_t *emitter_ptr, float when, vec3_t at)
 {
     const vec3_t v = birth_velocity(emitter_ptr);
     const vec3_t box = emitter_ptr->box;
+    const vec3_t moving = sk_v3_scale(emitter_ptr->movement_velocity, emitter_ptr->inherit);
     sk_particle_t *p = &emitter_ptr->ring[emitter_ptr->next];
 
     *p = (sk_particle_t){
-        .born = {emitter_ptr->position.x + box.x * signed_random(emitter_ptr),
-                 emitter_ptr->position.y + box.y * signed_random(emitter_ptr),
-                 emitter_ptr->two_d ? 0.0f : emitter_ptr->position.z + box.z * signed_random(emitter_ptr), when},
-        .motion = {v.x, v.y, v.z, random_between(emitter_ptr, emitter_ptr->life_min, emitter_ptr->life_max)},
+        .born = {at.x + box.x * signed_random(emitter_ptr), at.y + box.y * signed_random(emitter_ptr),
+                 emitter_ptr->two_d ? 0.0f : at.z + box.z * signed_random(emitter_ptr), when},
+        .motion = {v.x + moving.x, v.y + moving.y, emitter_ptr->two_d ? 0.0f : v.z + moving.z,
+                   random_between(emitter_ptr, emitter_ptr->life_min, emitter_ptr->life_max)},
         .shape = {fmaxf(0.0f, 1.0f + emitter_ptr->size_variance * signed_random(emitter_ptr)),
                   random_between(emitter_ptr, emitter_ptr->spin_min, emitter_ptr->spin_max),
                   TAU * random01(emitter_ptr), 0.0f},
@@ -222,6 +229,8 @@ static void retire(sk_emitter_t *emitter_ptr)
 
 static void update_emitter(sk_emitter_t *emitter_ptr, float dt)
 {
+    const vec3_t from = emitter_ptr->previous;
+    const vec3_t moved = sk_v3_sub(emitter_ptr->position, from);
     int due;
 
     emitter_ptr->time += dt;
@@ -232,6 +241,8 @@ static void update_emitter(sk_emitter_t *emitter_ptr, float dt)
         emitter_ptr->time -= REBASE_SECONDS;
     }
     retire(emitter_ptr);
+    emitter_ptr->previous = emitter_ptr->position;
+    if (dt > 0.0f) emitter_ptr->movement_velocity = sk_v3_scale(moved, 1.0f / dt);
     if (!emitter_ptr->emitting || emitter_ptr->rate <= 0.0f || dt <= 0.0f) {
         emitter_ptr->owed = 0.0f;
         return;
@@ -240,9 +251,11 @@ static void update_emitter(sk_emitter_t *emitter_ptr, float dt)
     due = (int)emitter_ptr->owed;
     emitter_ptr->owed -= (float)due;
     if (due > emitter_ptr->max) due = emitter_ptr->max;
-    /* spread over the frame, so a steady stream doesn't come in clumps */
+    /* spread over the frame, in time and along the way the emitter moved, so a steady
+       stream doesn't come in clumps */
     for (int k = 0; k < due; k++) {
-        spawn(emitter_ptr, emitter_ptr->time - dt * (float)(due - 1 - k) / (float)due);
+        const float along = (float)(k + 1) / (float)due;
+        spawn(emitter_ptr, emitter_ptr->time - dt * (1.0f - along), sk_v3_add(from, sk_v3_scale(moved, along)));
     }
 }
 
@@ -339,6 +352,7 @@ static void draw_emitter(sk_handle_t handle)
     }
     set4(d->params.gravity_now, emitter_ptr->gravity.x, emitter_ptr->gravity.y, emitter_ptr->gravity.z,
          emitter_ptr->time);
+    set4(d->params.dynamics, emitter_ptr->drag, emitter_ptr->stretch, 0, 0);
     set4(d->params.size_mode, emitter_ptr->size_start, emitter_ptr->size_end,
          emitter_ptr->alpha_mode == SK_ALPHA_MASK     ? fmaxf(emitter_ptr->alpha_cutoff, 1e-6f)
          : emitter_ptr->alpha_mode == SK_ALPHA_OPAQUE ? -1.0f
@@ -661,11 +675,23 @@ static bool set_alpha_mode(sk_emitter_t *emitter_ptr, sk_alpha_mode_t mode, floa
     return true;
 }
 
+/* A move is spread over the next update (steady spawns along the way, velocity to
+   inherit); a jump, or the first position, isn't a move. */
+static void move_to(sk_emitter_t *emitter_ptr, vec3_t position, bool jump)
+{
+    emitter_ptr->position = position;
+    if (jump || !emitter_ptr->placed) {
+        emitter_ptr->previous = position;
+        emitter_ptr->movement_velocity = (vec3_t){0, 0, 0};
+    }
+    emitter_ptr->placed = true;
+}
+
 static bool burst(sk_emitter_t *emitter_ptr, int count)
 {
     if (count < 0) return false;
     if (count > emitter_ptr->max) count = emitter_ptr->max;
-    for (int i = 0; i < count; i++) spawn(emitter_ptr, emitter_ptr->time);
+    for (int i = 0; i < count; i++) spawn(emitter_ptr, emitter_ptr->time, emitter_ptr->position);
     return true;
 }
 
@@ -686,11 +712,19 @@ SK_KEEP bool sk_emitter2d_set_source(sk_handle_t e, float x, float y, float w, f
 }
 SK_KEEP bool sk_emitter3d_set_position(sk_handle_t e, float x, float y, float z)
 {
-    WITH_EMITTER(e, false, emitter_ptr->position = ((vec3_t){x, y, z}));
+    WITH_EMITTER(e, false, move_to(emitter_ptr, (vec3_t){x, y, z}, false));
 }
 SK_KEEP bool sk_emitter2d_set_position(sk_handle_t e, float x, float y)
 {
-    WITH_EMITTER(e, true, emitter_ptr->position = ((vec3_t){x, y, 0.0f}));
+    WITH_EMITTER(e, true, move_to(emitter_ptr, (vec3_t){x, y, 0.0f}, false));
+}
+SK_KEEP bool sk_emitter3d_jump(sk_handle_t e, float x, float y, float z)
+{
+    WITH_EMITTER(e, false, move_to(emitter_ptr, (vec3_t){x, y, z}, true));
+}
+SK_KEEP bool sk_emitter2d_jump(sk_handle_t e, float x, float y)
+{
+    WITH_EMITTER(e, true, move_to(emitter_ptr, (vec3_t){x, y, 0.0f}, true));
 }
 SK_KEEP vec3_t sk_emitter3d_get_position(sk_handle_t e)
 {
@@ -777,6 +811,34 @@ SK_KEEP bool sk_emitter3d_set_gravity(sk_handle_t e, float x, float y, float z)
 SK_KEEP bool sk_emitter2d_set_gravity(sk_handle_t e, float x, float y)
 {
     WITH_EMITTER(e, true, emitter_ptr->gravity = ((vec3_t){x, y, 0.0f}));
+}
+SK_KEEP bool sk_emitter3d_set_drag(sk_handle_t e, float per_second)
+{
+    if (!(per_second >= 0.0f)) return false;
+    WITH_EMITTER(e, false, emitter_ptr->drag = per_second);
+}
+SK_KEEP bool sk_emitter2d_set_drag(sk_handle_t e, float per_second)
+{
+    if (!(per_second >= 0.0f)) return false;
+    WITH_EMITTER(e, true, emitter_ptr->drag = per_second);
+}
+SK_KEEP bool sk_emitter3d_set_stretch(sk_handle_t e, float seconds)
+{
+    if (!(seconds >= 0.0f)) return false;
+    WITH_EMITTER(e, false, emitter_ptr->stretch = seconds);
+}
+SK_KEEP bool sk_emitter2d_set_stretch(sk_handle_t e, float seconds)
+{
+    if (!(seconds >= 0.0f)) return false;
+    WITH_EMITTER(e, true, emitter_ptr->stretch = seconds);
+}
+SK_KEEP bool sk_emitter3d_set_inherit_velocity(sk_handle_t e, float fraction)
+{
+    WITH_EMITTER(e, false, emitter_ptr->inherit = fraction);
+}
+SK_KEEP bool sk_emitter2d_set_inherit_velocity(sk_handle_t e, float fraction)
+{
+    WITH_EMITTER(e, true, emitter_ptr->inherit = fraction);
 }
 SK_KEEP bool sk_emitter3d_set_size(sk_handle_t e, float start, float end, float variance)
 {

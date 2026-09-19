@@ -60,6 +60,7 @@ static inline sk_mat4_t sk_mat4_ortho(float l, float r, float b, float t, float 
     return m;
 }
 
+static inline vec3_t sk_v3_add(vec3_t a, vec3_t b) { return (vec3_t){a.x + b.x, a.y + b.y, a.z + b.z}; }
 static inline vec3_t sk_v3_sub(vec3_t a, vec3_t b) { return (vec3_t){a.x - b.x, a.y - b.y, a.z - b.z}; }
 static inline vec3_t sk_v3_scale(vec3_t a, float s) { return (vec3_t){a.x * s, a.y * s, a.z * s}; }
 static inline float sk_v3_dot(vec3_t a, vec3_t b) { return a.x * b.x + a.y * b.y + a.z * b.z; }

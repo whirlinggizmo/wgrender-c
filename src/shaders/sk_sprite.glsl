@@ -108,6 +108,7 @@ layout(binding=0) uniform particle_params {
     vec4 color_start;
     vec4 color_end;
     vec4 source;      /* the texture region: u0, v0, u1, v1 */
+    vec4 dynamics;    /* x drag (per second), y stretch (seconds of motion; 0 none) */
 };
 in vec2 corner;
 in vec4 born;   /* xyz where, w when */
@@ -127,14 +128,42 @@ void main() {
         alpha_mode = 0.0;
         return;
     }
-    vec3 pos = born.xyz + motion.xyz * age + 0.5 * gravity_now.xyz * age * age;
+    /* gravity, and drag: slowing in proportion to speed, towards gravity / drag */
+    vec3 pos;
+    vec3 vel;
+    float drag = dynamics.x;
+    if (drag > 0.0001) {
+        vec3 terminal = gravity_now.xyz / drag;
+        float decay = exp(-drag * age);
+        pos = born.xyz + terminal * age + (motion.xyz - terminal) * ((1.0 - decay) / drag);
+        vel = terminal + (motion.xyz - terminal) * decay;
+    } else {
+        pos = born.xyz + motion.xyz * age + 0.5 * gravity_now.xyz * age * age;
+        vel = motion.xyz + gravity_now.xyz * age;
+    }
     float size = mix(size_mode.x, size_mode.y, t) * shape.x;
-    float angle = shape.z + shape.y * age; /* positive turns clockwise on screen */
-    float c = cos(angle);
-    float s = sin(angle);
-    vec3 right = axis_x.xyz * c - axis_y.xyz * s;
-    vec3 up = axis_x.xyz * s + axis_y.xyz * c;
-    gl_Position = view_proj * vec4(pos + (right * corner.x + up * corner.y) * size, 1.0);
+    float along = size;
+    vec3 right;
+    vec3 up;
+    /* stretched: the quad's up follows the velocity across the screen, as long as the
+       distance moved in `stretch` seconds (plus its size), trailing behind */
+    vec2 screen_vel = vec2(dot(vel, axis_x.xyz), dot(vel, axis_y.xyz));
+    float speed = length(screen_vel);
+    if (dynamics.y > 0.0 && speed > 0.00001) {
+        vec2 d = screen_vel / speed;
+        up = axis_x.xyz * d.x + axis_y.xyz * d.y;
+        right = axis_x.xyz * d.y - axis_y.xyz * d.x;
+        float extra = speed * dynamics.y;
+        along = size + extra;
+        pos -= up * (extra * 0.5);
+    } else {
+        float angle = shape.z + shape.y * age; /* positive turns clockwise on screen */
+        float c = cos(angle);
+        float s = sin(angle);
+        right = axis_x.xyz * c - axis_y.xyz * s;
+        up = axis_x.xyz * s + axis_y.xyz * c;
+    }
+    gl_Position = view_proj * vec4(pos + right * (corner.x * size) + up * (corner.y * along), 1.0);
     uv = vec2(mix(source.x, source.z, corner.x + 0.5), mix(source.y, source.w, 0.5 - corner.y));
     color = mix(color_start, color_end, t);
     alpha_mode = size_mode.z;
