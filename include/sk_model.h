@@ -31,6 +31,35 @@ sk_handle_t sk_mesh_create(const char *path);
  * to one and releasing it right away is the normal pattern. */
 void        sk_mesh_release(sk_handle_t mesh);
 
+/* Generated meshes: shapes made in code, with normals, texture coordinates (both
+ * sets) and tangents, so any material lights them, normal maps and custom shaders
+ * included. Centered on the origin, y up, in meters. Like a loaded mesh they're
+ * resources: deduplicated (the same parameters return the same mesh, with one more
+ * reference) and never changed after they're made; to size one model differently,
+ * scale it (sk_model_set_transform) or make another mesh. One material slot, white,
+ * not metallic, roughness 0.5: replace it with sk_model_set_material. 0 (logged) for
+ * sizes <= 0; counts are clamped to their ranges.
+ *
+ *   plane     flat in XZ, facing +Y; subdivisions 0..256 cells more each way.
+ *             Texture coordinates span it once (tile with the material's
+ *             <texture>_scale)
+ *   cube      each face its own vertices (sharp edges), textured 0..1 per face
+ *   sphere    rings 2..256 from pole to pole, segments 3..512 around; u around, v
+ *             pole to pole
+ *   cylinder  capped; segments 3..512 around
+ *   cone      tip up, capped base
+ *   capsule   height from end to end (at least 2 x radius; less: a sphere); rings
+ *             across both round ends
+ *   torus     around y; radius to the middle of the tube, thickness the tube's
+ *             radius; rings around the ring, segments around the tube (3..512) */
+sk_handle_t sk_mesh_create_plane(float width, float length, int subdivisions);
+sk_handle_t sk_mesh_create_cube(float width, float height, float length);
+sk_handle_t sk_mesh_create_sphere(float radius, int rings, int segments);
+sk_handle_t sk_mesh_create_cylinder(float radius, float height, int segments);
+sk_handle_t sk_mesh_create_cone(float radius, float height, int segments);
+sk_handle_t sk_mesh_create_capsule(float radius, float height, int rings, int segments);
+sk_handle_t sk_mesh_create_torus(float radius, float thickness, int rings, int segments);
+
 /* The mesh's materials, one slot per glTF material (see sk_material.h). The
  * returned handle is borrowed: it stays valid while the mesh lives, and changing
  * it changes every model using the mesh. */

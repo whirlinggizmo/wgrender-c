@@ -17,12 +17,11 @@
 #include "example_assets.h"
 #include "sk.h"
 
-#define SPHERE_PATH "models/sphere/sphere.glb"
 #define GUMSHOE_PATH "models/gumshoe/gumshoe.glb"
 #define NOISE_PATH "textures/noise.png"
 #define ENVIRONMENT_PATH "environments/venice_sunset_1k.hdr"
 #define FLOOR_Y -0.3f
-#define SPHERE_Y (FLOOR_Y + 0.5f) /* the sphere mesh is 1 m across: resting on the floor */
+#define SPHERE_Y (FLOOR_Y + 0.5f) /* spheres 1 m across, resting on the floor */
 
 enum { SHADER_TOON, SHADER_DISSOLVE, SHADER_WAVE, SHADER_COUNT, GUMSHOE_BODY_SLOT = 1 };
 static const char *SHADER_PATHS[SHADER_COUNT] = {
@@ -36,7 +35,7 @@ static struct {
     sk_handle_t camera;
     sk_color_t bg;
     sk_handle_t gumshoe, dissolving, rippling; /* models */
-    sk_handle_t floor;                         /* the sphere, flattened: a lit disc to stand on */
+    sk_handle_t floor;
     sk_handle_t dissolve;                      /* its material gets the noise texture */
     sk_handle_t sun, lamp, lamp_marker;
     float time;
@@ -46,16 +45,6 @@ static void on_failed(const char *path, void *user)
 {
     (void)user;
     sk_logger_error("load failed: %s", path);
-}
-
-static void on_sphere_loaded(const char *path, void *user)
-{
-    sk_handle_t mesh = sk_mesh_create(path);
-    (void)user;
-    sk_model_set_mesh(g.dissolving, mesh);
-    sk_model_set_mesh(g.rippling, mesh);
-    sk_model_set_mesh(g.floor, mesh);
-    sk_mesh_release(mesh); /* the models hold their own references */
 }
 
 static void on_gumshoe_loaded(const char *path, void *user)
@@ -149,9 +138,13 @@ static void init(void *user_data)
     sk_shape3d_set_color(g.lamp_marker, SK_COLOR_SKYBLUE);
     sk_scene_add(g.scene, g.lamp_marker, 0);
 
-    /* a floor, so the models stand somewhere: the sphere squashed flat, built-in PBR */
-    g.floor = sk_model_create(0);
-    sk_model_set_transform(g.floor, 0.0f, FLOOR_Y - 0.01f, 0.0f, 0, 0, 0, 5.0f, 0.02f, 5.0f); /* top at FLOOR_Y */
+    /* generated meshes (sk_mesh_create_*): a floor, so the models stand somewhere, and
+       the spheres; the water's finely divided, so its waves are smooth */
+    sk_handle_t plane = sk_mesh_create_plane(6.0f, 6.0f, 0);
+    sk_handle_t sphere = sk_mesh_create_sphere(0.5f, 32, 64);
+    sk_handle_t fine_sphere = sk_mesh_create_sphere(0.5f, 96, 192);
+    g.floor = sk_model_create(plane);
+    sk_model_set_transform(g.floor, 0.0f, FLOOR_Y, 0.0f, 0, 0, 0, 1, 1, 1);
     sk_handle_t ground = sk_material_create(SK_MATERIAL_PBR);
     sk_material_set_vec4(ground, "base_color", 0.04f, 0.04f, 0.045f, 1.0f); /* dark: the lights show on it */
     sk_material_set_float(ground, "metallic", 0.0f);
@@ -164,18 +157,20 @@ static void init(void *user_data)
     sk_model_set_transform(g.gumshoe, -1.9f, FLOOR_Y, 0, 0, 0.4f, 0, 0.5f, 0.5f, 0.5f); /* feet at its origin */
     sk_model_set_animation(g.gumshoe, 3);
     sk_scene_add(g.scene, g.gumshoe, 0);
-    g.dissolving = sk_model_create(0);
+    g.dissolving = sk_model_create(sphere);
     sk_model_set_transform(g.dissolving, 0.0f, SPHERE_Y, 0, 0, 0, 0, 1, 1, 1);
     sk_scene_add(g.scene, g.dissolving, 0);
-    g.rippling = sk_model_create(0);
+    g.rippling = sk_model_create(fine_sphere);
     sk_model_set_transform(g.rippling, 1.9f, SPHERE_Y, 0, 0, 0, 0, 1, 1, 1);
     sk_scene_add(g.scene, g.rippling, 0);
+    sk_mesh_release(plane); /* the models hold their own references */
+    sk_mesh_release(sphere);
+    sk_mesh_release(fine_sphere);
 
     for (int i = 0; i < SHADER_COUNT; i++) {
         sk_asset_add_task(sk_asset_ensure_async(SHADER_PATHS[i], NULL, SK_ASSET_NONE), on_shader_loaded, on_failed,
                           (void *)(intptr_t)i);
     }
-    sk_asset_add_task(sk_asset_ensure_async(SPHERE_PATH, NULL, SK_ASSET_NONE), on_sphere_loaded, on_failed, NULL);
     sk_asset_add_task(sk_asset_ensure_async(ENVIRONMENT_PATH, NULL, SK_ASSET_NONE), on_environment_loaded, on_failed,
                       NULL);
     sk_asset_add_task(sk_asset_ensure_async(GUMSHOE_PATH, NULL, SK_ASSET_NONE), on_gumshoe_loaded, on_failed, NULL);

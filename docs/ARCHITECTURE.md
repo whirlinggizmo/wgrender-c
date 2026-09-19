@@ -33,7 +33,11 @@ The decoded/uploaded runtime form of an asset. Resources are:
 - **deduplicated** — loading the same asset twice returns the *same* resource,
 - the natural home for **CPU-side data needed by the game** (e.g. picking).
 
-A resource can also be **generated** (a procedural cube mesh has no file asset).
+A resource can also be **generated**: `sk_mesh_create_plane`, `_cube`, `_sphere`,
+`_cylinder`, `_cone`, `_capsule` and `_torus` make meshes with no file asset. They
+follow the same rules: deduplicated (by their parameters instead of a path),
+reference counted, and never changed once made (a differently sized placement scales
+its model, or makes another mesh).
 
 ```c
 sk_handle_t tex   = sk_texture_create("logo.png");      // Texture resource

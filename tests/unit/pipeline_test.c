@@ -21,6 +21,7 @@
 #include "internal/sk_render.h"
 #include "internal/sk_texture.h"
 #include "sk_asset.h"
+#include "sk_pick.h"
 #include "sk_audio.h"
 #include "sk_logger.h"
 #include "sk_model.h"
@@ -718,4 +719,51 @@ void test_pipeline_redirects(void)
 
     sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
     stop_assets();
+}
+
+/* ------------------------------------------------------- generated meshes ---- */
+
+/* Generated meshes are resources like loaded ones: shared by parameters, with a default
+ * material, picked like any model. */
+void test_pipeline_generated_meshes(void)
+{
+    setup();
+    sk_logger_set_level(SK_LOGGER_LEVEL_FATAL); /* bad sizes below log on purpose */
+    const sk_handle_t plane = sk_mesh_create_plane(10, 10, 2);
+    CHECK(plane != 0 && sk_handle_get_kind(plane) == SK_HANDLE_KIND_MESH);
+    CHECK(sk_mesh_create_plane(10, 10, 2) == plane); /* the same parameters: the same mesh */
+    const sk_handle_t other = sk_mesh_create_plane(10, 10, 3);
+    CHECK(other != 0 && other != plane);
+    CHECK(sk_mesh_create_plane(0, 10, 2) == 0);
+    CHECK(sk_mesh_get_material_count(plane) == 1);
+    const sk_material_t *material = sk_material_get(sk_mesh_get_material(plane, 0));
+    CHECK(material != NULL && material->metallic == 0.0f && material->roughness == 0.5f);
+
+    /* a ray straight down at the plane hits it, at its height */
+    const sk_handle_t camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(camera, 1, 5, 1, 1, 0, 1.001f, 0, 0, -1);
+    const sk_handle_t floor = sk_model_create(plane);
+    sk_model_set_transform(floor, 0, -1, 0, 0, 0, 0, 1, 1, 1);
+    sk_pick_result_t r = sk_pick_object(floor, camera, 0.5f, 0.5f);
+    CHECK(r.hit && r.handle == floor);
+    CHECK_NEAR(r.point_world.y, -1.0f, 1e-3f);
+    sk_model_set_transform(floor, 20, -1, 0, 0, 0, 0, 1, 1, 1); /* moved away: missed */
+    CHECK(!sk_pick_object(floor, camera, 0.5f, 0.5f).hit);
+
+    /* each shape makes a mesh */
+    const sk_handle_t shapes[] = {sk_mesh_create_cube(1, 2, 3),      sk_mesh_create_sphere(1, 16, 32),
+                                  sk_mesh_create_cylinder(1, 2, 16), sk_mesh_create_cone(1, 2, 16),
+                                  sk_mesh_create_capsule(0.5f, 2, 8, 16), sk_mesh_create_torus(1, 0.25f, 24, 12)};
+    for (size_t i = 0; i < sizeof(shapes) / sizeof(shapes[0]); i++) {
+        CHECK(shapes[i] != 0);
+        sk_mesh_release(shapes[i]);
+    }
+
+    sk_model_destroy(floor);
+    sk_mesh_release(plane);
+    sk_mesh_release(plane);
+    sk_mesh_release(other);
+    sk_camera3d_destroy(camera);
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    teardown();
 }

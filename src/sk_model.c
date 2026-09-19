@@ -17,6 +17,7 @@
 #include "internal/sk_loader.h"
 #include "internal/sk_material.h"
 #include "internal/sk_math.h"
+#include "internal/sk_mesh_shapes.h"
 #include "internal/sk_model.h"
 #include "internal/sk_pick.h"
 #include "internal/sk_render.h"
@@ -120,6 +121,7 @@ typedef struct {
     int ref_count;
     char path[256];
     bool has_path;
+    bool generated; /* sk_mesh_create_plane, ...: `path` is its parameters, never a file */
 } sk_mesh_t;
 
 /* Model object: lightweight per-placement runtime state. References a Mesh
@@ -1291,16 +1293,21 @@ static void release_mesh(sk_handle_t mesh_handle)
     }
 }
 
-static sk_handle_t find_mesh_by_path(const char *path)
+static sk_handle_t find_mesh_by_key(const char *path, bool generated)
 {
     if (path == NULL || path[0] == '\0') return 0;
     for (uint16_t i = 1; i < sk_mesh_pool.capacity; i++) {
-        if (sk_mesh_pool.occupied[i] && sk_meshes[i].has_path &&
+        if (sk_mesh_pool.occupied[i] && sk_meshes[i].has_path && sk_meshes[i].generated == generated &&
             strcmp(sk_meshes[i].path, path) == 0) {
             return sk_handle_pool_handle_from_index(&sk_mesh_pool, i);
         }
     }
     return 0;
+}
+
+static sk_handle_t find_mesh_by_path(const char *path)
+{
+    return find_mesh_by_key(path, false);
 }
 
 /* ------------------------------------------------------------ mesh loader */
@@ -1508,6 +1515,163 @@ static sk_loader_step_t finish_mesh(void *data, const char *path, sk_handle_t *r
     memset(mesh, 0, sizeof(*mesh));
     *resource = handle;
     return SK_LOADER_DONE;
+}
+
+/* ------------------------------------------------------ generated meshes */
+
+/* A mesh of generated geometry (internal/sk_mesh_shapes.h), under `key` (its
+ * parameters): one primitive in the glTF vertex layout, with generated tangents and
+ * picking data, and one material: white, not metallic, roughness 0.5. Takes the
+ * shape's arrays. */
+static sk_handle_t create_generated(const char *key, sk_mesh_shape_t *shape)
+{
+    const int vcount = shape->vertex_count;
+    const size_t stride = 18; /* position 3, normal 3, texcoord0 2, texcoord1 2, tangent 4, color 4 */
+    float *tangents = calloc((size_t)vcount * 4, sizeof(float));
+    float *verts = calloc((size_t)vcount * stride, sizeof(float));
+    sk_mesh_t mesh = {0};
+    sk_primitive_t *prim;
+    sk_handle_t handle;
+    uint16_t index = 0;
+
+    mesh.prims = calloc(1, sizeof(sk_primitive_t));
+    mesh.materials = calloc(1, sizeof(sk_handle_t));
+    if (tangents == NULL || verts == NULL || mesh.prims == NULL || mesh.materials == NULL) {
+        log_error("mesh: out of memory");
+        free(tangents);
+        free(verts);
+        free(mesh.prims);
+        free(mesh.materials);
+        sk_mesh_shape_free(shape);
+        return 0;
+    }
+    sk_model_generate_tangents(shape->positions, shape->normals, shape->uvs, vcount, shape->indices,
+                               shape->index_count, tangents);
+    prim = &mesh.prims[0];
+    prim->pmin = (vec3_t){1e30f, 1e30f, 1e30f};
+    prim->pmax = (vec3_t){-1e30f, -1e30f, -1e30f};
+    for (int i = 0; i < vcount; i++) {
+        const float *p = &shape->positions[i * 3];
+        float *v = &verts[(size_t)i * stride];
+        memcpy(v, p, 3 * sizeof(float));
+        memcpy(v + 3, &shape->normals[i * 3], 3 * sizeof(float));
+        memcpy(v + 6, &shape->uvs[i * 2], 2 * sizeof(float));
+        memcpy(v + 8, &shape->uvs[i * 2], 2 * sizeof(float)); /* both texture coordinate sets */
+        memcpy(v + 10, &tangents[i * 4], 4 * sizeof(float));
+        v[14] = v[15] = v[16] = v[17] = 1.0f; /* white */
+        prim->pmin = (vec3_t){fminf(prim->pmin.x, p[0]), fminf(prim->pmin.y, p[1]), fminf(prim->pmin.z, p[2])};
+        prim->pmax = (vec3_t){fmaxf(prim->pmax.x, p[0]), fmaxf(prim->pmax.y, p[1]), fmaxf(prim->pmax.z, p[2])};
+    }
+    free(tangents);
+    prim->upload_vertices = verts;
+    prim->upload_bytes = (size_t)vcount * stride * sizeof(float);
+    prim->index_count = shape->index_count;
+    prim->pick_positions = shape->positions; /* the mesh keeps these for picking */
+    prim->pick_indices = shape->indices;
+    prim->pick_vertex_count = vcount;
+    shape->positions = NULL;
+    shape->indices = NULL;
+    sk_mesh_shape_free(shape);
+    mesh.prim_count = 1;
+    mesh.lmin = prim->pmin;
+    mesh.lmax = prim->pmax;
+    mesh.material_count = 1;
+    mesh.materials[0] = sk_material_create(SK_MATERIAL_PBR);
+    sk_material_set_float(mesh.materials[0], "metallic", 0.0f);
+    sk_material_set_float(mesh.materials[0], "roughness", 0.5f);
+    snprintf(mesh.path, sizeof(mesh.path), "%s", key);
+    mesh.has_path = true;
+    mesh.generated = true;
+    mesh.ref_count = 1;
+
+    handle = upload_primitive(prim) ? sk_handle_pool_alloc(&sk_mesh_pool) : 0;
+    if (handle == 0) {
+        free_mesh_data(&mesh);
+        return 0;
+    }
+    sk_handle_pool_resolve(&sk_mesh_pool, handle, &index);
+    sk_meshes[index] = mesh;
+    return handle;
+}
+
+/* The mesh made with these parameters, shared (one more reference), or 0. */
+static sk_handle_t find_generated(const char *key)
+{
+    const sk_handle_t mesh = find_mesh_by_key(key, true);
+    retain_mesh(mesh); /* no-op when 0 */
+    return mesh;
+}
+
+#define GENERATE(key_format, build, ...)                                         \
+    do {                                                                         \
+        char key[128];                                                           \
+        sk_mesh_shape_t shape;                                                   \
+        snprintf(key, sizeof(key), key_format, __VA_ARGS__);                     \
+        const sk_handle_t existing = find_generated(key);                        \
+        if (existing != 0) return existing;                                      \
+        if (!(build)) {                                                          \
+            log_error("%s: sizes must be positive (or out of memory)", __func__); \
+            return 0;                                                            \
+        }                                                                        \
+        return create_generated(key, &shape);                                    \
+    } while (0)
+
+static int clamp_count(int value, int low, int high)
+{
+    return value < low ? low : (value > high ? high : value);
+}
+
+SK_KEEP
+sk_handle_t sk_mesh_create_plane(float width, float length, int subdivisions)
+{
+    subdivisions = clamp_count(subdivisions, 0, SK_MESH_MAX_SUBDIVISIONS);
+    GENERATE("plane %g %g %d", sk_mesh_shape_plane(width, length, subdivisions, &shape), width, length, subdivisions);
+}
+
+SK_KEEP
+sk_handle_t sk_mesh_create_cube(float width, float height, float length)
+{
+    GENERATE("cube %g %g %g", sk_mesh_shape_cube(width, height, length, &shape), width, height, length);
+}
+
+SK_KEEP
+sk_handle_t sk_mesh_create_sphere(float radius, int rings, int segments)
+{
+    rings = clamp_count(rings, SK_MESH_MIN_RINGS, SK_MESH_MAX_RINGS);
+    segments = clamp_count(segments, SK_MESH_MIN_SEGMENTS, SK_MESH_MAX_SEGMENTS);
+    GENERATE("sphere %g %d %d", sk_mesh_shape_sphere(radius, rings, segments, &shape), radius, rings, segments);
+}
+
+SK_KEEP
+sk_handle_t sk_mesh_create_cylinder(float radius, float height, int segments)
+{
+    segments = clamp_count(segments, SK_MESH_MIN_SEGMENTS, SK_MESH_MAX_SEGMENTS);
+    GENERATE("cylinder %g %g %d", sk_mesh_shape_cylinder(radius, height, segments, &shape), radius, height, segments);
+}
+
+SK_KEEP
+sk_handle_t sk_mesh_create_cone(float radius, float height, int segments)
+{
+    segments = clamp_count(segments, SK_MESH_MIN_SEGMENTS, SK_MESH_MAX_SEGMENTS);
+    GENERATE("cone %g %g %d", sk_mesh_shape_cone(radius, height, segments, &shape), radius, height, segments);
+}
+
+SK_KEEP
+sk_handle_t sk_mesh_create_capsule(float radius, float height, int rings, int segments)
+{
+    rings = clamp_count(rings, SK_MESH_MIN_RINGS, SK_MESH_MAX_RINGS);
+    segments = clamp_count(segments, SK_MESH_MIN_SEGMENTS, SK_MESH_MAX_SEGMENTS);
+    GENERATE("capsule %g %g %d %d", sk_mesh_shape_capsule(radius, height, rings, segments, &shape), radius, height,
+             rings, segments);
+}
+
+SK_KEEP
+sk_handle_t sk_mesh_create_torus(float radius, float thickness, int rings, int segments)
+{
+    rings = clamp_count(rings, SK_MESH_MIN_SEGMENTS, SK_MESH_MAX_SEGMENTS);
+    segments = clamp_count(segments, SK_MESH_MIN_SEGMENTS, SK_MESH_MAX_SEGMENTS);
+    GENERATE("torus %g %g %d %d", sk_mesh_shape_torus(radius, thickness, rings, segments, &shape), radius,
+             thickness, rings, segments);
 }
 
 static sk_handle_t find_mesh(const char *path)

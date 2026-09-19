@@ -341,6 +341,15 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       formats (HDR/float) for post-processing, full-screen shader passes, reading
       pixels back / screenshots
 
+- [x] Generated meshes (2026-09-20): `sk_mesh_create_plane/cube/sphere/cylinder/cone/
+      capsule/torus`, resources deduplicated by their parameters, with normals, texture
+      coordinates and tangents (any material, normal maps and custom shaders included)
+      and picking; one white, non-metallic material slot. Geometry in
+      `src/sk_mesh_shapes.c` (pure, unit tested: winding, normals, bounds);
+      `examples/meshes.c`; the shaders example's floor and spheres use them
+- [ ] Generated meshes later: height maps (from an image: a path, so a resource like a
+      loaded mesh), and other shapes when something needs them
+
 ## Materials: glTF coverage
 
 Done (2026-09-16, verified against Khronos TextureTransformTest, MultiUVTest,
