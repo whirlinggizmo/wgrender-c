@@ -59,9 +59,10 @@ Lessons from librl not yet addressed (design for these; don't repeat them):
 
 - **Networking and async vs sync got convoluted.** librl grew sync and async
   variants side by side, with fetching mixed into asset loading. For libsk: one
-  async model (callbacks through the managed task queue, no sync twins), and all
-  network I/O behind a single module (`sk_net`, see Future) that `sk_asset` calls.
-  Settle that design before adding desktop HTTP fetch.
+  async model (callbacks through the managed task queue, no sync twins). Decided
+  (2026-09-20): libsk's networking is **assets** only: downloads inside `ensure`,
+  asset redirects, host ping. WebSockets and general networking live **outside
+  libsk** (see Future).
 - **No way to leave out subsystems to shrink the wasm build.** libsk has the same
   problem today: `src/sk.c` calls every subsystem's init/tick/deinit directly, and
   the web build compiles every `src/*.c` into each bundle, so audio, models
@@ -130,11 +131,14 @@ functions (value returns instead), public `fs_*` (internal; see
 
 ## Deferred (real value; build when forced or as lower priority)
 
-- **Desktop network-fetch fallback** — on web a local cache miss fetches over
-  HTTP (sokol_fetch/XHR); on **desktop** sokol_fetch is file-I/O only, so a local
-  miss currently just fails (TODO in `sk_asset_tick`). Adding HTTP on desktop
-  needs a real client (libcurl or similar). Deferred until desktop-fetch is
-  actually wanted.
+- **Desktop asset downloads** — on web a local cache miss downloads over HTTP
+  (sokol_fetch, which reads only local files on native platforms and is compiled only
+  into web builds); on **desktop** a local miss just fails (TODO in
+  `sk_asset_tick`). Plan: the OS's HTTP clients (WinHTTP on Windows, NSURLSession on
+  macOS, libcurl on Linux, where it comes with the system), so HTTPS needs no bundled
+  TLS library, plus a hook to fetch a missing file some other way. Deferred until
+  desktop downloads are wanted. (Asset redirects and host ping are core asset features
+  on every platform, web first, and don't wait for this; see TASKS.)
 - **GPU resource residency** — decouple upload from create + optional LRU/budget.
   See [PLAN-resource-residency.md](PLAN-resource-residency.md). Phase 1 (decouple
   upload, `warm`/`evict`) is cheap and useful; the LRU/VRAM-budget machinery is
@@ -184,7 +188,12 @@ functions (value returns instead), public `fs_*` (internal; see
 
 ## Future
 
-- **`sk_net`** (HTTP fetch, later websockets) — the web fetch inside `ensure` is
-  really a network primitive; eventually `sk_asset` would call `sk_net` instead of
-  sokol_fetch directly. Revisit when networking features land. (Also the natural
-  home for the desktop-fetch fallback above.)
+- **Networking outside libsk** (decided 2026-09-20): WebSockets and general
+  networking (HTTP APIs, multiplayer) as a separate library and repo built on libsk's
+  public API, like scripting and bindings. Why: they're game-specific; secure
+  WebSockets on desktop need a bundled TLS library (mbedTLS or similar) with its own
+  security updates; message payloads (binary data) don't fit libsk's handle-only API
+  rules; and they need nothing from libsk's internals (poll from the frame callback,
+  deliver on the main thread). librl's WebSocket code (`deps/wgutils/src/websocket`:
+  the browser's WebSocket on web, a socket thread on desktop, no TLS) is the starting
+  point. It can also supply libsk's missing-file hook (above).

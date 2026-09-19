@@ -130,8 +130,9 @@ bool  sk_model_is_ready(sk_handle_t model);   /* has a loaded mesh (handles are 
 - `rl_asset_get_host` → `const char *sk_asset_get_host(void)`.
 - `rl_asset_ensure_many_async` → belongs to the loading pipeline (next roadmap item):
   a task group with a handle-only API. Move there.
-- `rl_asset_ping_host` (latency to the asset host) → belongs to the `sk_net` redesign.
-  Move there.
+- `rl_asset_ping_host` (latency to the asset host) → a core asset feature, made
+  asynchronous (the `sk_net` module was dropped: networking beyond assets lives
+  outside libsk). Web first; desktop once it downloads.
 
 ## 7. Small leftovers (5 todos)
 
@@ -163,7 +164,7 @@ bool  sk_model_is_ready(sk_handle_t model);   /* has a loaded mesh (handles are 
 5. **Model animation:** durations and times in seconds instead of frames;
    `sk_model_is_ready`; drop the placeholder model. Recommend: yes.
 6. **Assets:** add `sk_asset_get_host`; move batch ensure to the loading pipeline
-   and ping to `sk_net`. Recommend: yes.
+   and make ping asynchronous in the asset layer. Recommend: yes.
 7. **Leftovers:** pan, sprite3d getters, FPS text with a font; drop
    `font_get_default` and `texture_draw_ground`. Recommend: yes.
 

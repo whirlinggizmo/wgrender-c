@@ -205,7 +205,8 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       window exists, so a hidden window can show for a moment first
 - [x] Assets: ensure many files at once: asset groups (`sk_asset_group_create`,
       `sk_asset_group_add`) with `sk_asset_get_progress`
-- [ ] Assets: host ping (with the `sk_net` rework)
+- [ ] Assets: host ping, in the core: asynchronous (a callback with the latency, not
+      librl's blocking call), web first; desktop once it downloads (ROADMAP "Deferred")
 
 ## Parity outside the API
 
@@ -345,7 +346,9 @@ VertexColorTest, TextureSettingsTest and BoxTextured on desktop, WebGL2, WebGPU)
       `sk_texture_set_placeholder`), data textures stay empty. Missing buffers still
       fail. Ensured dependencies can be optional.
 - [ ] Redirect where assets and their dependencies load from (CDN, mods, localized
-      files), e.g. `sk_asset_set_redirect(fn)`; design with the `sk_net` rework
+      files), e.g. `sk_asset_set_redirect(fn)`: in the core, on every platform (on web
+      it rewrites the URL before downloading; like the internal path mapper that picks
+      compressed textures)
 
 Not supported yet:
 
@@ -367,7 +370,9 @@ Not supported yet:
 
 ## Lessons from librl to design for
 
-- [ ] Networking: one async model and a single `sk_net` module under `sk_asset`
+- [x] Networking decided (2026-09-20): libsk fetches assets only (desktop HTTP(S)
+      through the OS's clients, deferred); WebSockets and general networking go in a
+      separate library outside libsk (ROADMAP "Future")
 - [x] Web size (2026-09-17): web builds weren't link-optimized (no -O: no wasm-opt,
       unminified JS, assertions) and carried all three backends' shader sources.
       Now -O3 (WEB_DEBUG=1 for debug builds) and sokol-shdc --ifdef: simple went

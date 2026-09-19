@@ -100,8 +100,9 @@ Keep this file short and rule-shaped. The authoritative design doc is
   does and what went wrong with its design, then propose the libsk design (it may
   be fewer, different, or merged functions). Don't mirror librl signatures by
   default. Record the outcome in `tools/parity.map`.
-- **Keep the core a plain C library.** Scripting hosts and language bindings are
-  separate modules/repos built on the public API; don't add them here.
+- **Keep the core a plain C library.** Scripting hosts, language bindings and
+  networking beyond asset downloads (WebSockets, HTTP APIs, multiplayer) are separate
+  modules/repos built on the public API; don't add them here.
 
 ## Resource / Object model
 
