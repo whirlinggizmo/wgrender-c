@@ -8,7 +8,8 @@
  * The steady ones are prewarmed, so they're already going when they appear. Click or tap anywhere for a 2D confetti burst there: squares cut from
  * the middle of the particle texture (so their spin shows), each tinted by a color
  * picked from the emitter's palette. Space pauses the
- * steady emitters; the particles alive finish their lives. */
+ * steady emitters; the particles alive finish their lives. The camera turns slowly
+ * around the scene (O stops and restarts it). */
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -28,6 +29,11 @@ static sk_handle_t g_flame;
 static sk_handle_t g_confetti;
 static bool g_paused;
 static float g_time;
+static bool g_orbit = true;
+static float g_orbit_angle; /* radians around the fountain; holds while the orbit is stopped */
+
+#define ORBIT_RADIUS 16.0f
+#define ORBIT_SPEED 0.15f /* radians per second */
 
 static void make_fountain(sk_handle_t texture)
 {
@@ -217,6 +223,14 @@ static void frame(float dt, float tick_fraction, void *user_data)
     if (sk_input_get_key(SK_KEY_SPACE) == SK_BUTTON_PRESSED && g_fountain != 0) {
         set_paused(!g_paused);
     }
+    if (sk_input_get_key(SK_KEY_O) == SK_BUTTON_PRESSED) {
+        g_orbit = !g_orbit;
+    }
+    if (g_orbit) {
+        g_orbit_angle += dt * ORBIT_SPEED;
+    }
+    sk_camera3d_set_view(g_camera, ORBIT_RADIUS * sinf(g_orbit_angle), 6.0f, ORBIT_RADIUS * cosf(g_orbit_angle), 0.0f,
+                         3.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
     sk_render_begin();
     sk_render_clear_background(sk_color_rgba(14, 16, 24, 255));
@@ -228,8 +242,9 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_scene_draw(g_scene);
 
     sk_text_draw("libsk + sokol — particles", 12, 36, 24, SK_COLOR_RAYWHITE);
-    sk_text_draw(g_paused ? "click / tap: confetti   space: resume" : "click / tap: confetti   space: pause",
-                 12, 70, 16, SK_COLOR_LIGHTGRAY);
+    snprintf(line, sizeof(line), "click / tap: confetti   space: %s   O: %s the camera",
+             g_paused ? "resume" : "pause", g_orbit ? "stop" : "turn");
+    sk_text_draw(line, 12, 70, 16, SK_COLOR_LIGHTGRAY);
     snprintf(line, sizeof(line), "fountain %d   sparks %d   flame %d   smoke %d   confetti %d",
              sk_emitter3d_get_count(g_fountain), sk_emitter3d_get_count(g_sparks), sk_emitter3d_get_count(g_flame),
              sk_emitter3d_get_count(g_smoke), sk_emitter2d_get_count(g_confetti));
