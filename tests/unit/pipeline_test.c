@@ -614,3 +614,108 @@ void test_pipeline_ktx_fallback(void)
     sk_texture_set_ktx_support(-1);
     stop_assets();
 }
+
+/* ------------------------------------------------------------ redirects ---- */
+
+#define REDIRECT_DIR "build/redirect"
+
+static struct {
+    int calls;
+    float ms[4];
+    char host[4][256];
+} pinged;
+
+static void on_ping(const char *host, float milliseconds, void *user)
+{
+    (void)user;
+    if (pinged.calls < 4) {
+        pinged.ms[pinged.calls] = milliseconds;
+        snprintf(pinged.host[pinged.calls], sizeof(pinged.host[0]), "%s", host);
+    }
+    pinged.calls++;
+}
+
+/* Redirect rules stack (the newest first, then the file itself), a file missing under
+ * a rule falls through, a model's files are found through the rules too, and a
+ * download rule leaves desktop loading alone. */
+void test_pipeline_redirects(void)
+{
+    static const char *dirs[] = {"build", REDIRECT_DIR, REDIRECT_DIR "/textures", REDIRECT_DIR "/models",
+                                 REDIRECT_DIR "/mods", REDIRECT_DIR "/mods/base", REDIRECT_DIR "/mods/base/textures",
+                                 REDIRECT_DIR "/mods/top", REDIRECT_DIR "/mods/top/textures",
+                                 REDIRECT_DIR "/mods/top/models"};
+    for (size_t i = 0; i < sizeof(dirs) / sizeof(dirs[0]); i++) CHECK(make_dir(dirs[i]));
+    /* flame.png is 256x256, noise.png 128x128: the size says which file loaded */
+    CHECK(copy_file("../examples/assets/textures/flame.png", REDIRECT_DIR "/textures/only_base.png"));
+    CHECK(copy_file("../examples/assets/textures/flame.png", REDIRECT_DIR "/textures/both.png"));
+    CHECK(copy_file("../examples/assets/textures/noise.png", REDIRECT_DIR "/mods/base/textures/both.png"));
+    CHECK(copy_file("../examples/assets/textures/noise.png", REDIRECT_DIR "/mods/top/textures/top.png"));
+    CHECK(copy_file("../examples/assets/textures/flame.png", REDIRECT_DIR "/textures/top.png"));
+    CHECK(copy_file("../examples/assets/textures/flame.png", REDIRECT_DIR "/models/tex.png"));
+    CHECK(copy_file("../examples/assets/textures/noise.png", REDIRECT_DIR "/mods/top/models/tex.png"));
+    FILE *f = fopen(REDIRECT_DIR "/models/m.gltf", "wb");
+    CHECK(f != NULL);
+    if (f == NULL) return;
+    fputs(KTX_GLTF, f); /* a triangle with tex.png (tex.ktx isn't used: no compressed formats here) */
+    fclose(f);
+
+    start_assets(0, REDIRECT_DIR);
+    sk_logger_set_level(SK_LOGGER_LEVEL_ERROR);
+    CHECK(!sk_asset_add_redirect("", "x/"));
+    CHECK(sk_asset_add_redirect("textures/", "mods/base/textures/"));
+    CHECK(sk_asset_add_redirect("textures/", "mods/top/textures/")); /* added last: tried first */
+    CHECK(sk_asset_add_redirect("models/", "mods/top/models/"));
+    CHECK(sk_asset_add_redirect("models/", "https://cdn.example.com/models/")); /* web only; ignored here */
+
+    load("textures/only_base.png", SK_ASSET_NONE, on_texture); /* in no mod: the file itself */
+    CHECK(run_until_done() > 0);
+    CHECK(got.successes == 1 && strstr(got.path, "mods/") == NULL);
+    CHECK(sk_texture_get_size(got.texture).x == 256.0f);
+    sk_texture_release(got.texture);
+
+    load("textures/both.png", SK_ASSET_NONE, on_texture); /* only in base: top falls through to it */
+    CHECK(run_until_done() > 0);
+    CHECK(got.successes == 2 && strstr(got.path, "mods/base/textures/both.png") != NULL);
+    CHECK(sk_texture_get_size(got.texture).x == 128.0f);
+    sk_texture_release(got.texture);
+
+    load("textures/top.png", SK_ASSET_NONE, on_texture); /* in top: wins over the file itself */
+    CHECK(run_until_done() > 0);
+    CHECK(got.successes == 3 && strstr(got.path, "mods/top/textures/top.png") != NULL);
+    sk_texture_release(got.texture);
+
+    load("textures/nowhere.png", SK_ASSET_NONE, on_texture);
+    sk_logger_set_level(SK_LOGGER_LEVEL_FATAL); /* the failure logs an error */
+    CHECK(run_until_done() > 0);
+    sk_logger_set_level(SK_LOGGER_LEVEL_ERROR);
+    CHECK(got.successes == 3 && got.failures == 1);
+
+    /* the model is only in models/, its image is overridden in the mod */
+    load("models/m.gltf", SK_ASSET_NONE, on_mesh);
+    CHECK(run_until_done() > 0);
+    CHECK(got.successes == 4 && got.mesh != 0);
+    const sk_material_t *material = sk_material_get(sk_mesh_get_material(got.mesh, 0));
+    CHECK(material != NULL && sk_texture_get_size(material->textures[SK_MATERIAL_TEXTURE_BASE_COLOR].texture).x == 128.0f);
+    sk_mesh_release(got.mesh);
+
+    sk_asset_clear_redirects();
+    load("textures/top.png", SK_ASSET_NONE, on_texture);
+    CHECK(run_until_done() > 0);
+    CHECK(got.successes == 5 && strstr(got.path, "mods/") == NULL);
+    sk_texture_release(got.texture);
+
+    /* ping (desktop: the host is a directory) */
+    memset(&pinged, 0, sizeof(pinged));
+    CHECK(!sk_asset_ping_host(NULL, 0, NULL, NULL));
+    CHECK(sk_asset_ping_host(NULL, 0, on_ping, NULL));
+    CHECK(sk_asset_ping_host(REDIRECT_DIR "/missing", 0, on_ping, NULL));
+    CHECK(sk_asset_ping_host("https://example.com", 0, on_ping, NULL));
+    CHECK(pinged.calls == 0); /* on a later tick */
+    sk_asset_tick();
+    CHECK(pinged.calls == 3);
+    CHECK(pinged.ms[0] == 0.0f && strcmp(pinged.host[0], REDIRECT_DIR) == 0);
+    CHECK(pinged.ms[1] < 0.0f && pinged.ms[2] < 0.0f);
+
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    stop_assets();
+}

@@ -95,6 +95,7 @@ static const test_case_t TESTS[] = {
     {"ktx_load", test_ktx_load},
     {"pipeline_gltf_ktx", test_pipeline_gltf_ktx},
     {"pipeline_ktx_fallback", test_pipeline_ktx_fallback},
+    {"pipeline_redirects", test_pipeline_redirects},
     {"text_default_font", test_text_default_font},
     {"text_slices_and_dpi", test_text_slices_and_dpi},
     {"text_font_refcount", test_text_font_refcount},

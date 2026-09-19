@@ -353,6 +353,23 @@ static void on_ready(const char *path, void *user) {
 sk_asset_add_task(sk_asset_ensure_async(path, NULL, SK_ASSET_NONE), on_ready, on_failed, ctx);
 ```
 
+**The path is logical; the asset layer decides which file it is.** Ensuring
+`textures/rock.png` may load another file, tried in order until one exists:
+
+1. **Redirects** (`sk_asset_add_redirect`): path rules stack, newest first, so a mod
+   or a translation overrides only the files it has; the file's own path comes last.
+2. **Device variants** (path mappers, `src/internal/sk_loader.h`): `rock.ktx` becomes
+   the compressed file this GPU can sample, falling back to `rock.png`
+   ([PLAN-textures.md](PLAN-textures.md)).
+3. **Where it downloads from** (web): the asset host, or a redirect's URL (a CDN); the
+   file is still cached and named by its path.
+
+The callback receives the file actually found, and files it references (a glTF's
+buffers and images) resolve the same way: the loader reads them from where the asset
+layer found them (`sk_asset_found_path`). Direct `sk_*_create(path)` calls load the
+path as given. Networking beyond this (WebSockets, HTTP APIs) is outside libsk
+([ROADMAP.md](ROADMAP.md)).
+
 ---
 
 ## 7b. Core and optional subsystems

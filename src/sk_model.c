@@ -914,11 +914,32 @@ static void load_materials(sk_mesh_t *mesh, const cgltf_data *g, sk_gltf_texture
     }
 }
 
+/* cgltf reads buffer files through these, so they come from where sk_asset found them. */
+static cgltf_result read_gltf_file(const cgltf_memory_options *memory, const cgltf_file_options *file, const char *path,
+                                   cgltf_size *size, void **data)
+{
+    int n = 0;
+    (void)memory;
+    (void)file;
+    *data = read_file_bytes(path, &n);
+    *size = (cgltf_size)n;
+    return *data != NULL ? cgltf_result_success : cgltf_result_file_not_found;
+}
+
+static void release_gltf_file(const cgltf_memory_options *memory, const cgltf_file_options *file, void *data,
+                              cgltf_size size)
+{
+    (void)memory;
+    (void)file;
+    (void)size;
+    free(data);
+}
+
 /* Parse a glTF file into a mesh's CPU data (any thread). On success `*gltf` stays
  * loaded for creating the materials. */
 static bool parse_model(sk_mesh_t *mesh, const unsigned char *data, int size, const char *path, cgltf_data **gltf)
 {
-    cgltf_options options = {0};
+    cgltf_options options = {.file = {.read = read_gltf_file, .release = release_gltf_file}};
     cgltf_data *g = NULL;
     int total = 0, idx = 0;
 
@@ -1540,7 +1561,11 @@ static unsigned char *read_file_bytes(const char *path, int *out_size)
     long size;
     unsigned char *bytes;
 
+    char found[512];
     *out_size = 0;
+    if (path != NULL && sk_asset_found_path(path, found, sizeof(found))) {
+        path = found; /* the asset layer found it elsewhere (a redirect, a fallback) */
+    }
     if (path == NULL || (f = fopen(path, "rb")) == NULL) {
         return NULL; /* callers report it */
     }

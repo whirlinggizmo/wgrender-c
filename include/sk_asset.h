@@ -94,6 +94,41 @@ bool sk_asset_group_add(sk_handle_t group, sk_handle_t task);
  * finished. 1 once the task has completed (its handle is no longer live). */
 float sk_asset_get_progress(sk_handle_t task);
 
+/* Redirects: load files from somewhere else, for mods, translations or a CDN.
+ * Files whose path starts with `prefix` are looked for under `target` instead:
+ *
+ *   sk_asset_add_redirect("textures/", "mods/hd/textures/");
+ *       textures/rock.png loads mods/hd/textures/rock.png if it exists, else
+ *       textures/rock.png
+ *   sk_asset_add_redirect("models/", "https://cdn.example.com/game/models/");
+ *       a target with "://" is where the file downloads from (web; desktop builds
+ *       don't download yet): it's still cached and loaded as models/...
+ *
+ * Rules stack: every path rule matching a file is tried, the one added last first,
+ * then the file's own path, so later rules sit on top (a mod over a mod, fr-CA over
+ * fr). A missing file under a path rule isn't an error; the next one is tried (on
+ * the web that costs a request). A download rule doesn't stack: the newest one
+ * matching a path is where it downloads from. Prefixes are plain text, matched at
+ * the start of the path ("textures/", not "*.png").
+ *
+ * Redirects apply to files ensured with sk_asset_ensure_async (without an explicit
+ * fetch_url) and the files they reference (a model's buffers and images, found next
+ * to wherever the model came from); the callback gets the path of the file found.
+ * Direct sk_*_create(path) calls load the path they're given. Up to 32 rules; false
+ * when full or given an empty prefix or target. */
+bool sk_asset_add_redirect(const char *prefix, const char *target);
+void sk_asset_clear_redirects(void);
+
+/* Ping an asset host: `on_done` fires on a later frame with the round trip in
+ * milliseconds, or a negative value when it can't be reached within `timeout_ms`
+ * (<= 0: 5000). `host` NULL pings the current one (sk_asset_set_host). On the web
+ * it's a HEAD request to the host (any response counts, even a 404; another origin
+ * needs no CORS headers). On desktop the host is a local directory: 0 if it exists,
+ * negative if not (or a URL: desktop builds don't download yet). False when
+ * `on_done` is NULL or 8 pings are already waiting. */
+typedef void (*sk_asset_ping_fn)(const char *host, float milliseconds, void *user_data);
+bool sk_asset_ping_host(const char *host, int timeout_ms, sk_asset_ping_fn on_done, void *user_data);
+
 /* Milliseconds per frame spent finishing loads on the main thread (GPU uploads),
  * default 4. At least one step runs each frame, so one large texture can exceed
  * it: a 4096x4096 texture is one upload of ~45 ms. */

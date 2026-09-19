@@ -34,6 +34,12 @@ void sk_asset_register_dependencies(const char *extension, sk_asset_dependencies
  * A leading "/" in base_path is kept. Pure; exposed for tests. */
 bool sk_asset_join_relative(const char *base_path, const char *uri, char *out, size_t out_size);
 
+/* Where the asset layer found the file at local path `local` (a redirect or a
+ * fallback, sk_asset_add_redirect), into `out`: true if elsewhere, else `local` as
+ * it is. Loaders reading the files a file references (a glTF's buffers and images)
+ * look them up here. Any thread. */
+bool sk_asset_found_path(const char *local, char *out, size_t out_size);
+
 /* True when `uri` names a file relative to the referencing file; false for
  * "data:" URIs, absolute URLs ("scheme://...") and absolute paths. */
 bool sk_asset_is_relative_uri(const char *uri);

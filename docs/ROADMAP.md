@@ -138,8 +138,8 @@ functions (value returns instead), public `fs_*` (internal; see
   `sk_asset_tick`). Plan: the OS's HTTP clients (WinHTTP on Windows, NSURLSession on
   macOS, libcurl on Linux, where it comes with the system), so HTTPS needs no bundled
   TLS library, plus a hook to fetch a missing file some other way. Deferred until
-  desktop downloads are wanted. (Asset redirects and host ping are core asset features
-  on every platform, web first, and don't wait for this; see TASKS.)
+  desktop downloads are wanted. (Asset redirects and host ping are done, in the core;
+  their download rules and URL pings start working on desktop with this.)
 - **GPU resource residency** — decouple upload from create + optional LRU/budget.
   See [PLAN-resource-residency.md](PLAN-resource-residency.md). Phase 1 (decouple
   upload, `warm`/`evict`) is cheap and useful; the LRU/VRAM-budget machinery is

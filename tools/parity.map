@@ -35,7 +35,7 @@ rl_asset_ensure_many_from_scratch_async dropped  scratch buffer
 rl_asset_finish_task                    dropped  managed task queue fires callbacks (sk_asset_add_task)
 rl_asset_free_task                      dropped  managed task queue frees tasks
 rl_asset_get_task_path                  dropped  path is passed to the callback
-rl_asset_ping_host                      todo     host latency: core, asynchronous; web first (TASKS)
+rl_asset_ping_host                      ported   sk_asset_ping_host   asynchronous: a callback with the round trip (librl's blocked, and returned -1 on the web)
 rl_asset_poll_task                      dropped  managed task queue; callbacks instead of polling
 rl_asset_tick                           dropped  runtime ticks the asset queue each frame (internal sk_asset_tick)
 

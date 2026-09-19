@@ -205,8 +205,10 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       window exists, so a hidden window can show for a moment first
 - [x] Assets: ensure many files at once: asset groups (`sk_asset_group_create`,
       `sk_asset_group_add`) with `sk_asset_get_progress`
-- [ ] Assets: host ping, in the core: asynchronous (a callback with the latency, not
-      librl's blocking call), web first; desktop once it downloads (ROADMAP "Deferred")
+- [x] Assets: host ping (2026-09-20): `sk_asset_ping_host(host, timeout_ms, on_done,
+      user)`, asynchronous (librl's blocked, and did nothing on the web): a timed HEAD
+      request on the web (any response counts, no CORS needed); on desktop, whether the
+      asset directory exists
 
 ## Parity outside the API
 
@@ -352,10 +354,13 @@ VertexColorTest, TextureSettingsTest and BoxTextured on desktop, WebGL2, WebGPU)
       textures use the placeholder texture (built-in magenta checker,
       `sk_texture_set_placeholder`), data textures stay empty. Missing buffers still
       fail. Ensured dependencies can be optional.
-- [ ] Redirect where assets and their dependencies load from (CDN, mods, localized
-      files), e.g. `sk_asset_set_redirect(fn)`: in the core, on every platform (on web
-      it rewrites the URL before downloading; like the internal path mapper that picks
-      compressed textures)
+- [x] Asset redirects (2026-09-20): `sk_asset_add_redirect(prefix, target)` /
+      `sk_asset_clear_redirects`. Path rules stack, newest first, then the file itself,
+      so a file missing under a mod or a translation falls through (quietly; a 404 each
+      on the web); a target with "://" is where files download from (web). They apply to
+      ensured files and the files those reference: a model reads its buffers and images
+      from where the asset layer found them (`sk_asset_found_path`). Plain prefixes;
+      wildcards if a game needs them
 
 Not supported yet:
 

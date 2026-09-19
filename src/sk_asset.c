@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "internal/exports.h"
 #include "internal/sk_asset.h"
@@ -16,6 +17,7 @@
 #include "sk_logger.h"
 
 #ifdef __EMSCRIPTEN__
+#include <emscripten.h>
 #include "sokol_fetch.h"
 /* Stream the download in chunks (sokol_fetch issues HTTP Range GETs on web) and
  * accumulate into an exactly-sized buffer — no per-file cap, memory tracks the
@@ -53,8 +55,13 @@ enum { FETCH_PENDING = 0, FETCH_OK, FETCH_FAILED };
 typedef struct {
     char path[512];      /* logical key: cache path + default (host + path) source */
     char fetch_url[1024]; /* per-call source override (empty = use host + path) */
-    char fallback[512];   /* ensured instead when `path` is missing ("" = none) */
-    char fallback_url[1024]; /* its source, when fetch_url is set */
+    bool caller_url;      /* fetch_url is the caller's (or next to it), not from a redirect */
+    char origin[512];     /* the path as asked for, before redirects (dependencies: once each) */
+    struct sk_asset_candidate *candidates; /* tried in turn when `path` is missing (heap; NULL = none) */
+    int candidate_count, candidate_next; /* candidates[candidate_next - 1] is `path` (0: the first) */
+    int primary_count;    /* how many of the paths tried (first included) stand for `origin`; the rest for: */
+    char fallback_origin[512];
+    bool overlay;         /* `path` came from a redirect: missing is normal, not a warning */
     unsigned int flags;
     sk_asset_callback_fn on_success;
     sk_asset_callback_fn on_failure;
@@ -89,6 +96,13 @@ typedef struct {
     struct sk_asset_held *held; /* a group's members' resources, until its callbacks have run */
     int held_count, held_capacity;
 } sk_asset_task_t;
+
+/* Where a task looks for its file (sk_asset_add_redirect, path mappers). */
+typedef struct sk_asset_candidate {
+    char path[512];
+    char url[1024]; /* download source; "" = host + path */
+    bool overlay;
+} sk_asset_candidate_t;
 
 typedef struct sk_asset_held {
     const sk_loader_t *loader;
@@ -287,6 +301,272 @@ void sk_asset_register_path_mapper(const char *extension, sk_asset_path_mapper_f
     sk_asset_mappers[sk_asset_mapper_count++].map = map;
 }
 
+/* ------------------------------------------------------------ redirects */
+
+#define MAX_REDIRECTS 32
+static struct {
+    char prefix[256];
+    char target[512];
+    bool url; /* a download source ("scheme://..."), not another path */
+} sk_asset_redirects[MAX_REDIRECTS];
+static int sk_asset_redirect_count;
+
+SK_KEEP
+bool sk_asset_add_redirect(const char *prefix, const char *target)
+{
+    if (prefix == NULL || target == NULL || prefix[0] == '\0' || target[0] == '\0') {
+        log_warn("sk_asset_add_redirect: needs a prefix and a target");
+        return false;
+    }
+    if (sk_asset_redirect_count >= MAX_REDIRECTS || strlen(prefix) >= sizeof(sk_asset_redirects[0].prefix) ||
+        strlen(target) >= sizeof(sk_asset_redirects[0].target)) {
+        log_warn("sk_asset_add_redirect: too many redirects (%d), or too long", MAX_REDIRECTS);
+        return false;
+    }
+    snprintf(sk_asset_redirects[sk_asset_redirect_count].prefix, sizeof(sk_asset_redirects[0].prefix), "%s", prefix);
+    snprintf(sk_asset_redirects[sk_asset_redirect_count].target, sizeof(sk_asset_redirects[0].target), "%s", target);
+    sk_asset_redirects[sk_asset_redirect_count].url = strstr(target, "://") != NULL;
+#ifndef __EMSCRIPTEN__
+    if (sk_asset_redirects[sk_asset_redirect_count].url) {
+        log_warn("sk_asset_add_redirect: %s -> %s: desktop builds don't download yet; applies on the web", prefix,
+                 target);
+    }
+#endif
+    sk_asset_redirect_count++;
+    return true;
+}
+
+SK_KEEP
+void sk_asset_clear_redirects(void)
+{
+    sk_asset_redirect_count = 0;
+}
+
+static bool starts_with(const char *s, const char *prefix)
+{
+    return strncmp(s, prefix, strlen(prefix)) == 0;
+}
+
+/* Add `path` to `list` as the redirect rules see it: each path rule matching it,
+ * newest first, then the path itself; each with the download URL of the newest URL
+ * rule matching it. */
+static int expand(const char *path, sk_asset_candidate_t *list, int count, int max)
+{
+    for (int pass = 0; pass < 2; pass++) { /* 0: the rules' paths, 1: the path itself */
+        for (int r = pass == 0 ? sk_asset_redirect_count - 1 : -1; r >= -1 && count < max; r--) {
+            sk_asset_candidate_t *c = &list[count];
+            if (pass == 0 && (r < 0 || sk_asset_redirects[r].url || !starts_with(path, sk_asset_redirects[r].prefix))) {
+                continue;
+            }
+            if (pass == 0) {
+                if (snprintf(c->path, sizeof(c->path), "%s%s", sk_asset_redirects[r].target,
+                             path + strlen(sk_asset_redirects[r].prefix)) >= (int)sizeof(c->path)) {
+                    continue;
+                }
+            } else {
+                snprintf(c->path, sizeof(c->path), "%s", path);
+            }
+            c->overlay = pass == 0;
+            c->url[0] = '\0';
+            for (int u = sk_asset_redirect_count - 1; u >= 0; u--) {
+                if (sk_asset_redirects[u].url && starts_with(c->path, sk_asset_redirects[u].prefix)) {
+                    snprintf(c->url, sizeof(c->url), "%s%s", sk_asset_redirects[u].target,
+                             c->path + strlen(sk_asset_redirects[u].prefix));
+                    break;
+                }
+            }
+            count++;
+            if (pass == 1) break;
+        }
+    }
+    return count;
+}
+
+/* Where a task looks: `primary`, else `fallback` (or none), each through the
+ * redirects. The task starts at the first; the rest wait in its candidates. */
+static void plan(sk_asset_task_t *task, const char *primary, const char *fallback)
+{
+    const int max = 2 * (sk_asset_redirect_count + 1);
+    sk_asset_candidate_t *list = malloc(sizeof(sk_asset_candidate_t) * (size_t)max); /* too big for the stack */
+    int count;
+
+    if (list == NULL) { /* out of memory: the path as it is */
+        snprintf(task->path, sizeof(task->path), "%s", primary);
+        return;
+    }
+    count = expand(primary, list, 0, max);
+    task->primary_count = count;
+    if (fallback != NULL && fallback[0] != '\0') {
+        count = expand(fallback, list, count, max);
+        snprintf(task->fallback_origin, sizeof(task->fallback_origin), "%s", fallback);
+    }
+    snprintf(task->path, sizeof(task->path), "%s", list[0].path);
+    snprintf(task->fetch_url, sizeof(task->fetch_url), "%s", list[0].url);
+    task->overlay = list[0].overlay;
+    if (count > 1) { /* the rest wait, in the same buffer */
+        memmove(list, &list[1], sizeof(sk_asset_candidate_t) * (size_t)(count - 1));
+        task->candidates = list;
+        task->candidate_count = count - 1;
+    } else {
+        free(list);
+    }
+}
+
+/* ----------------------------------------------------------------- ping */
+
+#define MAX_PINGS 8
+#define PING_PENDING (-2.0f)
+typedef struct {
+    bool active;
+    int id;             /* web: the browser's request */
+    float result;       /* milliseconds, -1 unreachable, PING_PENDING */
+    char host[256];
+    sk_asset_ping_fn on_done;
+    void *user_data;
+} sk_asset_ping_t;
+static sk_asset_ping_t sk_asset_pings[MAX_PINGS];
+
+#ifdef __EMSCRIPTEN__
+/* A HEAD request to `url`, timed; any response counts (no-cors: a CDN needs no CORS
+ * headers for this). Returns an id for sk_asset_ping_poll. */
+EM_JS(int, sk_asset_ping_begin, (const char *url_c, int timeout_ms), {
+    if (!Module.sk_asset_pings) {
+        Module.sk_asset_pings = new Map();
+        Module.sk_asset_next_ping = 1;
+    }
+    const id = Module.sk_asset_next_ping++;
+    const start = performance.now();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout_ms);
+    Module.sk_asset_pings.set(id, -2);
+    fetch(UTF8ToString(url_c), {method: "HEAD", mode: "no-cors", cache: "no-store", signal: controller.signal})
+        .then(() => Module.sk_asset_pings.set(id, performance.now() - start))
+        .catch(() => Module.sk_asset_pings.set(id, -1))
+        .finally(() => clearTimeout(timer));
+    return id;
+});
+
+/* Milliseconds, -1 (failed), or -2 (still waiting). */
+EM_JS(double, sk_asset_ping_poll, (int id), {
+    const result = Module.sk_asset_pings ? Module.sk_asset_pings.get(id) : undefined;
+    if (result === undefined) return -1;
+    if (result !== -2) Module.sk_asset_pings.delete(id);
+    return result;
+});
+#endif
+
+SK_KEEP
+bool sk_asset_ping_host(const char *host, int timeout_ms, sk_asset_ping_fn on_done, void *user_data)
+{
+    int slot = -1;
+    if (!sk_asset_ready || on_done == NULL) return false;
+    for (int i = 0; i < MAX_PINGS && slot < 0; i++) {
+        if (!sk_asset_pings[i].active) slot = i;
+    }
+    if (slot < 0) {
+        log_warn("sk_asset_ping_host: %d pings already waiting", MAX_PINGS);
+        return false;
+    }
+    if (host == NULL) host = sk_asset_host;
+    if (timeout_ms <= 0) timeout_ms = 5000;
+    sk_asset_pings[slot] = (sk_asset_ping_t){.active = true, .on_done = on_done, .user_data = user_data};
+    snprintf(sk_asset_pings[slot].host, sizeof(sk_asset_pings[slot].host), "%s", host);
+#ifdef __EMSCRIPTEN__
+    char url[300];
+    snprintf(url, sizeof(url), "%s/", host); /* the host's root; a 404 still answers */
+    sk_asset_pings[slot].id = sk_asset_ping_begin(url, timeout_ms);
+    sk_asset_pings[slot].result = PING_PENDING;
+#else
+    /* desktop: the host is a local directory (no downloads yet) */
+    struct stat st;
+    if (strstr(host, "://") != NULL) {
+        log_warn("sk_asset_ping_host: %s: desktop builds don't download yet", host);
+        sk_asset_pings[slot].result = -1.0f;
+    } else {
+        sk_asset_pings[slot].result = stat(host[0] != '\0' ? host : ".", &st) == 0 && S_ISDIR(st.st_mode) ? 0.0f : -1.0f;
+    }
+#endif
+    return true;
+}
+
+/* Report finished pings (their callbacks may start more). */
+static void deliver_pings(void)
+{
+    for (int i = 0; i < MAX_PINGS; i++) {
+        if (!sk_asset_pings[i].active) continue;
+#ifdef __EMSCRIPTEN__
+        if (sk_asset_pings[i].result == PING_PENDING) {
+            const double result = sk_asset_ping_poll(sk_asset_pings[i].id);
+            if (result == PING_PENDING) continue;
+            sk_asset_pings[i].result = (float)result;
+        }
+#endif
+        char host[sizeof(sk_asset_pings[i].host)];
+        const sk_asset_ping_fn on_done = sk_asset_pings[i].on_done;
+        void *user_data = sk_asset_pings[i].user_data;
+        const float result = sk_asset_pings[i].result;
+        snprintf(host, sizeof(host), "%s", sk_asset_pings[i].host);
+        sk_asset_pings[i].active = false; /* free before the callback: it may ping again */
+        on_done(host, result, user_data);
+    }
+}
+
+/* Files found somewhere other than their own path (a redirect, a fallback), by local
+ * path: a model reads the files it references from where they were found
+ * (sk_asset_found_path, from loading workers). Under sk_asset_jobs.lock. */
+typedef struct {
+    char from[512];
+    char to[512];
+} sk_asset_found_t;
+static sk_asset_found_t *sk_asset_found;
+static int sk_asset_found_count, sk_asset_found_capacity;
+
+/* `origin` was found at `path` (the same path: forget any earlier redirect). */
+static void record_found(const char *origin, const char *path)
+{
+    char from[512], to[512];
+    int i;
+    sk_fs_resolve(origin, from, sizeof(from));
+    sk_fs_resolve(path, to, sizeof(to));
+    sk_mutex_lock(&sk_asset_jobs.lock);
+    for (i = 0; i < sk_asset_found_count && strcmp(sk_asset_found[i].from, from) != 0; i++) {
+    }
+    if (strcmp(from, to) == 0) {
+        if (i < sk_asset_found_count) sk_asset_found[i] = sk_asset_found[--sk_asset_found_count];
+    } else {
+        if (i == sk_asset_found_count && sk_asset_found_count == sk_asset_found_capacity) {
+            const int capacity = sk_asset_found_capacity > 0 ? sk_asset_found_capacity * 2 : 16;
+            sk_asset_found_t *grown = realloc(sk_asset_found, sizeof(sk_asset_found_t) * (size_t)capacity);
+            if (grown != NULL) {
+                sk_asset_found = grown;
+                sk_asset_found_capacity = capacity;
+            }
+        }
+        if (i < sk_asset_found_capacity) {
+            snprintf(sk_asset_found[i].from, sizeof(sk_asset_found[i].from), "%s", from);
+            snprintf(sk_asset_found[i].to, sizeof(sk_asset_found[i].to), "%s", to);
+            if (i == sk_asset_found_count) sk_asset_found_count++;
+        }
+    }
+    sk_mutex_unlock(&sk_asset_jobs.lock);
+}
+
+bool sk_asset_found_path(const char *local, char *out, size_t out_size)
+{
+    bool found = false;
+    snprintf(out, out_size, "%s", local != NULL ? local : "");
+    if (local == NULL || !sk_asset_jobs.lock_live) return false;
+    sk_mutex_lock(&sk_asset_jobs.lock);
+    for (int i = 0; i < sk_asset_found_count && !found; i++) {
+        if (strcmp(sk_asset_found[i].from, local) == 0) {
+            snprintf(out, out_size, "%s", sk_asset_found[i].to);
+            found = true;
+        }
+    }
+    sk_mutex_unlock(&sk_asset_jobs.lock);
+    return found;
+}
+
 void sk_asset_register_loader(const char *extension, const sk_loader_t *loader)
 {
     for (int i = 0; i < sk_asset_loader_count; i++) {
@@ -474,7 +754,7 @@ static void add_dependency(const char *uri, const char *fallback_uri, bool requi
     }
     for (uint16_t i = 1; i < sk_asset_pool.capacity; i++) { /* referenced twice: ensure once */
         if (sk_asset_pool.occupied[i] && sk_asset_tasks[i].parent == parent &&
-            strcmp(sk_asset_tasks[i].path, path) == 0) {
+            strcmp(sk_asset_tasks[i].origin, path) == 0) {
             return;
         }
     }
@@ -487,11 +767,25 @@ static void add_dependency(const char *uri, const char *fallback_uri, bool requi
     }
     task = resolve(handle);
     *task = (sk_asset_task_t){0};
-    snprintf(task->path, sizeof(task->path), "%s", path);
-    dependency_url(parent_task, uri, task->fetch_url, sizeof(task->fetch_url));
-    if (fallback_uri != NULL && sk_asset_is_relative_uri(fallback_uri) &&
-        sk_asset_join_relative(parent_task->path, fallback_uri, task->fallback, sizeof(task->fallback))) {
-        dependency_url(parent_task, fallback_uri, task->fallback_url, sizeof(task->fallback_url));
+    snprintf(task->origin, sizeof(task->origin), "%s", path);
+    char fallback[512] = "";
+    if (fallback_uri != NULL && sk_asset_is_relative_uri(fallback_uri)) {
+        sk_asset_join_relative(parent_task->path, fallback_uri, fallback, sizeof(fallback));
+    }
+    if (parent_task->caller_url) {
+        /* a file fetched from the caller's URL: its dependencies come from next to it */
+        task->caller_url = true;
+        snprintf(task->path, sizeof(task->path), "%s", path);
+        dependency_url(parent_task, uri, task->fetch_url, sizeof(task->fetch_url));
+        task->primary_count = 1;
+        snprintf(task->fallback_origin, sizeof(task->fallback_origin), "%s", fallback);
+        if (fallback[0] != '\0' && (task->candidates = calloc(1, sizeof(sk_asset_candidate_t))) != NULL) {
+            snprintf(task->candidates[0].path, sizeof(task->candidates[0].path), "%s", fallback);
+            dependency_url(parent_task, fallback_uri, task->candidates[0].url, sizeof(task->candidates[0].url));
+            task->candidate_count = 1;
+        }
+    } else {
+        plan(task, path, fallback);
     }
     task->flags = parent_task->flags;
     task->parent = parent;
@@ -541,20 +835,24 @@ sk_handle_t sk_asset_ensure_async(const char *path, const char *fetch_url,
     }
     task_ptr = resolve(handle);
     *task_ptr = (sk_asset_task_t){0};
-    strncpy(task_ptr->path, path, sizeof(task_ptr->path) - 1);
-    if (fetch_url == NULL) { /* a variant chosen for this device, say (sk_asset_register_path_mapper) */
-        for (int i = 0; i < sk_asset_mapper_count; i++) {
-            char mapped[sizeof(task_ptr->path)];
+    snprintf(task_ptr->origin, sizeof(task_ptr->origin), "%s", path);
+    if (fetch_url != NULL) { /* the caller chose the file: no redirects or variants */
+        snprintf(task_ptr->path, sizeof(task_ptr->path), "%s", path);
+        snprintf(task_ptr->fetch_url, sizeof(task_ptr->fetch_url), "%s", fetch_url);
+        task_ptr->caller_url = true;
+    } else {
+        char primary[512], fallback[512] = "";
+        snprintf(primary, sizeof(primary), "%s", path);
+        for (int i = 0; i < sk_asset_mapper_count; i++) { /* a variant chosen for this device, say */
+            char mapped[sizeof(primary)];
             if (has_extension(path, sk_asset_mappers[i].extension) &&
-                sk_asset_mappers[i].map(path, mapped, sizeof(mapped), task_ptr->fallback, sizeof(task_ptr->fallback))) {
-                snprintf(task_ptr->path, sizeof(task_ptr->path), "%s", mapped);
+                sk_asset_mappers[i].map(path, mapped, sizeof(mapped), fallback, sizeof(fallback))) {
+                snprintf(primary, sizeof(primary), "%s", mapped);
                 break;
             }
-            task_ptr->fallback[0] = '\0';
+            fallback[0] = '\0';
         }
-    }
-    if (fetch_url != NULL) {
-        strncpy(task_ptr->fetch_url, fetch_url, sizeof(task_ptr->fetch_url) - 1);
+        plan(task_ptr, primary, fallback);
     }
     task_ptr->flags = flags;
     return handle;
@@ -852,6 +1150,7 @@ static void complete(uint16_t i, bool ok)
     } else {
         sk_fs_resolve(task.path, local, sizeof(local));
     }
+    free(task.candidates);
     sk_asset_tasks[i] = (sk_asset_task_t){0};
     sk_handle_pool_free(&sk_asset_pool, handle);
     if (ok) {
@@ -927,6 +1226,12 @@ static void ready(uint16_t i, bool ok)
 static void resolved(uint16_t i, bool ok)
 {
     sk_asset_task_t *task = &sk_asset_tasks[i];
+    if (ok && task->origin[0] != '\0') {
+        record_found(task->origin, task->path);
+        if (task->candidate_next >= task->primary_count && task->fallback_origin[0] != '\0') {
+            record_found(task->fallback_origin, task->path);
+        }
+    }
     if (ok && !task->dependencies_started) {
         start_dependencies(i);
         task = &sk_asset_tasks[i]; /* it may have moved the tasks */
@@ -1020,11 +1325,17 @@ static void load(void)
  * texture's PNG, say). The task starts over on the next tick. */
 static bool use_fallback(sk_asset_task_t *task)
 {
-    if (task->fallback[0] == '\0') return false;
-    log_warn("Asset not found: %s; using %s instead", task->path, task->fallback);
-    snprintf(task->path, sizeof(task->path), "%s", task->fallback);
-    snprintf(task->fetch_url, sizeof(task->fetch_url), "%s", task->fallback_url);
-    task->fallback[0] = task->fallback_url[0] = '\0';
+    const sk_asset_candidate_t *next;
+    if (task->candidates == NULL || task->candidate_next >= task->candidate_count) return false;
+    next = &task->candidates[task->candidate_next++];
+    if (task->overlay) { /* a redirect without this file: normal for mods and translations */
+        log_debug("Asset %s not at %s; trying %s", task->origin, task->path, next->path);
+    } else {
+        log_warn("Asset not found: %s; using %s instead", task->path, next->path);
+    }
+    snprintf(task->path, sizeof(task->path), "%s", next->path);
+    snprintf(task->fetch_url, sizeof(task->fetch_url), "%s", next->url);
+    task->overlay = next->overlay;
     task->state = TASK_NEW;
     task->fetch_result = FETCH_PENDING;
     return true;
@@ -1034,7 +1345,11 @@ void sk_asset_tick(void)
 {
     /* Nothing can be ensured until storage is up (web: once the cache's list of
      * files is read; desktop: immediately). Tasks stay queued until then. */
-    if (!sk_asset_ready || !sk_fs_is_ready()) {
+    if (!sk_asset_ready) {
+        return;
+    }
+    deliver_pings();
+    if (!sk_fs_is_ready()) {
         return;
     }
 #ifdef __EMSCRIPTEN__
@@ -1113,6 +1428,10 @@ void sk_asset_deinit(void)
     sk_asset_job_t job;
 
     sk_asset_ready = false;
+    memset(sk_asset_pings, 0, sizeof(sk_asset_pings)); /* unreported: dropped */
+    sk_mutex_lock(&sk_asset_jobs.lock);
+    sk_asset_found_count = 0;
+    sk_mutex_unlock(&sk_asset_jobs.lock);
     /* Loads still in progress are dropped: queued jobs, prepared data, and resources
      * partly finished (their loader's discard releases what it created).
      * On web this runs on the browser's main thread when the app quits, where
@@ -1144,6 +1463,8 @@ void sk_asset_deinit(void)
         free(task->held);
         task->held = NULL;
         task->held_count = 0;
+        free(task->candidates);
+        task->candidates = NULL;
     }
     if (wait) {
         sk_cond_destroy(&sk_asset_jobs.wake);
