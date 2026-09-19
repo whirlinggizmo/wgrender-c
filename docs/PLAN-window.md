@@ -72,9 +72,11 @@ const char *sk_window_get_monitor_name(int monitor);
 ### Linux
 
 sokol_app is X11-only, so on Wayland desktops libsk runs through XWayland, where
-compositors ignore a program positioning its own window and may ignore resizing.
-Calls still return true (X11 accepted them); the window may not move. Documented,
-not worked around.
+compositors ignore a program positioning its own window. Built first as "return true,
+the window may not move"; changed (2026-09-19) so moves and `sk_window_set_monitor`
+return false there, and the position reads (0, 0): libsk finds XWayland by its X
+extension (`sapp_can_move_window`, `[libsk]` in sokol_utils) and logs why once.
+Resizing, fullscreen and hiding work.
 
 ## Window flags
 

@@ -165,14 +165,33 @@ bool sk_platform_set_window_size(int width, int height)
     return true;
 }
 
+/* Under XWayland the Wayland compositor places windows: moves are ignored, and the
+ * position X11 reports isn't where the window is. Say so, once. */
+static bool can_move(void)
+{
+    static bool logged;
+    if (sapp_can_move_window()) return true;
+    if (!logged) {
+        log_info("window: a Wayland desktop (XWayland) places windows: moving them and changing monitor "
+                 "aren't possible here");
+        logged = true;
+    }
+    return false;
+}
+
 bool sk_platform_set_window_position(int x, int y)
 {
+    if (!can_move()) return false;
     sapp_set_window_position(x, y);
     return true;
 }
 
 bool sk_platform_get_window_position(int *x, int *y)
 {
+    if (!can_move()) {
+        *x = 0, *y = 0;
+        return false;
+    }
     sapp_get_window_position(x, y);
     return true;
 }
@@ -183,7 +202,7 @@ int sk_platform_current_monitor(void) { return sapp_current_display(); }
 
 bool sk_platform_set_monitor(int monitor)
 {
-    if (monitor < 0 || monitor >= sapp_num_displays()) return false;
+    if (monitor < 0 || monitor >= sapp_num_displays() || !can_move()) return false;
     sapp_set_display(monitor);
     return true;
 }

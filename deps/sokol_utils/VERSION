@@ -13,3 +13,5 @@ sokol_utils https://github.com/squk/sokol_utils 65cbd2a6fbc2bd9a9eb716f1f478b6dc
 #   sapp_set_window_visible() and sapp_window_visible() (X11, Win32, macOS; web:
 #   visibility only), and a fixed size follows sapp_set_window_size() on X11: libsk's
 #   window flags (docs/PLAN-window.md, phase 2)
+# - added sapp_can_move_window(): false under XWayland (the XWAYLAND extension), where
+#   the compositor ignores a program's window moves

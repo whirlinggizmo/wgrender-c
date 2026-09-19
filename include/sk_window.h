@@ -53,6 +53,9 @@ vec2_t sk_window_get_screen_size(void);
  *     window (and may ignore resizing); the call still succeeds.
  *   - fullscreen on web only takes effect during a user gesture (a key or click). */
 bool   sk_window_set_size(int width, int height);
+/* Moving the window (and sk_window_set_monitor) needs a desktop that lets programs
+ * place their windows: not the web, and not a Wayland desktop (libsk runs there
+ * through XWayland, and the compositor places windows). There they return false. */
 bool   sk_window_set_position(int x, int y);
 vec2_t sk_window_get_position(void); /* (0, 0) where there's no position */
 bool   sk_window_set_fullscreen(bool fullscreen);

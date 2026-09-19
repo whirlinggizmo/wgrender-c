@@ -79,6 +79,10 @@ SOKOL_APP_UTILS_API_DECL void sapp_set_fullscreen(bool enable);
    after leaving fullscreen. */
 SOKOL_APP_UTILS_API_DECL void sapp_set_window_resizable(bool resizable);
 SOKOL_APP_UTILS_API_DECL void sapp_set_window_decorated(bool decorated);
+/* [libsk] whether moving the window (sapp_set_window_position, sapp_set_display) can
+   work: false on the web, and under XWayland, where the Wayland compositor places
+   windows and ignores a program's moves */
+SOKOL_APP_UTILS_API_DECL bool sapp_can_move_window(void);
 /* [libsk] show or hide the window (web: the canvas) */
 SOKOL_APP_UTILS_API_DECL void sapp_set_window_visible(bool visible);
 SOKOL_APP_UTILS_API_DECL bool sapp_window_visible(void);
@@ -697,6 +701,15 @@ _SOKOL_PRIVATE void _sapp_x11_set_window_decorated(bool decorated) {
   XFlush(_sapp.x11.display);
 }
 
+_SOKOL_PRIVATE bool _sapp_x11_can_move_window(void) {
+  static int answer = -1; /* the X server doesn't change */
+  if (answer < 0) {
+    int opcode, event, error;
+    answer = XQueryExtension(_sapp.x11.display, "XWAYLAND", &opcode, &event, &error) ? 0 : 1;
+  }
+  return answer == 1;
+}
+
 _SOKOL_PRIVATE void _sapp_x11_apply_size_hints(void) {
   XWindowAttributes attribs;
   XGetWindowAttributes(_sapp.x11.display, _sapp.x11.window, &attribs);
@@ -943,6 +956,16 @@ SOKOL_API_IMPL void sapp_set_window_decorated(bool decorated) {
   _sapp_x11_set_window_decorated(decorated);
 #else
   (void)decorated;
+#endif
+}
+
+SOKOL_API_IMPL bool sapp_can_move_window(void) {
+#if defined(_SAPP_MACOS) || defined(_SAPP_WIN32)
+  return true;
+#elif defined(_SAPP_LINUX)
+  return _sapp_x11_can_move_window();
+#else
+  return false;
 #endif
 }
 

@@ -10,8 +10,9 @@
  * The window is resizable (SK_WINDOW_FLAG_WINDOW_RESIZABLE); without that flag it
  * keeps its size, and =/- still change it.
  *
- * Under XWayland (Linux on a Wayland desktop) the compositor usually ignores moves.
- * On web the canvas is the window: resizing works, moving and other monitors don't. */
+ * On a Wayland desktop (Linux, through XWayland) the compositor places windows:
+ * moving and changing monitor report "not supported here". On web the canvas is the
+ * window: resizing works, moving and other monitors don't. */
 #include <stdio.h>
 
 #include "sk.h"
