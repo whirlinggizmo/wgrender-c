@@ -59,12 +59,19 @@ ifeq ($(WEB_DEBUG),1)
   WEB_DIR           := $(WEB_DIR)-debug
   WEB_OPT           := -O0 -g
   WASM_OPT_LINK     := -O0 -g -sASSERTIONS=1
+  WASM_RELEASE_DEFS :=
 else
   WEB_OPT           := -O2
-  WASM_OPT_LINK     := -O3
+  # Closure minifies the JS glue (45 -> 27 KB gzipped); only the browser and its
+  # workers run it
+  WASM_OPT_LINK     := -O3 --closure 1 -sENVIRONMENT=web,worker
+  # A release build: no C asserts, and no sokol validation layer (SOKOL_DEBUG follows
+  # NDEBUG), its checks and its messages. The desktop and headless builds keep both,
+  # and make smoke runs every example with them; WEB_DEBUG=1 builds keep them too.
+  WASM_RELEASE_DEFS := -DNDEBUG
 endif
 
-WASM_CFLAGS_BACKEND := $(WASM_DEFS) $(WASM_THREADS)
+WASM_CFLAGS_BACKEND := $(WASM_DEFS) $(WASM_RELEASE_DEFS) $(WASM_THREADS)
 # idbfs for persistent storage; FORCE_FILESYSTEM so the FS/IDBFS JS is linked;
 # grow memory for assets. (No -sJSPI: sapp_run owns the loop, so we can't suspend
 # in callbacks — sk_fs restore is a polled barrier, not an await. See PLAN-sk_fs.)

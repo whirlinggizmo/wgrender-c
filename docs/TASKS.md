@@ -347,9 +347,14 @@ Not supported yet:
       1112 -> 389 ms. Pixel over Wi-Fi: libsk's setup 80-186 -> 15-34 ms, first
       frame 422-816 -> 241-444 ms. README "Startup and hosting" lists the headers a
       host needs
-- [ ] Web size levers: Closure on the JS glue, emmalloc, `-sENVIRONMENT=web,worker`,
-      `-Oz`, browser-native image/audio decoders on web, optional subsystems (below);
-      the baked BRDF table costs ~14 KB gzipped (half floats barely compress)
+- [x] Web size, flags (2026-09-19): release web builds define NDEBUG (no sokol
+      validation layer or C asserts; desktop, headless and WEB_DEBUG builds keep them)
+      and run Closure on the JS glue with `-sENVIRONMENT=web,worker`: hello 361 -> 311
+      KB gzipped (wasm 316 -> 284, JS 45 -> 27). Measured and not worth it: `-Oz` at
+      link (-5 KB, slower code), emmalloc (-2 KB)
+- [ ] Web size, structure: link only the subsystems a program uses (optional
+      subsystems, below); browser-native image/audio decoders on web; the baked BRDF
+      table costs ~14 KB gzipped (half floats barely compress)
 - [ ] Explore (later, own session): libsk's C API as the contract with other
       implementations, e.g. a JS backend (three.js/Babylon) for JS-target games, or
       another implementation language (Zig, Odin, D betterC, Beef; engines like
