@@ -45,6 +45,27 @@ jobs:
       - name: Smoke test (every example headless)
         run: make smoke
 
+  # An EM_JS body is carried through the library as text and only compiled when an
+  # example *links* -- closure runs then. So the desktop job above, `make`, and
+  # `make verify` all pass on a web build that cannot link, and the first thing to
+  # notice is the pages deploy (it happened: "$0 is undeclared", a commit that was
+  # green here and red there). Linking one example on every push closes that.
+  web-link:
+    name: web (one example links)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
+        with:
+          path: emsdk-cache
+          key: emsdk-5.0.7-${{ runner.os }}
+      - uses: mymindstorm/setup-emsdk@v16
+        with:
+          version: 5.0.7
+          actions-cache-folder: emsdk-cache
+      - name: Link a web example (compiles every EM_JS body)
+        run: make -C examples wasm WASM_EXAMPLE=hello BACKEND=webgl2
+
   web:
     name: web (WebGL2 build + browser check)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
