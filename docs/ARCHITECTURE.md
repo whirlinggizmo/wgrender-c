@@ -371,7 +371,10 @@ wgr_asset_add_task(wgr_asset_ensure_async(path, NULL, WGR_ASSET_NONE), on_ready,
 The callback receives the file actually found, and files it references (a glTF's
 buffers and images) resolve the same way: the loader reads them from where the asset
 layer found them (`wgri_asset_found_path`). Direct `wgr_*_create(path)` calls load the
-path as given. Networking beyond this (WebSockets, HTTP APIs) is outside libwgrender
+path as given. On desktop a miss is a download when the host is a URL and the program
+supplied a fetcher (`wgr_asset_set_fetcher`): libwgrender names a URL and a destination
+file, the fetcher writes it, and bytes never cross the boundary — so the core carries no
+HTTP client and no TLS. Networking beyond this (WebSockets, HTTP APIs) is outside libwgrender
 ([ROADMAP.md](ROADMAP.md)).
 
 ---

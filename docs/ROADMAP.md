@@ -140,14 +140,18 @@ functions (value returns instead), public `fs_*` (internal; see
 
 ## Deferred (real value; build when forced or as lower priority)
 
-- **Desktop asset downloads** — on web a local cache miss downloads over HTTP
-  (sokol_fetch, which reads only local files on native platforms and is compiled only
-  into web builds); on **desktop** a local miss just fails (TODO in
-  `wgri_asset_tick`). Plan: the OS's HTTP clients (WinHTTP on Windows, NSURLSession on
-  macOS, libcurl on Linux, where it comes with the system), so HTTPS needs no bundled
-  TLS library, plus a hook to fetch a missing file some other way. Deferred until
-  desktop downloads are wanted. (Asset redirects and host ping are done, in the core;
-  their download rules and URL pings start working on desktop with this.)
+- **Desktop asset downloads: a built-in HTTP client** — the *hook* is done
+  (2026-09-20): a URL asset host plus `wgr_asset_set_fetcher` turns a desktop cache
+  miss into a download, the program supplies the downloader, and `examples/fetch.c`
+  wires one up in twenty lines. libwgrender still ships no HTTP and no TLS, which is
+  the point.
+  What is deferred is a *built-in* fetcher so nothing has to be supplied: the OS's own
+  clients (WinHTTP on Windows, NSURLSession on macOS, libcurl on Linux where it comes
+  with the system), so HTTPS needs no bundled TLS library. Worth doing when shipping a
+  game means "it just works with no glue"; until then the hook covers it, and wgnet's
+  `fetch_url` is the obvious thing to plug in.
+  Still stubbed on desktop: `wgr_asset_ping_host` (the hook has no ping) and URL
+  redirect rules.
 - **GPU resource residency** — decouple upload from create + optional LRU/budget.
   See [PLAN-resource-residency.md](PLAN-resource-residency.md). Phase 1 (decouple
   upload, `warm`/`evict`) is cheap and useful; the LRU/VRAM-budget machinery is

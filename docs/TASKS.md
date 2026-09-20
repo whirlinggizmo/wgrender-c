@@ -409,6 +409,15 @@ felt awkward, and the libwgrender design. Update `tools/parity.map` with the out
       write white there, where their tint has always been in wgr_color. .wgrshader format
       7 -> 8, the six example shaders repacked; older packs are refused, not drawn
       wrongly. A custom material no longer blocks batching
+- [x] Desktop downloads its assets (2026-09-20): a URL asset host is a fetch origin on
+      desktop too, and `wgr_asset_set_fetcher` lets the program supply the downloader --
+      libwgrender names a URL and a destination file, the fetcher writes it, bytes never
+      cross, so the core still has no HTTP and no TLS. Downloads land in a cache dir
+      (`wgr_asset_set_cache_dir`, default `.wgr-cache`) and the next run reads them
+      there, which is what the browser's cache does on web. examples/fetch.c shells out
+      to curl and pulls from the same `make serve` origin the web build uses; the unit
+      test needs no network, since a fetcher that writes the file itself satisfies the
+      whole contract. Still stubbed on desktop: ping and URL redirect rules
 - [ ] Lit particles: emitter particles are unlit — emitters have their own program
       (`particle` = vs_particle + the unlit `fs` in src/shaders/wgr_sprite.glsl) and no
       material API, so the only lit "particles" today are sprite3d objects moved by the

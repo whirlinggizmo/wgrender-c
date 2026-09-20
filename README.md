@@ -241,6 +241,12 @@ reference/librl the raylib library this evolves from (read-only reference)
   cost 0.6 ms to submit instead of 4.7; the shadow pass and custom material shaders
   batch them the same way.
   See `docs/PLAN-instancing.md` and `examples/instancing.c`.
+- Assets come from the same place on both platforms: give `wgr_asset_set_host` a URL
+  and a logical path resolves against it everywhere. The browser downloads and caches
+  it on web; on desktop libwgrender asks the program's fetcher
+  (`wgr_asset_set_fetcher`) to write the file, then caches it in a directory, so the
+  library carries no HTTP client and no TLS. See `examples/fetch.c`, which wires one up
+  with `curl` in twenty lines.
 - Frustum culling: a scene skips members the camera can't see, testing their bounds
   against the view before anything is submitted — 4000 models behind the camera cost
   0.5 ms a frame instead of 6.8. A caster whose shadow could still fall into view is

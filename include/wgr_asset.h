@@ -48,13 +48,34 @@ enum {
                                       resource its extension names (see below) */
 };
 
-/* Set the asset base that logical paths resolve against. On desktop this is a
- * local directory ("examples/assets"); on web it is the fetch origin
- * ("/assets/") that missing files are downloaded from and then cached. Pass the
- * same logical paths on both platforms; only the base differs. */
+/* Set the asset base that logical paths resolve against. A URL ("https://host/assets")
+ * is a fetch origin on both platforms: a missing file is downloaded from it and cached,
+ * on the web by the browser and on desktop by the fetcher below. Anything else is a
+ * local directory ("examples/assets"), as it has always been on desktop. Pass the same
+ * logical paths everywhere; only the base differs. */
 void wgr_asset_set_host(const char *host);
 /* The asset base set with wgr_asset_set_host (without a trailing slash), or "". */
 const char *wgr_asset_get_host(void);
+
+/* Where downloads land on desktop, and where later runs find them: a local directory,
+ * created as needed. Default ".wgr-cache". Ignored on the web, which caches in the
+ * browser. Set it before the first wgr_asset_set_host with a URL. */
+bool wgr_asset_set_cache_dir(const char *dir);
+
+/* Download a missing asset. libwgrender calls this when the host is a URL, the file
+ * isn't local yet, and there is no built-in fetcher for this platform (desktop):
+ * fetch `url` into `dest_path`, then call wgr_asset_fetch_done(request, ok). Finishing
+ * on a later tick is fine and expected -- nothing blocks meanwhile.
+ *
+ * Bytes never cross this boundary; a downloader deals in files, which is what curl,
+ * WinHTTP and NSURLSession all hand you anyway. The directories above `dest_path`
+ * already exist.
+ *
+ * Without a fetcher, a miss on desktop fails as it always has. */
+typedef void (*wgr_asset_fetch_fn)(wgr_handle_t request, const char *url,
+                                   const char *dest_path, void *user_data);
+bool wgr_asset_set_fetcher(wgr_asset_fetch_fn fn, void *user_data);
+bool wgr_asset_fetch_done(wgr_handle_t request, bool ok);
 
 /* Ensure an asset is locally available, then fire the callback with a directly
  * openable local path.

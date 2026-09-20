@@ -126,6 +126,15 @@ static wgr_asset_task_t *wgr_asset_tasks; /* grown by the pool: don't hold a poi
 static wgri_handle_pool_t wgr_asset_pool;
 static bool wgr_asset_ready = false;
 static char wgr_asset_host[256] = "";
+#ifndef __EMSCRIPTEN__
+/* Desktop downloads: the host is a URL, the app supplies the downloader, and the cache
+ * directory is both where a download lands and where the next run finds it -- the same
+ * job the browser's cache does on web (docs/PLAN-asset-fetch.md). */
+static wgr_asset_fetch_fn wgr_asset_fetcher;
+static void *wgr_asset_fetcher_user;
+static char wgr_asset_cache_dir[256] = ".wgr-cache";
+static bool wgr_asset_host_is_url;
+#endif
 static wgr_asset_format_t wgr_asset_formats[MAX_DEPENDENCY_FORMATS];
 static int wgr_asset_format_count;
 
@@ -162,6 +171,10 @@ static float wgr_asset_upload_budget_ms = DEFAULT_UPLOAD_BUDGET_MS;
 static uint32_t wgr_asset_finish_counter;
 
 static wgr_handle_t alloc_task(void);
+#ifndef __EMSCRIPTEN__
+static void resolved(uint16_t i, bool ok);            /* a task finished, well or badly */
+static bool use_fallback(wgr_asset_task_t *task);     /* another candidate path to try */
+#endif
 
 static wgr_asset_task_t *resolve(wgr_handle_t handle)
 {
@@ -180,10 +193,78 @@ void wgr_asset_set_host(const char *host)
     n = strlen(wgr_asset_host);
     while (n > 1 && wgr_asset_host[n - 1] == '/') wgr_asset_host[--n] = '\0';
 #ifndef __EMSCRIPTEN__
-    /* Desktop: the asset base IS the local root reads resolve against. */
-    wgri_fs_set_root(wgr_asset_host);
+    wgr_asset_host_is_url = strncmp(wgr_asset_host, "http://", 7) == 0 ||
+                            strncmp(wgr_asset_host, "https://", 8) == 0;
+    /* A URL is a fetch origin, so reads resolve against the cache instead; anything
+       else is the local directory it has always been. */
+    wgri_fs_set_root(wgr_asset_host_is_url ? wgr_asset_cache_dir : wgr_asset_host);
 #endif
 }
+
+#ifndef __EMSCRIPTEN__
+bool wgr_asset_fetch_done(wgr_handle_t request, bool ok)
+{
+    uint16_t i = 0;
+    wgr_asset_task_t *task;
+    if (!wgri_handle_pool_resolve(&wgr_asset_pool, request, &i)) {
+        return false; /* finished, cancelled, or never ours */
+    }
+    task = &wgr_asset_tasks[i];
+    if (task->state != TASK_FETCHING) {
+        return false; /* not a request we are waiting on */
+    }
+    task->state = TASK_NEW;
+    if (ok && wgri_fs_exists(task->path)) {
+        resolved(i, true);
+        return true;
+    }
+    log_warn("asset: fetching %s failed", task->path);
+    if (use_fallback(task)) {
+        return true; /* another candidate to try */
+    }
+    resolved(i, false);
+    return true;
+}
+
+bool wgr_asset_set_cache_dir(const char *dir)
+{
+    if (dir == NULL || *dir == '\0') {
+        return false;
+    }
+    snprintf(wgr_asset_cache_dir, sizeof(wgr_asset_cache_dir), "%s", dir);
+    if (wgr_asset_host_is_url) {
+        wgri_fs_set_root(wgr_asset_cache_dir);
+    }
+    return true;
+}
+
+bool wgr_asset_set_fetcher(wgr_asset_fetch_fn fn, void *user_data)
+{
+    wgr_asset_fetcher = fn;
+    wgr_asset_fetcher_user = user_data;
+    return true;
+}
+#else
+bool wgr_asset_set_cache_dir(const char *dir)
+{
+    (void)dir; /* the browser caches; there is no directory to choose */
+    return false;
+}
+
+bool wgr_asset_set_fetcher(wgr_asset_fetch_fn fn, void *user_data)
+{
+    (void)fn;
+    (void)user_data; /* sokol_fetch already downloads here */
+    return false;
+}
+
+bool wgr_asset_fetch_done(wgr_handle_t request, bool ok)
+{
+    (void)request;
+    (void)ok;
+    return false;
+}
+#endif
 
 WGRI_KEEP
 const char *wgr_asset_get_host(void)
@@ -1403,10 +1484,29 @@ void wgri_asset_tick(void)
         }
         start_fetch(i); /* miss (or forced): download, cache, resolve on later ticks */
 #else
-        /* Desktop has no network fetcher yet, so FORCE_FETCH is a no-op: resolve
-         * from the jailed local fs (miss = failure). Network fallback is TODO. */
-        if (!wgri_fs_exists(task->path) && use_fallback(task)) continue;
-        resolved(i, wgri_fs_exists(task->path));
+        /* Desktop: a hit resolves from the jailed local fs. A miss asks the app's
+         * fetcher, if the host is a URL and one is set; it answers on a later tick
+         * (wgr_asset_fetch_done). Without a fetcher a miss fails, as it always has. */
+        {
+            const bool have = wgri_fs_exists(task->path);
+            const bool forced = (task->flags & WGR_ASSET_FORCE_FETCH) != 0;
+            if (have && !forced) {
+                resolved(i, true);
+                continue;
+            }
+            if (wgr_asset_fetcher != NULL && wgr_asset_host_is_url) {
+                char url[1024], dest[1024];
+                snprintf(url, sizeof(url), "%s/%s", wgr_asset_host, task->path);
+                wgri_fs_resolve(task->path, dest, sizeof(dest));
+                wgri_fs_make_parents(task->path); /* the fetcher only has to write */
+                task->state = TASK_FETCHING;
+                wgr_asset_fetcher(wgri_handle_pool_handle_from_index(&wgr_asset_pool, i), url, dest,
+                                  wgr_asset_fetcher_user);
+                continue;
+            }
+            if (!have && use_fallback(task)) continue;
+            resolved(i, have);
+        }
 #endif
     }
     load();

@@ -137,6 +137,15 @@ static void resolve(const char *path, char *out, size_t out_size)
 }
 
 /* Create each parent directory of `full` (best effort). */
+static void mkdir_parents(const char *full);
+
+void wgri_fs_make_parents(const char *path)
+{
+    char full[1024];
+    wgri_fs_resolve(path, full, sizeof(full));
+    mkdir_parents(full);
+}
+
 static void mkdir_parents(const char *full)
 {
     char tmp[512];

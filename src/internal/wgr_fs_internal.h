@@ -37,6 +37,10 @@ void wgri_fs_read_free(unsigned char *data);
 /* Write a file (creating parent dirs); on web also keep it in the cache. */
 bool wgri_fs_write(const char *path, const unsigned char *data, int size);
 
+/* Create the directories above `path` (desktop), so something outside libwgrender --
+ * an asset fetcher writing a download -- can open it for writing. */
+void wgri_fs_make_parents(const char *path);
+
 /* Web: is `path` in the cache, readable into the local store? (Desktop: never.) */
 bool wgri_fs_is_cached(const char *path);
 
