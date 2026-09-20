@@ -326,11 +326,17 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       with Clay and draws it through ~100 lines of public-API glue
 - [ ] UI later (PLAN-ui step 4): clipboard and keyboard capture in use with text
       fields, letter spacing, the Dear ImGui extension hook
-- [ ] UI widgets (decided 2026-09-21, see ROADMAP "GUI direction"): factor the
-      hand-built button / slider / scroll list in `examples/ui.c` into a shared
-      `examples/ui_widgets.h`. No widget API in the core: a real widget layer belongs
-      outside it, like the Clay glue, and anything it can't express through the public
-      API (focus order, text-field editing, clipboard) is a core gap to fix there
+- [x] UI widgets (2026-09-21, decided as in ROADMAP "GUI direction"): the hand-built
+      button, progress bar and scrolling list moved out of `examples/ui.c` into a shared
+      `examples/ui_widgets.h` (a theme, `ui_button_*`, `ui_bar_*`, `ui_list_*`; each
+      widget labels on the layer above the one it's given). No widget API in the core: a
+      real widget layer belongs outside it, like the Clay glue, and anything it can't
+      express through the public API (focus order, text-field editing, clipboard) is a
+      core gap to fix there. `examples/ui.c` looks the same as before, bar an empty
+      progress bar no longer showing its knob
+- [ ] UI widgets later, if an example wants them: a slider that takes a value (the bar
+      only shows one), a checkbox, a text field (needs the clipboard and keyboard
+      capture above)
 - [x] Limits that grow (2026-09-18): the sprite3d and sprite2d pools start at 256
       and double up to 65,534 (the handle's 16-bit index); the scene's transparent
       list doubles as needed; sokol_gl's per-frame vertex and command budgets double
