@@ -126,17 +126,17 @@ export class RunProcesses {
         this.groups = [];
         this.stopped = false;
         const watchdog = spawn("sh", ["-c", `
-            while kill -0 "$LIBWGRENDER_WEB_NODE_PID" 2>/dev/null; do sleep 1; done
-            if [ -f "$LIBWGRENDER_WEB_PROFILE.groups" ]; then
-                for g in $(cat "$LIBWGRENDER_WEB_PROFILE.groups"); do kill -9 "-$g" 2>/dev/null; done  # no "--": dash rejects it
+            while kill -0 "$WGRENDER_WEB_NODE_PID" 2>/dev/null; do sleep 1; done
+            if [ -f "$WGRENDER_WEB_PROFILE.groups" ]; then
+                for g in $(cat "$WGRENDER_WEB_PROFILE.groups"); do kill -9 "-$g" 2>/dev/null; done  # no "--": dash rejects it
             fi
-            ps -eo pid=,comm=,args= | awk -v m="$LIBWGRENDER_WEB_PROFILE" '$2 != "sh" && $2 != "awk" && index($0, m) { print $1 }' |
+            ps -eo pid=,comm=,args= | awk -v m="$WGRENDER_WEB_PROFILE" '$2 != "sh" && $2 != "awk" && index($0, m) { print $1 }' |
                 xargs -r kill -KILL 2>/dev/null
-            rm -rf "$LIBWGRENDER_WEB_PROFILE" "$LIBWGRENDER_WEB_PROFILE.groups" "$LIBWGRENDER_WEB_PROFILE.log"
+            rm -rf "$WGRENDER_WEB_PROFILE" "$WGRENDER_WEB_PROFILE.groups" "$WGRENDER_WEB_PROFILE.log"
         `], {
             detached: true,
             stdio: "ignore",
-            env: { ...process.env, LIBWGRENDER_WEB_NODE_PID: String(process.pid), LIBWGRENDER_WEB_PROFILE: this.profile },
+            env: { ...process.env, WGRENDER_WEB_NODE_PID: String(process.pid), WGRENDER_WEB_PROFILE: this.profile },
         });
         watchdog.unref();
     }
