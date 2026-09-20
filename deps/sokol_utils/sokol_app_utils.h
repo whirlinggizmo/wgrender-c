@@ -1,8 +1,8 @@
 /*
-    [libsk] Modified copy of sokol_app_utils.h from https://github.com/squk/sokol_utils
+    [libwgrender] Modified copy of sokol_app_utils.h from https://github.com/squk/sokol_utils
     (commit 65cbd2a6fbc2bd9a9eb716f1f478b6dc37ba41c0), vendored under its zlib license
-    (LICENSE in this directory). This is not the original software: libsk's changes
-    are marked "[libsk]" and listed in VERSION.
+    (LICENSE in this directory). This is not the original software: libwgrender's changes
+    are marked "[libwgrender]" and listed in VERSION.
 */
 #if defined(SOKOL_IMPL) && !defined(SOKOL_APP_UTILS_IMPL)
 #define SOKOL_APP_UTILS_IMPL
@@ -68,22 +68,22 @@ SOKOL_APP_UTILS_API_DECL int sapp_current_display(void);
 SOKOL_APP_UTILS_API_DECL void sapp_set_display(int index);
 /* get the display name by index (only on desktop platforms) */
 SOKOL_APP_UTILS_API_DECL const char* sapp_display_name(int index);
-/* [libsk] top-left corner of a display in desktop coordinates (like the window position) */
+/* [libwgrender] top-left corner of a display in desktop coordinates (like the window position) */
 SOKOL_APP_UTILS_API_DECL void sapp_display_position(int index, int *x, int *y);
 /* sets fullscreen mode (wrapper around platform specific logic) */
 SOKOL_APP_UTILS_API_DECL void sapp_set_fullscreen(bool enable);
-/* [libsk] window style, after sokol_app made the window (desktop; no-ops elsewhere):
+/* [libwgrender] window style, after sokol_app made the window (desktop; no-ops elsewhere):
    whether the user can resize it (not: it keeps its current size, and
    sapp_set_window_size moves the limit along), and whether it has a title bar and
    border. sokol's own fullscreen toggle resets the style on Win32: set them again
    after leaving fullscreen. */
 SOKOL_APP_UTILS_API_DECL void sapp_set_window_resizable(bool resizable);
 SOKOL_APP_UTILS_API_DECL void sapp_set_window_decorated(bool decorated);
-/* [libsk] whether moving the window (sapp_set_window_position, sapp_set_display) can
+/* [libwgrender] whether moving the window (sapp_set_window_position, sapp_set_display) can
    work: false on the web, and under XWayland, where the Wayland compositor places
    windows and ignores a program's moves */
 SOKOL_APP_UTILS_API_DECL bool sapp_can_move_window(void);
-/* [libsk] show or hide the window (web: the canvas) */
+/* [libwgrender] show or hide the window (web: the canvas) */
 SOKOL_APP_UTILS_API_DECL void sapp_set_window_visible(bool visible);
 SOKOL_APP_UTILS_API_DECL bool sapp_window_visible(void);
 /* set the swap interval:
@@ -262,7 +262,7 @@ _SOKOL_PRIVATE void _sapp_macos_set_display(int index) {
   }
 }
 
-/* [libsk] display position, y flipped to top-down like the window position */
+/* [libwgrender] display position, y flipped to top-down like the window position */
 _SOKOL_PRIVATE void _sapp_macos_display_position(int index, int *x, int *y) {
   NSArray *screens = [NSScreen screens];
   *x = 0;
@@ -344,7 +344,7 @@ _SOKOL_PRIVATE void _sapp_macos_set_swap_interval(int interval) {
     }
     #endif
 }
-/* [libsk] window style and visibility */
+/* [libwgrender] window style and visibility */
 static bool _sapp_utils_resizable = true;
 static bool _sapp_utils_decorated = true;
 
@@ -548,7 +548,7 @@ _SOKOL_PRIVATE int _sapp_win32_display_height(int index) {
   return 0;
 }
 
-/* [libsk] display position */
+/* [libwgrender] display position */
 _SOKOL_PRIVATE void _sapp_win32_display_position(int index, int *x, int *y) {
   _sapp_win32_display_enum_t data;
   ZeroMemory(&data, sizeof(data));
@@ -632,7 +632,7 @@ _SOKOL_PRIVATE void _sapp_win32_set_swap_interval(int interval) {
     _sapp_vk_recreate_swapchain();
     #endif
 }
-/* [libsk] window style and visibility: the style sokol_app creates, less the
+/* [libwgrender] window style and visibility: the style sokol_app creates, less the
    resize frame and maximize box when not resizable, or a popup when undecorated;
    the client area keeps its size */
 static bool _sapp_utils_resizable = true;
@@ -670,7 +670,7 @@ _SOKOL_PRIVATE bool _sapp_win32_window_visible(void) {
 
 #if defined(_SAPP_LINUX)
 
-/* [libsk] window style and visibility: a fixed size is minimum = maximum size in
+/* [libwgrender] window style and visibility: a fixed size is minimum = maximum size in
    the size hints (window managers then offer no resizing); no decorations is the
    Motif hints property most X11 window managers honor */
 static bool _sapp_utils_resizable = true;
@@ -724,7 +724,7 @@ _SOKOL_PRIVATE void _sapp_x11_set_window_position(int x, int y) {
 }
 
 _SOKOL_PRIVATE void _sapp_x11_set_window_size(int w, int h) {
-  _sapp_x11_size_hints(w, h); /* [libsk] a fixed size moves with it */
+  _sapp_x11_size_hints(w, h); /* [libwgrender] a fixed size moves with it */
   XResizeWindow(_sapp.x11.display, _sapp.x11.window, (unsigned int)w,
                 (unsigned int)h);
 }
@@ -767,7 +767,7 @@ _SOKOL_PRIVATE void _sapp_x11_set_mouse_position(float x, float y) {
   }
 }
 
-/* [libsk] _sapp_x11_window_focused() removed: sokol_app.h defines it now (it tracks
+/* [libwgrender] _sapp_x11_window_focused() removed: sokol_app.h defines it now (it tracks
    focus from FocusIn/FocusOut events). */
 
 _SOKOL_PRIVATE int _sapp_x11_display_width(int index) {
@@ -802,7 +802,7 @@ _SOKOL_PRIVATE int _sapp_x11_display_height(int index) {
   return height;
 }
 
-/* [libsk] display position */
+/* [libwgrender] display position */
 _SOKOL_PRIVATE void _sapp_x11_display_position(int index, int *x, int *y) {
   int num_displays = 0;
   XRRMonitorInfo *displays = XRRGetMonitors(
@@ -905,7 +905,7 @@ _SOKOL_PRIVATE const char* _sapp_x11_display_name(int index) {
 _SOKOL_PRIVATE void _sapp_linux_set_swap_interval(int interval) {
     _sapp.desc.swap_interval = interval;
     #if defined(_SAPP_GLX)
-    /* [libsk] use sokol_app's GLX loader: glXGetProcAddress isn't declared (sokol
+    /* [libwgrender] use sokol_app's GLX loader: glXGetProcAddress isn't declared (sokol
        loads libGL dynamically), and the drawable is the GLX window, not the X11 one */
     _sapp_glx_swapinterval(interval);
     #elif defined(_SAPP_EGL)
@@ -922,7 +922,7 @@ _SOKOL_PRIVATE void _sapp_linux_set_swap_interval(int interval) {
 #endif
 
 #if defined(_SAPP_EMSCRIPTEN)
-/* [libsk] the canvas is the window: hidden keeps its place in the page */
+/* [libwgrender] the canvas is the window: hidden keeps its place in the page */
 EM_JS(void, _sapp_emsc_set_canvas_visible, (int visible), {
   if (Module.canvas) Module.canvas.style.visibility = visible ? "" : "hidden";
 });
@@ -931,7 +931,7 @@ EM_JS(int, _sapp_emsc_canvas_visible, (void), {
 });
 #endif
 
-/* [libsk] window style and visibility */
+/* [libwgrender] window style and visibility */
 SOKOL_API_IMPL void sapp_set_window_resizable(bool resizable) {
 #if defined(_SAPP_MACOS)
   _sapp_utils_resizable = resizable;
@@ -1151,7 +1151,7 @@ SOKOL_API_IMPL const char* sapp_display_name(int index) {
 #endif
 }
 
-/* [libsk] */
+/* [libwgrender] */
 SOKOL_API_IMPL void sapp_display_position(int index, int *x, int *y) {
 #if defined(_SAPP_MACOS)
   _sapp_macos_display_position(index, x, y);

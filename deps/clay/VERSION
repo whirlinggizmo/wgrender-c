@@ -1,7 +1,7 @@
-# Vendored from libsk's fork of nicbarker/clay (zlib license, LICENSE.md): a C99 UI
+# Vendored from libwgrender's fork of nicbarker/clay (zlib license, LICENSE.md): a C99 UI
 # layout library (flexbox-like; emits render commands and draws nothing itself), with
-# fixes libsk needs on top of upstream. Used only by examples/clay.c, which draws it
-# through libsk's public API; libsk itself doesn't include or link Clay
+# fixes libwgrender needs on top of upstream. Used only by examples/clay.c, which draws it
+# through libwgrender's public API; libwgrender itself doesn't include or link Clay
 # (docs/PLAN-ui.md). Files keep their upstream paths; update them all together with
 # tools/update_clay.sh.
 clay-fork https://github.com/robknopf/clay.git 842df9f5549e57cbe35dbf4524f4edd8c0292fc6 2026-09-18

@@ -1,4 +1,4 @@
-# Vendored sokol headers, from libsk's fork of floooh/sokol (fixes libsk needs on
+# Vendored sokol headers, from libwgrender's fork of floooh/sokol (fixes libwgrender needs on
 # top of upstream). Only the files in this directory are vendored; update them all
 # together with tools/update_sokol.sh.
 sokol-fork https://github.com/robknopf/sokol.git 84d0c0becdf69eb00ecb4801b6096e7ec97ce933 2026-09-18
