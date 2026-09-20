@@ -18,7 +18,7 @@
 #   make test       build and run unit tests        (-> tests/Makefile)
 #   make verify     build + check + test + smoke: run before calling a change done
 #   make deps       install system build deps (ALSA/GL/X11 dev packages)
-#   make parity     librl -> libwgrender API parity report (LIBRL_DIR=../librl)
+#   make parity     librl -> libwgrender API parity report (LIBRL_DIR=/path/to/librl)
 #   make HEADLESS=1 headless lib (build/headless/libwgrender.a): no window, GPU or audio
 #   make windows    Windows lib and examples, cross-compiled with MinGW (build/windows,
 #                   examples/build/windows/*.exe); WINDOWS=1 on any target (with
@@ -303,8 +303,9 @@ check:
 
 # librl -> libwgrender API parity: every librl function is matched, mapped as ported /
 # dropped / todo in tools/parity.map, or the report fails. PARITY_FLAGS=--strict
-# also fails on remaining todos. Needs a librl checkout (LIBRL_DIR, default ../librl).
-LIBRL_DIR ?= ../librl
+# also fails on remaining todos. Needs a librl checkout: LIBRL_DIR, else ../librl or a
+# librl beside the directory holding this repo.
+LIBRL_DIR ?=
 parity:
 	@LIBRL_DIR=$(LIBRL_DIR) tools/parity.sh $(PARITY_FLAGS)
 

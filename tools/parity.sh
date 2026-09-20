@@ -23,8 +23,20 @@ cd "$(dirname "$0")/.." || exit 2
 strict=0
 [ "${1:-}" = "--strict" ] && strict=1
 
-LIBRL_DIR="${LIBRL_DIR:-../librl}"
 MAP=tools/parity.map
+
+# Where librl is checked out. LIBRL_DIR wins; otherwise look beside this repo, then
+# beside the directory holding it (repos are often grouped by owner, and these two
+# libraries don't have to live under the same one).
+if [ -z "${LIBRL_DIR:-}" ]; then
+    for candidate in ../librl ../../*/librl; do
+        if [ -d "$candidate/include" ]; then
+            LIBRL_DIR="$candidate"
+            break
+        fi
+    done
+fi
+LIBRL_DIR="${LIBRL_DIR:-../librl}"
 
 if [ ! -d "$LIBRL_DIR/include" ]; then
     echo "parity: librl not found at $LIBRL_DIR (set LIBRL_DIR=/path/to/librl)" >&2
