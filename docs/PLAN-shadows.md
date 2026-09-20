@@ -259,7 +259,7 @@ before there was a way to see what the map held.
   | sun, 2048        | 0.33 | 0.18 | 0.90 | 0.66 | 1.95 | 1.63 |
   | sun, 4096        | 0.38 | 0.18 | 1.03 | 0.65 | 2.06 | 1.60 |
   | sun + spot, 1024 | 0.40 | 0.23 | 1.11 | 0.88 | 2.21 | 2.04 |
-  | sun, no receive  | 0.30 | 0.18 | 0.84 | 0.66 | 1.91 | 1.62 |
+  | sun, no receive  | 0.22 | 0.13 | 0.60 | 0.47 | 1.36 | 1.15 |
 
   Read the two columns against each other. **The CPU number barely moves across 1024,
   2048 and 4096** — the pass draws the same casters whatever the map's size — so what

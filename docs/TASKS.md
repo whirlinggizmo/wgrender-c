@@ -328,7 +328,7 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       (tools/bench/shadowbench.c, also a web page). RTX 4080, vsync off, frame ms (and
       the CPU ms in it) at 100 / 400 / 1000 models: none 0.25/0.62/1.41; sun at 1024
       0.42/0.82/1.94, at 2048 0.33/0.90/1.95, at 4096 0.38/1.03/2.06; sun + spot
-      0.40/1.11/2.21; nothing receiving 0.30/0.84/1.91. The CPU cost barely moves with
+      0.40/1.11/2.21; nothing receiving 0.22/0.60/1.36 (the pass is skipped). The CPU cost barely moves with
       the map's size, so that axis is GPU fill (16x the pixels: ~+0.05 / +0.12 ms),
       while the extra pass over the casters is CPU (+0.15 at 400, +0.40 at 1000).
       Receiving costs ~0.02. Which dominates is a property of the scene

@@ -2866,6 +2866,20 @@ bool sk_model_has_shadow_casters(int light_env)
     return false;
 }
 
+/* Whether anything queued for this environment is darkened by shadows at all. A map
+ * nothing samples is a pass for nothing, so the shadow module asks before drawing it. */
+bool sk_model_has_shadow_receivers(int light_env)
+{
+    for (int i = 0; i < sk_model_item_count; i++) {
+        const sk_model_draw_t *e = &sk_model_draws[sk_model_items[i].draw];
+        const sk_model_t *model_ptr = e->light_env == light_env ? resolve(e->model) : NULL;
+        if (model_ptr != NULL && model_ptr->visible && model_ptr->receives_shadow) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void sk_model_draw_shadow_casters(int light_env, const sk_mat4_t *light_view_proj)
 {
     sg_pipeline current = {0};

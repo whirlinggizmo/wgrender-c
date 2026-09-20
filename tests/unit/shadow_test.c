@@ -291,6 +291,21 @@ void test_shadow_casters(void)
     sk_render_end();
     CHECK(sk_light_set_casts_shadows(plain, false));
 
+    /* a map nothing samples is a pass for nothing: models say whether they receive,
+       and the shadow module asks before drawing one */
+    sk_render_begin();
+    sk_scene_draw(scene);
+    CHECK(sk_model_has_shadow_receivers(0));
+    sk_render_end();
+    CHECK(sk_model_set_receives_shadow(model, false));
+    sk_render_begin();
+    sk_scene_draw(scene);
+    CHECK(sk_model_has_shadow_casters(0));    /* it still casts */
+    CHECK(!sk_model_has_shadow_receivers(0)); /* but nothing is darkened by the map */
+    sk_render_end();
+    CHECK(sk_model_set_receives_shadow(model, true));
+    CHECK(!sk_model_has_shadow_receivers(1)); /* nor in an environment with nothing in it */
+
     /* a model that doesn't cast isn't drawn into the map, and with no casters at all
        there's nothing to draw */
     CHECK(sk_model_set_casts_shadow(model, false));

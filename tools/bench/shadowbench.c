@@ -8,8 +8,9 @@
  *                      is the same work each time and its CPU cost doesn't move, so
  *                      what changes between these rows is the map's fill: GPU only
  *   two 1024           the sun and a spot cast: two passes, two maps
- *   no receive         the sun casts but nothing receives, so the pass runs and the
- *                      shading skips: how much of the cost is the pass itself
+ *   no receive         the sun casts but nothing receives. libsk skips the pass when
+ *                      no model receives and no lit sprite is in the scene, so this
+ *                      should land on top of "off": it is the check that it does
  *
  * at two model counts, to see what scales with casters and what doesn't. Nothing is
  * loaded from disk: the shapes are generated, so the numbers are the renderer's.

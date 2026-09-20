@@ -157,10 +157,23 @@ static bool reserve(void **items, int *capacity, int count, size_t item_size, in
 /* Started by sprite3d and sprite2d, whichever come first, and stopped with the last. */
 static int sk_sb_users;
 
+/* A lit sprite in this lighting environment: it receives shadows (sprites don't cast).
+ * sk_render_hooks.sprites_lit_in. */
+static bool sk_sprite_batch_lit_in(int light_env)
+{
+    for (int i = 0; i < sk_sb.batch_count; i++) {
+        if (sk_sb.batches[i].lit && sk_sb.batches[i].light_env == light_env && sk_sb.batches[i].count > 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void sk_sprite_batch_init(void)
 {
     if (sk_sb_users++ > 0) return;
     sk_render_hooks.draw_sprites = sk_sprite_batch_draw;
+    sk_render_hooks.sprites_lit_in = sk_sprite_batch_lit_in;
     sk_scene_hooks.sprites_begin_unordered = sk_sprite_batch_begin_unordered;
     sk_scene_hooks.sprites_end_unordered = sk_sprite_batch_end_unordered;
     memset(&sk_sb, 0, sizeof(sk_sb));
@@ -260,6 +273,7 @@ void sk_sprite_batch_deinit(void)
 {
     if (sk_sb_users == 0 || --sk_sb_users > 0) return;
     sk_render_hooks.draw_sprites = NULL;
+    sk_render_hooks.sprites_lit_in = NULL;
     sk_scene_hooks.sprites_begin_unordered = NULL;
     sk_scene_hooks.sprites_end_unordered = NULL;
     if (sk_sb.ready) {

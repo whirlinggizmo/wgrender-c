@@ -42,6 +42,10 @@ typedef struct {
     void (*effects_draw)(void);
     /* sk_shadow: the casting light's depth map, drawn before anything is shaded */
     void (*shadows_draw)(void);
+    /* sk_sprite_batch: whether a lit sprite was recorded in this lighting environment
+     * (they receive shadows, though they never cast), so a map nothing reads isn't
+     * drawn. NULL when no sprite is in the program at all */
+    bool (*sprites_lit_in)(int light_env);
 } sk_render_hooks_t;
 extern sk_render_hooks_t sk_render_hooks;
 

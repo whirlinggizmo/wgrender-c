@@ -316,6 +316,12 @@ static void shadows_draw(void)
     if (env == NULL || !sk_model_has_shadow_casters(env_index)) {
         return;
     }
+    /* a map nobody samples is a pass for nothing: models can turn receiving off, and
+       lit sprites receive without ever casting */
+    if (!sk_model_has_shadow_receivers(env_index) &&
+        (sk_render_hooks.sprites_lit_in == NULL || !sk_render_hooks.sprites_lit_in(env_index))) {
+        return;
+    }
     if (!sk_camera3d_get_active_data(&cam)) {
         return;
     }

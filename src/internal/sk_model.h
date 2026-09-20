@@ -34,6 +34,7 @@ int sk_model_get_joint_matrices(sk_handle_t model, const float **matrices);
  * casts, and drawing those casters into the open depth pass from the light's point of
  * view (`light_view_proj`: world -> the light's clip space). */
 bool sk_model_has_shadow_casters(int light_env);
+bool sk_model_has_shadow_receivers(int light_env);
 void sk_model_draw_shadow_casters(int light_env, const sk_mat4_t *light_view_proj);
 
 /* Picking helpers (pure; exposed for tests). */
