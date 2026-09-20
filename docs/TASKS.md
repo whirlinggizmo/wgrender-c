@@ -333,7 +333,9 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       while the extra pass over the casters is CPU (+0.15 at 400, +0.40 at 1000).
       Receiving costs ~0.02. Which dominates is a property of the scene
 - [ ] Models past 1024 a frame are dropped (`MAX_MODEL_DRAWS` in src/sk_model.c, with
-      `MAX_MODEL_ITEMS` 8192 primitives): the queue is a fixed array, it warns once and
+      `MAX_MODEL_ITEMS` 8192 primitives; sprites and particles are unaffected — the
+      sprite batch's arrays grow and emitters have their own path): the queue is a
+      fixed array, it warns once and
       the rest of the frame's models silently don't draw. Found while benchmarking —
       asking for 1600 and 4096 models measured the same 1024. A scene with more than a
       thousand objects is not unusual, so the queue should grow like the render command
@@ -348,6 +350,14 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       vertex color), and the scene's lights and environment chosen once per batch from
       its bounds; custom sprite shaders now get the same lights and environment in
       `sk_frame` ([PLAN-materials.md](PLAN-materials.md), `examples/lights.c`)
+- [ ] Lit particles: emitter particles are unlit — emitters have their own program
+      (`particle` = vs_particle + the unlit `fs` in src/shaders/sk_sprite.glsl) and no
+      material API, so the only lit "particles" today are sprite3d objects moved by the
+      CPU. A `particle_lit` program is mostly wiring now that `fs_lit` and the per-batch
+      light block exist; the design question is where an emitter's lights come from,
+      since its particles aren't in a sprite batch with bounds — probably one selection
+      from the emitter's own bounds, with the same caveat as sprites (a particle far
+      from the rest can miss a light near it)
 - [ ] Materials later: particles (emitters) on custom shaders; custom shaders for 2D
       shapes
 - [x] 2D / UI layer: `enabled` and pointer interaction per scene member, touch as a
