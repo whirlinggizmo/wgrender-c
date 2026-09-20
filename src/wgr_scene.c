@@ -3,16 +3,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "internal/exports.h"
-#include "internal/wgr_color.h"
-#include "internal/wgr_camera3d.h"
-#include "internal/wgr_handle_pool.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_math.h"
-#include "internal/wgr_scene.h"
-#include "internal/wgr_pick.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_color_internal.h"
+#include "internal/wgr_camera3d_internal.h"
+#include "internal/wgr_handle_pool_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_math_internal.h"
+#include "internal/wgr_scene_internal.h"
+#include "internal/wgr_pick_internal.h"
 #include "wgr_light.h" /* light types, for what a caster's shadow can reach */
-#include "internal/wgr_render.h"
+#include "internal/wgr_render_internal.h"
 #include "wgr_camera3d.h"
 #include "wgr_pick.h"
 #include "wgr_logger.h"

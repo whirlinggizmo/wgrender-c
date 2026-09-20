@@ -1,4 +1,4 @@
-#include "internal/wgr_pick.h"
+#include "internal/wgr_pick_internal.h"
 
 #include <math.h>
 #include <stddef.h>

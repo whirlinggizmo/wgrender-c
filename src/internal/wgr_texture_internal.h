@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#include <wgr_texture.h> /* the public header ("" would find this file); wgr_texture_release lives there */
+#include "wgr_texture.h"
 #include "wgr_types.h"
 #include "sokol_gfx.h"
 

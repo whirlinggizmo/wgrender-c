@@ -3,10 +3,10 @@
 
 #include <stdbool.h>
 
-#include "internal/wgr_camera3d.h"
-#include "internal/wgr_light.h"
+#include "internal/wgr_camera3d_internal.h"
+#include "internal/wgr_light_internal.h"
 #include "wgr_handle.h"
-#include "wgr_math.h"
+#include "wgr_math_internal.h"
 #include "wgr_types.h"
 
 void wgr_scene_init(void);

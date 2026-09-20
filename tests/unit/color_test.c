@@ -1,6 +1,6 @@
 /* Colors are values (docs/PLAN-color.md): packing, the helpers, and what the
  * renderer unpacks them to. */
-#include "internal/wgr_color.h"
+#include "internal/wgr_color_internal.h"
 #include "wgr_color.h"
 #include "test.h"
 #include "tests.h"

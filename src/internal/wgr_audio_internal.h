@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <wgr_audio.h> /* the public header ("" would find this file); wgr_audio_release lives there */
+#include "wgr_audio.h"
 #include "wgr_types.h"
 
 /* Audio mixing runs on the audio device's thread (sokol_audio callback mode), so

@@ -1,4 +1,4 @@
-#include "internal/wgr_fs.h"
+#include "internal/wgr_fs_internal.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,7 +10,7 @@
 #define mkdir(path, mode) _mkdir(path)
 #endif
 
-#include "internal/wgr_internal.h"
+#include "internal/wgr_internal_internal.h"
 #include "wgr_logger.h"
 
 /* Local storage. Desktop: stdio relative to the working dir (root defaults to ""

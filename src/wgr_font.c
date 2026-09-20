@@ -4,9 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "internal/exports.h"
-#include "internal/wgr_font.h"
-#include "internal/wgr_handle_pool.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_font_internal.h"
+#include "internal/wgr_handle_pool_internal.h"
 #include "wgr_logger.h"
 
 #include "fonts/wgr_default_font.h"

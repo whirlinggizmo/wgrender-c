@@ -3,8 +3,8 @@
  * slots out of range. */
 #include <math.h>
 
-#include "internal/wgr_gamepad.h"
-#include "internal/wgr_internal.h"
+#include "internal/wgr_gamepad_internal.h"
+#include "internal/wgr_internal_internal.h"
 #include "wgr_input.h"
 #include "test.h"
 #include "tests.h"

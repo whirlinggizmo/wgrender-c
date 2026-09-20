@@ -3,7 +3,7 @@
  * coordinates in 0..1, and refusal of sizes <= 0. */
 #include <math.h>
 
-#include "internal/wgr_mesh_shapes.h"
+#include "internal/wgr_mesh_shapes_internal.h"
 #include "test.h"
 #include "tests.h"
 

@@ -3,11 +3,11 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "internal/exports.h"
-#include "internal/wgr_color.h"
-#include "internal/wgr_font.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_render.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_color_internal.h"
+#include "internal/wgr_font_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_render_internal.h"
 #include "wgr_logger.h"
 
 #include "fontstash.h"

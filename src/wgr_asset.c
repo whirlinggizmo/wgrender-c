@@ -6,13 +6,13 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#include "internal/exports.h"
-#include "internal/wgr_asset.h"
-#include "internal/wgr_fs.h"
-#include "internal/wgr_handle_pool.h"
-#include "internal/wgr_loader.h"
-#include "internal/wgr_thread.h"
-#include "internal/wgr_internal.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_asset_internal.h"
+#include "internal/wgr_fs_internal.h"
+#include "internal/wgr_handle_pool_internal.h"
+#include "internal/wgr_loader_internal.h"
+#include "internal/wgr_thread_internal.h"
+#include "internal/wgr_internal_internal.h"
 #include "wgr_handle.h"
 #include "wgr_logger.h"
 

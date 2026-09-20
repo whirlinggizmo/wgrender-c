@@ -162,7 +162,7 @@ the sync `wgr_*_create(path)`. Bytes never cross into user code.
 ## Core and optional subsystems
 
 - Optional subsystems (textures, models, sprites, particles, audio, ...) register with
-  `WGR_MODULE` (`src/internal/wgr_module.h`), so a program links only what it uses. The
+  `WGR_MODULE` (`src/internal/wgr_module_internal.h`), so a program links only what it uses. The
   core (`wgr.c`, `wgr_render`, `wgr_scene`, ...) never calls them by name: add a module
   callback or a hook (`wgr_render_hooks`, `wgr_scene_hooks`) instead. `make check`
   enforces it (`tools/check_modules.sh`). Details: ARCHITECTURE.md §7b.
@@ -191,7 +191,11 @@ Each level has its own rule; `lib` belongs to exactly one of them.
 - **Prefix:** all library symbols are `wgr_`.
 - **Public API** (`include/*.h`): subsystem-first `wgr_<section>_<action>`.
 - **Cross-`.c` internals** (one `src/*.c` calling another's symbol): `wgr_<subsystem>_…`,
-  declared **only** in `src/internal/*.h` — not public unless promoted to `include/`.
+  declared **only** in `src/internal/*_internal.h` — not public unless promoted to
+  `include/`. The suffix is what keeps basenames unique: 17 subsystems have both a
+  public and an internal header, and without it a quoted `#include "wgr_texture.h"`
+  from inside `src/internal/` finds the sibling instead of the public one — which is
+  why those includes used to need angle brackets and a comment each.
 - **File-local `static`** helpers: no `wgr_` prefix; `verb_noun` in `snake_case`;
   shortest name that's unambiguous in the file. Prefer `resolve_*` / `lookup_*` for
   handle→pointer helpers and `is_*` / `has_*` for predicates.

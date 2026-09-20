@@ -3,10 +3,10 @@
 #include <string.h>
 
 #include "data/wgr_brdf_lut.h"
-#include "internal/wgr_environment.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_platform.h"
-#include "internal/wgr_texture.h"
+#include "internal/wgr_environment_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_platform_internal.h"
+#include "internal/wgr_texture_internal.h"
 #include "wgr_environment.h"
 #include "wgr_handle.h"
 #include "wgr_logger.h"

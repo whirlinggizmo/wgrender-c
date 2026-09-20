@@ -1,4 +1,4 @@
-#include "internal/wgr_sprite2d.h"
+#include "internal/wgr_sprite2d_internal.h"
 #include "test.h"
 #include "tests.h"
 

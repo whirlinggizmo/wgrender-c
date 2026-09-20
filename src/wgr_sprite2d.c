@@ -3,17 +3,17 @@
 #include <math.h>
 #include <string.h>
 
-#include "internal/exports.h"
-#include "internal/wgr_color.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_color_internal.h"
 #include "wgr_color.h"
-#include "internal/wgr_handle_pool.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_scene.h"
-#include "internal/wgr_sprite2d.h"
-#include "internal/wgr_sprite_batch.h"
-#include "internal/wgr_texture.h"
-#include "internal/wgr_module.h"
-#include "internal/wgr_material.h"
+#include "internal/wgr_handle_pool_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_scene_internal.h"
+#include "internal/wgr_sprite2d_internal.h"
+#include "internal/wgr_sprite_batch_internal.h"
+#include "internal/wgr_texture_internal.h"
+#include "internal/wgr_module_internal.h"
+#include "internal/wgr_material_internal.h"
 #include "wgr_logger.h"
 #include "wgr_texture.h"
 

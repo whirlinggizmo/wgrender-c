@@ -2,11 +2,11 @@
 
 /* Retained 2D shapes (docs/PLAN-2d.md step 2): exact-area picking under the 2D
  * transform, and 2D/3D routing (a shape handle is one or the other). */
-#include "internal/wgr_camera3d.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_platform.h"
-#include "internal/wgr_render.h"
-#include "internal/wgr_scene.h"
+#include "internal/wgr_camera3d_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_platform_internal.h"
+#include "internal/wgr_render_internal.h"
+#include "internal/wgr_scene_internal.h"
 #include "wgr_camera3d.h"
 #include "wgr_logger.h"
 #include "wgr_pick.h"
@@ -18,7 +18,7 @@
 #include "test.h"
 #include "tests.h"
 
-#include "internal/wgr_shape2d.h"
+#include "internal/wgr_shape2d_internal.h"
 #include "wgr_color.h"
 
 #include "sokol_gfx.h"

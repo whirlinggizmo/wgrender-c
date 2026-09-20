@@ -6,9 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "internal/wgr_ktx.h"
-#include "internal/wgr_platform.h"
-#include "internal/wgr_texture.h"
+#include "internal/wgr_ktx_internal.h"
+#include "internal/wgr_platform_internal.h"
+#include "internal/wgr_texture_internal.h"
 #include "wgr_logger.h"
 #include "wgr_texture.h"
 #include "test.h"

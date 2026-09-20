@@ -1,7 +1,7 @@
 #include "wgr_handle.h"
 
-#include "internal/exports.h"
-#include "internal/wgr_handle_pool.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_handle_pool_internal.h"
 
 WGR_KEEP
 wgr_handle_kind_t wgr_handle_get_kind(wgr_handle_t handle)

@@ -1,7 +1,7 @@
 #include "wgr_color.h"
 
-#include "internal/exports.h"
-#include "internal/wgr_color.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_color_internal.h"
 
 /* Colors are plain values (0xRRGGBBAA) — no pool, no handles, no lifecycle. They
  * were handles in librl, which said in rl_color.c that colors are "tiny value

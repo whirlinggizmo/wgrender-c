@@ -1,5 +1,5 @@
-#include "internal/wgr_internal.h"
-#include "internal/wgr_light.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_light_internal.h"
 #include "wgr_color.h"
 #include "wgr_light.h"
 #include "wgr_logger.h"

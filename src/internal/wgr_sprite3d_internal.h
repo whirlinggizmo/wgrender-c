@@ -1,9 +1,9 @@
 #ifndef WGR_INTERNAL_SPRITE3D_H
 #define WGR_INTERNAL_SPRITE3D_H
 
-#include <wgr_sprite3d.h> /* the public header; "" would find this file */
+#include "wgr_sprite3d.h"
 
-#include "internal/wgr_camera3d.h"
+#include "internal/wgr_camera3d_internal.h"
 #include "wgr_types.h"
 
 /* The unit right and up directions of a quad with `facing` (rotation in radians,

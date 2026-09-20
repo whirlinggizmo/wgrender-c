@@ -1,5 +1,5 @@
-#include "internal/wgr_internal.h"
-#include "internal/wgr_scene.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_scene_internal.h"
 #include "wgr_camera3d.h"
 #include "wgr_logger.h"
 #include "wgr_pick.h"

@@ -6,8 +6,8 @@
 #include <string.h>
 #include <time.h>
 
-#include "internal/wgr_audio.h"
-#include "internal/wgr_internal.h"
+#include "internal/wgr_audio_internal.h"
+#include "internal/wgr_internal_internal.h"
 #include "wgr_audio.h"
 #include "wgr_logger.h"
 #include "wgr_sound.h"

@@ -1,6 +1,6 @@
 #include <string.h>
 
-#include "internal/wgr_asset.h"
+#include "internal/wgr_asset_internal.h"
 #include "test.h"
 #include "tests.h"
 

@@ -1,5 +1,5 @@
 #include "wgr_audio.h"
-#include "internal/wgr_audio.h"
+#include "internal/wgr_audio_internal.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -12,11 +12,11 @@
 #  include <pthread.h>
 #endif
 
-#include "internal/exports.h"
-#include "internal/wgr_handle_pool.h"
-#include "internal/wgr_loader.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_module.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_handle_pool_internal.h"
+#include "internal/wgr_loader_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_module_internal.h"
 #include "wgr_handle.h"
 #include "wgr_logger.h"
 

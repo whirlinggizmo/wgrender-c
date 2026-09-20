@@ -4,12 +4,12 @@
  * nothing drawn in between become one command, and a layer nothing was drawn into is
  * dropped rather than replayed — and what it must not merge: runs in different passes,
  * or runs with drawing between them. */
-#include "internal/wgr_camera3d.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_platform.h"
-#include "internal/wgr_render.h"
-#include "internal/wgr_scene.h"
-#include "internal/wgr_texture.h"
+#include "internal/wgr_camera3d_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_platform_internal.h"
+#include "internal/wgr_render_internal.h"
+#include "internal/wgr_scene_internal.h"
+#include "internal/wgr_texture_internal.h"
 #include "wgr_color.h"
 #include "wgr_render.h"
 #include "wgr_shape2d.h"

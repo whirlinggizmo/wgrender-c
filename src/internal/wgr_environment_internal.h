@@ -4,8 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "internal/wgr_math.h"
-#include <wgr_environment.h> /* the public header ("" would find this file); wgr_environment_release lives there */
+#include "internal/wgr_math_internal.h"
+#include "wgr_environment.h"
 #include "wgr_types.h"
 #include "sokol_gfx.h"
 

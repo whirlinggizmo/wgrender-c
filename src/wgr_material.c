@@ -5,15 +5,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "internal/exports.h"
-#include "internal/wgr_color.h"
-#include "internal/wgr_handle_pool.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_material.h"
-#include "internal/wgr_math.h"
-#include "internal/wgr_texture.h"
-#include "internal/wgr_module.h"
-#include "internal/wgr_shader.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_color_internal.h"
+#include "internal/wgr_handle_pool_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_material_internal.h"
+#include "internal/wgr_math_internal.h"
+#include "internal/wgr_texture_internal.h"
+#include "internal/wgr_module_internal.h"
+#include "internal/wgr_shader_internal.h"
 #include "wgr_logger.h"
 
 #define MATERIALS_INITIAL 64 /* slots to start with; the pool doubles as needed */

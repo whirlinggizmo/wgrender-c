@@ -1,7 +1,7 @@
 #ifndef WGR_INTERNAL_COLOR_H
 #define WGR_INTERNAL_COLOR_H
 
-#include <wgr_color.h> /* the public header ("" would find this file): wgr_color_t */
+#include "wgr_color.h"
 #include "wgr_types.h"
 
 /* The renderer's color: normalized 0..1 components, because that's what sokol_gl

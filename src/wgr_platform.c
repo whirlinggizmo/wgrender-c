@@ -1,4 +1,4 @@
-#include "internal/wgr_platform.h"
+#include "internal/wgr_platform_internal.h"
 
 #include <stdlib.h>
 

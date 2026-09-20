@@ -1,4 +1,4 @@
-#include "internal/wgr_math.h"
+#include "internal/wgr_math_internal.h"
 #include "test.h"
 #include "tests.h"
 

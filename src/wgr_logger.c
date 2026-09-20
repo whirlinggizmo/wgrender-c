@@ -1,6 +1,6 @@
 #include "wgr_logger.h"
 
-#include "internal/wgr_internal.h"
+#include "internal/wgr_internal_internal.h"
 
 #include <stdarg.h>
 #include <stdio.h>

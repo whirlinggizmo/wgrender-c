@@ -3,9 +3,9 @@
 
 #include <stdint.h>
 
-#include "internal/wgr_asset.h"
-#include "internal/wgr_math.h"
-#include <wgr_texture.h> /* public; "" would find internal/wgr_texture.h */
+#include "internal/wgr_asset_internal.h"
+#include "internal/wgr_math_internal.h"
+#include "wgr_texture.h"
 
 void wgr_model_init(void);
 void wgr_model_deinit(void);

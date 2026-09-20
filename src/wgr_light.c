@@ -3,14 +3,14 @@
 #include <math.h>
 #include <string.h>
 
-#include "internal/exports.h"
-#include "internal/wgr_color.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_color_internal.h"
 #include "wgr_color.h"
-#include "internal/wgr_handle_pool.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_light.h"
-#include "internal/wgr_scene.h"
-#include "internal/wgr_module.h"
+#include "internal/wgr_handle_pool_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_light_internal.h"
+#include "internal/wgr_scene_internal.h"
+#include "internal/wgr_module_internal.h"
 #include "wgr_logger.h"
 
 #define LIGHTS_INITIAL 32 /* slots to start with; the pool doubles as needed */

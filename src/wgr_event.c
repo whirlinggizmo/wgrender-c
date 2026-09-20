@@ -1,7 +1,7 @@
 #include "wgr_event.h"
 
-#include "internal/exports.h"
-#include "internal/wgr_internal.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_internal_internal.h"
 
 #include <stdbool.h>
 #include <stdlib.h>

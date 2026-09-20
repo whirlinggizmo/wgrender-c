@@ -2,8 +2,8 @@
 
 #include <stdbool.h>
 
-#include "internal/exports.h"
-#include "internal/wgr_internal.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_internal_internal.h"
 #include "wgr_text.h"
 
 typedef struct {

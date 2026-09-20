@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#include "internal/wgr_math.h"
+#include "internal/wgr_math_internal.h"
 #include "wgr_handle.h"
 #include "wgr_types.h"
 

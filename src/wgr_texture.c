@@ -4,13 +4,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "internal/exports.h"
-#include "internal/wgr_handle_pool.h"
-#include "internal/wgr_ktx.h"
-#include "internal/wgr_loader.h"
-#include "internal/wgr_texture.h"
-#include "internal/wgr_module.h"
-#include "internal/wgr_render.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_handle_pool_internal.h"
+#include "internal/wgr_ktx_internal.h"
+#include "internal/wgr_loader_internal.h"
+#include "internal/wgr_texture_internal.h"
+#include "internal/wgr_module_internal.h"
+#include "internal/wgr_render_internal.h"
 #include "wgr_logger.h"
 
 #include "sokol_gfx.h"

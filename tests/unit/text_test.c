@@ -2,16 +2,16 @@
 /* The default font (wgr_text_set_default_font), on sokol's dummy backend. */
 #include <string.h>
 
-#include "internal/wgr_font.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_platform.h"
-#include "internal/wgr_render.h"
-#include "internal/wgr_scene.h"
+#include "internal/wgr_font_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_platform_internal.h"
+#include "internal/wgr_render_internal.h"
+#include "internal/wgr_scene_internal.h"
 #include "wgr_font.h"
 #include "wgr_logger.h"
 #include "wgr_text.h"
 #include "wgr_text3d.h"
-#include "internal/wgr_texture.h"
+#include "internal/wgr_texture_internal.h"
 #include "wgr_color.h"
 #include "wgr_render.h"
 #include "wgr_texture.h"

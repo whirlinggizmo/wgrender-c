@@ -3,10 +3,10 @@
 
 #include <stdbool.h>
 
-#include "internal/wgr_math.h"
+#include "internal/wgr_math_internal.h"
 #include "wgr_types.h"
 /* the public header has the same file name; <> skips this directory */
-#include <wgr_camera3d.h>
+#include "wgr_camera3d.h"
 
 /* Clip planes shared by every 3D path. Orthographic uses a symmetric range so
  * content behind the camera position still shows, as sokol_gl did before. */

@@ -2,10 +2,10 @@
 
 #include <string.h>
 
-#include "internal/exports.h"
-#include "internal/wgr_camera3d.h"
-#include "internal/wgr_handle_pool.h"
-#include "internal/wgr_scene.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_camera3d_internal.h"
+#include "internal/wgr_handle_pool_internal.h"
+#include "internal/wgr_scene_internal.h"
 #include "wgr_logger.h"
 
 #define CAMERAS_INITIAL 16 /* slots to start with; the pool doubles as needed */

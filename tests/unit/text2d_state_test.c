@@ -4,13 +4,13 @@
  *
  * Scene layers are here too: which member a pick finds when several sit on different
  * layers over the same point. */
-#include "internal/wgr_camera3d.h"
-#include "internal/wgr_font.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_platform.h"
-#include "internal/wgr_render.h"
-#include "internal/wgr_scene.h"
-#include "internal/wgr_shape2d.h"
+#include "internal/wgr_camera3d_internal.h"
+#include "internal/wgr_font_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_platform_internal.h"
+#include "internal/wgr_render_internal.h"
+#include "internal/wgr_scene_internal.h"
+#include "internal/wgr_shape2d_internal.h"
 #include "wgr_color.h"
 #include "wgr_font.h"
 #include "wgr_logger.h"

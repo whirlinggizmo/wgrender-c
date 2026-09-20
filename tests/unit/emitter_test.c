@@ -3,14 +3,14 @@
  * frame update is driven directly (wgr_emitter_update), as the runtime would. */
 #include <math.h>
 
-#include "internal/wgr_camera3d.h"
-#include "internal/wgr_emitter.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_platform.h"
-#include "internal/wgr_render.h"
-#include "internal/wgr_scene.h"
-#include "internal/wgr_sprite_batch.h"
-#include "internal/wgr_texture.h"
+#include "internal/wgr_camera3d_internal.h"
+#include "internal/wgr_emitter_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_platform_internal.h"
+#include "internal/wgr_render_internal.h"
+#include "internal/wgr_scene_internal.h"
+#include "internal/wgr_sprite_batch_internal.h"
+#include "internal/wgr_texture_internal.h"
 #include "wgr_camera3d.h"
 #include "wgr_color.h"
 #include "wgr_emitter2d.h"

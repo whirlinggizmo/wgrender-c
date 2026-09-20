@@ -1,4 +1,4 @@
-#include "internal/wgr_mesh_shapes.h"
+#include "internal/wgr_mesh_shapes_internal.h"
 
 #include <math.h>
 #include <stdlib.h>

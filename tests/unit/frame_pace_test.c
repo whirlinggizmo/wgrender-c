@@ -1,4 +1,4 @@
-#include "internal/wgr_frame_pace.h"
+#include "internal/wgr_frame_pace_internal.h"
 #include "test.h"
 #include "tests.h"
 

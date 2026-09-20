@@ -1,22 +1,22 @@
-#include "internal/wgr_sprite_batch.h"
+#include "internal/wgr_sprite_batch_internal.h"
 
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "internal/wgr_camera3d.h"
-#include "internal/wgr_environment.h"
-#include "internal/wgr_light.h"
-#include "internal/wgr_material.h"
-#include "internal/wgr_math.h"
-#include "internal/wgr_module.h"
-#include "internal/wgr_render.h"
-#include "internal/wgr_scene.h"
-#include "internal/wgr_shader.h"
-#include "internal/wgr_shadow.h"
-#include "internal/wgr_shaders.h"
-#include "internal/wgr_sprite3d.h"
-#include "internal/wgr_texture.h"
+#include "internal/wgr_camera3d_internal.h"
+#include "internal/wgr_environment_internal.h"
+#include "internal/wgr_light_internal.h"
+#include "internal/wgr_material_internal.h"
+#include "internal/wgr_math_internal.h"
+#include "internal/wgr_module_internal.h"
+#include "internal/wgr_render_internal.h"
+#include "internal/wgr_scene_internal.h"
+#include "internal/wgr_shader_internal.h"
+#include "internal/wgr_shadow_internal.h"
+#include "internal/wgr_shaders_internal.h"
+#include "internal/wgr_sprite3d_internal.h"
+#include "internal/wgr_texture_internal.h"
 #include "wgr.h" /* wgr_get_time */
 #include "wgr_logger.h"
 #include "wgr_window.h"

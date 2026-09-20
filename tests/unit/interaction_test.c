@@ -2,12 +2,12 @@
  * enabled, capture, 2D over 3D, touch, tick edges. Pointer events go through the real
  * input code; each "frame" updates the interaction and then clears frame edges, like
  * the runtime. */
-#include "internal/wgr_camera3d.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_platform.h"
-#include "internal/wgr_render.h"
-#include "internal/wgr_scene.h"
-#include "internal/wgr_sprite2d.h"
+#include "internal/wgr_camera3d_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_platform_internal.h"
+#include "internal/wgr_render_internal.h"
+#include "internal/wgr_scene_internal.h"
+#include "internal/wgr_sprite2d_internal.h"
 #include "wgr_camera3d.h"
 #include "wgr_input.h"
 #include "wgr_logger.h"

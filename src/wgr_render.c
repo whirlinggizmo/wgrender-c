@@ -3,15 +3,15 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-#include "internal/exports.h"
-#include "internal/wgr_color.h"
-#include "internal/wgr_camera3d.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_module.h"
-#include "internal/wgr_platform.h"
-#include "internal/wgr_environment.h"
-#include "internal/wgr_render.h"
-#include "internal/wgr_shadow.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_color_internal.h"
+#include "internal/wgr_camera3d_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_module_internal.h"
+#include "internal/wgr_platform_internal.h"
+#include "internal/wgr_environment_internal.h"
+#include "internal/wgr_render_internal.h"
+#include "internal/wgr_shadow_internal.h"
 
 /* internal/wgr_environment.h: the environment module fills this in when it's linked. */
 wgr_environment_hooks_t wgr_environment_hooks;

@@ -4,11 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "internal/exports.h"
-#include "internal/wgr_handle_pool.h"
-#include "internal/wgr_loader.h"
-#include "internal/wgr_module.h"
-#include "internal/wgr_shader.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_handle_pool_internal.h"
+#include "internal/wgr_loader_internal.h"
+#include "internal/wgr_module_internal.h"
+#include "internal/wgr_shader_internal.h"
 #include "wgr_logger.h"
 
 /* Custom material shaders: .wgrshader files from tools/shaderpack.py (the format is

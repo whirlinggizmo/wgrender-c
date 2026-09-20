@@ -4,10 +4,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "internal/exports.h"
-#include "internal/wgr_gamepad.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_module.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_gamepad_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_module_internal.h"
 #include "wgr_logger.h"
 
 /* Gamepads: each platform reports its pads in one shape (wgr_pad_t: buttons by

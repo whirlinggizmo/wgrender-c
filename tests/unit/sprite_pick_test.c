@@ -5,14 +5,14 @@
  * has none and can't reject anything. */
 #include <math.h>
 
-#include "internal/wgr_camera3d.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_material.h"
-#include "internal/wgr_platform.h"
-#include "internal/wgr_render.h"
-#include "internal/wgr_scene.h"
-#include "internal/wgr_sprite3d.h"
-#include "internal/wgr_texture.h"
+#include "internal/wgr_camera3d_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_material_internal.h"
+#include "internal/wgr_platform_internal.h"
+#include "internal/wgr_render_internal.h"
+#include "internal/wgr_scene_internal.h"
+#include "internal/wgr_sprite3d_internal.h"
+#include "internal/wgr_texture_internal.h"
 #include "wgr_camera3d.h"
 #include "wgr_logger.h"
 #include "wgr_pick.h"

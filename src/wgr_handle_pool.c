@@ -1,4 +1,4 @@
-#include "internal/wgr_handle_pool.h"
+#include "internal/wgr_handle_pool_internal.h"
 
 #include <stdlib.h>
 #include <string.h>

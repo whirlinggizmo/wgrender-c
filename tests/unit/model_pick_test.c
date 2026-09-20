@@ -1,4 +1,4 @@
-#include "internal/wgr_model.h"
+#include "internal/wgr_model_internal.h"
 #include "test.h"
 #include "tests.h"
 

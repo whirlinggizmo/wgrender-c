@@ -8,14 +8,14 @@
 #  include <time.h>
 #endif
 
-#include "internal/exports.h"
-#include "internal/wgr_frame_pace.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_module.h"
-#include "internal/wgr_platform.h"
-#include "internal/wgr_render.h"
-#include "internal/wgr_scene.h"
-#include "internal/wgr_tick_clock.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_frame_pace_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_module_internal.h"
+#include "internal/wgr_platform_internal.h"
+#include "internal/wgr_render_internal.h"
+#include "internal/wgr_scene_internal.h"
+#include "internal/wgr_tick_clock_internal.h"
 #include "wgr_logger.h"
 #include "wgr_version.h"
 

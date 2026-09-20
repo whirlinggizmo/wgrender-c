@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#include <wgr_material.h> /* the public header; "" would find this file */
+#include "wgr_material.h"
 #include "wgr_types.h"
 
 /* Material data read by the model renderer and picking. See wgr_material.h and

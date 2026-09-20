@@ -3,10 +3,10 @@
 #include <math.h>
 #include <string.h>
 
-#include "internal/exports.h"
-#include "internal/wgr_internal.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_internal_internal.h"
 
-#include "internal/wgr_platform.h"
+#include "internal/wgr_platform_internal.h"
 #include "sokol_app.h" /* event types only */
 
 /* Edge model

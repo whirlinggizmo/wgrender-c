@@ -1,4 +1,4 @@
-#include "internal/wgr_thread.h"
+#include "internal/wgr_thread_internal.h"
 
 #include <stdlib.h>
 

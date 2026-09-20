@@ -3,8 +3,8 @@
 
 #include <stdbool.h>
 
-#include "internal/wgr_camera3d.h"
-#include "internal/wgr_math.h"
+#include "internal/wgr_camera3d_internal.h"
+#include "internal/wgr_math_internal.h"
 #include "wgr_types.h"
 
 typedef struct {

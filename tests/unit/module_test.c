@@ -3,7 +3,7 @@
  * its place by order, and the frame callbacks reach it. */
 #include <string.h>
 
-#include "internal/wgr_module.h"
+#include "internal/wgr_module_internal.h"
 #include "test.h"
 #include "tests.h"
 

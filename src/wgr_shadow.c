@@ -1,13 +1,13 @@
-#include "internal/wgr_shadow.h"
+#include "internal/wgr_shadow_internal.h"
 
 #include <math.h>
 #include <string.h>
 
-#include "internal/exports.h"
-#include "internal/wgr_light.h"
-#include "internal/wgr_model.h"
-#include "internal/wgr_module.h"
-#include "internal/wgr_render.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_light_internal.h"
+#include "internal/wgr_model_internal.h"
+#include "internal/wgr_module_internal.h"
+#include "internal/wgr_render_internal.h"
 #include "wgr_light.h"
 #include "wgr_logger.h"
 

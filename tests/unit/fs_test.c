@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "internal/wgr_fs.h"
+#include "internal/wgr_fs_internal.h"
 #include "test.h"
 #include "tests.h"
 

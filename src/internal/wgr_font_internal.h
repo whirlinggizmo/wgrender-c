@@ -5,7 +5,7 @@
 
 #include "fontstash.h"
 #include "sokol_gfx.h"
-#include <wgr_font.h> /* the public header ("" would find this file); wgr_font_release lives there */
+#include "wgr_font.h"
 #include "wgr_types.h"
 
 void wgr_font_init(void);

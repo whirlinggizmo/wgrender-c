@@ -1,4 +1,4 @@
-#include "internal/wgr_tick_clock.h"
+#include "internal/wgr_tick_clock_internal.h"
 #include "test.h"
 #include "tests.h"
 

@@ -1,6 +1,6 @@
 #include "wgr_version.h"
 
-#include "internal/exports.h"
+#include "internal/exports_internal.h"
 
 WGR_KEEP
 int wgr_version_major(void) {

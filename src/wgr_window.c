@@ -1,9 +1,9 @@
 #include "wgr_window.h"
 
-#include "internal/exports.h"
-#include "internal/wgr_internal.h"
+#include "internal/exports_internal.h"
+#include "internal/wgr_internal_internal.h"
 
-#include "internal/wgr_platform.h"
+#include "internal/wgr_platform_internal.h"
 #include "wgr_logger.h"
 
 /* Log a platform limitation once per function. */

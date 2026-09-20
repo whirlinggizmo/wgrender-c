@@ -1,4 +1,4 @@
-#include "internal/wgr_module.h"
+#include "internal/wgr_module_internal.h"
 
 #include <stdbool.h>
 #include <stddef.h>

@@ -1,4 +1,4 @@
-#include "internal/wgr_ktx.h"
+#include "internal/wgr_ktx_internal.h"
 
 #include <stdint.h>
 #include <string.h>

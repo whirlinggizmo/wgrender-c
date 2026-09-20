@@ -3,13 +3,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "internal/exports.h"
+#include "internal/exports_internal.h"
 #include "wgr_color.h"
-#include "internal/wgr_font.h"
-#include "internal/wgr_internal.h"
-#include "internal/wgr_handle_pool.h"
-#include "internal/wgr_scene.h"
-#include "internal/wgr_module.h"
+#include "internal/wgr_font_internal.h"
+#include "internal/wgr_internal_internal.h"
+#include "internal/wgr_handle_pool_internal.h"
+#include "internal/wgr_scene_internal.h"
+#include "internal/wgr_module_internal.h"
 #include "wgr_handle.h"
 #include "wgr_logger.h"
 #include "wgr_text.h" /* draw/measure delegate (resolves font 0 to the default font) */

@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-#include "internal/wgr_handle_pool.h"
+#include "internal/wgr_handle_pool_internal.h"
 #include "test.h"
 #include "tests.h"
 
