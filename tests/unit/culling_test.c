@@ -197,6 +197,49 @@ void test_model_instancing(void)
     sk_render_end();
     CHECK(sk_model_draw_call_count() == 1);
 
+    /* skinned models sharing a mesh group as well: each instance's record says where
+       its own joint matrices are, so two walkers out of step are still one draw per
+       primitive of the mesh */
+    const sk_handle_t gumshoe = sk_mesh_create("../examples/assets/models/gumshoe/gumshoe.glb");
+    const sk_handle_t walker_a = sk_model_create(gumshoe), walker_b = sk_model_create(gumshoe);
+    CHECK(gumshoe != 0 && walker_a != 0 && walker_b != 0);
+    sk_mesh_release(gumshoe);
+    sk_model_set_transform(walker_a, -1.0f, 0, 2.0f, 0, 0, 0, 1, 1, 1);
+    sk_model_set_transform(walker_b, 1.0f, 0, 2.0f, 0, 0, 0, 1, 1, 1);
+    sk_model_set_animation(walker_a, 0);
+    sk_model_set_animation(walker_b, 0);
+    sk_model_set_animation_time(walker_b, 0.4f);
+    sk_scene_add(scene, walker_a, 0);
+    sk_scene_add(scene, walker_b, 0);
+    {
+        int placements = 0, primitives = 0, records = 0, distinct_bases = 0;
+        float bases[8] = {0};
+        sk_render_begin();
+        sk_scene_draw(scene);
+        sk_model_queue_counts(&placements, &primitives, NULL);
+        sk_model_flush();
+        const float *record = sk_model_instance_records(&records);
+        /* the walkers' records carry their own joint bases: walker_a's are at 0 and
+           walker_b's after them, so at least two different values show up */
+        for (int i = 0; record != NULL && i < records; i++) {
+            const float base = record[i * 32 + 28];
+            int seen = 0;
+            for (int k = 0; k < distinct_bases; k++) seen |= bases[k] == base;
+            if (!seen && distinct_bases < 8) bases[distinct_bases++] = base;
+        }
+        sk_render_end();
+        /* the gumshoe is an opaque part and a see-through one, so each walker is two
+           primitives (and two placements: one per pass it appears in) */
+        const int walker_prims = (primitives - 8) / 2;
+        CHECK(placements >= 10 && walker_prims >= 1 && (primitives - 8) % 2 == 0);
+        CHECK(distinct_bases >= 2);
+        /* one draw for the cubes, then one per kind of walker primitive: the two
+           walkers share each of them */
+        CHECK(sk_model_draw_call_count() == 1 + walker_prims);
+    }
+    sk_model_destroy(walker_a);
+    sk_model_destroy(walker_b);
+
     for (int i = 0; i < 8; i++) {
         sk_model_destroy(models[i]);
     }

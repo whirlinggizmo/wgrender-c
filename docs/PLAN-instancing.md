@@ -175,6 +175,37 @@ has its own material cannot batch and measures exactly as it did. The scene walk
 — 1.15 ms for 4000 members, culling included — is now the largest CPU cost in the frame,
 and the frame is GPU-bound again.
 
+### Reviewed (2026-09-21)
+
+A second pass over phases 1 and 2, looking for what the unit tests (dummy backend: no
+pixels) could not show.
+
+- **A draw with more than one instance had never been seen.** Every example had unique
+  materials, so no group larger than one had rendered anywhere. `examples/instancing.c`
+  now exists for that: 400 cubes sharing a mesh and a material with a tint and transform
+  each, six gumshoes sharing one skinned mesh at different points of the walk, and five
+  see-through copies over the field. Screenshotted on WebGL2 and WebGPU: per-instance
+  tint, transform and joints all right, the translucent ones blended in order, and the
+  two backends identical. It stays in `make smoke` and `make webcheck` for good.
+- **sokol's instanced path.** The GL backend switches to `glDrawElementsInstanced` when
+  `num_instances > 1` whatever the pipeline's vertex layout, and WebGPU always draws
+  instanced, so a plain layout with `gl_InstanceIndex` is enough.
+- **Sorting never crosses a pass.** A region is declared inside one scene draw, so it
+  can't span passes; the sort now also breaks a run where the pass changes, because the
+  commands that replay an item range are per pass and a stray item across one would be
+  drawn in the wrong pass.
+- **Transparent parts.** They are never sorted, and when equal ones happen to be
+  neighbours they go up as one draw whose instances are rasterised in record order —
+  which is the back-to-front order they were submitted in, so blending is unchanged.
+- **Custom shaders** keep their own per-placement tint uniform (`frame.tint`), untouched
+  by the tint moving out of `fs_params` on the stock path.
+- **Found on the way, pre-existing:** a model with both an opaque and a see-through part
+  gets two placements a frame (one per pass it appears in) and a skinned one uploads its
+  joint matrices twice. Harmless, and cheap, but it is in TASKS.
+- Native GL was exercised by `make smoke` and the desktop build; a screen capture of the
+  real display came back black (capture-side), so the pixels were checked on the two
+  browser backends, which share the same sokol GL path.
+
 ## Phasing
 
 1. The instance texture and the record; every stock model draw becomes an instanced draw
@@ -200,6 +231,7 @@ and the frame is GPU-bound again.
   4000-distinct-materials case, which cannot group at all.
 - A new bench case or example with many copies of one model (the forest), since that is
   what this is for.
-- Visual: `examples/model.c`, `lights.c`, `shadows.c`, `materials.c` unchanged; tints and
-  per-model materials still right.
+- Visual: `examples/instancing.c` — a batched field, skinned copies, see-through copies —
+  on both browser backends; `model.c`, `lights.c`, `shadows.c`, `materials.c` unchanged;
+  tints and per-model materials still right.
 - `make verify`, `make webcheck` (both backends), Wine.

@@ -378,6 +378,12 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       material cannot batch and is unchanged. Still per draw: custom material shaders
       (phase 4) and the shadow pass (phase 3); the scene walk itself, 1.15 ms at 4000
       members, is now the largest CPU cost left
+- [ ] A model with an opaque part and a see-through part gets two placements a frame,
+      one per pass it appears in, because begin_draw only reuses the last placement
+      when the same model is drawn twice in a row; a skinned one uploads its joint
+      matrices twice as well. Cheap (a record and a few matrices), and instancing
+      groups each pass's parts across models regardless, but it is wasted work: found
+      while reviewing instancing
 - [ ] Lit particles: emitter particles are unlit — emitters have their own program
       (`particle` = vs_particle + the unlit `fs` in src/shaders/sk_sprite.glsl) and no
       material API, so the only lit "particles" today are sprite3d objects moved by the

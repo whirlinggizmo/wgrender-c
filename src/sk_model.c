@@ -2972,8 +2972,12 @@ static void sort_items(void)
     }
     while (start < sk_model_item_count) {
         const int region = sk_model_items[start].region;
+        const int pass = sk_model_draws[sk_model_items[start].draw].pass;
         int end = start + 1;
-        while (end < sk_model_item_count && sk_model_items[end].region == region) {
+        /* a region never spans passes, but the commands that replay this range are per
+           pass, so an item must not cross one even if it ever did */
+        while (end < sk_model_item_count && sk_model_items[end].region == region &&
+               sk_model_draws[sk_model_items[end].draw].pass == pass) {
             end++;
         }
         if (region >= 0 && end - start > 1) {
