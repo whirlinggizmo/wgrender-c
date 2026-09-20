@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Compile a custom material shader into a .skshader file (docs/PLAN-materials.md).
+"""Compile a custom material shader into a .wgrshader file (docs/PLAN-materials.md).
 
-    tools/shaderpack.py name.glsl [-o name.skshader]
+    tools/shaderpack.py name.glsl [-o name.wgrshader]
 
 Your file has a fragment shader `@fs fs` and may have a vertex hook `@block vertex`;
-shaders/sk.glsl says what libsk gives them. This puts shaders/sk.glsl in front of the
-file, adds libsk's vertex shaders (static and skinned models, and sprites: instanced,
+shaders/wgr.glsl says what libwgrender gives them. This puts shaders/wgr.glsl in front of the
+file, adds libwgrender's vertex shaders (static and skinned models, and sprites: instanced,
 and read from a texture where there's no base instance), compiles it for every
-backend libsk runs on (GL 4.1, WebGL2, WebGPU) with sokol-shdc, and writes one
-.skshader file: each backend's sources, what sokol needs to know about them, and the
-parameters by name. Load it with sk_shader_create(path). Only needed to make the file,
+backend libwgrender runs on (GL 4.1, WebGL2, WebGPU) with sokol-shdc, and writes one
+.wgrshader file: each backend's sources, what sokol needs to know about them, and the
+parameters by name. Load it with wgr_shader_create(path). Only needed to make the file,
 never at runtime; needs tools/sokol-shdc (see the Makefile's `shaders` target).
 
-A fragment shader that includes sk_screen instead of sk_surface is a screen effect
-(sk_render_add_effect): it gets one program, drawn over the finished frame.
+A fragment shader that includes wgr_screen instead of wgr_surface is a screen effect
+(wgr_render_add_effect): it gets one program, drawn over the finished frame.
 """
 import os
 import re
@@ -23,14 +23,14 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHDC = os.path.join(ROOT, "tools", "sokol-shdc")
-INTERFACE = os.path.join(ROOT, "shaders", "sk.glsl")
+INTERFACE = os.path.join(ROOT, "shaders", "wgr.glsl")
 SLANGS = ["glsl410", "glsl300es", "wgsl"]
 FORMAT_VERSION = 8
 
-FS_PARAMS_BINDING = 2  # binding 0 is libsk's vertex block, 1 its sk_frame block
+FS_PARAMS_BINDING = 2  # binding 0 is libwgrender's vertex block, 1 its wgr_frame block
 VS_PARAMS_BINDING = 3
 MAX_TEXTURES = 8
-MAX_PARAMS = 32   # src/internal/sk_shader.h
+MAX_PARAMS = 32   # src/internal/wgr_shader.h
 NAME_MAX = 32
 PARAM_TYPES = {  # std140: size, alignment
     "float": (4, 4),
@@ -121,7 +121,7 @@ def main():
     if len(args) != 1 or not args[0].endswith(".glsl"):
         sys.exit(__doc__)
     path = args[0]
-    out = out or path[: -len(".glsl")] + ".skshader"
+    out = out or path[: -len(".glsl")] + ".wgrshader"
     if not os.path.exists(SHDC):
         fail("tools/sokol-shdc is missing (see the Makefile's `shaders` target for how to get it)")
 
@@ -129,10 +129,10 @@ def main():
     interface = open(INTERFACE, encoding="utf-8").read()
     user_sections = sections(user)
     if ("fs", "fs") not in user_sections:
-        fail(f"{path}: needs a fragment shader `@fs fs` (see shaders/sk.glsl)")
-    hook = "vertex" if ("block", "vertex") in user_sections else "sk_vertex_default"
-    # a fragment shader that includes sk_screen is a screen effect, not a surface
-    screen = re.search(r"@include_block\s+sk_screen\s*$", user_sections[("fs", "fs")], re.M) is not None
+        fail(f"{path}: needs a fragment shader `@fs fs` (see shaders/wgr.glsl)")
+    hook = "vertex" if ("block", "vertex") in user_sections else "wgr_vertex_default"
+    # a fragment shader that includes wgr_screen is a screen effect, not a surface
+    screen = re.search(r"@include_block\s+wgr_screen\s*$", user_sections[("fs", "fs")], re.M) is not None
     if screen and ("block", "vertex") in user_sections:
         fail(f"{path}: a screen effect has no vertex hook (it draws over the finished frame)")
 
@@ -148,38 +148,38 @@ def main():
 
     if screen:
         generated = """
-@vs sk_vs_screen
-@include_block sk_vs_screen_main
+@vs wgr_vs_screen
+@include_block wgr_vs_screen_main
 @end
 
-@program screen sk_vs_screen fs
+@program screen wgr_vs_screen fs
 """
     else:
         programs = []
         for kind in ("static", "skinned"):
             programs.append(f"""
-@vs sk_vs_{kind}
-@include_block sk_vs_{kind}_uniforms
-@include_block sk_vs_outputs
+@vs wgr_vs_{kind}
+@include_block wgr_vs_{kind}_uniforms
+@include_block wgr_vs_outputs
 @include_block {hook}
-@include_block sk_vs_{kind}_main
+@include_block wgr_vs_{kind}_main
 @end
 """)
         generated = "".join(programs) + """
-@vs sk_vs_sprite
-@include_block sk_vs_sprite_common
-@include_block sk_vs_sprite_main
+@vs wgr_vs_sprite
+@include_block wgr_vs_sprite_common
+@include_block wgr_vs_sprite_main
 @end
 
-@vs sk_vs_sprite_pulled
-@include_block sk_vs_sprite_common
-@include_block sk_vs_sprite_pulled_main
+@vs wgr_vs_sprite_pulled
+@include_block wgr_vs_sprite_common
+@include_block wgr_vs_sprite_pulled_main
 @end
 
-@program static sk_vs_static fs
-@program skinned sk_vs_skinned fs
-@program sprite sk_vs_sprite fs
-@program sprite_pulled sk_vs_sprite_pulled fs
+@program static wgr_vs_static fs
+@program skinned wgr_vs_skinned fs
+@program sprite wgr_vs_sprite fs
+@program sprite_pulled wgr_vs_sprite_pulled fs
 """
     combined = interface + "\n" + user + "\n" + generated
     user_first_line = interface.count("\n") + 2  # the user's line 1 in the combined file
@@ -195,12 +195,12 @@ def main():
                 line = int(m.group(1))
                 if line >= user_first_line:
                     return f"{path}:{line - user_first_line + 1}"
-                return f"shaders/sk.glsl or the generated vertex shaders (line {line})"
+                return f"shaders/wgr.glsl or the generated vertex shaders (line {line})"
             message = re.sub(re.escape(combined_path) + r":(\d+)", remap, result.stdout + result.stderr)
             sys.exit(message.strip() or "shaderpack: sokol-shdc failed")
         reflection = parse_yaml(open(os.path.join(work, "out_reflection.yaml"), encoding="utf-8").read())
 
-        lines = [f"skshader {FORMAT_VERSION}", f"kind {'screen' if screen else 'surface'}"]
+        lines = [f"wgrshader {FORMAT_VERSION}", f"kind {'screen' if screen else 'surface'}"]
         for name, kind, offset in fs_params:
             lines.append(f"param {name} {kind} fs {offset}")
         for name, kind, offset in vs_params:
@@ -211,7 +211,7 @@ def main():
             for program in shader["programs"]:
                 check_program(shader["slang"], program, fs_block, fs_params, vs_block, vs_params)
                 program_textures = sorted(v["texture"]["name"] for v in program.get("views", [])
-                                          if not v["texture"]["name"].startswith("sk_"))
+                                          if not v["texture"]["name"].startswith("wgr_"))
                 if textures is None:
                     textures = program_textures
                     for name in textures:
@@ -238,7 +238,7 @@ def check_program(slang, program, fs_block, fs_params, vs_block, vs_params):
     for block in program.get("uniform_blocks", []):
         slot, stage, size = block["slot"], block["stage"], block["size"]
         if slot in (0, 1, 4):
-            continue  # libsk's: per object (or sprite view), per draw, sprite batch
+            continue  # libwgrender's: per object (or sprite view), per draw, sprite batch
         expected = {FS_PARAMS_BINDING: ("fragment", fs_params), VS_PARAMS_BINDING: ("vertex", vs_params)}.get(slot)
         if expected is None or stage != expected[0]:
             fail(f"uniform block binding {slot} ({stage}): parameters go in binding {FS_PARAMS_BINDING} "
@@ -249,8 +249,8 @@ def check_program(slang, program, fs_block, fs_params, vs_block, vs_params):
             fail(f"{slang}: the parameter block at binding {slot} is {size} bytes; expected {(end + 15) // 16 * 16}")
     for view in program.get("views", []):
         texture = view["texture"]
-        if texture["name"].startswith("sk_"):
-            continue  # libsk's (the environment), at bindings 8 and 9
+        if texture["name"].startswith("wgr_"):
+            continue  # libwgrender's (the environment), at bindings 8 and 9
         if len(texture["name"]) >= NAME_MAX:
             fail(f"texture {texture['name']}: names are at most {NAME_MAX - 1} characters")
         if texture["stage"] != "fragment" or texture["type"] != "2d" or texture["slot"] >= MAX_TEXTURES:

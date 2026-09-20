@@ -1,8 +1,8 @@
 # Plan: Environment lighting (image-based lighting) and tone mapping
 
 Status: **implemented (2026-09-16).** Decisions 1–5 accepted as recommended; see
-"As built" for details and deviations. `include/sk_environment.h`,
-`sk_scene_set_environment/background/tonemap`, `examples/environment.c`.
+"As built" for details and deviations. `include/wgr_environment.h`,
+`wgr_scene_set_environment/background/tonemap`, `examples/environment.c`.
 
 ## Why
 
@@ -23,20 +23,20 @@ three.js, Godot). Without one:
 ### Environment resource
 
 ```c
-/* include/sk_environment.h */
+/* include/wgr_environment.h */
 /* An environment map loaded from an equirectangular (latitude-longitude) image:
  * Radiance .hdr (recommended, true HDR) or PNG/JPEG (sRGB, low dynamic range).
  * Creation prepares the lighting data on the CPU (see below). */
-sk_handle_t sk_environment_create(const char *path);
-void        sk_environment_release(sk_handle_t environment);
+wgr_handle_t wgr_environment_create(const char *path);
+void        wgr_environment_release(wgr_handle_t environment);
 
-/* include/sk_scene.h */
+/* include/wgr_scene.h */
 /* Light the scene's models with an environment. intensity scales it (1 = as
  * authored); rotation (radians) turns it around the world up (+y) axis. 0 = none. */
-bool sk_scene_set_environment(sk_handle_t scene, sk_handle_t environment, float intensity, float rotation);
+bool wgr_scene_set_environment(wgr_handle_t scene, wgr_handle_t environment, float intensity, float rotation);
 /* Draw the environment behind everything as the scene's background (skybox).
  * blur 0..1 shows it sharp to fully blurred (useful behind focused subjects). */
-bool sk_scene_set_background(sk_handle_t scene, sk_handle_t environment, float blur);
+bool wgr_scene_set_background(wgr_handle_t scene, wgr_handle_t environment, float blur);
 ```
 
 - A resource like Texture or Mesh: from a path, deduped, reference counted; scenes
@@ -72,7 +72,7 @@ today; the loading-pipeline roadmap item would move it to a worker.
   color) and specular (prefiltered radiance × (F0 × A + B) from the LUT), both
   scaled by intensity and multiplied by the occlusion map. Specular also uses a
   simple horizon/occlusion term so crevices don't glow.
-- Unlit materials ignore it, like lights. Models outside a scene (sk_model_draw)
+- Unlit materials ignore it, like lights. Models outside a scene (wgr_model_draw)
   stay unlit.
 - Background: a full-screen pass drawn before a scene's 3D layers, sampling the
   cubemap by view direction at a mip chosen from `blur`.
@@ -81,12 +81,12 @@ today; the loading-pipeline roadmap item would move it to a worker.
 
 ```c
 typedef enum {
-    SK_TONEMAP_NONE = 0,   /* clamp (today's behavior) */
-    SK_TONEMAP_NEUTRAL,    /* Khronos PBR Neutral: colors unchanged until highlights roll off */
-    SK_TONEMAP_ACES,       /* filmic, more contrast and hue shift */
-} sk_tonemap_t;
+    WGR_TONEMAP_NONE = 0,   /* clamp (today's behavior) */
+    WGR_TONEMAP_NEUTRAL,    /* Khronos PBR Neutral: colors unchanged until highlights roll off */
+    WGR_TONEMAP_ACES,       /* filmic, more contrast and hue shift */
+} wgr_tonemap_t;
 
-bool sk_scene_set_tonemap(sk_handle_t scene, sk_tonemap_t tonemap, float exposure); /* exposure in stops (EV) */
+bool wgr_scene_set_tonemap(wgr_handle_t scene, wgr_tonemap_t tonemap, float exposure); /* exposure in stops (EV) */
 ```
 
 - Applied in the model shader (and the background), before the sRGB encode. There
@@ -125,7 +125,7 @@ bool sk_scene_set_tonemap(sk_handle_t scene, sk_tonemap_t tonemap, float exposur
 
 ## As built
 
-- **Timing:** `sk_environment_create` takes ~330 ms for a 1K `.hdr` (1024x512) on a
+- **Timing:** `wgr_environment_create` takes ~330 ms for a 1K `.hdr` (1024x512) on a
   desktop CPU, single-threaded: decode, SH projection, a source cubemap, and the GGX
   prefilter (96 samples per texel, filtered importance sampling). The loading
   pipeline roadmap item would move it off the main thread.
@@ -154,7 +154,7 @@ bool sk_scene_set_tonemap(sk_handle_t scene, sk_tonemap_t tonemap, float exposur
   a scene and sprites/shapes/text are unchanged.
 - **webcheck fixes found along the way:** requests to the page now time out (a page
   that never started could hang a headed run indefinitely), and the loading check no
-  longer calls into the page before libsk has started (that aborted pages at random,
+  longer calls into the page before libwgrender has started (that aborted pages at random,
   about one run in two).
 
 ## Verification

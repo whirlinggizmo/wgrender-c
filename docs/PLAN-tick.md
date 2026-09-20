@@ -4,14 +4,14 @@ Status: **implemented (2026-09-16).**
 
 ## Problem
 
-libsk has one callback, `sk_set_frame(fn)`, called once per rendered frame, with
-timing read from the global `sk_get_delta_time()`. That leaves no good place for
+libwgrender has one callback, `wgr_set_frame(fn)`, called once per rendered frame, with
+timing read from the global `wgr_get_delta_time()`. That leaves no good place for
 simulation that must be deterministic:
 
 - A variable `dt` makes physics and gameplay depend on the frame rate.
 - When frames stall (a hidden or throttled window), `dt` is clamped to 100 ms, so
   game time silently runs slow.
-- `sk_set_target_fps` gets misused as a simulation-rate control. It should only
+- `wgr_set_target_fps` gets misused as a simulation-rate control. It should only
   be a power cap.
 
 ## Design
@@ -19,11 +19,11 @@ simulation that must be deterministic:
 Two callbacks, named for what they are (frame rate vs tick rate):
 
 ```c
-typedef void (*sk_tick_fn)(float dt, void *user_data);                        /* dt = 1/hz, always */
-typedef void (*sk_frame_fn)(float dt, float tick_fraction, void *user_data);  /* once per rendered frame */
+typedef void (*wgr_tick_fn)(float dt, void *user_data);                        /* dt = 1/hz, always */
+typedef void (*wgr_frame_fn)(float dt, float tick_fraction, void *user_data);  /* once per rendered frame */
 
-void sk_set_tick(sk_tick_fn tick_fn, void *user_data, int hz);  /* hz <= 0 or NULL fn: no tick */
-void sk_set_frame(sk_frame_fn frame_fn, void *user_data);
+void wgr_set_tick(wgr_tick_fn tick_fn, void *user_data, int hz);  /* hz <= 0 or NULL fn: no tick */
+void wgr_set_frame(wgr_frame_fn frame_fn, void *user_data);
 ```
 
 - **tick:** simulation at a fixed rate. Runs 0..N times before each frame, always
@@ -33,8 +33,8 @@ void sk_set_frame(sk_frame_fn frame_fn, void *user_data);
   into the next tick, for drawing tick state smoothly:
   `draw_pos = lerp(prev_tick_pos, tick_pos, tick_fraction)`. It is 0 when no tick
   is set.
-- **Timing is passed as arguments, not read from globals.** `sk_get_delta_time()`
-  is removed. `sk_get_time()` (absolute clock) stays.
+- **Timing is passed as arguments, not read from globals.** `wgr_get_delta_time()`
+  is removed. `wgr_get_time()` (absolute clock) stays.
 - Name: `tick_fraction`, not the tutorial term "alpha" (which already means
   transparency in a graphics library). Godot calls it the physics interpolation
   fraction, Bevy the overstep fraction.
@@ -60,13 +60,13 @@ frame(dt, tick_fraction)
   smoothed or clamped frame `dt`.
 - Changing the rate or callback resets the accumulator.
 - Web: identical. Ticks run inside the browser's frame callback.
-- The scheduling logic is pure (`src/sk_tick_clock.c`) and unit tested, like
-  `sk_frame_pace`.
+- The scheduling logic is pure (`src/wgr_tick_clock.c`) and unit tested, like
+  `wgr_frame_pace`.
 
 ### Input edges
 
-Input is read through getters (`sk_input_get_keyboard_state()`,
-`sk_input_get_mouse_state()`), so "pressed this frame" needs a defined meaning
+Input is read through getters (`wgr_input_get_keyboard_state()`,
+`wgr_input_get_mouse_state()`), so "pressed this frame" needs a defined meaning
 inside a tick:
 
 - **Edges (pressed / released, mouse and wheel deltas, typed keys and chars) are
@@ -85,11 +85,11 @@ inside a tick:
 
 ## Changes
 
-- `include/sk.h`: `sk_tick_fn`, new `sk_frame_fn` signature, `sk_set_tick`; remove
-  `sk_get_delta_time`; document frame vs tick and the input edge rule.
-- `src/sk.c`: tick scheduling in `on_frame`, callback context for input.
-- `src/sk_tick_clock.c` + `src/internal/sk_tick_clock.h`: pure scheduler.
-- `src/sk_input.c`: separate tick and frame edge sets; getters pick by context.
+- `include/wgr.h`: `wgr_tick_fn`, new `wgr_frame_fn` signature, `wgr_set_tick`; remove
+  `wgr_get_delta_time`; document frame vs tick and the input edge rule.
+- `src/wgr.c`: tick scheduling in `on_frame`, callback context for input.
+- `src/wgr_tick_clock.c` + `src/internal/wgr_tick_clock.h`: pure scheduler.
+- `src/wgr_input.c`: separate tick and frame edge sets; getters pick by context.
 - Every example's frame callback gets the new signature; `model.c` and
   `simple.c` use the `dt` argument.
 - New `examples/tick.c`: an object moving at a 10 Hz tick, drawn raw (visibly

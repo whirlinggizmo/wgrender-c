@@ -5,9 +5,9 @@ transparent runs, a persistent buffer) is open and not obviously needed yet. Dec
 automatic grouping with no new API (an explicit instanced handle only if a measured case
 ever needs one), opaque models may be reordered, and custom shaders follow in phase 4 of
 the same release.
-Builds on the model draw queue (`src/sk_model.c`), the joint texture it already uses for
-skinning, and the sprite batch's instancing (`src/sk_sprite_batch.c`), which is the
-closest thing libsk already has to this.
+Builds on the model draw queue (`src/wgr_model.c`), the joint texture it already uses for
+skinning, and the sprite batch's instancing (`src/wgr_sprite_batch.c`), which is the
+closest thing libwgrender already has to this.
 
 ## Why
 
@@ -34,7 +34,7 @@ Per model placement, `draw_primitive` does all of:
 - `sg_apply_bindings` with ten views and ten samplers;
 - `sg_draw(0, index_count, 1)`.
 
-The queue entry (`sk_model_draw_t`) already holds everything an instance needs: `mvp`,
+The queue entry (`wgr_model_draw_t`) already holds everything an instance needs: `mvp`,
 `model_mat`, `normal_mat`, `tint`, `light_env`, the selected `lights`, `joint_base` and
 (since culling) the world bounds.
 
@@ -42,7 +42,7 @@ The queue entry (`sk_model_draw_t`) already holds everything an instance needs: 
 
 ### Per-instance data lives in a texture, not in attributes
 
-The shape that fits libsk is the one skinning already uses: a per-frame RGBA32F data
+The shape that fits libwgrender is the one skinning already uses: a per-frame RGBA32F data
 texture, written once a frame, read in the vertex shader with `texelFetch` at
 `gl_InstanceIndex + base`. One record per placement:
 
@@ -60,7 +60,7 @@ The alternative is per-instance vertex attributes, which is what the sprite batc
 It costs no texture fetch, but a skinned model already spends 8 of sokol's 16 attribute
 slots, and the record above needs 8 more: exactly at the limit, with nothing left for
 anything later, and every custom vertex shader would have to declare all of them. The
-texture costs one texture binding and one sampler (libsk currently owns 8–9 of the 12
+texture costs one texture binding and one sampler (libwgrender currently owns 8–9 of the 12
 sampler slots, so there is room) and keeps the custom-shader contract to a single
 include block.
 
@@ -82,7 +82,7 @@ environment, the selected light set, and the shadow binding. Those keys are hash
 per item; a run of equal keys becomes one `sg_draw` with that many instances.
 
 Runs only exist if equal items are adjacent. Opaque parts are already drawn in an
-explicitly unordered region (`begin_unordered` / `end_unordered` in `sk_scene`, where
+explicitly unordered region (`begin_unordered` / `end_unordered` in `wgr_scene`, where
 sprites group by texture), so the items inside one command's range get sorted by that
 key first. Transparent parts keep their back-to-front order and only group where equal
 items are already neighbours.
@@ -97,11 +97,11 @@ selected sets are identical anyway.
 
 ## Decisions
 
-1. **Automatic, or opt-in?** Grouping can be invisible — no public API, libsk batches
+1. **Automatic, or opt-in?** Grouping can be invisible — no public API, libwgrender batches
    what it can — or explicit, e.g. an instanced-model handle the caller fills. Automatic
    keeps the API surface and means existing programs get faster with no change; explicit
    would let a caller promise that N placements share everything and skip the per-frame
-   key building. Recommend: automatic. libsk's job is to make the obvious code fast.
+   key building. Recommend: automatic. libwgrender's job is to make the obvious code fast.
 2. **Per-instance data: texture or attributes?** As above. Recommend: texture, for the
    attribute budget and the custom-shader contract.
 3. **May opaque models be reordered?** Sorting a command's opaque items by pipeline,
@@ -112,17 +112,17 @@ selected sets are identical anyway.
 4. **Does tint stop being a material uniform?** Moving the tint into the record changes
    `fs_params` to material-only and makes the tint a varying. Custom shaders currently
    see the tint folded into `u_base_color`; after this they would read it from
-   `sk_color`-style varying instead. Recommend: yes, and phase the custom-shader side
+   `wgr_color`-style varying instead. Recommend: yes, and phase the custom-shader side
    (5) so nothing breaks in between.
 5. **When do custom shaders follow?** Stock PBR can instance without touching
-   `shaders/sk.glsl`; custom material shaders need the same include block, which bumps
-   the `.skshader` format (7 → 8) and repacks `examples/assets/shaders/`. Recommend: in
+   `shaders/wgr.glsl`; custom material shaders need the same include block, which bumps
+   the `.wgrshader` format (7 → 8) and repacks `examples/assets/shaders/`. Recommend: in
    the same release, one phase later, so a custom shader is never the slow path for long.
 
 ## Phase 1 as built
 
-`sk_model` keeps a second frame data texture beside the joint one: RGBA32F, eight texels
-a placement, 128 records a row, written once in `sk_model_flush` before any pass. A
+`wgr_model` keeps a second frame data texture beside the joint one: RGBA32F, eight texels
+a placement, 128 records a row, written once in `wgr_model_flush` before any pass. A
 record holds three rows of the model matrix, three of its inverse transpose, the tint
 (converted to linear on the way in) and the skin base. `vs_params` is now the camera's
 view-projection and the draw's first record; `vs_skin_params` is the same, since the
@@ -132,7 +132,7 @@ own record — one instance each, until phase 2 groups them.
 Two things fell out of it. The tint left `fs_params`: the vertex stage multiplies it
 into `v_color`, and because the fragment stage already computed
 `base_sample * u_base_color * v_color`, that is the same arithmetic in a different
-place — no fragment change, and custom shaders that read `sk_color` keep working. What
+place — no fragment change, and custom shaders that read `wgr_color` keep working. What
 is left in `fs_params` is material state only, which is what lets phase 2 group.
 
 Measured: nothing moved. 4000 models with no shadows 5.28 ms against a 4.96–5.57 band
@@ -143,17 +143,17 @@ draw thousands of placements from one call.
 
 ## Phase 2 as built
 
-An item remembers which *unordered region* it was submitted in — `sk_scene` already
-declares those around the opaque part of a layer, for sprites, and now tells `sk_model`
+An item remembers which *unordered region* it was submitted in — `wgr_scene` already
+declares those around the opaque part of a layer, for sprites, and now tells `wgr_model`
 too through two scene hooks. Inside one region the items may be drawn in any order, so
-`sk_model_flush` sorts each region by a hash of everything a draw has to set outside the
+`wgr_model_flush` sorts each region by a hash of everything a draw has to set outside the
 instance record: material, primitive buffers, pipeline (skinned / blended / double
 sided), pass, lighting environment, the selected light set, whether the model receives
 shadows, and the camera. See-through parts are marked region −1 and never move, so the
 back-to-front order stands.
 
 Records are written per item in that sorted order, so a run of equal items occupies
-consecutive records. `sk_model_draw_items` then walks the run, comparing each item to
+consecutive records. `wgr_model_draw_items` then walks the run, comparing each item to
 the first *exactly* (the hash only decides the sort; a collision costs a split, never a
 wrong batch), and issues one `sg_draw` with that many instances. A material with a
 custom shader never joins a run — that path has its own uniforms per placement until
@@ -213,8 +213,8 @@ pixels) could not show.
 ## Phase 3 as built
 
 The depth pass now reads each caster's placement from the same records the shading pass
-does, so it batches the same way. The instance block moved out of `sk_model.glsl` into
-`src/shaders/sk_instance.glsl`, which both shaders `@include`; `vs_depth_params` became
+does, so it batches the same way. The instance block moved out of `wgr_model.glsl` into
+`src/shaders/wgr_instance.glsl`, which both shaders `@include`; `vs_depth_params` became
 the light's view-projection and the draw's first record, and the joint base comes out of
 the record, exactly as on the shading side.
 
@@ -247,23 +247,23 @@ placements drawn a second time.
 
 ## Phase 4 as built
 
-Custom material shaders read their placement the same way. `shaders/sk.glsl` gained an
-`sk_vs_instance` block — the same record layout, at view slot 14 — and the two model
-vertex stages use it: `sk_object` is now the camera's view-projection plus the draw's
-first record, and the joint base comes out of the record, so `sk_skinned_object` is the
+Custom material shaders read their placement the same way. `shaders/wgr.glsl` gained an
+`wgr_vs_instance` block — the same record layout, at view slot 14 — and the two model
+vertex stages use it: `wgr_object` is now the camera's view-projection plus the draw's
+first record, and the joint base comes out of the record, so `wgr_skinned_object` is the
 same block. Sampler slots stop at 11, so the instance texture and the joint texture
 share one nonfiltering sampler; both are nearest and clamped, and sokol pairs one
 sampler with as many textures as it likes.
 
 The tint needed care. On the stock path it folds into `v_color`, because the fragment
-stage multiplies by it anyway — but a custom shader's `sk_output()` applies `sk_tint`
-from the frame block, and a shader that ignores `sk_color` would have silently lost its
-tint. So `sk_tint` became a **varying** instead: the model stages write it from the
-record, sprites write white (their tint has always been in `sk_color`), and every
-existing shader behaves exactly as it did. `sk_frame` loses the field, which is part of
+stage multiplies by it anyway — but a custom shader's `wgr_output()` applies `wgr_tint`
+from the frame block, and a shader that ignores `wgr_color` would have silently lost its
+tint. So `wgr_tint` became a **varying** instead: the model stages write it from the
+record, sprites write white (their tint has always been in `wgr_color`), and every
+existing shader behaves exactly as it did. `wgr_frame` loses the field, which is part of
 why the format moves.
 
-`.skshader` format 7 → 8; `make example-shaders` repacks the six in
+`.wgrshader` format 7 → 8; `make example-shaders` repacks the six in
 `examples/assets/shaders/`. An older pack is refused with a clear message rather than
 drawn wrongly, as it was for format 7.
 
@@ -280,7 +280,7 @@ besides the record.
    as one `sg_draw`. This is the phase the numbers come from. **Built.**
 3. The depth pass (shadows) instanced the same way — it is the same queue, and it is
    already the second-largest consumer of it. **Built.**
-4. Custom material shaders: the `sk.glsl` include block, format bump, repack. **Built.**
+4. Custom material shaders: the `wgr.glsl` include block, format bump, repack. **Built.**
 5. Open: per-instance light sets, so grouping isn't constrained by light
    selection; transparent runs; a persistent instance buffer for placements that don't
    move.

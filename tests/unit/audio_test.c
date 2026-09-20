@@ -6,11 +6,11 @@
 #include <string.h>
 #include <time.h>
 
-#include "internal/sk_audio.h"
-#include "internal/sk_internal.h"
-#include "sk_audio.h"
-#include "sk_logger.h"
-#include "sk_sound.h"
+#include "internal/wgr_audio.h"
+#include "internal/wgr_internal.h"
+#include "wgr_audio.h"
+#include "wgr_logger.h"
+#include "wgr_sound.h"
 #include "test.h"
 #include "tests.h"
 
@@ -50,43 +50,43 @@ static bool write_test_wav(const char *path, int rate, int frames)
 
 /* Mix `blocks` blocks where only `sound` plays, into out (stereo). Other sounds
  * are paused around it, so two sounds can be compared block by block. */
-static void mix_alone(sk_handle_t sound, float *out, int frames, int rate)
+static void mix_alone(wgr_handle_t sound, float *out, int frames, int rate)
 {
-    sk_sound_resume(sound);
-    sk_audio_mix(out, frames, rate);
-    sk_sound_pause(sound);
+    wgr_sound_resume(sound);
+    wgr_audio_mix(out, frames, rate);
+    wgr_sound_pause(sound);
 }
 
 /* Decoded and streamed copies of a file play identically, block by block, with
  * loop and pitch, across several loops. */
 static void check_stream_matches_decode(const char *path, int frames, float pitch, int rate)
 {
-    sk_handle_t decoded = sk_audio_create_mode(path, SK_AUDIO_MODE_DECODE);
-    sk_handle_t streamed = sk_audio_create_mode(path, SK_AUDIO_MODE_STREAM);
+    wgr_handle_t decoded = wgr_audio_create_mode(path, WGR_AUDIO_MODE_DECODE);
+    wgr_handle_t streamed = wgr_audio_create_mode(path, WGR_AUDIO_MODE_STREAM);
     float a[BLOCK * 2], b[BLOCK * 2];
     int mismatched_blocks = 0, silent_blocks = 0;
 
     /* the path dedupes: the second create returns the first Audio */
     CHECK(decoded != 0 && streamed == decoded);
-    sk_audio_release(streamed);
-    CHECK(!sk_audio_is_streamed(decoded));
+    wgr_audio_release(streamed);
+    CHECK(!wgr_audio_is_streamed(decoded));
 
     /* the same file under another path, forced to stream */
     char alias[512];
     snprintf(alias, sizeof(alias), "./%s", path);
-    streamed = sk_audio_create_mode(alias, SK_AUDIO_MODE_STREAM);
+    streamed = wgr_audio_create_mode(alias, WGR_AUDIO_MODE_STREAM);
     CHECK(streamed != 0 && streamed != decoded);
-    CHECK(sk_audio_is_streamed(streamed));
+    CHECK(wgr_audio_is_streamed(streamed));
 
-    sk_handle_t sa = sk_sound_create(decoded), sb = sk_sound_create(streamed);
-    sk_audio_release(decoded); /* sounds hold references; audio stays alive while playing */
-    sk_audio_release(streamed);
+    wgr_handle_t sa = wgr_sound_create(decoded), sb = wgr_sound_create(streamed);
+    wgr_audio_release(decoded); /* sounds hold references; audio stays alive while playing */
+    wgr_audio_release(streamed);
     for (int i = 0; i < 2; i++) {
-        sk_handle_t s = i == 0 ? sa : sb;
-        sk_sound_set_loop(s, true);
-        sk_sound_set_pitch(s, pitch);
-        sk_sound_play(s);
-        sk_sound_pause(s);
+        wgr_handle_t s = i == 0 ? sa : sb;
+        wgr_sound_set_loop(s, true);
+        wgr_sound_set_pitch(s, pitch);
+        wgr_sound_play(s);
+        wgr_sound_pause(s);
     }
     for (int done = 0; done < frames; done += BLOCK) {
         float peak = 0.0f;
@@ -101,16 +101,16 @@ static void check_stream_matches_decode(const char *path, int frames, float pitc
     }
     CHECK(mismatched_blocks == 0);
     CHECK(silent_blocks < frames / BLOCK); /* it actually played */
-    CHECK(sk_sound_is_playing(sa) == false);   /* paused by mix_alone */
-    sk_sound_destroy(sa);
-    sk_sound_destroy(sb);
+    CHECK(wgr_sound_is_playing(sa) == false);   /* paused by mix_alone */
+    wgr_sound_destroy(sa);
+    wgr_sound_destroy(sb);
 }
 
 void test_audio_streaming(void)
 {
-    sk_audio_init();
-    sk_sound_init();
-    sk_logger_set_level(SK_LOGGER_LEVEL_WARN);
+    wgr_audio_init();
+    wgr_sound_init();
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_WARN);
 
     CHECK(write_test_wav(WAV_PATH, 22050, 22050 * 3 / 2)); /* 1.5 s */
     /* WAV: 1.5 s looping ~3.4 times at pitch 1.37, resampled to 48 kHz */
@@ -121,64 +121,64 @@ void test_audio_streaming(void)
     check_stream_matches_decode(MUSIC_PATH, 44100 * 3, 2.0f, 44100);
 
     /* automatic choice: the 6 MB music streams, the small click decodes */
-    sk_handle_t music = sk_audio_create(MUSIC_PATH), click = sk_audio_create(CLICK_PATH);
-    CHECK(sk_audio_is_streamed(music));
-    CHECK(!sk_audio_is_streamed(click));
+    wgr_handle_t music = wgr_audio_create(MUSIC_PATH), click = wgr_audio_create(CLICK_PATH);
+    CHECK(wgr_audio_is_streamed(music));
+    CHECK(!wgr_audio_is_streamed(click));
 
     /* two sounds on one streamed Audio keep independent positions */
-    sk_handle_t reference_audio = sk_audio_create_mode("./" MUSIC_PATH, SK_AUDIO_MODE_DECODE);
-    sk_handle_t first = sk_sound_create(music), second = sk_sound_create(music), reference = sk_sound_create(reference_audio);
+    wgr_handle_t reference_audio = wgr_audio_create_mode("./" MUSIC_PATH, WGR_AUDIO_MODE_DECODE);
+    wgr_handle_t first = wgr_sound_create(music), second = wgr_sound_create(music), reference = wgr_sound_create(reference_audio);
     float mixed[BLOCK * 2], expected[BLOCK * 2];
-    sk_sound_play(first);
-    for (int i = 0; i < 20; i++) sk_audio_mix(mixed, BLOCK, 44100); /* first moves ahead */
-    sk_sound_set_volume(first, 0.0f);   /* silent, but still decoding its own position */
-    sk_sound_play(second);              /* from the start */
-    sk_audio_mix(mixed, BLOCK, 44100);
-    sk_sound_pause(first);
-    sk_sound_pause(second);
-    sk_sound_play(reference);
-    sk_audio_mix(expected, BLOCK, 44100);
+    wgr_sound_play(first);
+    for (int i = 0; i < 20; i++) wgr_audio_mix(mixed, BLOCK, 44100); /* first moves ahead */
+    wgr_sound_set_volume(first, 0.0f);   /* silent, but still decoding its own position */
+    wgr_sound_play(second);              /* from the start */
+    wgr_audio_mix(mixed, BLOCK, 44100);
+    wgr_sound_pause(first);
+    wgr_sound_pause(second);
+    wgr_sound_play(reference);
+    wgr_audio_mix(expected, BLOCK, 44100);
     CHECK(memcmp(mixed, expected, sizeof(mixed)) == 0);
 
     /* rewinding a streamed sound (seek back to the start) matches the decoded start */
-    sk_sound_set_volume(first, 1.0f);
-    sk_sound_play(first);
-    sk_sound_pause(reference);
-    sk_audio_mix(mixed, BLOCK, 44100);
+    wgr_sound_set_volume(first, 1.0f);
+    wgr_sound_play(first);
+    wgr_sound_pause(reference);
+    wgr_audio_mix(mixed, BLOCK, 44100);
     CHECK(memcmp(mixed, expected, sizeof(mixed)) == 0);
-    sk_sound_pause(first);
+    wgr_sound_pause(first);
 
     /* the Audio outlives its creator's reference while sounds use it */
-    sk_audio_release(music);
-    sk_sound_play(second);
-    sk_audio_mix(mixed, BLOCK, 44100);
-    CHECK(sk_sound_is_playing(second));
-    sk_sound_destroy(first);
-    sk_sound_destroy(second); /* last reference: the Audio is freed */
-    sk_logger_set_level(SK_LOGGER_LEVEL_FATAL); /* the stale handle logs */
-    CHECK(!sk_audio_is_streamed(music));
-    sk_logger_set_level(SK_LOGGER_LEVEL_WARN);
+    wgr_audio_release(music);
+    wgr_sound_play(second);
+    wgr_audio_mix(mixed, BLOCK, 44100);
+    CHECK(wgr_sound_is_playing(second));
+    wgr_sound_destroy(first);
+    wgr_sound_destroy(second); /* last reference: the Audio is freed */
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL); /* the stale handle logs */
+    CHECK(!wgr_audio_is_streamed(music));
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_WARN);
 
     /* switching a playing sound to another Audio keeps playing it */
-    CHECK(sk_audio_is_streamed(reference_audio) == false);
-    sk_sound_set_audio(reference, click);
-    sk_sound_set_loop(reference, true); /* the click is shorter than a block */
-    sk_sound_play(reference);
-    sk_audio_mix(mixed, BLOCK, 44100);
-    CHECK(sk_sound_is_playing(reference));
+    CHECK(wgr_audio_is_streamed(reference_audio) == false);
+    wgr_sound_set_audio(reference, click);
+    wgr_sound_set_loop(reference, true); /* the click is shorter than a block */
+    wgr_sound_play(reference);
+    wgr_audio_mix(mixed, BLOCK, 44100);
+    CHECK(wgr_sound_is_playing(reference));
 
     /* non-looping sounds stop at the end */
-    sk_sound_set_loop(reference, false);
-    for (int i = 0; i < 100 && sk_sound_is_playing(reference); i++) sk_audio_mix(mixed, BLOCK, 44100);
-    CHECK(!sk_sound_is_playing(reference));
+    wgr_sound_set_loop(reference, false);
+    for (int i = 0; i < 100 && wgr_sound_is_playing(reference); i++) wgr_audio_mix(mixed, BLOCK, 44100);
+    CHECK(!wgr_sound_is_playing(reference));
 
-    sk_sound_destroy(reference);
-    sk_audio_release(reference_audio);
-    sk_audio_release(click);
+    wgr_sound_destroy(reference);
+    wgr_audio_release(reference_audio);
+    wgr_audio_release(click);
     remove(WAV_PATH);
-    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
-    sk_sound_deinit();
-    sk_audio_deinit();
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
+    wgr_sound_deinit();
+    wgr_audio_deinit();
 }
 
 /* The device thread mixes while the game thread changes sounds and creates and
@@ -192,7 +192,7 @@ static void *mixer_thread(void *user)
     int *blocks = (int *)user;
     while (mixer_running) {
         const struct timespec pause = {0, 1000000}; /* like a device: blocks arrive over time, not in a spin */
-        sk_audio_mix(buffer, 512, 44100);
+        wgr_audio_mix(buffer, 512, 44100);
         (*blocks)++;
         nanosleep(&pause, NULL);
     }
@@ -204,50 +204,50 @@ void test_audio_threads(void)
     pthread_t thread;
     int blocks = 0;
 
-    sk_audio_init();
-    sk_sound_init();
-    sk_logger_set_level(SK_LOGGER_LEVEL_WARN);
+    wgr_audio_init();
+    wgr_sound_init();
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_WARN);
 
-    sk_handle_t music = sk_audio_create(MUSIC_PATH);
-    sk_handle_t click = sk_audio_create(CLICK_PATH);
-    sk_handle_t sounds[4];
+    wgr_handle_t music = wgr_audio_create(MUSIC_PATH);
+    wgr_handle_t click = wgr_audio_create(CLICK_PATH);
+    wgr_handle_t sounds[4];
     for (int i = 0; i < 4; i++) {
-        sounds[i] = sk_sound_create(i % 2 ? click : music);
-        sk_sound_set_loop(sounds[i], true);
-        sk_sound_play(sounds[i]);
+        sounds[i] = wgr_sound_create(i % 2 ? click : music);
+        wgr_sound_set_loop(sounds[i], true);
+        wgr_sound_play(sounds[i]);
     }
 
     mixer_running = 1;
     CHECK(pthread_create(&thread, NULL, mixer_thread, &blocks) == 0);
     for (int step = 0; step < 4000; step++) {
-        sk_handle_t s = sounds[step % 4];
+        wgr_handle_t s = sounds[step % 4];
         switch (step % 9) {
-            case 0: sk_sound_play(s); break;
-            case 1: sk_sound_set_pitch(s, 0.5f + (float)(step % 7) * 0.25f); break;
-            case 2: sk_sound_set_audio(s, step % 2 ? music : click); break;
-            case 3: sk_sound_pause(s); break;
-            case 4: sk_sound_resume(s); break;
-            case 5: (void)sk_sound_is_playing(s); break;
-            case 6: sk_sound_stop(s); sk_sound_play(s); break;
+            case 0: wgr_sound_play(s); break;
+            case 1: wgr_sound_set_pitch(s, 0.5f + (float)(step % 7) * 0.25f); break;
+            case 2: wgr_sound_set_audio(s, step % 2 ? music : click); break;
+            case 3: wgr_sound_pause(s); break;
+            case 4: wgr_sound_resume(s); break;
+            case 5: (void)wgr_sound_is_playing(s); break;
+            case 6: wgr_sound_stop(s); wgr_sound_play(s); break;
             case 7: { /* create and drop a whole Audio + Sound while mixing */
-                sk_handle_t audio = sk_audio_create_mode("./" CLICK_PATH, SK_AUDIO_MODE_STREAM);
-                sk_handle_t extra = sk_sound_create(audio);
-                sk_audio_release(audio);
-                sk_sound_play(extra);
-                sk_sound_destroy(extra);
+                wgr_handle_t audio = wgr_audio_create_mode("./" CLICK_PATH, WGR_AUDIO_MODE_STREAM);
+                wgr_handle_t extra = wgr_sound_create(audio);
+                wgr_audio_release(audio);
+                wgr_sound_play(extra);
+                wgr_sound_destroy(extra);
                 break;
             }
             case 8:
                 if (step % 900 == 8) { /* many sounds at once: the pool grows while mixing */
-                    sk_handle_t batch[200];
+                    wgr_handle_t batch[200];
                     for (int j = 0; j < 200; j++) {
-                        batch[j] = sk_sound_create(click);
-                        sk_sound_play(batch[j]);
+                        batch[j] = wgr_sound_create(click);
+                        wgr_sound_play(batch[j]);
                     }
-                    for (int j = 0; j < 200; j++) sk_sound_destroy(batch[j]);
+                    for (int j = 0; j < 200; j++) wgr_sound_destroy(batch[j]);
                     break;
                 }
-                sk_sound_set_volume(s, (float)(step % 5) / 4.0f);
+                wgr_sound_set_volume(s, (float)(step % 5) / 4.0f);
                 break;
             default: break;
         }
@@ -256,12 +256,12 @@ void test_audio_threads(void)
     pthread_join(thread, NULL);
     CHECK(blocks > 0);
 
-    for (int i = 0; i < 4; i++) sk_sound_destroy(sounds[i]);
-    sk_audio_release(music);
-    sk_audio_release(click);
-    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
-    sk_sound_deinit();
-    sk_audio_deinit();
+    for (int i = 0; i < 4; i++) wgr_sound_destroy(sounds[i]);
+    wgr_audio_release(music);
+    wgr_audio_release(click);
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
+    wgr_sound_deinit();
+    wgr_audio_deinit();
 }
 
 /* Every sound is mixed, however many exist (sounds past the 128th used to be
@@ -269,28 +269,28 @@ void test_audio_threads(void)
 void test_audio_many_sounds(void)
 {
     enum { COUNT = 300 };
-    static sk_handle_t sounds[COUNT];
+    static wgr_handle_t sounds[COUNT];
     float out[BLOCK * 2];
     float peak = 0.0f;
 
-    sk_audio_init();
-    sk_sound_init();
-    sk_logger_set_level(SK_LOGGER_LEVEL_WARN);
+    wgr_audio_init();
+    wgr_sound_init();
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_WARN);
     CHECK(write_test_wav(WAV_PATH, 22050, 22050));
-    sk_handle_t tone = sk_audio_create(WAV_PATH);
+    wgr_handle_t tone = wgr_audio_create(WAV_PATH);
     for (int i = 0; i < COUNT; i++) {
-        sounds[i] = sk_sound_create(i == COUNT - 1 ? tone : 0); /* only the last one has sound */
+        sounds[i] = wgr_sound_create(i == COUNT - 1 ? tone : 0); /* only the last one has sound */
         CHECK(sounds[i] != 0);
     }
-    sk_sound_play(sounds[COUNT - 1]);
-    sk_audio_mix(out, BLOCK, 22050);
+    wgr_sound_play(sounds[COUNT - 1]);
+    wgr_audio_mix(out, BLOCK, 22050);
     for (int i = 0; i < BLOCK * 2; i++) peak = fmaxf(peak, fabsf(out[i]));
     CHECK(peak > 0.1f);
 
-    for (int i = 0; i < COUNT; i++) sk_sound_destroy(sounds[i]);
-    sk_audio_release(tone);
+    for (int i = 0; i < COUNT; i++) wgr_sound_destroy(sounds[i]);
+    wgr_audio_release(tone);
     remove(WAV_PATH);
-    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
-    sk_sound_deinit();
-    sk_audio_deinit();
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
+    wgr_sound_deinit();
+    wgr_audio_deinit();
 }

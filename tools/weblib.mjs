@@ -122,21 +122,21 @@ export async function openSession(wsUrl) {
 //     to run its cleanup. It is harmless when cleanup already ran.
 export class RunProcesses {
     constructor(name) {
-        this.profile = mkdtempSync(join(tmpdir(), `libsk-${name}-`));
+        this.profile = mkdtempSync(join(tmpdir(), `libwgrender-${name}-`));
         this.groups = [];
         this.stopped = false;
         const watchdog = spawn("sh", ["-c", `
-            while kill -0 "$LIBSK_WEB_NODE_PID" 2>/dev/null; do sleep 1; done
-            if [ -f "$LIBSK_WEB_PROFILE.groups" ]; then
-                for g in $(cat "$LIBSK_WEB_PROFILE.groups"); do kill -9 "-$g" 2>/dev/null; done  # no "--": dash rejects it
+            while kill -0 "$LIBWGRENDER_WEB_NODE_PID" 2>/dev/null; do sleep 1; done
+            if [ -f "$LIBWGRENDER_WEB_PROFILE.groups" ]; then
+                for g in $(cat "$LIBWGRENDER_WEB_PROFILE.groups"); do kill -9 "-$g" 2>/dev/null; done  # no "--": dash rejects it
             fi
-            ps -eo pid=,comm=,args= | awk -v m="$LIBSK_WEB_PROFILE" '$2 != "sh" && $2 != "awk" && index($0, m) { print $1 }' |
+            ps -eo pid=,comm=,args= | awk -v m="$LIBWGRENDER_WEB_PROFILE" '$2 != "sh" && $2 != "awk" && index($0, m) { print $1 }' |
                 xargs -r kill -KILL 2>/dev/null
-            rm -rf "$LIBSK_WEB_PROFILE" "$LIBSK_WEB_PROFILE.groups" "$LIBSK_WEB_PROFILE.log"
+            rm -rf "$LIBWGRENDER_WEB_PROFILE" "$LIBWGRENDER_WEB_PROFILE.groups" "$LIBWGRENDER_WEB_PROFILE.log"
         `], {
             detached: true,
             stdio: "ignore",
-            env: { ...process.env, LIBSK_WEB_NODE_PID: String(process.pid), LIBSK_WEB_PROFILE: this.profile },
+            env: { ...process.env, LIBWGRENDER_WEB_NODE_PID: String(process.pid), LIBWGRENDER_WEB_PROFILE: this.profile },
         });
         watchdog.unref();
     }

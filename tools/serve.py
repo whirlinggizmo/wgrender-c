@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dev server for the libsk web build (stdlib only; cross-platform).
+"""Dev server for the libwgrender web build (stdlib only; cross-platform).
 
 Serves a built site (examples/build/webgl2/ or webgpu/) at / and *mounts* the shared asset
 tree (examples/assets/) at /assets/ — so assets are never copied or symlinked into
@@ -195,7 +195,7 @@ if __name__ == "__main__":
         context.load_cert_chain(certfile=os.path.expanduser(TLS[0]), keyfile=os.path.expanduser(TLS[1]))
         server.socket = context.wrap_socket(server.socket, server_side=True)
         scheme = "https"
-    print(f"libsk: {scheme}://localhost:{PORT}/  ({SITE} at /, examples/assets/ mounted at /assets/)",
+    print(f"libwgrender: {scheme}://localhost:{PORT}/  ({SITE} at /, examples/assets/ mounted at /assets/)",
           flush=True)
     if TLS is not None:
         import socket

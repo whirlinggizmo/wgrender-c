@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Web smoke check for the libsk examples (`make webcheck`).
+// Web smoke check for the libwgrender examples (`make webcheck`).
 //
 // Serves examples/build/<backend> with tools/serve.py, loads each built example in a
 // Chromium-based browser (Brave, Chrome, Chromium) through the DevTools
-// protocol, and fails an example if it logs a console error or a libsk
+// protocol, and fails an example if it logs a console error or a libwgrender
 // [ERROR]/[FATAL] line, throws, hits a sokol panic, never reports starting on the
 // expected backend, or is still loading assets when its time runs out. A screenshot
 // of every example is saved for a visual check.
@@ -21,7 +21,7 @@
 //                       Xvfb installed, WebGPU falls back to the real screen.
 //   --settle=MS         longest an example runs before it is checked (default 20000). An
 //                       example is checked once it has started, has no asset tasks
-//                       pending (libsk's queue) and no network requests in flight, and
+//                       pending (libwgrender's queue) and no network requests in flight, and
 //                       has run --quiet ms since the last of those changed
 //   --quiet=MS          (default 1500)
 //   --jobs=N            examples checked at once (default 4). Each example has its own
@@ -100,13 +100,13 @@ async function checkExample(browser, debugBase, baseUrl, example, opts) {
             } else if (msg.method === "Runtime.consoleAPICalled") {
                 const text = msg.params.args.map((a) => a.value ?? a.description ?? "").join(" ");
                 result.console.push(text.trim().split("\n")[0]);
-                if (text.includes("libsk:") && text.includes("backend")) {
+                if (text.includes("libwgrender:") && text.includes("backend")) {
                     result.started = true;
                     result.startMs ??= Date.now() - navigated;
                     lastActivity = Date.now();
                     result.backendOk ||= text.includes(BACKEND_LOG[opts.backend]);
                 }
-                /* libsk logs go to the console as plain messages: fail on error-level
+                /* libwgrender logs go to the console as plain messages: fail on error-level
                  * ones like tools/smoke.sh does ([ERROR], [FATAL]) */
                 if (msg.params.type === "error" || text.includes("[panic]") || /\[(ERROR|FATAL)/.test(text)) {
                     result.errors.push(text.trim().split("\n")[0]);
@@ -118,7 +118,7 @@ async function checkExample(browser, debugBase, baseUrl, example, opts) {
                 /* the browser's own messages: WebGPU validation errors from Dawn, GL
                  * driver warnings, network failures. Error-level ones fail the check,
                  * except network ones: a missing favicon is a 404 too, and a missing
-                 * asset already fails through libsk's own loading errors */
+                 * asset already fails through libwgrender's own loading errors */
                 const e = msg.params.entry;
                 const line = `[${e.source}/${e.level}] ${(e.text || "").trim().split("\n")[0]}`;
                 result.console.push(line);
@@ -138,13 +138,13 @@ async function checkExample(browser, debugBase, baseUrl, example, opts) {
         let pending = -1;
         while (Date.now() < deadline) {
             if (!result.started) {
-                /* don't call into the page before libsk reports it's running: calling an
+                /* don't call into the page before libwgrender reports it's running: calling an
                  * exported function before the wasm runtime is initialized aborts the page */
                 await sleep(100);
                 continue;
             }
             const { result: value } = await session.send("Runtime.evaluate", {
-                expression: "typeof Module !== 'undefined' && Module._sk_asset_pending_count ? Module._sk_asset_pending_count() : -1",
+                expression: "typeof Module !== 'undefined' && Module._wgr_asset_pending_count ? Module._wgr_asset_pending_count() : -1",
                 returnByValue: true,
             });
             if (value.value !== pending) {

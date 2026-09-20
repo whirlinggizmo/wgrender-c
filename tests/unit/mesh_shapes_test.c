@@ -1,9 +1,9 @@
-/* Generated mesh geometry (internal/sk_mesh_shapes.h): counts, bounds, unit normals
+/* Generated mesh geometry (internal/wgr_mesh_shapes.h): counts, bounds, unit normals
  * that point out of the shape, every triangle facing its normals' way, texture
  * coordinates in 0..1, and refusal of sizes <= 0. */
 #include <math.h>
 
-#include "internal/sk_mesh_shapes.h"
+#include "internal/wgr_mesh_shapes.h"
 #include "test.h"
 #include "tests.h"
 
@@ -13,7 +13,7 @@
  * counterclockwise seen from the side its normals point to. `outward`: the normal
  * points away from the center point `center(p)` gives for a position (the origin for
  * convex shapes). */
-static void check_shape(const sk_mesh_shape_t *s, void (*center)(const float *p, float *c))
+static void check_shape(const wgr_mesh_shape_t *s, void (*center)(const float *p, float *c))
 {
     int bad_normals = 0, bad_uvs = 0, bad_outward = 0, bad_winding = 0, bad_indices = 0;
     for (int i = 0; i < s->vertex_count; i++) {
@@ -47,7 +47,7 @@ static void check_shape(const sk_mesh_shape_t *s, void (*center)(const float *p,
     CHECK(bad_indices == 0);
 }
 
-static void bounds(const sk_mesh_shape_t *s, float min[3], float max[3])
+static void bounds(const wgr_mesh_shape_t *s, float min[3], float max[3])
 {
     for (int k = 0; k < 3; k++) min[k] = 1e30f, max[k] = -1e30f;
     for (int i = 0; i < s->vertex_count; i++) {
@@ -77,10 +77,10 @@ static void capsule_axis(const float *p, float *c)
 
 void test_mesh_shapes(void)
 {
-    sk_mesh_shape_t s;
+    wgr_mesh_shape_t s;
     float lo[3], hi[3];
 
-    CHECK(sk_mesh_shape_plane(4, 2, 0, &s));
+    CHECK(wgr_mesh_shape_plane(4, 2, 0, &s));
     CHECK(s.vertex_count == 4 && s.index_count == 6);
     check_shape(&s, NULL);
     bounds(&s, lo, hi);
@@ -88,70 +88,70 @@ void test_mesh_shapes(void)
     CHECK_NEAR(hi[2], 1, EPS);
     CHECK_NEAR(hi[1], 0, EPS);
     CHECK(s.normals[1] == 1.0f); /* facing +y */
-    sk_mesh_shape_free(&s);
-    CHECK(sk_mesh_shape_plane(4, 2, 3, &s));
+    wgr_mesh_shape_free(&s);
+    CHECK(wgr_mesh_shape_plane(4, 2, 3, &s));
     CHECK(s.vertex_count == 25 && s.index_count == 4 * 4 * 6);
-    sk_mesh_shape_free(&s);
+    wgr_mesh_shape_free(&s);
 
-    CHECK(sk_mesh_shape_cube(2, 4, 6, &s));
+    CHECK(wgr_mesh_shape_cube(2, 4, 6, &s));
     CHECK(s.vertex_count == 24 && s.index_count == 36);
     check_shape(&s, NULL);
     bounds(&s, lo, hi);
     CHECK_NEAR(lo[0], -1, EPS);
     CHECK_NEAR(hi[1], 2, EPS);
     CHECK_NEAR(hi[2], 3, EPS);
-    sk_mesh_shape_free(&s);
+    wgr_mesh_shape_free(&s);
 
-    CHECK(sk_mesh_shape_sphere(1.5f, 8, 16, &s));
+    CHECK(wgr_mesh_shape_sphere(1.5f, 8, 16, &s));
     CHECK(s.vertex_count == 9 * 17);
     CHECK(s.index_count == 6 * 16 * (8 - 1)); /* one triangle of each quad at the poles has no area */
     check_shape(&s, NULL);
     bounds(&s, lo, hi);
     CHECK_NEAR(hi[1], 1.5f, EPS);
     CHECK_NEAR(lo[1], -1.5f, EPS);
-    sk_mesh_shape_free(&s);
+    wgr_mesh_shape_free(&s);
 
-    CHECK(sk_mesh_shape_cylinder(1, 2, 12, &s));
+    CHECK(wgr_mesh_shape_cylinder(1, 2, 12, &s));
     CHECK(s.index_count == 12 * 6 + 2 * 12 * 3); /* side, two caps */
     check_shape(&s, NULL);
     bounds(&s, lo, hi);
     CHECK_NEAR(hi[1], 1, EPS);
     CHECK_NEAR(lo[1], -1, EPS);
-    sk_mesh_shape_free(&s);
+    wgr_mesh_shape_free(&s);
 
-    CHECK(sk_mesh_shape_cone(1, 2, 12, &s));
+    CHECK(wgr_mesh_shape_cone(1, 2, 12, &s));
     CHECK(s.index_count == 12 * 3 + 12 * 3); /* side, base */
     check_shape(&s, NULL);
     bounds(&s, lo, hi);
     CHECK_NEAR(hi[1], 1, EPS);
-    sk_mesh_shape_free(&s);
+    wgr_mesh_shape_free(&s);
 
-    CHECK(sk_mesh_shape_capsule(0.5f, 2, 8, 12, &s));
+    CHECK(wgr_mesh_shape_capsule(0.5f, 2, 8, 12, &s));
     check_shape(&s, capsule_axis);
     bounds(&s, lo, hi);
     CHECK_NEAR(hi[1], 1, EPS); /* height is end to end */
     CHECK_NEAR(lo[1], -1, EPS);
     CHECK_NEAR(hi[0], 0.5f, 1e-3f);
-    sk_mesh_shape_free(&s);
-    CHECK(sk_mesh_shape_capsule(0.5f, 0.2f, 8, 12, &s)); /* shorter than its ends: a sphere */
+    wgr_mesh_shape_free(&s);
+    CHECK(wgr_mesh_shape_capsule(0.5f, 0.2f, 8, 12, &s)); /* shorter than its ends: a sphere */
     bounds(&s, lo, hi);
     CHECK_NEAR(hi[1], 0.5f, EPS);
-    sk_mesh_shape_free(&s);
+    wgr_mesh_shape_free(&s);
 
-    CHECK(sk_mesh_shape_torus(2, 0.5f, 24, 12, &s));
+    CHECK(wgr_mesh_shape_torus(2, 0.5f, 24, 12, &s));
     CHECK(s.vertex_count == 25 * 13 && s.index_count == 24 * 12 * 6);
     check_shape(&s, tube_center);
     bounds(&s, lo, hi);
     CHECK_NEAR(hi[0], 2.5f, EPS);
     CHECK_NEAR(hi[1], 0.5f, EPS);
-    sk_mesh_shape_free(&s);
+    wgr_mesh_shape_free(&s);
 
     /* counts are clamped; sizes aren't */
-    CHECK(sk_mesh_shape_sphere(1, 0, 0, &s));
-    CHECK(s.vertex_count == (SK_MESH_MIN_RINGS + 1) * (SK_MESH_MIN_SEGMENTS + 1));
-    sk_mesh_shape_free(&s);
-    CHECK(!sk_mesh_shape_plane(0, 1, 0, &s) && s.positions == NULL);
-    CHECK(!sk_mesh_shape_cube(1, -1, 1, &s));
-    CHECK(!sk_mesh_shape_sphere(NAN, 8, 8, &s));
-    CHECK(!sk_mesh_shape_torus(1, 0, 8, 8, &s));
+    CHECK(wgr_mesh_shape_sphere(1, 0, 0, &s));
+    CHECK(s.vertex_count == (WGR_MESH_MIN_RINGS + 1) * (WGR_MESH_MIN_SEGMENTS + 1));
+    wgr_mesh_shape_free(&s);
+    CHECK(!wgr_mesh_shape_plane(0, 1, 0, &s) && s.positions == NULL);
+    CHECK(!wgr_mesh_shape_cube(1, -1, 1, &s));
+    CHECK(!wgr_mesh_shape_sphere(NAN, 8, 8, &s));
+    CHECK(!wgr_mesh_shape_torus(1, 0, 8, 8, &s));
 }

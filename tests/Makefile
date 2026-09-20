@@ -1,4 +1,4 @@
-# libsk tests.
+# libwgrender tests.
 #
 #   make test                  build the headless library if needed, build and run unit tests
 #   make test TESTS=pick_      only tests whose name starts with "pick_"
@@ -7,7 +7,7 @@
 #   make clean
 #
 # Unit tests (tests/unit/) call library internals directly and link against
-# build/headless/libsk.a, with no stubs. They don't open a window or touch the GPU.
+# build/headless/libwgrender.a, with no stubs. They don't open a window or touch the GPU.
 
 ROOT := ..
 
@@ -15,13 +15,13 @@ CC      ?= cc
 STD     := -std=gnu11
 WARN    := -Wall -Wextra -Wno-unused-parameter
 OPT     := -O1 -g
-DEFS    := -DSK_HEADLESS -DSOKOL_DUMMY_BACKEND
+DEFS    := -DWGR_HEADLESS -DSOKOL_DUMMY_BACKEND
 INCS    := -I$(ROOT)/include -I$(ROOT)/src -Iunit -isystem $(ROOT)/deps/sokol -isystem $(ROOT)/deps/fontstash
 CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
 # Unit tests link the headless library: no window, GPU, audio device, or
 # GL/X11/ALSA libraries needed (runs in CI and with no display).
-LIB     := $(ROOT)/build/headless/libsk.a
+LIB     := $(ROOT)/build/headless/libwgrender.a
 LDLIBS_PLATFORM := -ldl -lm -lpthread
 LIB_FLAGS :=
 EXE       :=
@@ -31,7 +31,7 @@ WINDOWS    ?= 0
 MINGW      ?= x86_64-w64-mingw32-
 ifeq ($(WINDOWS),1)
   CC              := $(MINGW)gcc
-  LIB             := $(ROOT)/build/windows-headless/libsk.a
+  LIB             := $(ROOT)/build/windows-headless/libwgrender.a
   LDLIBS_PLATFORM := -static -lpthread # the tests call POSIX threads and clocks (winpthreads); no DLLs to ship
   LIB_FLAGS       := WINDOWS=1
   EXE             := .exe

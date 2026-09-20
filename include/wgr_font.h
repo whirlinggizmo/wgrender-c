@@ -1,0 +1,30 @@
+#ifndef WGR_FONT_H
+#define WGR_FONT_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "wgr_types.h"
+
+/* Font resource (kind FONT): a TrueType typeface (fontstash) loaded from a path.
+ * The pixel size is chosen per draw call (wgr_text_draw_ex), not at create time.
+ * See docs/ARCHITECTURE.md. */
+
+/* Fonts are resources: wgr_font_create returns the existing font for a path with a
+ * reference added, and wgr_font_release drops one reference. Text objects and the
+ * default font (wgr_text_set_default_font) hold their own references, so a font stays
+ * loaded while anything uses it. */
+wgr_handle_t wgr_font_create(const char *path);
+/* Drop this handle's reference to the resource. Resources are shared and
+ * reference counted (loading the same path again returns the same handle, with
+ * one more reference), so a resource is freed when its last reference goes, not
+ * when you call this. Objects hold their own references, so handing a resource
+ * to one and releasing it right away is the normal pattern. */
+void        wgr_font_release(wgr_handle_t handle);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // WGR_FONT_H

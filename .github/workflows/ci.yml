@@ -1,4 +1,4 @@
-# libsk CI: the same checks as a local "done" (see AGENTS.md), minus `make parity`
+# libwgrender CI: the same checks as a local "done" (see AGENTS.md), minus `make parity`
 # (needs a librl checkout) and WebGPU (needs a GPU).
 #
 # - desktop: every push and pull request (skipped for docs-only changes), daily,

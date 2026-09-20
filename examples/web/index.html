@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>libsk examples</title>
+<title>libwgrender examples</title>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #15171c;
     color: #cdd3de; font: 14px/1.4 system-ui, sans-serif; }
@@ -23,7 +23,7 @@
 </head>
 <body>
   <div id="bar">
-    <b>libsk</b>
+    <b>libwgrender</b>
     <label>example <select id="ex"></select></label>
     <span id="status">loading…</span>
   </div>
@@ -37,7 +37,7 @@
     // Each program's version (a hash of its .js and .wasm), written in when the site is
     // built (tools/webdeploy.py): files are loaded as name.js?v=<hash>, so a host can
     // keep them for good and a returning visit fetches no code. Empty: unversioned.
-    const VERSIONS = /*sk:versions*/{};
+    const VERSIONS = /*wgr:versions*/{};
     const version = VERSIONS[current] || {};
     const versioned = (file, hash) => (hash ? file + "?v=" + hash : file);
     const wasmUrl = versioned(current + ".wasm", version.wasm);
@@ -83,7 +83,7 @@
           .then(result => receive(result.instance, result.module))
           .catch(err => {
             statusEl.textContent = "failed to load " + wasmUrl;
-            console.error("libsk page:", err);
+            console.error("libwgrender page:", err);
           });
         return {}; // exports arrive through receive()
       },

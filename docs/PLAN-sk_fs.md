@@ -1,12 +1,12 @@
-# Plan: sk_fs + web-capable ensure (Phase 2)
+# Plan: wgr_fs + web-capable ensure (Phase 2)
 
-Status: **implemented (steps 1–3 done).** wasm target + serve loop, `sk_fs`
+Status: **implemented (steps 1–3 done).** wasm target + serve loop, `wgr_fs`
 desktop seam, and web idbfs + fetch all landed. Fetch uses **sokol_fetch**
 (streaming via HTTP Range; `tools/serve.py` serves 206), not the hand-rolled
 EM_JS first tried. `ensure` gained a per-call `fetch_url` source override and a
-`SK_ASSET_FORCE_FETCH` flag. Remaining: in-browser verification of the streaming
+`WGR_ASSET_FORCE_FETCH` flag. Remaining: in-browser verification of the streaming
 path, WebGPU backend (WGSL via sokol-shdc), desktop network-fetch fallback, and
-the eventual `sk_net` (see "Later"). Kept as the design record.
+the eventual `wgr_net` (see "Later"). Kept as the design record.
 Builds on the Phase 1 ensure model (see [PLAN-handle-only-api.md](PLAN-handle-only-api.md))
 and the proven librl `rl_fs` design (cribbed, not vendored — see "Decisions").
 
@@ -14,13 +14,13 @@ and the proven librl `rl_fs` design (cribbed, not vendored — see "Decisions").
 whole cache into MEMFS at every start: on a Pixel 9 with a 56.5 MB cache that was
 ~80 ms of main-thread IndexedDB callbacks (one of 45 ms) before anything loaded,
 and every cached file stayed in memory whether the program used it or not. Now
-`sk_fs` keeps its own IndexedDB store (`sk_fs:<root>`, object store `files`, one
+`wgr_fs` keeps its own IndexedDB store (`wgr_fs:<root>`, object store `files`, one
 Blob per file, keyed by its full MEMFS path):
 
-- **Startup** opens the store and reads only its keys (`sk:fs-ready`, ~10 ms after
-  libsk's init); `sk_fs_is_ready()` polls that.
-- **A cached file** is read when it's ensured: `sk_asset` sees it isn't in MEMFS but
-  is cached (`sk_fs_is_cached`), starts `sk_fs_cache_read_begin` and polls it, then
+- **Startup** opens the store and reads only its keys (`wgr:fs-ready`, ~10 ms after
+  libwgrender's init); `wgr_fs_is_ready()` polls that.
+- **A cached file** is read when it's ensured: `wgr_asset` sees it isn't in MEMFS but
+  is cached (`wgr_fs_is_cached`), starts `wgr_fs_cache_read_begin` and polls it, then
   resolves the task. A failed read drops the key and the file downloads instead.
   Blobs, because reading a stored `Uint8Array` unpacked it on the main thread
   (~6 ms per 5.6 MB file); a Blob's bytes are read off it (`blob.arrayBuffer()`) and
@@ -36,12 +36,12 @@ design below is kept as the record.
 
 ## Why
 
-Phase 1 gave us `sk_asset_ensure_async(path) → on_ready(path)` → sync
-`sk_*_create(path)`. On **desktop** that already works (files are on disk; ensure
+Phase 1 gave us `wgr_asset_ensure_async(path) → on_ready(path)` → sync
+`wgr_*_create(path)`. On **desktop** that already works (files are on disk; ensure
 is an existence check). On **web** there is no synchronous disk: a file must be
 synced out of IndexedDB into the in-memory FS before any `fopen` sees it, and
-writes must be synced back or they vanish on reload. `sk_fs` is the layer that
-makes "the file is locally readable" true on both platforms so the rest of libsk
+writes must be synced back or they vanish on reload. `wgr_fs` is the layer that
+makes "the file is locally readable" true on both platforms so the rest of libwgrender
 (and the sync `_create(path)` creators) stay platform-agnostic.
 
 ## The constraint (what rl_fs proves)
@@ -54,50 +54,50 @@ barriers. rl_fs handles this with three, all polled like our asset tasks:
 - **Flush (writes):** MEMFS → IDBFS sync; run after writes and before deinit, or
   cached data is lost on reload.
 - **JS↔C coordination:** plain `EM_JS` callbacks — `FS.syncfs` is kicked
-  non-blocking and sets a `Module.sk_fs_restore` flag that `sk_fs_is_ready()`
+  non-blocking and sets a `Module.wgr_fs_restore` flag that `wgr_fs_is_ready()`
   polls. **No JSPI suspension** (see the JSPI finding under "Decisions locked":
   `sapp_run` owns the loop, so callbacks can't suspend).
 
 Desktop has none of this: restore is instantly "ready," read/write hit the real
 directory.
 
-## Target `sk_fs` API (trimmed from rl_fs)
+## Target `wgr_fs` API (trimmed from rl_fs)
 
 A jailed local filesystem under a root dir. Start with the minimum ensure needs;
 add user-facing ops only when something needs them.
 
 ```c
 /* lifecycle — IDBFS on wasm, a real directory on desktop */
-int          sk_fs_init(const char *root_dir);        /* sync (desktop / JSPI) */
-sk_handle_t  sk_fs_restore_async(void);                /* IDBFS→MEMFS; poll via tick */
-bool         sk_fs_is_ready(void);                     /* restore barrier cleared? */
-int          sk_fs_flush(void);                        /* MEMFS→IDBFS (persist)  */
-void         sk_fs_deinit(void);                       /* flush + unmount         */
-const char  *sk_fs_get_root_dir(void);
+int          wgr_fs_init(const char *root_dir);        /* sync (desktop / JSPI) */
+wgr_handle_t  wgr_fs_restore_async(void);                /* IDBFS→MEMFS; poll via tick */
+bool         wgr_fs_is_ready(void);                     /* restore barrier cleared? */
+int          wgr_fs_flush(void);                        /* MEMFS→IDBFS (persist)  */
+void         wgr_fs_deinit(void);                       /* flush + unmount         */
+const char  *wgr_fs_get_root_dir(void);
 
 /* file ops — all paths jailed to root_dir (internal at first) */
-bool sk_fs_exists(const char *path);
-int  sk_fs_read(const char *path, unsigned char **out_data, size_t *out_size);
-void sk_fs_read_free(unsigned char *data);
-int  sk_fs_write(const char *path, const unsigned char *data, size_t size);
+bool wgr_fs_exists(const char *path);
+int  wgr_fs_read(const char *path, unsigned char **out_data, size_t *out_size);
+void wgr_fs_read_free(unsigned char *data);
+int  wgr_fs_write(const char *path, const unsigned char *data, size_t size);
 ```
 
 Defer rl_fs's richer surface (mkdir/rmdir/remove/clear/normalize, the LRU memory
-cache, dependency prefetch) until a caller needs it — keep `sk_fs` small.
+cache, dependency prefetch) until a caller needs it — keep `wgr_fs` small.
 
-## How ensure uses sk_fs
+## How ensure uses wgr_fs
 
-`sk_asset_ensure_async` / `sk_asset_tick` (already task-based) gain a web path;
+`wgr_asset_ensure_async` / `wgr_asset_tick` (already task-based) gain a web path;
 desktop is unchanged:
 
-- **Desktop:** `sk_fs_is_ready()` is always true; ensure = `sk_fs_exists(path)`
-  (today's fopen check, routed through sk_fs) → fire callback.
-- **Web:** the ensure task advances through states in `sk_asset_tick`:
-  1. wait for `sk_fs_is_ready()` (restore barrier),
-  2. `sk_fs_exists(path)`? → ready,
-  3. else fetch from the asset host (sokol_fetch) → `sk_fs_write(path)` →
-     `sk_fs_flush()` → ready,
-  4. fire `on_ready(path)`; the sync `sk_*_create(path)` now reads a local file.
+- **Desktop:** `wgr_fs_is_ready()` is always true; ensure = `wgr_fs_exists(path)`
+  (today's fopen check, routed through wgr_fs) → fire callback.
+- **Web:** the ensure task advances through states in `wgr_asset_tick`:
+  1. wait for `wgr_fs_is_ready()` (restore barrier),
+  2. `wgr_fs_exists(path)`? → ready,
+  3. else fetch from the asset host (sokol_fetch) → `wgr_fs_write(path)` →
+     `wgr_fs_flush()` → ready,
+  4. fire `on_ready(path)`; the sync `wgr_*_create(path)` now reads a local file.
 
 The path-only callback contract is what makes this invisible to user code.
 
@@ -110,7 +110,7 @@ wasm/desktop abstraction). We can vendor it, but likely don't need to:
   barrier+timeout+fallback logic, and the IDBFS mount/setup sequence. These are
   small and the tricky, proven part.
 - **Reuse what we already have:** sokol_fetch for HTTP (already a dep) instead of
-  `fetch_url_op`; our asset-task pool + `sk_asset_tick` instead of rl_fs's task
+  `fetch_url_op`; our asset-task pool + `wgr_asset_tick` instead of rl_fs's task
   pool.
 - **Skip (for now):** the LRU memory cache, dependency/batch prefetch state
   machine, host-ping. Not needed for basic ensure.
@@ -128,9 +128,9 @@ linked. (sokol_app owns the loop; suspension isn't available in its callbacks.)
 was later dropped — `sapp_run` owns the loop, so the idbfs restore is a polled
 barrier, not a JSPI await. See "Decisions locked".)
 
-Toolchain is the dominant risk and is independent of `sk_fs`, so stand up wasm
+Toolchain is the dominant risk and is independent of `wgr_fs`, so stand up wasm
 first and get the in-browser feedback loop before adding fs complexity. Good news
-already confirmed: `sk_run` uses `sapp_run`, so sokol_app drives the web main loop
+already confirmed: `wgr_run` uses `sapp_run`, so sokol_app drives the web main loop
 (`emscripten_set_main_loop`) for us — no run-loop port needed. emcc 5.0.7 is
 installed (`~/toolchains/emsdk`).
 
@@ -139,8 +139,8 @@ installed (`~/toolchains/emsdk`).
   `-sALLOW_MEMORY_GROWTH=1`, `-o examples/build/web/hello.js`. Serve it and confirm
   renders in a Chromium-class browser. Desktop build untouched. (No files yet, so
   no `FORCE_FILESYSTEM`/idbfs — that's step 3.)
-- **Step 2 (was 2a) — `sk_fs` desktop seam.** Add `sk_fs` (real-dir backend), route
-  ensure's existence check behind `sk_fs_exists`; `sk_fs_is_ready()`→true on
+- **Step 2 (was 2a) — `wgr_fs` desktop seam.** Add `wgr_fs` (real-dir backend), route
+  ensure's existence check behind `wgr_fs_exists`; `wgr_fs_is_ready()`→true on
   desktop, web path a `__EMSCRIPTEN__`-gated stub. Behavior-preserving; both
   targets build.
 - **Step 3 (was 2c) — web idbfs + fetch.** IDBFS mount, restore/flush barriers
@@ -151,7 +151,7 @@ installed (`~/toolchains/emsdk`).
 ## Decisions locked
 - **Order:** 2b → 2a → 2c (above).
 - **Crib, don't vendor.** Pull the idbfs sync shim + barrier logic into a small
-  `sk_fs`; use sokol_fetch (XHR on web) + our existing asset-task machinery rather
+  `wgr_fs`; use sokol_fetch (XHR on web) + our existing asset-task machinery rather
   than importing wgutils wholesale.
 - **Desktop never regresses.** Web code is `__EMSCRIPTEN__`-gated.
 - **No JSPI / no ASYNCIFY — async polled barrier instead.** ⚠️ Supersedes the
@@ -160,20 +160,20 @@ installed (`~/toolchains/emsdk`).
   **`sapp_run` owns the emscripten RAF loop**, so init/frame callbacks aren't
   promising — suspending in them throws `SuspendError: trying to suspend without
   WebAssembly.promising`. librl could use JSPI because it drove its *own* tick
-  loop; sokol_app doesn't expose that. So `sk_fs` restore is a **polled barrier**
-  (`FS.syncfs` kicked non-blocking; `sk_fs_is_ready()` reflects a flag; `ensure`
-  waits via the existing `sk_asset_tick` gate). `-sJSPI` is dropped (it only
+  loop; sokol_app doesn't expose that. So `wgr_fs` restore is a **polled barrier**
+  (`FS.syncfs` kicked non-blocking; `wgr_fs_is_ready()` reflects a flag; `ensure`
+  waits via the existing `wgr_asset_tick` gate). `-sJSPI` is dropped (it only
   narrowed browser support). Reconsider only if we ever drive our own loop
   instead of `sapp_run`.
 - **Web backend is parameterized** (`make wasm BACKEND=gl|wgpu`). WebGPU
   (`SOKOL_WGPU`, via emscripten's `emdawnwebgpu` port) was a motivation for
-  choosing sokol and is a first-class target — but the same libsk source compiles
+  choosing sokol and is a first-class target — but the same libwgrender source compiles
   to either, so we get **first light on WebGL2** (`SOKOL_GLES3`, lowest risk,
   validates canvas/loop/JSPI/serve/fs) and bring up **WebGPU as a sibling target**
   right after, since it adds async device init + the Dawn port on top.
 - **Host fetch is required on web** (not optional): first run has an empty IDBFS
   cache, so every asset is fetched from the serving origin then cached. Port a
-  `sk_asset_set_host` / `SK_ASSET_HOST` config in step 3.
+  `wgr_asset_set_host` / `WGR_ASSET_HOST` config in step 3.
 - **Asset paths are logical; the base differs by platform.** Examples reference
   assets by logical relative path (e.g. `music/ethernight_club.mp3`, no
   `examples/assets/` prefix). The base that path resolves against is per-platform
@@ -200,15 +200,15 @@ installed (`~/toolchains/emsdk`).
   auto-refresh. Not hard-picked.
 
 ## Decided
-- **`sk_fs` is internal storage; `ensure` stays public in `sk_asset`.** `sk_fs`
+- **`wgr_fs` is internal storage; `ensure` stays public in `wgr_asset`.** `wgr_fs`
   owns local storage only (exists/read/write + idbfs sync) with no network;
-  `sk_asset` owns acquisition (ensure + host + fetch) on top of it. Keeps the
+  `wgr_asset` owns acquisition (ensure + host + fetch) on top of it. Keeps the
   filesystem free of an HTTP/host dependency (layered, matches librl). Promote
-  `sk_fs` to a public VFS later only if user-facing read/write/save-games is wanted.
+  `wgr_fs` to a public VFS later only if user-facing read/write/save-games is wanted.
 
 ## Later
-- **`sk_net` (fetch / websockets).** The web fetch inside `ensure` is really a
-  network primitive; eventually a small `sk_net` subsystem (HTTP fetch, later
-  websockets) should own it, and `sk_asset` would call `sk_net` rather than
+- **`wgr_net` (fetch / websockets).** The web fetch inside `ensure` is really a
+  network primitive; eventually a small `wgr_net` subsystem (HTTP fetch, later
+  websockets) should own it, and `wgr_asset` would call `wgr_net` rather than
   sokol_fetch directly. Out of scope for Phase 2; revisit when websockets/network
   features land.

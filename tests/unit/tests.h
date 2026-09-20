@@ -1,5 +1,5 @@
-#ifndef SK_TESTS_H
-#define SK_TESTS_H
+#ifndef WGR_TESTS_H
+#define WGR_TESTS_H
 
 /* Every unit test; add new ones here and to the table in main.c. */
 
@@ -154,4 +154,4 @@ void test_scene_sort_transparent(void);
 void test_scene_membership(void);
 void test_scene_sort_transparent_many(void);
 
-#endif // SK_TESTS_H
+#endif // WGR_TESTS_H

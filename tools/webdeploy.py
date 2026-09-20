@@ -18,7 +18,7 @@ import json
 import os
 import sys
 
-MARK = "/*sk:versions*/{}"
+MARK = "/*wgr:versions*/{}"
 
 
 def version(path):

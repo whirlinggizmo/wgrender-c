@@ -3,7 +3,7 @@
 
     examples/assets/models/sphere/sphere.glb      UV sphere: positions, normals,
                                                   texture coordinates (no tangents,
-                                                  so libsk generates them), one
+                                                  so libwgrender generates them), one
                                                   default material
     examples/assets/textures/tiles_normal.png     tangent-space normal map of
                                                   bevelled tiles
@@ -54,7 +54,7 @@ def sphere_glb(path):
         offset += len(data)
     vcount = len(positions) // 3
     gltf = {
-        "asset": {"version": "2.0", "generator": "libsk tools/gen_material_assets.py"},
+        "asset": {"version": "2.0", "generator": "libwgrender tools/gen_material_assets.py"},
         "scene": 0,
         "scenes": [{"nodes": [0]}],
         "nodes": [{"mesh": 0, "name": "sphere"}],

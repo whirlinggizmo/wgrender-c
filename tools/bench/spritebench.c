@@ -8,18 +8,18 @@
  *                   camera, facings mixed as a game would (camera-facing coins,
  *                   upright trees that turn about Y, flat decals), blended and sorted
  *                   back to front each frame; from one atlas, or from 4 textures;
- *                   and the 4-texture field masked (SK_ALPHA_MASK: not sorted);
+ *                   and the 4-texture field masked (WGR_ALPHA_MASK: not sorted);
  *   - particles 3d: camera-facing sprite3d thrown up and falling, each moved every
  *                   frame, 1/120 of them replaced every frame (a 2 s life); blended,
- *                   and additive (SK_ALPHA_ADD: not sorted);
+ *                   and additive (WGR_ALPHA_ADD: not sorted);
  *   - particles 2d: the same with sprite2d in screen space;
- *   - emitter 3d / 2d: the same particles from one emitter (sk_emitter3d.h,
- *                   sk_emitter2d.h), each written once at birth and moved by the GPU;
+ *   - emitter 3d / 2d: the same particles from one emitter (wgr_emitter3d.h,
+ *                   wgr_emitter2d.h), each written once at birth and moved by the GPU;
  *                   blended, additive, and 2D.
  *
  * For each it reports the sprites created, frame time (desktop), and CPU time in the
  * frame split into update (the benchmark's own calls: camera, particles), scene
- * (sk_scene_draw: collect, sort, billboard, record) and submit (sk_render_end: upload
+ * (wgr_scene_draw: collect, sort, billboard, record) and submit (wgr_render_end: upload
  * and draw), plus sokol_gl's vertices and draw commands and any overflow.
  *
  *   make spritebench            headless: CPU only
@@ -31,7 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "sk.h"
+#include "wgr.h"
 
 #include "sokol_gfx.h"
 #include "util/sokol_gl.h"
@@ -83,12 +83,12 @@ typedef struct {
 } particle_t;
 
 static struct {
-    sk_handle_t textures[TEXTURES];
+    wgr_handle_t textures[TEXTURES];
     int textures_loaded;
     bool failed;
-    sk_handle_t scene, ortho, perspective;
-    sk_handle_t sprites[MAX_BENCH_SPRITES];
-    sk_handle_t emitter;
+    wgr_handle_t scene, ortho, perspective;
+    wgr_handle_t sprites[MAX_BENCH_SPRITES];
+    wgr_handle_t emitter;
     particle_t particles[MAX_BENCH_SPRITES];
     int count;      /* sprites in the step */
     float radius;   /* of the field */
@@ -113,7 +113,7 @@ static float random01(void)
 static void on_texture(const char *path, void *user)
 {
     const int i = (int)(intptr_t)user;
-    b.textures[i] = sk_texture_create(path);
+    b.textures[i] = wgr_texture_create(path);
     b.textures_loaded++;
 }
 
@@ -128,24 +128,24 @@ static void destroy_sprite(int i)
 {
     if (b.sprites[i] == 0) return;
     if (current_kind() == SCENE_PARTICLES_2D) {
-        sk_sprite2d_destroy(b.sprites[i]);
+        wgr_sprite2d_destroy(b.sprites[i]);
     } else {
-        sk_sprite3d_destroy(b.sprites[i]);
+        wgr_sprite3d_destroy(b.sprites[i]);
     }
     b.sprites[i] = 0;
 }
 
 static void teardown(void)
 {
-    sk_scene_clear(b.scene);
+    wgr_scene_clear(b.scene);
     for (int i = 0; i < MAX_BENCH_SPRITES; i++) {
         destroy_sprite(i);
     }
     if (b.emitter != 0) {
         if (current_kind() == SCENE_EMITTER_2D) {
-            sk_emitter2d_destroy(b.emitter);
+            wgr_emitter2d_destroy(b.emitter);
         } else {
-            sk_emitter3d_destroy(b.emitter);
+            wgr_emitter3d_destroy(b.emitter);
         }
         b.emitter = 0;
     }
@@ -158,36 +158,36 @@ static void add_emitter(int n)
 {
     const float life = PARTICLE_LIFE / 60.0f;
     if (current_kind() == SCENE_EMITTER_2D) {
-        const vec2_t screen = sk_window_get_screen_size();
-        b.emitter = sk_emitter2d_create(b.textures[0]);
+        const vec2_t screen = wgr_window_get_screen_size();
+        b.emitter = wgr_emitter2d_create(b.textures[0]);
         if (b.emitter == 0) return;
-        sk_emitter2d_set_source(b.emitter, 32, 16, 16, 16); /* the coin */
-        sk_emitter2d_set_size(b.emitter, 10, 10, 0);
-        sk_emitter2d_set_position(b.emitter, screen.x * 0.5f, screen.y * 0.9f);
-        sk_emitter2d_set_velocity(b.emitter, 0, -540, 0.5f, 0.5f);
-        sk_emitter2d_set_gravity(b.emitter, 0, 540);
-        sk_emitter2d_set_alpha_mode(b.emitter, SK_ALPHA_BLEND, 0);
-        sk_emitter2d_set_max(b.emitter, n);
-        sk_emitter2d_set_life(b.emitter, life, life);
-        sk_emitter2d_set_seed(b.emitter, 12345u);
-        sk_emitter2d_set_rate(b.emitter, (float)n / life);
-        sk_emitter2d_burst(b.emitter, n);
+        wgr_emitter2d_set_source(b.emitter, 32, 16, 16, 16); /* the coin */
+        wgr_emitter2d_set_size(b.emitter, 10, 10, 0);
+        wgr_emitter2d_set_position(b.emitter, screen.x * 0.5f, screen.y * 0.9f);
+        wgr_emitter2d_set_velocity(b.emitter, 0, -540, 0.5f, 0.5f);
+        wgr_emitter2d_set_gravity(b.emitter, 0, 540);
+        wgr_emitter2d_set_alpha_mode(b.emitter, WGR_ALPHA_BLEND, 0);
+        wgr_emitter2d_set_max(b.emitter, n);
+        wgr_emitter2d_set_life(b.emitter, life, life);
+        wgr_emitter2d_set_seed(b.emitter, 12345u);
+        wgr_emitter2d_set_rate(b.emitter, (float)n / life);
+        wgr_emitter2d_burst(b.emitter, n);
     } else {
-        b.emitter = sk_emitter3d_create(b.textures[0]);
+        b.emitter = wgr_emitter3d_create(b.textures[0]);
         if (b.emitter == 0) return;
-        sk_emitter3d_set_source(b.emitter, 32, 16, 16, 16);
-        sk_emitter3d_set_size(b.emitter, 0.3f, 0.3f, 0);
-        sk_emitter3d_set_velocity(b.emitter, 0, 16, 0, 0.3f, 0.25f);
-        sk_emitter3d_set_gravity(b.emitter, 0, -18, 0);
-        sk_emitter3d_set_alpha_mode(b.emitter, current_kind() == SCENE_EMITTER_3D_ADD ? SK_ALPHA_ADD : SK_ALPHA_BLEND,
+        wgr_emitter3d_set_source(b.emitter, 32, 16, 16, 16);
+        wgr_emitter3d_set_size(b.emitter, 0.3f, 0.3f, 0);
+        wgr_emitter3d_set_velocity(b.emitter, 0, 16, 0, 0.3f, 0.25f);
+        wgr_emitter3d_set_gravity(b.emitter, 0, -18, 0);
+        wgr_emitter3d_set_alpha_mode(b.emitter, current_kind() == SCENE_EMITTER_3D_ADD ? WGR_ALPHA_ADD : WGR_ALPHA_BLEND,
                                     0);
-        sk_emitter3d_set_max(b.emitter, n);
-        sk_emitter3d_set_life(b.emitter, life, life);
-        sk_emitter3d_set_seed(b.emitter, 12345u);
-        sk_emitter3d_set_rate(b.emitter, (float)n / life);
-        sk_emitter3d_burst(b.emitter, n);
+        wgr_emitter3d_set_max(b.emitter, n);
+        wgr_emitter3d_set_life(b.emitter, life, life);
+        wgr_emitter3d_set_seed(b.emitter, 12345u);
+        wgr_emitter3d_set_rate(b.emitter, (float)n / life);
+        wgr_emitter3d_burst(b.emitter, n);
     }
-    sk_scene_add(b.scene, b.emitter, 0);
+    wgr_scene_add(b.scene, b.emitter, 0);
 }
 
 /* A particle, new: from the fountain's mouth, thrown up and out. */
@@ -195,29 +195,29 @@ static void spawn_particle(int i, int age)
 {
     particle_t *p = &b.particles[i];
     const float angle = random01() * 6.2831853f, speed = 0.5f + random01();
-    sk_handle_t sprite;
+    wgr_handle_t sprite;
 
     if (current_kind() == SCENE_PARTICLES_2D) {
-        const vec2_t screen = sk_window_get_screen_size();
+        const vec2_t screen = wgr_window_get_screen_size();
         *p = (particle_t){.x = screen.x * 0.5f, .y = screen.y * 0.9f, .vx = cosf(angle) * speed * 3.0f,
                           .vy = -(6.0f + random01() * 6.0f), .age = age};
-        sprite = sk_sprite2d_create(b.textures[0]);
+        sprite = wgr_sprite2d_create(b.textures[0]);
         if (sprite == 0) return;
-        sk_sprite2d_set_source(sprite, 32, 16, 16, 16); /* the coin */
-        sk_sprite2d_set_size(sprite, 10, 10);
+        wgr_sprite2d_set_source(sprite, 32, 16, 16, 16); /* the coin */
+        wgr_sprite2d_set_size(sprite, 10, 10);
     } else {
         *p = (particle_t){.vx = cosf(angle) * speed * 0.05f, .vy = 0.2f + random01() * 0.15f,
                           .vz = sinf(angle) * speed * 0.05f, .age = age};
-        sprite = sk_sprite3d_create(b.textures[0]);
+        sprite = wgr_sprite3d_create(b.textures[0]);
         if (sprite == 0) return;
-        sk_sprite3d_set_source(sprite, 32, 16, 16, 16);
-        sk_sprite3d_set_size(sprite, 0.3f);
+        wgr_sprite3d_set_source(sprite, 32, 16, 16, 16);
+        wgr_sprite3d_set_size(sprite, 0.3f);
         if (current_kind() == SCENE_PARTICLES_3D_ADD) {
-            sk_sprite3d_set_alpha_mode(sprite, SK_ALPHA_ADD, 0);
+            wgr_sprite3d_set_alpha_mode(sprite, WGR_ALPHA_ADD, 0);
         }
     }
     b.sprites[i] = sprite;
-    sk_scene_add(b.scene, sprite, 0);
+    wgr_scene_add(b.scene, sprite, 0);
     /* already on its way, so the steady state starts at once */
     for (int t = 0; t < age; t++) {
         p->x += p->vx, p->y += p->vy, p->z += p->vz;
@@ -230,36 +230,36 @@ static void add_field_sprite(int i)
     const float r = b.radius * sqrtf(random01()), angle = random01() * 6.2831853f;
     const float x = cosf(angle) * r, z = sinf(angle) * r;
     const bool mixed = current_kind() == SCENE_FIELD_MIXED || current_kind() == SCENE_FIELD_MIXED_MASK;
-    const sk_handle_t texture = mixed ? b.textures[i % TEXTURES] : b.textures[0];
-    const sk_handle_t sprite = sk_sprite3d_create(texture);
+    const wgr_handle_t texture = mixed ? b.textures[i % TEXTURES] : b.textures[0];
+    const wgr_handle_t sprite = wgr_sprite3d_create(texture);
     const bool atlas = !mixed;
 
     if (sprite == 0) return;
     switch (i % 3) {
         case 0: /* a coin: faces the camera */
-            sk_sprite3d_set_facing(sprite, SK_SPRITE3D_FACING_CAMERA);
-            if (atlas) sk_sprite3d_set_source(sprite, 32, 16, 16, 16);
-            sk_sprite3d_set_transform(sprite, x, 0.6f, z, 0, 0, 0, 1, 1, 1);
-            sk_sprite3d_set_size(sprite, 0.6f);
+            wgr_sprite3d_set_facing(sprite, WGR_SPRITE3D_FACING_CAMERA);
+            if (atlas) wgr_sprite3d_set_source(sprite, 32, 16, 16, 16);
+            wgr_sprite3d_set_transform(sprite, x, 0.6f, z, 0, 0, 0, 1, 1, 1);
+            wgr_sprite3d_set_size(sprite, 0.6f);
             break;
         case 1: /* a tree: upright, turns about Y, stands on its bottom edge */
-            sk_sprite3d_set_facing(sprite, SK_SPRITE3D_FACING_CAMERA_FIXED_Y);
-            if (atlas) sk_sprite3d_set_source(sprite, 0, 16, 16, 32);
-            sk_sprite3d_set_extent(sprite, 1, 2);
-            sk_sprite3d_set_pivot(sprite, 0.5f, 1);
-            sk_sprite3d_set_transform(sprite, x, 0, z, 0, 0, 0, 1, 1, 1);
+            wgr_sprite3d_set_facing(sprite, WGR_SPRITE3D_FACING_CAMERA_FIXED_Y);
+            if (atlas) wgr_sprite3d_set_source(sprite, 0, 16, 16, 32);
+            wgr_sprite3d_set_extent(sprite, 1, 2);
+            wgr_sprite3d_set_pivot(sprite, 0.5f, 1);
+            wgr_sprite3d_set_transform(sprite, x, 0, z, 0, 0, 0, 1, 1, 1);
             break;
         default: /* a decal flat on the ground */
-            sk_sprite3d_set_facing(sprite, SK_SPRITE3D_FACING_Y_UP);
-            if (atlas) sk_sprite3d_set_source(sprite, 0, 0, 16, 16);
-            sk_sprite3d_set_transform(sprite, x, 0.01f, z, 0, 0, 0, 1, 1, 1);
+            wgr_sprite3d_set_facing(sprite, WGR_SPRITE3D_FACING_Y_UP);
+            if (atlas) wgr_sprite3d_set_source(sprite, 0, 0, 16, 16);
+            wgr_sprite3d_set_transform(sprite, x, 0.01f, z, 0, 0, 0, 1, 1, 1);
             break;
     }
     if (current_kind() == SCENE_FIELD_MIXED_MASK) {
-        sk_sprite3d_set_alpha_mode(sprite, SK_ALPHA_MASK, 0.5f);
+        wgr_sprite3d_set_alpha_mode(sprite, WGR_ALPHA_MASK, 0.5f);
     }
     b.sprites[i] = sprite;
-    sk_scene_add(b.scene, sprite, 0);
+    wgr_scene_add(b.scene, sprite, 0);
 }
 
 /* Build the step's scene. */
@@ -275,24 +275,24 @@ static void setup(void)
     b.radius = sqrtf((float)n) * 0.6f;
     if (kind == SCENE_GRID) {
         const int side = (int)ceil(sqrt((double)n));
-        sk_scene_set_active_camera(b.scene, b.ortho);
-        sk_camera3d_set_view(b.ortho, side * 0.5f, side * 0.5f, 10.0f, side * 0.5f, side * 0.5f, 0.0f, 0, 1, 0);
-        sk_camera3d_set_ortho_height(b.ortho, (float)side);
+        wgr_scene_set_active_camera(b.scene, b.ortho);
+        wgr_camera3d_set_view(b.ortho, side * 0.5f, side * 0.5f, 10.0f, side * 0.5f, side * 0.5f, 0.0f, 0, 1, 0);
+        wgr_camera3d_set_ortho_height(b.ortho, (float)side);
         for (int i = 0; i < n; i++) {
-            const sk_handle_t sprite = sk_sprite3d_create(b.textures[0]);
+            const wgr_handle_t sprite = wgr_sprite3d_create(b.textures[0]);
             if (sprite == 0) break;
-            sk_sprite3d_set_facing(sprite, SK_SPRITE3D_FACING_FREE);
-            sk_sprite3d_set_source(sprite, (float)(16 * (i % 4)), 0, 16, 16);
-            sk_sprite3d_set_transform(sprite, (float)(i % side) + 0.5f, (float)(i / side) + 0.5f, 0, 0, 0, 0, 1, 1, 1);
+            wgr_sprite3d_set_facing(sprite, WGR_SPRITE3D_FACING_FREE);
+            wgr_sprite3d_set_source(sprite, (float)(16 * (i % 4)), 0, 16, 16);
+            wgr_sprite3d_set_transform(sprite, (float)(i % side) + 0.5f, (float)(i / side) + 0.5f, 0, 0, 0, 0, 1, 1, 1);
             b.sprites[i] = sprite;
-            sk_scene_add(b.scene, sprite, 0);
+            wgr_scene_add(b.scene, sprite, 0);
         }
     } else if (kind == SCENE_FIELD_ATLAS || kind == SCENE_FIELD_MIXED || kind == SCENE_FIELD_MIXED_MASK) {
-        sk_scene_set_active_camera(b.scene, b.perspective);
+        wgr_scene_set_active_camera(b.scene, b.perspective);
         for (int i = 0; i < n; i++) add_field_sprite(i);
     } else {
-        sk_scene_set_active_camera(b.scene, b.perspective);
-        sk_camera3d_set_view(b.perspective, 0, 4, 12, 0, 3, 0, 0, 1, 0);
+        wgr_scene_set_active_camera(b.scene, b.perspective);
+        wgr_camera3d_set_view(b.perspective, 0, 4, 12, 0, 3, 0, 0, 1, 0);
         if (kind >= SCENE_EMITTER_3D) {
             add_emitter(n);
         } else {
@@ -302,7 +302,7 @@ static void setup(void)
     r->created = 0;
     for (int i = 0; i < n; i++) r->created += b.sprites[i] != 0 ? 1 : 0;
     if (b.emitter != 0) {
-        r->created = kind == SCENE_EMITTER_2D ? sk_emitter2d_get_count(b.emitter) : sk_emitter3d_get_count(b.emitter);
+        r->created = kind == SCENE_EMITTER_2D ? wgr_emitter2d_get_count(b.emitter) : wgr_emitter3d_get_count(b.emitter);
     }
     b.frame = 0;
     b.frame_sum = b.cpu_sum = b.update_sum = b.scene_sum = b.submit_sum = b.worst = b.cpu_worst = 0.0;
@@ -315,7 +315,7 @@ static void update(void)
 
     if (kind == SCENE_FIELD_ATLAS || kind == SCENE_FIELD_MIXED || kind == SCENE_FIELD_MIXED_MASK) {
         const float angle = (float)b.frame * 0.01f, distance = b.radius * 1.3f + 4.0f;
-        sk_camera3d_set_view(b.perspective, cosf(angle) * distance, b.radius * 0.35f + 2.0f, sinf(angle) * distance,
+        wgr_camera3d_set_view(b.perspective, cosf(angle) * distance, b.radius * 0.35f + 2.0f, sinf(angle) * distance,
                              0, 0, 0, 0, 1, 0);
     } else if (kind == SCENE_PARTICLES_3D || kind == SCENE_PARTICLES_3D_ADD || kind == SCENE_PARTICLES_2D) {
         for (int i = 0; i < b.count; i++) {
@@ -329,10 +329,10 @@ static void update(void)
             p->x += p->vx, p->y += p->vy, p->z += p->vz;
             if (kind == SCENE_PARTICLES_2D) {
                 p->vy += 0.15f;
-                sk_sprite2d_set_position(b.sprites[i], p->x, p->y);
+                wgr_sprite2d_set_position(b.sprites[i], p->x, p->y);
             } else {
                 p->vy -= 0.005f;
-                sk_sprite3d_set_transform(b.sprites[i], p->x, p->y, p->z, 0, 0, 0, 1, 1, 1);
+                wgr_sprite3d_set_transform(b.sprites[i], p->x, p->y, p->z, 0, 0, 0, 1, 1, 1);
             }
         }
     }
@@ -340,8 +340,8 @@ static void update(void)
 
 static void print_results(void)
 {
-#if defined(SK_HEADLESS)
-    /* without a display the runtime paces frames at a stand-in 60 Hz (src/sk.c), so
+#if defined(WGR_HEADLESS)
+    /* without a display the runtime paces frames at a stand-in 60 Hz (src/wgr.c), so
        frame-to-frame time is that interval, not a measurement: report CPU only */
     const bool frames = false;
     const char *build = "headless: CPU only";
@@ -376,21 +376,21 @@ static void print_results(void)
 static void init(void *user)
 {
     (void)user;
-    sk_asset_set_host(ASSET_BASE);
-    sk_set_target_fps(0);
-    b.ortho = sk_camera3d_create(SK_CAMERA3D_ORTHOGRAPHIC);
-    b.perspective = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
-    b.scene = sk_scene_create();
+    wgr_asset_set_host(ASSET_BASE);
+    wgr_set_target_fps(0);
+    b.ortho = wgr_camera3d_create(WGR_CAMERA3D_ORTHOGRAPHIC);
+    b.perspective = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
+    b.scene = wgr_scene_create();
     b.step = -1; /* set up once the textures are in */
     for (int i = 0; i < TEXTURES; i++) {
-        sk_asset_add_task(sk_asset_ensure_async(TEXTURE_PATHS[i], NULL, SK_ASSET_NONE), on_texture, on_failed,
+        wgr_asset_add_task(wgr_asset_ensure_async(TEXTURE_PATHS[i], NULL, WGR_ASSET_NONE), on_texture, on_failed,
                           (void *)(intptr_t)i);
     }
 }
 
 static void frame(float dt, float fraction, void *user)
 {
-    const double start = sk_get_time();
+    const double start = wgr_get_time();
     double updated, drawn, submitted;
     result_t *r;
     (void)dt;
@@ -398,29 +398,29 @@ static void frame(float dt, float fraction, void *user)
     (void)user;
 
     if (b.failed) {
-        sk_request_quit();
+        wgr_request_quit();
         return;
     }
     if (b.step < 0) { /* waiting for textures */
         if (b.textures_loaded == TEXTURES) {
-            sk_texture_set_sampling(b.textures[0], SK_TEXTURE_WRAP_CLAMP, SK_TEXTURE_WRAP_CLAMP,
-                                    SK_TEXTURE_FILTER_NEAREST);
+            wgr_texture_set_sampling(b.textures[0], WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_WRAP_CLAMP,
+                                    WGR_TEXTURE_FILTER_NEAREST);
             b.step = 0;
             setup();
-            b.last = sk_get_time();
+            b.last = wgr_get_time();
         }
-        sk_render_begin();
-        sk_render_end();
+        wgr_render_begin();
+        wgr_render_end();
         return;
     }
 
     r = &b.results[b.step];
     update();
-    updated = sk_get_time();
-    sk_render_begin();
-    sk_render_clear_background(SK_COLOR_BLACK);
-    sk_scene_draw(b.scene);
-    drawn = sk_get_time();
+    updated = wgr_get_time();
+    wgr_render_begin();
+    wgr_render_clear_background(WGR_COLOR_BLACK);
+    wgr_scene_draw(b.scene);
+    drawn = wgr_get_time();
     if (b.frame >= WARMUP_FRAMES) { /* read sokol_gl's use before the frame is submitted */
         const sgl_error_t err = sgl_error();
         const int vertices = sgl_num_vertices(), commands = sgl_num_commands();
@@ -430,8 +430,8 @@ static void frame(float dt, float fraction, void *user)
         r->commands_full = r->commands_full || err.commands_full;
         r->other_error = r->other_error || err.uniforms_full || err.stack_overflow || err.no_context;
     }
-    sk_render_end();
-    submitted = sk_get_time();
+    wgr_render_end();
+    submitted = wgr_get_time();
 
     if (b.frame >= WARMUP_FRAMES) {
         const double frame_time = (submitted - b.last) * 1000.0, cpu = (submitted - start) * 1000.0;
@@ -456,18 +456,18 @@ static void frame(float dt, float fraction, void *user)
         teardown();
         if (++b.step == SCENES * COUNT_STEPS) {
             print_results();
-            sk_request_quit();
+            wgr_request_quit();
             return;
         }
         setup();
-        b.last = sk_get_time();
+        b.last = wgr_get_time();
     }
 }
 
 int main(void)
 {
-    sk_init_values(960, 600, "libsk spritebench", SK_WINDOW_FLAG_VSYNC_OFF | SK_WINDOW_FLAG_LOW_DPI);
-    sk_set_init(init, NULL);
-    sk_set_frame(frame, NULL);
-    return sk_run();
+    wgr_init_values(960, 600, "libwgrender spritebench", WGR_WINDOW_FLAG_VSYNC_OFF | WGR_WINDOW_FLAG_LOW_DPI);
+    wgr_set_init(init, NULL);
+    wgr_set_frame(frame, NULL);
+    return wgr_run();
 }

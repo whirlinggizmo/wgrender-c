@@ -8,8 +8,8 @@ Builds on the scene's bounds registry ([ARCHITECTURE.md](ARCHITECTURE.md)) and s
 ## Why
 
 Nothing is culled. A scene walks every member every frame and submits it; the only
-visibility test is the manual `sk_model_set_visible` flag. The GPU throws away what
-lands off screen, but only after libsk has paid for the draw.
+visibility test is the manual `wgr_model_set_visible` flag. The GPU throws away what
+lands off screen, but only after libwgrender has paid for the draw.
 
 Measured with `make shadowbench DESKTOP=1` on an RTX 4080: **4000 models cost 4.89 ms a
 frame with the camera pointed away from all of them, against 5.18 ms with every one in
@@ -21,12 +21,12 @@ back. The test that rejects it is a few dozen instructions.
 
 ## Where we are
 
-- `sk_scene` keeps members in layers and, for each layer, calls each drawable's
+- `wgr_scene` keeps members in layers and, for each layer, calls each drawable's
   `draw_opaque` and `collect_transparent` in turn (`draw_layer`).
 - Every 3D kind already registers bounds with the scene for picking:
-  `sk_scene_register_bounds(kind, fn)` gives a local AABB plus the model matrix, and
+  `wgr_scene_register_bounds(kind, fn)` gives a local AABB plus the model matrix, and
   models, sprite3d, shape3d and text3d all provide one.
-- `sk_model`'s `begin_draw` already builds a world AABB (`sk_pick_world_aabb`) to pick
+- `wgr_model`'s `begin_draw` already builds a world AABB (`wgr_pick_world_aabb`) to pick
   the placement's lights, so a model's world bounds are computed either way.
 - The shadow pass redraws **every** caster in the lighting environment, including ones
   outside what the light's map covers (`shadow_distance`).
@@ -35,19 +35,19 @@ back. The test that rejects it is a few dozen instructions.
 
 ### Where the test goes
 
-In `sk_scene`, not in each drawable: that is where the camera is, and one test then
+In `wgr_scene`, not in each drawable: that is where the camera is, and one test then
 covers models, sprites, shapes and text alike through the bounds registry. Each scene
 draw builds the camera's six frustum planes once; `draw_layer` tests each member's
 world AABB and skips the ones outside.
 
-Pure helpers, in `internal/sk_math.h`, exposed for tests:
+Pure helpers, in `internal/wgr_math.h`, exposed for tests:
 
 ```c
 /* The six planes of a view-projection, outward normals, for testing AABBs. */
-void sk_frustum_from_view_proj(sk_mat4_t view_proj, sk_plane_t out[6]);
+void wgr_frustum_from_view_proj(wgr_mat4_t view_proj, wgr_plane_t out[6]);
 /* False when the box is wholly outside any plane (a conservative test: a box that
  * straddles a corner may pass and be drawn). */
-bool sk_frustum_test_aabb(const sk_plane_t planes[6], vec3_t min, vec3_t max);
+bool wgr_frustum_test_aabb(const wgr_plane_t planes[6], vec3_t min, vec3_t max);
 ```
 
 ### Casters must not vanish
@@ -61,7 +61,7 @@ camera pass as they are today — correct, and no worse than now.
 
 ### The shadow pass culls too
 
-Separately, `sk_model_draw_shadow_casters` tests each placement against the light's own
+Separately, `wgr_model_draw_shadow_casters` tests each placement against the light's own
 frustum (the fit it is already given) and skips casters outside it. A light's map covers
 `shadow_distance`; today every caster in the scene is redrawn into it regardless. This
 needs the placement to keep the world AABB it already computes for light selection.
@@ -87,7 +87,7 @@ rejected model, the test pays for itself at any scene size.
    the posed bounds when the pick cache already has them, or never cull skinned models.
    Recommend: pad — it is one multiply, and the posed bounds are only cached after a
    pick.
-3. **A switch.** `sk_scene_set_culling(scene, bool)`, default on, so a scene can turn it
+3. **A switch.** `wgr_scene_set_culling(scene, bool)`, default on, so a scene can turn it
    off when debugging what is drawn, or when a game knows everything is in view.
    Recommend: yes, it is two lines and it is the escape hatch if bounds are ever wrong.
 
@@ -102,13 +102,13 @@ rejected model, the test pays for itself at any scene size.
 
 ## Phase 1 as built
 
-Three pure helpers in `src/internal/sk_math.h`, so the tests can reach them without a
-GPU: `sk_frustum_from_view_proj` (Gribb-Hartmann, planes normalized so a test gives a
-real distance), `sk_frustum_test_aabb` (the corner furthest along each normal — out
-only when the box is wholly behind one plane) and `sk_aabb_sweep` (a box pushed along
+Three pure helpers in `src/internal/wgr_math.h`, so the tests can reach them without a
+GPU: `wgr_frustum_from_view_proj` (Gribb-Hartmann, planes normalized so a test gives a
+real distance), `wgr_frustum_test_aabb` (the corner furthest along each normal — out
+only when the box is wholly behind one plane) and `wgr_aabb_sweep` (a box pushed along
 a direction: where its shadow could land).
 
-`sk_scene` builds the planes once per draw, in `begin_culling`, from the camera it is
+`wgr_scene` builds the planes once per draw, in `begin_culling`, from the camera it is
 about to draw with and the lighting environment it just pushed — the index comes from
 `push_lighting`'s return, not from the light module, so the core still reaches lights
 only through hooks. For each casting light it keeps the direction and the reach its map
@@ -118,15 +118,15 @@ then asks `visible()` per member, for the opaque pass and the transparent one al
 `visible()` resolves the member's bounds through the scene's existing bounds registry,
 so every 3D kind is covered at once — model, sprite3d, shape3d, text3d — and a member
 with no bounds (the 2D kinds) is always drawn. The world AABB is padded by 15%
-(`SK_CULL_PAD`) because a skinned model's bounds are its rest pose; better to draw a
+(`WGR_CULL_PAD`) because a skinned model's bounds are its rest pose; better to draw a
 little too much than to cull a raised arm. If the box misses the view, and the member
 casts, the box is swept along each casting light and tested again: a caster off screen
 whose shadow falls on screen is kept.
 
-Two pieces moved to make that cheap. `sk_model` now caches the world matrix it builds
+Two pieces moved to make that cheap. `wgr_model` now caches the world matrix it builds
 (`model_world`) instead of composing it for the cull and again for the draw, and it
 answers `cull_bounds` with the posed bounds only when a pick already computed them —
-culling never re-skins a mesh. `sk_scene_set_culling` / `sk_scene_is_culling` are the
+culling never re-skins a mesh. `wgr_scene_set_culling` / `wgr_scene_is_culling` are the
 switch, on by default.
 
 ### Measured
@@ -152,20 +152,20 @@ paying for the test.
 
 The depth pass had been redrawing every caster in the lighting environment, whatever
 the light's map actually covered. It now builds that light's six planes from the fit it
-is already given (`sk_frustum_from_view_proj(fit.view_proj)`) and tests each placement
+is already given (`wgr_frustum_from_view_proj(fit.view_proj)`) and tests each placement
 against them once, remembering the answer for the rest of that placement's primitives.
 
 The test is exact here, not just conservative. A directional fit is an ortho box whose
 side planes are parallel to the light, so a caster outside one projects along the light
 to points that stay outside it — it cannot shadow anything in the box. A spot's planes
 all pass through the light's own position, so the same holds for its cone. The near
-plane is pulled back (`SK_SHADOW_PULLBACK`) precisely so a caster between the light and
+plane is pulled back (`WGR_SHADOW_PULLBACK`) precisely so a caster between the light and
 the box is kept, and the unit test checks that a body overhead still makes the cut.
 
-For this, `sk_model` stores the world AABB it already builds at submit time to pick a
-placement's lights (padded once, there, by the same `SK_CULL_PAD`), so the depth pass
+For this, `wgr_model` stores the world AABB it already builds at submit time to pick a
+placement's lights (padded once, there, by the same `WGR_CULL_PAD`), so the depth pass
 costs one box test per placement per casting light and no bounds work of its own. The
-pad constant and `sk_aabb_pad` moved to `internal/sk_math.h`, which is where the
+pad constant and `wgr_aabb_pad` moved to `internal/wgr_math.h`, which is where the
 frustum helpers live, so the scene and the depth pass grow boxes the same way.
 
 ### Measured

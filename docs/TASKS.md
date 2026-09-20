@@ -1,4 +1,4 @@
-# libsk Tasks
+# libwgrender Tasks
 
 Working checklist. Order and reasoning live in [ROADMAP.md](ROADMAP.md); this file
 is what's done and what's next. Per-function librl parity is tracked in
@@ -10,11 +10,11 @@ tick the box in the same commit.
 
 ## Infrastructure
 
-- [x] `make parity`: librl → libsk API parity report (`tools/parity.sh`, `tools/parity.map`)
+- [x] `make parity`: librl → libwgrender API parity report (`tools/parity.sh`, `tools/parity.map`)
 - [x] Unit test setup: `make test`, `tests/unit/` (no stubs, links the headless library);
       first tests cover the handle pool, matrix math, picking math and the
       transparent sort. They found two pick-normal bugs (fixed)
-- [x] Unit tests for the gaps (2026-09-21): `sk_fs` paths and files (root joining,
+- [x] Unit tests for the gaps (2026-09-21): `wgr_fs` paths and files (root joining,
       absolute paths, reading, writing, the directories a write makes), animation
       sampling (the posed joint matrices: interpolation, wrap, clamp, speed),
       sprite alpha-test picking (and the CPU alpha mask behind it), text2d state
@@ -23,8 +23,8 @@ tick the box in the same commit.
       merging, what stops them merging, per-pass isolation, sprite batches, callbacks).
       120 unit tests. Found on the way: a texture made from pixels keeps an alpha mask
       when it has any transparency, so alpha-test picking works on it too
-- [ ] Unit tests still missing: the web half of `sk_fs` (MEMFS + IndexedDB) needs a
-      browser, so it wants the wasm-side tests below; `sk_asset` loader/mapper
+- [ ] Unit tests still missing: the web half of `wgr_fs` (MEMFS + IndexedDB) needs a
+      browser, so it wants the wasm-side tests below; `wgr_asset` loader/mapper
       registration is only exercised through real loaders
 - [x] Sanitizer test builds: `make test SANITIZE=thread|address|undefined` (TSan in CI)
 - [x] Faster checks (2026-09-16): `make verify` (~5 s incremental); smoke runs examples
@@ -34,22 +34,22 @@ tick the box in the same commit.
       (78 s → 12 s WebGL2, ~100 s → 29 s WebGPU); CI caches emsdk and skips
       docs-only changes. Negative-tested: crashes, hangs, panics, error logs,
       missing assets, stale backend builds and unfinished loads all still fail.
-      webcheck now also fails on libsk [ERROR]/[FATAL] logs (it missed them before)
+      webcheck now also fails on libwgrender [ERROR]/[FATAL] logs (it missed them before)
 - [ ] Later: wasm-side unit tests when web-only code needs them
 - [x] CI (GitHub Actions, `.github/workflows/ci.yml`): desktop build, `make check`,
       `make test`, `make smoke`; web build + `make webcheck` (WebGL2, headless Chrome)
       with screenshots as an artifact
-- [x] Null / headless renderer: `make HEADLESS=1` builds `build/headless/libsk.a`
+- [x] Null / headless renderer: `make HEADLESS=1` builds `build/headless/libwgrender.a`
       (sokol dummy GPU backend, no window or audio device, no GL/X11/ALSA link
-      deps) behind an internal `sk_platform` layer; frames run paced at 60/s
-      until `sk_request_quit` or `SK_HEADLESS_FRAMES`. Unit tests link it
+      deps) behind an internal `wgr_platform` layer; frames run paced at 60/s
+      until `wgr_request_quit` or `WGR_HEADLESS_FRAMES`. Unit tests link it
 - [x] Web smoke: `make webcheck` loads every example in a browser (WebGL2 headless,
       WebGPU headed), fails on console errors/exceptions/panics/wrong backend,
       saves screenshots
 - [x] Desktop headless smoke: `make smoke` runs every example headless for 180
       frames and fails on a non-zero exit, a timeout, or error-level logs
       (tools/smoke.sh). Needs no display, so it works with monitors asleep
-- [ ] Shared behavior tests: scenarios run against librl and libsk via an adapter
+- [ ] Shared behavior tests: scenarios run against librl and libwgrender via an adapter
       header, compared with tolerances
 - [ ] Gate on parity: add `make parity` to `make check` once librl is no longer needed
       locally, or run `--strict` in CI once todos reach zero
@@ -60,23 +60,23 @@ tick the box in the same commit.
       (BLEND, alpha 0.2) drew as a solid black quad. Fixed: MASK discards below
       the cutoff, BLEND and faded models (tint alpha < 1) draw in a sorted blended
       pass, `doubleSided` disables culling
-- [x] Scene layers + render passes (librl had these; libsk kept only the API).
+- [x] Scene layers + render passes (librl had these; libwgrender kept only the API).
       Done: per layer an opaque pass, then one transparent pass sorted back to
       front across model primitives, sprites and translucent shapes (runs stay
       batched, unlike librl's per-item flush). Draw order follows call order
-      across sokol_gl and model draws (frame command list in `sk_render`)
+      across sokol_gl and model draws (frame command list in `wgr_render`)
 - [x] 2D scene drawables (sprite2d, text2d in a scene) draw after all 3D layers
 - [x] Bug: static (unskinned) glTF primitives ignored their node transform
       (gumshoe's `blobShadow` node is scaled 0.66 and offset). Fixed: node world
       transforms are baked into positions, normals, pick data and bounds at load
-- [x] Bug: `sk_set_target_fps` did nothing. Fixed: frames are vsync-locked by
+- [x] Bug: `wgr_set_target_fps` did nothing. Fixed: frames are vsync-locked by
       default; the target caps below that (desktop sleeps, web skips early browser
-      frames); `SK_WINDOW_FLAG_VSYNC_OFF` (was `_VSYNC_HINT`) unlocks on desktop.
+      frames); `WGR_WINDOW_FLAG_VSYNC_OFF` (was `_VSYNC_HINT`) unlocks on desktop.
       Measured: desktop vsync off at 144/20 fps, web at 30 and capped at 60
 - [ ] Bug (platform): vsync doesn't hold on NVIDIA (RTX 4080 laptop, driver 580) +
       COSMIC/XWayland with sokol's GL backend. Swaps block only every other frame:
       ~120 frames/s on a 59.88 Hz display, intervals alternating ~16.7 ms and <4 ms,
-      half the frames never shown. Not a libsk/sokol timing bug: a raw GLX program
+      half the frames never shown. Not a libwgrender/sokol timing bug: a raw GLX program
       (no sokol) reproduces it with GLX_SWAP_INTERVAL=1 confirmed, the interval set
       before or after mapping, with or without glFinish, and with
       `__GL_SYNC_TO_VBLANK=1` or `__GL_MaxFramesAllowed=1`. Target caps
@@ -101,18 +101,18 @@ tick the box in the same commit.
 - [ ] Light selection uses rest-pose bounds for animated models, so a limb far
       outside the rest pose can miss a nearby point light's range check. Minor;
       could reuse the posed bounds when they're already cached
-- [x] Colors are values (2026-09-17): `sk_color_t` is packed 0xRRGGBBAA, so a tint
-      can be computed per frame (`sk_color_rgba`, `sk_color_with_alpha`,
-      `sk_color_lerp`) instead of pre-creating a palette, and the 256-slot pool,
+- [x] Colors are values (2026-09-17): `wgr_color_t` is packed 0xRRGGBBAA, so a tint
+      can be computed per frame (`wgr_color_rgba`, `wgr_color_with_alpha`,
+      `wgr_color_lerp`) instead of pre-creating a palette, and the 256-slot pool,
       the handle kind and the color lifecycle are gone ([PLAN-color.md](PLAN-color.md))
 - [x] Window flags accepted but ignored (2026-09-19): honored now (below)
 - [x] Bug: orthographic cameras only affected sokol_gl content; models and
       picking always used perspective (fovy 6 world units became a 6 degree FOV,
       so models drew hugely magnified and picks missed). Fixed: one
-      `sk_camera3d_projection` / `sk_camera3d_view` used by sokol_gl 3D mode,
+      `wgr_camera3d_projection` / `wgr_camera3d_view` used by sokol_gl 3D mode,
       models and picking
-- [x] Fixed-rate tick (`sk_set_tick`) + timing passed to callbacks (`dt`,
-      `tick_fraction`); `sk_get_delta_time` removed; input edges relative to the
+- [x] Fixed-rate tick (`wgr_set_tick`) + timing passed to callbacks (`dt`,
+      `tick_fraction`); `wgr_get_delta_time` removed; input edges relative to the
       running callback. Resolves the frame-timing decision below
       (docs/PLAN-tick.md, examples/tick.c)
 - [x] Decided (by the tick design): time accumulated from frame `dt` runs slow
@@ -130,15 +130,15 @@ tick the box in the same commit.
 - [x] Bug: sokol's default pools (128 buffers, images) made Sponza fail to load;
       pools raised, and a failed GPU buffer or image fails the load
 - [x] Compressed textures (2026-09-19, [PLAN-textures.md](PLAN-textures.md)): a program
-      loads `name.ktx` and libsk picks `name.bc7.ktx` / `.astc.ktx` / `.etc2.ktx` (made
+      loads `name.ktx` and libwgrender picks `name.bc7.ktx` / `.astc.ktx` / `.etc2.ktx` (made
       by `tools/compress_textures.sh`) or `name.png` for the GPU; a 2K texture loads in
       ~1 ms instead of 60-90 ms (desktop) and 1.5 ms instead of 125-200 ms (phone), at a
       quarter of the GPU memory
 - [x] Compressed textures in glTF models (2026-09-19): `compress_textures.sh --gltf`
-      writes `model.ktx.gltf` with the `SK_texture_ktx` extension (portable: other viewers
+      writes `model.ktx.gltf` with the `WGR_texture_ktx` extension (portable: other viewers
       use the original images); only the variant this GPU can use downloads. FlightHelmet
       on the phone: 2.0 -> 0.45 s in the background, 1.4 -> 0.1 s synchronously
-- [x] Web file cache per file (2026-09-20, [PLAN-sk_fs.md](PLAN-sk_fs.md)): the phone's
+- [x] Web file cache per file (2026-09-20, [PLAN-wgr_fs.md](PLAN-wgr_fs.md)): the phone's
       ~100 ms frame while a model loaded was IDBFS restoring the whole cache (56.5 MB)
       at startup, not loading or shaders (first draws of loaded models cost nothing
       extra). Now only the cache's list of files is read at startup and a file is read
@@ -148,15 +148,15 @@ tick the box in the same commit.
       (4, 8, 16 MB): no better (at 4 MB, one 2K ASTC texture a frame, frames still reach
       ~30 ms) and slower to load; the cost is each large upload itself. Left: smaller
       files (ASTC 6x6 blocks, about half the bytes, some quality), or one mip level per
-      frame (needs a change to libsk's sokol fork)
+      frame (needs a change to libwgrender's sokol fork)
 - [ ] Loading follow-ups: shader warm-up (the first frame drawing loaded PBR
       models stalled ~220 ms on WebGL2 while programs compiled; not seen on the Pixel 9
       with FlightHelmet in a lit scene: recheck with an environment); the zero-worker mode
       prepares a whole glTF in one frame (~1 s for FlightHelmet); `.glb` dependency
       listing reads the whole file on the main thread
-- [x] Bug: `sk_request_quit` on web aborted in sokol_audio when the main thread
+- [x] Bug: `wgr_request_quit` on web aborted in sokol_audio when the main thread
       had been busy: audioprocess events queued meanwhile ran after shutdown and
-      asserted on the freed buffer. Fixed in libsk's sokol fork
+      asserted on the freed buffer. Fixed in libwgrender's sokol fork
       (github.com/robknopf/sokol: the handler is cleared on shutdown); sokol is now
       vendored from the fork with `tools/update_sokol.sh`. `examples/quit.c` (music,
       loads in flight, a busy frame, quit) keeps webcheck on this path
@@ -167,11 +167,11 @@ tick the box in the same commit.
       changes left stale objects. Both now use `-MD -MP`
 - [x] Built-in font (2026-09-17): the 8x8 sokol_debugtext bitmap font (KC85/3, whose
       `[ ] \ { | } ~` were graphics and umlauts) is replaced by JetBrains Mono, an
-      ASCII subset embedded in the library (`src/fonts/sk_default_font.h`, generated
+      ASCII subset embedded in the library (`src/fonts/wgr_default_font.h`, generated
       by `tools/gen_default_font.py`, OFL). All text is TrueType now; sokol_debugtext
       is gone (web size about even: -12.5 KB code, +9 KB font).
-      `sk_text_set_default_font` sets another default (e.g. for UTF-8), used by
-      `sk_text_draw` and font handle 0 everywhere, including text3d
+      `wgr_text_set_default_font` sets another default (e.g. for UTF-8), used by
+      `wgr_text_draw` and font handle 0 everywhere, including text3d
 - [x] webcheck: WebGPU runs failed the first four examples (started after ~20 s or
       never) when the monitors were asleep: WebGPU ran in a visible browser window,
       and the pages waited for the compositor to wake the displays (cosmic-comp logs
@@ -192,18 +192,18 @@ tick the box in the same commit.
 ## librl parity (functional, not 1:1; see `make parity` for function-level status)
 
 Each item starts with a short design review: what librl did, what went wrong or
-felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
+felt awkward, and the libwgrender design. Update `tools/parity.map` with the outcome.
 
 - [x] Parity batch (2026-09-16, [PLAN-parity.md](PLAN-parity.md), `examples/text3d.c`):
-      `sk_pick_object` + pick stats + pickable flags everywhere; `sk_text3d_*` and
-      `sk_text_draw_3d`; 3D rectangles, circles, lines and point-by-point line
-      strips; animation duration/time in seconds and `sk_model_is_ready`;
-      `sk_sound_set_pan`; sprite3d getters and FREE facing; `sk_text_draw_fps_ex`;
-      `sk_asset_get_host`. Dropped: built-in font handle, placeholder model, ground
+      `wgr_pick_object` + pick stats + pickable flags everywhere; `wgr_text3d_*` and
+      `wgr_text_draw_3d`; 3D rectangles, circles, lines and point-by-point line
+      strips; animation duration/time in seconds and `wgr_model_is_ready`;
+      `wgr_sound_set_pan`; sprite3d getters and FREE facing; `wgr_text_draw_fps_ex`;
+      `wgr_asset_get_host`. Dropped: built-in font handle, placeholder model, ground
       texture drawing. `make parity`: 95%, 10 todos, all deferred on purpose
-- [x] 2D sprites and screen-space texture drawing: `sk_sprite2d_*` (source rect,
+- [x] 2D sprites and screen-space texture drawing: `wgr_sprite2d_*` (source rect,
       pivot, rotation, x/y scale with flip, size, alpha-tested picking) and
-      `sk_texture_draw`; scenes draw 2D after 3D and pick it first; 2D, mouse and
+      `wgr_texture_draw`; scenes draw 2D after 3D and pick it first; 2D, mouse and
       screen size are in logical pixels (docs/PLAN-sprite2d.md, examples/sprite2d.c)
 - [x] Lighting controls: redesigned as light objects in scenes (see above)
 - [x] Window and monitor control (2026-09-17, [PLAN-window.md](PLAN-window.md),
@@ -211,13 +211,13 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       `deps/sokol_utils` (squk/sokol_utils, vendored with fixes)
 - [x] Window flags (2026-09-19, PLAN-window.md phase 2): `RESIZABLE` (without it the
       window keeps its size, as in raylib; the examples set it), `UNDECORATED`,
-      `HIDDEN` with `sk_window_set_visible` / `sk_window_is_visible`, `TRANSPARENT`
+      `HIDDEN` with `wgr_window_set_visible` / `wgr_window_is_visible`, `TRANSPARENT`
       (sokol's premultiplied compositing; the screen's clear color is premultiplied);
       `ALWAYS_RUN` removed. Applied through the vendored sokol_utils header after the
       window exists, so a hidden window can show for a moment first
-- [x] Assets: ensure many files at once: asset groups (`sk_asset_group_create`,
-      `sk_asset_group_add`) with `sk_asset_get_progress`
-- [x] Assets: host ping (2026-09-20): `sk_asset_ping_host(host, timeout_ms, on_done,
+- [x] Assets: ensure many files at once: asset groups (`wgr_asset_group_create`,
+      `wgr_asset_group_add`) with `wgr_asset_get_progress`
+- [x] Assets: host ping (2026-09-20): `wgr_asset_ping_host(host, timeout_ms, on_done,
       user)`, asynchronous (librl's blocked, and did nothing on the web): a timed HEAD
       request on the web (any response counts, no CORS needed); on desktop, whether the
       asset directory exists
@@ -228,12 +228,12 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       differ from librl on purpose. `CAMERA` is spherical (parallel to the view plane,
       tilting with the camera's pitch); `CAMERA_FIXED_Y` is cylindrical (turns about
       world Y, stays upright). In librl, `CAMERA` built the quad from `camera.up` — the
-      up *hint*, normally (0, 1, 0) — so both modes were upright there; in libsk before
+      up *hint*, normally (0, 1, 0) — so both modes were upright there; in libwgrender before
       this fix, both tilted. `CAMERA_FIXED_Y` also no longer collapses to an invisible
       zero-width quad when the camera looks straight down
-- [x] Gamepad input (2026-09-19): `sk_input_get_gamepad_button/axis`, up to 4 pads by
+- [x] Gamepad input (2026-09-19): `wgr_input_get_gamepad_button/axis`, up to 4 pads by
       slot, buttons by position with frame and tick edges, sticks with a dead zone,
-      triggers as axes and buttons; an optional module (`src/sk_gamepad.c`). Web: the
+      triggers as axes and buttons; an optional module (`src/wgr_gamepad.c`). Web: the
       Gamepad API; Linux: evdev (the `xpad` driver's X/Y codes swapped), rescanned for
       hot-plugging; Windows: XInput (compiles; untested with a pad). Checked on a
       wired Xbox 360 pad, native and in Chrome;
@@ -249,22 +249,22 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       gamepads; Direct3D 11 (sokol-shdc HLSL output) instead of OpenGL
 - [ ] Gamepads later: macOS (GameController framework), rumble, connect/disconnect
       events, a mapping database for pads the kernel doesn't name by position
-- [x] Touch input (`sk_input_*`, 2026-09-18): the first finger drives the pointer
+- [x] Touch input (`wgr_input_*`, 2026-09-18): the first finger drives the pointer
       (since 2026-09-17), and a second one cancels its press (released off-screen,
-      no click); every finger with ids, edges and deltas (`sk_input_get_touch`), and
-      the two-finger pan / pinch / twist (`sk_input_get_touch_gesture`), per frame
+      no click); every finger with ids, edges and deltas (`wgr_input_get_touch`), and
+      the two-finger pan / pinch / twist (`wgr_input_get_touch_gesture`), per frame
       and per tick. `examples/touch.c`; checked with CDP touch events and on a Pixel
       9 Pro XL (`tools/serve.py --tls` for a secure page on the LAN)
 - [x] High-DPI by default (2026-09-18): windows render at the display's full
-      resolution; `SK_WINDOW_FLAG_LOW_DPI` opts out (fewer pixels to fill).
-      Replaces `SK_WINDOW_FLAG_WINDOW_HIGHDPI`
+      resolution; `WGR_WINDOW_FLAG_LOW_DPI` opts out (fewer pixels to fill).
+      Replaces `WGR_WINDOW_FLAG_WINDOW_HIGHDPI`
 - [x] Destroying an object takes it out of every scene (2026-09-18): members, hover
       and press state, and a scene's camera. It used to stay as a stale handle that
       warned on every draw
 - [ ] Touch later: long-press and swipe/fling recognizers if a game wants them;
       pinch from desktop trackpads (browsers send it as ctrl + wheel)
 - [ ] Native iOS / Android: long stretch goal. sokol supports both (Metal/GLES3,
-      CoreAudio/AAudio, touch); libsk would need build targets, Metal shaders, app
+      CoreAudio/AAudio, touch); libwgrender would need build targets, Metal shaders, app
       lifecycle and bundle/APK file access. Until then, mobile runs the wasm build
       (mobile browser, a wasm host app, or a shell like Electron/Tauri; hosts without
       cross-origin isolation need WEB_THREADS=0)
@@ -277,19 +277,19 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       shading, normal/occlusion/emissive maps, sRGB-correct lighting, per-model
       slot overrides ([PLAN-materials.md](PLAN-materials.md), `examples/materials.c`)
 - [x] Materials, phase 2 (2026-09-20): custom shaders. A fragment shader (and an
-      optional vertex hook) written against `shaders/sk.glsl`, packed for GL, WebGL2 and
-      WebGPU by `tools/shaderpack.py` into a `.skshader` file; `sk_shader_create`,
-      `sk_material_create_custom`, parameters and textures by the shader's names.
+      optional vertex hook) written against `shaders/wgr.glsl`, packed for GL, WebGL2 and
+      WebGPU by `tools/shaderpack.py` into a `.wgrshader` file; `wgr_shader_create`,
+      `wgr_material_create_custom`, parameters and textures by the shader's names.
       Static and skinned models, scene lights, tint, alpha modes, tone mapping
       ([PLAN-materials.md](PLAN-materials.md), `examples/shaders.c`)
-- [x] Environment lighting in custom shaders (2026-09-20): `sk_environment_diffuse`,
-      `_specular`, `_brdf`, `_intensity` in `shaders/sk.glsl` (`.skshader` format 2;
+- [x] Environment lighting in custom shaders (2026-09-20): `wgr_environment_diffuse`,
+      `_specular`, `_brdf`, `_intensity` in `shaders/wgr.glsl` (`.wgrshader` format 2;
       older files are refused, rebuild them); the shaders example's water reflects a sunset
 - [ ] Custom shaders later: arrays and matrices as parameters; D3D11/Metal sources when
       those backends come
 - [x] Materials, phase 3a (2026-09-20): custom shaders on sprites (2D and 3D):
-      `sk_sprite3d/2d_set_material`, one `.skshader` for models and sprites
-      (`sk_sprite_color()`, `sk_sprite_tex`), batched by material; format 3. Shapes stay
+      `wgr_sprite3d/2d_set_material`, one `.wgrshader` for models and sprites
+      (`wgr_sprite_color()`, `wgr_sprite_tex`), batched by material; format 3. Shapes stay
       unlit (generated meshes for lit geometry) ([PLAN-materials.md](PLAN-materials.md))
 - [x] Skinning and per-draw uniforms (2026-09-20): a crowd of animated models spent
       85% of its frame CPU in one call, uploading 128 joint matrices (8.4 KB) as
@@ -300,17 +300,17 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       into material (every draw), scene and lights (applied only when they change).
       Per draw: ~8.6 KB -> ~430 bytes. Measured in Chromium on the GPU (100 animated
       gumshoes: 15.2 -> 2.1 ms of frame CPU; 400: 19.4 -> 7.8 ms), with three.js 0.186
-      at 2.0 and 6.1 ms. `.skshader` format 4 (rebuild custom shaders)
+      at 2.0 and 6.1 ms. `.wgrshader` format 4 (rebuild custom shaders)
 - [ ] Lightmaps: baked lighting as a material texture (its own texture coordinate set,
       which materials already support), multiplied into the surface. No new passes;
       bake them in Blender
 - [x] Shadows, phase 1 (2026-09-21, desktop GL, WebGL2 and WebGPU): a directional light casts
       into a depth map before the frame's passes, and models, lit sprites and custom
-      shaders (`sk_shadow`) are darkened by it. `sk_light_set_casts_shadows` /
+      shaders (`wgr_shadow`) are darkened by it. `wgr_light_set_casts_shadows` /
       `_shadow_distance` / `_shadow_map_size` / `_shadow_bias` (in texels) /
-      `_shadow_strength` / `_shadow_color`, and `sk_model_set_casts_shadow` /
+      `_shadow_strength` / `_shadow_color`, and `wgr_model_set_casts_shadow` /
       `_set_receives_shadow`. Opt in twice: the module links only when a program calls
-      one of these, and a light casts only when asked. `.skshader` format 6
+      one of these, and a light casts only when asked. `.wgrshader` format 6
       ([PLAN-shadows.md](PLAN-shadows.md), `examples/shadows.c`)
 - [x] Shadows on WebGPU (2026-09-21): were fully shadowed everywhere. Not a WebGPU
       problem: the depth pass never asked for its depth buffer to be kept, sokol's
@@ -323,7 +323,7 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       layer each, since a texture per light would eat the sampler slots custom shaders
       need. Layers share the largest map size asked for; a light's slot rides in a
       spare component of its per-light data, so only the per-slot arrays grow.
-      `.skshader` format 7 ([PLAN-shadows.md](PLAN-shadows.md), `examples/shadows.c`)
+      `.wgrshader` format 7 ([PLAN-shadows.md](PLAN-shadows.md), `examples/shadows.c`)
 - [x] Shadow cost measured (2026-09-21): `make shadowbench [DESKTOP=1]`
       (tools/bench/shadowbench.c, also a web page). RTX 4080, vsync off, frame ms (and
       the CPU ms in it) at 100 / 400 / 1000 models: none 0.25/0.62/1.41; sun at 1024
@@ -337,7 +337,7 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       placements and 8192 primitives, and a frame past either lost the rest of its
       models after one warning — found while benchmarking, where asking for 1600 and
       4096 models both measured the same 1024. They now double from 64 / 256 up to
-      16384 / 131072, in the shape of sk_scene's transparent list, and the warning is
+      16384 / 131072, in the shape of wgr_scene's transparent list, and the warning is
       kept for the ceiling (about 23 ms of submission, far past playable). Small
       programs stop carrying the room as well: ~448 KB of always-resident memory gone
 - [x] Frustum culling, phase 1 (2026-09-21, docs/PLAN-culling.md): a scene tests each
@@ -346,7 +346,7 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       A caster the camera can't see is kept when its box, swept along a casting light
       for the reach of that light's map, still touches the view — so shadows from off
       screen stay. Skinned bounds are the rest pose, so a member's box is padded 15%.
-      `sk_scene_set_culling` turns it off (default on) when you want to see everything
+      `wgr_scene_set_culling` turns it off (default on) when you want to see everything
       submitted. shadowbench gained "look away" / "away, no cull": 4000 models behind
       the camera cost 6.78 ms a frame before and 0.50 ms now, of which 0.42 is the test
       itself (~0.1 microseconds a member, against the 1.2 it saves); with everything in
@@ -357,7 +357,7 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       Exact, not merely conservative — a directional fit's side planes are parallel to
       the light and a spot's all pass through it, so a caster outside one cannot shadow
       anything inside, and the fit's pull-back keeps the ones between the light and the
-      box. The bounds come free: sk_model already builds a placement's world AABB to
+      box. The bounds come free: wgr_model already builds a placement's world AABB to
       pick its lights, and now keeps it. shadowbench at 4000 models, where the sun's
       40-unit reach covers a fraction of a 140-unit grid: a casting light cost ~1.6 ms
       over the same scene with no shadows and now costs ~0.1, two lights ~3.2 ms and now
@@ -369,7 +369,7 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       the matrices and the tint -- moved into a per-frame data texture, eight texels a
       placement, the same trick the joint matrices use; the tint left fs_params for the
       vertex color, which is the same arithmetic in a different place and leaves nothing
-      per placement in the material block. Inside an unordered region (what sk_scene
+      per placement in the material block. Inside an unordered region (what wgr_scene
       already declares for sprites) the items are sorted by what a draw has to set, and
       a run of equal ones becomes one sg_draw. shadowbench gained a "shared" case -- one
       mesh, one material, N placements, the forest -- against "sun 1024", the same scene
@@ -387,22 +387,22 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 - [x] The shadow depth pass is instanced too (2026-09-21, docs/PLAN-instancing.md phase
       3): casters read their placement and joint base from the same records the shading
       pass does, so a run that agrees on mesh and material goes into the map as one
-      draw. The instance block is now src/shaders/sk_instance.glsl, included by both
+      draw. The instance block is now src/shaders/wgr_instance.glsl, included by both
       shaders. shadowbench gained "wide, each" / "wide, shared", where the sun reaches
       the whole grid so nothing is culled out of the map: at 4000 models, submission
       6.38 -> 0.60 ms and the frame 8.01 -> 3.20. The depth pass's own share of that,
       measured by forcing same_depth_group false in the same build, is about 1.5 ms
 - [x] Custom material shaders instance too (2026-09-21, docs/PLAN-instancing.md phase
-      4): shaders/sk.glsl grew an sk_vs_instance block, so a custom shader's model
+      4): shaders/wgr.glsl grew an wgr_vs_instance block, so a custom shader's model
       stages read the placement from the same records; the instance and joint textures
       share the one nonfiltering sampler, since sampler slots stop at 11. The tint
-      became a varying rather than folding into sk_color: sk_output() applies sk_tint,
-      and a shader that ignores sk_color would otherwise have silently lost it. Sprites
-      write white there, where their tint has always been in sk_color. .skshader format
+      became a varying rather than folding into wgr_color: wgr_output() applies wgr_tint,
+      and a shader that ignores wgr_color would otherwise have silently lost it. Sprites
+      write white there, where their tint has always been in wgr_color. .wgrshader format
       7 -> 8, the six example shaders repacked; older packs are refused, not drawn
       wrongly. A custom material no longer blocks batching
 - [ ] Lit particles: emitter particles are unlit — emitters have their own program
-      (`particle` = vs_particle + the unlit `fs` in src/shaders/sk_sprite.glsl) and no
+      (`particle` = vs_particle + the unlit `fs` in src/shaders/wgr_sprite.glsl) and no
       material API, so the only lit "particles" today are sprite3d objects moved by the
       CPU. A `particle_lit` program is mostly wiring now that `fs_lit` and the per-batch
       light block exist; the design question is where an emitter's lights come from,
@@ -455,10 +455,10 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       9.6 -> 3.6 ms (phone, WebGL2)
 - [x] Linear sokol_gl replay (2026-09-18): `sgl_draw_layer` scanned all of the frame's
       commands for each layer, so many layers (sprites or models interleaved with
-      shapes and text) replayed in quadratic time. libsk's sokol fork adds
-      `sgl_draw_layer_range` (branch perf/sgl-draw-layer-range), and sk_render draws
+      shapes and text) replayed in quadratic time. libwgrender's sokol fork adds
+      `sgl_draw_layer_range` (branch perf/sgl-draw-layer-range), and wgr_render draws
       each layer's own command range: 3,000 switches replay in 0.6 ms instead of 5.4
-- [x] Sprite alpha modes (2026-09-18, PLAN-sprites step 2): `sk_alpha_mode_t` shared with
+- [x] Sprite alpha modes (2026-09-18, PLAN-sprites step 2): `wgr_alpha_mode_t` shared with
       materials; opaque, masked and additive sprites aren't sorted and group by texture
       (16,000 masked sprites from 4 textures: 4 batches, 1.4 ms desktop / 1.2 ms Chrome)
 - [x] Blended sprites from several textures on WebGL2 (2026-09-18): without
@@ -466,9 +466,9 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       rebinding per batch: 16,000 from 4 textures 20.5 -> 11 ms on the phone (sokol_gl:
       13.8), 12.2 -> 7.1 in Chrome
 - [x] sprite2d on the instanced sprite path (2026-09-18, PLAN-sprites step 3), with
-      `sk_sprite2d_set_alpha_mode`; immediate `sk_texture_draw*` stays on sokol_gl
+      `wgr_sprite2d_set_alpha_mode`; immediate `wgr_texture_draw*` stays on sokol_gl
 - [x] Particle emitters, 3D and 2D, simulated on the GPU (2026-09-18, PLAN-sprites
-      step 4): `sk_emitter3d_*` / `sk_emitter2d_*`, configured in code; particles written
+      step 4): `wgr_emitter3d_*` / `wgr_emitter2d_*`, configured in code; particles written
       once at birth and moved by the GPU; `examples/particles.c`. 16,000 particles:
       CPU 1.1 -> 0.1 ms (desktop), 6.2 -> 0.6 ms (phone)
 - [x] More for particles (2026-09-18, PLAN-sprites step 5), still stateless: drag,
@@ -477,13 +477,13 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       spawn sphere / circle
 - [ ] Particles later: a CPU-simulated mode for particles that react after birth
       (collisions, attractors), effects saved to files as resources
-- [x] Render to texture: `sk_texture_create_target`, `sk_render_begin/end_texture`,
-      `sk_texture_set_sampling` ([PLAN-render-target.md](PLAN-render-target.md),
+- [x] Render to texture: `wgr_texture_create_target`, `wgr_render_begin/end_texture`,
+      `wgr_texture_set_sampling` ([PLAN-render-target.md](PLAN-render-target.md),
       `examples/render_target.c`)
 - [x] Screen effects (2026-09-21): post-processing as full-screen shader passes —
-      `sk_render_add_effect` / `_clear_effects` / `_effect_count`, a chain of up to 8
-      custom materials whose shaders include `sk_screen` (one program, `sk_screen_color()`,
-      `sk_screen_uv`; `.skshader` format 5). The frame renders into a render target and
+      `wgr_render_add_effect` / `_clear_effects` / `_effect_count`, a chain of up to 8
+      custom materials whose shaders include `wgr_screen` (one program, `wgr_screen_color()`,
+      `wgr_screen_uv`; `.wgrshader` format 5). The frame renders into a render target and
       the chain ping-pongs between two of them onto the screen
       ([PLAN-render-target.md](PLAN-render-target.md), `examples/postprocess.c`)
 - [ ] Render targets later: per-target formats (HDR/float) so effects can tone map
@@ -492,11 +492,11 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       allocate both today), reading pixels back / screenshots, and the depth buffer in
       a screen effect (fog, depth of field)
 
-- [x] Generated meshes (2026-09-20): `sk_mesh_create_plane/cube/sphere/cylinder/cone/
+- [x] Generated meshes (2026-09-20): `wgr_mesh_create_plane/cube/sphere/cylinder/cone/
       capsule/torus`, resources deduplicated by their parameters, with normals, texture
       coordinates and tangents (any material, normal maps and custom shaders included)
       and picking; one white, non-metallic material slot. Geometry in
-      `src/sk_mesh_shapes.c` (pure, unit tested: winding, normals, bounds);
+      `src/wgr_mesh_shapes.c` (pure, unit tested: winding, normals, bounds);
       `examples/meshes.c`; the shaders example's floor and spheres use them
 - [ ] Generated meshes later: height maps (from an image: a path, so a resource like a
       loaded mesh), and other shapes when something needs them
@@ -509,33 +509,33 @@ VertexColorTest, TextureSettingsTest and BoxTextured on desktop, WebGL2, WebGPU)
 - [x] Second texture coordinate set (TEXCOORD_1), chosen per texture
 - [x] glTF files with separate buffers and images (`.gltf` + `.bin`/`.png`), and
       `data:` URIs. Ensuring a `.gltf`/`.glb` also ensures the files it references
-      (sk_asset dependency listers), so it works on web.
+      (wgr_asset dependency listers), so it works on web.
 - [x] Texture transforms per texture (glTF `KHR_texture_transform`, or `<t>_offset`,
       `_rotation`, `_scale` by name); picking applies them
 - [x] Vertex colors (COLOR_0) multiply base color (and alpha, for picking)
 - [x] Sampler modes per texture: wrap (repeat, clamp, mirror) and filter, from glTF
-      or `sk_material_set_texture_sampling`
+      or `wgr_material_set_texture_sampling`
 - [x] Mipmaps for all textures (generated at load)
 - [x] Missing or broken glTF images: the model still loads (warning); color
       textures use the placeholder texture (built-in magenta checker,
-      `sk_texture_set_placeholder`), data textures stay empty. Missing buffers still
+      `wgr_texture_set_placeholder`), data textures stay empty. Missing buffers still
       fail. Ensured dependencies can be optional.
-- [x] Asset redirects (2026-09-20): `sk_asset_add_redirect(prefix, target)` /
-      `sk_asset_clear_redirects`. Path rules stack, newest first, then the file itself,
+- [x] Asset redirects (2026-09-20): `wgr_asset_add_redirect(prefix, target)` /
+      `wgr_asset_clear_redirects`. Path rules stack, newest first, then the file itself,
       so a file missing under a mod or a translation falls through (quietly; a 404 each
       on the web); a target with "://" is where files download from (web). They apply to
       ensured files and the files those reference: a model reads its buffers and images
-      from where the asset layer found them (`sk_asset_found_path`). Plain prefixes;
+      from where the asset layer found them (`wgr_asset_found_path`). Plain prefixes;
       wildcards if a game needs them
 
 Not supported yet:
 
-- [x] Environment lighting: `sk_environment_create` (.hdr/PNG/JPEG equirect),
-      `sk_scene_set_environment/background/tonemap`, SH irradiance + GGX-prefiltered
+- [x] Environment lighting: `wgr_environment_create` (.hdr/PNG/JPEG equirect),
+      `wgr_scene_set_environment/background/tonemap`, SH irradiance + GGX-prefiltered
       cubemap + BRDF table, background skybox, tone mapping (Neutral default, ACES)
       and exposure ([PLAN-environment.md](PLAN-environment.md), `examples/environment.c`)
 - [ ] Environment follow-ups: prefiltering runs on a loading worker when loaded
-      through `sk_asset` (330 ms per 1K HDR; sync creates still block), other inputs (6 cube faces, KTX2
+      through `wgr_asset` (330 ms per 1K HDR; sync creates still block), other inputs (6 cube faces, KTX2
       prefiltered), RGBM fallback for backends that can't filter half-float textures,
       HDR framebuffer (bloom, tone mapping sprites together with models)
 - [ ] Generated tangents come from texture coordinate set 0; normal maps on set 1
@@ -548,9 +548,9 @@ Not supported yet:
 
 ## Lessons from librl to design for
 
-- [x] Networking decided (2026-09-20): libsk fetches assets only (desktop HTTP(S)
+- [x] Networking decided (2026-09-20): libwgrender fetches assets only (desktop HTTP(S)
       through the OS's clients, deferred); WebSockets and general networking go in a
-      separate library outside libsk (ROADMAP "Future")
+      separate library outside libwgrender (ROADMAP "Future")
 - [x] Web size (2026-09-17): web builds weren't link-optimized (no -O: no wasm-opt,
       unminified JS, assertions) and carried all three backends' shader sources.
       Now -O3 (WEB_DEBUG=1 for debug builds) and sokol-shdc --ifdef: simple went
@@ -558,13 +558,13 @@ Not supported yet:
       is 653 + 264 KB, 342 KB gzipped). The rest of the gap: every program links
       every subsystem (below)
 - [x] Web startup (2026-09-19): `make webstart` (`tools/webstart.mjs`) times cold,
-      warm and hot visits from `sk:*` performance marks, locally, on emulated 4G and on
+      warm and hot visits from `wgr:*` performance marks, locally, on emulated 4G and on
       a phone. Fixed: worker threads no longer hold up main() (~500 ms on 4G);
       versioned code (`?v=<hash>`, `tools/webdeploy.py`) cached for good, so a warm
       visit fetches no code; the wasm downloads alongside the JS; the BRDF table is
       baked (35-40 ms of every start); sprites, particles, models and the audio device
       are set up on first use. 4G, `simple`, first frame: cold 1214 -> 744 ms, warm
-      1112 -> 389 ms. Pixel over Wi-Fi: libsk's setup 80-186 -> 15-34 ms, first
+      1112 -> 389 ms. Pixel over Wi-Fi: libwgrender's setup 80-186 -> 15-34 ms, first
       frame 422-816 -> 241-444 ms. README "Startup and hosting" lists the headers a
       host needs
 - [x] Web size, flags (2026-09-19): release web builds define NDEBUG (no sokol
@@ -579,7 +579,7 @@ Not supported yet:
 - [ ] Web size later: browser-native image/audio decoders on web (async decode
       through JS); the baked BRDF table costs ~14 KB gzipped (half floats barely
       compress). Measured (2026-09-20, wasm code by library, gzipped, each group on its
-      own so approximate; `--profiling-funcs` builds): hello = libsk 42, C runtime 21,
+      own so approximate; `--profiling-funcs` builds): hello = libwgrender 42, C runtime 21,
       sokol 17, fonts (fontstash, stb_truetype: all text, the built-in font too) 13
       KB; model adds cgltf 16 and stb_image 16; audio programs add dr_mp3 + dr_wav +
       stb_vorbis 34. Browser decoders would save ~16 KB (images) and ~34 KB (audio):
@@ -588,13 +588,13 @@ Not supported yet:
       environment, a shader material, sprites, picking and audio (it leans on the
       browser's decoders and has no text or worker loading). Speed, same machine and
       browser (CPU ms a frame, frame-rate cap off; build/perf in a work tree): 2D
-      sprites libsk vs PixiJS 8.21 are level (16k: 2.6 vs 2.6; 64k: 9.6 vs 10.2);
-      3D billboards libsk vs three.js `Sprite` 2.6 vs 26.9 at 16k (its hand-managed
+      sprites libwgrender vs PixiJS 8.21 are level (16k: 2.6 vs 2.6; 64k: 9.6 vs 10.2);
+      3D billboards libwgrender vs three.js `Sprite` 2.6 vs 26.9 at 16k (its hand-managed
       `InstancedMesh`: 2.3), and 9.7 vs 85.6 at 64k (`InstancedMesh` 5.1); animated
-      crowds libsk vs three.js 2.1 vs 2.0 at 100 models, 7.8 vs 6.1 at 400. Audio caveat: the browser
-      decodes a whole file at once (decodeAudioData), which undoes libsk's streamed
+      crowds libwgrender vs three.js 2.1 vs 2.0 at 100 models, 7.8 vs 6.1 at 400. Audio caveat: the browser
+      decodes a whole file at once (decodeAudioData), which undoes libwgrender's streamed
       music (PLAN-audio: ~108 MB -> 6 MB for a long track)
-- [ ] Explore (later, own session): libsk's C API as the contract with other
+- [ ] Explore (later, own session): libwgrender's C API as the contract with other
       implementations, e.g. a JS backend (three.js/Babylon) for JS-target games, or
       another implementation language (Zig, Odin, D betterC, Beef; engines like
       Sedulous). Compare footprint and caching against the C + sokol build first
@@ -605,18 +605,18 @@ Not supported yet:
 ## Open decisions
 
 - [x] Handle-only API for point lists: line strips are built point by point on a
-      retained shape (`sk_shape3d_set_line_strip` + `sk_shape3d_add_point`); batch
+      retained shape (`wgr_shape3d_set_line_strip` + `wgr_shape3d_add_point`); batch
       asset ensure is designed with the loading pipeline
 - [ ] Which language binding comes first
-- [x] Naming, part 1 (2026-09-17): resources now have `sk_<resource>_release`
+- [x] Naming, part 1 (2026-09-17): resources now have `wgr_<resource>_release`
       instead of `destroy`, because that's what it does — drop this handle's
       reference — and objects keep `destroy`, so the name says which layer you're on
       (texture, mesh, audio, font, material, environment). The public wrappers
       collapsed onto the internal `release` functions that already existed; `retain`
       stays internal (one `create` is one reference). `create` stays `create` for
       both layers on purpose: the noun says whether it takes a path or a handle, and
-      generators like `sk_mesh_create_cube` load nothing
-- [ ] Naming, part 2: the `sk_` prefix names the sokol implementation rather than the
+      generators like `wgr_mesh_create_cube` load nothing
+- [ ] Naming, part 2: the `wgr_` prefix names the sokol implementation rather than the
       API. Only worth changing if the "C API as a contract" exploration goes ahead —
       then do it in the same sweep as any other rename, before bindings depend on the
       names

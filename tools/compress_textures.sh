@@ -5,8 +5,8 @@
 #   name.astc.ktx   ASTC 4x4   phones
 #   name.etc2.ktx   ETC2 RGBA  older phones
 #
-# each with its mipmaps (JPEGs work too). A program loads "name.ktx" (sk_texture_create, or ensured
-# through sk_asset first) and libsk picks the file this GPU can use, falling back to
+# each with its mipmaps (JPEGs work too). A program loads "name.ktx" (wgr_texture_create, or ensured
+# through wgr_asset first) and libwgrender picks the file this GPU can use, falling back to
 # name.png. Keep the PNG: it's the fallback, and pixel-accurate picking reads it.
 #
 #   tools/compress_textures.sh [--linear] image.png...

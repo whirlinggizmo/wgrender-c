@@ -76,7 +76,7 @@ done
 case "$mode" in
     check)
         [ ${#missing[@]} -eq 0 ] && exit 0
-        echo "libsk: missing system build dependencies: ${missing[*]}" >&2
+        echo "libwgrender: missing system build dependencies: ${missing[*]}" >&2
         case "$pm" in
             apt)    echo "  install: sudo apt install ${packages[*]}" >&2 ;;
             dnf)    echo "  install: sudo dnf install ${packages[*]}" >&2 ;;
@@ -88,15 +88,15 @@ case "$mode" in
         ;;
     install)
         if [ ${#missing[@]} -eq 0 ]; then
-            echo "libsk: all system build dependencies present"
+            echo "libwgrender: all system build dependencies present"
             exit 0
         fi
-        echo "libsk: installing ${packages[*]}"
+        echo "libwgrender: installing ${packages[*]}"
         case "$pm" in
             apt)    sudo apt-get install -y "${packages[@]}" ;;
             dnf)    sudo dnf install -y "${packages[@]}" ;;
             pacman) sudo pacman -S --needed --noconfirm "${packages[@]}" ;;
-            *)      echo "libsk: unsupported package manager; install dev packages for: ${missing[*]}" >&2
+            *)      echo "libwgrender: unsupported package manager; install dev packages for: ${missing[*]}" >&2
                     exit 1 ;;
         esac
         ;;

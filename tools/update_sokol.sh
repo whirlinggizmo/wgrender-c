@@ -1,10 +1,10 @@
 #!/bin/sh
-# Update the vendored sokol headers in deps/sokol from libsk's sokol fork.
+# Update the vendored sokol headers in deps/sokol from libwgrender's sokol fork.
 #
 #   tools/update_sokol.sh [ref]     ref: a branch, tag or commit (default: master)
 #
 # The fork (SOKOL_REPO, default github.com/robknopf/sokol) is floooh/sokol plus
-# fixes libsk needs; sync it with upstream there, then run this. Only the headers
+# fixes libwgrender needs; sync it with upstream there, then run this. Only the headers
 # already in deps/sokol are copied. deps/sokol/VERSION records the fork commit and
 # the upstream commit it's based on. Review the diff, rebuild (make verify, make
 # webcheck), then commit.
@@ -37,7 +37,7 @@ done
 
 SHDC_LINE="$(grep '^sokol-tools-bin ' "$DEST/VERSION" || true)"
 {
-    echo "# Vendored sokol headers, from libsk's fork of floooh/sokol (fixes libsk needs on"
+    echo "# Vendored sokol headers, from libwgrender's fork of floooh/sokol (fixes libwgrender needs on"
     echo "# top of upstream). Only the files in this directory are vendored; update them all"
     echo "# together with tools/update_sokol.sh."
     echo "sokol-fork $REPO $COMMIT $DATE"
@@ -53,7 +53,7 @@ mkdir -p "$CHECK"
 printf '#define SOKOL_IMPL\n#define SOKOL_GLCORE\n#define SOKOL_NO_ENTRY\n#include "sokol_app.h"\n#include "sokol_app_utils.h"\n' \
     > "$CHECK/utils.c"
 if ! ${CC:-cc} -std=gnu11 -c -isystem "$DEST" -isystem "$ROOT/deps/sokol_utils" "$CHECK/utils.c" -o "$CHECK/utils.o"; then
-    echo "update_sokol: deps/sokol_utils/sokol_app_utils.h no longer compiles against this sokol; fix it (mark changes [libsk], list them in its VERSION)" >&2
+    echo "update_sokol: deps/sokol_utils/sokol_app_utils.h no longer compiles against this sokol; fix it (mark changes [libwgrender], list them in its VERSION)" >&2
     exit 1
 fi
 

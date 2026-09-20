@@ -13,16 +13,16 @@ model) and `2d` (a scrolling, zooming 2D world).
 - **Immediate 2D shapes:** rectangle (filled/lines), line, circle (filled/lines),
   triangle. No retained 2D shapes.
 - **Scenes:** 2D members draw after all 3D layers, in layer order (then the order
-  added); `sk_scene_pick` hits 2D members first, topmost first, then 3D.
+  added); `wgr_scene_pick` hits 2D members first, topmost first, then 3D.
 - **Flags on every drawable** (model, shape, sprite2d, sprite3d, text2d, text3d):
   `set_visible`/`is_visible`, `set_pickable`/`is_pickable`. Picks skip invisible
   and non-pickable objects.
 - **Input:** mouse position/delta/wheel, keys and buttons with edges
-  (`SK_BUTTON_UP/PRESSED/DOWN/RELEASED`, relative to the running tick or frame),
+  (`WGR_BUTTON_UP/PRESSED/DOWN/RELEASED`, relative to the running tick or frame),
   typed characters.
 - **Not there:** hover/press/click state, a way to disable an object's interaction,
   retained 2D shapes, clipping, nine-slice, text alignment or wrapping, touch as a
-  pointer. `sk_render_begin_mode_2d(camera)` ignores its camera (so did librl's).
+  pointer. `wgr_render_begin_mode_2d(camera)` ignores its camera (so did librl's).
 
 Direction already decided (ROADMAP): **no GUI toolkit in the core.** In-game UI is
 built from sprites, text and shapes; layout can come later from a small library
@@ -39,8 +39,8 @@ such as Clay; developer UI (Dear ImGui) is an optional module outside the core.
 
 ### 1. Screen space for UI, orthographic 3D for 2D worlds (no camera2d)
 
-librl had one camera (3D) and drew 2D in screen pixels; libsk does the same. A
-separate 2D camera would only serve 2D worlds, and libsk can already draw those with
+librl had one camera (3D) and drew 2D in screen pixels; libwgrender does the same. A
+separate 2D camera would only serve 2D worlds, and libwgrender can already draw those with
 what it has: an **orthographic camera3d looking down -Z at sprite3d objects in the XY
 plane** (FREE facing), with the same scenes, depth order, transparency sorting and
 ray picking as 3D, and one world unit per pixel when pixel-exact placement matters.
@@ -49,14 +49,14 @@ ray picking as 3D, and one world unit per pixel when pixel-exact placement matte
 - sprite3d gains what 2D worlds need from sprite2d:
 
 ```c
-bool sk_sprite3d_set_source(sk_handle_t sprite, float x, float y, float width, float height);
+bool wgr_sprite3d_set_source(wgr_handle_t sprite, float x, float y, float width, float height);
      /* texture pixels (sprite sheets, atlases); default: whole texture */
-bool sk_sprite3d_set_pivot(sk_handle_t sprite, float x, float y);     /* 0..1, default center */
-bool sk_sprite3d_set_extent(sk_handle_t sprite, float width, float height);
-     /* world size; sk_sprite3d_set_size(s) stays as the square/aspect-kept shorthand */
+bool wgr_sprite3d_set_pivot(wgr_handle_t sprite, float x, float y);     /* 0..1, default center */
+bool wgr_sprite3d_set_extent(wgr_handle_t sprite, float width, float height);
+     /* world size; wgr_sprite3d_set_size(s) stays as the square/aspect-kept shorthand */
 ```
 
-- `sk_render_begin_mode_2d(camera)` loses its unused camera parameter (screen space
+- `wgr_render_begin_mode_2d(camera)` loses its unused camera parameter (screen space
   only). Revisit a camera2d only if 2D worlds on orthographic 3D prove awkward.
 
 ### 2. Retained 2D shapes (screen space)
@@ -64,11 +64,11 @@ bool sk_sprite3d_set_extent(sk_handle_t sprite, float width, float height);
 Shapes already have handles (3D). Add 2D variants as scene 2D members:
 
 ```c
-bool sk_shape_set_rectangle_2d(sk_handle_t shape, float width, float height, float corner_radius);
-bool sk_shape_set_circle_2d(sk_handle_t shape, float radius);
-bool sk_shape_set_line_2d(sk_handle_t shape, float x0, float y0, float x1, float y1, float thickness);
-bool sk_shape_set_transform_2d(sk_handle_t shape, float x, float y, float rotation, float scale_x, float scale_y);
-bool sk_shape_set_outline(sk_handle_t shape, float thickness);         /* 0 = filled (default) */
+bool wgr_shape_set_rectangle_2d(wgr_handle_t shape, float width, float height, float corner_radius);
+bool wgr_shape_set_circle_2d(wgr_handle_t shape, float radius);
+bool wgr_shape_set_line_2d(wgr_handle_t shape, float x0, float y0, float x1, float y1, float thickness);
+bool wgr_shape_set_transform_2d(wgr_handle_t shape, float x, float y, float rotation, float scale_x, float scale_y);
+bool wgr_shape_set_outline(wgr_handle_t shape, float thickness);         /* 0 = filled (default) */
 ```
 
 Rounded rectangles and thick lines are what UI panels and bars need. Picked by
@@ -80,15 +80,15 @@ Following `visible` and `pickable`, on model, shape, sprite2d, sprite3d, text2d 
 text3d (lights already have it):
 
 ```c
-bool sk_<kind>_set_enabled(sk_handle_t object, bool enabled);   /* default true */
-bool sk_<kind>_is_enabled(sk_handle_t object);
+bool wgr_<kind>_set_enabled(wgr_handle_t object, bool enabled);   /* default true */
+bool wgr_<kind>_is_enabled(wgr_handle_t object);
 ```
 
 - **visible:** drawn or not.
 - **pickable:** hit by picks or not; not pickable lets the pointer through to what's
   behind.
 - **enabled:** whether a hit reacts. A disabled object is drawn, still blocks the
-  pointer and is still reported by `sk_scene_pick` and `sk_scene_get_hovered` (a UI
+  pointer and is still reported by `wgr_scene_pick` and `wgr_scene_get_hovered` (a UI
   can show a "disabled" tooltip), but its hover, press and click stay `UP`/false.
 
 ### 4. Pointer interaction, polled per object with edges
@@ -98,23 +98,23 @@ the pointer, against the positions objects had when last drawn (one frame of
 latency, as usual for retained UI):
 
 ```c
-bool sk_scene_set_interactive(sk_handle_t scene, bool interactive);   /* default false */
+bool wgr_scene_set_interactive(wgr_handle_t scene, bool interactive);   /* default false */
 
-sk_handle_t       sk_scene_get_hovered(sk_handle_t scene);                   /* topmost under the pointer, or 0 */
-sk_button_state_t sk_scene_get_hover(sk_handle_t scene, sk_handle_t object);
+wgr_handle_t       wgr_scene_get_hovered(wgr_handle_t scene);                   /* topmost under the pointer, or 0 */
+wgr_button_state_t wgr_scene_get_hover(wgr_handle_t scene, wgr_handle_t object);
     /* UP: not under the pointer, PRESSED: entered this frame, DOWN: under it,
        RELEASED: left this frame */
-sk_button_state_t sk_scene_get_press(sk_handle_t scene, sk_handle_t object);
+wgr_button_state_t wgr_scene_get_press(wgr_handle_t scene, wgr_handle_t object);
     /* the primary button, for a press that started on this object: PRESSED this
        frame, DOWN while held (also when dragged off), RELEASED this frame */
-bool              sk_scene_is_clicked(sk_handle_t scene, sk_handle_t object);  /* released while still over it */
-bool              sk_input_is_pointer_captured(void);
+bool              wgr_scene_is_clicked(wgr_handle_t scene, wgr_handle_t object);  /* released while still over it */
+bool              wgr_input_is_pointer_captured(void);
     /* the current press started on a 2D member of an interactive scene: game
        controls (camera drag, 3D selection) should ignore it */
 ```
 
 - **Members:** any pickable member, 2D and 3D (models, shapes, sprites, text), in
-  the scene's pick order (2D topmost first, then nearest 3D). `sk_scene_pick` stays
+  the scene's pick order (2D topmost first, then nearest 3D). `wgr_scene_pick` stays
   for other points and one-off queries.
 - **Edges** use the input enum and the same frame semantics as keys and buttons.
 - **Capture only for 2D hits**, so hovering and clicking 3D objects still works
@@ -126,14 +126,14 @@ bool              sk_input_is_pointer_captured(void);
 ### 5. UI drawing essentials
 
 ```c
-bool sk_sprite2d_set_nine_slice(sk_handle_t sprite, float left, float top, float right, float bottom);
+bool wgr_sprite2d_set_nine_slice(wgr_handle_t sprite, float left, float top, float right, float bottom);
      /* borders in source pixels; the middle stretches, corners don't */
-bool sk_text2d_set_align(sk_handle_t text, sk_text_align_t horizontal, sk_text_align_t vertical);
-bool sk_text2d_set_max_width(sk_handle_t text, float width);   /* wrap at words; 0 = no wrap */
-bool sk_scene_set_clip(sk_handle_t scene, int layer, float x, float y, float width, float height);
+bool wgr_text2d_set_align(wgr_handle_t text, wgr_text_align_t horizontal, wgr_text_align_t vertical);
+bool wgr_text2d_set_max_width(wgr_handle_t text, float width);   /* wrap at words; 0 = no wrap */
+bool wgr_scene_set_clip(wgr_handle_t scene, int layer, float x, float y, float width, float height);
      /* clip a layer's 2D members to a screen rectangle (scroll areas, panels); 0 size = none */
-void sk_render_begin_clip(float x, float y, float width, float height);  /* immediate drawing */
-void sk_render_end_clip(void);
+void wgr_render_begin_clip(float x, float y, float width, float height);  /* immediate drawing */
+void wgr_render_end_clip(void);
 ```
 
 ### Not in this plan
@@ -165,17 +165,17 @@ void sk_render_end_clip(void);
 
 ### Step 1: enabled, pointer interaction, touch
 
-- `sk_<kind>_set_enabled` / `is_enabled` on model, shape, sprite2d, sprite3d, text2d,
-  text3d; kinds register their getter with the scene (`sk_scene_register_enabled`).
-- `sk_scene_set_interactive`, `sk_scene_is_interactive`, `sk_scene_get_hovered`,
-  `sk_scene_get_hover`, `sk_scene_get_press`, `sk_scene_is_clicked`, and
-  `sk_input_is_pointer_captured`, as designed.
+- `wgr_<kind>_set_enabled` / `is_enabled` on model, shape, sprite2d, sprite3d, text2d,
+  text3d; kinds register their getter with the scene (`wgr_scene_register_enabled`).
+- `wgr_scene_set_interactive`, `wgr_scene_is_interactive`, `wgr_scene_get_hovered`,
+  `wgr_scene_get_hover`, `wgr_scene_get_press`, `wgr_scene_is_clicked`, and
+  `wgr_input_is_pointer_captured`, as designed.
 - The runtime updates interaction once per frame before the ticks
-  (`sk_scene_update_interaction`), from the frame's pointer edges; edges are kept per
+  (`wgr_scene_update_interaction`), from the frame's pointer edges; edges are kept per
   context like input (frame edges cleared after the frame callback, tick edges after
   each tick and carried over frames without ticks, up to 8 hover changes).
 - The interaction pick reads the scene's camera without changing the active camera
-  (unlike `sk_scene_pick`) and doesn't count pick statistics.
+  (unlike `wgr_scene_pick`) and doesn't count pick statistics.
 - Capture lasts from the press frame through the release frame.
 - Touch: the first touch drives the pointer (move + left button); other fingers are
   ignored. A multi-touch API is still open (TASKS).
@@ -189,13 +189,13 @@ void sk_render_end_clip(void);
 - Retained 2D shapes: a rounded rectangle (radius clamped to half the shorter side),
   a circle, a thick line (butt ends), a 2D transform and an outline for rectangles and
   circles. **A 2D rectangle's origin is its top-left corner**, like the immediate
-  `sk_shape2d_draw_rectangle(x, y, w, h)` and how UI is laid out; circles are centered.
-  (Named `sk_shape_set_*_2d` when step 2 landed; they're `sk_shape2d_set_rectangle`,
+  `wgr_shape2d_draw_rectangle(x, y, w, h)` and how UI is laid out; circles are centered.
+  (Named `wgr_shape_set_*_2d` when step 2 landed; they're `wgr_shape2d_set_rectangle`,
   `_circle`, `_line`, `_transform` and `_outline` since the split below.)
   Picked by exact area (rounded corners, outline rings, distance to the line).
 - Step 2 put 2D and 3D shapes in one handle kind, routed at runtime by
-  `sk_scene_register_is_2d`. **That was undone right after step 3: shapes are now two
-  types**, `sk_shape2d` and `sk_shape3d` (see "Shape types" below).
+  `wgr_scene_register_is_2d`. **That was undone right after step 3: shapes are now two
+  types**, `wgr_shape2d` and `wgr_shape3d` (see "Shape types" below).
 - `examples/ui.c` is built from 2D shapes: a rounded translucent panel (pickable, so
   presses on it don't orbit), rounded buttons, a divider line, an outlined progress
   bar with a filled part and a circle tip. Checked in the browser with CDP clicks
@@ -203,33 +203,33 @@ void sk_render_end_clip(void);
 
 ### Step 3: UI essentials
 
-- `sk_sprite2d_set_nine_slice(left, top, right, bottom)`: borders in source pixels
+- `wgr_sprite2d_set_nine_slice(left, top, right, bottom)`: borders in source pixels
   that keep their size at any drawn size. An axis with no borders stays one span, so
   a sprite sliced on one axis draws three patches, not nine; borders wider than the
   source region share it, and borders that don't fit the destination shrink to fill
   it (a patch never flips). Picks hit the whole rectangle — the alpha test is skipped
   while a sprite is sliced, because u/v don't map linearly into the source any more.
-- `sk_text2d_set_align(horizontal, vertical)` with `sk_text_align_t`
+- `wgr_text2d_set_align(horizontal, vertical)` with `wgr_text_align_t`
   (LEFT/CENTER/RIGHT, TOP/MIDDLE/BOTTOM; the axes have distinct values, so a value
-  from the wrong axis is refused) and `sk_text2d_set_max_width` (wraps between words;
+  from the wrong axis is refused) and `wgr_text2d_set_max_width` (wraps between words;
   a word wider than the box keeps its own line; newlines always break). The position
   is the block's edge or center per its alignment, and wrapped lines line up the same
   way inside the block. Layout lives in the text layer
-  (`sk_text_block_size` / `sk_text_block_draw`, internal), so text3d can use it later.
-  **`sk_text2d_measure_width`/`_height` now measure the laid-out block** — the widest
+  (`wgr_text_block_size` / `wgr_text_block_draw`, internal), so text3d can use it later.
+  **`wgr_text2d_measure_width`/`_height` now measure the laid-out block** — the widest
   line and whole lines of the font's line height, not one line's glyph extents — and
   picks use that rectangle.
 - **One layout path for all text** (cleaned up after step 4): the immediate
-  `sk_text_draw_ex` / `sk_text_measure_ex` go through the same block layout, so
+  `wgr_text_draw_ex` / `wgr_text_measure_ex` go through the same block layout, so
   newlines break lines there too and the measured height is whole lines rather than
   one line's glyph extents; text3d gained `set_align` and `set_max_width` and shares
-  the line splitting (`sk_text_split_lines`) while still drawing its own glyphs in
-  world space. **`sk_text3d_get_size().y` now reports the font's line height** for a
+  the line splitting (`wgr_text_split_lines`) while still drawing its own glyphs in
+  world space. **`wgr_text3d_get_size().y` now reports the font's line height** for a
   single line (about 1.2x the size) instead of the ink's height.
-- Clipping: `sk_scene_set_clip(scene, layer, x, y, width, height)` clips a layer's 2D
+- Clipping: `wgr_scene_set_clip(scene, layer, x, y, width, height)` clips a layer's 2D
   members (at most 8 layers per scene; a 0 size removes it), and
-  `sk_render_begin_clip` / `sk_render_end_clip` do the same for immediate drawing
-  (since [PLAN-ui.md](PLAN-ui.md): a nesting stack, `sk_render_push_clip` / `pop_clip`).
+  `wgr_render_begin_clip` / `wgr_render_end_clip` do the same for immediate drawing
+  (since [PLAN-ui.md](PLAN-ui.md): a nesting stack, `wgr_render_push_clip` / `pop_clip`).
   Rectangles are logical pixels, top-left origin; the scissor rect is framebuffer
   pixels, so screen rectangles scale by the DPI scale and render targets don't.
   **A clipped-away member isn't picked either**, so a scrolled-out row can't be
@@ -242,7 +242,7 @@ void sk_render_end_clip(void);
   click to select, wheel scroll, and a row scrolled out of the box that no longer
   takes the pointer ("hovered: the panel").
 
-### Shape types: sk_shape2d and sk_shape3d
+### Shape types: wgr_shape2d and wgr_shape3d
 
 Asked during step 3 review: why one shape type for both layers, when every other
 drawable splits (`sprite2d`/`sprite3d`, `text2d`/`text3d`)? It had no good answer —
@@ -250,35 +250,35 @@ one type meant setters that silently don't apply (`set_outline` is 2D-only,
 `set_transform` vs `set_transform_2d`), an object whose category changed with the
 setter you called, runtime routing, and no type check for bindings. So:
 
-- `sk_shape2d_*` — screen space: the immediate primitives (`sk_shape2d_draw_rectangle`,
+- `wgr_shape2d_*` — screen space: the immediate primitives (`wgr_shape2d_draw_rectangle`,
   `_rectangle_lines`, `_line`, `_circle`, `_circle_lines`, `_triangle`) and retained
   shapes (`set_rectangle`, `set_circle`, `set_line`, `set_transform`, `set_pivot`,
-  `set_outline`), handle kind `SK_HANDLE_KIND_SHAPE2D`.
-- `sk_shape3d_*` — the world: the immediate debug draws (the `_3d` suffixes are gone:
-  `sk_shape3d_draw_line`, `_cube`, `_cube_wires`, `_sphere`, `_grid`, `_rectangle`,
-  `_circle`) and retained 3D shapes, handle kind `SK_HANDLE_KIND_SHAPE3D`.
-- The scene drops `sk_scene_register_is_2d` and its registry: a kind draws and picks
+  `set_outline`), handle kind `WGR_HANDLE_KIND_SHAPE2D`.
+- `wgr_shape3d_*` — the world: the immediate debug draws (the `_3d` suffixes are gone:
+  `wgr_shape3d_draw_line`, `_cube`, `_cube_wires`, `_sphere`, `_grid`, `_rectangle`,
+  `_circle`) and retained 3D shapes, handle kind `WGR_HANDLE_KIND_SHAPE3D`.
+- The scene drops `wgr_scene_register_is_2d` and its registry: a kind draws and picks
   either in 2D or in 3D, so the handle says which.
 
-**`sk_shape2d_set_pivot(x, y)`** comes with the split: a normalized point on the
+**`wgr_shape2d_set_pivot(x, y)`** comes with the split: a normalized point on the
 shape's bounds that the position refers to and that rotation and scale turn around.
 Default: the shape's own origin — a rectangle's top-left, a circle's center — so
 nothing moves until it's set. Lines have explicit endpoints and ignore it. This is the
-same idea as `sk_sprite2d_set_pivot`, and text2d's alignment is its 9-point form; the
+same idea as `wgr_sprite2d_set_pivot`, and text2d's alignment is its 9-point form; the
 three mechanisms now line up, with each noun's default documented where it belongs.
 
 ### Step 4: sprite3d for 2D worlds
 
-- `sk_sprite3d_set_extent(width, height)` — the quad's world size; `set_size(s)` is now
+- `wgr_sprite3d_set_extent(width, height)` — the quad's world size; `set_size(s)` is now
   the square shorthand for `set_extent(s, s)`, and a width or height <= 0 is refused.
-- `sk_sprite3d_set_source(x, y, width, height)` — the region of the texture to show, in
+- `wgr_sprite3d_set_source(x, y, width, height)` — the region of the texture to show, in
   texture pixels, like sprite2d's; width or height <= 0 means the whole texture. The
   pick's alpha test samples through the same region.
-- `sk_sprite3d_set_pivot(x, y)` — the point of the quad that sits on the position and
+- `wgr_sprite3d_set_pivot(x, y)` — the point of the quad that sits on the position and
   that it turns around; (0.5, 0.5) center by default, y running down the texture, so
   (0.5, 1) stands a sprite on the ground. Bounds grow by the pivot offset, so a moved
   quad still passes the broadphase.
-- `sk_render_begin_mode_2d()` lost its unused camera parameter.
+- `wgr_render_begin_mode_2d()` lost its unused camera parameter.
 - `examples/2d.c`: 24x16 ground tiles and props from one 64x48 sheet
   (`tools/gen_tiles.py`, 705 bytes) under an orthographic camera3d, with drag/arrow
   scrolling, wheel zoom (the camera's ortho height), and coins that hover and collect

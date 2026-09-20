@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Enforce libsk naming conventions (see AGENTS.md § Naming):
+# Enforce libwgrender naming conventions (see AGENTS.md § Naming):
 #
-#   1. Struct types are sk_<noun>_t — the noun carries the layer (resource vs
+#   1. Struct types are wgr_<noun>_t — the noun carries the layer (resource vs
 #      object). No _data_t / _instance_t suffixes.
 #   2. A local/param holding a raw instance pointer resolved from a handle
 #      (`<type> *NAME = ... resolve...(`) must be named <noun>_ptr, so the
@@ -15,9 +15,9 @@ cd "$(dirname "$0")/.." || exit 2
 status=0
 
 # (1) banned struct type suffixes in our own sources
-banned=$(grep -rnE '\}[[:space:]]*sk_[a-z0-9_]+_(data|instance)_t[[:space:]]*;' src include 2>/dev/null)
+banned=$(grep -rnE '\}[[:space:]]*wgr_[a-z0-9_]+_(data|instance)_t[[:space:]]*;' src include 2>/dev/null)
 if [ -n "$banned" ]; then
-    echo "FAIL: struct types must be sk_<noun>_t (no _data_t / _instance_t):"
+    echo "FAIL: struct types must be wgr_<noun>_t (no _data_t / _instance_t):"
     echo "$banned"
     status=1
 else

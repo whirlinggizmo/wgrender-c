@@ -13,7 +13,7 @@ formats directly at 1 byte a pixel, with the mipmaps made ahead of time.
 
 GPUs don't share a compressed format: desktops have BC7, phones ASTC and ETC2.
 Basis Universal stores one file and transcodes it on the device, but its transcoder
-(C++) weighed, compiled for the web with only the formats libsk needs:
+(C++) weighed, compiled for the web with only the formats libwgrender needs:
 
 | transcoder (web)                     | wasm   | gzipped |
 |--------------------------------------|--------|---------|
@@ -21,7 +21,7 @@ Basis Universal stores one file and transcodes it on the device, but its transco
 | 1.16.4 (before HDR), our formats     | 404 KB | 197 KB  |
 | 1.16.4, only BC7 + ASTC + RGBA       | 268 KB | 126 KB  |
 
-For comparison, all of `hello` is 134 KB gzipped. So libsk ships files already in
+For comparison, all of `hello` is 134 KB gzipped. So libwgrender ships files already in
 each family's format instead and loads the one the GPU can use: no transcoder, a few
 KB of C to read the files, and no work at load but reading and uploading.
 
@@ -33,19 +33,19 @@ KB of C to read the files, and no work at load but reading and uploading.
   (UASTC level 2, then transcoded to each format), built the first time from a pinned
   release (1.16.4) into `build/tools`: a tool for making assets, never linked in.
   `--linear` for data textures (normal maps, roughness).
-- **Names:** a program loads `name.ktx`, through `sk_asset` or `sk_texture_create`.
+- **Names:** a program loads `name.ktx`, through `wgr_asset` or `wgr_texture_create`.
   The texture module maps it to the first variant the GPU can sample, in order BC7,
   ASTC, ETC2, else `name.png`: the asset layer maps it before fetching
-  (`sk_asset_register_path_mapper`), so the web downloads and caches only that file
-  and the callback gets its path, and `sk_texture_create` maps it the same way. A
+  (`wgr_asset_register_path_mapper`), so the web downloads and caches only that file
+  and the callback gets its path, and `wgr_texture_create` maps it the same way. A
   variant named outright (`name.astc.ktx`) is used as is.
 - **Missing files:** when this GPU's variant is missing (compressed for some formats,
   or not at all), `name.png` loads instead, with a warning naming the missing file:
   the asset layer retries the PNG once the variant's fetch fails (a 404 on the web; a
-  task's fallback path, from the path mapper), and `sk_texture_create` checks for the
+  task's fallback path, from the path mapper), and `wgr_texture_create` checks for the
   variant before loading. A variant named outright has no fallback.
 - **Loading:** a second loader in the texture module (`.ktx`) reads and checks the file
-  on the asset workers (`src/sk_ktx.c`: KTX 1, little-endian, 2D, one of the three
+  on the asset workers (`src/wgr_ktx.c`: KTX 1, little-endian, 2D, one of the three
   formats, every level's size matching its dimensions) and uploads the levels as they
   are. The formats are the plain (not sRGB) ones, like RGBA8 textures: the shaders
   treat texture colors as sRGB values either way. The texture module links it: a
@@ -79,12 +79,12 @@ under Wine (BC7). `examples/textures.c` shows each texture as PNG and compressed
   every image the model's textures use and writes `model.ktx.gltf` beside the model,
   leaving it as it was. Data textures (normal, metallic-roughness and occlusion maps)
   are compressed as linear, colors (base color, emissive) as sRGB. Each texture gets
-  the `SK_texture_ktx` extension, `{"source": <image>}`, pointing at an added
+  the `WGR_texture_ktx` extension, `{"source": <image>}`, pointing at an added
   `name.ktx` image; the texture keeps its own image as `source`. The extension is in
   `extensionsUsed`, not `extensionsRequired`: other viewers ignore it and use the
   original images, so the file stays a portable glTF. Only `.gltf` files with images
   in separate PNG or JPEG files: images inside the file (a `.glb`) are left as they are.
-- libsk: for a texture with the extension, the dependency list names the variant this
+- libwgrender: for a texture with the extension, the dependency list names the variant this
   GPU can use instead of the texture's own image (only that file downloads), the
   worker reads it instead of decoding an image, and the texture is uploaded as it is.
   Without a usable variant (or if the file can't be read) the texture's own image is

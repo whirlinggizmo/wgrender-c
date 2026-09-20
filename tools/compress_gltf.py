@@ -5,8 +5,8 @@
 
 Compresses every image the model's textures use (tools/compress_textures.sh: name.bc7.ktx,
 name.astc.ktx and name.etc2.ktx beside each) and writes model.ktx.gltf beside the model:
-the same model, each texture given the SK_texture_ktx extension pointing at its compressed
-image ("name.ktx"). libsk loads the variant the GPU can use, else the texture's own image;
+the same model, each texture given the WGR_texture_ktx extension pointing at its compressed
+image ("name.ktx"). libwgrender loads the variant the GPU can use, else the texture's own image;
 other glTF viewers ignore the extension (it's in extensionsUsed, not extensionsRequired)
 and use the original images. The original model is left as it is.
 
@@ -20,7 +20,7 @@ import os
 import subprocess
 import sys
 
-EXTENSION = "SK_texture_ktx"
+EXTENSION = "WGR_texture_ktx"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COMPRESS = os.path.join(ROOT, "tools", "compress_textures.sh")
 

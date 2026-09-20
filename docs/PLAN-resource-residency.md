@@ -2,7 +2,7 @@
 
 Status: **proposed — awaiting approval.** No code changed yet.
 Builds on the Asset→Resource→Object model ([ARCHITECTURE.md](ARCHITECTURE.md)) and
-the `sk_fs` local cache ([PLAN-sk_fs.md](PLAN-sk_fs.md)).
+the `wgr_fs` local cache ([PLAN-wgr_fs.md](PLAN-wgr_fs.md)).
 
 ## Reality check — how much of this do we actually need?
 
@@ -32,11 +32,11 @@ budget when a real case (a scene that won't fit) forces it.
 ## Why (the ceiling)
 
 Resource creation today **fuses** decode-CPU-data with upload-to-GPU
-(`sg_make_image`/`sg_make_buffer`), so `sk_texture_create`/`sk_mesh_create`
+(`sg_make_image`/`sg_make_buffer`), so `wgr_texture_create`/`wgr_mesh_create`
 occupies VRAM whether or not it's drawn. You can't pre-cache a large library
 without exhausting GPU memory — the structural ceiling that makes eager-upload
 engines "toy-like" at scale. sokol_gfx is retained/explicit (unlike its immediate
-*helper* layers), so we control when residency happens; `sk_model` already proves
+*helper* layers), so we control when residency happens; `wgr_model` already proves
 the pattern (mesh uploaded once, redrawn for free).
 
 ## What librl actually did (prior art)
@@ -46,7 +46,7 @@ librl had an LRU — but it was a **CPU cache of encoded file bytes** in `rl_fs`
 *in-memory bytes → local storage → network*. It never paged GPU resources:
 raylib uploaded on load and only freed at destroy/deinit. So:
 
-- librl's byte-LRU role is **already covered by our `sk_fs` cache** (encoded bytes
+- librl's byte-LRU role is **already covered by our `wgr_fs` cache** (encoded bytes
   in MEMFS/idbfs on web, disk on desktop).
 - **GPU residency is genuinely new work** — librl never did it. The `lru_cache`
   data structure is reusable, but keyed on resources and accounting `sg_image`/
@@ -58,12 +58,12 @@ Source of truth lives in the small **encoded** tier; VRAM holds only what's draw
 
 ```
 encoded backing  ─decode/build─▶  GPU-resident (sg_image / sg_buffer)
-(sk_fs cache,                          │
+(wgr_fs cache,                          │
  or retained CPU geometry)  ◀─evict────┘   (free VRAM, stay referenced)
 ```
 
 - **Texture** — near-pure GPU resource. Backing = the **encoded bytes in the
-  `sk_fs` cache** (tiny vs decoded pixels). Evict VRAM → reload by decoding from
+  `wgr_fs` cache** (tiny vs decoded pixels). Evict VRAM → reload by decoding from
   the cache. No persistent decoded-CPU copy needed (that middle tier is a later
   optimization, only if decode-on-page-in proves costly).
 - **Mesh** — hybrid: its Resource keeps CPU data needed *even when not drawn*
@@ -121,15 +121,15 @@ Mechanism:
 
 1. **Decouple upload from create (the high-value, low-machinery step).**
    Create makes a resource *CPU/encoded-resident*; the `sg_image`/`sg_buffer` is
-   created on first draw (object resolve hook) or via explicit `sk_*_warm()`. Add
-   `sk_*_evict()` (drop GPU, keep resource). No budget, no automatic eviction.
+   created on first draw (object resolve hook) or via explicit `wgr_*_warm()`. Add
+   `wgr_*_evict()` (drop GPU, keep resource). No budget, no automatic eviction.
    This alone removes the "create pins VRAM forever" ceiling and enables
    load-without-uploading.
 2. **Coarse group/scene unload** (optional convenience): evict all GPU residency
    for a set of resources at a boundary — covers the common "per-level" pattern
    most games actually use.
 3. **Automatic LRU + VRAM budget (advanced; build only when a real scene won't
-   fit).** `last_used` touch-on-draw, byte accounting, `sk_set_vram_budget(bytes)`,
+   fit).** `last_used` touch-on-draw, byte accounting, `wgr_set_vram_budget(bytes)`,
    evict-coldest-on-pressure with working-set protection.
 4. **Mesh residency** reusing the same layer (retain full CPU vertex stream;
    unify with pick data).

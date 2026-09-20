@@ -1,7 +1,7 @@
-# libsk examples — desktop binaries + the wasm site.
+# libwgrender examples — desktop binaries + the wasm site.
 #
 # The library itself is built by the root Makefile; this recurses to keep it
-# current (libsk.a is a real prerequisite of every example), so building here
+# current (libwgrender.a is a real prerequisite of every example), so building here
 # always links against an up-to-date lib.
 #
 #   make                       build all desktop examples (build/desktop/)
@@ -36,7 +36,7 @@ INCS    += -isystem $(ROOT)/deps/sokol -isystem $(ROOT)/deps/sokol_utils -isyste
            -isystem $(ROOT)/deps/cgltf -isystem $(ROOT)/deps/clay
 CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
-LIB     := $(ROOT)/build/desktop/libsk.a
+LIB     := $(ROOT)/build/desktop/libwgrender.a
 # WINDOWS=1: the same examples cross-compiled with MinGW as .exe files (build/windows;
 # the root Makefile's `make windows`). The smoke run goes through Wine.
 WINDOWS ?= 0
@@ -47,7 +47,7 @@ EXE       :=
 ifeq ($(WINDOWS),1)
   CC              := $(MINGW)gcc
   EXE             := .exe
-  LIB             := $(ROOT)/build/windows/libsk.a
+  LIB             := $(ROOT)/build/windows/libwgrender.a
   LIB_FLAGS       := WINDOWS=1
   LDLIBS_PLATFORM := -static -lopengl32 -lgdi32 -luser32 -lkernel32 -lole32 -lshell32 -lwinmm
 else ifeq ($(UNAME_S),Linux)
@@ -67,7 +67,7 @@ all: $(BINS)
 
 # Keep the library current before linking any example. Root runs its own
 # up-to-date check (a cheap no-op when nothing changed) and only re-archives
-# libsk.a when objects actually rebuilt, so examples relink only when needed.
+# libwgrender.a when objects actually rebuilt, so examples relink only when needed.
 $(LIB): FORCE
 	@$(MAKE) -C $(ROOT) $(LIB_FLAGS)
 
@@ -84,10 +84,10 @@ print-ldlibs:
 	@echo $(LDLIBS_PLATFORM)
 
 # --- headless (no window, GPU or audio device) -------------------------------
-# Same example sources linked against build/headless/libsk.a; runs anywhere, e.g.
+# Same example sources linked against build/headless/libwgrender.a; runs anywhere, e.g.
 # CI or with the displays asleep. tools/smoke.sh runs each for SMOKE_FRAMES frames.
 BUILD_HEADLESS  := build/$(if $(filter 1,$(WINDOWS)),windows-headless,headless)
-HEADLESS_LIB    := $(ROOT)/$(BUILD_HEADLESS)/libsk.a
+HEADLESS_LIB    := $(ROOT)/$(BUILD_HEADLESS)/libwgrender.a
 HEADLESS_BINS   := $(patsubst %.c,$(BUILD_HEADLESS)/%$(EXE),$(SRCS))
 LDLIBS_HEADLESS := $(if $(filter 1,$(WINDOWS)),-static,-ldl -lm -lpthread)
 SMOKE_FRAMES    ?= 180
@@ -111,11 +111,11 @@ smoke: headless
 # Each web target has its own site directory, build/<backend> (or
 # build/<backend>-nothreads): index.html, examples.json, <example>.js/.wasm, obj/
 # (example objects) and webcheck/ screenshots. The examples link the web library
-# the root Makefile builds (build/<backend>/libsk.a, `make web`); BACKEND and
+# the root Makefile builds (build/<backend>/libwgrender.a, `make web`); BACKEND and
 # WEB_THREADS are defined in mk/web.mk.
 include $(ROOT)/mk/web.mk
 BUILD_WEB    := build/$(WEB_DIR)
-WEB_LIB      := $(ROOT)/build/$(WEB_DIR)/libsk.a
+WEB_LIB      := $(ROOT)/build/$(WEB_DIR)/libwgrender.a
 WEB_SHELL    := web/index.html
 WASM_EXAMPLE ?= hello
 NPROC        := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)

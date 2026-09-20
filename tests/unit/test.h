@@ -1,5 +1,5 @@
-#ifndef SK_TEST_H
-#define SK_TEST_H
+#ifndef WGR_TEST_H
+#define WGR_TEST_H
 
 /* Minimal unit test harness. A test is a `void fn(void)` listed in tests.h and
  * main.c. CHECK* macros record a failure and keep going, so one run shows every
@@ -8,13 +8,13 @@
 #include <math.h>
 #include <stdio.h>
 
-extern int sk_test_failures; /* failed checks in the current test */
+extern int wgr_test_failures; /* failed checks in the current test */
 
 #define CHECK(cond)                                                                    \
     do {                                                                               \
         if (!(cond)) {                                                                 \
             fprintf(stderr, "    %s:%d: CHECK(%s)\n", __FILE__, __LINE__, #cond);      \
-            sk_test_failures++;                                                        \
+            wgr_test_failures++;                                                        \
         }                                                                              \
     } while (0)
 
@@ -24,7 +24,7 @@ extern int sk_test_failures; /* failed checks in the current test */
         if (!(fabs(actual_ - expected_) <= (double)(eps))) {                           \
             fprintf(stderr, "    %s:%d: CHECK_NEAR(%s, %s): got %g, expected %g\n",    \
                     __FILE__, __LINE__, #actual, #expected, actual_, expected_);       \
-            sk_test_failures++;                                                        \
+            wgr_test_failures++;                                                        \
         }                                                                              \
     } while (0)
 
@@ -35,4 +35,4 @@ extern int sk_test_failures; /* failed checks in the current test */
         CHECK_NEAR((v).z, (ez), (eps));                                                \
     } while (0)
 
-#endif // SK_TEST_H
+#endif // WGR_TEST_H

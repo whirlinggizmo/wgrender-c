@@ -2,6 +2,6 @@ build/
 examples/build/
 examples/**/cache/
 reference/
-.sk_fs_probe
+.wgr_fs_probe
 tools/sokol-shdc
 examples/assets/bench/

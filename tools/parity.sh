@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# librl -> libsk API parity report (`make parity`).
+# librl -> libwgrender API parity report (`make parity`).
 #
 # Reads the public functions (and function-like macros) from both libraries'
 # include/*.h, with comments stripped, and checks them against tools/parity.map:
@@ -7,10 +7,10 @@
 # Functional parity, not a 1:1 API: the map records how each librl function's
 # capability is covered, dropped or still open (see the header of parity.map).
 #
-#   - rl_foo with a matching sk_foo counts as covered (no map entry needed)
+#   - rl_foo with a matching wgr_foo counts as covered (no map entry needed)
 #   - every other librl function must have a map entry     (else FAIL: unmapped)
 #   - every map entry must name a current librl function    (else FAIL: stale)
-#   - a `ported` entry's target must exist in libsk         (else FAIL: missing)
+#   - a `ported` entry's target must exist in libwgrender         (else FAIL: missing)
 #
 # Prints counts and the todo list. Exits 0 unless a check fails; with --strict,
 # remaining todos also fail.
@@ -46,9 +46,9 @@ list_api() {
 }
 
 rl_api=$(list_api "$LIBRL_DIR" rl)
-sk_api=$(list_api . sk)
+wgr_api=$(list_api . sk)
 
-has_sk() { grep -qxF "$1" <<<"$sk_api"; }
+has_sk() { grep -qxF "$1" <<<"$wgr_api"; }
 has_rl() { grep -qxF "$1" <<<"$rl_api"; }
 
 status=0
@@ -74,7 +74,7 @@ unmapped=""; missing=""; todo_list=""
 
 while read -r rl; do
     [ -z "$rl" ] && continue
-    sk="sk_${rl#rl_}"
+    sk="wgr_${rl#rl_}"
     kind="${entry_status[$rl]:-}"
     if [ -z "$kind" ]; then
         if has_sk "$sk"; then auto=$((auto + 1)); else unmapped+="  $rl"$'\n'; fi
@@ -104,7 +104,7 @@ done
 total=$(grep -c . <<<"$rl_api")
 done_count=$((auto + ported))
 echo "librl public API: $total functions ($LIBRL_DIR)"
-echo "  covered: $done_count ($auto same name, $ported by a different libsk function)"
+echo "  covered: $done_count ($auto same name, $ported by a different libwgrender function)"
 echo "  dropped: $dropped (on purpose)"
 echo "  todo:    $todo"
 if [ $((total - dropped)) -gt 0 ]; then
@@ -124,9 +124,9 @@ report_fail() {
     status=1
 }
 [ -n "$map_errors" ] && report_fail "malformed $MAP entries:" "$map_errors"
-[ -n "$unmapped" ]   && report_fail "librl functions with no sk_ match and no entry in $MAP:" "$unmapped"
+[ -n "$unmapped" ]   && report_fail "librl functions with no wgr_ match and no entry in $MAP:" "$unmapped"
 [ -n "$stale" ]      && report_fail "$MAP entries for functions librl no longer has:" "$stale"
-[ -n "$missing" ]    && report_fail "'ported' entries whose libsk function doesn't exist:" "$missing"
+[ -n "$missing" ]    && report_fail "'ported' entries whose libwgrender function doesn't exist:" "$missing"
 
 if [ "$strict" -eq 1 ] && [ "$todo" -gt 0 ]; then
     echo

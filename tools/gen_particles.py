@@ -6,7 +6,7 @@
     examples/assets/textures/flame.png     256x256: a 4x4 flipbook, 64x64 frames, of a
                                            white puff that grows and breaks up (left to
                                            right, top to bottom); emitters color it
-                                           over its life (sk_emitter3d_set_frames)
+                                           over its life (wgr_emitter3d_set_frames)
 
 White on purpose: an emitter's color (and palette) tints them. Needs nothing but the
 standard library. Run from anywhere:

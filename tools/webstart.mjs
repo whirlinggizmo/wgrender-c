@@ -8,21 +8,21 @@
 // compressed):
 //   cold   nothing cached: everything downloads and compiles
 //   warm   the second visit: code from the HTTP cache (revalidated), assets from
-//          libsk's IndexedDB file cache
+//          libwgrender's IndexedDB file cache
 //   hot    the third: Chrome keeps compiled wasm from the second visit on (its code
 //          cache), so this is the best a returning visit gets
 // and each is timed from navigation to:
 //   js, wasm   the example's JS glue and wasm downloaded (with the bytes transferred)
 //   compiled   the wasm compiled and instantiated (WebAssembly.instantiate*); it
 //              streams, so it overlaps the download
-//   init       libsk's init (worker threads started, main() run, the graphics device
-//              made, the first animation frame): "sk:init"
-//   libsk      libsk's subsystems set up (shaders, pipelines, pools): "sk:subsystems"
-//   user       the program's init callback done: "sk:user-init"
-//   fs         the IndexedDB file cache opened (its list of files): "sk:fs-ready"
-//   frame      the first frame drawn: "sk:first-frame"
+//   init       libwgrender's init (worker threads started, main() run, the graphics device
+//              made, the first animation frame): "wgr:init"
+//   libwgrender      libwgrender's subsystems set up (shaders, pipelines, pools): "wgr:subsystems"
+//   user       the program's init callback done: "wgr:user-init"
+//   fs         the IndexedDB file cache opened (its list of files): "wgr:fs-ready"
+//   frame      the first frame drawn: "wgr:first-frame"
 //   ready      the first frame with no asset loads pending
-// (the sk:* points are performance marks libsk makes in web builds).
+// (the wgr:* points are performance marks libwgrender makes in web builds).
 //
 // Options:
 //   --backend=webgl2|webgpu   (default webgl2); the site is examples/build/<backend>
@@ -63,7 +63,7 @@ const READY_TIMEOUT_MS = 60000;
 
 /* Runs in the page before its own scripts: marks when the wasm is being compiled and
  * instantiated ("wasm:start", "wasm:ready"), and the first frame after which no asset
- * load is pending ("sk:ready"). */
+ * load is pending ("wgr:ready"). */
 const PAGE_PROBE = `(() => {
     for (const name of ["instantiateStreaming", "instantiate"]) {
         const original = WebAssembly[name];
@@ -76,10 +76,10 @@ const PAGE_PROBE = `(() => {
         };
     }
     const timer = setInterval(() => {
-        if (performance.getEntriesByName("sk:first-frame").length === 0) return;
+        if (performance.getEntriesByName("wgr:first-frame").length === 0) return;
         const m = globalThis.Module;
-        const pending = m && m._sk_asset_pending_count ? m._sk_asset_pending_count() : -1;
-        if (pending === 0) { performance.mark("sk:ready"); clearInterval(timer); }
+        const pending = m && m._wgr_asset_pending_count ? m._wgr_asset_pending_count() : -1;
+        if (pending === 0) { performance.mark("wgr:ready"); clearInterval(timer); }
     }, 5);
 })();`;
 
@@ -142,8 +142,8 @@ async function visit(session, url) {
                     return e ? { end: e.responseEnd, transferred: e.transferSize, size: e.decodedBodySize } : null;
                 };
                 const name = new URLSearchParams(location.search).get("ex");
-                return { compile: at("wasm:start"), compiled: at("wasm:ready"), ready: at("sk:ready"), init: at("sk:init"), subsystems: at("sk:subsystems"), user: at("sk:user-init"), fs: at("sk:fs-ready"),
-                         frame: at("sk:first-frame"), js: file("/" + name + ".js"), wasm: file("/" + name + ".wasm") };
+                return { compile: at("wasm:start"), compiled: at("wasm:ready"), ready: at("wgr:ready"), init: at("wgr:init"), subsystems: at("wgr:subsystems"), user: at("wgr:user-init"), fs: at("wgr:fs-ready"),
+                         frame: at("wgr:first-frame"), js: file("/" + name + ".js"), wasm: file("/" + name + ".wasm") };
             })()`,
         });
         timings = result.value;
@@ -179,7 +179,7 @@ async function measure(run, browserPath, baseUrl, example, net, opts) {
         const visits = {};
         for (const name of VISITS) {
             visits[name] = await visit(session, `${baseUrl}/?ex=${encodeURIComponent(example)}`);
-            /* let the browser finish writing: libsk's file cache (IndexedDB) and the
+            /* let the browser finish writing: libwgrender's file cache (IndexedDB) and the
                compiled wasm (the code cache) are written after the page is up */
             await session.send("Page.navigate", { url: "about:blank" });
             await sleep(1500);
@@ -235,7 +235,7 @@ async function main() {
         for (const net of opts.nets) {
             console.log(`network: ${net === "none" ? "local (no throttling)" : "emulated 4G (9 Mbit/s, 150 ms)"}`);
             console.log(`${"example".padEnd(14)} ${"visit".padEnd(5)} ${"js".padStart(6)} ${"(xfer)".padStart(9)} ` +
-                        `${"wasm".padStart(6)} ${"(xfer)".padStart(9)} ${"compiled".padStart(8)} ${"init".padStart(6)} ${"libsk".padStart(6)} ` +
+                        `${"wasm".padStart(6)} ${"(xfer)".padStart(9)} ${"compiled".padStart(8)} ${"init".padStart(6)} ${"libwgrender".padStart(6)} ` +
                         `${"user".padStart(6)} ${"fs".padStart(6)} ` +
                         `${"frame".padStart(6)} ${"ready".padStart(6)}`);
             for (const example of examples) {

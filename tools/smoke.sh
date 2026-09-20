@@ -28,7 +28,7 @@ i=0
 for bin in "$@"; do
     (
         start=$(date +%s.%N)
-        SK_HEADLESS_FRAMES="$frames" timeout "$timeout_s" ${SMOKE_RUNNER:+"$SMOKE_RUNNER"} "examples/$bin" \
+        WGR_HEADLESS_FRAMES="$frames" timeout "$timeout_s" ${SMOKE_RUNNER:+"$SMOKE_RUNNER"} "examples/$bin" \
             > "$logs/$i.log" 2>&1
         echo "$? $(echo "$(date +%s.%N) - $start" | bc)" > "$logs/$i.status"
     ) &

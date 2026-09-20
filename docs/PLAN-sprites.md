@@ -4,7 +4,7 @@ Status: built (2026-09-18), steps 1-4, and more for particles after (step 5).
 
 ## Why
 
-Games built on libsk will put **thousands** of sprites on screen, in 3D (sprite3d:
+Games built on libwgrender will put **thousands** of sprites on screen, in 3D (sprite3d:
 camera-facing, upright, flat and free) and in 2D (sprite2d, UI), plus particles in
 both. Today every sprite is drawn through sokol_gl, one at a time: the CPU works out
 its quad (billboard math included), writes 6 vertices, and sokol_gl turns runs of
@@ -58,8 +58,8 @@ About 64 bytes a sprite, instead of 6 vertices of 24 bytes plus sokol_gl's
 bookkeeping. Billboarding moves to the GPU: the shader has the camera's right, up and
 position, so camera-facing and upright sprites cost the CPU nothing to turn.
 
-- A new shader (`src/shaders/sk_sprite.glsl`, sokol-shdc, GL / WebGL2 / WebGPU like
-  `sk_model.glsl`) and pipelines per blend mode.
+- A new shader (`src/shaders/wgr_sprite.glsl`, sokol-shdc, GL / WebGL2 / WebGPU like
+  `wgr_model.glsl`) and pipelines per blend mode.
 - One instance buffer per frame, appended to as sprites are drawn and grown between
   frames like sokol_gl's budgets. WebGL2 has no base-instance draws, so each batch
   binds the buffer at its offset (supported on every backend).
@@ -96,12 +96,12 @@ apply; cutout means nothing in 2D.
 Particles as sprites is what the particle scenes measure: a handle, an API call and a
 sort entry per particle. An **emitter** is one object that owns many particles:
 
-    sk_handle_t sk_emitter3d_create(sk_handle_t texture);   /* object from a resource */
-    sk_handle_t sk_emitter2d_create(sk_handle_t texture);
-    sk_emitter3d_set_rate(e, particles_per_second);  sk_emitter3d_burst(e, count);
-    sk_emitter3d_set_life(e, min, max);  _set_velocity(e, ...);  _set_gravity(e, ...);
-    sk_emitter3d_set_size(e, start, end);  _set_color(e, start, end);  _set_source(e, ...);
-    sk_emitter3d_set_position / _set_alpha_mode / ...;   sk_emitter3d_destroy(e);
+    wgr_handle_t wgr_emitter3d_create(wgr_handle_t texture);   /* object from a resource */
+    wgr_handle_t wgr_emitter2d_create(wgr_handle_t texture);
+    wgr_emitter3d_set_rate(e, particles_per_second);  wgr_emitter3d_burst(e, count);
+    wgr_emitter3d_set_life(e, min, max);  _set_velocity(e, ...);  _set_gravity(e, ...);
+    wgr_emitter3d_set_size(e, start, end);  _set_color(e, start, end);  _set_source(e, ...);
+    wgr_emitter3d_set_position / _set_alpha_mode / ...;   wgr_emitter3d_destroy(e);
 
 (names illustrative; the real set is part of step 4's design, taking what the
 examples need.)
@@ -149,7 +149,7 @@ Each step is its own commit, measured on desktop, headless Chrome and the phone.
    blend stays the default). This adds public API. Recommend: yes.
 3. **Stateless GPU particles** for emitters, with a CPU-simulated mode only if a game
    needs particles that react after birth. Recommend: yes.
-4. **Emitter as its own object noun** (`sk_emitter3d_*`, `sk_emitter2d_*`, created
+4. **Emitter as its own object noun** (`wgr_emitter3d_*`, `wgr_emitter2d_*`, created
    from a texture handle, like sprites), not a sprite flag. Recommend: yes.
 5. **Particles within an emitter aren't sorted** (additive by default). Recommend: yes;
    revisit if a blended effect looks wrong.
@@ -158,10 +158,10 @@ Each step is its own commit, measured on desktop, headless Chrome and the phone.
 
 ### Step 1: the instanced pipeline, with sprite3d on it (2026-09-18)
 
-- `src/shaders/sk_sprite.glsl` (`@module sprite`) and `src/sk_sprite_batch.c`: one
+- `src/shaders/wgr_sprite.glsl` (`@module sprite`) and `src/wgr_sprite_batch.c`: one
   76-byte record per sprite (position, facing, size, pivot, source rectangle, axes for
   flat and free sprites, tint), a 6-corner quad drawn instanced. Billboard axes are
-  per camera, so they're uniforms, worked out by `sk_sprite3d_facing_basis` like
+  per camera, so they're uniforms, worked out by `wgr_sprite3d_facing_basis` like
   picking's; flat and free sprites carry their own. Pipelines match sokol_gl's 3D ones
   (blended, depth-tested, depth writes on for direct draws, off in a scene's sorted
   pass). The frame's records go up in one transient buffer write before the passes.
@@ -176,12 +176,12 @@ draw itself, so this step also fixed:
 
 - **Scene membership**: a hash index per scene (handle -> member), with removals left
   as holes that are closed, layer-sorted and re-indexed once before the members are
-  walked. Adding, removing, destroying (`sk_scene_forget`) and relayering were linear
+  walked. Adding, removing, destroying (`wgr_scene_forget`) and relayering were linear
   scans, quadratic under churn.
 - **The transparent sort**: a stable radix sort on depth (ties keep submission order)
   above 64 parts, instead of `qsort`.
 - **Per-sprite state lookups**: the batch's camera, pass and scissor are cached behind
-  `sk_render_state_revision` and `sk_camera3d_revision` instead of being re-read and
+  `wgr_render_state_revision` and `wgr_camera3d_revision` instead of being re-read and
   compared for every sprite.
 
 CPU ms per frame, before -> after:
@@ -204,7 +204,7 @@ what they did on sokol_gl on desktop GL (7.1 ms), and more on WebGL2 (see step 2
 
 Replaying many sokol_gl layers was quadratic (each `sgl_draw_layer` scanned the
 frame's commands for its layer), which predated this step (models split layers too).
-libsk's sokol fork now has `sgl_draw_layer_range`, and each layer draws its own
+libwgrender's sokol fork now has `sgl_draw_layer_range`, and each layer draws its own
 command range: 3,000 sprite/shape switches in one frame replay in 0.6 ms, not 5.4.
 
 On the phone at 4,000 (the "thousands" games will have): the field from 5.0 to 1.9 ms
@@ -215,12 +215,12 @@ removes the interleaving.
 
 ### Step 2: alpha modes (2026-09-18)
 
-- `sk_alpha_mode_t` in `sk_types.h` (`SK_ALPHA_OPAQUE`, `_MASK`, `_BLEND`, `_ADD`), one
-  vocabulary for sprites and materials (it replaces `sk_material_alpha_t`; materials
-  refuse `ADD` for now). `sk_sprite3d_set_alpha_mode(sprite, mode, cutoff)`; blend
+- `wgr_alpha_mode_t` in `wgr_types.h` (`WGR_ALPHA_OPAQUE`, `_MASK`, `_BLEND`, `_ADD`), one
+  vocabulary for sprites and materials (it replaces `wgr_material_alpha_t`; materials
+  refuse `ADD` for now). `wgr_sprite3d_set_alpha_mode(sprite, mode, cutoff)`; blend
   stays the default.
 - In a scene, opaque and masked sprites draw in the opaque pass and additive ones in a
-  new additive pass after the blended parts (`sk_scene_register_additive`). Neither
+  new additive pass after the blended parts (`wgr_scene_register_additive`). Neither
   is sorted: the batcher groups them by texture and mode (a counting sort over the
   few groups, stable, so overlapping sprites at one depth keep member order), so 400
   masked sprites alternating 4 textures draw in 4 batches (unit test).
@@ -259,7 +259,7 @@ so each batch rebound six instance attributes, where sokol_gl only switched the
 texture: slower than before. Now, without base-instance draws (WebGL2, GL before
 4.2), the sprites go into an RGBA32F texture, 6 texels a sprite and 256 a row, and a
 second vertex shader (`quad_pulled`) reads them by index (first + instance); a batch
-sets one small uniform. The frame writes only the rows in use. `-DSK_SPRITES_PULLED`
+sets one small uniform. The frame writes only the rows in use. `-DWGR_SPRITES_PULLED`
 forces this path on any backend (the unit tests pass on both).
 
 | 16,000, 4 textures, blended | sokol_gl | rebinding | read by index |
@@ -276,11 +276,11 @@ base-instance draws (reading by index is no faster there: native GL calls are ch
 - A 2D sprite's quads (one, or up to nine when nine-sliced) go to the batcher as
   instances: position the top-left corner, axes the top and left edges, so rotation,
   pivot, scale, flips and nine-slices are worked out as before and come out the same.
-  `sk_sprite_batch_add_2d` records them in order (2D is never regrouped) under a 2D
-  projection matching sokol_gl's (`sk_mat4_ortho` over the target's logical pixels),
+  `wgr_sprite_batch_add_2d` records them in order (2D is never regrouped) under a 2D
+  projection matching sokol_gl's (`wgr_mat4_ortho` over the target's logical pixels),
   with 2D pipelines (no depth test): blended, added, opaque/masked.
-- `sk_sprite2d_set_alpha_mode` / `get_alpha_mode`, like sprite3d's; blend the default.
-- The immediate `sk_texture_draw*` calls stay on sokol_gl (UI draws few, interleaved
+- `wgr_sprite2d_set_alpha_mode` / `get_alpha_mode`, like sprite3d's; blend the default.
+- The immediate `wgr_texture_draw*` calls stay on sokol_gl (UI draws few, interleaved
   with shapes and text).
 - Screenshots of `sprite2d`, `touch`, `ui` and `clay` match the sokol_gl build (the
   differences are the page's dropdown and animation). Unit test: a run of one texture
@@ -291,7 +291,7 @@ WebGL2 5.55 -> 3.89.
 
 ### Step 4: particle emitters (2026-09-18)
 
-- `sk_emitter3d_*` and `sk_emitter2d_*` (include/sk_emitter3d.h, sk_emitter2d.h):
+- `wgr_emitter3d_*` and `wgr_emitter2d_*` (include/wgr_emitter3d.h, wgr_emitter2d.h):
   objects created from a texture. Emission: `set_rate`, `burst`, `set_emitting`,
   `set_max` (default 1024, at most 65,536; new particles replace the oldest),
   `set_life(min, max)`. Birth: `set_spawn_box`, `set_velocity(dir, spread,
@@ -302,11 +302,11 @@ WebGL2 5.55 -> 3.89.
   code; editor formats are for later (see below).
 - Stateless on the GPU: a particle is a 48-byte record written once, at birth (where
   and when, velocity and life, size scale, spin and starting angle). `vs_particle`
-  (src/shaders/sk_sprite.glsl) works out its position (`p0 + v t + g t² / 2`), size,
+  (src/shaders/wgr_sprite.glsl) works out its position (`p0 + v t + g t² / 2`), size,
   color and angle from its age, and moves dead or unborn ones off screen. The CPU only
   spawns (spread evenly through the frame, so a steady rate doesn't clump) and drops
   the dead from the front of each emitter's ring.
-- libsk advances every emitter once a frame, after the ticks and before the frame
+- libwgrender advances every emitter once a frame, after the ticks and before the frame
   callback. The emitter's clock is rebased every 4,096 s to keep the shader's float time
   precise.
 - Drawing: one instanced draw per emitter. Its live particles are copied into the

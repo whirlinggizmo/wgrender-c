@@ -1,18 +1,18 @@
-/* libsk clay example — in-game UI laid out by Clay (github.com/nicbarker/clay),
- * drawn by libsk.
+/* libwgrender clay example — in-game UI laid out by Clay (github.com/nicbarker/clay),
+ * drawn by libwgrender.
  *
  * Clay lays out UI and reports what to draw; it draws nothing itself. The glue below
- * turns its render commands into libsk's public drawing calls — no sokol, no second
+ * turns its render commands into libwgrender's public drawing calls — no sokol, no second
  * copy of the fonts, no input of its own — which is all a layout library needs from
- * libsk (docs/PLAN-ui.md):
- *   - rounded rectangles and borders (sk_shape2d_draw_rounded_rectangle / _border),
- *   - text measured and drawn as slices of Clay's strings (sk_text_measure_n /
- *     sk_text_draw_n), crisp on high-DPI screens,
- *   - scroll areas on a nesting clip stack (sk_render_push_clip / pop_clip),
- *   - images from texture handles, plain or nine-sliced (sk_texture_draw_ex /
+ * libwgrender (docs/PLAN-ui.md):
+ *   - rounded rectangles and borders (wgr_shape2d_draw_rounded_rectangle / _border),
+ *   - text measured and drawn as slices of Clay's strings (wgr_text_measure_n /
+ *     wgr_text_draw_n), crisp on high-DPI screens,
+ *   - scroll areas on a nesting clip stack (wgr_render_push_clip / pop_clip),
+ *   - images from texture handles, plain or nine-sliced (wgr_texture_draw_ex /
  *     _nine_slice),
  *   - overlay colors, custom elements drawn by the game,
- *   - pointer capture (sk_input_set_pointer_captured), so game input behind the UI
+ *   - pointer capture (wgr_input_set_pointer_captured), so game input behind the UI
  *     leaves UI clicks alone.
  *
  * Tab switches between two pages:
@@ -27,7 +27,7 @@
  * only there — a press on the UI, even one dragged into the strip, belongs to the UI.
  * Mouse wheel or drag scrolls. ESC quits.
  *
- * deps/clay comes from libsk's Clay fork (tools/update_clay.sh), which carries one
+ * deps/clay comes from libwgrender's Clay fork (tools/update_clay.sh), which carries one
  * fix: scrolling goes to the innermost scroll area under the pointer, which nested
  * scroll areas need. */
 #include <math.h>
@@ -41,7 +41,7 @@
 #include "examples/shared-layouts/clay-video-demo.c" /* Clay's demo layout, unchanged */
 
 #include "example_assets.h"
-#include "sk.h"
+#include "wgr.h"
 
 #define GAME_WIDTH 240.0f /* the strip of "game" to the right of the UI */
 #define SCROLL_SPEED 4.0f /* times 10 (Clay's own wheel scale): 40 layout pixels per wheel notch */
@@ -58,10 +58,10 @@
  * backgroundColor because Clay also draws a background rectangle for that color,
  * after the image. */
 typedef struct {
-    sk_handle_t texture;
+    wgr_handle_t texture;
     float source[4];
     float slice[4]; /* left, top, right, bottom */
-    sk_color_t tint;
+    wgr_color_t tint;
 } clay_image_t;
 
 /* What a Clay custom element carries in its customData: the game draws it. */
@@ -71,34 +71,34 @@ typedef struct {
 } clay_custom_t;
 
 static struct {
-    sk_handle_t fonts[1];                 /* Clay font id -> libsk font; 0 = the default font */
+    wgr_handle_t fonts[1];                 /* Clay font id -> libwgrender font; 0 = the default font */
     Clay_Color overlays[MAX_OVERLAYS];    /* active overlay colors, outermost first */
     int overlay_count;
     bool press_on_ui;                     /* the held press started over the UI */
 } glue;
 
-static sk_handle_t font_for(uint16_t font_id)
+static wgr_handle_t font_for(uint16_t font_id)
 {
     return font_id < sizeof(glue.fonts) / sizeof(glue.fonts[0]) ? glue.fonts[font_id] : 0;
 }
 
 static Clay_Dimensions measure_text(Clay_StringSlice text, Clay_TextElementConfig *config, void *user)
 {
-    const vec2_t size = sk_text_measure_n(font_for(config->fontId), text.chars, text.length, (float)config->fontSize);
+    const vec2_t size = wgr_text_measure_n(font_for(config->fontId), text.chars, text.length, (float)config->fontSize);
     (void)user;
     return (Clay_Dimensions){size.x, size.y};
 }
 
 static void on_clay_error(Clay_ErrorData error)
 {
-    sk_logger_error("clay: %.*s", error.errorText.length, error.errorText.chars);
+    wgr_logger_error("clay: %.*s", error.errorText.length, error.errorText.chars);
 }
 
 /* A Clay color with the active overlays applied, as Clay defines them:
  * mix(color, overlay.rgb, overlay.a), alpha kept. Exact for everything with one color
  * (rectangles, borders, text), and for images when the overlay darkens (a tint scales
  * the texture); brightening an image is approximated through its tint. */
-static sk_color_t color_of(Clay_Color c)
+static wgr_color_t color_of(Clay_Color c)
 {
     for (int i = 0; i < glue.overlay_count; i++) {
         const Clay_Color o = glue.overlays[i];
@@ -107,21 +107,21 @@ static sk_color_t color_of(Clay_Color c)
         c.g += (o.g - c.g) * k;
         c.b += (o.b - c.b) * k;
     }
-    return sk_color_rgba((int)(c.r + 0.5f), (int)(c.g + 0.5f), (int)(c.b + 0.5f), (int)(c.a + 0.5f));
+    return wgr_color_rgba((int)(c.r + 0.5f), (int)(c.g + 0.5f), (int)(c.b + 0.5f), (int)(c.a + 0.5f));
 }
 
 static void draw_image(Clay_BoundingBox b, const clay_image_t *image)
 {
-    const sk_color_t tint = image->tint != 0 ? image->tint : SK_COLOR_WHITE;
-    const Clay_Color base = {(float)sk_color_get_red(tint), (float)sk_color_get_green(tint),
-                             (float)sk_color_get_blue(tint), (float)sk_color_get_alpha(tint)};
+    const wgr_color_t tint = image->tint != 0 ? image->tint : WGR_COLOR_WHITE;
+    const Clay_Color base = {(float)wgr_color_get_red(tint), (float)wgr_color_get_green(tint),
+                             (float)wgr_color_get_blue(tint), (float)wgr_color_get_alpha(tint)};
     const bool sliced = image->slice[0] > 0 || image->slice[1] > 0 || image->slice[2] > 0 || image->slice[3] > 0;
     if (sliced) {
-        sk_texture_draw_nine_slice(image->texture, image->source[0], image->source[1], image->source[2],
+        wgr_texture_draw_nine_slice(image->texture, image->source[0], image->source[1], image->source[2],
                                    image->source[3], image->slice[0], image->slice[1], image->slice[2],
                                    image->slice[3], b.x, b.y, b.width, b.height, color_of(base));
     } else {
-        sk_texture_draw_ex(image->texture, image->source[0], image->source[1], image->source[2], image->source[3], b.x,
+        wgr_texture_draw_ex(image->texture, image->source[0], image->source[1], image->source[2], image->source[3], b.x,
                            b.y, b.width, b.height, color_of(base));
     }
 }
@@ -135,21 +135,21 @@ static void render(Clay_RenderCommandArray commands)
         switch (cmd->commandType) {
             case CLAY_RENDER_COMMAND_TYPE_RECTANGLE: {
                 const Clay_RectangleRenderData *r = &cmd->renderData.rectangle;
-                sk_shape2d_draw_rounded_rectangle(b.x, b.y, b.width, b.height, r->cornerRadius.topLeft,
+                wgr_shape2d_draw_rounded_rectangle(b.x, b.y, b.width, b.height, r->cornerRadius.topLeft,
                                                   r->cornerRadius.topRight, r->cornerRadius.bottomRight,
                                                   r->cornerRadius.bottomLeft, color_of(r->backgroundColor));
                 break;
             }
             case CLAY_RENDER_COMMAND_TYPE_BORDER: {
                 const Clay_BorderRenderData *r = &cmd->renderData.border;
-                sk_shape2d_draw_border(b.x, b.y, b.width, b.height, r->width.left, r->width.top, r->width.right,
+                wgr_shape2d_draw_border(b.x, b.y, b.width, b.height, r->width.left, r->width.top, r->width.right,
                                        r->width.bottom, r->cornerRadius.topLeft, r->cornerRadius.topRight,
                                        r->cornerRadius.bottomRight, r->cornerRadius.bottomLeft, color_of(r->color));
                 break;
             }
             case CLAY_RENDER_COMMAND_TYPE_TEXT: {
                 const Clay_TextRenderData *t = &cmd->renderData.text;
-                sk_text_draw_n(font_for(t->fontId), t->stringContents.chars, t->stringContents.length, b.x, b.y,
+                wgr_text_draw_n(font_for(t->fontId), t->stringContents.chars, t->stringContents.length, b.x, b.y,
                                (float)t->fontSize, color_of(t->textColor));
                 break;
             }
@@ -166,10 +166,10 @@ static void render(Clay_RenderCommandArray commands)
                 break;
             }
             case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START: /* scroll areas; nested ones intersect */
-                sk_render_push_clip(b.x, b.y, b.width, b.height);
+                wgr_render_push_clip(b.x, b.y, b.width, b.height);
                 break;
             case CLAY_RENDER_COMMAND_TYPE_SCISSOR_END:
-                sk_render_pop_clip();
+                wgr_render_pop_clip();
                 break;
             case CLAY_RENDER_COMMAND_TYPE_OVERLAY_COLOR_START:
                 if (glue.overlay_count < MAX_OVERLAYS) {
@@ -188,19 +188,19 @@ static void render(Clay_RenderCommandArray commands)
     }
 }
 
-/* Clay does its own hit-testing; tell libsk when the UI has the pointer, so game code
- * that asks sk_input_is_pointer_captured() leaves it alone. As with scene
+/* Clay does its own hit-testing; tell libwgrender when the UI has the pointer, so game code
+ * that asks wgr_input_is_pointer_captured() leaves it alone. As with scene
  * interaction, a press that starts on the UI stays captured until it's released, even
  * when it's dragged off the UI. */
-static void update_pointer_capture(const sk_mouse_state_t *mouse)
+static void update_pointer_capture(const wgr_mouse_state_t *mouse)
 {
     const bool over_ui = Clay_GetPointerOverIds().length > 0;
-    if (mouse->left == SK_BUTTON_PRESSED) {
+    if (mouse->left == WGR_BUTTON_PRESSED) {
         glue.press_on_ui = over_ui;
-    } else if (mouse->left == SK_BUTTON_UP) {
+    } else if (mouse->left == WGR_BUTTON_UP) {
         glue.press_on_ui = false;
     }
-    sk_input_set_pointer_captured(over_ui || glue.press_on_ui);
+    wgr_input_set_pointer_captured(over_ui || glue.press_on_ui);
 }
 
 /* ------------------------------------------------------- elements page ---- */
@@ -214,7 +214,7 @@ static const float TILE_CELLS[TILES][4] = {{0, 0, 16, 16},  {16, 0, 16, 16},  {3
 static struct {
     ClayVideoDemo_Data demo;
     bool elements; /* the page shown */
-    sk_handle_t tiles, panel;
+    wgr_handle_t tiles, panel;
     clay_image_t tile_images[TILES], panel_image;
     clay_custom_t meter;
     int selected_tile;
@@ -222,7 +222,7 @@ static struct {
     float time;
     float markers[MAX_MARKERS][2];
     int marker_count;
-    sk_color_t game_bg, marker, hint;
+    wgr_color_t game_bg, marker, hint;
 } g;
 
 static const Clay_Color INK = {235, 238, 245, 255};
@@ -253,9 +253,9 @@ static void draw_meter(Clay_BoundingBox b, void *user)
 {
     const float level = 0.5f + 0.45f * sinf(g.time * 1.7f);
     (void)user;
-    sk_shape2d_draw_rounded_rectangle(b.x, b.y, b.width, b.height, 6, 6, 6, 6, sk_color_rgba(24, 27, 36, 255));
-    sk_shape2d_draw_rounded_rectangle(b.x + 3, b.y + 3, (b.width - 6) * level, b.height - 6, 4, 4, 4, 4,
-                                      sk_color_lerp(sk_color_rgba(90, 200, 130, 255), sk_color_rgba(235, 120, 90, 255),
+    wgr_shape2d_draw_rounded_rectangle(b.x, b.y, b.width, b.height, 6, 6, 6, 6, wgr_color_rgba(24, 27, 36, 255));
+    wgr_shape2d_draw_rounded_rectangle(b.x + 3, b.y + 3, (b.width - 6) * level, b.height - 6, 4, 4, 4, 4,
+                                      wgr_color_lerp(wgr_color_rgba(90, 200, 130, 255), wgr_color_rgba(235, 120, 90, 255),
                                                     level));
 }
 
@@ -398,7 +398,7 @@ static Clay_RenderCommandArray elements_layout(float dt)
                                           .layoutDirection = CLAY_TOP_TO_BOTTOM},
                                .backgroundColor = PAGE}) {
         CLAY(CLAY_ID("Title"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIT(0)}}}) {
-            text(CLAY_STRING("Clay elements, drawn by libsk"), 20, INK);
+            text(CLAY_STRING("Clay elements, drawn by libwgrender"), 20, INK);
             CLAY(CLAY_ID("TitleGap"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
             text(CLAY_STRING("Tab: Clay's demo"), 14, DIM_INK);
         }
@@ -418,51 +418,51 @@ static Clay_RenderCommandArray elements_layout(float dt)
 
 static void on_texture(const char *path, void *user)
 {
-    const sk_handle_t texture = sk_texture_create(path);
+    const wgr_handle_t texture = wgr_texture_create(path);
     if (user == &g.tiles) { /* pixel art: keep it crisp when scaled up */
-        sk_texture_set_sampling(texture, SK_TEXTURE_WRAP_CLAMP, SK_TEXTURE_WRAP_CLAMP, SK_TEXTURE_FILTER_NEAREST);
+        wgr_texture_set_sampling(texture, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_FILTER_NEAREST);
     }
-    *(sk_handle_t *)user = texture;
+    *(wgr_handle_t *)user = texture;
 }
 
 static void on_failed(const char *path, void *user)
 {
     (void)user;
-    sk_logger_error("load failed: %s", path);
+    wgr_logger_error("load failed: %s", path);
 }
 
 static void init(void *user_data)
 {
-    const vec2_t screen = sk_window_get_screen_size();
+    const vec2_t screen = wgr_window_get_screen_size();
     const uint32_t memory = Clay_MinMemorySize();
     (void)user_data;
-    sk_asset_set_host(EXAMPLE_ASSET_BASE);
+    wgr_asset_set_host(EXAMPLE_ASSET_BASE);
     Clay_Initialize(Clay_CreateArenaWithCapacityAndMemory(memory, malloc(memory)),
                     (Clay_Dimensions){screen.x - GAME_WIDTH, screen.y}, (Clay_ErrorHandler){on_clay_error, NULL});
     Clay_SetMeasureTextFunction(measure_text, NULL);
     g.demo = ClayVideoDemo_Initialize();
     g.selected_tile = -1;
     g.meter = (clay_custom_t){draw_meter, NULL};
-    g.game_bg = sk_color_rgba(24, 30, 40, 255);
-    g.marker = sk_color_rgba(240, 190, 90, 255);
-    g.hint = sk_color_rgba(140, 150, 170, 255);
-    sk_asset_add_task(sk_asset_ensure_async(TILES_PATH, NULL, SK_ASSET_NONE), on_texture, on_failed, &g.tiles);
-    sk_asset_add_task(sk_asset_ensure_async(PANEL_PATH, NULL, SK_ASSET_NONE), on_texture, on_failed, &g.panel);
+    g.game_bg = wgr_color_rgba(24, 30, 40, 255);
+    g.marker = wgr_color_rgba(240, 190, 90, 255);
+    g.hint = wgr_color_rgba(140, 150, 170, 255);
+    wgr_asset_add_task(wgr_asset_ensure_async(TILES_PATH, NULL, WGR_ASSET_NONE), on_texture, on_failed, &g.tiles);
+    wgr_asset_add_task(wgr_asset_ensure_async(PANEL_PATH, NULL, WGR_ASSET_NONE), on_texture, on_failed, &g.panel);
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)
 {
-    const sk_keyboard_state_t kb = sk_input_get_keyboard_state();
-    const sk_mouse_state_t mouse = sk_input_get_mouse_state();
-    const vec2_t screen = sk_window_get_screen_size();
+    const wgr_keyboard_state_t kb = wgr_input_get_keyboard_state();
+    const wgr_mouse_state_t mouse = wgr_input_get_mouse_state();
+    const vec2_t screen = wgr_window_get_screen_size();
     const float ui_width = screen.x - GAME_WIDTH;
     char line[64];
     Clay_RenderCommandArray commands;
     (void)tick_fraction;
     (void)user_data;
 
-    if (kb.keys[SK_KEY_ESCAPE] == SK_BUTTON_PRESSED) sk_request_quit();
-    if (kb.keys[SK_KEY_TAB] == SK_BUTTON_PRESSED) g.elements = !g.elements;
+    if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) wgr_request_quit();
+    if (kb.keys[WGR_KEY_TAB] == WGR_BUTTON_PRESSED) g.elements = !g.elements;
     g.time += dt;
 
     /* image data follows the textures as they load */
@@ -470,46 +470,46 @@ static void frame(float dt, float tick_fraction, void *user_data)
         g.tile_images[i] = (clay_image_t){.texture = g.tiles,
                                           .source = {TILE_CELLS[i][0], TILE_CELLS[i][1], TILE_CELLS[i][2],
                                                      TILE_CELLS[i][3]},
-                                          .tint = i == 7 ? sk_color_rgba(120, 190, 255, 255) : 0};
+                                          .tint = i == 7 ? wgr_color_rgba(120, 190, 255, 255) : 0};
     }
     g.panel_image = (clay_image_t){.texture = g.panel, .slice = {16, 16, 16, 16}};
 
     /* the UI: size, pointer and scrolling in, capture out, then its layout */
     Clay_SetLayoutDimensions((Clay_Dimensions){ui_width, screen.y});
-    Clay_SetPointerState((Clay_Vector2){(float)mouse.x, (float)mouse.y}, mouse.left == SK_BUTTON_PRESSED ||
-                                                                              mouse.left == SK_BUTTON_DOWN);
+    Clay_SetPointerState((Clay_Vector2){(float)mouse.x, (float)mouse.y}, mouse.left == WGR_BUTTON_PRESSED ||
+                                                                              mouse.left == WGR_BUTTON_DOWN);
     Clay_UpdateScrollContainers(true, (Clay_Vector2){mouse.wheel_x * SCROLL_SPEED, mouse.wheel * SCROLL_SPEED}, dt);
     update_pointer_capture(&mouse);
     commands = g.elements ? elements_layout(dt) : ClayVideoDemo_CreateLayout(&g.demo);
 
     /* the game: it only takes clicks the UI didn't */
-    if (mouse.left == SK_BUTTON_PRESSED && !sk_input_is_pointer_captured() && (float)mouse.x >= ui_width &&
+    if (mouse.left == WGR_BUTTON_PRESSED && !wgr_input_is_pointer_captured() && (float)mouse.x >= ui_width &&
         g.marker_count < MAX_MARKERS) {
         g.markers[g.marker_count][0] = (float)mouse.x;
         g.markers[g.marker_count][1] = (float)mouse.y;
         g.marker_count++;
     }
 
-    sk_render_begin();
-    sk_render_clear_background(SK_COLOR_BLACK);
-    sk_shape2d_draw_rectangle(ui_width, 0, GAME_WIDTH, screen.y, g.game_bg);
+    wgr_render_begin();
+    wgr_render_clear_background(WGR_COLOR_BLACK);
+    wgr_shape2d_draw_rectangle(ui_width, 0, GAME_WIDTH, screen.y, g.game_bg);
     for (int i = 0; i < g.marker_count; i++) {
-        sk_shape2d_draw_circle(g.markers[i][0], g.markers[i][1], 6, g.marker);
+        wgr_shape2d_draw_circle(g.markers[i][0], g.markers[i][1], 6, g.marker);
     }
-    sk_text_draw_ex(0, "game: click to drop a marker", ui_width + 16, 16, 14, g.hint);
+    wgr_text_draw_ex(0, "game: click to drop a marker", ui_width + 16, 16, 14, g.hint);
     snprintf(line, sizeof(line), "markers: %d", g.marker_count);
-    sk_text_draw_ex(0, line, ui_width + 16, 36, 14, g.hint);
-    snprintf(line, sizeof(line), "pointer captured: %s", sk_input_is_pointer_captured() ? "yes" : "no");
-    sk_text_draw_ex(0, line, ui_width + 16, 56, 14, g.hint);
-    sk_text_draw_ex(0, "Tab: switch UI page", ui_width + 16, 76, 14, g.hint);
+    wgr_text_draw_ex(0, line, ui_width + 16, 36, 14, g.hint);
+    snprintf(line, sizeof(line), "pointer captured: %s", wgr_input_is_pointer_captured() ? "yes" : "no");
+    wgr_text_draw_ex(0, line, ui_width + 16, 56, 14, g.hint);
+    wgr_text_draw_ex(0, "Tab: switch UI page", ui_width + 16, 76, 14, g.hint);
     render(commands);
-    sk_render_end();
+    wgr_render_end();
 }
 
 int main(void)
 {
-    sk_init_values(1180, 720, "libsk clay", SK_WINDOW_FLAG_MSAA_4X_HINT | SK_WINDOW_FLAG_WINDOW_RESIZABLE);
-    sk_set_init(init, NULL);
-    sk_set_frame(frame, NULL);
-    return sk_run();
+    wgr_init_values(1180, 720, "libwgrender clay", WGR_WINDOW_FLAG_MSAA_4X_HINT | WGR_WINDOW_FLAG_WINDOW_RESIZABLE);
+    wgr_set_init(init, NULL);
+    wgr_set_frame(frame, NULL);
+    return wgr_run();
 }

@@ -1,6 +1,6 @@
 # Web (Emscripten) build settings, shared by the library (Makefile: make web) and
 # the examples (examples/Makefile). Everything that must match between compiling
-# libsk and linking a program against it lives here.
+# libwgrender and linking a program against it lives here.
 #
 #   BACKEND=webgl2|webgpu   graphics backend (default webgl2)
 #   WEB_THREADS=1|0         asset decoding on worker threads (default 1). A threaded
@@ -72,8 +72,8 @@ else
 endif
 
 WASM_CFLAGS_BACKEND := $(WASM_DEFS) $(WASM_RELEASE_DEFS) $(WASM_THREADS)
-# FORCE_FILESYSTEM so the FS JS is linked (sk_fs: MEMFS, kept in IndexedDB);
+# FORCE_FILESYSTEM so the FS JS is linked (wgr_fs: MEMFS, kept in IndexedDB);
 # grow memory for assets. (No -sJSPI: sapp_run owns the loop, so we can't suspend
-# in callbacks — sk_fs's cache is polled, not awaited. See PLAN-sk_fs.)
+# in callbacks — wgr_fs's cache is polled, not awaited. See PLAN-wgr_fs.)
 WASM_LINK := $(WASM_OPT_LINK) $(WASM_BACKEND_LINK) $(WASM_THREADS_LINK) -sALLOW_MEMORY_GROWTH=1 \
              -sFORCE_FILESYSTEM

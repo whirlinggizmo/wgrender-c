@@ -1,9 +1,9 @@
-/* libsk unit test runner (`make test`).
+/* libwgrender unit test runner (`make test`).
  *
  *   tests/build/unit_tests            run every test
  *   tests/build/unit_tests pick_      run tests whose name starts with "pick_"
  *
- * Tests call library internals directly and link against build/headless/libsk.a. Nothing
+ * Tests call library internals directly and link against build/headless/libwgrender.a. Nothing
  * here opens a window or touches the GPU. */
 #include <stdio.h>
 #include <string.h>
@@ -150,7 +150,7 @@ static const test_case_t TESTS[] = {
     {"scene_sort_transparent_many", test_scene_sort_transparent_many},
 };
 
-int sk_test_failures;
+int wgr_test_failures;
 
 static int matches_filter(const char *name, int argc, char **argv)
 {
@@ -173,13 +173,13 @@ int main(int argc, char **argv)
         if (!matches_filter(TESTS[i].name, argc, argv)) {
             continue;
         }
-        sk_test_failures = 0;
+        wgr_test_failures = 0;
         TESTS[i].fn();
         run++;
-        if (sk_test_failures > 0) {
+        if (wgr_test_failures > 0) {
             failed++;
-            printf("  FAIL  %s (%d failed check%s)\n", TESTS[i].name, sk_test_failures,
-                   sk_test_failures == 1 ? "" : "s");
+            printf("  FAIL  %s (%d failed check%s)\n", TESTS[i].name, wgr_test_failures,
+                   wgr_test_failures == 1 ? "" : "s");
         } else {
             printf("  ok    %s\n", TESTS[i].name);
         }

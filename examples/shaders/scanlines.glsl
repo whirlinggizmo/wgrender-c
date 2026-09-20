@@ -2,7 +2,7 @@
  * shift left and right, and a slow flicker — a second screen effect, to show a chain.
  * Built with tools/shaderpack.py (make example-shaders). */
 @fs fs
-@include_block sk_screen
+@include_block wgr_screen
 layout(binding=2) uniform params {
     float lines;    /* dark lines down the screen */
     float darkness; /* how dark they go (0..1) */
@@ -11,14 +11,14 @@ layout(binding=2) uniform params {
 };
 
 void main() {
-    vec2 texel = sk_screen_texel();
+    vec2 texel = wgr_screen_texel();
     /* the red and blue channels come from a little left and right of this pixel */
-    vec3 color = vec3(sk_screen_color_at(sk_screen_uv - vec2(offset * texel.x, 0.0)).r,
-                      sk_screen_color().g,
-                      sk_screen_color_at(sk_screen_uv + vec2(offset * texel.x, 0.0)).b);
-    float line = 0.5 + 0.5 * cos(sk_screen_uv.y * max(lines, 1.0) * 6.2831853);
+    vec3 color = vec3(wgr_screen_color_at(wgr_screen_uv - vec2(offset * texel.x, 0.0)).r,
+                      wgr_screen_color().g,
+                      wgr_screen_color_at(wgr_screen_uv + vec2(offset * texel.x, 0.0)).b);
+    float line = 0.5 + 0.5 * cos(wgr_screen_uv.y * max(lines, 1.0) * 6.2831853);
     color *= 1.0 - clamp(darkness, 0.0, 1.0) * line;
-    color *= 1.0 + clamp(flicker, 0.0, 1.0) * 0.06 * sin(sk_time() * 11.0);
-    sk_output(color, 1.0);
+    color *= 1.0 + clamp(flicker, 0.0, 1.0) * 0.06 * sin(wgr_time() * 11.0);
+    wgr_output(color, 1.0);
 }
 @end

@@ -8,12 +8,12 @@
  *   make loadbench DESKTOP=1  desktop build: real GL uploads (opens a window)
  *   make loadbench DESKTOP=1 KTX=1   the models with compressed textures
  *                             (tools/compress_textures.sh --gltf, made the first time;
- *                             SK_LOADBENCH_KTX=1 loads name.ktx.gltf) */
+ *                             WGR_LOADBENCH_KTX=1 loads name.ktx.gltf) */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "sk.h"
+#include "wgr.h"
 
 #ifdef __EMSCRIPTEN__
 #  define ASSET_BASE "/assets"
@@ -43,9 +43,9 @@ static struct {
     bool loading, failed;
     int showing; /* frames left drawing the loaded models */
     double show_worst, show_first[3]; /* the first frames after they're set */
-    sk_handle_t meshes[MODELS];
-    sk_handle_t models[MODELS];
-    sk_handle_t scene, camera;
+    wgr_handle_t meshes[MODELS];
+    wgr_handle_t models[MODELS];
+    wgr_handle_t scene, camera;
     char paths[MODELS][512];
     double started, last, worst, last_show;
     int frames;
@@ -61,7 +61,7 @@ static void on_done(const char *path, void *user)
 {
     (void)path;
     (void)user;
-    for (int i = 0; i < MODELS; i++) b.meshes[i] = sk_mesh_create(b.paths[i]);
+    for (int i = 0; i < MODELS; i++) b.meshes[i] = wgr_mesh_create(b.paths[i]);
     b.loading = false;
 }
 
@@ -75,18 +75,18 @@ static void on_failed(const char *path, void *user)
 
 static void start(bool sync)
 {
-    const sk_handle_t group = sk_asset_group_create();
+    const wgr_handle_t group = wgr_asset_group_create();
     for (int i = 0; i < MODELS; i++) {
-        const char *env = getenv("SK_LOADBENCH_KTX");
+        const char *env = getenv("WGR_LOADBENCH_KTX");
         const bool ktx = env != NULL ? env[0] == '1' : LOADBENCH_KTX;
         const char *path = ktx ? KTX_PATHS[i] : PATHS[i];
-        const sk_handle_t task = sk_asset_ensure_async(path, NULL, sync ? SK_ASSET_FILE_ONLY : SK_ASSET_NONE);
-        sk_asset_add_task(task, on_file, NULL, (void *)(intptr_t)i);
-        sk_asset_group_add(group, task);
+        const wgr_handle_t task = wgr_asset_ensure_async(path, NULL, sync ? WGR_ASSET_FILE_ONLY : WGR_ASSET_NONE);
+        wgr_asset_add_task(task, on_file, NULL, (void *)(intptr_t)i);
+        wgr_asset_group_add(group, task);
     }
-    sk_asset_add_task(group, on_done, on_failed, NULL);
+    wgr_asset_add_task(group, on_done, on_failed, NULL);
     b.loading = true;
-    b.started = b.last = sk_get_time();
+    b.started = b.last = wgr_get_time();
     b.worst = 0.0;
     b.frames = 1; /* the next frame's duration counts */
 }
@@ -94,38 +94,38 @@ static void start(bool sync)
 static void init(void *user)
 {
     (void)user;
-    sk_asset_set_host(ASSET_BASE);
-    sk_set_target_fps(0);
-    b.camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
-    sk_camera3d_set_view(b.camera, 0.0f, 1.0f, 3.0f, 0.0f, 0.5f, 0.0f, 0.0f, 1.0f, 0.0f);
-    b.scene = sk_scene_create();
-    sk_scene_set_active_camera(b.scene, b.camera);
+    wgr_asset_set_host(ASSET_BASE);
+    wgr_set_target_fps(0);
+    b.camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
+    wgr_camera3d_set_view(b.camera, 0.0f, 1.0f, 3.0f, 0.0f, 0.5f, 0.0f, 0.0f, 1.0f, 0.0f);
+    b.scene = wgr_scene_create();
+    wgr_scene_set_active_camera(b.scene, b.camera);
     /* scenes start unlit: a sun and some ambient, so the models show (and draw with
        the lit shaders a game would use) */
-    const sk_handle_t sun = sk_light_create(SK_LIGHT_DIRECTIONAL);
-    sk_light_set_direction(sun, -0.6f, -1.0f, -0.5f);
-    sk_light_set_intensity(sun, 3.0f);
-    sk_scene_add(b.scene, sun, 0);
-    sk_scene_set_ambient(b.scene, SK_COLOR_WHITE, 0.3f);
+    const wgr_handle_t sun = wgr_light_create(WGR_LIGHT_DIRECTIONAL);
+    wgr_light_set_direction(sun, -0.6f, -1.0f, -0.5f);
+    wgr_light_set_intensity(sun, 3.0f);
+    wgr_scene_add(b.scene, sun, 0);
+    wgr_scene_set_ambient(b.scene, WGR_COLOR_WHITE, 0.3f);
     for (int i = 0; i < MODELS; i++) {
-        b.models[i] = sk_model_create(0);
-        sk_scene_add(b.scene, b.models[i], 0);
+        b.models[i] = wgr_model_create(0);
+        wgr_scene_add(b.scene, b.models[i], 0);
     }
     start(false);
 }
 
 static void frame(float dt, float fraction, void *user)
 {
-    const double now = sk_get_time();
+    const double now = wgr_get_time();
     (void)dt;
     (void)fraction;
     (void)user;
     if (now - b.last > b.worst) b.worst = now - b.last;
     b.last = now;
     b.frames++;
-    sk_render_begin();
-    sk_scene_draw(b.scene);
-    sk_render_end();
+    wgr_render_begin();
+    wgr_scene_draw(b.scene);
+    wgr_render_end();
     if (b.showing > 0) { /* the frame that just ended drew them */
         const double took = now - b.last_show;
         if (SHOW_FRAMES - b.showing < 3) b.show_first[SHOW_FRAMES - b.showing] = took;
@@ -137,14 +137,14 @@ static void frame(float dt, float fraction, void *user)
                b.show_first[2] * 1000.0, SHOW_FRAMES, b.show_worst * 1000.0);
         fflush(stdout);
         for (int i = 0; i < MODELS; i++) {
-            sk_model_set_mesh(b.models[i], 0);
-            sk_mesh_release(b.meshes[i]);
+            wgr_model_set_mesh(b.models[i], 0);
+            wgr_mesh_release(b.meshes[i]);
         }
         if (++b.phase == 1) {
             start(true);
         } else {
             b.phase = 2;
-            sk_request_quit();
+            wgr_request_quit();
         }
         return;
     }
@@ -152,13 +152,13 @@ static void frame(float dt, float fraction, void *user)
     if (b.failed) {
         printf("loadbench: loading failed; run tools/bench/fetch_assets.sh first\n");
         b.phase = 2;
-        sk_request_quit();
+        wgr_request_quit();
         return;
     }
     printf("loadbench: %-10s worst frame %7.1f ms, loaded in %6.2f s over %d frames\n",
            b.phase == 0 ? "background" : "sync", b.worst * 1000.0, now - b.started, b.frames);
     fflush(stdout);
-    for (int i = 0; i < MODELS; i++) sk_model_set_mesh(b.models[i], b.meshes[i]);
+    for (int i = 0; i < MODELS; i++) wgr_model_set_mesh(b.models[i], b.meshes[i]);
     b.showing = SHOW_FRAMES;
     b.show_worst = 0.0;
     b.last_show = now;
@@ -166,8 +166,8 @@ static void frame(float dt, float fraction, void *user)
 
 int main(void)
 {
-    sk_init_values(640, 360, "libsk loadbench", 0);
-    sk_set_init(init, NULL);
-    sk_set_frame(frame, NULL);
-    return sk_run();
+    wgr_init_values(640, 360, "libwgrender loadbench", 0);
+    wgr_set_init(init, NULL);
+    wgr_set_frame(frame, NULL);
+    return wgr_run();
 }

@@ -1,6 +1,6 @@
 # Plan: sprite2d (screen-space sprites)
 
-Status: **implemented (2026-09-16).** See `include/sk_sprite2d.h` and `examples/sprite2d.c`.
+Status: **implemented (2026-09-16).** See `include/wgr_sprite2d.h` and `examples/sprite2d.c`.
 Builds on the Resource/Object model ([ARCHITECTURE.md](ARCHITECTURE.md)), scene render
 passes, and picking. Related: GUI direction in [ROADMAP.md](ROADMAP.md).
 
@@ -8,7 +8,7 @@ passes, and picking. Related: GUI direction in [ROADMAP.md](ROADMAP.md).
 
 HUD icons, 2D games, and in-game UI all need textured quads in screen space. The
 `sprite2d` handle kind is reserved but unimplemented, and `rl_texture_draw_ex`
-(one-off screen-space texture draws) has no libsk equivalent.
+(one-off screen-space texture draws) has no libwgrender equivalent.
 
 ## What librl had, and what it taught us
 
@@ -26,31 +26,31 @@ Gaps that forced workarounds:
 ## Proposed API
 
 ```c
-/* include/sk_sprite2d.h */
-sk_handle_t sk_sprite2d_create(sk_handle_t texture);          /* texture may be 0, set later */
-void        sk_sprite2d_destroy(sk_handle_t sprite);
+/* include/wgr_sprite2d.h */
+wgr_handle_t wgr_sprite2d_create(wgr_handle_t texture);          /* texture may be 0, set later */
+void        wgr_sprite2d_destroy(wgr_handle_t sprite);
 
-bool sk_sprite2d_set_texture(sk_handle_t sprite, sk_handle_t texture);
-bool sk_sprite2d_set_source(sk_handle_t sprite, float x, float y, float width, float height);
+bool wgr_sprite2d_set_texture(wgr_handle_t sprite, wgr_handle_t texture);
+bool wgr_sprite2d_set_source(wgr_handle_t sprite, float x, float y, float width, float height);
                                    /* texture pixels; default: whole texture */
-bool sk_sprite2d_set_position(sk_handle_t sprite, float x, float y);
-bool sk_sprite2d_set_rotation(sk_handle_t sprite, float angle);   /* radians */
-bool sk_sprite2d_set_scale(sk_handle_t sprite, float x, float y); /* negative = flip */
-bool sk_sprite2d_set_size(sk_handle_t sprite, float width, float height);
+bool wgr_sprite2d_set_position(wgr_handle_t sprite, float x, float y);
+bool wgr_sprite2d_set_rotation(wgr_handle_t sprite, float angle);   /* radians */
+bool wgr_sprite2d_set_scale(wgr_handle_t sprite, float x, float y); /* negative = flip */
+bool wgr_sprite2d_set_size(wgr_handle_t sprite, float width, float height);
                                    /* on-screen size in pixels; default: source size */
-bool sk_sprite2d_set_pivot(sk_handle_t sprite, float x, float y);
+bool wgr_sprite2d_set_pivot(wgr_handle_t sprite, float x, float y);
                                    /* 0..1 within the sprite; default (0.5, 0.5) */
-bool sk_sprite2d_set_tint(sk_handle_t sprite, sk_handle_t color);
-bool sk_sprite2d_set_visible(sk_handle_t sprite, bool visible);
-bool sk_sprite2d_is_visible(sk_handle_t sprite);
-bool sk_sprite2d_set_pickable(sk_handle_t sprite, bool pickable);
-bool sk_sprite2d_set_pick_alpha_test(sk_handle_t sprite, bool enable, float threshold);
+bool wgr_sprite2d_set_tint(wgr_handle_t sprite, wgr_handle_t color);
+bool wgr_sprite2d_set_visible(wgr_handle_t sprite, bool visible);
+bool wgr_sprite2d_is_visible(wgr_handle_t sprite);
+bool wgr_sprite2d_set_pickable(wgr_handle_t sprite, bool pickable);
+bool wgr_sprite2d_set_pick_alpha_test(wgr_handle_t sprite, bool enable, float threshold);
 
-void sk_sprite2d_draw(sk_handle_t sprite);   /* immediate, outside a scene */
+void wgr_sprite2d_draw(wgr_handle_t sprite);   /* immediate, outside a scene */
 
-/* include/sk_texture.h: one-off draw without an object (replaces rl_texture_draw_ex) */
-void sk_texture_draw(sk_handle_t texture, float x, float y, float width, float height,
-                     sk_handle_t tint);
+/* include/wgr_texture.h: one-off draw without an object (replaces rl_texture_draw_ex) */
+void wgr_texture_draw(wgr_handle_t texture, float x, float y, float width, float height,
+                     wgr_handle_t tint);
 ```
 
 - **Flip** is negative scale, not a separate flag: one concept, no conflicting state.
@@ -64,7 +64,7 @@ Decisions 1–4 were accepted as recommended.
 
 1. **Where 2D objects live.** *Recommend: in scenes.* A scene draws all 3D layers
    first, then its 2D members by layer (ascending) and insertion order, with no depth
-   test. `sk_scene_pick` tests 2D members first, topmost first, since they're drawn on
+   test. `wgr_scene_pick` tests 2D members first, topmost first, since they're drawn on
    top of 3D. One ordering system and one picking API. The alternative, a separate
    "canvas" object for 2D, duplicates layers, picking and membership for little gain.
    Scenes without 2D members are unaffected.
@@ -73,8 +73,8 @@ Decisions 1–4 were accepted as recommended.
    DPI scale, so UI doesn't shrink on a 4K laptop. Virtual resolution (design at
    1920x1080, scale to the window) is a separate camera2d concern, left for the 2D/UI
    layer work, not sprite2d.
-3. **Immediate drawing.** *Recommend both:* `sk_sprite2d_draw(handle)` for a sprite
-   outside a scene (like `sk_model_draw`), and `sk_texture_draw(...)` for one-off
+3. **Immediate drawing.** *Recommend both:* `wgr_sprite2d_draw(handle)` for a sprite
+   outside a scene (like `wgr_model_draw`), and `wgr_texture_draw(...)` for one-off
    draws without creating an object. Both follow call order (frame command list).
 4. **Batching.** *Recommend: sokol_gl textured quads for now,* consecutive sprites
    sharing a texture batched automatically by sokol_gl. The batched renderer on the
@@ -82,7 +82,7 @@ Decisions 1–4 were accepted as recommended.
 5. **Angle units across the public API. Decided (2026-09-16): radians everywhere.**
    Matches our internal math, sokol and glTF (camera `yfov`, `KHR_lights_punctual`
    cone angles), and what `atan2`/`sin`/`cos` and physics libraries produce, so game
-   code needs no conversions. Apps that want degrees convert themselves; libsk
+   code needs no conversions. Apps that want degrees convert themselves; libwgrender
    exposes no degree helpers. Done ahead of sprite2d: camera `fov` and the spot cone
    are radians, and cameras have separate `fov` (perspective) and `ortho_height`
    (orthographic) settings instead of one overloaded `fovy`.

@@ -3,18 +3,18 @@
 Status: **implemented (2026-09-16).** Decisions 1–3 accepted as recommended; see
 "As built".
 
-Restores two things librl had (through raylib's audio) that libsk lost. The
+Restores two things librl had (through raylib's audio) that libwgrender lost. The
 general "decode resources in the background" work is a separate roadmap item
 (docs/ROADMAP.md, loading pipeline).
 
 ## Where we are
 
-| | librl (raylib / miniaudio) | libsk today |
+| | librl (raylib / miniaudio) | libwgrender today |
 |---|---|---|
-| Music | streamed: decoded while playing | decoded fully at `sk_audio_create` |
-| Mixing | on the audio device's thread | on the main thread (`sk_audio_tick` pushes each frame and while pacing) |
+| Music | streamed: decoded while playing | decoded fully at `wgr_audio_create` |
+| Mixing | on the audio device's thread | on the main thread (`wgr_audio_tick` pushes each frame and while pacing) |
 
-Measured: `sk_audio_create` on the 6 MB example MP3 takes **215 ms** and holds
+Measured: `wgr_audio_create` on the 6 MB example MP3 takes **215 ms** and holds
 **~108 MB** of float PCM (13.5 million stereo frames). And because mixing is on the main thread, any slow frame
 (for any reason) leaves the audio device without samples: an audible gap.
 
@@ -28,7 +28,7 @@ Measured: `sk_audio_create` on the 6 MB example MP3 takes **215 ms** and holds
 - Each playing Sound of a streamed Audio has its own decoder (dr_mp3, dr_wav and
   stb_vorbis all decode incrementally from memory), so one Audio can play on
   several Sounds at once.
-- `sk_audio_create(path)` and the Sound API don't change. Play (rewind), pause,
+- `wgr_audio_create(path)` and the Sound API don't change. Play (rewind), pause,
   resume, stop, loop, volume and pitch behave the same for both kinds.
 - Expected: create becomes a file read (a few ms); memory drops ~10x; decoding
   costs a little CPU during playback, on the mixing thread.
@@ -44,8 +44,8 @@ Measured: `sk_audio_create` on the 6 MB example MP3 takes **215 ms** and holds
 - Web: sokol_audio also runs the callback there (from the browser's audio
   callback on the main thread), so the same code works; the mutex is a no-op
   without threads.
-- Frame pacing no longer needs to feed audio while sleeping (`sk.c` pacing loop
-  and the per-frame `sk_audio_tick` go away).
+- Frame pacing no longer needs to feed audio while sleeping (`wgr.c` pacing loop
+  and the per-frame `wgr_audio_tick` go away).
 - Headless builds keep no audio device; a test hook pulls mixed samples directly.
 
 ## Decisions
@@ -61,12 +61,12 @@ Measured: `sk_audio_create` on the 6 MB example MP3 takes **215 ms** and holds
 
 ## As built
 
-- `sk_audio_create` on the example music: **215 ms → 5 ms**; memory **~108 MB → 6 MB**
+- `wgr_audio_create` on the example music: **215 ms → 5 ms**; memory **~108 MB → 6 MB**
   (the MP3 file). Streamed Audio knows its length at create (dr_mp3 counts frames
   from headers in ~1 ms), so looping works exactly like decoded Audio.
 - Streamed and decoded Audio produce identical samples (unit test, block by block,
   WAV/OGG/MP3 with loop, pitch and resampling), including rewinds.
-- One recursive mutex (`sk_audio_lock`) guards Sounds and Audio; decoding a file at
+- One recursive mutex (`wgr_audio_lock`) guards Sounds and Audio; decoding a file at
   create happens outside it. Seeking a streamed MP3 far forward takes up to ~80 ms
   on the mixer thread, which only happens when a sound's position jumps (rewinding
   to the start is cheap).
@@ -87,7 +87,7 @@ Measured: `sk_audio_create` on the 6 MB example MP3 takes **215 ms** and holds
     and fully decoded Audio
   - two Sounds playing one streamed Audio at different positions
   - releasing an Audio while its Sound is playing is safe
-- Timing and memory before/after for `sk_audio_create` on the example music.
+- Timing and memory before/after for `wgr_audio_create` on the example music.
 - `examples/audio.c`: music keeps playing through a deliberately slow frame
   (e.g. a key that sleeps 300 ms), checked by ear on desktop and web.
 - A `SANITIZE=thread` (TSan) build of the audio tests; `make test`, `make smoke`,

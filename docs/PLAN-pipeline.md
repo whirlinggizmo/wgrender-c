@@ -5,7 +5,7 @@ changed (see "As built").
 
 ## Problem
 
-`sk_*_create(path)` reads, decodes and uploads on the main thread, so a load during
+`wgr_*_create(path)` reads, decodes and uploads on the main thread, so a load during
 gameplay stalls a frame for as long as the load takes. The asset layer's callback
 already runs on the main thread, so running the create from a callback doesn't
 help.
@@ -66,12 +66,12 @@ ensure (fetch; exists) ─▶ prepare (worker) ─▶ finish (main thread, budge
   handles, sokol or globals, and a `finish(CPU data)` step that creates the
   resource on the main thread. The texture, mesh, environment and audio (decoded,
   not streamed) create functions are split along that line, and the sync
-  `sk_*_create(path)` runs both halves in a row, as today.
-- **The task holds one reference** to the resource it finished. `sk_*_create(path)`
+  `wgr_*_create(path)` runs both halves in a row, as today.
+- **The task holds one reference** to the resource it finished. `wgr_*_create(path)`
   in the callback finds it by path (the existing dedupe) and adds its own
   reference. After the callback, the task drops its reference, so a resource
   nobody created in the callback is freed.
-- **Finish is resumable and budgeted:** `sk_asset_tick` runs finish steps until a
+- **Finish is resumable and budgeted:** `wgr_asset_tick` runs finish steps until a
   per-frame time budget is used up, always doing at least one step so loading
   can't stall. A mesh finishes over several steps (buffers, then one texture per
   step), so Sponza spreads over frames instead of uploading 69 textures at once.
@@ -108,27 +108,27 @@ require-corp`. A threaded build doesn't start on a page without those headers.
 ```c
 /* Milliseconds per frame for finishing loads (GPU uploads). Default 4. At least one
  * step runs each frame, so a single large upload can exceed it. */
-void sk_asset_set_upload_budget(float milliseconds);
+void wgr_asset_set_upload_budget(float milliseconds);
 
 /* Ensure without preparing: the file is only made local (for files used as
  * something other than their extension's default resource). */
-SK_ASSET_FILE_ONLY = 1 << 1,
+WGR_ASSET_FILE_ONLY = 1 << 1,
 
 /* Groups (librl's ensure_many, handle-only): a task that finishes when all of its
- * members have, and fails if any does. Attach callbacks with sk_asset_add_task. */
-sk_handle_t sk_asset_group_create(void);
-bool        sk_asset_group_add(sk_handle_t group, sk_handle_t task);
+ * members have, and fails if any does. Attach callbacks with wgr_asset_add_task. */
+wgr_handle_t wgr_asset_group_create(void);
+bool        wgr_asset_group_add(wgr_handle_t group, wgr_handle_t task);
 
 /* 0..1 for a task or group (files fetched, prepared, finished), for loading screens. */
-float sk_asset_get_progress(sk_handle_t task);
+float wgr_asset_get_progress(wgr_handle_t task);
 ```
 
 ## Decisions
 
 1. **How a task knows what to prepare:** by file extension (`.png/.jpg` texture,
    `.gltf/.glb` mesh, `.hdr` environment, `.wav/.ogg/.mp3` audio), with
-   `SK_ASSET_FILE_ONLY` to opt out. Existing code gets background loading with no
-   changes. The alternative is a per-type ensure (`sk_texture_load_async(path)`),
+   `WGR_ASSET_FILE_ONLY` to opt out. Existing code gets background loading with no
+   changes. The alternative is a per-type ensure (`wgr_texture_load_async(path)`),
    which is explicit but doubles the loading API. A PNG used as an environment
    would be prepared as a texture for nothing unless the caller passes
    `FILE_ONLY`. Recommend: by extension.
@@ -160,9 +160,9 @@ float sk_asset_get_progress(sk_handle_t task);
 
   The web's remaining 30–70 ms frames come from downloading and caching the files
   and from single 2048² texture uploads, which can't be split.
-- **Loaders** (`src/internal/sk_loader.h`): each resource type registers
+- **Loaders** (`src/internal/wgr_loader.h`): each resource type registers
   `prepare` (any thread), `finish` (main thread, one step per call), `discard`,
-  `find` and `release` for its extensions; `sk_loader_create` runs them inline for
+  `find` and `release` for its extensions; `wgr_loader_create` runs them inline for
   the sync creates, so both paths share one implementation. Registered: texture
   (`.png .jpg .jpeg`), mesh (`.gltf .glb`), environment (`.hdr`), audio
   (`.wav .ogg .mp3`). Fonts have none (a TTF load is cheap; glyphs rasterize on
@@ -179,8 +179,8 @@ float sk_asset_get_progress(sk_handle_t task);
   the existing resource instead of creating a second one.
 - **Failures:** a file that can't be decoded now fires the failure callback
   ("Asset couldn't be loaded"), where before the success callback's create failed.
-- **Threads:** `src/sk_thread.c` (POSIX, Win32, Emscripten pthreads). Workers:
-  CPU cores − 1, at most 4 (internal `sk_asset_set_worker_count` for tests).
+- **Threads:** `src/wgr_thread.c` (POSIX, Win32, Emscripten pthreads). Workers:
+  CPU cores − 1, at most 4 (internal `wgr_asset_set_worker_count` for tests).
   Windows is written but untested.
 - **Web:** `-pthread -sPTHREAD_POOL_SIZE=4` by default; `WEB_THREADS=0` builds
   into `build/<backend>-nothreads`. `tools/serve.py` sends COOP/COEP. webcheck
@@ -195,16 +195,16 @@ float sk_asset_get_progress(sk_handle_t task);
   gitignored `examples/assets/bench/`.
 - **Pools** are 4096 buffers, 2048 images and 4096 views (not 1024 each: a glTF
   primitive takes two buffers, and textures, targets and environments share the
-  images). sokol's own error names the exhausted pool; libsk now fails the load
+  images). sokol's own error names the exhausted pool; libwgrender now fails the load
   instead of keeping a resource with an invalid buffer or image.
 - **Logging from workers** needs nothing extra: the logger formats into a local
   buffer and writes one `fprintf` per message.
 - **Tests** run the pipeline with zero and with two workers (`pipeline_*`, also
   under `SANITIZE=thread` and `address`).
-- **Also fixed:** `sk_fs_init` leaked its `getcwd` buffer (found by the new tests
+- **Also fixed:** `wgr_fs_init` leaked its `getcwd` buffer (found by the new tests
   under ASan).
 - **Found, not fixed** (docs/TASKS.md): the first frame drawing loaded PBR models
-  stalls ~220 ms on WebGL2 (shader compile on first use); `sk_request_quit` on web
+  stalls ~220 ms on WebGL2 (shader compile on first use); `wgr_request_quit` on web
   aborts in sokol_audio; the zero-worker mode prepares a whole glTF in one frame;
   `.glb` dependency listing reads the whole file on the main thread.
 

@@ -1,4 +1,4 @@
-# libsk Roadmap
+# libwgrender Roadmap
 
 Ordering reflects a **recommendation**, not a commitment — reprioritize freely.
 Rationale: a few of these share a foundation (a batched 2D draw path + a
@@ -10,13 +10,13 @@ that lean on them. Items with a design doc link there.
 1. **Materials & shaders** (phase 1 done 2026-09-16: built-in materials; phase 2
    2026-09-20: custom shaders; see
    [PLAN-materials.md](PLAN-materials.md)) — a **handle-only uniform/material API**
-   (`sk_material_set_float/vec4/texture(...)`, no struct/pointer across the public
+   (`wgr_material_set_float/vec4/texture(...)`, no struct/pointer across the public
    boundary) on top of the sokol-shdc pipeline we already have. *Enabler:*
    user shaders, particle looks, UI styling. The work is API shape, not plumbing
    (shdc solved the per-backend shader half).
 2. **2D / UI layer** — screen-space coordinate system, `sprite2d` (the reserved-
    but-unimplemented object), 2D draw ordering, **2D picking** (mouse → rect/AABB
-   hit-test; far cheaper than the existing 3D ray path in `sk_pick`), and pickable
+   hit-test; far cheaper than the existing 3D ray path in `wgr_pick`), and pickable
    UI primitives. `text2d` already exists and slots in here. Broadly useful —
    every game needs HUD/UI. sprite2d design: [PLAN-sprite2d.md](PLAN-sprite2d.md).
 
@@ -24,15 +24,15 @@ that lean on them. Items with a design doc link there.
    tools, both outside the core as optional modules (like scripting and bindings):
    - *Developer/debug UI* (inspectors, sliders, stats): **Dear ImGui** via sokol's
      `sokol_imgui.h` (and `sokol_gfx_imgui.h`). Its API isn't handle-only, so users
-     call ImGui directly; libsk provides a small C extension hook (input events in,
+     call ImGui directly; libwgrender provides a small C extension hook (input events in,
      drawing inside the render pass). Optional, so wasm builds that don't use it
      don't pay its size.
    - *In-game UI/HUD* (styled, animated menus and bars): built from sprite2d +
      text2d + shapes, with layout from a small renderer-agnostic library such as
      **Clay** (C99, flexbox-like, emits rectangles/text/images to draw). Later.
-     Refined in [PLAN-ui.md](PLAN-ui.md) (accepted): the glue uses only libsk's
-     public API, so libsk gains the immediate drawing, text and input pieces a layout
-     library needs, and no Clay code or types enter libsk.
+     Refined in [PLAN-ui.md](PLAN-ui.md) (accepted): the glue uses only libwgrender's
+     public API, so libwgrender gains the immediate drawing, text and input pieces a layout
+     library needs, and no Clay code or types enter libwgrender.
    - *Widgets* (decided 2026-09-21): still not in the core. Buttons, sliders and lists
      are mostly policy — theming, focus order, keyboard navigation, text editing — and
      choosing that policy for everyone is the toolkit this decision rules out. The
@@ -47,11 +47,11 @@ that lean on them. Items with a design doc link there.
 
 ## librl parity
 
-Capabilities librl (`rl_*`) has that libsk doesn't yet, in suggested order. The
+Capabilities librl (`rl_*`) has that libwgrender doesn't yet, in suggested order. The
 goal is **functional parity, not a 1:1 API**: each item starts with a short design
-review (what librl did, what we learned from it, what libsk should do), and the
+review (what librl did, what we learned from it, what libwgrender should do), and the
 result may be fewer, different or merged functions. Everything must fit the
-handle-only public API (see AGENTS.md). libsk is the primary library (see
+handle-only public API (see AGENTS.md). libwgrender is the primary library (see
 "Direction" in the README), so port what future work needs first; items above may
 jump ahead of these.
 
@@ -62,25 +62,25 @@ Lessons from librl already applied: the scratch buffer (value returns instead),
 synchronous asset fetch (needed JSPI on the web), `*_create_from_file` shortcuts
 (blurred resource vs object), separate Music and Sound (one Sound with a loop
 flag), a poll-driven loop (sokol callbacks), and a public filesystem API (internal
-`sk_fs`).
+`wgr_fs`).
 
 Lessons from librl not yet addressed (design for these; don't repeat them):
 
 - **Networking and async vs sync got convoluted.** librl grew sync and async
-  variants side by side, with fetching mixed into asset loading. For libsk: one
+  variants side by side, with fetching mixed into asset loading. For libwgrender: one
   async model (callbacks through the managed task queue, no sync twins). Decided
-  (2026-09-20): libsk's networking is **assets** only: downloads inside `ensure`,
+  (2026-09-20): libwgrender's networking is **assets** only: downloads inside `ensure`,
   asset redirects, host ping. WebSockets and general networking live **outside
-  libsk** (see Future).
-- **No way to leave out subsystems to shrink the wasm build.** libsk has the same
-  problem today: `src/sk.c` calls every subsystem's init/tick/deinit directly, and
+  libwgrender** (see Future).
+- **No way to leave out subsystems to shrink the wasm build.** libwgrender has the same
+  problem today: `src/wgr.c` calls every subsystem's init/tick/deinit directly, and
   the web build compiles every `src/*.c` into each bundle, so audio, models
   (cgltf), fonts (fontstash) and friends are always linked. Needs a build-time way
-  to exclude modules (e.g. `SK_WITH_AUDIO=0`) plus lifecycle registration instead
+  to exclude modules (e.g. `WGR_WITH_AUDIO=0`) plus lifecycle registration instead
   of hard-coded calls, and a size report per example to keep it honest.
 - **Scripting and language bindings got mixed into the core.** librl carried
   script hosts, hot-reload plumbing (`rt_boot` / `rt_tick` hosts, reload counters)
-  and four bindings in its own repo. For libsk: the core stays a plain C library;
+  and four bindings in its own repo. For libwgrender: the core stays a plain C library;
   scripting is a separate module/repo on top of the public API, and each language
   bridge (Haxe, Nim, Lua, JS, and maybe Beef) is its own module/repo. The
   handle-only API is what makes that cheap; core changes shouldn't need binding
@@ -95,43 +95,43 @@ Lessons from librl not yet addressed (design for these; don't repeat them):
    and retained). `line_strip_3d` takes a point array in librl, so it needs a
    handle-only shape (e.g. a builder: `add_point`).
 4. **Per-object picking** — `pick_model` / `pick_sprite3d` / `pick_shape` /
-   `pick_text3d` alongside `sk_scene_pick`; `set_pickable` / `is_pickable` on
+   `pick_text3d` alongside `wgr_scene_pick`; `set_pickable` / `is_pickable` on
    model, sprite3d, sprite2d, text2d, text3d (only shape has it today); pick stats
-   (broadphase/narrowphase counters) under `sk_debug`.
+   (broadphase/narrowphase counters) under `wgr_debug`.
 5. ~~**Lighting controls**~~ — done, redesigned as light objects (directional,
    point, spot) with per-scene lights and ambient. See
    [PLAN-lighting.md](PLAN-lighting.md).
 6. **Window / monitor** — `set_size`, `set_position`, monitor count / current /
    set / width / height / position. Check what sokol_app exposes per platform;
    some may be desktop-only no-ops on web.
-7. **Small leftovers** — `sk_sound_set_pan`, `sk_model_get_animation_frame_count`,
+7. **Small leftovers** — `wgr_sound_set_pan`, `wgr_model_get_animation_frame_count`,
    FPS / `text_draw_fps` with a custom font, `texture_draw_ground`,
-   `sk_asset_ensure_many` (batch ensure). Maybe `*_is_valid` handle checks.
+   `wgr_asset_ensure_many` (batch ensure). Maybe `*_is_valid` handle checks.
 
 Not a code gap, but part of parity: **gamepad and touch input** (librl only
 exposed these through scratch), **language bindings** (librl has Haxe, JS, Lua
-and Nim; each becomes its own module/repo outside libsk, and Beef is a candidate),
+and Nim; each becomes its own module/repo outside libwgrender, and Beef is a candidate),
 **scripting** (also its own module/repo), and a **test suite** (librl has unit, smoke, regression,
 headless and bindings tests; pairs with the headless renderer below).
 
 **Left out on purpose** (not gaps): the scratch buffer and `_to_scratch`
 functions (value returns instead), public `fs_*` (internal; see
-[PLAN-sk_fs.md](PLAN-sk_fs.md)), `music_*` (a looping Sound), `*_create_from_file`
+[PLAN-wgr_fs.md](PLAN-wgr_fs.md)), `music_*` (a looping Sound), `*_create_from_file`
 (objects come from handles), `window_open` / `input_poll_events` /
-`init_values_async` (sokol owns the loop; see `sk_run`), and
-`model_set_asset` / `load_asset` (Mesh resource + `sk_model_set_mesh`).
+`init_values_async` (sokol owns the loop; see `wgr_run`), and
+`model_set_asset` / `load_asset` (Mesh resource + `wgr_model_set_mesh`).
 
 ## Supporting / cross-cutting (slot in when an item above needs it)
 
 - ~~**Loading pipeline: decode in the background, upload within a frame budget**~~ —
-  done (2026-09-17): files ensured through `sk_asset` are prepared on worker
+  done (2026-09-17): files ensured through `wgr_asset` are prepared on worker
   threads (web too, with cross-origin isolation) and finished within a per-frame
   upload budget before their callback; asset groups and progress replace librl's
   `ensure_many`. See [PLAN-pipeline.md](PLAN-pipeline.md). Next: compressed
   textures (KTX2 / Basis), since one large texture is still one upload.
 
 - ~~**Offscreen / render-to-texture**~~ — done (2026-09-16): render targets are
-  textures (`sk_texture_create_target`, `sk_render_begin_texture`); see
+  textures (`wgr_texture_create_target`, `wgr_render_begin_texture`); see
   [PLAN-render-target.md](PLAN-render-target.md). Still to come: persistent
   (uncleared) targets, HDR formats and full-screen passes for post-effects.
 - **Mouse / pointer input + 2D hit-testing** — prerequisite for pickable UI;
@@ -143,7 +143,7 @@ functions (value returns instead), public `fs_*` (internal; see
 - **Desktop asset downloads** — on web a local cache miss downloads over HTTP
   (sokol_fetch, which reads only local files on native platforms and is compiled only
   into web builds); on **desktop** a local miss just fails (TODO in
-  `sk_asset_tick`). Plan: the OS's HTTP clients (WinHTTP on Windows, NSURLSession on
+  `wgr_asset_tick`). Plan: the OS's HTTP clients (WinHTTP on Windows, NSURLSession on
   macOS, libcurl on Linux, where it comes with the system), so HTTPS needs no bundled
   TLS library, plus a hook to fetch a missing file some other way. Deferred until
   desktop downloads are wanted. (Asset redirects and host ping are done, in the core;
@@ -159,24 +159,24 @@ functions (value returns instead), public `fs_*` (internal; see
 ## Infrastructure / testing
 
 - ~~**Null / headless renderer**~~ — done: `make HEADLESS=1` (sokol dummy GPU
-  backend, a headless run loop behind the internal `sk_platform` layer, no audio
+  backend, a headless run loop behind the internal `wgr_platform` layer, no audio
   device) and `make smoke`. Unit tests link the headless library, so they need no
   GL/X11/ALSA. CI runs `make test`, `make smoke` and the WebGL2 webcheck. Next, when needed:
   benchmarks / asset-validation tools on the headless build.
 - **Test suite (features + librl parity)** — build it in layers, cheapest first:
   1. **API parity report** (`make parity`): diff librl's public `rl_*` symbols
-     against `sk_*` using a checked-in map file that marks each librl function as
+     against `wgr_*` using a checked-in map file that marks each librl function as
      *ported* (with its new name), *dropped on purpose* (with the reason), or
      *todo*. Unknown symbols fail, so new librl API can't be missed. Starts as a
      report, then gates once parity is reached. No GPU needed.
-  2. **Unit tests** (plain C, no window): handle pool, `sk_fs` / asset
+  2. **Unit tests** (plain C, no window): handle pool, `wgr_fs` / asset
      bookkeeping, scene layers and ordering, ray-vs-cube/sphere/sprite math
      (including alpha test), animation sampling, text2d state. Follow librl's
      `tests/unit` layout so the two suites look alike.
   3. **Shared behavior tests** (the real parity check): each scenario (build a
      scene, pick at pixel X, measure text, count animation frames, sample a joint)
      is written once against a small adapter header with one version for librl
-     and one for libsk, then run on both and compared with tolerances. Anything
+     and one for libwgrender, then run on both and compared with tolerances. Anything
      that depends on rasterization (e.g. text metrics from raylib vs fontstash)
      gets a loose tolerance or is marked as expected to differ.
   4. **Smoke tests**: both halves exist. Desktop: `make smoke` (headless build,
@@ -191,18 +191,18 @@ functions (value returns instead), public `fs_*` (internal; see
 ## Dev ergonomics / nice-to-have
 
 - **Hot reload (reload-on-change)** — watch source assets and re-`ensure`; we
-  already have `sk_fs` + `ensure`, so this is mostly a watcher. Big dev-loop win.
+  already have `wgr_fs` + `ensure`, so this is mostly a watcher. Big dev-loop win.
 - **Audio streaming** — ARCHITECTURE.md treats streamed-vs-decoded as an Audio
   property; verify large music streams rather than fully decoding into RAM.
 
 ## Future
 
-- **Networking outside libsk** (decided 2026-09-20): WebSockets and general
-  networking (HTTP APIs, multiplayer) as a separate library and repo built on libsk's
+- **Networking outside libwgrender** (decided 2026-09-20): WebSockets and general
+  networking (HTTP APIs, multiplayer) as a separate library and repo built on libwgrender's
   public API, like scripting and bindings. Why: they're game-specific; secure
   WebSockets on desktop need a bundled TLS library (mbedTLS or similar) with its own
-  security updates; message payloads (binary data) don't fit libsk's handle-only API
-  rules; and they need nothing from libsk's internals (poll from the frame callback,
+  security updates; message payloads (binary data) don't fit libwgrender's handle-only API
+  rules; and they need nothing from libwgrender's internals (poll from the frame callback,
   deliver on the main thread). librl's WebSocket code (`deps/wgutils/src/websocket`:
   the browser's WebSocket on web, a socket thread on desktop, no TLS) is the starting
-  point. It can also supply libsk's missing-file hook (above).
+  point. It can also supply libwgrender's missing-file hook (above).

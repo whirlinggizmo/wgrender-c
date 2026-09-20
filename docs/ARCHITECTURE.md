@@ -1,8 +1,8 @@
-# libsk resource architecture
+# libwgrender resource architecture
 
 Status: design locked, implementation in progress (see **Status** at the bottom).
 
-This document captures the resource model libsk is converging on: the
+This document captures the resource model libwgrender is converging on: the
 **Asset → Resource → Object** layering, reference counting and deduplication, the
 CPU-side vs GPU-side split, and how picking (including transparent/alpha-mask
 picking, the problem that kicked this off) sits on top of it.
@@ -11,7 +11,7 @@ picking, the problem that kicked this off) sits on top of it.
 
 ## 1. Three layers: Asset, Resource, Object
 
-Everything loadable in libsk is described by three distinct layers. Keeping them
+Everything loadable in libwgrender is described by three distinct layers. Keeping them
 distinct is the whole point — it's what lets us preload, share, refcount, and
 pick efficiently.
 
@@ -33,17 +33,17 @@ The decoded/uploaded runtime form of an asset. Resources are:
 - **deduplicated** — loading the same asset twice returns the *same* resource,
 - the natural home for **CPU-side data needed by the game** (e.g. picking).
 
-A resource can also be **generated**: `sk_mesh_create_plane`, `_cube`, `_sphere`,
+A resource can also be **generated**: `wgr_mesh_create_plane`, `_cube`, `_sphere`,
 `_cylinder`, `_cone`, `_capsule` and `_torus` make meshes with no file asset. They
 follow the same rules: deduplicated (by their parameters instead of a path),
 reference counted, and never changed once made (a differently sized placement scales
 its model, or makes another mesh).
 
 ```c
-sk_handle_t tex   = sk_texture_create("logo.png");      // Texture resource
-sk_handle_t mesh  = sk_mesh_create("gumshoe.glb");      // Mesh resource
-sk_handle_t audio = sk_audio_create("ethernight.mp3");  // Audio resource
-sk_handle_t font  = sk_font_create("JetBrainsMono");    // Font resource
+wgr_handle_t tex   = wgr_texture_create("logo.png");      // Texture resource
+wgr_handle_t mesh  = wgr_mesh_create("gumshoe.glb");      // Mesh resource
+wgr_handle_t audio = wgr_audio_create("ethernight.mp3");  // Audio resource
+wgr_handle_t font  = wgr_font_create("JetBrainsMono");    // Font resource
 ```
 
 ### Object — a *runtime instance* that references a resource
@@ -76,16 +76,16 @@ Naming notes / decisions:
   ever matters, clips can be split into their own resource later — not now.)
 - **Texture, not Image.** There is no separate public `Image` type; the Texture
   resource carries the optional CPU-side alpha mask used for picking.
-- **A render target is a Texture.** `sk_texture_create_target(w, h)` makes a texture
-  you can draw into (`sk_render_begin_texture`); everything that takes a texture
+- **A render target is a Texture.** `wgr_texture_create_target(w, h)` makes a texture
+  you can draw into (`wgr_render_begin_texture`); everything that takes a texture
   accepts it. See [PLAN-render-target.md](PLAN-render-target.md).
 - **Material is a resource that objects use, not an object.** Meshes loaded from
   glTF create one material per glTF material (the mesh's slots); models draw with
-  them unless they override a slot with `sk_model_set_material`. Materials are
-  created in code with `sk_material_create(shading)`, not from a path. See
+  them unless they override a slot with `wgr_model_set_material`. Materials are
+  created in code with `wgr_material_create(shading)`, not from a path. See
   [PLAN-materials.md](PLAN-materials.md).
 - **Light is an object with no resource.** Directional, point and spot lights are
-  created with `sk_light_create(type)` and added to scenes; nothing is loaded.
+  created with `wgr_light_create(type)` and added to scenes; nothing is loaded.
   See [PLAN-lighting.md](PLAN-lighting.md).
 - **Audio (resource) → Sound (object).** "audio" is the loaded data ("load the
   audio"); "a sound" is the concrete thing you play and position ("play a
@@ -120,7 +120,7 @@ This gives the behaviors we wanted:
 - **Preload once, spawn many.** Load a resource up front; create N objects that
   all share it. The resource lives until the last object *and* the owning load
   are gone.
-- **Implicit lifetime for simple callers.** `model = sk_model_create("x.glb")`
+- **Implicit lifetime for simple callers.** `model = wgr_model_create("x.glb")`
   loads-or-shares a Mesh and returns a Model; when the Model is destroyed and
   nothing else references the Mesh, the Mesh frees itself. Simple callers never
   touch resources.
@@ -128,7 +128,7 @@ This gives the behaviors we wanted:
 ### Why this differs from librl
 In librl, a model/texture is pushed to the GPU as soon as it's loaded, and the
 only way to reclaim it is to destroy the resource; instances are lightweight
-"draw that buffer again with this transform". libsk keeps the lightweight
+"draw that buffer again with this transform". libwgrender keeps the lightweight
 instance idea but makes the shared thing a **first-class, refcounted, deduped
 resource** with an explicit lifecycle, instead of an internal side effect of
 the first load.
@@ -171,7 +171,7 @@ the natural home for.
 ## 4. Picking
 
 Picking is a scene service: each drawable kind registers `bounds` and `pick`
-callbacks; `sk_scene_pick` casts a ray and dispatches.
+callbacks; `wgr_scene_pick` casts a ray and dispatches.
 
 ### Two phases
 1. **Broadphase** — ray vs the object's world-space AABB (cheap reject /
@@ -196,22 +196,22 @@ typedef struct {
     vec3_t point;   /* in the ray's space */
     vec3_t normal;  /* in the ray's space, oriented against the ray */
     float u, v;     /* barycentric weights of v1/v2 (triangle tests only) */
-} sk_ray_hit_t;
+} wgr_ray_hit_t;
 ```
 
-Resolvers (`sk_pick_result_from_local` / `_from_world`) convert that into the
+Resolvers (`wgr_pick_result_from_local` / `_from_world`) convert that into the
 public result, which carries **both** spaces plus a single world-space distance:
 
 ```c
 typedef struct {
     bool        hit;
-    sk_handle_t handle;
+    wgr_handle_t handle;
     float       distance;     /* world-space distance from ray origin */
     vec3_t      point_local;
     vec3_t      point_world;
     vec3_t      normal_local;
     vec3_t      normal_world;
-} sk_pick_result_t;
+} wgr_pick_result_t;
 ```
 
 ### Transparent / alpha-mask picking (the problem that started this)
@@ -221,16 +221,16 @@ registered a hit. Fix:
 
 1. The sprite's texture must retain a CPU **alpha mask** (created *pickable*).
 2. On a quad hit, the barycentric `u,v` map to texture UVs; we sample the mask
-   (`sk_texture_sample_alpha`).
+   (`wgr_texture_sample_alpha`).
 3. If alpha `< threshold`, the hit is **rejected** (the ray passes through).
 
 The mask lives on the **Texture resource** (CPU-side), and the test is enabled
-per **object** (`sk_sprite3d_set_pick_alpha_test`, with a threshold). This is the
+per **object** (`wgr_sprite3d_set_pick_alpha_test`, with a threshold). This is the
 canonical example of the layering paying off: shared CPU data on the resource,
 per-instance policy on the object.
 
-Current surface (pre-rename): `sk_texture_create_pickable` /
-`sk_texture_create_from_memory_pickable` opt a texture into keeping the mask.
+Current surface (pre-rename): `wgr_texture_create_pickable` /
+`wgr_texture_create_from_memory_pickable` opt a texture into keeping the mask.
 Target: the mask is generated from the texture's alpha when a sprite enables
 alpha-test picking, so a separate "pickable" constructor isn't required.
 
@@ -238,12 +238,12 @@ alpha-test picking, so a separate "pickable" constructor isn't required.
 
 ## 5. The Shape decision
 
-**Since 2026-09-17 shapes are two types**, `sk_shape2d` (screen space) and
-`sk_shape3d` (world), matching sprite2d/sprite3d and text2d/text3d: hat (1) below
-is now `sk_shape2d_draw_*` plus retained 2D shapes, hats (2) and (3) are
-`sk_shape3d_*`. The reasoning below stands as written.
+**Since 2026-09-17 shapes are two types**, `wgr_shape2d` (screen space) and
+`wgr_shape3d` (world), matching sprite2d/sprite3d and text2d/text3d: hat (1) below
+is now `wgr_shape2d_draw_*` plus retained 2D shapes, hats (2) and (3) are
+`wgr_shape3d_*`. The reasoning below stands as written.
 
-`sk_shape` wore **three hats**; only one overlaps Model:
+`wgr_shape` wore **three hats**; only one overlaps Model:
 
 1. **Immediate 2D primitives** (`draw_rectangle/circle/line/triangle`) — the 2D
    drawing API. **Keep.** Not a mesh, not an object.
@@ -253,7 +253,7 @@ is now `sk_shape2d_draw_*` plus retained 2D shapes, hats (2) and (3) are
 3. **Retained cube/sphere *objects*** (`shape_create` + `set_cube/set_sphere`,
    with transform/color/visible/pickable) — **retire.** A retained cube/sphere
    is just `Model + generated Mesh + tint`. With mesh generators
-   (`sk_mesh_create_cube/sphere/plane`), `sk_model_create_cube()` fully replaces
+   (`wgr_mesh_create_cube/sphere/plane`), `wgr_model_create_cube()` fully replaces
    it, giving one 3D scene-object type, one pick path, and materials/lighting/
    sharing for free.
 
@@ -266,25 +266,25 @@ Costs accepted by retiring (3):
   if needed.
 
 Net: keep hats (1) and (2) as a standalone **draw/gizmo** utility (candidate
-future rename `sk_shape3d_draw_*` → `sk_draw_*`); fold hat (3) into Model.
+future rename `wgr_shape3d_draw_*` → `wgr_draw_*`); fold hat (3) into Model.
 
 ---
 
 ## 6. Handle kinds
 
-Resources and objects are separate handle kinds (`include/sk_handle.h`).
+Resources and objects are separate handle kinds (`include/wgr_handle.h`).
 
 | Concept        | Layer    | Handle kind (current → target)                |
 |----------------|----------|-----------------------------------------------|
-| Texture        | resource | `SK_HANDLE_KIND_TEXTURE`                       |
-| Sprite2d/3d    | object   | `SK_HANDLE_KIND_SPRITE2D` / `…SPRITE3D`       |
-| Mesh           | resource | `SK_HANDLE_KIND_MESH`                          |
-| Model          | object   | `SK_HANDLE_KIND_MODEL`                         |
+| Texture        | resource | `WGR_HANDLE_KIND_TEXTURE`                       |
+| Sprite2d/3d    | object   | `WGR_HANDLE_KIND_SPRITE2D` / `…SPRITE3D`       |
+| Mesh           | resource | `WGR_HANDLE_KIND_MESH`                          |
+| Model          | object   | `WGR_HANDLE_KIND_MODEL`                         |
 | Primitive      | submesh  | (internal; not a handle)                       |
-| Audio          | resource | `SK_HANDLE_KIND_AUDIO`                          |
-| Sound          | object   | `SK_HANDLE_KIND_SOUND`                          |
-| Font           | resource | `SK_HANDLE_KIND_FONT`                          |
-| Text2d/3d      | object   | `SK_HANDLE_KIND_TEXT2D` / `…TEXT3D`           |
+| Audio          | resource | `WGR_HANDLE_KIND_AUDIO`                          |
+| Sound          | object   | `WGR_HANDLE_KIND_SOUND`                          |
+| Font           | resource | `WGR_HANDLE_KIND_FONT`                          |
+| Text2d/3d      | object   | `WGR_HANDLE_KIND_TEXT2D` / `…TEXT3D`           |
 
 ---
 
@@ -294,7 +294,7 @@ One screen space: **logical pixels, top-left origin, y down**, used by input
 positions, picks, clip rectangles and every 2D draw. The world is right-handed with
 **+y up**, and all angles everywhere are radians. High-DPI is invisible to callers —
 the scissor rectangle is the only place framebuffer pixels appear, and
-`sk_render_push_clip` converts for you. Texture source rectangles are in texture
+`wgr_render_push_clip` converts for you. Texture source rectangles are in texture
 pixels, also top-left.
 
 What differs per noun is **where an object's position sits on it**, and each default
@@ -328,41 +328,41 @@ file" shortcut.
 
 ```c
 /* Resource — from a path (load-or-share: deduped, refcounted) or a generator. */
-sk_handle_t sk_mesh_create(const char *path);
-sk_handle_t sk_mesh_create_cube(float w, float h, float l);   /* generated */
-void        sk_mesh_release(sk_handle_t mesh);
+wgr_handle_t wgr_mesh_create(const char *path);
+wgr_handle_t wgr_mesh_create_cube(float w, float h, float l);   /* generated */
+void        wgr_mesh_release(wgr_handle_t mesh);
 
 /* Object — from a resource handle (adds its own reference). */
-sk_handle_t sk_model_create(sk_handle_t mesh);
+wgr_handle_t wgr_model_create(wgr_handle_t mesh);
 ```
 
 The same pattern applies to texture/sprite, audio/sound, font/text.
 
-**Loading is split from creation** (`include/sk_asset.h`): *ensure* the file is
+**Loading is split from creation** (`include/wgr_asset.h`): *ensure* the file is
 local (async), then *create* synchronously from the path in the ready callback —
 which receives a path, never bytes. Before the callback fires, the asset pipeline
 also loads the file as the resource its extension names (decoded on worker
 threads, uploaded on the main thread within a per-frame budget), so the create in
 the callback only finds it. Each resource type registers a loader
-(`src/internal/sk_loader.h`: prepare on any thread, finish on the main thread in
+(`src/internal/wgr_loader.h`: prepare on any thread, finish on the main thread in
 steps); the sync create runs the same loader inline. See
 [PLAN-pipeline.md](PLAN-pipeline.md).
 
 ```c
 static void on_ready(const char *path, void *user) {
-    sk_handle_t mesh  = sk_mesh_create(path);   /* resource ← file        */
-    g_model           = sk_model_create(mesh);  /* object   ← resource    */
-    sk_mesh_release(mesh);                       /* model keeps its own ref */
+    wgr_handle_t mesh  = wgr_mesh_create(path);   /* resource ← file        */
+    g_model           = wgr_model_create(mesh);  /* object   ← resource    */
+    wgr_mesh_release(mesh);                       /* model keeps its own ref */
 }
-sk_asset_add_task(sk_asset_ensure_async(path, NULL, SK_ASSET_NONE), on_ready, on_failed, ctx);
+wgr_asset_add_task(wgr_asset_ensure_async(path, NULL, WGR_ASSET_NONE), on_ready, on_failed, ctx);
 ```
 
 **The path is logical; the asset layer decides which file it is.** Ensuring
 `textures/rock.png` may load another file, tried in order until one exists:
 
-1. **Redirects** (`sk_asset_add_redirect`): path rules stack, newest first, so a mod
+1. **Redirects** (`wgr_asset_add_redirect`): path rules stack, newest first, so a mod
    or a translation overrides only the files it has; the file's own path comes last.
-2. **Device variants** (path mappers, `src/internal/sk_loader.h`): `rock.ktx` becomes
+2. **Device variants** (path mappers, `src/internal/wgr_loader.h`): `rock.ktx` becomes
    the compressed file this GPU can sample, falling back to `rock.png`
    ([PLAN-textures.md](PLAN-textures.md)).
 3. **Where it downloads from** (web): the asset host, or a redirect's URL (a CDN); the
@@ -370,8 +370,8 @@ sk_asset_add_task(sk_asset_ensure_async(path, NULL, SK_ASSET_NONE), on_ready, on
 
 The callback receives the file actually found, and files it references (a glTF's
 buffers and images) resolve the same way: the loader reads them from where the asset
-layer found them (`sk_asset_found_path`). Direct `sk_*_create(path)` calls load the
-path as given. Networking beyond this (WebSockets, HTTP APIs) is outside libsk
+layer found them (`wgr_asset_found_path`). Direct `wgr_*_create(path)` calls load the
+path as given. Networking beyond this (WebSockets, HTTP APIs) is outside libwgrender
 ([ROADMAP.md](ROADMAP.md)).
 
 ---
@@ -379,22 +379,22 @@ path as given. Networking beyond this (WebSockets, HTTP APIs) is outside libsk
 ## 7b. Core and optional subsystems
 
 A program links only the subsystems it uses. The **core** is always there: the
-runtime (`sk.c`), platform and window, input, rendering (sokol_gl), cameras, scenes,
+runtime (`wgr.c`), platform and window, input, rendering (sokol_gl), cameras, scenes,
 picking math, files and assets, fonts and text, 2D/3D shapes, events and debug. The
-rest are **optional modules** (`src/internal/sk_module.h`): textures, lights,
+rest are **optional modules** (`src/internal/wgr_module.h`): textures, lights,
 materials, environments, models (with glTF), sprites and their batcher, particles,
 2D/3D text objects, audio and sounds (with their decoders), and gamepads.
 
 - An optional subsystem registers itself from a constructor in its own source file
-  (`SK_MODULE`): a static library links that file only when the program references
-  something in it (`sk_model_create`, `sk_sound_play`, ...). The registration gives
+  (`WGR_MODULE`): a static library links that file only when the program references
+  something in it (`wgr_model_create`, `wgr_sound_play`, ...). The registration gives
   the runtime its init order, init / deinit, and per-frame work (input: begin the
   frame before the ticks, end each tick, finish the frame after its callback; update
   after the ticks; flush before the render passes; end of frame after them). The runtime starts
   the linked modules after the core, in order, and stops them before it, in reverse.
 - The core never calls an optional subsystem by name. What it needs from one goes
-  through hooks the subsystem sets in its init: `sk_render_hooks` (draw models and
-  sprite batches, render-target textures) and `sk_scene_hooks` (environments,
+  through hooks the subsystem sets in its init: `wgr_render_hooks` (draw models and
+  sprite batches, render-target textures) and `wgr_scene_hooks` (environments,
   lighting, sprite grouping). A hook that isn't set means the subsystem isn't linked,
   and the core does without (no lighting, no background).
 - Asset loaders register in the subsystem's init, at startup, so assets still
@@ -409,40 +409,40 @@ drawing models ~240 KB, one using everything ~300 KB (all ~311 KB before).
 
 ## 8. Status
 
-- **Done — Mesh/Model split + vocabulary (Phase 1).** `sk_model.c` separates a
+- **Done — Mesh/Model split + vocabulary (Phase 1).** `wgr_model.c` separates a
   shared, refcounted, path-deduped resource from a lightweight instance, in the
   final vocabulary:
-  - **Mesh** resource (`sk_mesh_t`, kind `SK_HANDLE_KIND_MESH`) owns primitives
-    (`sk_primitive_t`) + GPU buffers + retained pick geometry + skeleton + clips
+  - **Mesh** resource (`wgr_mesh_t`, kind `WGR_HANDLE_KIND_MESH`) owns primitives
+    (`wgr_primitive_t`) + GPU buffers + retained pick geometry + skeleton + clips
     + merged AABB + `ref_count` + `path`;
-  - **Model** object (`sk_model_t`, kind `SK_HANDLE_KIND_MODEL`) owns
+  - **Model** object (`wgr_model_t`, kind `WGR_HANDLE_KIND_MODEL`) owns
     transform / tint / visibility / animation playback / joint matrices, and
     references a Mesh via its `mesh` handle;
   - two handle pools; `create_mesh`/`find_mesh_by_path`/`retain_mesh`/
     `release_mesh`/`create_model`;
-  - public API: `sk_mesh_create` / `sk_mesh_create_from_memory` /
-    `sk_model_create_from_mesh` / `sk_mesh_release`, plus backward-compatible
-    `sk_model_create` / `sk_model_create_from_memory` sugar. Builds clean (lib +
+  - public API: `wgr_mesh_create` / `wgr_mesh_create_from_memory` /
+    `wgr_model_create_from_mesh` / `wgr_mesh_release`, plus backward-compatible
+    `wgr_model_create` / `wgr_model_create_from_memory` sugar. Builds clean (lib +
     examples + `make check`).
 
-- **Pending — procedural mesh generators** (`sk_mesh_create_cube/sphere/plane`)
+- **Pending — procedural mesh generators** (`wgr_mesh_create_cube/sphere/plane`)
   and **retire the retained Shape object** into Model; keep the immediate
   draw/gizmo API.
 
 - **Pending — Texture resource split** (Sprite objects share Texture resources;
   alpha mask on the resource, generated on demand for alpha-test picking).
 
-- **Done — Audio/Sound split, Music folded in.** `sk_audio.c` owns an **Audio**
-  resource (`sk_audio_t`, kind `SK_HANDLE_KIND_AUDIO`) holding decoded PCM,
-  refcounted and path-deduped; the mixer plays **Sound** objects (`sk_sound_t`,
+- **Done — Audio/Sound split, Music folded in.** `wgr_audio.c` owns an **Audio**
+  resource (`wgr_audio_t`, kind `WGR_HANDLE_KIND_AUDIO`) holding decoded PCM,
+  refcounted and path-deduped; the mixer plays **Sound** objects (`wgr_sound_t`,
   kind SOUND) that carry playback state (`pos`/`volume`/`pitch`/`loop`/`playing`)
   and reference an Audio by handle. There is **no separate Music type** — a
-  looping background track is just a Sound with `sk_sound_set_loop(true)`
-  (`sk_music_*` and kind MUSIC are gone). `sk_sound_play/pause/resume/stop`.
+  looping background track is just a Sound with `wgr_sound_set_loop(true)`
+  (`wgr_music_*` and kind MUSIC are gone). `wgr_sound_play/pause/resume/stop`.
 
 - **Pending — streamed Audio.** Today every Audio is fully decoded into PCM, so a
   long music track is decoded whole into RAM. The doc's *decoded | streamed* load
-  mode (chosen at `sk_audio_create`) is the proper fix: the Audio holds the shared
+  mode (chosen at `wgr_audio_create`) is the proper fix: the Audio holds the shared
   compressed source, and a Sound playing a streamed Audio carries its own decoder
   + ring buffer (single-buffer sharing only works for decoded PCM). Pairs with
-  the `sk_fs`/host-fetch work. `play_sfx`/`play_music` sugar optional on top.
+  the `wgr_fs`/host-fetch work. `play_sfx`/`play_music` sugar optional on top.

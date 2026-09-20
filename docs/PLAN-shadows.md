@@ -18,12 +18,12 @@ also what makes a directional light look like a sun rather than a flat wash.
 ## Where we are
 
 - Lights are scene objects (directional, point, spot), resolved per scene draw into a
-  `sk_light_env_t` and selected per model (8 at a time, by contribution).
-- Model shading lives in `src/shaders/sk_pbr.glsl`, shared by models and lit sprites;
-  custom shaders get the same lights through `sk_frame` (`shaders/sk.glsl`).
-- Render targets exist (`sk_texture_create_target`), the frame runs target passes
+  `wgr_light_env_t` and selected per model (8 at a time, by contribution).
+- Model shading lives in `src/shaders/wgr_pbr.glsl`, shared by models and lit sprites;
+  custom shaders get the same lights through `wgr_frame` (`shaders/wgr.glsl`).
+- Render targets exist (`wgr_texture_create_target`), the frame runs target passes
   before the screen pass, and screen effects already add their own passes after it
-  (`src/sk_effect.c`) — so "more passes before the screen" is a solved shape.
+  (`src/wgr_effect.c`) — so "more passes before the screen" is a solved shape.
 - Nothing writes or reads a depth map; no light has any notion of casting.
 
 ## Proposed design
@@ -31,53 +31,53 @@ also what makes a directional light look like a sun rather than a flat wash.
 ### API
 
 ```c
-/* include/sk_light.h */
+/* include/wgr_light.h */
 /* Cast shadows from this light (off by default: a shadow map costs a pass and
  * memory). Directional lights first; spot and point come later. */
-bool sk_light_set_casts_shadows(sk_handle_t light, bool casts);
-bool sk_light_get_casts_shadows(sk_handle_t light);
+bool wgr_light_set_casts_shadows(wgr_handle_t light, bool casts);
+bool wgr_light_get_casts_shadows(wgr_handle_t light);
 
 /* Depth offsets that stop a surface shadowing itself, in shadow-map depth units:
  * a constant, and one scaled by how steeply the surface faces the light.
  * Defaults suit a scene a few tens of units across. */
-bool sk_light_set_shadow_bias(sk_handle_t light, float constant, float slope);
+bool wgr_light_set_shadow_bias(wgr_handle_t light, float constant, float slope);
 
 /* Pixels each way of this light's shadow map (rounded to a power of two, 256 to
  * 4096; default 2048). Bigger is sharper and slower. */
-bool sk_light_set_shadow_map_size(sk_handle_t light, int size);
+bool wgr_light_set_shadow_map_size(wgr_handle_t light, int size);
 
 /* How far from the camera the light's shadows reach (world units; default 50).
  * The map covers that much, so a smaller distance is a sharper shadow. */
-bool sk_light_set_shadow_distance(sk_handle_t light, float distance);
+bool wgr_light_set_shadow_distance(wgr_handle_t light, float distance);
 
-/* include/sk_model.h */
+/* include/wgr_model.h */
 /* Whether this model is drawn into shadow maps (default: yes) and whether shadows
  * darken it (default: yes). A character casts; a ground plane usually only
  * receives; a glow or a skybox does neither. */
-bool sk_model_set_casts_shadow(sk_handle_t model, bool casts);
-bool sk_model_set_receives_shadow(sk_handle_t model, bool receives);
+bool wgr_model_set_casts_shadow(wgr_handle_t model, bool casts);
+bool wgr_model_set_receives_shadow(wgr_handle_t model, bool receives);
 ```
 
 Nothing else changes: a program that enables shadows on its sun gets them everywhere
 lit shading runs — models, lit 3D sprites, and custom shaders that call the new
-`sk_shadow()` helper.
+`wgr_shadow()` helper.
 
 ### Frame shape
 
-A new optional module, `src/sk_shadow.c`, registers a render hook that runs before
+A new optional module, `src/wgr_shadow.c`, registers a render hook that runs before
 the frame's other passes:
 
-1. While the frame is recorded, each scene draw already pushes a `sk_light_env_t` and
+1. While the frame is recorded, each scene draw already pushes a `wgr_light_env_t` and
    queues model items against it. The shadow module notes which envs have a casting
    light.
 2. Before the target and screen passes, for each casting light: fit the light's
    projection, open a pass into that light's depth map, and replay the env's model
    items with a depth-only pipeline (no fragment work beyond alpha cutout).
-3. The lit shaders then sample the map. `sk_frame` gains the light's view-projection
+3. The lit shaders then sample the map. `wgr_frame` gains the light's view-projection
    matrix and its parameters, so models, sprites and custom shaders read it the same
-   way (`.skshader` format 6 — custom shaders need rebuilding).
+   way (`.wgrshader` format 6 — custom shaders need rebuilding).
 
-The core stays as it is: this is another `sk_render_hooks` entry, like screen effects,
+The core stays as it is: this is another `wgr_render_hooks` entry, like screen effects,
 so a program with no shadows doesn't link the module (`make check`).
 
 ### Fitting
@@ -95,7 +95,7 @@ depth to the map, and averages a small kernel (3x3 by default) for a soft edge.
 
 Two constraints found while planning:
 
-- **Sampler slots are full.** libsk owns sampler slots 8–11 (the environment cube,
+- **Sampler slots are full.** libwgrender owns sampler slots 8–11 (the environment cube,
   the BRDF table, a sprite's texture, sprite data / joints), and 12 is sokol's limit.
   The environment cube and the BRDF table are both sampled linear-clamp, so they can
   share one slot, freeing one for the shadow map.
@@ -103,10 +103,10 @@ Two constraints found while planning:
 
 ### Custom shaders
 
-`shaders/sk.glsl` gains, beside `sk_light()` and the environment helpers:
+`shaders/wgr.glsl` gains, beside `wgr_light()` and the environment helpers:
 
 ```glsl
-float sk_shadow(int light, vec3 world_pos, vec3 normal);  /* 1 lit, 0 fully shadowed */
+float wgr_shadow(int light, vec3 world_pos, vec3 normal);  /* 1 lit, 0 fully shadowed */
 ```
 
 so a custom shader lights a surface the way built-in materials do, shadows included.
@@ -114,7 +114,7 @@ so a custom shader lights a surface the way built-in materials do, shadows inclu
 ## Phasing
 
 1. **One directional light**: casting flag, depth pass, fitted orthographic map,
-   PCF, models cast and receive, lit sprites receive, `sk_shadow()` for custom
+   PCF, models cast and receive, lit sprites receive, `wgr_shadow()` for custom
    shaders, an example. Everything above.
 2. **Spot lights** (a perspective map, the same machinery) and **several casting
    lights** at once (a map each, capped). Done; see "Phase 2 as built".
@@ -124,7 +124,7 @@ so a custom shader lights a surface the way built-in materials do, shadows inclu
 
 ## Decisions
 
-1. **Opt in per light** (`sk_light_set_casts_shadows`, off by default), rather than
+1. **Opt in per light** (`wgr_light_set_casts_shadows`, off by default), rather than
    shadows on for every light automatically. Recommend: opt in — a shadow map is a
    pass and 16 MB at the default size, and most lights in a scene shouldn't pay it.
 2. **Phase 1 is one casting light** (the first casting directional light in the
@@ -137,35 +137,35 @@ so a custom shader lights a surface the way built-in materials do, shadows inclu
    `SG_SAMPLERTYPE_COMPARISON` on all three backends, it halves the memory, and
    hardware comparison gives smoother PCF. Fall back to R32F only if a backend
    refuses it.
-4. **Per-model receive flag** (`sk_model_set_receives_shadow`) as well as the cast
+4. **Per-model receive flag** (`wgr_model_set_receives_shadow`) as well as the cast
    flag. Recommend: yes — it costs one bit and one branch, and it's how you keep a
    skybox, a glowing object or a UI-ish model out of the shading.
-5. **The map size lives on the light** (`sk_light_set_shadow_map_size`) rather than a
+5. **The map size lives on the light** (`wgr_light_set_shadow_map_size`) rather than a
    global quality setting. Recommend: on the light — a flashlight and a sun want very
    different sizes, and a global knob can come later as a multiplier.
-6. **Shadow distance on the light** (`sk_light_set_shadow_distance`, default 50)
+6. **Shadow distance on the light** (`wgr_light_set_shadow_distance`, default 50)
    rather than fitting the whole scene's bounds automatically. Recommend: on the
    light — automatic fitting over a big scene gives uselessly blurry shadows, and
    this is the one number that trades sharpness for range. Cascades (phase 3) remove
    the trade.
-7. **`.skshader` format 6**: `sk_frame` grows the shadow matrix and parameters, so
+7. **`.wgrshader` format 6**: `wgr_frame` grows the shadow matrix and parameters, so
    custom shaders must be rebuilt (as they were for formats 4 and 5). Recommend: yes,
    and keep refusing older files rather than carrying two layouts.
 
 ## Phase 1 as built
 
-- **Opt in twice over.** `src/sk_shadow.c` is an optional module, so a program links
+- **Opt in twice over.** `src/wgr_shadow.c` is an optional module, so a program links
   the depth pass only if it calls one of the shadow functions — which is why they live
-  there rather than beside the other light setters. (They started in `sk_light.c`; the
+  there rather than beside the other light setters. (They started in `wgr_light.c`; the
   linker dropped the whole module and the first render came out with no shadows at
   all.) At runtime a light casts only when asked, and a model says whether it casts
   and whether it receives.
-- **One casting light**, the first the scene finds (`sk_light_env_t.shadow_light`),
+- **One casting light**, the first the scene finds (`wgr_light_env_t.shadow_light`),
   and only a directional one: spot and point lights refuse with a warning.
 - **The fit** covers the slice of the camera's view out to the light's shadow
   distance, as a square so its texel size doesn't change as the camera turns, snapped
   to whole texels so shadows don't crawl, with the near plane pulled back 50 units so
-  casters behind the camera still cast. `sk_shadow_fit_directional` is pure and
+  casters behind the camera still cast. `wgr_shadow_fit_directional` is pure and
   tested.
 - **The bias is measured in shadow texels**, not in depth units. It started in depth
   units, which read as "0.0015" but meant 20 cm along the light over the map's 155-unit
@@ -176,38 +176,38 @@ so a custom shader lights a surface the way built-in materials do, shadows inclu
   the depth back, which is what lifts shadows off their feet.
 - **A shadow fades out over the last tenth of the map** instead of being cut through
   where the light's coverage ends.
-- **Strength and tint** (`sk_light_set_shadow_strength`, `_set_shadow_color`, added
+- **Strength and tint** (`wgr_light_set_shadow_strength`, `_set_shadow_color`, added
   during implementation): how much of the light a shadow takes away, and a colour
   mixed into what it leaves. Shadows are really coloured by the ambient and
   environment light that still reaches them; the tint is the stylised knob.
 - **The sampling runs for every pixel of a draw**, with the "outside the map" cases
   folded in as weights rather than early returns: a texture comparison in branchy code
   is undefined where the GPU needs neighbouring pixels to filter.
-- **Sampler slots were full** (libsk owns 8–11, sokol allows 12), so the environment
+- **Sampler slots were full** (libwgrender owns 8–11, sokol allows 12), so the environment
   cube and the BRDF table now share one sampler — both are linear and clamped.
-- `.skshader` format 6: `sk_frame` carries the light's matrix and parameters, and
-  `sk_shadow(i, pos, n)` gives custom shaders the same answer built-in materials use.
+- `.wgrshader` format 6: `wgr_frame` carries the light's matrix and parameters, and
+  `wgr_shadow(i, pos, n)` gives custom shaders the same answer built-in materials use.
 
 ## Phase 2 as built
 
-- **One depth array, a layer per casting light** (`SK_MAX_SHADOW_LIGHTS` = 4), rather
-  than a texture each. Custom shaders have almost no sampler slots left (libsk owns 8
+- **One depth array, a layer per casting light** (`WGR_MAX_SHADOW_LIGHTS` = 4), rather
+  than a texture each. Custom shaders have almost no sampler slots left (libwgrender owns 8
   and 9 of the twelve), and an array costs one slot however many lights cast. Each
   layer gets its own attachment view (`sg_view_desc.depth_stencil_attachment.slice`)
   and its own pass.
 - **Layers share one size**, which is what an array is: the largest `shadow_map_size`
-  any casting light asked for wins, and `sk_light_set_shadow_map_size` says so. Keep
+  any casting light asked for wins, and `wgr_light_set_shadow_map_size` says so. Keep
   them equal unless you mean it — a 2048 sun drags a torch's layer up with it. The
   alternative, an atlas with per-light tiles, buys memory back at the cost of uv rects
   and PCF that must not bleed across tile borders; not worth it yet.
 - **A light's slot rides in `u_light_spot[i].z`** (-1: it casts nothing), so the
   per-light arrays don't grow at all. Everything else is per slot: the matrix, the
   texel sizes, the bias, the tint and the strength — about 460 bytes added to the
-  frame block. `.skshader` format 7.
+  frame block. `.wgrshader` format 7.
 - **Spot lights fit their own cone**: a perspective frustum from the light, with the
   field of view taken from the outer cone angle plus a tenth so the edge isn't on the
   last texel, reaching the nearer of the light's range and its shadow distance. The
-  near plane is a hundredth of that reach. `sk_shadow_fit_spot` is pure and tested,
+  near plane is a hundredth of that reach. `wgr_shadow_fit_spot` is pure and tested,
   like the directional fit.
 - **Point lights still refuse**, and say why: they want six maps, one each way.
 - The scene hands out slots in the order it finds casting lights; past four, a light
@@ -277,7 +277,7 @@ before there was a way to see what the map held.
   phase 3 work — skip a light's pass when nothing it sees has moved — and say cascades
   should be budgeted as passes *and* pixels.
 
-  An earlier run of this benchmark stopped at 1000 models, because libsk dropped model
+  An earlier run of this benchmark stopped at 1000 models, because libwgrender dropped model
   placements past 1024 a frame: asking for 1600 and 4096 measured the same 1024 twice,
   which showed up as two rows with identical submission times. The queue grows now, so
   4000 is a real 4000 — about 1.2 microseconds a mesh to light, and a shadow pass adds
