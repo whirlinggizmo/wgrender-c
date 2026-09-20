@@ -360,8 +360,10 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       box. The bounds come free: sk_model already builds a placement's world AABB to
       pick its lights, and now keeps it. shadowbench at 4000 models, where the sun's
       40-unit reach covers a fraction of a 140-unit grid: a casting light cost ~1.6 ms
-      over no shadows and now costs ~0.1 (6.55 -> 5.34 ms), two lights ~3.2 ms and now
-      ~0.1 (8.16 -> 5.36). At 100 models, where the fit covers everything, nothing moves
+      over the same scene with no shadows and now costs ~0.1, two lights ~3.2 ms and now
+      ~0.1 — read as the gap to the "off" row in the same run, because a row carries
+      about +/-0.3 ms of run-to-run noise (the "off" row alone measured 4.96 to 5.57
+      over five runs). At 100 models, where the fit covers everything, nothing moves
 - [ ] Models are one draw call each: 4000 lit models cost about 5 ms a frame on an
       RTX 4080 (shadowbench), and ~95% of that is CPU submission — roughly 1.2
       microseconds a model, whatever the model is. Sprites already avoid this (a run

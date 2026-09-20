@@ -142,9 +142,11 @@ cull", which point the camera outward from the grid so every model is behind it:
 
 So 4000 models nobody can see cost 6.78 ms before and 0.50 ms now, and what is left is
 almost entirely the test itself — about 0.1 microseconds a member against the 1.2 it
-saves. The shadow pass is skipped along with them: with nothing queued, nothing
-receives. With everything in view the bench is unchanged (4000 models, no shadows: 4.96
-against 5.18 before — the cached world matrix pays for the test).
+saves. Both rows come from the same run, so the gap between them is the measurement;
+the shadow pass is skipped along with the models, since with nothing queued nothing
+receives. With everything in view the bench doesn't move outside its ±0.3 ms run-to-run
+noise (4000 models, no shadows: 4.96 ms against 5.18 before), the cached world matrix
+paying for the test.
 
 ## Phase 2 as built
 
@@ -170,18 +172,23 @@ frustum helpers live, so the scene and the depth pass grow boxes the same way.
 
 `make shadowbench DESKTOP=1`, RTX 4080, 4000 models — the sun's `shadow_distance` is
 40 units and the grid is 140 across, so most casters were being drawn into a map that
-could never hold them:
+could never hold them.
 
-| case | before phase 2 | after |
-|------|---------------:|------:|
-| no shadows ("off") |  4.96 ms | 5.25 ms |
-| sun casting, 1024  |  6.55 ms | 5.34 ms |
-| sun and spot, 1024 |  8.16 ms | 5.36 ms |
+Read this bench as **differences inside one run**, never as one run against another:
+the same "off" row measured 4.96, 5.25, 5.27, 5.40 and 5.57 ms over five runs, so a
+number carries about ±0.3 ms of run-to-run noise. What a casting light costs is the gap
+between its row and the "off" row in the same run:
 
-A casting light went from ~1.6 ms to ~0.1 ms over the same scene with no shadows, and a
-second casting light from ~3.2 ms to ~0.1 ms. At 100 models nothing moves: the fit
-covers the whole scene, so nothing is culled, which is the check that it isn't culling
-what the map needs.
+| over "off", 4000 models | before phase 2 | after |
+|-------------------------|---------------:|------:|
+| sun casting, 1024       |        +1.6 ms | +0.1 ms, and ±0.3 across runs |
+| sun and spot, 1024      |        +3.2 ms | +0.1 ms, and ±0.3 across runs |
+
+So the pass has gone from the largest cost in the frame to something this bench can no
+longer separate from noise: in three repeat runs the casting rows landed above and
+below their own "off" row. At 100 models nothing moves either, because the fit covers
+the whole scene and nothing is culled — which is the check that it isn't culling what
+the map needs.
 
 ## Verification
 
