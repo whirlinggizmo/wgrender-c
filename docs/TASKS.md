@@ -344,9 +344,13 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       RTX 4080 (shadowbench), and ~95% of that is CPU submission — roughly 1.2
       microseconds a model, whatever the model is. Sprites already avoid this (a run
       sharing texture, material, camera and clip is one instanced draw); models have no
-      equivalent, so a forest of identical trees pays per tree. Instancing models that
-      share a mesh and material would be the same shape as the sprite batch: collect
-      per-instance transforms into a buffer, one draw per group. The queue growing (above)
+      equivalent, so a forest of identical trees pays per tree. Sharing the mesh barely
+      helps: 4000 models built from three shared meshes cost 4.53 ms against 5.18 ms
+      with a mesh each (1.13 vs 1.30 microseconds a model), because sokol's bindings
+      cache skips re-binding the same buffers but the uniform uploads and the draw call
+      itself are per model regardless. So instancing's win is collapsing N draws into
+      one, not avoiding buffer churn. It would be the same shape as the sprite batch:
+      collect per-instance transforms into a buffer, one draw per group. The queue growing (above)
       raised the ceiling on how many can be queued; this is the ceiling on how many are
       worth queuing
 - [ ] Lit particles: emitter particles are unlit — emitters have their own program
