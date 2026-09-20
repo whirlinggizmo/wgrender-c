@@ -44,7 +44,7 @@ rl_font_destroy                         ported   wgr_font_release      resources
 rl_font_get_default                     ported   wgr_text_get_default_font   (0 = built in; wgr_text_set_default_font replaces it)
 
 # --- rl_fs.h (filesystem is internal in libwgrender; see docs/PLAN-wgr_fs.md) ---
-rl_fs_clear                             dropped  wgr_fs is internal
+rl_fs_clear                             ported   wgr_asset_clear_cache   the cache is what it cleared
 rl_fs_deinit                            dropped  wgr_fs is internal
 rl_fs_deinit_async                      dropped  wgr_fs is internal
 rl_fs_exists                            dropped  wgr_fs is internal
@@ -58,7 +58,7 @@ rl_fs_mkdir                             dropped  wgr_fs is internal
 rl_fs_normalize_path                    dropped  wgr_fs is internal
 rl_fs_read                              dropped  wgr_fs is internal; bytes never cross into user code
 rl_fs_read_free                         dropped  wgr_fs is internal
-rl_fs_remove                            dropped  wgr_fs is internal
+rl_fs_remove                            ported   wgr_asset_evict         drops one cached asset
 rl_fs_restore_async                     dropped  wgr_fs is internal
 rl_fs_rmdir                             dropped  wgr_fs is internal
 rl_fs_write                             dropped  wgr_fs is internal; bytes never cross into user code

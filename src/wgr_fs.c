@@ -118,6 +118,31 @@ EM_JS(void, wgr_fs_store_put, (const char *full_c, const unsigned char *data, in
         console.warn("wgr_fs: couldn't cache " + full, e);
     }
 });
+
+/* Forget one cached file, or all of them. A cached file can be wrong -- a host that
+ * compresses served us gzip bytes under an asset's name until 2026-09-20 -- and
+ * without this there is no way back: the bad copy is read in preference to the
+ * network, for good. */
+EM_JS(void, wgr_fs_store_delete, (const char *full_c), {
+    const full = UTF8ToString(full_c);
+    if (Module.wgr_fs_keys) Module.wgr_fs_keys.delete(full);
+    if (!Module.wgr_fs_db) return;
+    try {
+        Module.wgr_fs_db.transaction("files", "readwrite").objectStore("files").delete(full);
+    } catch (e) {
+        console.warn("wgr_fs: couldn't forget " + full, e);
+    }
+});
+
+EM_JS(void, wgr_fs_store_clear, (void), {
+    if (Module.wgr_fs_keys) Module.wgr_fs_keys.clear();
+    if (!Module.wgr_fs_db) return;
+    try {
+        Module.wgr_fs_db.transaction("files", "readwrite").objectStore("files").clear();
+    } catch (e) {
+        console.warn("wgr_fs: couldn't clear the cache", e);
+    }
+});
 #else
 #define WGR_FS_DEFAULT_ROOT ""
 #endif
@@ -254,6 +279,28 @@ bool wgri_fs_read(const char *path, unsigned char **out_data, int *out_size)
 void wgri_fs_read_free(unsigned char *data)
 {
     free(data);
+}
+
+bool wgri_fs_remove(const char *path)
+{
+    char full[512];
+    resolve(path, full, sizeof(full));
+    if (full[0] == '\0') {
+        return false;
+    }
+#ifdef __EMSCRIPTEN__
+    wgr_fs_store_delete(full); /* the cache, so the next read goes to the network */
+#endif
+    return remove(full) == 0;
+}
+
+void wgri_fs_clear(void)
+{
+#ifdef __EMSCRIPTEN__
+    wgr_fs_store_clear();
+#endif
+    /* the files themselves stay: on web MEMFS goes away with the page, and on desktop
+       a cache directory is the program's to manage (wgr_asset_set_cache_dir) */
 }
 
 bool wgri_fs_write(const char *path, const unsigned char *data, int size)

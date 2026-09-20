@@ -77,6 +77,17 @@ typedef void (*wgr_asset_fetch_fn)(wgr_handle_t request, const char *url,
 bool wgr_asset_set_fetcher(wgr_asset_fetch_fn fn, void *user_data);
 bool wgr_asset_fetch_done(wgr_handle_t request, bool ok);
 
+/* Forget a cached asset, so the next ensure fetches it again; wgr_asset_clear_cache
+ * forgets every one. A cache can hold a file that is wrong rather than missing (a host
+ * that compresses once served gzip bytes under an asset's name), and a wrong file is
+ * read in preference to the network for good unless something can drop it.
+ *
+ * libwgrender also drops an entry by itself when a loader rejects a cached file and
+ * fetches it once more, so this is for a program that knows better -- a new version of
+ * an asset, or a user asking to free the space. */
+bool wgr_asset_evict(const char *path);
+void wgr_asset_clear_cache(void);
+
 /* Ensure an asset is locally available, then fire the callback with a directly
  * openable local path.
  *

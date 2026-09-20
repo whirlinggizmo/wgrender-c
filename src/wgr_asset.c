@@ -18,12 +18,16 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
-#include "sokol_fetch.h"
-/* Stream the download in chunks (sokol_fetch issues HTTP Range GETs on web) and
- * accumulate into an exactly-sized buffer — no per-file cap, memory tracks the
- * actual asset size. The dev server (tools/serve.py) honours Range for this. */
-#define ASSET_CHUNK_BYTES (1024 * 1024)
-#define MAX_FETCHES 256 /* downloads at once (sokol_fetch's request pool); more tasks wait */
+/* One plain GET per asset, straight to the browser's fetch().
+ *
+ * Not a Range request, and no HEAD to size the buffer first, because a host may
+ * compress: it then answers a HEAD with the *compressed* length, hands back the raw
+ * gzip stream for a ranged GET, and JS cannot ask it not to -- Accept-Encoding is a
+ * forbidden header the browser strips. GitHub Pages does exactly this for .glb and
+ * .ttf (not .png, which is why only some assets broke). An unranged GET is decoded by
+ * the browser, so the bytes are the file's and arrayBuffer's byteLength is its real
+ * size -- nothing has to be known in advance and there is no per-file cap. */
+#define MAX_FETCHES 256 /* downloads at once; more tasks wait */
 static int wgr_asset_fetching;
 #endif
 
@@ -68,12 +72,8 @@ typedef struct {
     void *user_data;
     bool armed; /* callbacks attached via wgr_asset_add_task */
     int state;
-    int fetch_result;         /* web: FETCH_* set by the sokol_fetch callback */
+    int fetch_result;         /* web: FETCH_* set when the download finishes */
     int cache_read;           /* web: reading the file from the cache (wgri_fs_cache_read_begin), or 0 */
-    unsigned char *fetch_buf; /* web: chunk buffer bound to the in-flight fetch */
-    unsigned char *acc;       /* web: accumulated file bytes across chunks */
-    size_t acc_len;
-    bool acc_error;           /* web: a chunk realloc failed mid-stream */
     /* dependencies (files this file references; see internal/wgr_asset.h) */
     uint16_t parent;          /* slot of the task this one is a dependency of; 0 = none */
     int pending;              /* dependencies not finished yet */
@@ -86,6 +86,7 @@ typedef struct {
     void *prepared;
     wgr_handle_t resource;     /* holds one reference until the callback has run */
     bool load_failed;
+    bool refetched;           /* a cached copy was rejected once and fetched again */
     uint32_t finish_order;    /* finishes run in the order tasks were prepared */
     bool finish_started;      /* a resource being finished over several steps goes first */
     /* groups (wgr_asset_group_create): a task that completes when its members have */
@@ -267,42 +268,70 @@ bool wgr_asset_fetch_done(wgr_handle_t request, bool ok)
 #endif
 
 WGRI_KEEP
+bool wgr_asset_evict(const char *path)
+{
+    return path != NULL && *path != '\0' && wgri_fs_remove(path);
+}
+
+void wgr_asset_clear_cache(void)
+{
+    wgri_fs_clear();
+}
+
 const char *wgr_asset_get_host(void)
 {
     return wgr_asset_host;
 }
 
 #ifdef __EMSCRIPTEN__
-/* sokol_fetch delivers chunks on the main thread when sfetch_dowork() (called in
- * wgri_asset_tick) pumps it. We grow `acc` chunk by chunk; on the final chunk we
- * hand the whole file to wgr_fs (which writes it and keeps it in the cache) and
- * flag the slot, then tick resolves the task. */
-static void on_fetch(const sfetch_response_t *r)
-{
-    uint16_t slot = *(const uint16_t *)r->user_data;
-    wgr_asset_task_t *task = &wgr_asset_tasks[slot];
+/* Fetch `url` and give the bytes to wgri_asset_fetch_finished, which owns them from
+ * then on. Errors (network, 404) arrive there too, with a null pointer. */
+EM_JS(void, wgri_asset_fetch_js, (int slot, const char *url_cstr), {
+    const url = UTF8ToString(url_cstr);
+    fetch(url, { credentials: "same-origin" })
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error(url + ": HTTP " + response.status);
+            }
+            return response.arrayBuffer();
+        })
+        .then((buffer) => {
+            /* byteLength is the decoded size, whatever the host did on the wire */
+            const bytes = new Uint8Array(buffer);
+            const ptr = _wgri_asset_fetch_alloc(bytes.length); /* malloc lives in C */
+            if (ptr === 0) {
+                _wgri_asset_fetch_finished(slot, 0, 0);
+                return;
+            }
+            HEAPU8.set(bytes, ptr);
+            _wgri_asset_fetch_finished(slot, ptr, bytes.length);
+        })
+        .catch((err) => {
+            console.warn("wgr_asset: " + err);
+            _wgri_asset_fetch_finished(slot, 0, 0);
+        });
+})
 
-    if (r->fetched && r->data.size > 0 && !task->acc_error) {
-        unsigned char *grown = (unsigned char *)realloc(task->acc, task->acc_len + r->data.size);
-        if (grown == NULL) {
-            task->acc_error = true; /* keep draining the stream, fail at finish */
-        } else {
-            task->acc = grown;
-            memcpy(task->acc + task->acc_len, r->data.ptr, r->data.size);
-            task->acc_len += r->data.size;
-        }
+/* Room for a download the browser has already decoded. In C so the JS side needs no
+ * exported malloc, which the closure pass would have to be told about. */
+WGRI_KEEP
+unsigned char *wgri_asset_fetch_alloc(int size)
+{
+    return (unsigned char *)malloc(size > 0 ? (size_t)size : 1);
+}
+
+/* The download finished: `data` is malloc'd for us (null when it failed). */
+WGRI_KEEP
+void wgri_asset_fetch_finished(int slot, unsigned char *data, int size)
+{
+    wgr_asset_task_t *task = &wgr_asset_tasks[slot];
+    if (slot <= 0 || slot >= wgr_asset_pool.capacity || task->state != TASK_FETCHING) {
+        free(data); /* cancelled, or the task went away while it was in flight */
+        return;
     }
-    if (r->finished) {
-        bool ok = !r->failed && !task->acc_error &&
-                  wgri_fs_write(task->path, task->acc, (int)task->acc_len);
-        task->fetch_result = ok ? FETCH_OK : FETCH_FAILED;
-        wgr_asset_fetching--;
-        free(task->acc);
-        task->acc = NULL;
-        task->acc_len = 0;
-        free(task->fetch_buf);
-        task->fetch_buf = NULL;
-    }
+    task->fetch_result = (data != NULL && wgri_fs_write(task->path, data, size)) ? FETCH_OK : FETCH_FAILED;
+    free(data);
+    if (wgr_asset_fetching > 0) wgr_asset_fetching--;
 }
 
 static void start_fetch(uint16_t slot)
@@ -310,18 +339,9 @@ static void start_fetch(uint16_t slot)
     wgr_asset_task_t *task = &wgr_asset_tasks[slot];
     char joined[1024];
     const char *url;
-    sfetch_handle_t h;
 
     task->state = TASK_FETCHING;
     task->fetch_result = FETCH_PENDING;
-    task->acc = NULL;
-    task->acc_len = 0;
-    task->acc_error = false;
-    task->fetch_buf = (unsigned char *)malloc(ASSET_CHUNK_BYTES);
-    if (task->fetch_buf == NULL) {
-        task->fetch_result = FETCH_FAILED;
-        return;
-    }
     /* per-call override wins; otherwise the default host + key */
     if (task->fetch_url[0] != '\0') {
         url = task->fetch_url;
@@ -329,20 +349,8 @@ static void start_fetch(uint16_t slot)
         snprintf(joined, sizeof(joined), "%s/%s", wgr_asset_host, task->path);
         url = joined;
     }
-    h = sfetch_send(&(sfetch_request_t){
-        .path = url,
-        .callback = on_fetch,
-        .chunk_size = ASSET_CHUNK_BYTES,
-        .buffer = { .ptr = task->fetch_buf, .size = ASSET_CHUNK_BYTES },
-        .user_data = { .ptr = &slot, .size = sizeof(slot) },
-    });
-    if (!sfetch_handle_valid(h)) {
-        free(task->fetch_buf);
-        task->fetch_buf = NULL;
-        task->fetch_result = FETCH_FAILED;
-    } else {
-        wgr_asset_fetching++;
-    }
+    wgr_asset_fetching++;
+    wgri_asset_fetch_js((int)slot, url); /* answers on a later tick, via fetch_finished */
 }
 #endif
 
@@ -1180,11 +1188,6 @@ void wgri_asset_init(void)
     }
 #ifdef __EMSCRIPTEN__
     wgr_asset_fetching = 0;
-    sfetch_setup(&(sfetch_desc_t){
-        .max_requests = MAX_FETCHES,
-        .num_channels = 1,
-        .num_lanes = 4,
-    });
 #endif
     if (!wgr_asset_jobs.lock_live) { /* still alive after a web shutdown (workers detached) */
         wgri_mutex_init(&wgr_asset_jobs.lock);
@@ -1324,6 +1327,34 @@ static void resolved(uint16_t i, bool ok)
 }
 
 /* Prepared jobs back from the workers (or, without workers, one prepared here). */
+#ifdef __EMSCRIPTEN__
+/* A file that won't load may be a bad copy rather than a bad asset: a host that
+ * compresses served gzip bytes under an asset's name until 2026-09-20, and the cache
+ * keeps whatever it was given. Forget it and fetch once more before calling it a
+ * failure -- a second refusal is the asset's own fault. */
+static bool refetch_once(uint16_t i)
+{
+    wgr_asset_task_t *task = &wgr_asset_tasks[i];
+    if (task->refetched || task->is_group || task->path[0] == '\0') {
+        return false;
+    }
+    task->refetched = true;
+    task->load_failed = false;
+    task->resource = 0;
+    task->state = TASK_NEW;
+    task->fetch_result = FETCH_PENDING;
+    wgri_fs_remove(task->path);
+    log_warn("asset: %s didn't load; forgetting the cached copy and fetching it again", task->path);
+    return true;
+}
+#else
+static bool refetch_once(uint16_t i)
+{
+    (void)i; /* desktop reads the file the program put there; nothing to re-fetch */
+    return false;
+}
+#endif
+
 static void collect_prepared(void)
 {
     wgr_asset_job_t job;
@@ -1348,7 +1379,9 @@ static void collect_prepared(void)
         wgr_asset_task_t *task = &wgr_asset_tasks[job.slot];
         if (job.prepared == NULL) {
             task->load_failed = true;
-            complete(job.slot, false);
+            if (!refetch_once(job.slot)) {
+                complete(job.slot, false);
+            }
             continue;
         }
         task->prepared = job.prepared;
@@ -1394,7 +1427,9 @@ static void load(void)
             task->loader->discard(task->prepared);
             task->prepared = NULL;
             task->load_failed = step == WGRI_LOADER_FAILED;
-            complete(i, step == WGRI_LOADER_DONE);
+            if (step != WGRI_LOADER_FAILED || !refetch_once(i)) {
+                complete(i, step == WGRI_LOADER_DONE);
+            }
         }
         if ((wgri_thread_now() - start) * 1000.0 >= (double)wgr_asset_upload_budget_ms) {
             break;
@@ -1434,7 +1469,6 @@ void wgri_asset_tick(void)
         return;
     }
 #ifdef __EMSCRIPTEN__
-    sfetch_dowork(); /* fires on_fetch for any completed downloads */
 #endif
     for (uint16_t i = 1; i < wgr_asset_pool.capacity; i++) {
         wgr_asset_task_t *task = &wgr_asset_tasks[i];
@@ -1572,7 +1606,6 @@ void wgri_asset_deinit(void)
         wgr_asset_jobs.lock_live = false;
     }
 #ifdef __EMSCRIPTEN__
-    sfetch_shutdown();
 #endif
     wgri_handle_pool_destroy(&wgr_asset_pool);
 }

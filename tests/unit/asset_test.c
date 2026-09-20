@@ -110,6 +110,28 @@ void test_asset_fetch_hook(void)
     for (int i = 0; i < 8; i++) wgri_asset_tick();
     CHECK(fetch_calls == 2 && failed_count == 2);
 
+    /* a cached file can be wrong rather than missing, so it has to be droppable:
+       librl had rl_fs_remove/rl_fs_clear and parity dropped them with the rest of the
+       filesystem, which left a bad copy unreachable (docs/TASKS.md) */
+    succeed = true;
+    fetch_calls = 0;
+    CHECK(wgr_asset_evict("textures/rock.png")); /* the failed attempt left a file behind */
+    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_FILE_ONLY), on_ready, on_failed,
+                       NULL);
+    for (int i = 0; i < 8; i++) wgri_asset_tick();
+    CHECK(fetch_calls == 1 && wgri_fs_exists("textures/rock.png"));
+
+    CHECK(wgr_asset_evict("textures/rock.png"));
+    CHECK(!wgri_fs_exists("textures/rock.png")); /* gone, so the next ensure fetches */
+    CHECK(!wgr_asset_evict(NULL) && !wgr_asset_evict(""));
+
+    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_FILE_ONLY), on_ready, on_failed,
+                       NULL);
+    for (int i = 0; i < 8; i++) wgri_asset_tick();
+    CHECK(fetch_calls == 2); /* it went back to the fetcher rather than the cache */
+
+    wgr_asset_clear_cache(); /* desktop keeps the files; the web store is emptied */
+
     wgr_asset_set_fetcher(NULL, NULL);
     wgr_asset_set_host("");
     wgri_fs_deinit();

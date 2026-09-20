@@ -255,6 +255,11 @@ reference/librl the raylib library this evolves from (read-only reference)
   library carries no HTTP client and no TLS. See `examples/fetch.c`, which wires one up
   with `curl` in twenty lines and downloads this repo's own assets over HTTPS — none of
   the TLS being libwgrender's.
+- Assets survive a host that compresses: a web download is one plain GET, decoded by
+  the browser, so a host that gzips a `.glb` or `.ttf` (GitHub Pages does) can't hand
+  the loader a gzip stream. A cached file that won't load is dropped and fetched once
+  more; `wgr_asset_evict` and `wgr_asset_clear_cache` are there for a program that
+  knows better.
 - Frustum culling: a scene skips members the camera can't see, testing their bounds
   against the view before anything is submitted — 4000 models behind the camera cost
   0.5 ms a frame instead of 6.8. A caster whose shadow could still fall into view is

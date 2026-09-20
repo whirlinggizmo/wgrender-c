@@ -418,6 +418,25 @@ felt awkward, and the libwgrender design. Update `tools/parity.map` with the out
       to curl and pulls from the same `make serve` origin the web build uses; the unit
       test needs no network, since a fetcher that writes the file itself satisfies the
       whole contract. Still stubbed on desktop: ping and URL redirect rules
+- [x] Web assets survive a host that compresses (2026-09-20): models and fonts loaded
+      from GitHub Pages arrived as raw gzip, so every model in every example failed to
+      parse -- on a new Pixel as readily as a 2021 moto g, because it was never the GPU.
+      sokol_fetch streams with HTTP Range, sized from a HEAD; a compressing host answers
+      the HEAD with the *compressed* length and a ranged GET with bytes the browser will
+      not decode, and JS cannot ask for identity (Accept-Encoding is a forbidden header,
+      measured: the browser drops it). PNGs were fine only because Pages does not bother
+      compressing them. Web downloads are now one plain unranged GET through our own
+      EM_JS shim: the browser decodes, arrayBuffer().byteLength is the true size, so
+      nothing has to be known in advance and there is no per-file cap. sokol_fetch is
+      gone from the web path, which also removes a HEAD round trip per asset
+- [x] A cached asset can be dropped (2026-09-20): wgr_asset_evict(path) and
+      wgr_asset_clear_cache(), and libwgrender drops a cached file by itself when a
+      loader rejects it and fetches once more. Found the hard way: the corrupt files
+      above were cached in IndexedDB, so the fix alone would not have healed a browser
+      that had already visited. librl had rl_fs_remove/rl_fs_clear and tools/parity.map
+      dropped both as "wgr_fs is internal" -- true of the filesystem, wrong about the
+      capability, which is the failure mode "parity is functional, not 1:1" warns about.
+      The map now points them at the asset-level functions
 - [ ] Lit particles: emitter particles are unlit — emitters have their own program
       (`particle` = vs_particle + the unlit `fs` in src/shaders/wgr_sprite.glsl) and no
       material API, so the only lit "particles" today are sprite3d objects moved by the

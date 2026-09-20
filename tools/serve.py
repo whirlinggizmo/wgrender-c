@@ -42,7 +42,11 @@ if "--tls" in ARGS:
 CACHE = "--cache" in ARGS
 GZIP = "--gzip" in ARGS
 ARGS = [a for a in ARGS if a not in ("--cache", "--gzip")]
-GZIP_TYPES = (".html", ".js", ".wasm", ".json", ".css", ".txt")
+# What a real static host compresses, which is the point of --gzip: GitHub Pages
+# gzips .glb, .gltf and .ttf as well as the obvious text types (not .png, already
+# compressed). Keeping this list short hid a bug for a while -- the asset fetch broke
+# on exactly the types our own "serve as a host would" mode never compressed.
+GZIP_TYPES = (".html", ".js", ".wasm", ".json", ".css", ".txt", ".glb", ".gltf", ".ttf")
 
 ROOT   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SITE   = os.path.abspath(ARGS[1]) if len(ARGS) > 1 else os.path.join(ROOT, "examples", "build", "webgl2")
