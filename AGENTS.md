@@ -169,7 +169,9 @@ the sync `wgr_*_create(path)`. Bytes never cross into user code.
 
 ## Naming
 
-Each level has its own rule; `lib` belongs to exactly one of them.
+Family-wide rules (repo names, prefixes, where `lib` goes, ownership, vendoring) live
+in [whirlinggizmo/.github/CONVENTIONS.md](https://github.com/whirlinggizmo/.github/blob/main/CONVENTIONS.md).
+What they come to here:
 
 - **Project:** `wgrender` — repo `wgrender-c`, in the whirlinggizmo org. In prose,
   "libwgrender" where it needs distinguishing from the `wg-renderer` app, plain
@@ -186,11 +188,8 @@ Each level has its own rule; `lib` belongs to exactly one of them.
   library symbols, and three letters collide too easily in a process environment. A
   variable naming another project takes *that* project's name (`LIBRL_DIR`, because
   librl is what librl is called).
-- **Sibling repos:** libraries are `wg<name>-<lang>` (`wgutils-c`, `wgrender-c`,
-  bindings `wgrender-hx`) with prefixes `wg` + the name's first letter (`wgu_`,
-  `wgr_`); products and apps are `wg-<name>` (`wg-renderer`). Don't share one `wg_`
-  prefix across libraries: several own a logger, event and fs, which would collide at
-  link time. librl stays under robknopf as the maintenance-only predecessor.
+- **Sibling repos:** `wgutils-c` and friends follow the same pattern — see CONVENTIONS.md
+  before naming anything new.
 - **Prefix says which surface it is:** `wgr_` is public, `wgri_` is internal. A call
   site reads as what it is without looking anything up, and `make check` can enforce
   it, which it can't when one prefix covers both.
