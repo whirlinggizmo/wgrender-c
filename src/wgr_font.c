@@ -1,3 +1,4 @@
+#include "wgr_asset.h"
 #include "wgr_font.h"
 
 #include <stdio.h>
@@ -150,6 +151,11 @@ wgr_handle_t wgr_font_create(const char *path)
     if (fid == FONS_INVALID) {
         fid = add_font(path);
         if (fid == FONS_INVALID) {
+            /* The file may be a bad cached copy rather than a bad font -- a host that
+               compresses once served gzip bytes under a .ttf's name. Forget it, so the
+               next attempt fetches it again. A .ttf has no registered loader, so the
+               asset layer's own retry (refetch_once) never sees this. */
+            wgr_asset_evict(path);
             return 0;
         }
     }

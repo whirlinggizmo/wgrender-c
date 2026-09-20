@@ -437,6 +437,26 @@ felt awkward, and the libwgrender design. Update `tools/parity.map` with the out
       dropped both as "wgr_fs is internal" -- true of the filesystem, wrong about the
       capability, which is the failure mode "parity is functional, not 1:1" warns about.
       The map now points them at the asset-level functions
+- [ ] Bug (device): the emitter's shader doesn't link on Adreno 610 (moto g power 2021,
+      GLES 3.2 V@0502.0, driver dated 2020-12-29). The driver's own compiler gives up:
+      `Assertion failed: GVI && "cannot compute gv size for oob (no global info)"`, so
+      sokol reports GL_SHADER_LINKING_FAILED and `particles` simulates (2001 fountain,
+      518 sparks, 60 FPS) while drawing nothing. A driver assertion rather than a limit
+      we exceed, so the fix is to find which construct in src/shaders trips it --
+      dynamic indexing of a global array is the usual suspect -- and write it another
+      way. Everything else on that phone renders
+- [ ] Fonts want a .ttf/.otf loader (docs/TASKS.md above has the same follow-up):
+      without one, a font is ensured as a plain file and `wgr_font_create` runs outside
+      the asset layer, so a bad cached copy could not be healed by the asset layer's own
+      retry. Patched for now -- fontstash rejecting a file evicts it -- but registering a
+      loader would fix the class rather than the case, and moves reading a big font off
+      the main thread
+- [ ] Web performance on a low-end phone (Adreno 610, WEB_THREADS=0 build, measured
+      2026-09-20): 60 FPS for most examples; instancing 13, shadows 13, postprocess 21,
+      meshes 26, materials 30, shaders 31, environment 41. Instancing draws 400 cubes,
+      six skinned walkers and a casting sun, so 13 is not absurd, but it is the first
+      real data about where the floor is. Worth a pass with `make webstart` and the
+      spritebench/shadowbench numbers from a phone before optimising anything
 - [ ] Lit particles: emitter particles are unlit — emitters have their own program
       (`particle` = vs_particle + the unlit `fs` in src/shaders/wgr_sprite.glsl) and no
       material API, so the only lit "particles" today are sprite3d objects moved by the
