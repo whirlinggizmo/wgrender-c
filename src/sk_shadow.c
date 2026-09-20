@@ -146,12 +146,6 @@ sk_shadow_fit_t sk_shadow_fit_directional(const sk_camera3d_t *cam, float aspect
 
 static bool depth_sampling_supported(void)
 {
-    /* WebGPU: the map comes back fully shadowed there and the cause isn't found yet
-     * (docs/PLAN-shadows.md, "Not on WebGPU yet"), so the scene draws unshadowed
-     * rather than black. GL and WebGL2 are unaffected. */
-    if (sg_query_backend() == SG_BACKEND_WGPU) {
-        return false;
-    }
     return sg_query_pixelformat(SG_PIXELFORMAT_DEPTH).depth && sg_query_pixelformat(SG_PIXELFORMAT_DEPTH).sample;
 }
 
@@ -237,8 +231,12 @@ static void shadows_draw(void)
     fit = sk_shadow_fit_directional(&cam, size.y > 0.0f ? size.x / size.y : 1.0f, light->direction,
                                     light->shadow_distance, sk_sm.size, SK_SHADOW_PULLBACK, zero_to_one);
 
+    /* the depth buffer is the whole point here, so say it must be kept: sokol's default
+       for depth is DONTCARE, which WebGPU takes at its word and discards (GL only treats
+       it as a hint, which is why this once looked like a WebGPU-only problem) */
     sg_begin_pass(&(sg_pass){
-        .action = {.depth = {.load_action = SG_LOADACTION_CLEAR, .clear_value = 1.0f},
+        .action = {.depth = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE,
+                             .clear_value = 1.0f},
                    .stencil.load_action = SG_LOADACTION_DONTCARE},
         .attachments = {.depth_stencil = sk_sm.depth_attachment},
         .label = "sk-shadow-map",

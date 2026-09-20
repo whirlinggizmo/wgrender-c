@@ -304,7 +304,7 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 - [ ] Lightmaps: baked lighting as a material texture (its own texture coordinate set,
       which materials already support), multiplied into the surface. No new passes;
       bake them in Blender
-- [x] Shadows, phase 1 (2026-09-21, desktop GL and WebGL2): a directional light casts
+- [x] Shadows, phase 1 (2026-09-21, desktop GL, WebGL2 and WebGPU): a directional light casts
       into a depth map before the frame's passes, and models, lit sprites and custom
       shaders (`sk_shadow`) are darkened by it. `sk_light_set_casts_shadows` /
       `_shadow_distance` / `_shadow_map_size` / `_shadow_bias` (in texels) /
@@ -312,12 +312,12 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       `_set_receives_shadow`. Opt in twice: the module links only when a program calls
       one of these, and a light casts only when asked. `.skshader` format 6
       ([PLAN-shadows.md](PLAN-shadows.md), `examples/shadows.c`)
-- [ ] Shadows on WebGPU: every surface comes back fully shadowed there, while GL and
-      WebGL2 are correct; shadows are refused on that backend for now (a page draws
-      unshadowed, with one warning). Ruled out: the clip-space depth range, the map's v
-      orientation, branchy sampling. Next: see whether the depth pass writes at all
-      (read the map back), and compare with a minimal sokol WebGPU depth-sampling
-      sample (PLAN-shadows.md, "Not on WebGPU yet")
+- [x] Shadows on WebGPU (2026-09-21): were fully shadowed everywhere. Not a WebGPU
+      problem: the depth pass never asked for its depth buffer to be kept, sokol's
+      default store action for depth is DONTCARE, WebGPU honours the discard and GL
+      only treats it as a hint. One explicit store action. `make webcheck` now records
+      the browser's own log entries (Dawn's validation messages live there, not in the
+      console API) and `--verbose` prints them (PLAN-shadows.md, "The WebGPU bug")
 - [ ] Shadows later: spot lights (a perspective map) and several casting lights at
       once; then cascades for large scenes, point lights, and sprites as casters.
       Measure the frame cost on a GPU (off / 1024 / 2048) as the skinning work did

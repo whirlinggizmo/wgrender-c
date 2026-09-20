@@ -30,6 +30,9 @@
 //   --browser=PATH      browser executable (or WEBCHECK_BROWSER; default: first
 //                       found of brave-browser-stable, google-chrome-stable,
 //                       google-chrome, chromium, chromium-browser)
+//   --verbose           print every console line and browser log entry an example
+//                       produced (WebGPU validation messages arrive as log entries,
+//                       not console calls, so this is how to see them)
 //
 // Cleanup: the browser and server are always stopped, including when this script
 // crashes or is killed (see RunProcesses in weblib.mjs).
@@ -45,7 +48,7 @@ const BACKEND_LOG = { webgl2: "GLES3/WebGL2 backend", webgpu: "WebGPU backend" }
 
 function parseArgs(argv) {
     const opts = { backend: "webgl2", headed: false, settle: 20000, quiet: 1500, jobs: 0, out: null,
-                   browser: process.env.WEBCHECK_BROWSER, threads: true, examples: [] };
+                   browser: process.env.WEBCHECK_BROWSER, threads: true, verbose: false, examples: [] };
     for (const arg of argv) {
         const [key, value] = arg.split(/=(.*)/s);
         switch (key) {
@@ -57,6 +60,7 @@ function parseArgs(argv) {
             case "--out": opts.out = value; break;
             case "--browser": opts.browser = value; break;
             case "--threads": opts.threads = value !== "0"; break;
+            case "--verbose": opts.verbose = true; break;
             default:
                 if (arg.startsWith("--")) throw new Error(`unknown option ${arg}`);
                 opts.examples.push(arg);
@@ -110,9 +114,19 @@ async function checkExample(browser, debugBase, baseUrl, example, opts) {
             } else if (msg.method === "Runtime.exceptionThrown") {
                 const d = msg.params.exceptionDetails;
                 result.errors.push((d.exception?.description || d.text || "exception").split("\n")[0]);
+            } else if (msg.method === "Log.entryAdded") {
+                /* the browser's own messages: WebGPU validation errors from Dawn, GL
+                 * driver warnings, network failures. Error-level ones fail the check,
+                 * except network ones: a missing favicon is a 404 too, and a missing
+                 * asset already fails through libsk's own loading errors */
+                const e = msg.params.entry;
+                const line = `[${e.source}/${e.level}] ${(e.text || "").trim().split("\n")[0]}`;
+                result.console.push(line);
+                if (e.level === "error" && e.source !== "network") result.errors.push(line);
             }
         });
         await session.send("Runtime.enable");
+        await session.send("Log.enable");
         await session.send("Page.enable");
         await session.send("Network.enable");
         const deadline = Date.now() + opts.settle;
@@ -211,6 +225,7 @@ async function main() {
                 const start = r.startMs !== undefined ? ` (started after ${(r.startMs / 1000).toFixed(1)} s)` : "";
                 console.log(`  ${problems.length ? "FAIL" : "ok  "}  ${r.example}${problems.length ? start : ""}`);
                 for (const p of problems) console.log(`          ${p}`);
+                if (opts.verbose) for (const line of r.console) console.log(`          | ${line}`);
             }
         };
         const worker = async () => {

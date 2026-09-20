@@ -1,9 +1,9 @@
 # Plan: Shadows
 
-Status: **phase 1 implemented (2026-09-21)** on desktop GL and WebGL2; **not on
-WebGPU yet** (see "Not on WebGPU yet"). Decisions 1–7 were answered as recommended,
-with one addition during implementation: a shadow's strength and tint. See
-"Phase 1 as built". Roadmap: the largest remaining gap against three.js, which ships
+Status: **phase 1 implemented (2026-09-21)** on desktop GL, WebGL2 and WebGPU.
+Decisions 1–7 were answered as recommended, with one addition during implementation:
+a shadow's strength and tint. See "Phase 1 as built", and "The WebGPU bug" for the one
+that took longest. Roadmap: the largest remaining gap against three.js, which ships
 shadow maps. Builds on lighting ([PLAN-lighting.md](PLAN-lighting.md)), materials
 ([PLAN-materials.md](PLAN-materials.md)) and render targets
 ([PLAN-render-target.md](PLAN-render-target.md)).
@@ -186,21 +186,28 @@ so a custom shader lights a surface the way built-in materials do, shadows inclu
 - `.skshader` format 6: `sk_frame` carries the light's matrix and parameters, and
   `sk_shadow(i, pos, n)` gives custom shaders the same answer built-in materials use.
 
-## Not on WebGPU yet
+## The WebGPU bug
 
-On WebGPU every surface comes back fully shadowed, as though the map read as zero
-everywhere, while the same code is correct on desktop GL and WebGL2. Ruled out so far:
-the clip-space depth range (0..1 there, checked at runtime: the backend, the range and
-the map's texel size are all as expected), the map's v orientation (both rules tried),
-and branchy sampling (the lookup was restructured to run for every pixel). Rendering
-the map into an R32F colour target instead of a depth texture was tried and left GL
-broken in a different way, so it was reverted rather than shipped half-working.
+On WebGPU every surface came back fully shadowed while the same code was right on
+desktop GL and WebGL2. It looked like a WebGPU problem; it wasn't. The depth pass
+never said its depth buffer should be kept, and sokol's default store action for depth
+is `DONTCARE` (`sokol_gfx.h`, `_sg_resolve_default_pass_action`): the sensible default
+for a depth buffer that only orders a pass's own draws, and exactly wrong for a shadow
+map, which *is* the depth buffer. WebGPU took the discard at its word and the map read
+as zero everywhere (zero is "in front of everything", so everything was in shadow);
+GL treats the discard as a hint and happened to keep the data, which is why it passed
+there — a latent bug on GL too, on any driver that honours the hint. The fix is one
+explicit `store_action = SG_STOREACTION_STORE`.
 
-Until it's understood, `sk_shadow.c` refuses to make a map on WebGPU and logs once, so
-a WebGPU page draws the scene unshadowed rather than black. Next things to try: read
-the map back with `sg_query_image_*` or a debug blit to see whether the depth pass
-writes at all; compare against a minimal sokol WebGPU sample that samples a depth
-texture; check whether Dawn needs the depth view created with an explicit aspect.
+What found it, in order, for next time: `webcheck` gained `--verbose` and the
+browser's own log entries (`Log.entryAdded`, where Dawn's validation messages go;
+`Runtime.consoleAPICalled` never sees them), which showed the pass was valid; then a
+fixed comparison reference (0.001) with the sampler's function flipped to
+`GREATER_EQUAL` lit everything, proving the sampler worked and the map held zeros; and
+only then was it worth reading how the pass's depth was stored. The things ruled out
+first — the clip-space depth range, the map's orientation, branchy sampling, an R32F
+colour map instead of a depth texture — all cost cycles because each was a guess made
+before there was a way to see what the map held.
 
 ## Verification
 
@@ -216,3 +223,5 @@ texture; check whether Dawn needs the depth view created with an explicit aspect
 - Cost: not measured yet. The desktop session here renders through llvmpipe on a
   virtual display, where the numbers say nothing; measuring wants a browser session on
   the GPU, as the skinning work used.
+- Checked on desktop GL, WebGL2 and WebGPU: every caster throws a shadow, the no-cast
+  sphere throws none, the no-receive sphere stays lit, shadows touch their casters.
