@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Enforce the optional-subsystem boundary (src/internal/wgr_module.h): the core must
+# Enforce the optional-subsystem boundary (src/internal/wgri_module.h): the core must
 # not reference an optional subsystem's symbols, or every program links that subsystem
 # (and what it pulls in: glTF parsing, decoders, ...) whether it uses it or not.
-# Optional subsystems are the objects that register a module (WGR_MODULE); the core
+# Optional subsystems are the objects that register a module (WGRI_MODULE); the core
 # reaches them only through the module list and the hooks in wgr_render.h / wgr_scene.h.
 #
 # Reads the headless library's symbol tables (builds it if missing). Run from
@@ -26,7 +26,7 @@ for line in sys.stdin:  # "lib.a:obj.o:ADDRESS TYPE NAME", or "lib.a:obj.o: U NA
         refs[obj].add(name)
     elif kind in "TDRBW":
         defs.setdefault(name, obj)
-    if name.startswith("wgr_register_") and name.endswith("_module"):
+    if name.startswith("wgri_register_") and name.endswith("_module"):
         optional.add(obj)
 bad = []
 for obj in sorted(set(refs) - optional):
@@ -34,7 +34,7 @@ for obj in sorted(set(refs) - optional):
         if defs.get(name) in optional:
             bad.append(f"  {obj} -> {name} ({defs[name]})")
 if bad:
-    print("FAIL: core code calls optional subsystems by name (go through wgr_module.h and the hooks):")
+    print("FAIL: core code calls optional subsystems by name (go through wgri_module.h and the hooks):")
     print("\n".join(bad))
     sys.exit(1)
 print(f"ok: core reaches the {len(optional)} optional subsystems only through modules and hooks")

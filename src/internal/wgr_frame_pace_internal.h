@@ -1,5 +1,5 @@
-#ifndef WGR_INTERNAL_FRAME_PACE_H
-#define WGR_INTERNAL_FRAME_PACE_H
+#ifndef WGRI_INTERNAL_FRAME_PACE_H
+#define WGRI_INTERNAL_FRAME_PACE_H
 
 #include <stdbool.h>
 
@@ -13,16 +13,16 @@
 typedef struct {
     double period; /* seconds per frame; 0 = unpaced */
     double next;   /* when the next frame is due; 0 = not started */
-} wgr_frame_pace_t;
+} wgri_frame_pace_t;
 
 /* fps <= 0 disables pacing. Restarts the schedule. */
-void wgr_frame_pace_set_fps(wgr_frame_pace_t *pace, int fps);
-bool wgr_frame_pace_enabled(const wgr_frame_pace_t *pace);
+void wgri_frame_pace_set_fps(wgri_frame_pace_t *pace, int fps);
+bool wgri_frame_pace_enabled(const wgri_frame_pace_t *pace);
 
 /* Seconds until the next frame is due at time `now`; <= 0 means it is due. */
-double wgr_frame_pace_wait(const wgr_frame_pace_t *pace, double now);
+double wgri_frame_pace_wait(const wgri_frame_pace_t *pace, double now);
 
 /* Record that a frame ran at `now` and schedule the next one. */
-void wgr_frame_pace_mark(wgr_frame_pace_t *pace, double now);
+void wgri_frame_pace_mark(wgri_frame_pace_t *pace, double now);
 
-#endif // WGR_INTERNAL_FRAME_PACE_H
+#endif // WGRI_INTERNAL_FRAME_PACE_H

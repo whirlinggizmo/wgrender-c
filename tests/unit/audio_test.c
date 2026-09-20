@@ -53,7 +53,7 @@ static bool write_test_wav(const char *path, int rate, int frames)
 static void mix_alone(wgr_handle_t sound, float *out, int frames, int rate)
 {
     wgr_sound_resume(sound);
-    wgr_audio_mix(out, frames, rate);
+    wgri_audio_mix(out, frames, rate);
     wgr_sound_pause(sound);
 }
 
@@ -61,22 +61,22 @@ static void mix_alone(wgr_handle_t sound, float *out, int frames, int rate)
  * loop and pitch, across several loops. */
 static void check_stream_matches_decode(const char *path, int frames, float pitch, int rate)
 {
-    wgr_handle_t decoded = wgr_audio_create_mode(path, WGR_AUDIO_MODE_DECODE);
-    wgr_handle_t streamed = wgr_audio_create_mode(path, WGR_AUDIO_MODE_STREAM);
+    wgr_handle_t decoded = wgri_audio_create_mode(path, WGRI_AUDIO_MODE_DECODE);
+    wgr_handle_t streamed = wgri_audio_create_mode(path, WGRI_AUDIO_MODE_STREAM);
     float a[BLOCK * 2], b[BLOCK * 2];
     int mismatched_blocks = 0, silent_blocks = 0;
 
     /* the path dedupes: the second create returns the first Audio */
     CHECK(decoded != 0 && streamed == decoded);
     wgr_audio_release(streamed);
-    CHECK(!wgr_audio_is_streamed(decoded));
+    CHECK(!wgri_audio_is_streamed(decoded));
 
     /* the same file under another path, forced to stream */
     char alias[512];
     snprintf(alias, sizeof(alias), "./%s", path);
-    streamed = wgr_audio_create_mode(alias, WGR_AUDIO_MODE_STREAM);
+    streamed = wgri_audio_create_mode(alias, WGRI_AUDIO_MODE_STREAM);
     CHECK(streamed != 0 && streamed != decoded);
-    CHECK(wgr_audio_is_streamed(streamed));
+    CHECK(wgri_audio_is_streamed(streamed));
 
     wgr_handle_t sa = wgr_sound_create(decoded), sb = wgr_sound_create(streamed);
     wgr_audio_release(decoded); /* sounds hold references; audio stays alive while playing */
@@ -108,8 +108,8 @@ static void check_stream_matches_decode(const char *path, int frames, float pitc
 
 void test_audio_streaming(void)
 {
-    wgr_audio_init();
-    wgr_sound_init();
+    wgri_audio_init();
+    wgri_sound_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_WARN);
 
     CHECK(write_test_wav(WAV_PATH, 22050, 22050 * 3 / 2)); /* 1.5 s */
@@ -122,54 +122,54 @@ void test_audio_streaming(void)
 
     /* automatic choice: the 6 MB music streams, the small click decodes */
     wgr_handle_t music = wgr_audio_create(MUSIC_PATH), click = wgr_audio_create(CLICK_PATH);
-    CHECK(wgr_audio_is_streamed(music));
-    CHECK(!wgr_audio_is_streamed(click));
+    CHECK(wgri_audio_is_streamed(music));
+    CHECK(!wgri_audio_is_streamed(click));
 
     /* two sounds on one streamed Audio keep independent positions */
-    wgr_handle_t reference_audio = wgr_audio_create_mode("./" MUSIC_PATH, WGR_AUDIO_MODE_DECODE);
+    wgr_handle_t reference_audio = wgri_audio_create_mode("./" MUSIC_PATH, WGRI_AUDIO_MODE_DECODE);
     wgr_handle_t first = wgr_sound_create(music), second = wgr_sound_create(music), reference = wgr_sound_create(reference_audio);
     float mixed[BLOCK * 2], expected[BLOCK * 2];
     wgr_sound_play(first);
-    for (int i = 0; i < 20; i++) wgr_audio_mix(mixed, BLOCK, 44100); /* first moves ahead */
+    for (int i = 0; i < 20; i++) wgri_audio_mix(mixed, BLOCK, 44100); /* first moves ahead */
     wgr_sound_set_volume(first, 0.0f);   /* silent, but still decoding its own position */
     wgr_sound_play(second);              /* from the start */
-    wgr_audio_mix(mixed, BLOCK, 44100);
+    wgri_audio_mix(mixed, BLOCK, 44100);
     wgr_sound_pause(first);
     wgr_sound_pause(second);
     wgr_sound_play(reference);
-    wgr_audio_mix(expected, BLOCK, 44100);
+    wgri_audio_mix(expected, BLOCK, 44100);
     CHECK(memcmp(mixed, expected, sizeof(mixed)) == 0);
 
     /* rewinding a streamed sound (seek back to the start) matches the decoded start */
     wgr_sound_set_volume(first, 1.0f);
     wgr_sound_play(first);
     wgr_sound_pause(reference);
-    wgr_audio_mix(mixed, BLOCK, 44100);
+    wgri_audio_mix(mixed, BLOCK, 44100);
     CHECK(memcmp(mixed, expected, sizeof(mixed)) == 0);
     wgr_sound_pause(first);
 
     /* the Audio outlives its creator's reference while sounds use it */
     wgr_audio_release(music);
     wgr_sound_play(second);
-    wgr_audio_mix(mixed, BLOCK, 44100);
+    wgri_audio_mix(mixed, BLOCK, 44100);
     CHECK(wgr_sound_is_playing(second));
     wgr_sound_destroy(first);
     wgr_sound_destroy(second); /* last reference: the Audio is freed */
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL); /* the stale handle logs */
-    CHECK(!wgr_audio_is_streamed(music));
+    CHECK(!wgri_audio_is_streamed(music));
     wgr_logger_set_level(WGR_LOGGER_LEVEL_WARN);
 
     /* switching a playing sound to another Audio keeps playing it */
-    CHECK(wgr_audio_is_streamed(reference_audio) == false);
+    CHECK(wgri_audio_is_streamed(reference_audio) == false);
     wgr_sound_set_audio(reference, click);
     wgr_sound_set_loop(reference, true); /* the click is shorter than a block */
     wgr_sound_play(reference);
-    wgr_audio_mix(mixed, BLOCK, 44100);
+    wgri_audio_mix(mixed, BLOCK, 44100);
     CHECK(wgr_sound_is_playing(reference));
 
     /* non-looping sounds stop at the end */
     wgr_sound_set_loop(reference, false);
-    for (int i = 0; i < 100 && wgr_sound_is_playing(reference); i++) wgr_audio_mix(mixed, BLOCK, 44100);
+    for (int i = 0; i < 100 && wgr_sound_is_playing(reference); i++) wgri_audio_mix(mixed, BLOCK, 44100);
     CHECK(!wgr_sound_is_playing(reference));
 
     wgr_sound_destroy(reference);
@@ -177,8 +177,8 @@ void test_audio_streaming(void)
     wgr_audio_release(click);
     remove(WAV_PATH);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_sound_deinit();
-    wgr_audio_deinit();
+    wgri_sound_deinit();
+    wgri_audio_deinit();
 }
 
 /* The device thread mixes while the game thread changes sounds and creates and
@@ -192,7 +192,7 @@ static void *mixer_thread(void *user)
     int *blocks = (int *)user;
     while (mixer_running) {
         const struct timespec pause = {0, 1000000}; /* like a device: blocks arrive over time, not in a spin */
-        wgr_audio_mix(buffer, 512, 44100);
+        wgri_audio_mix(buffer, 512, 44100);
         (*blocks)++;
         nanosleep(&pause, NULL);
     }
@@ -204,8 +204,8 @@ void test_audio_threads(void)
     pthread_t thread;
     int blocks = 0;
 
-    wgr_audio_init();
-    wgr_sound_init();
+    wgri_audio_init();
+    wgri_sound_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_WARN);
 
     wgr_handle_t music = wgr_audio_create(MUSIC_PATH);
@@ -230,7 +230,7 @@ void test_audio_threads(void)
             case 5: (void)wgr_sound_is_playing(s); break;
             case 6: wgr_sound_stop(s); wgr_sound_play(s); break;
             case 7: { /* create and drop a whole Audio + Sound while mixing */
-                wgr_handle_t audio = wgr_audio_create_mode("./" CLICK_PATH, WGR_AUDIO_MODE_STREAM);
+                wgr_handle_t audio = wgri_audio_create_mode("./" CLICK_PATH, WGRI_AUDIO_MODE_STREAM);
                 wgr_handle_t extra = wgr_sound_create(audio);
                 wgr_audio_release(audio);
                 wgr_sound_play(extra);
@@ -260,8 +260,8 @@ void test_audio_threads(void)
     wgr_audio_release(music);
     wgr_audio_release(click);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_sound_deinit();
-    wgr_audio_deinit();
+    wgri_sound_deinit();
+    wgri_audio_deinit();
 }
 
 /* Every sound is mixed, however many exist (sounds past the 128th used to be
@@ -273,8 +273,8 @@ void test_audio_many_sounds(void)
     float out[BLOCK * 2];
     float peak = 0.0f;
 
-    wgr_audio_init();
-    wgr_sound_init();
+    wgri_audio_init();
+    wgri_sound_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_WARN);
     CHECK(write_test_wav(WAV_PATH, 22050, 22050));
     wgr_handle_t tone = wgr_audio_create(WAV_PATH);
@@ -283,7 +283,7 @@ void test_audio_many_sounds(void)
         CHECK(sounds[i] != 0);
     }
     wgr_sound_play(sounds[COUNT - 1]);
-    wgr_audio_mix(out, BLOCK, 22050);
+    wgri_audio_mix(out, BLOCK, 22050);
     for (int i = 0; i < BLOCK * 2; i++) peak = fmaxf(peak, fabsf(out[i]));
     CHECK(peak > 0.1f);
 
@@ -291,6 +291,6 @@ void test_audio_many_sounds(void)
     wgr_audio_release(tone);
     remove(WAV_PATH);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_sound_deinit();
-    wgr_audio_deinit();
+    wgri_sound_deinit();
+    wgri_audio_deinit();
 }

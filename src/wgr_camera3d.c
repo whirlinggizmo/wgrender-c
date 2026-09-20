@@ -12,17 +12,17 @@
 #define WGR_CAMERA3D_BUILTIN_COUNT 1
 #define WGR_CAMERA3D_DYNAMIC_START_INDEX (WGR_CAMERA3D_BUILTIN_COUNT + 1)
 
-static wgr_camera3d_t *wgr_cameras; /* grown by the pool: don't hold a pointer across a create */
-static wgr_handle_pool_t wgr_camera_pool;
+static wgri_camera3d_t *wgr_cameras; /* grown by the pool: don't hold a pointer across a create */
+static wgri_handle_pool_t wgr_camera_pool;
 static wgr_handle_t wgr_active_camera = 0;
 static unsigned wgr_camera_revision; /* bumped by every change to a camera or the active one */
 
 /* Built-in default camera (index 1, generation 1). */
-const wgr_handle_t WGR_CAMERA3D_DEFAULT = WGR_HANDLE_MAKE(WGR_HANDLE_KIND_CAMERA3D, 1, 1);
+const wgr_handle_t WGR_CAMERA3D_DEFAULT = WGRI_HANDLE_MAKE(WGR_HANDLE_KIND_CAMERA3D, 1, 1);
 
 static bool resolve(wgr_handle_t handle, uint16_t *index_out)
 {
-    if (!wgr_handle_pool_resolve(&wgr_camera_pool, handle, index_out)) {
+    if (!wgri_handle_pool_resolve(&wgr_camera_pool, handle, index_out)) {
         if (handle != 0) {
             log_warn("Invalid camera3d handle (%u)", (unsigned int)handle);
         }
@@ -31,7 +31,7 @@ static bool resolve(wgr_handle_t handle, uint16_t *index_out)
     return true;
 }
 
-static const wgr_camera3d_t CAMERA_DEFAULTS = {
+static const wgri_camera3d_t CAMERA_DEFAULTS = {
     .position = {0.0f, 0.0f, 10.0f},
     .target = {0.0f, 0.0f, 0.0f},
     .up = {0.0f, 1.0f, 0.0f},
@@ -40,42 +40,42 @@ static const wgr_camera3d_t CAMERA_DEFAULTS = {
     .projection = WGR_CAMERA3D_PERSPECTIVE,
 };
 
-static wgr_camera3d_t *lookup(wgr_handle_t camera)
+static wgri_camera3d_t *lookup(wgr_handle_t camera)
 {
     uint16_t index = 0;
     return resolve(camera, &index) ? &wgr_cameras[index] : NULL;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_camera3d_create(wgr_camera3d_projection_t projection)
 {
-    wgr_handle_t handle = wgr_handle_pool_alloc(&wgr_camera_pool);
+    wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_camera_pool);
     uint16_t index = 0;
 
     if (handle == 0) {
         log_error("camera3d: pool full (%u)", (unsigned)wgr_camera_pool.max - 1u);
         return 0;
     }
-    wgr_handle_pool_resolve(&wgr_camera_pool, handle, &index);
+    wgri_handle_pool_resolve(&wgr_camera_pool, handle, &index);
     wgr_cameras[index] = CAMERA_DEFAULTS;
     wgr_cameras[index].projection =
         projection == WGR_CAMERA3D_ORTHOGRAPHIC ? WGR_CAMERA3D_ORTHOGRAPHIC : WGR_CAMERA3D_PERSPECTIVE;
     return handle;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_camera3d_get_default(void)
 {
     return WGR_CAMERA3D_DEFAULT;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_camera3d_set_view(wgr_handle_t camera,
                           float position_x, float position_y, float position_z,
                           float target_x, float target_y, float target_z,
                           float up_x, float up_y, float up_z)
 {
-    wgr_camera3d_t *camera_ptr = lookup(camera);
+    wgri_camera3d_t *camera_ptr = lookup(camera);
     if (camera_ptr == NULL) {
         return false;
     }
@@ -86,10 +86,10 @@ bool wgr_camera3d_set_view(wgr_handle_t camera,
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_camera3d_set_projection(wgr_handle_t camera, wgr_camera3d_projection_t projection)
 {
-    wgr_camera3d_t *camera_ptr = lookup(camera);
+    wgri_camera3d_t *camera_ptr = lookup(camera);
     if (camera_ptr == NULL ||
         (projection != WGR_CAMERA3D_PERSPECTIVE && projection != WGR_CAMERA3D_ORTHOGRAPHIC)) {
         return false;
@@ -99,17 +99,17 @@ bool wgr_camera3d_set_projection(wgr_handle_t camera, wgr_camera3d_projection_t 
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_camera3d_projection_t wgr_camera3d_get_projection(wgr_handle_t camera)
 {
-    wgr_camera3d_t *camera_ptr = lookup(camera);
+    wgri_camera3d_t *camera_ptr = lookup(camera);
     return camera_ptr != NULL ? camera_ptr->projection : WGR_CAMERA3D_PERSPECTIVE;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_camera3d_set_fov(wgr_handle_t camera, float fov)
 {
-    wgr_camera3d_t *camera_ptr = lookup(camera);
+    wgri_camera3d_t *camera_ptr = lookup(camera);
     if (camera_ptr == NULL || !(fov > 0.0f && fov < 3.14159f)) {
         return false;
     }
@@ -118,17 +118,17 @@ bool wgr_camera3d_set_fov(wgr_handle_t camera, float fov)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 float wgr_camera3d_get_fov(wgr_handle_t camera)
 {
-    wgr_camera3d_t *camera_ptr = lookup(camera);
+    wgri_camera3d_t *camera_ptr = lookup(camera);
     return camera_ptr != NULL ? camera_ptr->fov : 0.0f;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_camera3d_set_ortho_height(wgr_handle_t camera, float height)
 {
-    wgr_camera3d_t *camera_ptr = lookup(camera);
+    wgri_camera3d_t *camera_ptr = lookup(camera);
     if (camera_ptr == NULL || !(height > 0.0f)) {
         return false;
     }
@@ -137,14 +137,14 @@ bool wgr_camera3d_set_ortho_height(wgr_handle_t camera, float height)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 float wgr_camera3d_get_ortho_height(wgr_handle_t camera)
 {
-    wgr_camera3d_t *camera_ptr = lookup(camera);
+    wgri_camera3d_t *camera_ptr = lookup(camera);
     return camera_ptr != NULL ? camera_ptr->ortho_height : 0.0f;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_camera3d_set_active(wgr_handle_t handle)
 {
     uint16_t index = 0;
@@ -156,13 +156,13 @@ bool wgr_camera3d_set_active(wgr_handle_t handle)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_camera3d_get_active(void)
 {
     return wgr_active_camera;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_camera3d_destroy(wgr_handle_t handle)
 {
     uint16_t index = 0;
@@ -176,13 +176,13 @@ void wgr_camera3d_destroy(wgr_handle_t handle)
     if (wgr_active_camera == handle) {
         wgr_active_camera = WGR_CAMERA3D_DEFAULT;
     }
-    wgr_scene_forget(handle); /* scenes using it fall back to the active camera */
-    wgr_cameras[index] = (wgr_camera3d_t){0};
+    wgri_scene_forget(handle); /* scenes using it fall back to the active camera */
+    wgr_cameras[index] = (wgri_camera3d_t){0};
     wgr_camera_revision++;
-    wgr_handle_pool_free(&wgr_camera_pool, handle);
+    wgri_handle_pool_free(&wgr_camera_pool, handle);
 }
 
-bool wgr_camera3d_ensure_active(void)
+bool wgri_camera3d_ensure_active(void)
 {
     uint16_t index = 0;
     if (wgr_active_camera != 0 && resolve(wgr_active_camera, &index)) {
@@ -193,7 +193,7 @@ bool wgr_camera3d_ensure_active(void)
     return resolve(wgr_active_camera, &index);
 }
 
-wgr_mat4_t wgr_camera3d_projection(const wgr_camera3d_t *cam, float aspect)
+wgri_mat4_t wgri_camera3d_projection(const wgri_camera3d_t *cam, float aspect)
 {
     if (aspect <= 0.0f) {
         aspect = 1.0f;
@@ -201,23 +201,23 @@ wgr_mat4_t wgr_camera3d_projection(const wgr_camera3d_t *cam, float aspect)
     if (cam->projection == WGR_CAMERA3D_ORTHOGRAPHIC) {
         const float top = cam->ortho_height * 0.5f;
         const float right = top * aspect;
-        return wgr_mat4_ortho(-right, right, -top, top, WGR_CAMERA3D_ORTHOGRAPHIC_NEAR,
-                             WGR_CAMERA3D_ORTHOGRAPHIC_FAR);
+        return wgri_mat4_ortho(-right, right, -top, top, WGRI_CAMERA3D_ORTHOGRAPHIC_NEAR,
+                             WGRI_CAMERA3D_ORTHOGRAPHIC_FAR);
     }
-    return wgr_mat4_perspective(cam->fov, aspect, WGR_CAMERA3D_PERSPECTIVE_NEAR,
-                               WGR_CAMERA3D_PERSPECTIVE_FAR);
+    return wgri_mat4_perspective(cam->fov, aspect, WGRI_CAMERA3D_PERSPECTIVE_NEAR,
+                               WGRI_CAMERA3D_PERSPECTIVE_FAR);
 }
 
-wgr_mat4_t wgr_camera3d_view(const wgr_camera3d_t *cam)
+wgri_mat4_t wgri_camera3d_view(const wgri_camera3d_t *cam)
 {
-    return wgr_mat4_lookat(cam->position, cam->target, cam->up);
+    return wgri_mat4_lookat(cam->position, cam->target, cam->up);
 }
 
-bool wgr_camera3d_get_data(wgr_handle_t camera, wgr_camera3d_t *out)
+bool wgri_camera3d_get_data(wgr_handle_t camera, wgri_camera3d_t *out)
 {
     uint16_t index = 0;
     if (camera == 0) {
-        return wgr_camera3d_get_active_data(out);
+        return wgri_camera3d_get_active_data(out);
     }
     if (out == NULL || !resolve(camera, &index)) {
         return false;
@@ -226,13 +226,13 @@ bool wgr_camera3d_get_data(wgr_handle_t camera, wgr_camera3d_t *out)
     return true;
 }
 
-bool wgr_camera3d_get_active_data(wgr_camera3d_t *out)
+bool wgri_camera3d_get_active_data(wgri_camera3d_t *out)
 {
     uint16_t index = 0;
     if (out == NULL) {
         return false;
     }
-    if (!wgr_camera3d_ensure_active()) {
+    if (!wgri_camera3d_ensure_active()) {
         return false;
     }
     if (!resolve(wgr_active_camera, &index)) {
@@ -242,10 +242,10 @@ bool wgr_camera3d_get_active_data(wgr_camera3d_t *out)
     return true;
 }
 
-void wgr_camera3d_init(void)
+void wgri_camera3d_init(void)
 {
-    if (!wgr_handle_pool_init(&wgr_camera_pool, WGR_HANDLE_KIND_CAMERA3D, "camera3d", (void **)&wgr_cameras,
-                             sizeof(wgr_camera3d_t), CAMERAS_INITIAL, WGR_HANDLE_POOL_MAX_SLOTS)) {
+    if (!wgri_handle_pool_init(&wgr_camera_pool, WGR_HANDLE_KIND_CAMERA3D, "camera3d", (void **)&wgr_cameras,
+                             sizeof(wgri_camera3d_t), CAMERAS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         log_error("camera3d: out of memory");
     }
 
@@ -260,14 +260,14 @@ void wgr_camera3d_init(void)
     wgr_camera_revision++;
 }
 
-void wgr_camera3d_deinit(void)
+void wgri_camera3d_deinit(void)
 {
-    wgr_handle_pool_destroy(&wgr_camera_pool);
+    wgri_handle_pool_destroy(&wgr_camera_pool);
     wgr_active_camera = 0;
     wgr_camera_revision++;
 }
 
-unsigned wgr_camera3d_revision(void)
+unsigned wgri_camera3d_revision(void)
 {
     return wgr_camera_revision;
 }

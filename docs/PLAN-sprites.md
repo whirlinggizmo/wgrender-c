@@ -161,7 +161,7 @@ Each step is its own commit, measured on desktop, headless Chrome and the phone.
 - `src/shaders/wgr_sprite.glsl` (`@module sprite`) and `src/wgr_sprite_batch.c`: one
   76-byte record per sprite (position, facing, size, pivot, source rectangle, axes for
   flat and free sprites, tint), a 6-corner quad drawn instanced. Billboard axes are
-  per camera, so they're uniforms, worked out by `wgr_sprite3d_facing_basis` like
+  per camera, so they're uniforms, worked out by `wgri_sprite3d_facing_basis` like
   picking's; flat and free sprites carry their own. Pipelines match sokol_gl's 3D ones
   (blended, depth-tested, depth writes on for direct draws, off in a scene's sorted
   pass). The frame's records go up in one transient buffer write before the passes.
@@ -176,12 +176,12 @@ draw itself, so this step also fixed:
 
 - **Scene membership**: a hash index per scene (handle -> member), with removals left
   as holes that are closed, layer-sorted and re-indexed once before the members are
-  walked. Adding, removing, destroying (`wgr_scene_forget`) and relayering were linear
+  walked. Adding, removing, destroying (`wgri_scene_forget`) and relayering were linear
   scans, quadratic under churn.
 - **The transparent sort**: a stable radix sort on depth (ties keep submission order)
   above 64 parts, instead of `qsort`.
 - **Per-sprite state lookups**: the batch's camera, pass and scissor are cached behind
-  `wgr_render_state_revision` and `wgr_camera3d_revision` instead of being re-read and
+  `wgri_render_state_revision` and `wgri_camera3d_revision` instead of being re-read and
   compared for every sprite.
 
 CPU ms per frame, before -> after:
@@ -220,7 +220,7 @@ removes the interleaving.
   refuse `ADD` for now). `wgr_sprite3d_set_alpha_mode(sprite, mode, cutoff)`; blend
   stays the default.
 - In a scene, opaque and masked sprites draw in the opaque pass and additive ones in a
-  new additive pass after the blended parts (`wgr_scene_register_additive`). Neither
+  new additive pass after the blended parts (`wgri_scene_register_additive`). Neither
   is sorted: the batcher groups them by texture and mode (a counting sort over the
   few groups, stable, so overlapping sprites at one depth keep member order), so 400
   masked sprites alternating 4 textures draw in 4 batches (unit test).
@@ -276,8 +276,8 @@ base-instance draws (reading by index is no faster there: native GL calls are ch
 - A 2D sprite's quads (one, or up to nine when nine-sliced) go to the batcher as
   instances: position the top-left corner, axes the top and left edges, so rotation,
   pivot, scale, flips and nine-slices are worked out as before and come out the same.
-  `wgr_sprite_batch_add_2d` records them in order (2D is never regrouped) under a 2D
-  projection matching sokol_gl's (`wgr_mat4_ortho` over the target's logical pixels),
+  `wgri_sprite_batch_add_2d` records them in order (2D is never regrouped) under a 2D
+  projection matching sokol_gl's (`wgri_mat4_ortho` over the target's logical pixels),
   with 2D pipelines (no depth test): blended, added, opaque/masked.
 - `wgr_sprite2d_set_alpha_mode` / `get_alpha_mode`, like sprite3d's; blend the default.
 - The immediate `wgr_texture_draw*` calls stay on sokol_gl (UI draws few, interleaved

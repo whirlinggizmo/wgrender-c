@@ -109,7 +109,7 @@ tick the box in the same commit.
 - [x] Bug: orthographic cameras only affected sokol_gl content; models and
       picking always used perspective (fovy 6 world units became a 6 degree FOV,
       so models drew hugely magnified and picks missed). Fixed: one
-      `wgr_camera3d_projection` / `wgr_camera3d_view` used by sokol_gl 3D mode,
+      `wgri_camera3d_projection` / `wgri_camera3d_view` used by sokol_gl 3D mode,
       models and picking
 - [x] Fixed-rate tick (`wgr_set_tick`) + timing passed to callbacks (`dt`,
       `tick_fraction`); `wgr_get_delta_time` removed; input edges relative to the
@@ -525,7 +525,7 @@ VertexColorTest, TextureSettingsTest and BoxTextured on desktop, WebGL2, WebGPU)
       so a file missing under a mod or a translation falls through (quietly; a 404 each
       on the web); a target with "://" is where files download from (web). They apply to
       ensured files and the files those reference: a model reads its buffers and images
-      from where the asset layer found them (`wgr_asset_found_path`). Plain prefixes;
+      from where the asset layer found them (`wgri_asset_found_path`). Plain prefixes;
       wildcards if a game needs them
 
 Not supported yet:

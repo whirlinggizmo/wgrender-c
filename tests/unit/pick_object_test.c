@@ -15,9 +15,9 @@
  * logical pixel, so (0.5, 0.5) is its center. */
 void test_pick_object(void)
 {
-    wgr_camera3d_init();
-    wgr_scene_init();
-    wgr_shape3d_init();
+    wgri_camera3d_init();
+    wgri_scene_init();
+    wgri_shape3d_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL);
 
     wgr_handle_t camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
@@ -65,17 +65,17 @@ void test_pick_object(void)
     CHECK(!wgr_pick_object(0, camera, 0.5f, 0.5f).hit);
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_shape3d_deinit();
-    wgr_scene_deinit();
-    wgr_camera3d_deinit();
+    wgri_shape3d_deinit();
+    wgri_scene_deinit();
+    wgri_camera3d_deinit();
 }
 
 /* Rectangles, circles, lines and line strips: building, bounds, picking. */
 void test_shape_3d(void)
 {
-    wgr_camera3d_init();
-    wgr_scene_init();
-    wgr_shape3d_init();
+    wgri_camera3d_init();
+    wgri_scene_init();
+    wgri_shape3d_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL);
 
     wgr_handle_t camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
@@ -117,18 +117,18 @@ void test_shape_3d(void)
     }
     CHECK(wgr_shape3d_get_point_count(strip) == 100);
     vec3_t lmin, lmax;
-    wgr_mat4_t model;
-    CHECK(wgr_drawable_bounds(strip, &lmin, &lmax, &model));
+    wgri_mat4_t model;
+    CHECK(wgri_drawable_bounds(strip, &lmin, &lmax, &model));
     CHECK_VEC3_NEAR(lmin, 0, 0, 0, EPS);
     CHECK_VEC3_NEAR(lmax, 99, 2, 0, EPS);
     CHECK(wgr_shape3d_set_line_strip(strip));
     CHECK(wgr_shape3d_get_point_count(strip) == 0);
-    CHECK(!wgr_drawable_bounds(strip, &lmin, &lmax, &model)); /* empty: nothing to pick */
+    CHECK(!wgri_drawable_bounds(strip, &lmin, &lmax, &model)); /* empty: nothing to pick */
     CHECK(wgr_shape3d_set_cube(strip, 1, 1, 1));
     CHECK(wgr_shape3d_get_point_count(strip) == 0);
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_shape3d_deinit();
-    wgr_scene_deinit();
-    wgr_camera3d_deinit();
+    wgri_shape3d_deinit();
+    wgri_scene_deinit();
+    wgri_camera3d_deinit();
 }

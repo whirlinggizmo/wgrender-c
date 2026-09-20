@@ -1,28 +1,28 @@
-#ifndef WGR_INTERNAL_MATH_H
-#define WGR_INTERNAL_MATH_H
+#ifndef WGRI_INTERNAL_MATH_H
+#define WGRI_INTERNAL_MATH_H
 
 #include <math.h>
 
 #include "wgr_types.h"
 
-#define WGR_DEG2RAD 0.01745329251994329577f /* degrees -> radians (pi / 180) */
-#define WGR_RAD2DEG 57.2957795130823208768f /* radians -> degrees (180 / pi) */
+#define WGRI_DEG2RAD 0.01745329251994329577f /* degrees -> radians (pi / 180) */
+#define WGRI_RAD2DEG 57.2957795130823208768f /* radians -> degrees (180 / pi) */
 
 /* Column-major 4x4 matrices (OpenGL convention), matching sokol_gl's
  * perspective/lookat so custom-pipeline meshes line up with sokol_gl shapes. */
 typedef struct {
     float m[16];
-} wgr_mat4_t;
+} wgri_mat4_t;
 
-static inline wgr_mat4_t wgr_mat4_identity(void)
+static inline wgri_mat4_t wgri_mat4_identity(void)
 {
-    wgr_mat4_t r = {{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}};
+    wgri_mat4_t r = {{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}};
     return r;
 }
 
-static inline wgr_mat4_t wgr_mat4_mul(wgr_mat4_t a, wgr_mat4_t b)
+static inline wgri_mat4_t wgri_mat4_mul(wgri_mat4_t a, wgri_mat4_t b)
 {
-    wgr_mat4_t r;
+    wgri_mat4_t r;
     for (int col = 0; col < 4; col++) {
         for (int row = 0; row < 4; row++) {
             r.m[col * 4 + row] = a.m[0 * 4 + row] * b.m[col * 4 + 0] +
@@ -34,9 +34,9 @@ static inline wgr_mat4_t wgr_mat4_mul(wgr_mat4_t a, wgr_mat4_t b)
     return r;
 }
 
-static inline wgr_mat4_t wgr_mat4_perspective(float fovy_rad, float aspect, float n, float f)
+static inline wgri_mat4_t wgri_mat4_perspective(float fovy_rad, float aspect, float n, float f)
 {
-    wgr_mat4_t r = {{0}};
+    wgri_mat4_t r = {{0}};
     float t = tanf(fovy_rad * 0.5f);
     r.m[0] = 1.0f / (aspect * t);
     r.m[5] = 1.0f / t;
@@ -47,9 +47,9 @@ static inline wgr_mat4_t wgr_mat4_perspective(float fovy_rad, float aspect, floa
 }
 
 /* glOrtho / sgl_ortho convention (column-major). */
-static inline wgr_mat4_t wgr_mat4_ortho(float l, float r, float b, float t, float n, float f)
+static inline wgri_mat4_t wgri_mat4_ortho(float l, float r, float b, float t, float n, float f)
 {
-    wgr_mat4_t m = {{0}};
+    wgri_mat4_t m = {{0}};
     m.m[0] = 2.0f / (r - l);
     m.m[5] = 2.0f / (t - b);
     m.m[10] = -2.0f / (f - n);
@@ -60,27 +60,27 @@ static inline wgr_mat4_t wgr_mat4_ortho(float l, float r, float b, float t, floa
     return m;
 }
 
-static inline vec3_t wgr_v3_add(vec3_t a, vec3_t b) { return (vec3_t){a.x + b.x, a.y + b.y, a.z + b.z}; }
-static inline vec3_t wgr_v3_sub(vec3_t a, vec3_t b) { return (vec3_t){a.x - b.x, a.y - b.y, a.z - b.z}; }
-static inline vec3_t wgr_v3_scale(vec3_t a, float s) { return (vec3_t){a.x * s, a.y * s, a.z * s}; }
-static inline float wgr_v3_dot(vec3_t a, vec3_t b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
-static inline vec3_t wgr_v3_cross(vec3_t a, vec3_t b)
+static inline vec3_t wgri_v3_add(vec3_t a, vec3_t b) { return (vec3_t){a.x + b.x, a.y + b.y, a.z + b.z}; }
+static inline vec3_t wgri_v3_sub(vec3_t a, vec3_t b) { return (vec3_t){a.x - b.x, a.y - b.y, a.z - b.z}; }
+static inline vec3_t wgri_v3_scale(vec3_t a, float s) { return (vec3_t){a.x * s, a.y * s, a.z * s}; }
+static inline float wgri_v3_dot(vec3_t a, vec3_t b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+static inline vec3_t wgri_v3_cross(vec3_t a, vec3_t b)
 {
     return (vec3_t){a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
 }
-static inline vec3_t wgr_v3_norm(vec3_t a)
+static inline vec3_t wgri_v3_norm(vec3_t a)
 {
     float l = sqrtf(a.x * a.x + a.y * a.y + a.z * a.z);
     if (l <= 1e-6f) return (vec3_t){0, 0, 0};
     return (vec3_t){a.x / l, a.y / l, a.z / l};
 }
 
-static inline wgr_mat4_t wgr_mat4_lookat(vec3_t eye, vec3_t center, vec3_t up)
+static inline wgri_mat4_t wgri_mat4_lookat(vec3_t eye, vec3_t center, vec3_t up)
 {
-    vec3_t f = wgr_v3_norm(wgr_v3_sub(center, eye));
-    vec3_t s = wgr_v3_norm(wgr_v3_cross(f, up));
-    vec3_t u = wgr_v3_cross(s, f);
-    wgr_mat4_t r = wgr_mat4_identity();
+    vec3_t f = wgri_v3_norm(wgri_v3_sub(center, eye));
+    vec3_t s = wgri_v3_norm(wgri_v3_cross(f, up));
+    vec3_t u = wgri_v3_cross(s, f);
+    wgri_mat4_t r = wgri_mat4_identity();
     r.m[0] = s.x; r.m[4] = s.y; r.m[8] = s.z;
     r.m[1] = u.x; r.m[5] = u.y; r.m[9] = u.z;
     r.m[2] = -f.x; r.m[6] = -f.y; r.m[10] = -f.z;
@@ -90,24 +90,24 @@ static inline wgr_mat4_t wgr_mat4_lookat(vec3_t eye, vec3_t center, vec3_t up)
     return r;
 }
 
-static inline wgr_mat4_t wgr_mat4_translate(float x, float y, float z)
+static inline wgri_mat4_t wgri_mat4_translate(float x, float y, float z)
 {
-    wgr_mat4_t r = wgr_mat4_identity();
+    wgri_mat4_t r = wgri_mat4_identity();
     r.m[12] = x; r.m[13] = y; r.m[14] = z;
     return r;
 }
 
-static inline wgr_mat4_t wgr_mat4_scale(float x, float y, float z)
+static inline wgri_mat4_t wgri_mat4_scale(float x, float y, float z)
 {
-    wgr_mat4_t r = wgr_mat4_identity();
+    wgri_mat4_t r = wgri_mat4_identity();
     r.m[0] = x; r.m[5] = y; r.m[10] = z;
     return r;
 }
 
-static inline wgr_mat4_t wgr_mat4_rotate(float angle_rad, float x, float y, float z)
+static inline wgri_mat4_t wgri_mat4_rotate(float angle_rad, float x, float y, float z)
 {
     float len = sqrtf(x * x + y * y + z * z);
-    wgr_mat4_t r = wgr_mat4_identity();
+    wgri_mat4_t r = wgri_mat4_identity();
     float c, s, t;
     if (len <= 1e-6f) return r;
     x /= len; y /= len; z /= len;
@@ -120,9 +120,9 @@ static inline wgr_mat4_t wgr_mat4_rotate(float angle_rad, float x, float y, floa
     return r;
 }
 
-static inline wgr_mat4_t wgr_mat4_from_quat(quat_t q)
+static inline wgri_mat4_t wgri_mat4_from_quat(quat_t q)
 {
-    wgr_mat4_t r = wgr_mat4_identity();
+    wgri_mat4_t r = wgri_mat4_identity();
     float x = q.x, y = q.y, z = q.z, w = q.w;
     float xx = x * x, yy = y * y, zz = z * z;
     float xy = x * y, xz = x * z, yz = y * z;
@@ -140,9 +140,9 @@ static inline wgr_mat4_t wgr_mat4_from_quat(quat_t q)
 }
 
 /* Compose from translation + quaternion rotation + scale (T * R * S). */
-static inline wgr_mat4_t wgr_mat4_compose(vec3_t t, quat_t q, vec3_t s)
+static inline wgri_mat4_t wgri_mat4_compose(vec3_t t, quat_t q, vec3_t s)
 {
-    wgr_mat4_t m = wgr_mat4_from_quat(q);
+    wgri_mat4_t m = wgri_mat4_from_quat(q);
     /* scale columns */
     m.m[0] *= s.x; m.m[1] *= s.x; m.m[2] *= s.x;
     m.m[4] *= s.y; m.m[5] *= s.y; m.m[6] *= s.y;
@@ -151,12 +151,12 @@ static inline wgr_mat4_t wgr_mat4_compose(vec3_t t, quat_t q, vec3_t s)
     return m;
 }
 
-static inline vec3_t wgr_v3_lerp(vec3_t a, vec3_t b, float t)
+static inline vec3_t wgri_v3_lerp(vec3_t a, vec3_t b, float t)
 {
     return (vec3_t){a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t};
 }
 
-static inline quat_t wgr_quat_slerp(quat_t a, quat_t b, float t)
+static inline quat_t wgri_quat_slerp(quat_t a, quat_t b, float t)
 {
     float dot = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
     float k0, k1, theta, sin_theta;
@@ -184,16 +184,16 @@ static inline quat_t wgr_quat_slerp(quat_t a, quat_t b, float t)
 
 /* Transform a point (w=1, perspective divide) by a column-major matrix. */
 /* Transform a direction (ignores translation). */
-static inline vec3_t wgr_mat4_mul_dir(wgr_mat4_t m, vec3_t d)
+static inline vec3_t wgri_mat4_mul_dir(wgri_mat4_t m, vec3_t d)
 {
     return (vec3_t){m.m[0] * d.x + m.m[4] * d.y + m.m[8] * d.z,
                     m.m[1] * d.x + m.m[5] * d.y + m.m[9] * d.z,
                     m.m[2] * d.x + m.m[6] * d.y + m.m[10] * d.z};
 }
 
-static inline wgr_mat4_t wgr_mat4_transpose(wgr_mat4_t m)
+static inline wgri_mat4_t wgri_mat4_transpose(wgri_mat4_t m)
 {
-    wgr_mat4_t r;
+    wgri_mat4_t r;
     for (int col = 0; col < 4; col++) {
         for (int row = 0; row < 4; row++) {
             r.m[col * 4 + row] = m.m[row * 4 + col];
@@ -202,7 +202,7 @@ static inline wgr_mat4_t wgr_mat4_transpose(wgr_mat4_t m)
     return r;
 }
 
-static inline vec3_t wgr_mat4_mul_point(wgr_mat4_t m, vec3_t p)
+static inline vec3_t wgri_mat4_mul_point(wgri_mat4_t m, vec3_t p)
 {
     float x = m.m[0] * p.x + m.m[4] * p.y + m.m[8] * p.z + m.m[12];
     float y = m.m[1] * p.x + m.m[5] * p.y + m.m[9] * p.z + m.m[13];
@@ -213,11 +213,11 @@ static inline vec3_t wgr_mat4_mul_point(wgr_mat4_t m, vec3_t p)
 }
 
 /* Full 4x4 inverse (returns identity if singular). */
-static inline wgr_mat4_t wgr_mat4_inverse(wgr_mat4_t a)
+static inline wgri_mat4_t wgri_mat4_inverse(wgri_mat4_t a)
 {
     const float *m = a.m;
     float inv[16], det;
-    wgr_mat4_t r;
+    wgri_mat4_t r;
 
     inv[0] = m[5]*m[10]*m[15] - m[5]*m[11]*m[14] - m[9]*m[6]*m[15] + m[9]*m[7]*m[14] + m[13]*m[6]*m[11] - m[13]*m[7]*m[10];
     inv[4] = -m[4]*m[10]*m[15] + m[4]*m[11]*m[14] + m[8]*m[6]*m[15] - m[8]*m[7]*m[14] - m[12]*m[6]*m[11] + m[12]*m[7]*m[10];
@@ -237,27 +237,27 @@ static inline wgr_mat4_t wgr_mat4_inverse(wgr_mat4_t a)
     inv[15] = m[0]*m[5]*m[10] - m[0]*m[6]*m[9] - m[4]*m[1]*m[10] + m[4]*m[2]*m[9] + m[8]*m[1]*m[6] - m[8]*m[2]*m[5];
 
     det = m[0]*inv[0] + m[1]*inv[4] + m[2]*inv[8] + m[3]*inv[12];
-    if (det > -1e-12f && det < 1e-12f) return wgr_mat4_identity();
+    if (det > -1e-12f && det < 1e-12f) return wgri_mat4_identity();
     det = 1.0f / det;
     for (int i = 0; i < 16; i++) r.m[i] = inv[i] * det;
     return r;
 }
 
 /* Compose a transform: T * Rz * Ry * Rx * S (euler radians). */
-static inline wgr_mat4_t wgr_mat4_trs(vec3_t pos, vec3_t rot, vec3_t scale)
+static inline wgri_mat4_t wgri_mat4_trs(vec3_t pos, vec3_t rot, vec3_t scale)
 {
-    wgr_mat4_t m = wgr_mat4_translate(pos.x, pos.y, pos.z);
-    m = wgr_mat4_mul(m, wgr_mat4_rotate(rot.z, 0, 0, 1));
-    m = wgr_mat4_mul(m, wgr_mat4_rotate(rot.y, 0, 1, 0));
-    m = wgr_mat4_mul(m, wgr_mat4_rotate(rot.x, 1, 0, 0));
-    m = wgr_mat4_mul(m, wgr_mat4_scale(scale.x, scale.y, scale.z));
+    wgri_mat4_t m = wgri_mat4_translate(pos.x, pos.y, pos.z);
+    m = wgri_mat4_mul(m, wgri_mat4_rotate(rot.z, 0, 0, 1));
+    m = wgri_mat4_mul(m, wgri_mat4_rotate(rot.y, 0, 1, 0));
+    m = wgri_mat4_mul(m, wgri_mat4_rotate(rot.x, 1, 0, 0));
+    m = wgri_mat4_mul(m, wgri_mat4_scale(scale.x, scale.y, scale.z));
     return m;
 }
 
 /* A plane as ax + by + cz + d = 0, its normal pointing into the volume it bounds. */
 typedef struct {
     float a, b, c, d;
-} wgr_plane_t;
+} wgri_plane_t;
 
 /* The six planes of a view-projection (left, right, bottom, top, near, far), normals
  * pointing inward, normalized so a plane test gives a real distance. Gribb-Hartmann:
@@ -266,7 +266,7 @@ typedef struct {
  * This is the -1..1 clip depth of a camera projection. A 0..1 projection (a WebGPU
  * shadow fit) has its near plane at z = 0, not z = -w, so the near plane this gives is
  * looser than the real one — it keeps a little too much, never too little. */
-static inline void wgr_frustum_from_view_proj(wgr_mat4_t vp, wgr_plane_t out[6])
+static inline void wgri_frustum_from_view_proj(wgri_mat4_t vp, wgri_plane_t out[6])
 {
     const float *m = vp.m; /* column-major: m[col * 4 + row] */
     for (int i = 0; i < 6; i++) {
@@ -286,7 +286,7 @@ static inline void wgr_frustum_from_view_proj(wgr_mat4_t vp, wgr_plane_t out[6])
 /* Whether an axis-aligned box is worth drawing: false only when it is wholly outside
  * one of the planes. Conservative — a box outside the frustum but inside every plane
  * (a corner case, literally) passes and is drawn. */
-static inline bool wgr_frustum_test_aabb(const wgr_plane_t planes[6], vec3_t min, vec3_t max)
+static inline bool wgri_frustum_test_aabb(const wgri_plane_t planes[6], vec3_t min, vec3_t max)
 {
     for (int i = 0; i < 6; i++) {
         /* the corner furthest along the plane's normal: if even that is behind the
@@ -304,10 +304,10 @@ static inline bool wgr_frustum_test_aabb(const wgr_plane_t planes[6], vec3_t min
 /* How much to grow a box before testing it. A skinned model's bounds are its rest
  * pose, so an animation can reach outside them; better to draw a little too much than
  * to cull a raised arm. */
-#define WGR_CULL_PAD 0.15f
+#define WGRI_CULL_PAD 0.15f
 
 /* Grow a box by a fraction of its own size, in place. */
-static inline void wgr_aabb_pad(vec3_t *min, vec3_t *max, float fraction)
+static inline void wgri_aabb_pad(vec3_t *min, vec3_t *max, float fraction)
 {
     const vec3_t pad = {(max->x - min->x) * fraction, (max->y - min->y) * fraction,
                         (max->z - min->z) * fraction};
@@ -316,7 +316,7 @@ static inline void wgr_aabb_pad(vec3_t *min, vec3_t *max, float fraction)
 }
 
 /* A box swept along `direction` for `distance`: where a shadow of it could fall. */
-static inline void wgr_aabb_sweep(vec3_t min, vec3_t max, vec3_t direction, float distance, vec3_t *out_min,
+static inline void wgri_aabb_sweep(vec3_t min, vec3_t max, vec3_t direction, float distance, vec3_t *out_min,
                                  vec3_t *out_max)
 {
     const vec3_t to = {direction.x * distance, direction.y * distance, direction.z * distance};
@@ -331,15 +331,15 @@ static inline void wgr_aabb_sweep(vec3_t min, vec3_t max, vec3_t direction, floa
 /* sRGB transfer function (IEC 61966-2-1). Colors authored as 8-bit sRGB (color
  * handles, textures) are converted to linear for lighting, and back for output.
  * The model shader has matching GLSL versions. */
-static inline float wgr_srgb_to_linear(float c)
+static inline float wgri_srgb_to_linear(float c)
 {
     return c <= 0.04045f ? c / 12.92f : powf((c + 0.055f) / 1.055f, 2.4f);
 }
 
-static inline float wgr_linear_to_srgb(float c)
+static inline float wgri_linear_to_srgb(float c)
 {
     if (c <= 0.0f) return 0.0f;
     return c <= 0.0031308f ? c * 12.92f : 1.055f * powf(c, 1.0f / 2.4f) - 0.055f;
 }
 
-#endif // WGR_INTERNAL_MATH_H
+#endif // WGRI_INTERNAL_MATH_H

@@ -2,7 +2,7 @@
 
 #include <stddef.h>
 
-void wgr_frame_pace_set_fps(wgr_frame_pace_t *pace, int fps)
+void wgri_frame_pace_set_fps(wgri_frame_pace_t *pace, int fps)
 {
     if (pace == NULL) {
         return;
@@ -11,22 +11,22 @@ void wgr_frame_pace_set_fps(wgr_frame_pace_t *pace, int fps)
     pace->next = 0.0;
 }
 
-bool wgr_frame_pace_enabled(const wgr_frame_pace_t *pace)
+bool wgri_frame_pace_enabled(const wgri_frame_pace_t *pace)
 {
     return pace != NULL && pace->period > 0.0;
 }
 
-double wgr_frame_pace_wait(const wgr_frame_pace_t *pace, double now)
+double wgri_frame_pace_wait(const wgri_frame_pace_t *pace, double now)
 {
-    if (!wgr_frame_pace_enabled(pace) || pace->next <= 0.0) {
+    if (!wgri_frame_pace_enabled(pace) || pace->next <= 0.0) {
         return 0.0; /* unpaced, or the first frame */
     }
     return pace->next - now;
 }
 
-void wgr_frame_pace_mark(wgr_frame_pace_t *pace, double now)
+void wgri_frame_pace_mark(wgri_frame_pace_t *pace, double now)
 {
-    if (!wgr_frame_pace_enabled(pace)) {
+    if (!wgri_frame_pace_enabled(pace)) {
         return;
     }
     if (pace->next <= 0.0) {

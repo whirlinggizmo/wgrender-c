@@ -18,7 +18,7 @@ also what makes a directional light look like a sun rather than a flat wash.
 ## Where we are
 
 - Lights are scene objects (directional, point, spot), resolved per scene draw into a
-  `wgr_light_env_t` and selected per model (8 at a time, by contribution).
+  `wgri_light_env_t` and selected per model (8 at a time, by contribution).
 - Model shading lives in `src/shaders/wgr_pbr.glsl`, shared by models and lit sprites;
   custom shaders get the same lights through `wgr_frame` (`shaders/wgr.glsl`).
 - Render targets exist (`wgr_texture_create_target`), the frame runs target passes
@@ -67,7 +67,7 @@ lit shading runs — models, lit 3D sprites, and custom shaders that call the ne
 A new optional module, `src/wgr_shadow.c`, registers a render hook that runs before
 the frame's other passes:
 
-1. While the frame is recorded, each scene draw already pushes a `wgr_light_env_t` and
+1. While the frame is recorded, each scene draw already pushes a `wgri_light_env_t` and
    queues model items against it. The shadow module notes which envs have a casting
    light.
 2. Before the target and screen passes, for each casting light: fit the light's
@@ -77,7 +77,7 @@ the frame's other passes:
    matrix and its parameters, so models, sprites and custom shaders read it the same
    way (`.wgrshader` format 6 — custom shaders need rebuilding).
 
-The core stays as it is: this is another `wgr_render_hooks` entry, like screen effects,
+The core stays as it is: this is another `wgri_render_hooks` entry, like screen effects,
 so a program with no shadows doesn't link the module (`make check`).
 
 ### Fitting
@@ -160,12 +160,12 @@ so a custom shader lights a surface the way built-in materials do, shadows inclu
   linker dropped the whole module and the first render came out with no shadows at
   all.) At runtime a light casts only when asked, and a model says whether it casts
   and whether it receives.
-- **One casting light**, the first the scene finds (`wgr_light_env_t.shadow_light`),
+- **One casting light**, the first the scene finds (`wgri_light_env_t.shadow_light`),
   and only a directional one: spot and point lights refuse with a warning.
 - **The fit** covers the slice of the camera's view out to the light's shadow
   distance, as a square so its texel size doesn't change as the camera turns, snapped
   to whole texels so shadows don't crawl, with the near plane pulled back 50 units so
-  casters behind the camera still cast. `wgr_shadow_fit_directional` is pure and
+  casters behind the camera still cast. `wgri_shadow_fit_directional` is pure and
   tested.
 - **The bias is measured in shadow texels**, not in depth units. It started in depth
   units, which read as "0.0015" but meant 20 cm along the light over the map's 155-unit
@@ -190,7 +190,7 @@ so a custom shader lights a surface the way built-in materials do, shadows inclu
 
 ## Phase 2 as built
 
-- **One depth array, a layer per casting light** (`WGR_MAX_SHADOW_LIGHTS` = 4), rather
+- **One depth array, a layer per casting light** (`WGRI_MAX_SHADOW_LIGHTS` = 4), rather
   than a texture each. Custom shaders have almost no sampler slots left (libwgrender owns 8
   and 9 of the twelve), and an array costs one slot however many lights cast. Each
   layer gets its own attachment view (`sg_view_desc.depth_stencil_attachment.slice`)
@@ -207,7 +207,7 @@ so a custom shader lights a surface the way built-in materials do, shadows inclu
 - **Spot lights fit their own cone**: a perspective frustum from the light, with the
   field of view taken from the outer cone angle plus a tenth so the edge isn't on the
   last texel, reaching the nearer of the light's range and its shadow distance. The
-  near plane is a hundredth of that reach. `wgr_shadow_fit_spot` is pure and tested,
+  near plane is a hundredth of that reach. `wgri_shadow_fit_spot` is pure and tested,
   like the directional fit.
 - **Point lights still refuse**, and say why: they want six maps, one each way.
 - The scene hands out slots in the order it finds casting lights; past four, a light

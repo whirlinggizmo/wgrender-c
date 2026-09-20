@@ -112,8 +112,8 @@ enum {
 
 static wgr_emitter_t *wgr_emitters3d;
 static wgr_emitter_t *wgr_emitters2d;
-static wgr_handle_pool_t wgr_emitter3d_pool;
-static wgr_handle_pool_t wgr_emitter2d_pool;
+static wgri_handle_pool_t wgr_emitter3d_pool;
+static wgri_handle_pool_t wgr_emitter2d_pool;
 
 static struct {
     bool ready;
@@ -134,8 +134,8 @@ static struct {
 static wgr_emitter_t *resolve(wgr_handle_t handle)
 {
     uint16_t index = 0;
-    if (wgr_handle_pool_resolve(&wgr_emitter3d_pool, handle, &index)) return &wgr_emitters3d[index];
-    if (wgr_handle_pool_resolve(&wgr_emitter2d_pool, handle, &index)) return &wgr_emitters2d[index];
+    if (wgri_handle_pool_resolve(&wgr_emitter3d_pool, handle, &index)) return &wgr_emitters3d[index];
+    if (wgri_handle_pool_resolve(&wgr_emitter2d_pool, handle, &index)) return &wgr_emitters2d[index];
     if (handle != 0) log_warn("Invalid emitter handle (%u)", (unsigned int)handle);
     return NULL;
 }
@@ -194,8 +194,8 @@ static vec3_t birth_velocity(wgr_emitter_t *emitter_ptr)
         const float sin_theta = sqrtf(fmaxf(0.0f, 1.0f - cos_theta * cos_theta));
         const float phi = TAU * random01(emitter_ptr);
         const vec3_t helper = fabsf(dir.y) < 0.99f ? (vec3_t){0, 1, 0} : (vec3_t){1, 0, 0};
-        vec3_t u = wgr_v3_norm(wgr_v3_cross(helper, dir));
-        const vec3_t w = wgr_v3_cross(dir, u);
+        vec3_t u = wgri_v3_norm(wgri_v3_cross(helper, dir));
+        const vec3_t w = wgri_v3_cross(dir, u);
         dir = (vec3_t){dir.x * cos_theta + (u.x * cosf(phi) + w.x * sinf(phi)) * sin_theta,
                        dir.y * cos_theta + (u.y * cosf(phi) + w.y * sinf(phi)) * sin_theta,
                        dir.z * cos_theta + (u.z * cosf(phi) + w.z * sinf(phi)) * sin_theta};
@@ -228,7 +228,7 @@ static void spawn(wgr_emitter_t *emitter_ptr, float when, vec3_t at)
 {
     const vec3_t v = birth_velocity(emitter_ptr);
     const vec3_t offset = spawn_offset(emitter_ptr);
-    const vec3_t moving = wgr_v3_scale(emitter_ptr->movement_velocity, emitter_ptr->inherit);
+    const vec3_t moving = wgri_v3_scale(emitter_ptr->movement_velocity, emitter_ptr->inherit);
     wgr_particle_t *p = &emitter_ptr->ring[emitter_ptr->next];
 
     *p = (wgr_particle_t){
@@ -261,7 +261,7 @@ static void retire(wgr_emitter_t *emitter_ptr)
 static void update_emitter(wgr_emitter_t *emitter_ptr, float dt)
 {
     const vec3_t from = emitter_ptr->previous;
-    const vec3_t moved = wgr_v3_sub(emitter_ptr->position, from);
+    const vec3_t moved = wgri_v3_sub(emitter_ptr->position, from);
     int due;
 
     emitter_ptr->time += dt;
@@ -275,7 +275,7 @@ static void update_emitter(wgr_emitter_t *emitter_ptr, float dt)
     /* the move was made after the last update, in a frame of that update's length (the
        game moves things by the frame's time): how fast it went is over that, not this */
     emitter_ptr->previous = emitter_ptr->position;
-    if (emitter_ptr->last_dt > 0.0f) emitter_ptr->movement_velocity = wgr_v3_scale(moved, 1.0f / emitter_ptr->last_dt);
+    if (emitter_ptr->last_dt > 0.0f) emitter_ptr->movement_velocity = wgri_v3_scale(moved, 1.0f / emitter_ptr->last_dt);
     emitter_ptr->last_dt = dt;
     if (!emitter_ptr->emitting || emitter_ptr->rate <= 0.0f || dt <= 0.0f) {
         emitter_ptr->owed = 0.0f;
@@ -289,11 +289,11 @@ static void update_emitter(wgr_emitter_t *emitter_ptr, float dt)
        stream doesn't come in clumps */
     for (int k = 0; k < due; k++) {
         const float along = (float)(k + 1) / (float)due;
-        spawn(emitter_ptr, emitter_ptr->time - dt * (1.0f - along), wgr_v3_add(from, wgr_v3_scale(moved, along)));
+        spawn(emitter_ptr, emitter_ptr->time - dt * (1.0f - along), wgri_v3_add(from, wgri_v3_scale(moved, along)));
     }
 }
 
-void wgr_emitter_update(float dt)
+void wgri_emitter_update(float dt)
 {
     for (uint16_t i = 1; i < wgr_emitter3d_pool.capacity; i++) {
         if (wgr_emitter3d_pool.occupied[i]) update_emitter(&wgr_emitters3d[i], dt);
@@ -356,11 +356,11 @@ static void draw_emitter(wgr_handle_t handle)
     sg_sampler smp;
     int tw = 0, th = 0, first, at;
     float cx, cy, cw, ch;
-    const float scale = wgr_render_pixel_scale();
+    const float scale = wgri_render_pixel_scale();
 
     if (!wgr_px.ready || emitter_ptr == NULL || !emitter_ptr->visible || emitter_ptr->live == 0 ||
         emitter_ptr->size_keys == 0 || emitter_ptr->color_keys == 0 ||
-        !wgr_texture_get_binding(emitter_ptr->texture, &view, &smp, &tw, &th) || tw <= 0 || th <= 0) {
+        !wgri_texture_get_binding(emitter_ptr->texture, &view, &smp, &tw, &th) || tw <= 0 || th <= 0) {
         return;
     }
     if (!reserve((void **)&wgr_px.particles, &wgr_px.particle_capacity, wgr_px.particle_count + emitter_ptr->live,
@@ -375,20 +375,20 @@ static void draw_emitter(wgr_handle_t handle)
 
     /* the camera: 3D the active one, facing it; 2D the target's pixels */
     if (emitter_ptr->two_d) {
-        const vec2_t size = wgr_render_current_pass() == 0 ? wgr_window_get_screen_size() : wgr_render_target_size();
-        const wgr_mat4_t ortho = wgr_mat4_ortho(0.0f, size.x, size.y, 0.0f, -1.0f, 1.0f);
+        const vec2_t size = wgri_render_current_pass() == 0 ? wgr_window_get_screen_size() : wgri_render_target_size();
+        const wgri_mat4_t ortho = wgri_mat4_ortho(0.0f, size.x, size.y, 0.0f, -1.0f, 1.0f);
         memcpy(d->params.view_proj, ortho.m, sizeof(d->params.view_proj));
         set4(d->params.axis_x, 1, 0, 0, 0);
         set4(d->params.axis_y, 0, -1, 0, 0);
     } else {
-        wgr_camera3d_t cam;
-        const vec2_t size = wgr_render_target_size();
+        wgri_camera3d_t cam;
+        const vec2_t size = wgri_render_target_size();
         vec3_t right, up;
-        if (!wgr_camera3d_get_active_data(&cam)) return;
-        const wgr_mat4_t view_proj = wgr_mat4_mul(wgr_camera3d_projection(&cam, size.y > 0 ? size.x / size.y : 1.0f),
-                                                wgr_camera3d_view(&cam));
+        if (!wgri_camera3d_get_active_data(&cam)) return;
+        const wgri_mat4_t view_proj = wgri_mat4_mul(wgri_camera3d_projection(&cam, size.y > 0 ? size.x / size.y : 1.0f),
+                                                wgri_camera3d_view(&cam));
         memcpy(d->params.view_proj, view_proj.m, sizeof(d->params.view_proj));
-        wgr_sprite3d_facing_basis(WGR_SPRITE3D_FACING_CAMERA, (vec3_t){0, 0, 0}, &cam, &right, &up);
+        wgri_sprite3d_facing_basis(WGR_SPRITE3D_FACING_CAMERA, (vec3_t){0, 0, 0}, &cam, &right, &up);
         set4(d->params.axis_x, right.x, right.y, right.z, 0);
         set4(d->params.axis_y, up.x, up.y, up.z, 0);
     }
@@ -416,7 +416,7 @@ static void draw_emitter(wgr_handle_t handle)
     } else {
         set4(d->params.source, 0, 0, 1, 1);
     }
-    if (wgr_texture_is_flipped(emitter_ptr->texture)) { /* render target stored bottom-up */
+    if (wgri_texture_is_flipped(emitter_ptr->texture)) { /* render target stored bottom-up */
         d->params.source[1] = 1.0f - d->params.source[1];
         d->params.source[3] = 1.0f - d->params.source[3];
     }
@@ -424,7 +424,7 @@ static void draw_emitter(wgr_handle_t handle)
                   (emitter_ptr->alpha_mode == WGR_ALPHA_ADD     ? 2
                    : emitter_ptr->alpha_mode == WGR_ALPHA_BLEND ? 1
                                                                : 0);
-    wgr_render_get_clip(&cx, &cy, &cw, &ch); /* the whole target when nothing is pushed */
+    wgri_render_get_clip(&cx, &cy, &cw, &ch); /* the whole target when nothing is pushed */
     set4(d->scissor, cx * scale, cy * scale, cw * scale, ch * scale);
 
     /* the particles that may be alive, oldest first */
@@ -438,10 +438,10 @@ static void draw_emitter(wgr_handle_t handle)
         at = 0;
     }
     wgr_px.particle_count = first;
-    wgr_render_submit_callback(draw_callback, wgr_px.draw_count++);
+    wgri_render_submit_callback(draw_callback, wgr_px.draw_count++);
 }
 
-void wgr_emitter_flush(void)
+void wgri_emitter_flush(void)
 {
     const size_t bytes = sizeof(wgr_particle_t) * (size_t)wgr_px.particle_count;
     if (!wgr_px.ready || wgr_px.particle_count == 0) {
@@ -464,7 +464,7 @@ void wgr_emitter_flush(void)
     });
 }
 
-void wgr_emitter_end_frame(void)
+void wgri_emitter_end_frame(void)
 {
     wgr_px.particle_count = 0;
     wgr_px.draw_count = 0;
@@ -495,12 +495,12 @@ static void draw_additive(wgr_handle_t handle)
 }
 
 /* Blended: sorted with the other transparent parts, as a whole, by its position. */
-static int collect_transparent(wgr_handle_t handle, const wgr_camera3d_t *cam, wgr_transparent_item_t *out,
+static int collect_transparent(wgr_handle_t handle, const wgri_camera3d_t *cam, wgri_transparent_item_t *out,
                                int max_items)
 {
     const wgr_emitter_t *emitter_ptr = resolve(handle);
     if (max_items < 1 || !in_mode(handle, false, true, false)) return 0;
-    out[0] = (wgr_transparent_item_t){.handle = handle, .depth = wgr_scene_view_depth(cam, emitter_ptr->position)};
+    out[0] = (wgri_transparent_item_t){.handle = handle, .depth = wgri_scene_view_depth(cam, emitter_ptr->position)};
     return 1;
 }
 
@@ -569,22 +569,22 @@ static void ensure_gpu(void)
     wgr_px.ready = true;
 }
 
-void wgr_emitter_init(void)
+void wgri_emitter_init(void)
 {
     memset(&wgr_px, 0, sizeof(wgr_px));
     wgr_px.next_seed = 0x9e3779b9u;
-    if (!wgr_handle_pool_init(&wgr_emitter3d_pool, WGR_HANDLE_KIND_EMITTER3D, "emitter3d", (void **)&wgr_emitters3d,
-                             sizeof(wgr_emitter_t), EMITTERS_INITIAL, WGR_HANDLE_POOL_MAX_SLOTS) ||
-        !wgr_handle_pool_init(&wgr_emitter2d_pool, WGR_HANDLE_KIND_EMITTER2D, "emitter2d", (void **)&wgr_emitters2d,
-                             sizeof(wgr_emitter_t), EMITTERS_INITIAL, WGR_HANDLE_POOL_MAX_SLOTS)) {
+    if (!wgri_handle_pool_init(&wgr_emitter3d_pool, WGR_HANDLE_KIND_EMITTER3D, "emitter3d", (void **)&wgr_emitters3d,
+                             sizeof(wgr_emitter_t), EMITTERS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS) ||
+        !wgri_handle_pool_init(&wgr_emitter2d_pool, WGR_HANDLE_KIND_EMITTER2D, "emitter2d", (void **)&wgr_emitters2d,
+                             sizeof(wgr_emitter_t), EMITTERS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         log_error("emitters: out of memory");
     }
-    wgr_scene_register_passes(WGR_HANDLE_KIND_EMITTER3D, draw_opaque, collect_transparent, draw_transparent);
-    wgr_scene_register_additive(WGR_HANDLE_KIND_EMITTER3D, draw_additive);
-    wgr_scene_register_2d(WGR_HANDLE_KIND_EMITTER2D, draw_emitter, pick_2d);
+    wgri_scene_register_passes(WGR_HANDLE_KIND_EMITTER3D, draw_opaque, collect_transparent, draw_transparent);
+    wgri_scene_register_additive(WGR_HANDLE_KIND_EMITTER3D, draw_additive);
+    wgri_scene_register_2d(WGR_HANDLE_KIND_EMITTER2D, draw_emitter, pick_2d);
 }
 
-static void free_emitters(wgr_handle_pool_t *pool, wgr_emitter_t *items)
+static void free_emitters(wgri_handle_pool_t *pool, wgr_emitter_t *items)
 {
     for (uint16_t i = 1; i < pool->capacity; i++) {
         if (pool->occupied[i]) {
@@ -594,12 +594,12 @@ static void free_emitters(wgr_handle_pool_t *pool, wgr_emitter_t *items)
     }
 }
 
-void wgr_emitter_deinit(void)
+void wgri_emitter_deinit(void)
 {
     free_emitters(&wgr_emitter3d_pool, wgr_emitters3d);
     free_emitters(&wgr_emitter2d_pool, wgr_emitters2d);
-    wgr_handle_pool_destroy(&wgr_emitter3d_pool);
-    wgr_handle_pool_destroy(&wgr_emitter2d_pool);
+    wgri_handle_pool_destroy(&wgr_emitter3d_pool);
+    wgri_handle_pool_destroy(&wgr_emitter2d_pool);
     if (wgr_px.ready) {
         sg_destroy_buffer(wgr_px.buffer);
         sg_destroy_buffer(wgr_px.quad);
@@ -613,8 +613,8 @@ void wgr_emitter_deinit(void)
 
 static wgr_handle_t create_emitter(wgr_handle_t texture, bool two_d)
 {
-    wgr_handle_pool_t *pool = two_d ? &wgr_emitter2d_pool : &wgr_emitter3d_pool;
-    const wgr_handle_t handle = wgr_handle_pool_alloc(pool);
+    wgri_handle_pool_t *pool = two_d ? &wgr_emitter2d_pool : &wgr_emitter3d_pool;
+    const wgr_handle_t handle = wgri_handle_pool_alloc(pool);
     uint16_t index = 0;
     wgr_emitter_t *emitter_ptr;
 
@@ -623,7 +623,7 @@ static wgr_handle_t create_emitter(wgr_handle_t texture, bool two_d)
         return 0;
     }
     ensure_gpu();
-    wgr_handle_pool_resolve(pool, handle, &index);
+    wgri_handle_pool_resolve(pool, handle, &index);
     emitter_ptr = two_d ? &wgr_emitters2d[index] : &wgr_emitters3d[index];
     *emitter_ptr = (wgr_emitter_t){
         .two_d = two_d,
@@ -650,11 +650,11 @@ static wgr_handle_t create_emitter(wgr_handle_t texture, bool two_d)
     wgr_px.next_seed = wgr_px.next_seed * 1664525u + 1013904223u;
     if (emitter_ptr->rng == 0) emitter_ptr->rng = 1;
     if (emitter_ptr->ring == NULL) {
-        wgr_handle_pool_free(pool, handle);
+        wgri_handle_pool_free(pool, handle);
         log_error("emitters: out of memory");
         return 0;
     }
-    if (texture != 0) wgr_texture_retain(texture);
+    if (texture != 0) wgri_texture_retain(texture);
     return handle;
 }
 
@@ -662,11 +662,11 @@ static void destroy_emitter(wgr_handle_t handle, bool two_d)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(handle, two_d);
     if (emitter_ptr == NULL) return;
-    wgr_scene_forget(handle);
+    wgri_scene_forget(handle);
     free(emitter_ptr->ring);
     wgr_texture_release(emitter_ptr->texture); /* no-op for 0 */
     *emitter_ptr = (wgr_emitter_t){0};
-    wgr_handle_pool_free(two_d ? &wgr_emitter2d_pool : &wgr_emitter3d_pool, handle);
+    wgri_handle_pool_free(two_d ? &wgr_emitter2d_pool : &wgr_emitter3d_pool, handle);
 }
 
 static bool set_max(wgr_emitter_t *emitter_ptr, int count)
@@ -694,7 +694,7 @@ static int count_alive(const wgr_emitter_t *emitter_ptr)
     return alive;
 }
 
-bool wgr_emitter_particle(wgr_handle_t emitter, int index, float born[4], float motion[4], float shape[4])
+bool wgri_emitter_particle(wgr_handle_t emitter, int index, float born[4], float motion[4], float shape[4])
 {
     const wgr_emitter_t *emitter_ptr = resolve(emitter);
     if (emitter_ptr == NULL || index < 0 || index >= emitter_ptr->live) return false;
@@ -705,7 +705,7 @@ bool wgr_emitter_particle(wgr_handle_t emitter, int index, float born[4], float 
     return true;
 }
 
-int wgr_emitter_size_keys(wgr_handle_t emitter, float times[8], float values[8])
+int wgri_emitter_size_keys(wgr_handle_t emitter, float times[8], float values[8])
 {
     const wgr_emitter_t *emitter_ptr = resolve(emitter);
     if (emitter_ptr == NULL) return 0;
@@ -847,290 +847,290 @@ static bool burst(wgr_emitter_t *emitter_ptr, int count)
     return true;
 }
 
-WGR_KEEP wgr_handle_t wgr_emitter3d_create(wgr_handle_t texture) { return create_emitter(texture, false); }
-WGR_KEEP wgr_handle_t wgr_emitter2d_create(wgr_handle_t texture) { return create_emitter(texture, true); }
-WGR_KEEP void wgr_emitter3d_destroy(wgr_handle_t emitter) { destroy_emitter(emitter, false); }
-WGR_KEEP void wgr_emitter2d_destroy(wgr_handle_t emitter) { destroy_emitter(emitter, true); }
+WGRI_KEEP wgr_handle_t wgr_emitter3d_create(wgr_handle_t texture) { return create_emitter(texture, false); }
+WGRI_KEEP wgr_handle_t wgr_emitter2d_create(wgr_handle_t texture) { return create_emitter(texture, true); }
+WGRI_KEEP void wgr_emitter3d_destroy(wgr_handle_t emitter) { destroy_emitter(emitter, false); }
+WGRI_KEEP void wgr_emitter2d_destroy(wgr_handle_t emitter) { destroy_emitter(emitter, true); }
 
-WGR_KEEP bool wgr_emitter3d_set_source(wgr_handle_t e, float x, float y, float w, float h)
+WGRI_KEEP bool wgr_emitter3d_set_source(wgr_handle_t e, float x, float y, float w, float h)
 {
     WITH_EMITTER(e, false, (emitter_ptr->source[0] = x, emitter_ptr->source[1] = y, emitter_ptr->source[2] = w,
                             emitter_ptr->source[3] = h));
 }
-WGR_KEEP bool wgr_emitter2d_set_source(wgr_handle_t e, float x, float y, float w, float h)
+WGRI_KEEP bool wgr_emitter2d_set_source(wgr_handle_t e, float x, float y, float w, float h)
 {
     WITH_EMITTER(e, true, (emitter_ptr->source[0] = x, emitter_ptr->source[1] = y, emitter_ptr->source[2] = w,
                            emitter_ptr->source[3] = h));
 }
-WGR_KEEP bool wgr_emitter3d_set_position(wgr_handle_t e, float x, float y, float z)
+WGRI_KEEP bool wgr_emitter3d_set_position(wgr_handle_t e, float x, float y, float z)
 {
     WITH_EMITTER(e, false, move_to(emitter_ptr, (vec3_t){x, y, z}, false));
 }
-WGR_KEEP bool wgr_emitter2d_set_position(wgr_handle_t e, float x, float y)
+WGRI_KEEP bool wgr_emitter2d_set_position(wgr_handle_t e, float x, float y)
 {
     WITH_EMITTER(e, true, move_to(emitter_ptr, (vec3_t){x, y, 0.0f}, false));
 }
-WGR_KEEP bool wgr_emitter3d_jump(wgr_handle_t e, float x, float y, float z)
+WGRI_KEEP bool wgr_emitter3d_jump(wgr_handle_t e, float x, float y, float z)
 {
     WITH_EMITTER(e, false, move_to(emitter_ptr, (vec3_t){x, y, z}, true));
 }
-WGR_KEEP bool wgr_emitter2d_jump(wgr_handle_t e, float x, float y)
+WGRI_KEEP bool wgr_emitter2d_jump(wgr_handle_t e, float x, float y)
 {
     WITH_EMITTER(e, true, move_to(emitter_ptr, (vec3_t){x, y, 0.0f}, true));
 }
-WGR_KEEP vec3_t wgr_emitter3d_get_position(wgr_handle_t e)
+WGRI_KEEP vec3_t wgr_emitter3d_get_position(wgr_handle_t e)
 {
     const wgr_emitter_t *emitter_ptr = resolve_kind(e, false);
     return emitter_ptr != NULL ? emitter_ptr->position : (vec3_t){0, 0, 0};
 }
-WGR_KEEP vec2_t wgr_emitter2d_get_position(wgr_handle_t e)
+WGRI_KEEP vec2_t wgr_emitter2d_get_position(wgr_handle_t e)
 {
     const wgr_emitter_t *emitter_ptr = resolve_kind(e, true);
     return emitter_ptr != NULL ? (vec2_t){emitter_ptr->position.x, emitter_ptr->position.y} : (vec2_t){0, 0};
 }
-WGR_KEEP bool wgr_emitter3d_set_rate(wgr_handle_t e, float per_second)
+WGRI_KEEP bool wgr_emitter3d_set_rate(wgr_handle_t e, float per_second)
 {
     if (per_second < 0.0f) return false;
     WITH_EMITTER(e, false, emitter_ptr->rate = per_second);
 }
-WGR_KEEP bool wgr_emitter2d_set_rate(wgr_handle_t e, float per_second)
+WGRI_KEEP bool wgr_emitter2d_set_rate(wgr_handle_t e, float per_second)
 {
     if (per_second < 0.0f) return false;
     WITH_EMITTER(e, true, emitter_ptr->rate = per_second);
 }
-WGR_KEEP bool wgr_emitter3d_burst(wgr_handle_t e, int count)
+WGRI_KEEP bool wgr_emitter3d_burst(wgr_handle_t e, int count)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, false);
     return emitter_ptr != NULL && burst(emitter_ptr, count);
 }
-WGR_KEEP bool wgr_emitter2d_burst(wgr_handle_t e, int count)
+WGRI_KEEP bool wgr_emitter2d_burst(wgr_handle_t e, int count)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, true);
     return emitter_ptr != NULL && burst(emitter_ptr, count);
 }
-WGR_KEEP bool wgr_emitter3d_set_emitting(wgr_handle_t e, bool emitting)
+WGRI_KEEP bool wgr_emitter3d_set_emitting(wgr_handle_t e, bool emitting)
 {
     WITH_EMITTER(e, false, emitter_ptr->emitting = emitting);
 }
-WGR_KEEP bool wgr_emitter2d_set_emitting(wgr_handle_t e, bool emitting)
+WGRI_KEEP bool wgr_emitter2d_set_emitting(wgr_handle_t e, bool emitting)
 {
     WITH_EMITTER(e, true, emitter_ptr->emitting = emitting);
 }
-WGR_KEEP bool wgr_emitter3d_is_emitting(wgr_handle_t e)
+WGRI_KEEP bool wgr_emitter3d_is_emitting(wgr_handle_t e)
 {
     const wgr_emitter_t *emitter_ptr = resolve_kind(e, false);
     return emitter_ptr != NULL && emitter_ptr->emitting;
 }
-WGR_KEEP bool wgr_emitter2d_is_emitting(wgr_handle_t e)
+WGRI_KEEP bool wgr_emitter2d_is_emitting(wgr_handle_t e)
 {
     const wgr_emitter_t *emitter_ptr = resolve_kind(e, true);
     return emitter_ptr != NULL && emitter_ptr->emitting;
 }
-WGR_KEEP bool wgr_emitter3d_set_max(wgr_handle_t e, int count) { return set_max(resolve_kind(e, false), count); }
-WGR_KEEP bool wgr_emitter2d_set_max(wgr_handle_t e, int count) { return set_max(resolve_kind(e, true), count); }
-WGR_KEEP bool wgr_emitter3d_set_life(wgr_handle_t e, float min_s, float max_s)
+WGRI_KEEP bool wgr_emitter3d_set_max(wgr_handle_t e, int count) { return set_max(resolve_kind(e, false), count); }
+WGRI_KEEP bool wgr_emitter2d_set_max(wgr_handle_t e, int count) { return set_max(resolve_kind(e, true), count); }
+WGRI_KEEP bool wgr_emitter3d_set_life(wgr_handle_t e, float min_s, float max_s)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, false);
     return emitter_ptr != NULL && set_life(emitter_ptr, min_s, max_s);
 }
-WGR_KEEP bool wgr_emitter2d_set_life(wgr_handle_t e, float min_s, float max_s)
+WGRI_KEEP bool wgr_emitter2d_set_life(wgr_handle_t e, float min_s, float max_s)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, true);
     return emitter_ptr != NULL && set_life(emitter_ptr, min_s, max_s);
 }
-WGR_KEEP bool wgr_emitter3d_set_spawn_box(wgr_handle_t e, float hx, float hy, float hz)
+WGRI_KEEP bool wgr_emitter3d_set_spawn_box(wgr_handle_t e, float hx, float hy, float hz)
 {
     WITH_EMITTER(e, false, (emitter_ptr->box = (vec3_t){fabsf(hx), fabsf(hy), fabsf(hz)}, emitter_ptr->sphere = 0));
 }
-WGR_KEEP bool wgr_emitter2d_set_spawn_box(wgr_handle_t e, float hw, float hh)
+WGRI_KEEP bool wgr_emitter2d_set_spawn_box(wgr_handle_t e, float hw, float hh)
 {
     WITH_EMITTER(e, true, (emitter_ptr->box = (vec3_t){fabsf(hw), fabsf(hh), 0.0f}, emitter_ptr->sphere = 0));
 }
-WGR_KEEP bool wgr_emitter3d_set_spawn_sphere(wgr_handle_t e, float radius)
+WGRI_KEEP bool wgr_emitter3d_set_spawn_sphere(wgr_handle_t e, float radius)
 {
     if (!(radius >= 0.0f)) return false;
     WITH_EMITTER(e, false, (emitter_ptr->sphere = radius, emitter_ptr->box = (vec3_t){0, 0, 0}));
 }
-WGR_KEEP bool wgr_emitter2d_set_spawn_circle(wgr_handle_t e, float radius)
+WGRI_KEEP bool wgr_emitter2d_set_spawn_circle(wgr_handle_t e, float radius)
 {
     if (!(radius >= 0.0f)) return false;
     WITH_EMITTER(e, true, (emitter_ptr->sphere = radius, emitter_ptr->box = (vec3_t){0, 0, 0}));
 }
-WGR_KEEP bool wgr_emitter3d_set_frames(wgr_handle_t e, int columns, int rows, int count, float per_second)
+WGRI_KEEP bool wgr_emitter3d_set_frames(wgr_handle_t e, int columns, int rows, int count, float per_second)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, false);
     return emitter_ptr != NULL && set_frames(emitter_ptr, columns, rows, count, per_second);
 }
-WGR_KEEP bool wgr_emitter2d_set_frames(wgr_handle_t e, int columns, int rows, int count, float per_second)
+WGRI_KEEP bool wgr_emitter2d_set_frames(wgr_handle_t e, int columns, int rows, int count, float per_second)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, true);
     return emitter_ptr != NULL && set_frames(emitter_ptr, columns, rows, count, per_second);
 }
-WGR_KEEP bool wgr_emitter3d_prewarm(wgr_handle_t e, float seconds)
+WGRI_KEEP bool wgr_emitter3d_prewarm(wgr_handle_t e, float seconds)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, false);
     return emitter_ptr != NULL && prewarm(emitter_ptr, seconds);
 }
-WGR_KEEP bool wgr_emitter2d_prewarm(wgr_handle_t e, float seconds)
+WGRI_KEEP bool wgr_emitter2d_prewarm(wgr_handle_t e, float seconds)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, true);
     return emitter_ptr != NULL && prewarm(emitter_ptr, seconds);
 }
-WGR_KEEP bool wgr_emitter3d_set_velocity(wgr_handle_t e, float x, float y, float z, float spread, float speed_variance)
+WGRI_KEEP bool wgr_emitter3d_set_velocity(wgr_handle_t e, float x, float y, float z, float spread, float speed_variance)
 {
     WITH_EMITTER(e, false, (emitter_ptr->velocity = (vec3_t){x, y, z}, emitter_ptr->spread = fmaxf(spread, 0.0f),
                             emitter_ptr->speed_variance = fminf(fmaxf(speed_variance, 0.0f), 1.0f)));
 }
-WGR_KEEP bool wgr_emitter2d_set_velocity(wgr_handle_t e, float x, float y, float spread, float speed_variance)
+WGRI_KEEP bool wgr_emitter2d_set_velocity(wgr_handle_t e, float x, float y, float spread, float speed_variance)
 {
     WITH_EMITTER(e, true, (emitter_ptr->velocity = (vec3_t){x, y, 0.0f}, emitter_ptr->spread = fmaxf(spread, 0.0f),
                            emitter_ptr->speed_variance = fminf(fmaxf(speed_variance, 0.0f), 1.0f)));
 }
-WGR_KEEP bool wgr_emitter3d_set_gravity(wgr_handle_t e, float x, float y, float z)
+WGRI_KEEP bool wgr_emitter3d_set_gravity(wgr_handle_t e, float x, float y, float z)
 {
     WITH_EMITTER(e, false, emitter_ptr->gravity = ((vec3_t){x, y, z}));
 }
-WGR_KEEP bool wgr_emitter2d_set_gravity(wgr_handle_t e, float x, float y)
+WGRI_KEEP bool wgr_emitter2d_set_gravity(wgr_handle_t e, float x, float y)
 {
     WITH_EMITTER(e, true, emitter_ptr->gravity = ((vec3_t){x, y, 0.0f}));
 }
-WGR_KEEP bool wgr_emitter3d_set_drag(wgr_handle_t e, float per_second)
+WGRI_KEEP bool wgr_emitter3d_set_drag(wgr_handle_t e, float per_second)
 {
     if (!(per_second >= 0.0f)) return false;
     WITH_EMITTER(e, false, emitter_ptr->drag = per_second);
 }
-WGR_KEEP bool wgr_emitter2d_set_drag(wgr_handle_t e, float per_second)
+WGRI_KEEP bool wgr_emitter2d_set_drag(wgr_handle_t e, float per_second)
 {
     if (!(per_second >= 0.0f)) return false;
     WITH_EMITTER(e, true, emitter_ptr->drag = per_second);
 }
-WGR_KEEP bool wgr_emitter3d_set_stretch(wgr_handle_t e, float seconds)
+WGRI_KEEP bool wgr_emitter3d_set_stretch(wgr_handle_t e, float seconds)
 {
     if (!(seconds >= 0.0f)) return false;
     WITH_EMITTER(e, false, emitter_ptr->stretch = seconds);
 }
-WGR_KEEP bool wgr_emitter2d_set_stretch(wgr_handle_t e, float seconds)
+WGRI_KEEP bool wgr_emitter2d_set_stretch(wgr_handle_t e, float seconds)
 {
     if (!(seconds >= 0.0f)) return false;
     WITH_EMITTER(e, true, emitter_ptr->stretch = seconds);
 }
-WGR_KEEP bool wgr_emitter3d_set_inherit_velocity(wgr_handle_t e, float fraction)
+WGRI_KEEP bool wgr_emitter3d_set_inherit_velocity(wgr_handle_t e, float fraction)
 {
     WITH_EMITTER(e, false, emitter_ptr->inherit = fraction);
 }
-WGR_KEEP bool wgr_emitter2d_set_inherit_velocity(wgr_handle_t e, float fraction)
+WGRI_KEEP bool wgr_emitter2d_set_inherit_velocity(wgr_handle_t e, float fraction)
 {
     WITH_EMITTER(e, true, emitter_ptr->inherit = fraction);
 }
-WGR_KEEP bool wgr_emitter3d_set_size(wgr_handle_t e, float start, float end, float variance)
+WGRI_KEEP bool wgr_emitter3d_set_size(wgr_handle_t e, float start, float end, float variance)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, false);
     return emitter_ptr != NULL && set_size(emitter_ptr, start, end, variance);
 }
-WGR_KEEP bool wgr_emitter2d_set_size(wgr_handle_t e, float start, float end, float variance)
+WGRI_KEEP bool wgr_emitter2d_set_size(wgr_handle_t e, float start, float end, float variance)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, true);
     return emitter_ptr != NULL && set_size(emitter_ptr, start, end, variance);
 }
-WGR_KEEP bool wgr_emitter3d_add_size_key(wgr_handle_t e, float t, float size)
+WGRI_KEEP bool wgr_emitter3d_add_size_key(wgr_handle_t e, float t, float size)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, false);
     return emitter_ptr != NULL && add_size_key(emitter_ptr, t, size);
 }
-WGR_KEEP bool wgr_emitter2d_add_size_key(wgr_handle_t e, float t, float size)
+WGRI_KEEP bool wgr_emitter2d_add_size_key(wgr_handle_t e, float t, float size)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, true);
     return emitter_ptr != NULL && add_size_key(emitter_ptr, t, size);
 }
-WGR_KEEP bool wgr_emitter3d_clear_size_keys(wgr_handle_t e) { WITH_EMITTER(e, false, emitter_ptr->size_keys = 0); }
-WGR_KEEP bool wgr_emitter2d_clear_size_keys(wgr_handle_t e) { WITH_EMITTER(e, true, emitter_ptr->size_keys = 0); }
-WGR_KEEP bool wgr_emitter3d_set_color(wgr_handle_t e, wgr_color_t start, wgr_color_t end)
+WGRI_KEEP bool wgr_emitter3d_clear_size_keys(wgr_handle_t e) { WITH_EMITTER(e, false, emitter_ptr->size_keys = 0); }
+WGRI_KEEP bool wgr_emitter2d_clear_size_keys(wgr_handle_t e) { WITH_EMITTER(e, true, emitter_ptr->size_keys = 0); }
+WGRI_KEEP bool wgr_emitter3d_set_color(wgr_handle_t e, wgr_color_t start, wgr_color_t end)
 {
     WITH_EMITTER(e, false, set_color(emitter_ptr, start, end));
 }
-WGR_KEEP bool wgr_emitter2d_set_color(wgr_handle_t e, wgr_color_t start, wgr_color_t end)
+WGRI_KEEP bool wgr_emitter2d_set_color(wgr_handle_t e, wgr_color_t start, wgr_color_t end)
 {
     WITH_EMITTER(e, true, set_color(emitter_ptr, start, end));
 }
-WGR_KEEP bool wgr_emitter3d_add_color_key(wgr_handle_t e, float t, wgr_color_t color)
+WGRI_KEEP bool wgr_emitter3d_add_color_key(wgr_handle_t e, float t, wgr_color_t color)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, false);
     return emitter_ptr != NULL && add_color_key(emitter_ptr, t, color);
 }
-WGR_KEEP bool wgr_emitter2d_add_color_key(wgr_handle_t e, float t, wgr_color_t color)
+WGRI_KEEP bool wgr_emitter2d_add_color_key(wgr_handle_t e, float t, wgr_color_t color)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, true);
     return emitter_ptr != NULL && add_color_key(emitter_ptr, t, color);
 }
-WGR_KEEP bool wgr_emitter3d_clear_color_keys(wgr_handle_t e) { WITH_EMITTER(e, false, emitter_ptr->color_keys = 0); }
-WGR_KEEP bool wgr_emitter2d_clear_color_keys(wgr_handle_t e) { WITH_EMITTER(e, true, emitter_ptr->color_keys = 0); }
-WGR_KEEP bool wgr_emitter3d_add_palette_color(wgr_handle_t e, wgr_color_t color)
+WGRI_KEEP bool wgr_emitter3d_clear_color_keys(wgr_handle_t e) { WITH_EMITTER(e, false, emitter_ptr->color_keys = 0); }
+WGRI_KEEP bool wgr_emitter2d_clear_color_keys(wgr_handle_t e) { WITH_EMITTER(e, true, emitter_ptr->color_keys = 0); }
+WGRI_KEEP bool wgr_emitter3d_add_palette_color(wgr_handle_t e, wgr_color_t color)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, false);
     return emitter_ptr != NULL && add_palette_color(emitter_ptr, color);
 }
-WGR_KEEP bool wgr_emitter2d_add_palette_color(wgr_handle_t e, wgr_color_t color)
+WGRI_KEEP bool wgr_emitter2d_add_palette_color(wgr_handle_t e, wgr_color_t color)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, true);
     return emitter_ptr != NULL && add_palette_color(emitter_ptr, color);
 }
-WGR_KEEP bool wgr_emitter3d_clear_palette(wgr_handle_t e) { WITH_EMITTER(e, false, emitter_ptr->palette_count = 0); }
-WGR_KEEP bool wgr_emitter2d_clear_palette(wgr_handle_t e) { WITH_EMITTER(e, true, emitter_ptr->palette_count = 0); }
-WGR_KEEP bool wgr_emitter3d_set_spin(wgr_handle_t e, float min, float max)
+WGRI_KEEP bool wgr_emitter3d_clear_palette(wgr_handle_t e) { WITH_EMITTER(e, false, emitter_ptr->palette_count = 0); }
+WGRI_KEEP bool wgr_emitter2d_clear_palette(wgr_handle_t e) { WITH_EMITTER(e, true, emitter_ptr->palette_count = 0); }
+WGRI_KEEP bool wgr_emitter3d_set_spin(wgr_handle_t e, float min, float max)
 {
     WITH_EMITTER(e, false, (emitter_ptr->spin_min = min, emitter_ptr->spin_max = max));
 }
-WGR_KEEP bool wgr_emitter2d_set_spin(wgr_handle_t e, float min, float max)
+WGRI_KEEP bool wgr_emitter2d_set_spin(wgr_handle_t e, float min, float max)
 {
     WITH_EMITTER(e, true, (emitter_ptr->spin_min = min, emitter_ptr->spin_max = max));
 }
-WGR_KEEP bool wgr_emitter3d_set_alpha_mode(wgr_handle_t e, wgr_alpha_mode_t mode, float cutoff)
+WGRI_KEEP bool wgr_emitter3d_set_alpha_mode(wgr_handle_t e, wgr_alpha_mode_t mode, float cutoff)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, false);
     return emitter_ptr != NULL && set_alpha_mode(emitter_ptr, mode, cutoff);
 }
-WGR_KEEP bool wgr_emitter2d_set_alpha_mode(wgr_handle_t e, wgr_alpha_mode_t mode, float cutoff)
+WGRI_KEEP bool wgr_emitter2d_set_alpha_mode(wgr_handle_t e, wgr_alpha_mode_t mode, float cutoff)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, true);
     return emitter_ptr != NULL && set_alpha_mode(emitter_ptr, mode, cutoff);
 }
-WGR_KEEP bool wgr_emitter3d_set_seed(wgr_handle_t e, unsigned int seed)
+WGRI_KEEP bool wgr_emitter3d_set_seed(wgr_handle_t e, unsigned int seed)
 {
     WITH_EMITTER(e, false, emitter_ptr->rng = seed != 0 ? seed : 1u);
 }
-WGR_KEEP bool wgr_emitter2d_set_seed(wgr_handle_t e, unsigned int seed)
+WGRI_KEEP bool wgr_emitter2d_set_seed(wgr_handle_t e, unsigned int seed)
 {
     WITH_EMITTER(e, true, emitter_ptr->rng = seed != 0 ? seed : 1u);
 }
-WGR_KEEP int wgr_emitter3d_get_count(wgr_handle_t e) { return count_alive(resolve_kind(e, false)); }
-WGR_KEEP int wgr_emitter2d_get_count(wgr_handle_t e) { return count_alive(resolve_kind(e, true)); }
-WGR_KEEP void wgr_emitter3d_clear(wgr_handle_t e)
+WGRI_KEEP int wgr_emitter3d_get_count(wgr_handle_t e) { return count_alive(resolve_kind(e, false)); }
+WGRI_KEEP int wgr_emitter2d_get_count(wgr_handle_t e) { return count_alive(resolve_kind(e, true)); }
+WGRI_KEEP void wgr_emitter3d_clear(wgr_handle_t e)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, false);
     if (emitter_ptr != NULL) emitter_ptr->live = 0;
 }
-WGR_KEEP void wgr_emitter2d_clear(wgr_handle_t e)
+WGRI_KEEP void wgr_emitter2d_clear(wgr_handle_t e)
 {
     wgr_emitter_t *emitter_ptr = resolve_kind(e, true);
     if (emitter_ptr != NULL) emitter_ptr->live = 0;
 }
-WGR_KEEP bool wgr_emitter3d_set_visible(wgr_handle_t e, bool visible)
+WGRI_KEEP bool wgr_emitter3d_set_visible(wgr_handle_t e, bool visible)
 {
     WITH_EMITTER(e, false, emitter_ptr->visible = visible);
 }
-WGR_KEEP bool wgr_emitter2d_set_visible(wgr_handle_t e, bool visible)
+WGRI_KEEP bool wgr_emitter2d_set_visible(wgr_handle_t e, bool visible)
 {
     WITH_EMITTER(e, true, emitter_ptr->visible = visible);
 }
-WGR_KEEP void wgr_emitter3d_draw(wgr_handle_t e)
+WGRI_KEEP void wgr_emitter3d_draw(wgr_handle_t e)
 {
     if (resolve_kind(e, false) != NULL) draw_emitter(e);
 }
-WGR_KEEP void wgr_emitter2d_draw(wgr_handle_t e)
+WGRI_KEEP void wgr_emitter2d_draw(wgr_handle_t e)
 {
     if (resolve_kind(e, true) != NULL) draw_emitter(e);
 }
 
-/* An optional subsystem: part of the runtime when a program uses it (internal/wgr_module.h). */
-static wgr_module_t wgr_emitter_module = {.name = "emitter", .order = 70, .init = wgr_emitter_init, .deinit = wgr_emitter_deinit, .update = wgr_emitter_update, .flush = wgr_emitter_flush, .end_frame = wgr_emitter_end_frame};
-WGR_MODULE(wgr_emitter_module)
+/* An optional subsystem: part of the runtime when a program uses it (internal/wgri_module.h). */
+static wgri_module_t wgr_emitter_module = {.name = "emitter", .order = 70, .init = wgri_emitter_init, .deinit = wgri_emitter_deinit, .update = wgri_emitter_update, .flush = wgri_emitter_flush, .end_frame = wgri_emitter_end_frame};
+WGRI_MODULE(wgr_emitter_module)

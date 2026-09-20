@@ -17,7 +17,7 @@
  * so paths resolve as-is). Web: files are read and written in MEMFS under `root`
  * (default "/wgr"), and kept between visits in an IndexedDB store, one record per
  * file: init reads only the store's list of paths, a cached file is read into
- * MEMFS when it's needed (wgr_fs_cache_read_begin), and a write stores the file.
+ * MEMFS when it's needed (wgri_fs_cache_read_begin), and a write stores the file.
  * No network here — acquisition/fetch lives in wgr_asset. */
 
 #ifdef __EMSCRIPTEN__
@@ -27,7 +27,7 @@
 /* Open the store and read its keys (full MEMFS paths). We can't await it (JSPI
  * can't suspend inside sokol's RAF-driven callbacks), so this is a polled barrier:
  * Module.wgr_fs_state is 0 pending / 1 ready / 2 no store (files still work in
- * MEMFS, nothing persists), surfaced via wgr_fs_is_ready(). */
+ * MEMFS, nothing persists), surfaced via wgri_fs_is_ready(). */
 EM_JS(void, wgr_fs_store_open, (const char *root_c), {
     const root = UTF8ToString(root_c);
     Module.wgr_fs_state = 0;
@@ -153,7 +153,7 @@ static void mkdir_parents(const char *full)
 
 /* Override the local root (base dir reads/writes resolve against). Trailing
  * slashes are trimmed so resolve()'s "%s/%s" join stays clean. */
-void wgr_fs_set_root(const char *root)
+void wgri_fs_set_root(const char *root)
 {
     size_t n;
     if (root == NULL) root = "";
@@ -163,17 +163,17 @@ void wgr_fs_set_root(const char *root)
 }
 
 /* Build the directly-openable local path for `path` (root + path). */
-void wgr_fs_resolve(const char *path, char *out, size_t out_size)
+void wgri_fs_resolve(const char *path, char *out, size_t out_size)
 {
     resolve(path, out, out_size);
 }
 
-void wgr_fs_init(const char *root_dir)
+void wgri_fs_init(const char *root_dir)
 {
     const char *root = (root_dir != NULL) ? root_dir : WGR_FS_DEFAULT_ROOT;
     snprintf(wgr_fs_root, sizeof(wgr_fs_root), "%s", root);
 #ifdef __EMSCRIPTEN__
-    /* Open the cache (its list of files); wgr_fs_is_ready() reflects it. */
+    /* Open the cache (its list of files); wgri_fs_is_ready() reflects it. */
     wgr_fs_store_open(wgr_fs_root);
     log_info("wgr_fs: files in %s, kept in IndexedDB", wgr_fs_root);
 #else
@@ -183,12 +183,12 @@ void wgr_fs_init(const char *root_dir)
 #endif
 }
 
-void wgr_fs_deinit(void)
+void wgri_fs_deinit(void)
 {
     wgr_fs_root[0] = '\0';
 }
 
-bool wgr_fs_is_ready(void)
+bool wgri_fs_is_ready(void)
 {
 #ifdef __EMSCRIPTEN__
     return wgr_fs_store_state() != 0; /* 1 = opened, 2 = no cache (files still work) */
@@ -197,7 +197,7 @@ bool wgr_fs_is_ready(void)
 #endif
 }
 
-bool wgr_fs_exists(const char *path)
+bool wgri_fs_exists(const char *path)
 {
     char full[512];
     FILE *f;
@@ -210,7 +210,7 @@ bool wgr_fs_exists(const char *path)
     return true;
 }
 
-bool wgr_fs_read(const char *path, unsigned char **out_data, int *out_size)
+bool wgri_fs_read(const char *path, unsigned char **out_data, int *out_size)
 {
     char full[512];
     FILE *f;
@@ -242,12 +242,12 @@ bool wgr_fs_read(const char *path, unsigned char **out_data, int *out_size)
     return true;
 }
 
-void wgr_fs_read_free(unsigned char *data)
+void wgri_fs_read_free(unsigned char *data)
 {
     free(data);
 }
 
-bool wgr_fs_write(const char *path, const unsigned char *data, int size)
+bool wgri_fs_write(const char *path, const unsigned char *data, int size)
 {
     char full[512];
     FILE *f;
@@ -268,7 +268,7 @@ bool wgr_fs_write(const char *path, const unsigned char *data, int size)
     return true;
 }
 
-bool wgr_fs_is_cached(const char *path)
+bool wgri_fs_is_cached(const char *path)
 {
 #ifdef __EMSCRIPTEN__
     char full[512];
@@ -280,7 +280,7 @@ bool wgr_fs_is_cached(const char *path)
 #endif
 }
 
-int wgr_fs_cache_read_begin(const char *path)
+int wgri_fs_cache_read_begin(const char *path)
 {
 #ifdef __EMSCRIPTEN__
     char full[512];
@@ -292,7 +292,7 @@ int wgr_fs_cache_read_begin(const char *path)
 #endif
 }
 
-int wgr_fs_cache_read_poll(int id)
+int wgri_fs_cache_read_poll(int id)
 {
 #ifdef __EMSCRIPTEN__
     const int state = id > 0 ? wgr_fs_store_read_state(id) : 2;

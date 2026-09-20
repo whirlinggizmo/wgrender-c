@@ -93,7 +93,7 @@ void wgr_texture_draw_nine_slice(wgr_handle_t texture, float source_x, float sou
                                 float x, float y, float width, float height, wgr_color_t tint);
 ```
 
-The nine-slice math is sprite2d's (`wgr_sprite2d_nine_slice_axis`).
+The nine-slice math is sprite2d's (`wgri_sprite2d_nine_slice_axis`).
 
 **A clip stack** replaces `wgr_render_begin_clip` / `wgr_render_end_clip`:
 
@@ -214,7 +214,7 @@ the public API's rules. It's independent of everything above and can come later.
 - Immediate 2D takes floats (`rectangle`, `rectangle_lines`, `line`, `circle`,
   `circle_lines`); callers passing ints needed no changes.
 - `wgr_shape2d_draw_rounded_rectangle` and `wgr_shape2d_draw_border` as designed. One
-  outline builder (`wgr_shape2d_rounded_outline`, internal) now serves them and the
+  outline builder (`wgri_shape2d_rounded_outline`, internal) now serves them and the
   retained rectangles; borders wider than the box fill it.
 - `wgr_texture_draw_ex` and `wgr_texture_draw_nine_slice`; `wgr_texture_draw` became a
   wrapper, and the nine-slice helper no longer needs a sprite, so sprites and the
@@ -229,7 +229,7 @@ the public API's rules. It's independent of everything above and can come later.
   set/is pairing for the existing `wgr_input_is_pointer_captured`. The draft's
   `wgr_input_capture_pointer` would have sat next to the existing
   `wgr_input_capture_cursor`, which means something else (pointer lock). The scene's
-  internal setter became `wgr_input_set_scene_pointer_captured`.
+  internal setter became `wgri_input_set_scene_pointer_captured`.
 - The wheel is `float wheel, wheel_x` (and `wgr_input_get_mouse_wheel_x`). Beyond
   precision, this fixed a bug: each scroll event was truncated to `int` before being
   added up, so small trackpad steps (sokol reports a notch as about 1.0 and trackpad
@@ -244,10 +244,10 @@ the public API's rules. It's independent of everything above and can come later.
 ### Step 2: text (2026-09-18)
 
 - `wgr_text_draw_n` / `wgr_text_measure_n` as designed; the `_ex` functions, `wgr_text_draw`
-  and the FPS counter all go through them. The internal layout (`wgr_text_block_size`,
-  `wgr_text_block_draw`, `wgr_text_split_lines`) takes a length too.
+  and the FPS counter all go through them. The internal layout (`wgri_text_block_size`,
+  `wgri_text_block_draw`, `wgri_text_split_lines`) takes a length too.
 - **Crisp high-DPI text.** Glyphs are rasterized at size × the drawing target's pixel
-  scale (`wgr_render_pixel_scale`, internal: the screen's DPI scale, 1 inside a render
+  scale (`wgri_render_pixel_scale`, internal: the screen's DPI scale, 1 inside a render
   target) and drawn under a matching `1/scale` matrix; fontstash emits each call's
   vertices before returning, so they get it. Measurement divides the scale back out.
   In the browser at a device pixel ratio of 2, the `font` example's text went from
@@ -263,11 +263,11 @@ the public API's rules. It's independent of everything above and can come later.
   frames**. Growing mid-frame recreates the atlas texture while draws recorded earlier
   in the frame still refer to it and to UVs for its old size: with sokol's validation
   on, the next frame's submit aborted. So a full atlas asks to grow, the glyphs that
-  didn't fit skip one frame, and `wgr_font_end_frame` grows it after `sg_commit`.
+  didn't fit skip one frame, and `wgri_font_end_frame` grows it after `sg_commit`.
 - Tests: `text_slices_and_dpi` — slices, logical metrics at 1×/2×/3× within the
   rounding bound, scale 1 inside a render target, and the atlas growing across a frame
   then drawing from the bigger atlas. The headless platform gained a DPI scale for
-  tests (`wgr_platform_set_headless_dpi_scale`).
+  tests (`wgri_platform_set_headless_dpi_scale`).
 
 ### Step 3: the Clay example (2026-09-18)
 

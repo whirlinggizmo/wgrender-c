@@ -7,7 +7,7 @@
 
 /* Grow the pool's slots, bookkeeping and items to `capacity`, zeroing the new
  * slots. Only called with no free slot left, so the free ring is empty. */
-static bool grow(wgr_handle_pool_t *pool, uint16_t capacity)
+static bool grow(wgri_handle_pool_t *pool, uint16_t capacity)
 {
     const size_t old_capacity = pool->capacity;
     uint16_t *generations = realloc(pool->generations, sizeof(uint16_t) * capacity);
@@ -43,7 +43,7 @@ static bool grow(wgr_handle_pool_t *pool, uint16_t capacity)
     return true;
 }
 
-bool wgr_handle_pool_init(wgr_handle_pool_t *pool,
+bool wgri_handle_pool_init(wgri_handle_pool_t *pool,
                          wgr_handle_kind_t kind,
                          const char *name,
                          void **items,
@@ -64,7 +64,7 @@ bool wgr_handle_pool_init(wgr_handle_pool_t *pool,
         initial = max;
     }
     *items = NULL;
-    *pool = (wgr_handle_pool_t){
+    *pool = (wgri_handle_pool_t){
         .kind = kind,
         .max = max,
         .next_index = 1,
@@ -73,13 +73,13 @@ bool wgr_handle_pool_init(wgr_handle_pool_t *pool,
         .name = name,
     };
     if (!grow(pool, initial)) {
-        wgr_handle_pool_destroy(pool);
+        wgri_handle_pool_destroy(pool);
         return false;
     }
     return true;
 }
 
-void wgr_handle_pool_destroy(wgr_handle_pool_t *pool)
+void wgri_handle_pool_destroy(wgri_handle_pool_t *pool)
 {
     if (pool == NULL || pool->items == NULL) {
         return;
@@ -89,10 +89,10 @@ void wgr_handle_pool_destroy(wgr_handle_pool_t *pool)
     free(pool->free_indices);
     free(*pool->items);
     *pool->items = NULL;
-    *pool = (wgr_handle_pool_t){0};
+    *pool = (wgri_handle_pool_t){0};
 }
 
-void wgr_handle_pool_reset(wgr_handle_pool_t *pool)
+void wgri_handle_pool_reset(wgri_handle_pool_t *pool)
 {
     if (pool == NULL) {
         return;
@@ -113,7 +113,7 @@ void wgr_handle_pool_reset(wgr_handle_pool_t *pool)
     }
 }
 
-static uint16_t find_free_slot_index(wgr_handle_pool_t *pool)
+static uint16_t find_free_slot_index(wgri_handle_pool_t *pool)
 {
     if (pool->free_count > 0) {
         const uint16_t index = pool->free_indices[pool->free_head];
@@ -148,14 +148,14 @@ static uint16_t find_free_slot_index(wgr_handle_pool_t *pool)
 
 static uint16_t bump_slot_generation(uint16_t generation)
 {
-    uint16_t next_generation = (uint16_t)((generation + 1u) & WGR_HANDLE_GENERATION_MASK);
+    uint16_t next_generation = (uint16_t)((generation + 1u) & WGRI_HANDLE_GENERATION_MASK);
     if (next_generation == 0) {
         next_generation = 1;
     }
     return next_generation;
 }
 
-wgr_handle_t wgr_handle_pool_alloc(wgr_handle_pool_t *pool)
+wgr_handle_t wgri_handle_pool_alloc(wgri_handle_pool_t *pool)
 {
     uint16_t index = 0;
     uint16_t generation = 0;
@@ -176,14 +176,14 @@ wgr_handle_t wgr_handle_pool_alloc(wgr_handle_pool_t *pool)
     }
 
     pool->occupied[index] = 1;
-    return WGR_HANDLE_MAKE(pool->kind, index, generation);
+    return WGRI_HANDLE_MAKE(pool->kind, index, generation);
 }
 
-bool wgr_handle_pool_free(wgr_handle_pool_t *pool, wgr_handle_t handle)
+bool wgri_handle_pool_free(wgri_handle_pool_t *pool, wgr_handle_t handle)
 {
     uint16_t index = 0;
 
-    if (!wgr_handle_pool_resolve(pool, handle, &index)) {
+    if (!wgri_handle_pool_resolve(pool, handle, &index)) {
         return false;
     }
 
@@ -196,7 +196,7 @@ bool wgr_handle_pool_free(wgr_handle_pool_t *pool, wgr_handle_t handle)
     return true;
 }
 
-bool wgr_handle_pool_resolve(const wgr_handle_pool_t *pool, wgr_handle_t handle, uint16_t *index_out)
+bool wgri_handle_pool_resolve(const wgri_handle_pool_t *pool, wgr_handle_t handle, uint16_t *index_out)
 {
     uint16_t index = 0;
     uint16_t generation = 0;
@@ -205,10 +205,10 @@ bool wgr_handle_pool_resolve(const wgr_handle_pool_t *pool, wgr_handle_t handle,
         return false;
     }
 
-    index = WGR_HANDLE_INDEX(handle);
-    generation = WGR_HANDLE_GENERATION(handle);
+    index = WGRI_HANDLE_INDEX(handle);
+    generation = WGRI_HANDLE_GENERATION(handle);
 
-    if (WGR_HANDLE_KIND(handle) != (uint8_t)pool->kind) {
+    if (WGRI_HANDLE_KIND(handle) != (uint8_t)pool->kind) {
         return false;
     }
     if (index == 0 || index >= pool->capacity) {
@@ -227,7 +227,7 @@ bool wgr_handle_pool_resolve(const wgr_handle_pool_t *pool, wgr_handle_t handle,
     return true;
 }
 
-wgr_handle_t wgr_handle_pool_handle_from_index(const wgr_handle_pool_t *pool, uint16_t index)
+wgr_handle_t wgri_handle_pool_handle_from_index(const wgri_handle_pool_t *pool, uint16_t index)
 {
     if (pool == NULL || pool->kind == WGR_HANDLE_KIND_NONE) {
         return 0;
@@ -239,5 +239,5 @@ wgr_handle_t wgr_handle_pool_handle_from_index(const wgr_handle_pool_t *pool, ui
         return 0;
     }
 
-    return WGR_HANDLE_MAKE(pool->kind, index, pool->generations[index]);
+    return WGRI_HANDLE_MAKE(pool->kind, index, pool->generations[index]);
 }

@@ -31,8 +31,8 @@ static struct {
 static void end_frame(void)
 {
     if (pointer.frame_open) {
-        wgr_input_end_frame();
-        wgr_scene_end_frame_interaction();
+        wgri_input_end_frame();
+        wgri_scene_end_frame_interaction();
         pointer.frame_open = false;
     }
 }
@@ -41,7 +41,7 @@ static void event(sapp_event_type type)
 {
     end_frame();
     sapp_event ev = {.type = type, .mouse_x = pointer.x, .mouse_y = pointer.y, .mouse_button = SAPP_MOUSEBUTTON_LEFT};
-    wgr_input_handle_event(&ev);
+    wgri_input_handle_event(&ev);
 }
 
 static void move(float x, float y)
@@ -57,7 +57,7 @@ static void move(float x, float y)
 static void frame(void)
 {
     end_frame();
-    wgr_scene_update_interaction();
+    wgri_scene_update_interaction();
     pointer.frame_open = true;
 }
 
@@ -65,14 +65,14 @@ void test_interaction(void)
 {
     const vec2_t screen = wgr_window_get_screen_size();
 
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_texture_init();
-    wgr_sprite2d_init();
-    wgr_shape3d_init();
-    wgr_input_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_texture_init();
+    wgri_sprite2d_init();
+    wgri_shape3d_init();
+    wgri_input_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
     CHECK(wgr_window_set_size(800, 600));
 
@@ -185,12 +185,12 @@ void test_interaction(void)
         sapp_event touch = {.type = SAPP_EVENTTYPE_TOUCHES_BEGAN, .num_touches = 1};
         touch.touches[0] = (sapp_touchpoint){.identifier = 7, .pos_x = 400, .pos_y = 300, .changed = true};
         end_frame();
-        wgr_input_handle_event(&touch);
+        wgri_input_handle_event(&touch);
         frame();
         CHECK(wgr_scene_get_press(scene, button) == WGR_BUTTON_PRESSED);
         touch.type = SAPP_EVENTTYPE_TOUCHES_ENDED;
         end_frame();
-        wgr_input_handle_event(&touch);
+        wgri_input_handle_event(&touch);
         frame();
         CHECK(wgr_scene_is_clicked(scene, button));
 
@@ -199,51 +199,51 @@ void test_interaction(void)
         frame();
         touch.type = SAPP_EVENTTYPE_TOUCHES_BEGAN;
         end_frame();
-        wgr_input_handle_event(&touch);
+        wgri_input_handle_event(&touch);
         frame();
         CHECK(wgr_scene_get_press(scene, button) == WGR_BUTTON_PRESSED);
         sapp_event second = {.type = SAPP_EVENTTYPE_TOUCHES_BEGAN, .num_touches = 2};
         second.touches[0] = (sapp_touchpoint){.identifier = 7, .pos_x = 400, .pos_y = 300};
         second.touches[1] = (sapp_touchpoint){.identifier = 8, .pos_x = 500, .pos_y = 300, .changed = true};
         end_frame();
-        wgr_input_handle_event(&second);
+        wgri_input_handle_event(&second);
         frame();
         CHECK(wgr_scene_get_press(scene, button) == WGR_BUTTON_RELEASED);
         CHECK(!wgr_scene_is_clicked(scene, button));
         CHECK(wgr_input_get_mouse_position().x == -1 && wgr_input_get_mouse_position().y == -1);
         second.type = SAPP_EVENTTYPE_TOUCHES_ENDED; /* the second finger lifts... */
         end_frame();
-        wgr_input_handle_event(&second);
+        wgri_input_handle_event(&second);
         touch.type = SAPP_EVENTTYPE_TOUCHES_MOVED;  /* ...and the first one moves on */
-        wgr_input_handle_event(&touch);
+        wgri_input_handle_event(&touch);
         frame();
         CHECK(wgr_input_get_mouse_button(0) == WGR_BUTTON_UP);
         CHECK(wgr_input_get_mouse_position().x == -1); /* still cancelled */
         touch.type = SAPP_EVENTTYPE_TOUCHES_ENDED;
         end_frame();
-        wgr_input_handle_event(&touch);
+        wgri_input_handle_event(&touch);
         frame();
         CHECK(!wgr_scene_is_clicked(scene, button));
         touch.type = SAPP_EVENTTYPE_TOUCHES_BEGAN; /* all lifted: the next touch is a pointer again */
         end_frame();
-        wgr_input_handle_event(&touch);
+        wgri_input_handle_event(&touch);
         touch.type = SAPP_EVENTTYPE_TOUCHES_ENDED;
-        wgr_input_handle_event(&touch);
+        wgri_input_handle_event(&touch);
         frame();
         CHECK(wgr_scene_is_clicked(scene, button));
     }
 
     /* tick edges carry over frames that ran no tick */
     frame();
-    wgr_scene_end_tick_interaction(); /* a tick ran: start from nothing */
+    wgri_scene_end_tick_interaction(); /* a tick ran: start from nothing */
     move(10, 10);
     frame(); /* left the button: no tick ran */
     frame();
-    wgr_input_set_context(WGR_INPUT_CONTEXT_TICK);
+    wgri_input_set_context(WGRI_INPUT_CONTEXT_TICK);
     CHECK(wgr_scene_get_hover(scene, button) == WGR_BUTTON_RELEASED);
-    wgr_scene_end_tick_interaction();
+    wgri_scene_end_tick_interaction();
     CHECK(wgr_scene_get_hover(scene, button) == WGR_BUTTON_UP);
-    wgr_input_set_context(WGR_INPUT_CONTEXT_FRAME);
+    wgri_input_set_context(WGRI_INPUT_CONTEXT_FRAME);
 
     /* destroying an object takes it out of every scene, with its hover and press state */
     {
@@ -273,12 +273,12 @@ void test_interaction(void)
     CHECK(wgr_window_set_size((int)screen.x, (int)screen.y));
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgr_scene_destroy(scene);
-    wgr_input_deinit();
-    wgr_shape3d_deinit();
-    wgr_sprite2d_deinit();
-    wgr_texture_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_input_deinit();
+    wgri_shape3d_deinit();
+    wgri_sprite2d_deinit();
+    wgri_texture_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }

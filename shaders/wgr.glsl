@@ -74,7 +74,7 @@
  *                         (on a model: its vertex color). The texture itself is
  *                         wgr_sprite_tex / wgr_sprite_smp, to sample it yourself (an
  *                         outline reads the texels around), converting its rgb to linear
- *   wgr_srgb_to_linear(c), wgr_linear_to_srgb(c)
+ *   wgri_srgb_to_linear(c), wgri_linear_to_srgb(c)
  *   wgr_output(color, alpha)   write the pixel: `color` is linear rgb. Applies the
  *                         model's tint, the material's (or sprite's) alpha mode, and
  *                         the scene's exposure and tone mapping (not on sprites), then
@@ -101,18 +101,18 @@
  *   wgr_screen_color()       the frame here, linear rgba
  *   wgr_screen_color_at(uv)  the frame elsewhere (a blur, chromatic aberration)
  *   wgr_screen_size()  vec2  the frame in pixels, and wgr_screen_texel() = 1 / that
- *   wgr_time(), wgr_srgb_to_linear(c), wgr_linear_to_srgb(c)
+ *   wgr_time(), wgri_srgb_to_linear(c), wgri_linear_to_srgb(c)
  *   wgr_output(color, alpha)  write the pixel (linear rgb, encoded to sRGB). No tint,
  *                         alpha mode or tone mapping: an effect draws over the screen. */
 
 @block wgr_color
-vec3 wgr_srgb_to_linear(vec3 c) {
+vec3 wgri_srgb_to_linear(vec3 c) {
     vec3 lo = c / 12.92;
     vec3 hi = pow((max(c, vec3(0.04045)) + 0.055) / 1.055, vec3(2.4));
     return mix(lo, hi, step(vec3(0.04045), c));
 }
 
-vec3 wgr_linear_to_srgb(vec3 c) {
+vec3 wgri_linear_to_srgb(vec3 c) {
     c = clamp(c, vec3(0.0), vec3(1.0));
     vec3 lo = c * 12.92;
     vec3 hi = 1.055 * pow(max(c, vec3(0.0031308)), vec3(1.0 / 2.4)) - 0.055;
@@ -297,7 +297,7 @@ void wgr_place(vec2 corner, vec4 pos, vec4 size, vec4 source, vec3 right_axis, v
     wgr_tangent = vec4(right, 1.0);
     wgr_uv0 = vec2(mix(source.x, source.z, corner.x + 0.5), mix(source.y, source.w, 0.5 - corner.y));
     wgr_uv1 = vec2(corner.x + 0.5, 0.5 - corner.y);
-    wgr_color = vec4(wgr_srgb_to_linear(tint.rgb), tint.a);
+    wgr_color = vec4(wgri_srgb_to_linear(tint.rgb), tint.a);
     wgr_tint = vec4(1.0); /* a sprite's tint is in wgr_color; wgr_output has none of its own */
     wgr_sprite_alpha = up_axis.w;
 }
@@ -368,13 +368,13 @@ vec2 wgr_screen_texel() { return 1.0 / max(wgr_screen_info.xy, vec2(1.0)); }
 vec4 wgr_screen_color_at(vec2 uv) {
     vec2 at = vec2(uv.x, wgr_screen_info.w > 0.5 ? 1.0 - uv.y : uv.y);
     vec4 c = texture(sampler2D(wgr_screen_tex, wgr_screen_smp), at);
-    return vec4(wgr_srgb_to_linear(c.rgb), c.a);
+    return vec4(wgri_srgb_to_linear(c.rgb), c.a);
 }
 
 vec4 wgr_screen_color() { return wgr_screen_color_at(wgr_screen_uv); }
 
 void wgr_output(vec3 color, float alpha) {
-    wgr_frag_color = vec4(wgr_linear_to_srgb(color), alpha);
+    wgr_frag_color = vec4(wgri_linear_to_srgb(color), alpha);
 }
 @end
 
@@ -419,7 +419,7 @@ out vec4 wgr_frag_color;
 
 vec4 wgr_sprite_color() {
     vec4 t = texture(sampler2D(wgr_sprite_tex, wgr_sprite_smp), wgr_uv0); /* white on models */
-    return vec4(wgr_srgb_to_linear(t.rgb), t.a) * wgr_color;
+    return vec4(wgri_srgb_to_linear(t.rgb), t.a) * wgr_color;
 }
 
 float wgr_time() { return wgr_camera_time.w; }
@@ -561,6 +561,6 @@ void wgr_output(vec3 color, float alpha) {
     } else if (mode == 2) {
         color = wgr_tonemap_aces(color);
     }
-    wgr_frag_color = vec4(wgr_linear_to_srgb(color), alpha);
+    wgr_frag_color = vec4(wgri_linear_to_srgb(color), alpha);
 }
 @end

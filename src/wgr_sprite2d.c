@@ -23,7 +23,7 @@
 /* The sprite2d pool starts at SPRITES_INITIAL slots and doubles as needed, up to
  * WGR_MAX_SPRITE2D (overridable at build time, -DWGR_MAX_SPRITE2D=...). */
 #ifndef WGR_MAX_SPRITE2D
-#define WGR_MAX_SPRITE2D WGR_HANDLE_POOL_MAX_SLOTS
+#define WGR_MAX_SPRITE2D WGRI_HANDLE_POOL_MAX_SLOTS
 #endif
 #define SPRITES_INITIAL 256
 
@@ -50,18 +50,18 @@ typedef struct {
 /* Swap `*slot` for `material` (a custom material, or 0), keeping one reference. */
 static bool assign_material(wgr_handle_t *slot, wgr_handle_t material, const char *who)
 {
-    const wgr_material_t *material_ptr = material != 0 ? wgr_material_get(material) : NULL;
+    const wgri_material_t *material_ptr = material != 0 ? wgri_material_get(material) : NULL;
     if (material != 0 && (material_ptr == NULL || material_ptr->shader == 0)) {
         /* built-in materials light a surface, and 2D has no lights (wgr_sprite3d) */
         log_warn("%s: 2D sprites take custom materials (wgr_material_create_custom) or 0", who);
         return false;
     }
-    if (wgr_material_is_screen(material)) {
+    if (wgri_material_is_screen(material)) {
         log_warn("%s: that material's shader is a screen effect (wgr_render_add_effect), not a surface shader", who);
         return false;
     }
     if (*slot != material) {
-        wgr_material_retain(material); /* no-op for 0 */
+        wgri_material_retain(material); /* no-op for 0 */
         wgr_material_release(*slot);
         *slot = material;
     }
@@ -69,37 +69,37 @@ static bool assign_material(wgr_handle_t *slot, wgr_handle_t material, const cha
 }
 
 static wgr_sprite2d_t *wgr_sprites2d; /* grown by the pool: don't hold a pointer across a create */
-static wgr_handle_pool_t wgr_sprite2d_pool;
+static wgri_handle_pool_t wgr_sprite2d_pool;
 
 static void draw_handle(wgr_handle_t sprite);
 static bool pick_handle(wgr_handle_t sprite, float screen_x, float screen_y, wgr_pick_result_t *out);
 
-void wgr_sprite2d_init(void)
+void wgri_sprite2d_init(void)
 {
-    wgr_sprite_batch_init(); /* shared with sprite3d: counted */
-    if (!wgr_handle_pool_init(&wgr_sprite2d_pool, WGR_HANDLE_KIND_SPRITE2D, "sprite2d", (void **)&wgr_sprites2d,
+    wgri_sprite_batch_init(); /* shared with sprite3d: counted */
+    if (!wgri_handle_pool_init(&wgr_sprite2d_pool, WGR_HANDLE_KIND_SPRITE2D, "sprite2d", (void **)&wgr_sprites2d,
                              sizeof(wgr_sprite2d_t), SPRITES_INITIAL, WGR_MAX_SPRITE2D)) {
         log_error("sprite2d: out of memory");
     }
-    wgr_scene_register_2d(WGR_HANDLE_KIND_SPRITE2D, draw_handle, pick_handle);
-    wgr_scene_register_enabled(WGR_HANDLE_KIND_SPRITE2D, wgr_sprite2d_is_enabled);
+    wgri_scene_register_2d(WGR_HANDLE_KIND_SPRITE2D, draw_handle, pick_handle);
+    wgri_scene_register_enabled(WGR_HANDLE_KIND_SPRITE2D, wgr_sprite2d_is_enabled);
 }
 
-void wgr_sprite2d_deinit(void)
+void wgri_sprite2d_deinit(void)
 {
     for (uint16_t i = 1; i < wgr_sprite2d_pool.capacity; i++) {
         if (wgr_sprite2d_pool.occupied[i] && wgr_sprites2d[i].texture != 0) {
             wgr_texture_release(wgr_sprites2d[i].texture);
         }
     }
-    wgr_handle_pool_destroy(&wgr_sprite2d_pool);
-    wgr_sprite_batch_deinit();
+    wgri_handle_pool_destroy(&wgr_sprite2d_pool);
+    wgri_sprite_batch_deinit();
 }
 
 static wgr_sprite2d_t *resolve(wgr_handle_t sprite)
 {
     uint16_t index = 0;
-    if (!wgr_handle_pool_resolve(&wgr_sprite2d_pool, sprite, &index)) {
+    if (!wgri_handle_pool_resolve(&wgr_sprite2d_pool, sprite, &index)) {
         if (sprite != 0) {
             log_warn("Invalid sprite2d handle (%u)", (unsigned int)sprite);
         }
@@ -111,7 +111,7 @@ static wgr_sprite2d_t *resolve(wgr_handle_t sprite)
 /* ------------------------------------------------------------ geometry ---- */
 
 /* Screen position of a point given in unit coordinates across the sprite. */
-static void point_at(const wgr_sprite2d_placement_t *p, float u, float v, float *out_x, float *out_y)
+static void point_at(const wgri_sprite2d_placement_t *p, float u, float v, float *out_x, float *out_y)
 {
     const float c = cosf(p->rotation), s = sinf(p->rotation);
     const float lx = (u - p->pivot_x) * p->width * p->scale_x;
@@ -120,7 +120,7 @@ static void point_at(const wgr_sprite2d_placement_t *p, float u, float v, float 
     *out_y = p->y + lx * s + ly * c;
 }
 
-void wgr_sprite2d_corners(const wgr_sprite2d_placement_t *p, float out[8])
+void wgri_sprite2d_corners(const wgri_sprite2d_placement_t *p, float out[8])
 {
     static const float unit[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
     for (int i = 0; i < 4; i++) {
@@ -128,7 +128,7 @@ void wgr_sprite2d_corners(const wgr_sprite2d_placement_t *p, float out[8])
     }
 }
 
-bool wgr_sprite2d_nine_slice_axis(float border_low, float border_high, float dest_size, float source_size,
+bool wgri_sprite2d_nine_slice_axis(float border_low, float border_high, float dest_size, float source_size,
                                  float out_dest[2], float out_source[2])
 {
     float low = border_low > 0.0f ? border_low : 0.0f;
@@ -157,7 +157,7 @@ bool wgr_sprite2d_nine_slice_axis(float border_low, float border_high, float des
     return true;
 }
 
-bool wgr_sprite2d_screen_to_unit(const wgr_sprite2d_placement_t *p, float screen_x, float screen_y,
+bool wgri_sprite2d_screen_to_unit(const wgri_sprite2d_placement_t *p, float screen_x, float screen_y,
                                 float *u, float *v)
 {
     const float span_x = p->width * p->scale_x, span_y = p->height * p->scale_y;
@@ -189,10 +189,10 @@ static bool is_nine_slice(const wgr_sprite2d_t *sprite_ptr)
  * placement. False when there's nothing to draw yet. */
 static bool resolve_placement(const wgr_sprite2d_t *sprite_ptr, sg_view *view, sg_sampler *smp,
                               float source[4], int *texture_width, int *texture_height,
-                              wgr_sprite2d_placement_t *placement)
+                              wgri_sprite2d_placement_t *placement)
 {
     int tw = 0, th = 0;
-    if (sprite_ptr->texture == 0 || !wgr_texture_get_binding(sprite_ptr->texture, view, smp, &tw, &th) ||
+    if (sprite_ptr->texture == 0 || !wgri_texture_get_binding(sprite_ptr->texture, view, smp, &tw, &th) ||
         tw <= 0 || th <= 0) {
         return false;
     }
@@ -209,7 +209,7 @@ static bool resolve_placement(const wgr_sprite2d_t *sprite_ptr, sg_view *view, s
     }
     *texture_width = tw;
     *texture_height = th;
-    *placement = (wgr_sprite2d_placement_t){
+    *placement = (wgri_sprite2d_placement_t){
         .x = sprite_ptr->x,
         .y = sprite_ptr->y,
         .width = sprite_ptr->width > 0.0f && sprite_ptr->height > 0.0f ? sprite_ptr->width : source[2],
@@ -229,14 +229,14 @@ static bool resolve_placement(const wgr_sprite2d_t *sprite_ptr, sg_view *view, s
 static void draw_quad(const wgr_sprite2d_t *sprite_ptr, sg_view view, sg_sampler smp, const float corners[8], float u0,
                       float v0, float u1, float v1, bool flip_v, wgr_color_t tint)
 {
-    const wgr_colorf_t c = wgr_color_unpack(tint);
-    if (flip_v) { /* render target stored bottom-up (see wgr_texture_is_flipped) */
+    const wgri_colorf_t c = wgri_color_unpack(tint);
+    if (flip_v) { /* render target stored bottom-up (see wgri_texture_is_flipped) */
         v0 = 1.0f - v0;
         v1 = 1.0f - v1;
     }
     if (sprite_ptr != NULL) {
         /* the top-left corner, and the top and left edges as the quad's axes */
-        const wgr_sprite_quad_t quad = {
+        const wgri_sprite_quad_t quad = {
             .position = {corners[0], corners[1], 0.0f},
             .facing = 2.0f,
             .size = {1.0f, 1.0f},
@@ -249,7 +249,7 @@ static void draw_quad(const wgr_sprite2d_t *sprite_ptr, sg_view view, sg_sampler
             .color = {(uint8_t)wgr_color_get_red(tint), (uint8_t)wgr_color_get_green(tint),
                       (uint8_t)wgr_color_get_blue(tint), (uint8_t)wgr_color_get_alpha(tint)},
         };
-        wgr_sprite_batch_add_2d(&quad, view.id, smp.id, sprite_ptr->alpha_mode, sprite_ptr->material);
+        wgri_sprite_batch_add_2d(&quad, view.id, smp.id, sprite_ptr->alpha_mode, sprite_ptr->material);
         return;
     }
     sgl_enable_texture();
@@ -268,7 +268,7 @@ static void draw_quad(const wgr_sprite2d_t *sprite_ptr, sg_view view, sg_sampler
  * middle along both. An axis without borders stays one span, so a sprite sliced on
  * one axis draws three patches, not nine. False when nothing is sliced. */
 static bool draw_nine_slice(const wgr_sprite2d_t *sprite_ptr, sg_view view, sg_sampler smp, bool flip_v,
-                            const float source[4], int tw, int th, const wgr_sprite2d_placement_t *p,
+                            const float source[4], int tw, int th, const wgri_sprite2d_placement_t *p,
                             const float slice[4], wgr_color_t tint)
 {
     float du[4] = {0.0f, 1.0f, 0.0f, 0.0f}, su[4] = {0.0f, 1.0f, 0.0f, 0.0f};
@@ -277,12 +277,12 @@ static bool draw_nine_slice(const wgr_sprite2d_t *sprite_ptr, sg_view view, sg_s
     float d[2], t[2];
 
     /* slice: left, top, right, bottom borders in source pixels */
-    if (wgr_sprite2d_nine_slice_axis(slice[0], slice[2], p->width, source[2], d, t)) {
+    if (wgri_sprite2d_nine_slice_axis(slice[0], slice[2], p->width, source[2], d, t)) {
         du[1] = d[0], du[2] = d[1], du[3] = 1.0f;
         su[1] = t[0], su[2] = t[1], su[3] = 1.0f;
         nu = 4;
     }
-    if (wgr_sprite2d_nine_slice_axis(slice[1], slice[3], p->height, source[3], d, t)) {
+    if (wgri_sprite2d_nine_slice_axis(slice[1], slice[3], p->height, source[3], d, t)) {
         dv[1] = d[0], dv[2] = d[1], dv[3] = 1.0f;
         sv[1] = t[0], sv[2] = t[1], sv[3] = 1.0f;
         nv = 4;
@@ -312,7 +312,7 @@ static bool draw_nine_slice(const wgr_sprite2d_t *sprite_ptr, sg_view view, sg_s
 static void draw_handle(wgr_handle_t sprite)
 {
     const wgr_sprite2d_t *sprite_ptr = resolve(sprite);
-    wgr_sprite2d_placement_t placement;
+    wgri_sprite2d_placement_t placement;
     sg_view view;
     sg_sampler smp;
     float source[4], corners[8];
@@ -324,20 +324,20 @@ static void draw_handle(wgr_handle_t sprite)
     }
     const float slice[4] = {sprite_ptr->slice_left, sprite_ptr->slice_top, sprite_ptr->slice_right,
                             sprite_ptr->slice_bottom};
-    if (draw_nine_slice(sprite_ptr, view, smp, wgr_texture_is_flipped(sprite_ptr->texture), source, tw, th, &placement,
+    if (draw_nine_slice(sprite_ptr, view, smp, wgri_texture_is_flipped(sprite_ptr->texture), source, tw, th, &placement,
                         slice, sprite_ptr->tint)) {
         return;
     }
-    wgr_sprite2d_corners(&placement, corners);
+    wgri_sprite2d_corners(&placement, corners);
     draw_quad(sprite_ptr, view, smp, corners, source[0] / (float)tw, source[1] / (float)th,
               (source[0] + source[2]) / (float)tw, (source[1] + source[3]) / (float)th,
-              wgr_texture_is_flipped(sprite_ptr->texture), sprite_ptr->tint);
+              wgri_texture_is_flipped(sprite_ptr->texture), sprite_ptr->tint);
 }
 
 static bool pick_handle(wgr_handle_t sprite, float screen_x, float screen_y, wgr_pick_result_t *out)
 {
     const wgr_sprite2d_t *sprite_ptr = resolve(sprite);
-    wgr_sprite2d_placement_t placement;
+    wgri_sprite2d_placement_t placement;
     sg_view view;
     sg_sampler smp;
     float source[4], u, v, alpha;
@@ -345,11 +345,11 @@ static bool pick_handle(wgr_handle_t sprite, float screen_x, float screen_y, wgr
 
     if (sprite_ptr == NULL || !sprite_ptr->visible || !sprite_ptr->pickable ||
         !resolve_placement(sprite_ptr, &view, &smp, source, &tw, &th, &placement) ||
-        !wgr_sprite2d_screen_to_unit(&placement, screen_x, screen_y, &u, &v)) {
+        !wgri_sprite2d_screen_to_unit(&placement, screen_x, screen_y, &u, &v)) {
         return false;
     }
     if (sprite_ptr->alpha_test && !is_nine_slice(sprite_ptr) &&
-        wgr_texture_sample_alpha(sprite_ptr->texture, (source[0] + u * source[2]) / (float)tw,
+        wgri_texture_sample_alpha(sprite_ptr->texture, (source[0] + u * source[2]) / (float)tw,
                                 (source[1] + v * source[3]) / (float)th, &alpha) &&
         alpha < sprite_ptr->alpha_threshold) {
         return false;
@@ -368,17 +368,17 @@ static bool pick_handle(wgr_handle_t sprite, float screen_x, float screen_y, wgr
 
 /* ------------------------------------------------------------ public API ---- */
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_sprite2d_create(wgr_handle_t texture)
 {
-    wgr_handle_t handle = wgr_handle_pool_alloc(&wgr_sprite2d_pool);
+    wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_sprite2d_pool);
     uint16_t index = 0;
 
     if (handle == 0) {
         log_error("sprite2d: pool full (%u)", (unsigned)wgr_sprite2d_pool.max - 1u);
         return 0;
     }
-    wgr_handle_pool_resolve(&wgr_sprite2d_pool, handle, &index);
+    wgri_handle_pool_resolve(&wgr_sprite2d_pool, handle, &index);
     wgr_sprites2d[index] = (wgr_sprite2d_t){
         .texture = texture,
         .scale_x = 1.0f,
@@ -394,28 +394,28 @@ wgr_handle_t wgr_sprite2d_create(wgr_handle_t texture)
         .alpha_cutoff = 0.5f,
     };
     if (texture != 0) {
-        wgr_texture_retain(texture);
+        wgri_texture_retain(texture);
     }
     return handle;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_sprite2d_destroy(wgr_handle_t sprite)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
     if (sprite_ptr == NULL) {
         return;
     }
-    wgr_scene_forget(sprite);
+    wgri_scene_forget(sprite);
     if (sprite_ptr->texture != 0) {
         wgr_texture_release(sprite_ptr->texture);
     }
     wgr_material_release(sprite_ptr->material); /* no-op for 0 */
     *sprite_ptr = (wgr_sprite2d_t){0};
-    wgr_handle_pool_free(&wgr_sprite2d_pool, sprite);
+    wgri_handle_pool_free(&wgr_sprite2d_pool, sprite);
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_set_texture(wgr_handle_t sprite, wgr_handle_t texture)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
@@ -426,19 +426,19 @@ bool wgr_sprite2d_set_texture(wgr_handle_t sprite, wgr_handle_t texture)
         return true;
     }
     if (texture != 0) {
-        wgr_texture_retain(texture);
+        wgri_texture_retain(texture);
     }
     if (sprite_ptr->texture != 0) {
         wgr_texture_release(sprite_ptr->texture);
     }
     sprite_ptr->texture = texture;
     if (sprite_ptr->alpha_test && texture != 0) {
-        wgr_texture_ensure_alpha_mask(texture);
+        wgri_texture_ensure_alpha_mask(texture);
     }
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_set_source(wgr_handle_t sprite, float x, float y, float width, float height)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
@@ -452,7 +452,7 @@ bool wgr_sprite2d_set_source(wgr_handle_t sprite, float x, float y, float width,
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_set_position(wgr_handle_t sprite, float x, float y)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
@@ -464,7 +464,7 @@ bool wgr_sprite2d_set_position(wgr_handle_t sprite, float x, float y)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_set_rotation(wgr_handle_t sprite, float angle)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
@@ -475,7 +475,7 @@ bool wgr_sprite2d_set_rotation(wgr_handle_t sprite, float angle)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_set_scale(wgr_handle_t sprite, float x, float y)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
@@ -487,7 +487,7 @@ bool wgr_sprite2d_set_scale(wgr_handle_t sprite, float x, float y)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_set_size(wgr_handle_t sprite, float width, float height)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
@@ -499,7 +499,7 @@ bool wgr_sprite2d_set_size(wgr_handle_t sprite, float width, float height)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_set_nine_slice(wgr_handle_t sprite, float left, float top, float right, float bottom)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
@@ -513,7 +513,7 @@ bool wgr_sprite2d_set_nine_slice(wgr_handle_t sprite, float left, float top, flo
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_set_pivot(wgr_handle_t sprite, float x, float y)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
@@ -525,7 +525,7 @@ bool wgr_sprite2d_set_pivot(wgr_handle_t sprite, float x, float y)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_set_tint(wgr_handle_t sprite, wgr_color_t color)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
@@ -536,7 +536,7 @@ bool wgr_sprite2d_set_tint(wgr_handle_t sprite, wgr_color_t color)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_set_visible(wgr_handle_t sprite, bool visible)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
@@ -547,14 +547,14 @@ bool wgr_sprite2d_set_visible(wgr_handle_t sprite, bool visible)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_is_visible(wgr_handle_t sprite)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
     return sprite_ptr != NULL && sprite_ptr->visible;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_set_pickable(wgr_handle_t sprite, bool pickable)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
@@ -565,14 +565,14 @@ bool wgr_sprite2d_set_pickable(wgr_handle_t sprite, bool pickable)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_is_pickable(wgr_handle_t sprite)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
     return sprite_ptr != NULL && sprite_ptr->pickable;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_set_enabled(wgr_handle_t sprite, bool enabled)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
@@ -583,14 +583,14 @@ bool wgr_sprite2d_set_enabled(wgr_handle_t sprite, bool enabled)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_is_enabled(wgr_handle_t sprite)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
     return sprite_ptr != NULL && sprite_ptr->enabled;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_set_pick_alpha_test(wgr_handle_t sprite, bool enable, float threshold)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
@@ -600,12 +600,12 @@ bool wgr_sprite2d_set_pick_alpha_test(wgr_handle_t sprite, bool enable, float th
     sprite_ptr->alpha_test = enable;
     sprite_ptr->alpha_threshold = threshold;
     if (enable && sprite_ptr->texture != 0) {
-        wgr_texture_ensure_alpha_mask(sprite_ptr->texture);
+        wgri_texture_ensure_alpha_mask(sprite_ptr->texture);
     }
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_set_alpha_mode(wgr_handle_t sprite, wgr_alpha_mode_t mode, float cutoff)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
@@ -617,28 +617,28 @@ bool wgr_sprite2d_set_alpha_mode(wgr_handle_t sprite, wgr_alpha_mode_t mode, flo
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite2d_set_material(wgr_handle_t sprite, wgr_handle_t material)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
     return sprite_ptr != NULL && assign_material(&sprite_ptr->material, material, "wgr_sprite2d_set_material");
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_sprite2d_get_material(wgr_handle_t sprite)
 {
     const wgr_sprite2d_t *sprite_ptr = resolve(sprite);
     return sprite_ptr != NULL ? sprite_ptr->material : 0;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_alpha_mode_t wgr_sprite2d_get_alpha_mode(wgr_handle_t sprite)
 {
     const wgr_sprite2d_t *sprite_ptr = resolve(sprite);
     return sprite_ptr != NULL ? sprite_ptr->alpha_mode : WGR_ALPHA_BLEND;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_sprite2d_draw(wgr_handle_t sprite)
 {
     draw_handle(sprite);
@@ -655,13 +655,13 @@ static void texture_source(float source_x, float source_y, float source_width, f
     }
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_texture_draw(wgr_handle_t texture, float x, float y, float width, float height, wgr_color_t tint)
 {
     wgr_texture_draw_ex(texture, 0.0f, 0.0f, 0.0f, 0.0f, x, y, width, height, tint);
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_texture_draw_ex(wgr_handle_t texture, float source_x, float source_y, float source_width, float source_height,
                         float x, float y, float width, float height, wgr_color_t tint)
 {
@@ -670,7 +670,7 @@ void wgr_texture_draw_ex(wgr_handle_t texture, float source_x, float source_y, f
     int tw = 0, th = 0;
     float source[4], corners[8];
 
-    if (texture == 0 || !wgr_texture_get_binding(texture, &view, &smp, &tw, &th) || tw <= 0 || th <= 0) {
+    if (texture == 0 || !wgri_texture_get_binding(texture, &view, &smp, &tw, &th) || tw <= 0 || th <= 0) {
         return;
     }
     texture_source(source_x, source_y, source_width, source_height, tw, th, source);
@@ -683,11 +683,11 @@ void wgr_texture_draw_ex(wgr_handle_t texture, float source_x, float source_y, f
     corners[4] = x + width; corners[5] = y + height;
     corners[6] = x;         corners[7] = y + height;
     draw_quad(NULL, view, smp, corners, source[0] / (float)tw, source[1] / (float)th,
-              (source[0] + source[2]) / (float)tw, (source[1] + source[3]) / (float)th, wgr_texture_is_flipped(texture),
+              (source[0] + source[2]) / (float)tw, (source[1] + source[3]) / (float)th, wgri_texture_is_flipped(texture),
               tint);
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_texture_draw_nine_slice(wgr_handle_t texture, float source_x, float source_y, float source_width,
                                 float source_height, float left, float top, float right, float bottom, float x,
                                 float y, float width, float height, wgr_color_t tint)
@@ -697,20 +697,20 @@ void wgr_texture_draw_nine_slice(wgr_handle_t texture, float source_x, float sou
     int tw = 0, th = 0;
     float source[4];
     const float slice[4] = {fmaxf(0.0f, left), fmaxf(0.0f, top), fmaxf(0.0f, right), fmaxf(0.0f, bottom)};
-    const wgr_sprite2d_placement_t placement = {
+    const wgri_sprite2d_placement_t placement = {
         .x = x, .y = y, .width = width, .height = height, .scale_x = 1.0f, .scale_y = 1.0f,
     }; /* pivot (0, 0): (x, y) is the top-left corner */
 
     if (texture == 0 || width <= 0.0f || height <= 0.0f ||
-        !wgr_texture_get_binding(texture, &view, &smp, &tw, &th) || tw <= 0 || th <= 0) {
+        !wgri_texture_get_binding(texture, &view, &smp, &tw, &th) || tw <= 0 || th <= 0) {
         return;
     }
     texture_source(source_x, source_y, source_width, source_height, tw, th, source);
-    if (!draw_nine_slice(NULL, view, smp, wgr_texture_is_flipped(texture), source, tw, th, &placement, slice, tint)) {
+    if (!draw_nine_slice(NULL, view, smp, wgri_texture_is_flipped(texture), source, tw, th, &placement, slice, tint)) {
         wgr_texture_draw_ex(texture, source[0], source[1], source[2], source[3], x, y, width, height, tint);
     }
 }
 
-/* An optional subsystem: part of the runtime when a program uses it (internal/wgr_module.h). */
-static wgr_module_t wgr_sprite2d_module = {.name = "sprite2d", .order = 61, .init = wgr_sprite2d_init, .deinit = wgr_sprite2d_deinit};
-WGR_MODULE(wgr_sprite2d_module)
+/* An optional subsystem: part of the runtime when a program uses it (internal/wgri_module.h). */
+static wgri_module_t wgr_sprite2d_module = {.name = "sprite2d", .order = 61, .init = wgri_sprite2d_init, .deinit = wgri_sprite2d_deinit};
+WGRI_MODULE(wgr_sprite2d_module)

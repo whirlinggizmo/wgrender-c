@@ -3,7 +3,7 @@
 #include <math.h>
 #include <stddef.h>
 
-void wgr_tick_clock_set_rate(wgr_tick_clock_t *clock, int hz)
+void wgri_tick_clock_set_rate(wgri_tick_clock_t *clock, int hz)
 {
     if (clock == NULL) {
         return;
@@ -12,17 +12,17 @@ void wgr_tick_clock_set_rate(wgr_tick_clock_t *clock, int hz)
     clock->accumulator = 0.0;
 }
 
-bool wgr_tick_clock_enabled(const wgr_tick_clock_t *clock)
+bool wgri_tick_clock_enabled(const wgri_tick_clock_t *clock)
 {
     return clock != NULL && clock->step > 0.0;
 }
 
-int wgr_tick_clock_advance(wgr_tick_clock_t *clock, double elapsed, int max_ticks)
+int wgri_tick_clock_advance(wgri_tick_clock_t *clock, double elapsed, int max_ticks)
 {
     int ticks = 0;
     double due;
 
-    if (!wgr_tick_clock_enabled(clock)) {
+    if (!wgri_tick_clock_enabled(clock)) {
         return 0;
     }
     if (elapsed > 0.0) {
@@ -44,9 +44,9 @@ int wgr_tick_clock_advance(wgr_tick_clock_t *clock, double elapsed, int max_tick
     return ticks;
 }
 
-float wgr_tick_clock_fraction(const wgr_tick_clock_t *clock)
+float wgri_tick_clock_fraction(const wgri_tick_clock_t *clock)
 {
-    if (!wgr_tick_clock_enabled(clock)) {
+    if (!wgri_tick_clock_enabled(clock)) {
         return 0.0f;
     }
     return (float)(clock->accumulator / clock->step);

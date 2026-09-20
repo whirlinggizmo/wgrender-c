@@ -32,29 +32,29 @@
 
 static void begin(void)
 {
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_texture_init();
-    wgr_light_init();
-    wgr_material_init();
-    wgr_environment_init();
-    wgr_model_init();
-    wgr_shadow_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_texture_init();
+    wgri_light_init();
+    wgri_material_init();
+    wgri_environment_init();
+    wgri_model_init();
+    wgri_shadow_init();
 }
 
 static void end(void)
 {
-    wgr_shadow_deinit();
-    wgr_model_deinit();
-    wgr_environment_deinit();
-    wgr_material_deinit();
-    wgr_light_deinit();
-    wgr_texture_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_shadow_deinit();
+    wgri_model_deinit();
+    wgri_environment_deinit();
+    wgri_material_deinit();
+    wgri_light_deinit();
+    wgri_texture_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }
 
@@ -125,9 +125,9 @@ void test_shadow_state(void)
 }
 
 /* A point through the light's matrix, in its clip space. */
-static vec3_t to_light_clip(const wgr_mat4_t *view_proj, vec3_t world)
+static vec3_t to_light_clip(const wgri_mat4_t *view_proj, vec3_t world)
 {
-    const wgr_mat4_t m = *view_proj;
+    const wgri_mat4_t m = *view_proj;
     const float x = m.m[0] * world.x + m.m[4] * world.y + m.m[8] * world.z + m.m[12];
     const float y = m.m[1] * world.x + m.m[5] * world.y + m.m[9] * world.z + m.m[13];
     const float z = m.m[2] * world.x + m.m[6] * world.y + m.m[10] * world.z + m.m[14];
@@ -137,7 +137,7 @@ static vec3_t to_light_clip(const wgr_mat4_t *view_proj, vec3_t world)
 
 void test_shadow_fit(void)
 {
-    wgr_camera3d_t cam = {
+    wgri_camera3d_t cam = {
         .position = {0.0f, 4.0f, 10.0f},
         .target = {0.0f, 0.0f, 0.0f},
         .up = {0.0f, 1.0f, 0.0f},
@@ -148,15 +148,15 @@ void test_shadow_fit(void)
     const vec3_t straight_down = {0.0f, -1.0f, 0.0f};
 
     /* the depth range follows the backend: GL clips -1..1, WebGPU 0..1 */
-    const wgr_mat4_t gl = wgr_shadow_ortho(-1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 10.0f, false);
-    const wgr_mat4_t wgpu = wgr_shadow_ortho(-1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 10.0f, true);
+    const wgri_mat4_t gl = wgri_shadow_ortho(-1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 10.0f, false);
+    const wgri_mat4_t wgpu = wgri_shadow_ortho(-1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 10.0f, true);
     CHECK_NEAR(to_light_clip(&gl, (vec3_t){0, 0, 0}).z, -1.0f, EPS);   /* the near plane */
     CHECK_NEAR(to_light_clip(&gl, (vec3_t){0, 0, -10}).z, 1.0f, EPS);  /* and the far one */
     CHECK_NEAR(to_light_clip(&wgpu, (vec3_t){0, 0, 0}).z, 0.0f, EPS);
     CHECK_NEAR(to_light_clip(&wgpu, (vec3_t){0, 0, -10}).z, 1.0f, EPS);
 
     /* what the camera looks at is inside what the light's map covers */
-    const wgr_shadow_fit_t fit = wgr_shadow_fit_directional(&cam, 16.0f / 9.0f, straight_down, 30.0f, 1024, 50.0f, false);
+    const wgri_shadow_fit_t fit = wgri_shadow_fit_directional(&cam, 16.0f / 9.0f, straight_down, 30.0f, 1024, 50.0f, false);
     const vec3_t middle = to_light_clip(&fit.view_proj, (vec3_t){0.0f, 0.0f, 0.0f});
     CHECK(middle.x > -1.0f && middle.x < 1.0f);
     CHECK(middle.y > -1.0f && middle.y < 1.0f);
@@ -169,22 +169,22 @@ void test_shadow_fit(void)
     CHECK(far_away.x < -1.0f || far_away.x > 1.0f);
 
     /* a bigger map over the same ground means smaller texels */
-    const wgr_shadow_fit_t coarse = wgr_shadow_fit_directional(&cam, 16.0f / 9.0f, straight_down, 30.0f, 512, 50.0f, false);
-    const wgr_shadow_fit_t fine = wgr_shadow_fit_directional(&cam, 16.0f / 9.0f, straight_down, 30.0f, 4096, 50.0f, false);
+    const wgri_shadow_fit_t coarse = wgri_shadow_fit_directional(&cam, 16.0f / 9.0f, straight_down, 30.0f, 512, 50.0f, false);
+    const wgri_shadow_fit_t fine = wgri_shadow_fit_directional(&cam, 16.0f / 9.0f, straight_down, 30.0f, 4096, 50.0f, false);
     CHECK(fine.texel_world < coarse.texel_world);
     CHECK_NEAR(coarse.texel_world / fine.texel_world, 8.0f, 0.001f);
 
     /* less distance covers less ground, so its texels are smaller again */
-    const wgr_shadow_fit_t near_fit = wgr_shadow_fit_directional(&cam, 16.0f / 9.0f, straight_down, 10.0f, 1024, 50.0f,
+    const wgri_shadow_fit_t near_fit = wgri_shadow_fit_directional(&cam, 16.0f / 9.0f, straight_down, 10.0f, 1024, 50.0f,
                                                                false);
     CHECK(near_fit.texel_world < fit.texel_world);
 
     /* the fit is snapped to whole texels: nudging the camera by less than one doesn't
        move the map, which is what keeps a shadow's edge from crawling */
-    wgr_camera3d_t nudged = cam;
+    wgri_camera3d_t nudged = cam;
     nudged.position.x += fit.texel_world * 0.1f;
     nudged.target.x += fit.texel_world * 0.1f;
-    const wgr_shadow_fit_t shifted = wgr_shadow_fit_directional(&nudged, 16.0f / 9.0f, straight_down, 30.0f, 1024, 50.0f,
+    const wgri_shadow_fit_t shifted = wgri_shadow_fit_directional(&nudged, 16.0f / 9.0f, straight_down, 30.0f, 1024, 50.0f,
                                                               false);
     const vec3_t before = to_light_clip(&fit.view_proj, (vec3_t){1.0f, 0.0f, 1.0f});
     const vec3_t after = to_light_clip(&shifted.view_proj, (vec3_t){1.0f, 0.0f, 1.0f});
@@ -192,13 +192,13 @@ void test_shadow_fit(void)
     CHECK_NEAR(after.y, before.y, 1e-3f);
 
     /* a light pointing straight down has no obvious "up": the fit still works */
-    const wgr_shadow_fit_t sideways = wgr_shadow_fit_directional(&cam, 1.0f, (vec3_t){1.0f, -0.2f, 0.3f}, 20.0f, 1024,
+    const wgri_shadow_fit_t sideways = wgri_shadow_fit_directional(&cam, 1.0f, (vec3_t){1.0f, -0.2f, 0.3f}, 20.0f, 1024,
                                                                50.0f, false);
     const vec3_t seen = to_light_clip(&sideways.view_proj, (vec3_t){0.0f, 0.0f, 0.0f});
     CHECK(seen.x > -1.0f && seen.x < 1.0f && seen.y > -1.0f && seen.y < 1.0f);
 
     /* nonsense in, something sane out */
-    const wgr_shadow_fit_t degenerate = wgr_shadow_fit_directional(&cam, 1.0f, (vec3_t){0, 0, 0}, -5.0f, 0, 0.0f, false);
+    const wgri_shadow_fit_t degenerate = wgri_shadow_fit_directional(&cam, 1.0f, (vec3_t){0, 0, 0}, -5.0f, 0, 0.0f, false);
     CHECK(degenerate.texel_world > 0.0f);
     CHECK(degenerate.depth_range > 0.0f);
 }
@@ -210,7 +210,7 @@ void test_shadow_fit_spot(void)
     const vec3_t down = {0.0f, -1.0f, 0.0f};
     const float cos_outer = cosf(0.5f); /* a 0.5 rad half-angle cone */
 
-    const wgr_shadow_fit_t fit = wgr_shadow_fit_spot(at, down, cos_outer, 20.0f, 0.2f, 1024, false);
+    const wgri_shadow_fit_t fit = wgri_shadow_fit_spot(at, down, cos_outer, 20.0f, 0.2f, 1024, false);
     /* straight below the lamp is the middle of its map */
     const vec3_t under = to_light_clip(&fit.view_proj, (vec3_t){0.0f, 0.0f, 0.0f});
     CHECK_NEAR(under.x, 0.0f, 1e-3f);
@@ -229,16 +229,16 @@ void test_shadow_fit_spot(void)
 
     /* the depth range is how far it reaches, and its texels grow with the cone */
     CHECK_NEAR(fit.depth_range, 20.0f, 1e-3f);
-    const wgr_shadow_fit_t wide = wgr_shadow_fit_spot(at, down, cosf(0.9f), 20.0f, 0.2f, 1024, false);
+    const wgri_shadow_fit_t wide = wgri_shadow_fit_spot(at, down, cosf(0.9f), 20.0f, 0.2f, 1024, false);
     CHECK(wide.texel_world > fit.texel_world);
-    const wgr_shadow_fit_t sharper = wgr_shadow_fit_spot(at, down, cos_outer, 20.0f, 0.2f, 4096, false);
+    const wgri_shadow_fit_t sharper = wgri_shadow_fit_spot(at, down, cos_outer, 20.0f, 0.2f, 4096, false);
     CHECK(sharper.texel_world < fit.texel_world);
 
     /* WebGPU's depth range, and nonsense in, something sane out */
-    const wgr_shadow_fit_t wgpu = wgr_shadow_fit_spot(at, down, cos_outer, 20.0f, 0.2f, 1024, true);
+    const wgri_shadow_fit_t wgpu = wgri_shadow_fit_spot(at, down, cos_outer, 20.0f, 0.2f, 1024, true);
     const vec3_t near_wgpu = to_light_clip(&wgpu.view_proj, (vec3_t){0.0f, 5.0f, 0.0f});
     CHECK(near_wgpu.z >= 0.0f && near_wgpu.z <= 1.0f);
-    const wgr_shadow_fit_t silly = wgr_shadow_fit_spot(at, (vec3_t){0, 0, 0}, 2.0f, -1.0f, -1.0f, 0, false);
+    const wgri_shadow_fit_t silly = wgri_shadow_fit_spot(at, (vec3_t){0, 0, 0}, 2.0f, -1.0f, -1.0f, 0, false);
     CHECK(silly.texel_world > 0.0f && silly.depth_range > 0.0f);
 }
 
@@ -247,7 +247,7 @@ void test_shadow_fit_spot(void)
  * against that fit and skips the ones outside (docs/PLAN-culling.md, phase 2). */
 void test_shadow_caster_cull(void)
 {
-    wgr_camera3d_t cam = {
+    wgri_camera3d_t cam = {
         .position = {0.0f, 2.0f, 0.0f},
         .target = {0.0f, 2.0f, -1.0f},
         .up = {0.0f, 1.0f, 0.0f},
@@ -255,26 +255,26 @@ void test_shadow_caster_cull(void)
         .projection = WGR_CAMERA3D_PERSPECTIVE,
     };
     const vec3_t down = {-0.3f, -1.0f, -0.2f};
-    const wgr_shadow_fit_t fit = wgr_shadow_fit_directional(&cam, 1.0f, down, 30.0f, 1024, 50.0f, false);
-    wgr_plane_t planes[6];
-    wgr_frustum_from_view_proj(fit.view_proj, planes);
+    const wgri_shadow_fit_t fit = wgri_shadow_fit_directional(&cam, 1.0f, down, 30.0f, 1024, 50.0f, false);
+    wgri_plane_t planes[6];
+    wgri_frustum_from_view_proj(fit.view_proj, planes);
 
     /* what the camera is looking at is in the map */
-    CHECK(wgr_frustum_test_aabb(planes, (vec3_t){-1, 0, -12}, (vec3_t){1, 2, -10}));
+    CHECK(wgri_frustum_test_aabb(planes, (vec3_t){-1, 0, -12}, (vec3_t){1, 2, -10}));
     /* something a world away from it is not, whichever way it lies */
-    CHECK(!wgr_frustum_test_aabb(planes, (vec3_t){499, 0, -1}, (vec3_t){501, 2, 1}));
-    CHECK(!wgr_frustum_test_aabb(planes, (vec3_t){-1, 0, -501}, (vec3_t){1, 2, -499}));
+    CHECK(!wgri_frustum_test_aabb(planes, (vec3_t){499, 0, -1}, (vec3_t){501, 2, 1}));
+    CHECK(!wgri_frustum_test_aabb(planes, (vec3_t){-1, 0, -501}, (vec3_t){1, 2, -499}));
     /* but something overhead is: it is between the light and the ground it shades,
        which is what the fit's pull-back is for */
-    CHECK(wgr_frustum_test_aabb(planes, (vec3_t){-1, 20, -12}, (vec3_t){1, 22, -10}));
+    CHECK(wgri_frustum_test_aabb(planes, (vec3_t){-1, 20, -12}, (vec3_t){1, 22, -10}));
 
     /* a spot reaches only as far as its range */
-    const wgr_shadow_fit_t spot = wgr_shadow_fit_spot((vec3_t){0, 10, 0}, (vec3_t){0, -1, 0}, cosf(0.4f), 20.0f,
+    const wgri_shadow_fit_t spot = wgri_shadow_fit_spot((vec3_t){0, 10, 0}, (vec3_t){0, -1, 0}, cosf(0.4f), 20.0f,
                                                     0.2f, 1024, false);
-    wgr_frustum_from_view_proj(spot.view_proj, planes);
-    CHECK(wgr_frustum_test_aabb(planes, (vec3_t){-1, 4, -1}, (vec3_t){1, 6, 1}));     /* under it */
-    CHECK(!wgr_frustum_test_aabb(planes, (vec3_t){39, 4, -1}, (vec3_t){41, 6, 1}));   /* outside the cone */
-    CHECK(!wgr_frustum_test_aabb(planes, (vec3_t){-1, -40, -1}, (vec3_t){1, -38, 1})); /* past its range */
+    wgri_frustum_from_view_proj(spot.view_proj, planes);
+    CHECK(wgri_frustum_test_aabb(planes, (vec3_t){-1, 4, -1}, (vec3_t){1, 6, 1}));     /* under it */
+    CHECK(!wgri_frustum_test_aabb(planes, (vec3_t){39, 4, -1}, (vec3_t){41, 6, 1}));   /* outside the cone */
+    CHECK(!wgri_frustum_test_aabb(planes, (vec3_t){-1, -40, -1}, (vec3_t){1, -38, 1})); /* past its range */
 }
 
 void test_shadow_casters(void)
@@ -300,7 +300,7 @@ void test_shadow_casters(void)
     /* nothing casts yet, so no environment asks for a map */
     wgr_render_begin();
     wgr_scene_draw(scene);
-    const wgr_light_env_t *env = wgr_light_env_get(0);
+    const wgri_light_env_t *env = wgri_light_env_get(0);
     CHECK(env != NULL && env->count == 2);
     CHECK(env->shadow_count == 0);
     wgr_render_end();
@@ -309,17 +309,17 @@ void test_shadow_casters(void)
     CHECK(wgr_light_set_casts_shadows(sun, true));
     wgr_render_begin();
     wgr_scene_draw(scene);
-    env = wgr_light_env_get(0);
+    env = wgri_light_env_get(0);
     CHECK(env != NULL && env->shadow_count == 1 && env->shadow_lights[0] == 1);
     CHECK(env->lights[env->shadow_lights[0]].casts_shadows);
-    CHECK(wgr_model_has_shadow_casters(0)); /* the cube is queued for it */
+    CHECK(wgri_model_has_shadow_casters(0)); /* the cube is queued for it */
     wgr_render_end();
 
     /* several casting lights each get a slot, in the order the scene found them */
     CHECK(wgr_light_set_casts_shadows(plain, true));
     wgr_render_begin();
     wgr_scene_draw(scene);
-    env = wgr_light_env_get(0);
+    env = wgri_light_env_get(0);
     CHECK(env != NULL && env->shadow_count == 2);
     CHECK(env->shadow_lights[0] == 0 && env->shadow_lights[1] == 1);
     wgr_render_end();
@@ -329,23 +329,23 @@ void test_shadow_casters(void)
        and the shadow module asks before drawing one */
     wgr_render_begin();
     wgr_scene_draw(scene);
-    CHECK(wgr_model_has_shadow_receivers(0));
+    CHECK(wgri_model_has_shadow_receivers(0));
     wgr_render_end();
     CHECK(wgr_model_set_receives_shadow(model, false));
     wgr_render_begin();
     wgr_scene_draw(scene);
-    CHECK(wgr_model_has_shadow_casters(0));    /* it still casts */
-    CHECK(!wgr_model_has_shadow_receivers(0)); /* but nothing is darkened by the map */
+    CHECK(wgri_model_has_shadow_casters(0));    /* it still casts */
+    CHECK(!wgri_model_has_shadow_receivers(0)); /* but nothing is darkened by the map */
     wgr_render_end();
     CHECK(wgr_model_set_receives_shadow(model, true));
-    CHECK(!wgr_model_has_shadow_receivers(1)); /* nor in an environment with nothing in it */
+    CHECK(!wgri_model_has_shadow_receivers(1)); /* nor in an environment with nothing in it */
 
     /* a model that doesn't cast isn't drawn into the map, and with no casters at all
        there's nothing to draw */
     CHECK(wgr_model_set_casts_shadow(model, false));
     wgr_render_begin();
     wgr_scene_draw(scene);
-    CHECK(!wgr_model_has_shadow_casters(0));
+    CHECK(!wgri_model_has_shadow_casters(0));
     wgr_render_end();
     CHECK(wgr_model_set_casts_shadow(model, true));
 
@@ -353,27 +353,27 @@ void test_shadow_casters(void)
     CHECK(wgr_model_set_visible(model, false));
     wgr_render_begin();
     wgr_scene_draw(scene);
-    CHECK(!wgr_model_has_shadow_casters(0));
+    CHECK(!wgri_model_has_shadow_casters(0));
     wgr_render_end();
     CHECK(wgr_model_set_visible(model, true));
 
-    /* at most WGR_MAX_SHADOW_LIGHTS cast at once; the rest light without shadows */
-    wgr_handle_t extra[WGR_MAX_SHADOW_LIGHTS + 2];
-    for (int i = 0; i < WGR_MAX_SHADOW_LIGHTS + 2; i++) {
+    /* at most WGRI_MAX_SHADOW_LIGHTS cast at once; the rest light without shadows */
+    wgr_handle_t extra[WGRI_MAX_SHADOW_LIGHTS + 2];
+    for (int i = 0; i < WGRI_MAX_SHADOW_LIGHTS + 2; i++) {
         extra[i] = wgr_light_create(WGR_LIGHT_DIRECTIONAL);
         CHECK(wgr_light_set_casts_shadows(extra[i], true));
         wgr_scene_add(scene, extra[i], 0);
     }
     wgr_render_begin();
     wgr_scene_draw(scene);
-    env = wgr_light_env_get(0);
-    CHECK(env != NULL && env->shadow_count == WGR_MAX_SHADOW_LIGHTS);
+    env = wgri_light_env_get(0);
+    CHECK(env != NULL && env->shadow_count == WGRI_MAX_SHADOW_LIGHTS);
     for (int i = 0; i < env->shadow_count; i++) { /* each slot is a distinct light */
         CHECK(env->lights[env->shadow_lights[i]].casts_shadows);
         for (int j = 0; j < i; j++) CHECK(env->shadow_lights[i] != env->shadow_lights[j]);
     }
     wgr_render_end();
-    for (int i = 0; i < WGR_MAX_SHADOW_LIGHTS + 2; i++) {
+    for (int i = 0; i < WGRI_MAX_SHADOW_LIGHTS + 2; i++) {
         wgr_scene_remove(scene, extra[i]);
         wgr_light_destroy(extra[i]);
     }
@@ -381,9 +381,9 @@ void test_shadow_casters(void)
     /* a lighting environment nothing was queued for has no casters either */
     wgr_render_begin();
     wgr_scene_draw(scene);
-    CHECK(wgr_model_has_shadow_casters(0));
-    CHECK(!wgr_model_has_shadow_casters(1));
-    CHECK(!wgr_model_has_shadow_casters(-1));
+    CHECK(wgri_model_has_shadow_casters(0));
+    CHECK(!wgri_model_has_shadow_casters(1));
+    CHECK(!wgri_model_has_shadow_casters(-1));
     wgr_render_end();
 
     wgr_model_destroy(model);
@@ -429,16 +429,16 @@ void test_shadow_instancing(void)
     wgr_render_begin();
     wgr_scene_draw(scene);
     wgr_render_end();
-    CHECK(wgr_model_shadow_draw_call_count() == 1);
-    CHECK(wgr_model_draw_call_count() == 1); /* and one into the screen */
+    CHECK(wgri_model_shadow_draw_call_count() == 1);
+    CHECK(wgri_model_draw_call_count() == 1); /* and one into the screen */
 
     /* one that doesn't cast leaves the others batched, and the map draws five */
     CHECK(wgr_model_set_casts_shadow(models[2], false));
     wgr_render_begin();
     wgr_scene_draw(scene);
     wgr_render_end();
-    CHECK(wgr_model_shadow_draw_call_count() == 2); /* the run is cut where it sat */
-    CHECK(wgr_model_draw_call_count() == 1);        /* it is still drawn on screen */
+    CHECK(wgri_model_shadow_draw_call_count() == 2); /* the run is cut where it sat */
+    CHECK(wgri_model_draw_call_count() == 1);        /* it is still drawn on screen */
     CHECK(wgr_model_set_casts_shadow(models[2], true));
 
     /* a different mesh splits the map's draws too */
@@ -449,7 +449,7 @@ void test_shadow_instancing(void)
     wgr_render_begin();
     wgr_scene_draw(scene);
     wgr_render_end();
-    CHECK(wgr_model_shadow_draw_call_count() == 2);
+    CHECK(wgri_model_shadow_draw_call_count() == 2);
 
     for (int i = 0; i < 6; i++) {
         wgr_model_destroy(models[i]);
@@ -476,7 +476,7 @@ void test_model_draw_queue(void)
     for (int i = 0; i < 2000; i++) {
         wgr_model_draw(i % 2 == 0 ? a : bb);
     }
-    wgr_model_queue_counts(&placements, &primitives, &ceiling);
+    wgri_model_queue_counts(&placements, &primitives, &ceiling);
     CHECK(ceiling > 2000);
     CHECK(placements == 2000);
     CHECK(primitives == 2000); /* a cube is one primitive */
@@ -484,7 +484,7 @@ void test_model_draw_queue(void)
 
     /* it starts over each frame */
     wgr_render_begin();
-    wgr_model_queue_counts(&placements, &primitives, NULL);
+    wgri_model_queue_counts(&placements, &primitives, NULL);
     CHECK(placements == 0 && primitives == 0);
     wgr_render_end();
 
@@ -495,7 +495,7 @@ void test_model_draw_queue(void)
     for (int i = 0; i < ceiling + 500; i++) {
         wgr_model_draw(i % 2 == 0 ? a : bb);
     }
-    wgr_model_queue_counts(&placements, &primitives, NULL);
+    wgri_model_queue_counts(&placements, &primitives, NULL);
     CHECK(placements == ceiling);
     wgr_render_end();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);

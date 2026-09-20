@@ -79,7 +79,7 @@ static int add_listener(const char *event_name,
     return 0;
 }
 
-int wgr_event_init(void)
+int wgri_event_init(void)
 {
     if (wgr_bus != NULL) {
         return 0;
@@ -88,7 +88,7 @@ int wgr_event_init(void)
     return wgr_bus != NULL ? 0 : -1;
 }
 
-void wgr_event_deinit(void)
+void wgri_event_deinit(void)
 {
     if (wgr_bus == NULL) {
         return;
@@ -98,19 +98,19 @@ void wgr_event_deinit(void)
     wgr_bus = NULL;
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_event_on(const char *event_name, wgr_event_listener_fn listener, void *user_data)
 {
     return add_listener(event_name, listener, user_data, false);
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_event_once(const char *event_name, wgr_event_listener_fn listener, void *user_data)
 {
     return add_listener(event_name, listener, user_data, true);
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_event_off(const char *event_name, wgr_event_listener_fn listener, void *user_data)
 {
     int removed = 0;
@@ -129,7 +129,7 @@ int wgr_event_off(const char *event_name, wgr_event_listener_fn listener, void *
     return removed;
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_event_off_all(const char *event_name)
 {
     int removed = 0;
@@ -147,7 +147,7 @@ int wgr_event_off_all(const char *event_name)
     return removed;
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_event_emit(const char *event_name, void *payload)
 {
     int fired = 0;
@@ -172,7 +172,7 @@ int wgr_event_emit(const char *event_name, void *payload)
     return fired;
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_event_listener_count(const char *event_name)
 {
     int n = 0;

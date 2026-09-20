@@ -13,22 +13,22 @@
 
 void test_material_srgb(void)
 {
-    CHECK_NEAR(wgr_srgb_to_linear(0.0f), 0.0f, EPS);
-    CHECK_NEAR(wgr_srgb_to_linear(1.0f), 1.0f, EPS);
-    CHECK_NEAR(wgr_srgb_to_linear(0.5f), 0.21404f, EPS);     /* mid gray is much darker in linear */
-    CHECK_NEAR(wgr_srgb_to_linear(0.04f), 0.04f / 12.92f, EPS); /* linear segment near black */
-    CHECK_NEAR(wgr_linear_to_srgb(0.21404f), 0.5f, EPS);
-    CHECK_NEAR(wgr_linear_to_srgb(-1.0f), 0.0f, EPS);
+    CHECK_NEAR(wgri_srgb_to_linear(0.0f), 0.0f, EPS);
+    CHECK_NEAR(wgri_srgb_to_linear(1.0f), 1.0f, EPS);
+    CHECK_NEAR(wgri_srgb_to_linear(0.5f), 0.21404f, EPS);     /* mid gray is much darker in linear */
+    CHECK_NEAR(wgri_srgb_to_linear(0.04f), 0.04f / 12.92f, EPS); /* linear segment near black */
+    CHECK_NEAR(wgri_linear_to_srgb(0.21404f), 0.5f, EPS);
+    CHECK_NEAR(wgri_linear_to_srgb(-1.0f), 0.0f, EPS);
     for (int i = 0; i <= 10; i++) {
         const float c = (float)i / 10.0f;
-        CHECK_NEAR(wgr_linear_to_srgb(wgr_srgb_to_linear(c)), c, EPS);
+        CHECK_NEAR(wgri_linear_to_srgb(wgri_srgb_to_linear(c)), c, EPS);
     }
 }
 
 void test_material_api(void)
 {
-    const wgr_material_t *data;
-    wgr_material_init();
+    const wgri_material_t *data;
+    wgri_material_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL); /* invalid names/handles below log on purpose */
 
     CHECK(wgr_material_create((wgr_material_shading_t)9) == 0);
@@ -37,7 +37,7 @@ void test_material_api(void)
     CHECK(wgr_handle_get_kind(material) == WGR_HANDLE_KIND_MATERIAL);
 
     /* glTF defaults */
-    data = wgr_material_get(material);
+    data = wgri_material_get(material);
     CHECK(data != NULL);
     CHECK(wgr_material_get_shading(material) == WGR_MATERIAL_PBR);
     CHECK(wgr_material_get_alpha_mode(material) == WGR_ALPHA_OPAQUE);
@@ -71,14 +71,14 @@ void test_material_api(void)
     /* colors are sRGB: converted to linear, alpha kept */
     wgr_color_t gray = wgr_color_rgba(128, 128, 128, 51);
     CHECK(wgr_material_set_color(material, "base_color", gray));
-    CHECK_NEAR(data->base_color[0], wgr_srgb_to_linear(128.0f / 255.0f), EPS);
+    CHECK_NEAR(data->base_color[0], wgri_srgb_to_linear(128.0f / 255.0f), EPS);
     CHECK_NEAR(data->base_color[3], 0.2f, EPS);
     CHECK(wgr_material_set_color(material, "emissive", gray)); /* vec3: alpha ignored */
-    CHECK_NEAR(data->emissive[1], wgr_srgb_to_linear(128.0f / 255.0f), EPS);
+    CHECK_NEAR(data->emissive[1], wgri_srgb_to_linear(128.0f / 255.0f), EPS);
     CHECK(!wgr_material_set_color(material, "roughness", gray));
 
     /* per-texture coordinate set, transform and sampling */
-    const wgr_material_texture_t *base = &data->textures[WGR_MATERIAL_TEXTURE_BASE_COLOR];
+    const wgri_material_texture_t *base = &data->textures[WGRI_MATERIAL_TEXTURE_BASE_COLOR];
     CHECK(base->texcoord == 0 && base->wrap_u == WGR_TEXTURE_WRAP_REPEAT && base->filter == WGR_TEXTURE_FILTER_LINEAR);
     CHECK_NEAR(base->scale[0], 1, EPS);
     CHECK(base->mipmaps);
@@ -90,13 +90,13 @@ void test_material_api(void)
     CHECK(wgr_material_set_float(material, "normal_texture_rotation", 1.0f));
     CHECK(!wgr_material_set_vec2(material, "normal_texture_rotation", 1, 1));
     CHECK(base->texcoord == 1);
-    CHECK_NEAR(data->textures[WGR_MATERIAL_TEXTURE_NORMAL].scale[0], 4, EPS);
-    CHECK_NEAR(data->textures[WGR_MATERIAL_TEXTURE_NORMAL].offset[1], 0.25f, EPS);
+    CHECK_NEAR(data->textures[WGRI_MATERIAL_TEXTURE_NORMAL].scale[0], 4, EPS);
+    CHECK_NEAR(data->textures[WGRI_MATERIAL_TEXTURE_NORMAL].offset[1], 0.25f, EPS);
     CHECK(wgr_material_set_texture_sampling(material, "emissive_texture", WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_WRAP_MIRROR,
                                            WGR_TEXTURE_FILTER_NEAREST));
-    CHECK(data->textures[WGR_MATERIAL_TEXTURE_EMISSIVE].wrap_u == WGR_TEXTURE_WRAP_CLAMP);
-    CHECK(data->textures[WGR_MATERIAL_TEXTURE_EMISSIVE].wrap_v == WGR_TEXTURE_WRAP_MIRROR);
-    CHECK(data->textures[WGR_MATERIAL_TEXTURE_EMISSIVE].filter == WGR_TEXTURE_FILTER_NEAREST);
+    CHECK(data->textures[WGRI_MATERIAL_TEXTURE_EMISSIVE].wrap_u == WGR_TEXTURE_WRAP_CLAMP);
+    CHECK(data->textures[WGRI_MATERIAL_TEXTURE_EMISSIVE].wrap_v == WGR_TEXTURE_WRAP_MIRROR);
+    CHECK(data->textures[WGRI_MATERIAL_TEXTURE_EMISSIVE].filter == WGR_TEXTURE_FILTER_NEAREST);
     CHECK(!wgr_material_set_texture_sampling(material, "emissive", WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_WRAP_CLAMP,
                                             WGR_TEXTURE_FILTER_LINEAR)); /* not a texture */
     CHECK(!wgr_material_set_texture_sampling(material, "emissive_texture", (wgr_texture_wrap_t)7, WGR_TEXTURE_WRAP_CLAMP,
@@ -117,15 +117,15 @@ void test_material_api(void)
     CHECK(wgr_material_get_shading(material) == WGR_MATERIAL_UNLIT);
 
     /* reference counted: freed when the last holder releases it */
-    wgr_material_retain(material); /* e.g. a model */
+    wgri_material_retain(material); /* e.g. a model */
     wgr_material_release(material); /* the creator's reference */
-    CHECK(wgr_material_get(material) != NULL);
+    CHECK(wgri_material_get(material) != NULL);
     wgr_material_release(material);
-    CHECK(wgr_material_get(material) == NULL);
+    CHECK(wgri_material_get(material) == NULL);
     CHECK(!wgr_material_set_float(material, "roughness", 0.5f));
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_material_deinit();
+    wgri_material_deinit();
 }
 
 /* A unit quad in the xy plane facing +z, two triangles, glTF texture coordinates
@@ -137,7 +137,7 @@ static const uint32_t QUAD_INDICES[] = {0, 1, 2, 0, 2, 3};
 static void check_tangents(const float *uvs, float tx, float ty, float tz, float w)
 {
     float tangents[16];
-    wgr_model_generate_tangents(QUAD_POSITIONS, QUAD_NORMALS, uvs, 4, QUAD_INDICES, 6, tangents);
+    wgri_model_generate_tangents(QUAD_POSITIONS, QUAD_NORMALS, uvs, 4, QUAD_INDICES, 6, tangents);
     for (int i = 0; i < 4; i++) {
         CHECK_NEAR(tangents[i * 4], tx, EPS);
         CHECK_NEAR(tangents[i * 4 + 1], ty, EPS);
@@ -159,20 +159,20 @@ void test_model_generate_tangents(void)
 
     /* no texture mapping: any unit tangent perpendicular to the normal */
     float tangents[16];
-    wgr_model_generate_tangents(QUAD_POSITIONS, QUAD_NORMALS, (const float[8]){0}, 4, QUAD_INDICES, 6, tangents);
+    wgri_model_generate_tangents(QUAD_POSITIONS, QUAD_NORMALS, (const float[8]){0}, 4, QUAD_INDICES, 6, tangents);
     for (int i = 0; i < 4; i++) {
         vec3_t t = {tangents[i * 4], tangents[i * 4 + 1], tangents[i * 4 + 2]};
-        CHECK_NEAR(wgr_v3_dot(t, t), 1.0f, EPS);
+        CHECK_NEAR(wgri_v3_dot(t, t), 1.0f, EPS);
         CHECK_NEAR(t.z, 0.0f, EPS);
     }
 }
 
 void test_material_uv_matrix(void)
 {
-    wgr_material_texture_t texture = {.scale = {1, 1}};
+    wgri_material_texture_t texture = {.scale = {1, 1}};
     float m[6];
 
-    wgr_material_uv_matrix(&texture, m); /* identity */
+    wgri_material_uv_matrix(&texture, m); /* identity */
     CHECK_NEAR(m[0], 1, EPS);
     CHECK_NEAR(m[1], 0, EPS);
     CHECK_NEAR(m[2], 0, EPS);
@@ -181,8 +181,8 @@ void test_material_uv_matrix(void)
     CHECK_NEAR(m[5], 0, EPS);
 
     /* glTF KHR_texture_transform: translation * rotation * scale */
-    texture = (wgr_material_texture_t){.offset = {0.5f, 0.25f}, .rotation = 1.5707963f, .scale = {2, 3}};
-    wgr_material_uv_matrix(&texture, m);
+    texture = (wgri_material_texture_t){.offset = {0.5f, 0.25f}, .rotation = 1.5707963f, .scale = {2, 3}};
+    wgri_material_uv_matrix(&texture, m);
     /* uv (1, 0): scaled (2, 0), rotated by the glTF matrix [c s; -s c] to (0, -2), offset (0.5, -1.75) */
     CHECK_NEAR(m[0] * 1 + m[1] * 0 + m[2], 0.5f, EPS);
     CHECK_NEAR(m[3] * 1 + m[4] * 0 + m[5], -1.75f, EPS);

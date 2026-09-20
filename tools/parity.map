@@ -37,7 +37,7 @@ rl_asset_free_task                      dropped  managed task queue frees tasks
 rl_asset_get_task_path                  dropped  path is passed to the callback
 rl_asset_ping_host                      ported   wgr_asset_ping_host   asynchronous: a callback with the round trip (librl's blocked, and returned -1 on the web)
 rl_asset_poll_task                      dropped  managed task queue; callbacks instead of polling
-rl_asset_tick                           dropped  runtime ticks the asset queue each frame (internal wgr_asset_tick)
+rl_asset_tick                           dropped  runtime ticks the asset queue each frame (internal wgri_asset_tick)
 
 # --- rl_font.h ---
 rl_font_destroy                         ported   wgr_font_release      resources are reference counted: release drops this handle's reference

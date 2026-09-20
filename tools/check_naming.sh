@@ -6,10 +6,11 @@
 #   2. A local/param holding a raw instance pointer resolved from a handle
 #      (`<type> *NAME = ... resolve...(`) must be named <noun>_ptr, so the
 #      pointer path stays visually distinct from the handle path.
-#   3. No wgr_ name is declared in both include/ and src/internal/. Public and
-#      internal share one namespace, so a name means one thing either way; the
-#      compiler catches a clash between two functions, but a function-like macro
-#      in a public header would shadow an internal function silently.
+#   3. One prefix per surface: include/ declares wgr_ / WGR_, src/internal/
+#      declares wgri_ / WGRI_. A call site then reads as public or internal
+#      without looking anything up, and promoting a symbol is a rename, which is
+#      the contract change made visible. Build flags the build system also passes
+#      (WGR_HEADLESS) are exempt: -D and #ifdef must spell them the same.
 #
 # Exit non-zero on any violation. Run from anywhere: tools/check_naming.sh
 set -u
@@ -52,22 +53,31 @@ else
     echo "ok: public API is handle-only (no byte buffers / *_from_memory)"
 fi
 
-# (4) one namespace: a wgr_ name belongs to include/ or to src/internal/, not both
-names_in() {
-    # function declarations and function-like macros, by name. Comments go first:
-    # internal headers name public functions in prose all the time.
-    perl -0777 -ne 's{/\*.*?\*/}{ }gs; s{//[^\n]*}{}g; print' "$1"/*.h 2>/dev/null |
-        grep -oE '(^|[^a-z0-9_])wgr_[a-z0-9_]+[[:space:]]*\(' |
-        grep -oE 'wgr_[a-z0-9_]+' | sort -u
+# (4) one prefix per surface. Telling a declaration from a use needs a parser, so
+# check the thing that doesn't: every wgr_ name an internal header mentions must be
+# one include/ actually declares (it is using the public API), and include/ must not
+# mention wgri_ at all.
+strip_src() {
+    perl -0777 -ne 's{/\*.*?\*/}{ }gs; s{//[^\n]*}{}g; s{^\s*#\s*include[^\n]*$}{}gm; print' "$1"/*.h 2>/dev/null
 }
-both=$(comm -12 <(names_in include) <(names_in src/internal))
-if [ -n "$both" ]; then
-    echo "FAIL: these wgr_ names are declared in both include/ and src/internal/:"
-    echo "$both" | sed 's/^/  /'
-    echo "  (one namespace: rename one of them, or promote it to include/ and drop the internal one)"
+BUILD_FLAGS='WGR_HEADLESS'   # passed with -D by the Makefiles; must match there
+public_names=$(strip_src include | grep -oE '\b(wgr|WGR)_[a-zA-Z0-9_]+\b' | sort -u)
+internal_public=$(strip_src src/internal | grep -oE '\b(wgr|WGR)_[a-zA-Z0-9_]+\b' | sort -u |
+                  grep -vxF "$public_names" | grep -vxE "$BUILD_FLAGS" || true)
+public_internal=$(strip_src include | grep -oE '\b(wgri|WGRI)_[a-zA-Z0-9_]+\b' | sort -u || true)
+if [ -n "$internal_public" ] || [ -n "$public_internal" ]; then
+    [ -n "$internal_public" ] && {
+        echo "FAIL: src/internal/ names these wgr_ symbols, which include/ doesn't declare:"
+        echo "$internal_public" | sed 's/^/  /'
+        echo "  (internal symbols are wgri_; promote it to include/ if it should be public)"
+    }
+    [ -n "$public_internal" ] && {
+        echo "FAIL: include/ must not mention internal wgri_ symbols:"
+        echo "$public_internal" | sed 's/^/  /'
+    }
     status=1
 else
-    echo "ok: no wgr_ name is declared both publicly and internally"
+    echo "ok: wgr_ is public, wgri_ is internal, and neither surface claims the other"
 fi
 
 if [ "$status" -eq 0 ]; then

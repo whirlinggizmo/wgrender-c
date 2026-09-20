@@ -35,14 +35,14 @@ typedef struct {
     sg_image background;      /* the image at its own resolution, box-filtered mips (for blur) */
     sg_view background_view;
     int background_mip_count;
-    wgr_env_sh_t sh;
+    wgri_env_sh_t sh;
     int ref_count;
     char path[256];
     bool has_path;
 } wgr_environment_t;
 
 typedef struct {
-    wgr_mat4_t inv_view_proj;
+    wgri_mat4_t inv_view_proj;
     wgr_handle_t environment;
     float lod;
     float intensity;
@@ -52,7 +52,7 @@ typedef struct {
 } wgr_background_draw_t;
 
 static wgr_environment_t *wgr_environments; /* grown by the pool: don't hold a pointer across a create */
-static wgr_handle_pool_t wgr_environment_pool;
+static wgri_handle_pool_t wgr_environment_pool;
 
 static struct {
     bool ready;
@@ -73,21 +73,21 @@ static struct {
 
 static inline float clamp01(float x) { return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x); }
 
-vec3_t wgr_environment_equirect_dir(float u, float v)
+vec3_t wgri_environment_equirect_dir(float u, float v)
 {
     const float phi = (u - 0.5f) * 2.0f * PI_F;
     const float theta = v * PI_F;
     return (vec3_t){sinf(theta) * sinf(phi), cosf(theta), -sinf(theta) * cosf(phi)};
 }
 
-void wgr_environment_dir_equirect(vec3_t dir, float *u, float *v)
+void wgri_environment_dir_equirect(vec3_t dir, float *u, float *v)
 {
-    const vec3_t d = wgr_v3_norm(dir);
+    const vec3_t d = wgri_v3_norm(dir);
     *u = 0.5f + atan2f(d.x, -d.z) / (2.0f * PI_F);
     *v = acosf(d.y < -1.0f ? -1.0f : (d.y > 1.0f ? 1.0f : d.y)) / PI_F;
 }
 
-vec3_t wgr_environment_cube_dir(int face, float s, float t)
+vec3_t wgri_environment_cube_dir(int face, float s, float t)
 {
     const float sc = 2.0f * s - 1.0f, tc = 2.0f * t - 1.0f;
     vec3_t d;
@@ -99,10 +99,10 @@ vec3_t wgr_environment_cube_dir(int face, float s, float t)
         case 4: d = (vec3_t){sc, -tc, 1.0f}; break;
         default: d = (vec3_t){-sc, -tc, -1.0f}; break;
     }
-    return wgr_v3_norm(d);
+    return wgri_v3_norm(d);
 }
 
-void wgr_environment_dir_cube(vec3_t d, int *face, float *s, float *t)
+void wgri_environment_dir_cube(vec3_t d, int *face, float *s, float *t)
 {
     const float ax = fabsf(d.x), ay = fabsf(d.y), az = fabsf(d.z);
     float ma, sc, tc;
@@ -121,10 +121,10 @@ void wgr_environment_dir_cube(vec3_t d, int *face, float *s, float *t)
     *t = 0.5f * (tc / ma + 1.0f);
 }
 
-vec3_t wgr_environment_sample_equirect(const wgr_env_image_t *image, vec3_t dir)
+vec3_t wgri_environment_sample_equirect(const wgri_env_image_t *image, vec3_t dir)
 {
     float u, v;
-    wgr_environment_dir_equirect(dir, &u, &v);
+    wgri_environment_dir_equirect(dir, &u, &v);
     float x = u * (float)image->width - 0.5f, y = v * (float)image->height - 0.5f;
     int x0 = (int)floorf(x), y0 = (int)floorf(y);
     const float fx = x - (float)x0, fy = y - (float)y0;
@@ -147,7 +147,7 @@ vec3_t wgr_environment_sample_equirect(const wgr_env_image_t *image, vec3_t dir)
     return out;
 }
 
-static vec3_t sample_face(const wgr_env_cube_t *cube, int mip, int face, float s, float t)
+static vec3_t sample_face(const wgri_env_cube_t *cube, int mip, int face, float s, float t)
 {
     const int size = cube->size >> mip > 0 ? cube->size >> mip : 1;
     float x = s * (float)size - 0.5f, y = t * (float)size - 0.5f;
@@ -172,7 +172,7 @@ static vec3_t sample_face(const wgr_env_cube_t *cube, int mip, int face, float s
     return out;
 }
 
-vec3_t wgr_environment_sample_cube(const wgr_env_cube_t *cube, vec3_t dir, float lod)
+vec3_t wgri_environment_sample_cube(const wgri_env_cube_t *cube, vec3_t dir, float lod)
 {
     int face;
     float s, t;
@@ -182,7 +182,7 @@ vec3_t wgr_environment_sample_cube(const wgr_env_cube_t *cube, vec3_t dir, float
     const int m1 = m0 + 1 < cube->mip_count ? m0 + 1 : m0;
     const float f = lod - (float)m0;
 
-    wgr_environment_dir_cube(dir, &face, &s, &t);
+    wgri_environment_dir_cube(dir, &face, &s, &t);
     const vec3_t a = sample_face(cube, m0, face, s, t);
     if (f <= 0.0f || m1 == m0) {
         return a;
@@ -204,7 +204,7 @@ static void sh_basis(vec3_t n, float y[9])
     y[8] = 0.546274f * (n.x * n.x - n.y * n.y);
 }
 
-void wgr_environment_project_sh(const wgr_env_image_t *image, wgr_env_sh_t *out)
+void wgri_environment_project_sh(const wgri_env_image_t *image, wgri_env_sh_t *out)
 {
     /* Lambert convolution per band (Ramamoorthi & Hanrahan), divided by pi */
     static const float band[9] = {1.0f, 2.0f / 3.0f, 2.0f / 3.0f, 2.0f / 3.0f, 0.25f, 0.25f, 0.25f, 0.25f, 0.25f};
@@ -215,7 +215,7 @@ void wgr_environment_project_sh(const wgr_env_image_t *image, wgr_env_sh_t *out)
         const float v = ((float)py + 0.5f) / (float)image->height;
         const double solid_angle = pixel_area * sin(v * M_PI);
         for (int px = 0; px < image->width; px++) {
-            const vec3_t dir = wgr_environment_equirect_dir(((float)px + 0.5f) / (float)image->width, v);
+            const vec3_t dir = wgri_environment_equirect_dir(((float)px + 0.5f) / (float)image->width, v);
             const float *rgb = &image->rgb[(py * image->width + px) * 3];
             float y[9];
             sh_basis(dir, y);
@@ -233,7 +233,7 @@ void wgr_environment_project_sh(const wgr_env_image_t *image, wgr_env_sh_t *out)
     }
 }
 
-vec3_t wgr_environment_eval_sh(const wgr_env_sh_t *sh, vec3_t n)
+vec3_t wgri_environment_eval_sh(const wgri_env_sh_t *sh, vec3_t n)
 {
     float y[9];
     vec3_t out = {0, 0, 0};
@@ -246,7 +246,7 @@ vec3_t wgr_environment_eval_sh(const wgr_env_sh_t *sh, vec3_t n)
     return out;
 }
 
-void wgr_environment_cube_free(wgr_env_cube_t *cube)
+void wgri_environment_cube_free(wgri_env_cube_t *cube)
 {
     for (int m = 0; m < 16; m++) {
         free(cube->mips[m]);
@@ -255,7 +255,7 @@ void wgr_environment_cube_free(wgr_env_cube_t *cube)
     cube->mip_count = 0;
 }
 
-static bool cube_alloc(wgr_env_cube_t *cube, int size, int mip_count)
+static bool cube_alloc(wgri_env_cube_t *cube, int size, int mip_count)
 {
     memset(cube, 0, sizeof(*cube));
     cube->size = size;
@@ -264,14 +264,14 @@ static bool cube_alloc(wgr_env_cube_t *cube, int size, int mip_count)
         const size_t s = (size_t)(size >> m > 0 ? size >> m : 1);
         cube->mips[m] = (float *)calloc(6 * s * s * 3, sizeof(float));
         if (cube->mips[m] == NULL) {
-            wgr_environment_cube_free(cube);
+            wgri_environment_cube_free(cube);
             return false;
         }
     }
     return true;
 }
 
-bool wgr_environment_cube_from_equirect(const wgr_env_image_t *image, int size, wgr_env_cube_t *out)
+bool wgri_environment_cube_from_equirect(const wgri_env_image_t *image, int size, wgri_env_cube_t *out)
 {
     int mip_count = 1;
     while ((size >> (mip_count - 1)) > 1 && mip_count < 16) mip_count++;
@@ -285,9 +285,9 @@ bool wgr_environment_cube_from_equirect(const wgr_env_image_t *image, int size, 
                 float *p = &out->mips[0][((size_t)face * size * size + (size_t)y * size + x) * 3];
                 for (int sy = 0; sy < 2; sy++) {
                     for (int sx = 0; sx < 2; sx++) {
-                        const vec3_t d = wgr_environment_cube_dir(face, ((float)x + 0.25f + 0.5f * sx) / (float)size,
+                        const vec3_t d = wgri_environment_cube_dir(face, ((float)x + 0.25f + 0.5f * sx) / (float)size,
                                                                  ((float)y + 0.25f + 0.5f * sy) / (float)size);
-                        const vec3_t c = wgr_environment_sample_equirect(image, d);
+                        const vec3_t c = wgri_environment_sample_equirect(image, d);
                         p[0] += c.x * 0.25f;
                         p[1] += c.y * 0.25f;
                         p[2] += c.z * 0.25f;
@@ -339,13 +339,13 @@ static vec3_t importance_ggx(int i, int n, float alpha)
 static vec3_t to_basis(vec3_t v, vec3_t n)
 {
     const vec3_t up = fabsf(n.z) < 0.999f ? (vec3_t){0, 0, 1} : (vec3_t){1, 0, 0};
-    const vec3_t tx = wgr_v3_norm(wgr_v3_cross(up, n));
-    const vec3_t ty = wgr_v3_cross(n, tx);
+    const vec3_t tx = wgri_v3_norm(wgri_v3_cross(up, n));
+    const vec3_t ty = wgri_v3_cross(n, tx);
     return (vec3_t){tx.x * v.x + ty.x * v.y + n.x * v.z, tx.y * v.x + ty.y * v.y + n.y * v.z,
                     tx.z * v.x + ty.z * v.y + n.z * v.z};
 }
 
-bool wgr_environment_prefilter(const wgr_env_cube_t *source, int size, int mip_count, int samples, wgr_env_cube_t *out)
+bool wgri_environment_prefilter(const wgri_env_cube_t *source, int size, int mip_count, int samples, wgri_env_cube_t *out)
 {
     const float source_texel_solid_angle = 4.0f * PI_F / (6.0f * (float)source->size * (float)source->size);
 
@@ -360,11 +360,11 @@ bool wgr_environment_prefilter(const wgr_env_cube_t *source, int size, int mip_c
             for (int y = 0; y < s; y++) {
                 for (int x = 0; x < s; x++) {
                     float *p = &out->mips[m][((size_t)face * s * s + (size_t)y * s + x) * 3];
-                    const vec3_t n = wgr_environment_cube_dir(face, ((float)x + 0.5f) / (float)s,
+                    const vec3_t n = wgri_environment_cube_dir(face, ((float)x + 0.5f) / (float)s,
                                                              ((float)y + 0.5f) / (float)s);
                     if (m == 0) {
                         /* mirror-like: the source at this resolution */
-                        const vec3_t c = wgr_environment_sample_cube(source, n, log2f((float)source->size / (float)s));
+                        const vec3_t c = wgri_environment_sample_cube(source, n, log2f((float)source->size / (float)s));
                         p[0] = c.x; p[1] = c.y; p[2] = c.z;
                         continue;
                     }
@@ -372,9 +372,9 @@ bool wgr_environment_prefilter(const wgr_env_cube_t *source, int size, int mip_c
                     float weight = 0.0f;
                     for (int i = 0; i < samples; i++) {
                         const vec3_t h = to_basis(importance_ggx(i, samples, alpha), n);
-                        const float n_dot_h = wgr_v3_dot(n, h);
-                        const vec3_t l = wgr_v3_sub(wgr_v3_scale(h, 2.0f * n_dot_h), n); /* reflect n about h (v = n) */
-                        const float n_dot_l = wgr_v3_dot(n, l);
+                        const float n_dot_h = wgri_v3_dot(n, h);
+                        const vec3_t l = wgri_v3_sub(wgri_v3_scale(h, 2.0f * n_dot_h), n); /* reflect n about h (v = n) */
+                        const float n_dot_l = wgri_v3_dot(n, l);
                         if (n_dot_l <= 0.0f) {
                             continue;
                         }
@@ -385,7 +385,7 @@ bool wgr_environment_prefilter(const wgr_env_cube_t *source, int size, int mip_c
                         const float pdf = a2 / (PI_F * dd * dd) * 0.25f; /* D * n.h / (4 v.h), v.h == n.h */
                         const float sample_solid_angle = 1.0f / ((float)samples * pdf + 1e-6f);
                         const float lod = 0.5f * log2f(sample_solid_angle / source_texel_solid_angle) + 1.0f;
-                        const vec3_t c = wgr_environment_sample_cube(source, l, lod);
+                        const vec3_t c = wgri_environment_sample_cube(source, l, lod);
                         sum = (vec3_t){sum.x + c.x * n_dot_l, sum.y + c.y * n_dot_l, sum.z + c.z * n_dot_l};
                         weight += n_dot_l;
                     }
@@ -399,7 +399,7 @@ bool wgr_environment_prefilter(const wgr_env_cube_t *source, int size, int mip_c
     return true;
 }
 
-void wgr_environment_brdf_lut(int size, int samples, float *out)
+void wgri_environment_brdf_lut(int size, int samples, float *out)
 {
     for (int y = 0; y < size; y++) {
         const float roughness = ((float)y + 0.5f) / (float)size;
@@ -411,8 +411,8 @@ void wgr_environment_brdf_lut(int size, int samples, float *out)
             float a = 0.0f, b = 0.0f;
             for (int i = 0; i < samples; i++) {
                 const vec3_t h = importance_ggx(i, samples, alpha);
-                const float v_dot_h = wgr_v3_dot(v, h);
-                const vec3_t l = wgr_v3_sub(wgr_v3_scale(h, 2.0f * v_dot_h), v);
+                const float v_dot_h = wgri_v3_dot(v, h);
+                const vec3_t l = wgri_v3_sub(wgri_v3_scale(h, 2.0f * v_dot_h), v);
                 const float n_dot_l = clamp01(l.z), n_dot_h = clamp01(h.z);
                 if (n_dot_l <= 0.0f) {
                     continue;
@@ -429,7 +429,7 @@ void wgr_environment_brdf_lut(int size, int samples, float *out)
     }
 }
 
-uint16_t wgr_environment_half_from_float(float value)
+uint16_t wgri_environment_half_from_float(float value)
 {
     uint32_t bits;
     memcpy(&bits, &value, sizeof(bits));
@@ -461,7 +461,7 @@ uint16_t wgr_environment_half_from_float(float value)
 static wgr_environment_t *resolve(wgr_handle_t handle)
 {
     uint16_t index = 0;
-    if (!wgr_handle_pool_resolve(&wgr_environment_pool, handle, &index)) {
+    if (!wgri_handle_pool_resolve(&wgr_environment_pool, handle, &index)) {
         if (handle != 0) log_warn("Invalid environment handle (%u)", (unsigned int)handle);
         return NULL;
     }
@@ -469,7 +469,7 @@ static wgr_environment_t *resolve(wgr_handle_t handle)
 }
 
 /* RGBA16F cubemap image from a float RGB cube. */
-static sg_image make_cube_image(const wgr_env_cube_t *cube)
+static sg_image make_cube_image(const wgri_env_cube_t *cube)
 {
     sg_image_desc desc = {
         .type = SG_IMAGETYPE_CUBE,
@@ -492,9 +492,9 @@ static sg_image make_cube_image(const wgr_env_cube_t *cube)
         }
         for (size_t i = 0; i < texels; i++) {
             for (int c = 0; c < 3; c++) {
-                levels[m][i * 4 + c] = wgr_environment_half_from_float(cube->mips[m][i * 3 + c]);
+                levels[m][i * 4 + c] = wgri_environment_half_from_float(cube->mips[m][i * 3 + c]);
             }
-            levels[m][i * 4 + 3] = wgr_environment_half_from_float(1.0f);
+            levels[m][i * 4 + 3] = wgri_environment_half_from_float(1.0f);
         }
         desc.data.mip_levels[m] = (sg_range){.ptr = levels[m], .size = texels * 4 * sizeof(uint16_t)};
     }
@@ -504,7 +504,7 @@ static sg_image make_cube_image(const wgr_env_cube_t *cube)
 }
 
 /* Linear RGB float image from a .hdr (linear already) or PNG/JPEG (sRGB). */
-static bool load_image(const char *path, wgr_env_image_t *out)
+static bool load_image(const char *path, wgri_env_image_t *out)
 {
     FILE *f = path != NULL ? fopen(path, "rb") : NULL;
     unsigned char *bytes;
@@ -532,7 +532,7 @@ static bool load_image(const char *path, wgr_env_image_t *out)
         if (pixels != NULL) {
             out->rgb = (float *)malloc((size_t)w * (size_t)h * 3 * sizeof(float));
             for (size_t i = 0; out->rgb != NULL && i < (size_t)w * (size_t)h * 3; i++) {
-                out->rgb[i] = wgr_srgb_to_linear((float)pixels[i] / 255.0f);
+                out->rgb[i] = wgri_srgb_to_linear((float)pixels[i] / 255.0f);
             }
             stbi_image_free(pixels);
         }
@@ -549,7 +549,7 @@ static wgr_handle_t find_by_path(const char *path)
     for (uint16_t i = 1; i < wgr_environment_pool.capacity; i++) {
         if (wgr_environment_pool.occupied[i] && wgr_environments[i].has_path &&
             strcmp(wgr_environments[i].path, path) == 0) {
-            return wgr_handle_pool_handle_from_index(&wgr_environment_pool, i);
+            return wgri_handle_pool_handle_from_index(&wgr_environment_pool, i);
         }
     }
     return 0;
@@ -557,14 +557,14 @@ static wgr_handle_t find_by_path(const char *path)
 
 /* The CPU half of loading an environment (any thread). */
 typedef struct {
-    wgr_env_sh_t sh;
-    wgr_env_cube_t source;
-    wgr_env_cube_t prefiltered;
+    wgri_env_sh_t sh;
+    wgri_env_cube_t source;
+    wgri_env_cube_t prefiltered;
 } wgr_env_prepared_t;
 
 static void *prepare_environment(const char *path)
 {
-    wgr_env_image_t image;
+    wgri_env_image_t image;
     wgr_env_prepared_t *prepared;
 
     if (!load_image(path, &image)) {
@@ -577,15 +577,15 @@ static void *prepare_environment(const char *path)
         free(image.rgb);
         return NULL;
     }
-    wgr_environment_project_sh(&image, &prepared->sh);
+    wgri_environment_project_sh(&image, &prepared->sh);
     int source_size = MIN_SOURCE_CUBE_SIZE;
     while (source_size * 2 <= image.width / 4 && source_size < MAX_SOURCE_CUBE_SIZE) source_size *= 2;
-    const bool built = wgr_environment_cube_from_equirect(&image, source_size, &prepared->source);
+    const bool built = wgri_environment_cube_from_equirect(&image, source_size, &prepared->source);
     free(image.rgb);
-    if (!built || !wgr_environment_prefilter(&prepared->source, WGR_ENVIRONMENT_CUBE_SIZE, WGR_ENVIRONMENT_MIP_COUNT,
+    if (!built || !wgri_environment_prefilter(&prepared->source, WGRI_ENVIRONMENT_CUBE_SIZE, WGRI_ENVIRONMENT_MIP_COUNT,
                                             PREFILTER_SAMPLES, &prepared->prefiltered)) {
         log_error("wgr_environment_create: out of memory preparing %s", path);
-        wgr_environment_cube_free(&prepared->source);
+        wgri_environment_cube_free(&prepared->source);
         free(prepared);
         return NULL;
     }
@@ -596,12 +596,12 @@ static void discard_environment(void *data)
 {
     wgr_env_prepared_t *prepared = (wgr_env_prepared_t *)data;
     if (prepared == NULL) return;
-    wgr_environment_cube_free(&prepared->source);
-    wgr_environment_cube_free(&prepared->prefiltered);
+    wgri_environment_cube_free(&prepared->source);
+    wgri_environment_cube_free(&prepared->prefiltered);
     free(prepared);
 }
 
-static wgr_loader_step_t finish_environment(void *data, const char *path, wgr_handle_t *resource)
+static wgri_loader_step_t finish_environment(void *data, const char *path, wgr_handle_t *resource)
 {
     const wgr_env_prepared_t *prepared = (const wgr_env_prepared_t *)data;
     wgr_environment_t env = {0};
@@ -610,7 +610,7 @@ static wgr_loader_step_t finish_environment(void *data, const char *path, wgr_ha
     *resource = 0;
     if (!wgr_env.ready) {
         log_error("wgr_environment_create: environments aren't supported by this graphics backend");
-        return WGR_LOADER_FAILED;
+        return WGRI_LOADER_FAILED;
     }
     env.sh = prepared->sh;
     env.background = make_cube_image(&prepared->source);
@@ -624,29 +624,29 @@ static wgr_loader_step_t finish_environment(void *data, const char *path, wgr_ha
     }
     env.ref_count = 1;
 
-    const wgr_handle_t handle = wgr_handle_pool_alloc(&wgr_environment_pool);
+    const wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_environment_pool);
     if (handle == 0) {
         log_error("environment: pool full (%u)", (unsigned)wgr_environment_pool.max - 1u);
         sg_destroy_view(env.cube_view);
         sg_destroy_image(env.cube);
         sg_destroy_view(env.background_view);
         sg_destroy_image(env.background);
-        return WGR_LOADER_FAILED;
+        return WGRI_LOADER_FAILED;
     }
-    wgr_handle_pool_resolve(&wgr_environment_pool, handle, &index);
+    wgri_handle_pool_resolve(&wgr_environment_pool, handle, &index);
     wgr_environments[index] = env;
     *resource = handle;
-    return WGR_LOADER_DONE;
+    return WGRI_LOADER_DONE;
 }
 
 static wgr_handle_t find_environment(const char *path)
 {
     const wgr_handle_t environment = find_by_path(path);
-    if (environment != 0) wgr_environment_retain(environment);
+    if (environment != 0) wgri_environment_retain(environment);
     return environment;
 }
 
-static const wgr_loader_t wgr_environment_loader = {
+static const wgri_loader_t wgr_environment_loader = {
     .name = "environment",
     .prepare = prepare_environment,
     .finish = finish_environment,
@@ -655,23 +655,23 @@ static const wgr_loader_t wgr_environment_loader = {
     .release = wgr_environment_release,
 };
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_environment_create(const char *path)
 {
     if (!wgr_env.ready) { /* before the CPU work */
         log_error("wgr_environment_create: environments aren't supported by this graphics backend");
         return 0;
     }
-    return wgr_loader_create(&wgr_environment_loader, path);
+    return wgri_loader_create(&wgr_environment_loader, path);
 }
 
-void wgr_environment_retain(wgr_handle_t environment)
+void wgri_environment_retain(wgr_handle_t environment)
 {
     wgr_environment_t *env_ptr = resolve(environment);
     if (env_ptr != NULL) env_ptr->ref_count++;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_environment_release(wgr_handle_t environment)
 {
     wgr_environment_t *env_ptr = resolve(environment);
@@ -683,21 +683,21 @@ void wgr_environment_release(wgr_handle_t environment)
         sg_destroy_view(env_ptr->background_view);
         sg_destroy_image(env_ptr->background);
         memset(env_ptr, 0, sizeof(*env_ptr));
-        wgr_handle_pool_free(&wgr_environment_pool, environment);
+        wgri_handle_pool_free(&wgr_environment_pool, environment);
     }
 }
 
-void wgr_environment_get_binding(wgr_handle_t environment, wgr_environment_binding_t *out)
+void wgri_environment_get_binding(wgr_handle_t environment, wgri_environment_binding_t *out)
 {
     uint16_t index = 0;
-    const bool valid = environment != 0 && wgr_handle_pool_resolve(&wgr_environment_pool, environment, &index);
+    const bool valid = environment != 0 && wgri_handle_pool_resolve(&wgr_environment_pool, environment, &index);
 
-    *out = (wgr_environment_binding_t){
+    *out = (wgri_environment_binding_t){
         .cube = valid ? wgr_environments[index].cube_view : wgr_env.black_cube_view,
         .brdf_lut = wgr_env.lut_view,
         .cube_sampler = wgr_env.cube_sampler,
         .lut_sampler = wgr_env.lut_sampler,
-        .max_lod = (float)(WGR_ENVIRONMENT_MIP_COUNT - 1),
+        .max_lod = (float)(WGRI_ENVIRONMENT_MIP_COUNT - 1),
         .valid = valid,
     };
     if (valid) {
@@ -713,7 +713,7 @@ static void draw_background(int index)
     uint16_t env_index = 0;
     bg_params_t params;
 
-    if (!wgr_handle_pool_resolve(&wgr_environment_pool, bg->environment, &env_index)) {
+    if (!wgri_handle_pool_resolve(&wgr_environment_pool, bg->environment, &env_index)) {
         return; /* destroyed after it was queued */
     }
     const wgr_environment_t *env_ptr = &wgr_environments[env_index];
@@ -736,24 +736,24 @@ static void draw_background(int index)
     sg_draw(0, 3, 1);
 }
 
-void wgr_environment_submit_background(wgr_handle_t environment, float blur, float intensity, float rotation,
+void wgri_environment_submit_background(wgr_handle_t environment, float blur, float intensity, float rotation,
                                       int tonemap, float exposure)
 {
-    wgr_camera3d_t cam;
+    wgri_camera3d_t cam;
     wgr_background_draw_t *bg;
 
-    if (!wgr_env.ready || resolve(environment) == NULL || !wgr_camera3d_get_active_data(&cam)) {
+    if (!wgr_env.ready || resolve(environment) == NULL || !wgri_camera3d_get_active_data(&cam)) {
         return;
     }
     if (wgr_env.background_count >= MAX_BACKGROUND_DRAWS) {
         return;
     }
-    const vec2_t size = wgr_render_target_size();
+    const vec2_t size = wgri_render_target_size();
     const float aspect = size.y > 0.0f ? size.x / size.y : 1.0f;
-    const wgr_mat4_t view_proj = wgr_mat4_mul(wgr_camera3d_projection(&cam, aspect), wgr_camera3d_view(&cam));
+    const wgri_mat4_t view_proj = wgri_mat4_mul(wgri_camera3d_projection(&cam, aspect), wgri_camera3d_view(&cam));
     bg = &wgr_env.backgrounds[wgr_env.background_count];
     *bg = (wgr_background_draw_t){
-        .inv_view_proj = wgr_mat4_inverse(view_proj),
+        .inv_view_proj = wgri_mat4_inverse(view_proj),
         .environment = environment,
         .lod = clamp01(blur), /* scaled by the background's mip count when drawn */
         .intensity = intensity,
@@ -761,10 +761,10 @@ void wgr_environment_submit_background(wgr_handle_t environment, float blur, flo
         .tonemap = tonemap,
         .exposure = exposure,
     };
-    wgr_render_submit_callback(draw_background, wgr_env.background_count++);
+    wgri_render_submit_callback(draw_background, wgr_env.background_count++);
 }
 
-void wgr_environment_end_frame(void)
+void wgri_environment_end_frame(void)
 {
     wgr_env.background_count = 0;
 }
@@ -777,20 +777,20 @@ static sg_backend shader_backend(void)
     return backend == SG_BACKEND_DUMMY ? SG_BACKEND_GLCORE : backend; /* see wgr_model.c */
 }
 
-void wgr_environment_init(void)
+void wgri_environment_init(void)
 {
-    wgr_environment_hooks.get_binding = wgr_environment_get_binding;
-    wgr_scene_hooks.environment_retain = wgr_environment_retain;
-    wgr_scene_hooks.environment_release = wgr_environment_release;
-    wgr_scene_hooks.environment_background = wgr_environment_submit_background;
+    wgri_environment_hooks.get_binding = wgri_environment_get_binding;
+    wgri_scene_hooks.environment_retain = wgri_environment_retain;
+    wgri_scene_hooks.environment_release = wgr_environment_release;
+    wgri_scene_hooks.environment_background = wgri_environment_submit_background;
     static const float triangle[] = {-1.0f, -1.0f, 3.0f, -1.0f, -1.0f, 3.0f};
-    const int n = WGR_ENVIRONMENT_LUT_SIZE;
+    const int n = WGRI_ENVIRONMENT_LUT_SIZE;
     uint16_t black[6 * 4] = {0};
 
     memset(&wgr_env, 0, sizeof(wgr_env));
-    if (!wgr_handle_pool_init(&wgr_environment_pool, WGR_HANDLE_KIND_ENVIRONMENT, "environment",
+    if (!wgri_handle_pool_init(&wgr_environment_pool, WGR_HANDLE_KIND_ENVIRONMENT, "environment",
                              (void **)&wgr_environments, sizeof(wgr_environment_t), ENVIRONMENTS_INITIAL,
-                             WGR_HANDLE_POOL_MAX_SLOTS)) {
+                             WGRI_HANDLE_POOL_MAX_SLOTS)) {
         log_error("environment: out of memory");
     }
 
@@ -808,7 +808,7 @@ void wgr_environment_init(void)
     });
     wgr_env.lut_view = sg_make_view(&(sg_view_desc){.texture.image = wgr_env.lut});
 
-    for (int f = 0; f < 6; f++) black[f * 4 + 3] = wgr_environment_half_from_float(1.0f);
+    for (int f = 0; f < 6; f++) black[f * 4 + 3] = wgri_environment_half_from_float(1.0f);
     wgr_env.black_cube = sg_make_image(&(sg_image_desc){
         .type = SG_IMAGETYPE_CUBE, .width = 1, .height = 1, .pixel_format = SG_PIXELFORMAT_RGBA16F,
         .data.mip_levels[0] = {.ptr = black, .size = sizeof(black)},
@@ -838,15 +838,15 @@ void wgr_environment_init(void)
         .label = "wgr-background-triangle",
     });
     wgr_env.ready = true;
-    wgr_asset_register_loader(".hdr", &wgr_environment_loader);
+    wgri_asset_register_loader(".hdr", &wgr_environment_loader);
 }
 
-void wgr_environment_deinit(void)
+void wgri_environment_deinit(void)
 {
-    wgr_environment_hooks.get_binding = NULL;
-    wgr_scene_hooks.environment_retain = NULL;
-    wgr_scene_hooks.environment_release = NULL;
-    wgr_scene_hooks.environment_background = NULL;
+    wgri_environment_hooks.get_binding = NULL;
+    wgri_scene_hooks.environment_retain = NULL;
+    wgri_scene_hooks.environment_release = NULL;
+    wgri_scene_hooks.environment_background = NULL;
     for (uint16_t i = 1; i < wgr_environment_pool.capacity; i++) {
         if (wgr_environment_pool.occupied[i]) {
             sg_destroy_view(wgr_environments[i].cube_view);
@@ -867,9 +867,9 @@ void wgr_environment_deinit(void)
         sg_destroy_image(wgr_env.lut);
     }
     memset(&wgr_env, 0, sizeof(wgr_env));
-    wgr_handle_pool_destroy(&wgr_environment_pool);
+    wgri_handle_pool_destroy(&wgr_environment_pool);
 }
 
-/* An optional subsystem: part of the runtime when a program uses it (internal/wgr_module.h). */
-static wgr_module_t wgr_environment_module = {.name = "environment", .order = 40, .init = wgr_environment_init, .deinit = wgr_environment_deinit, .end_frame = wgr_environment_end_frame};
-WGR_MODULE(wgr_environment_module)
+/* An optional subsystem: part of the runtime when a program uses it (internal/wgri_module.h). */
+static wgri_module_t wgr_environment_module = {.name = "environment", .order = 40, .init = wgri_environment_init, .deinit = wgri_environment_deinit, .end_frame = wgri_environment_end_frame};
+WGRI_MODULE(wgr_environment_module)

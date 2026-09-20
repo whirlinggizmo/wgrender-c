@@ -61,7 +61,7 @@ typedef struct {
 
     wgr_input_edges_t frame_edges;
     wgr_input_edges_t tick_edges;
-    wgr_input_context_t context;
+    wgri_input_context_t context;
 
     wgr_finger_t fingers[WGR_INPUT_MAX_TOUCHES];
     unsigned finger_order;
@@ -77,34 +77,34 @@ typedef struct {
 
 static wgr_input_state_t wgr_input;
 
-void wgr_input_init(void)
+void wgri_input_init(void)
 {
     memset(&wgr_input, 0, sizeof(wgr_input));
 }
 
-void wgr_input_deinit(void)
+void wgri_input_deinit(void)
 {
     memset(&wgr_input, 0, sizeof(wgr_input));
 }
 
-void wgr_input_set_context(wgr_input_context_t context)
+void wgri_input_set_context(wgri_input_context_t context)
 {
     wgr_input.context = context;
 }
 
-void wgr_input_end_tick(void)
+void wgri_input_end_tick(void)
 {
     memset(&wgr_input.tick_edges, 0, sizeof(wgr_input.tick_edges));
 }
 
-void wgr_input_end_frame(void)
+void wgri_input_end_frame(void)
 {
     memset(&wgr_input.frame_edges, 0, sizeof(wgr_input.frame_edges));
 }
 
 static const wgr_input_edges_t *current_edges(void)
 {
-    return wgr_input.context == WGR_INPUT_CONTEXT_TICK ? &wgr_input.tick_edges : &wgr_input.frame_edges;
+    return wgr_input.context == WGRI_INPUT_CONTEXT_TICK ? &wgr_input.tick_edges : &wgr_input.frame_edges;
 }
 
 static int button_state(bool down, bool pressed, bool released)
@@ -120,8 +120,8 @@ static void add_edges(wgr_input_edges_t *edges, const sapp_event *ev, bool key_w
 {
     switch (ev->type) {
         case SAPP_EVENTTYPE_MOUSE_MOVE:
-            edges->dx += (int)(ev->mouse_dx / wgr_window_dpi_scale()); /* logical pixels */
-            edges->dy += (int)(ev->mouse_dy / wgr_window_dpi_scale());
+            edges->dx += (int)(ev->mouse_dx / wgri_window_dpi_scale()); /* logical pixels */
+            edges->dy += (int)(ev->mouse_dy / wgri_window_dpi_scale());
             break;
         case SAPP_EVENTTYPE_MOUSE_DOWN:
             edges->pressed[ev->mouse_button] = true;
@@ -206,12 +206,12 @@ static bool gesture_pair(int *a, int *b)
 static void pointer_event(sapp_event_type type, float x, float y)
 {
     sapp_event mouse = {.type = SAPP_EVENTTYPE_MOUSE_MOVE,
-                        .mouse_x = x * wgr_window_dpi_scale(),
-                        .mouse_y = y * wgr_window_dpi_scale()};
-    wgr_input_handle_event(&mouse);
+                        .mouse_x = x * wgri_window_dpi_scale(),
+                        .mouse_y = y * wgri_window_dpi_scale()};
+    wgri_input_handle_event(&mouse);
     if (type != SAPP_EVENTTYPE_MOUSE_MOVE) {
         mouse.type = type;
-        wgr_input_handle_event(&mouse);
+        wgri_input_handle_event(&mouse);
     }
 }
 
@@ -241,7 +241,7 @@ static void touch_pointer(sapp_event_type type, uintptr_t system_id, const wgr_f
 /* Fingers, their edges, the pointer and the two-finger gesture from one touch event. */
 static void handle_touch(const sapp_event *ev)
 {
-    const float scale = wgr_window_dpi_scale();
+    const float scale = wgri_window_dpi_scale();
     const sapp_event_type type = ev->type == SAPP_EVENTTYPE_TOUCHES_CANCELLED ? SAPP_EVENTTYPE_TOUCHES_ENDED : ev->type;
     int a, b;
     float ax = 0, ay = 0, bx = 0, by = 0;
@@ -309,7 +309,7 @@ static void handle_touch(const sapp_event *ev)
     }
 }
 
-void wgr_input_handle_event(const sapp_event *ev)
+void wgri_input_handle_event(const sapp_event *ev)
 {
     bool key_was_down = false;
 
@@ -345,8 +345,8 @@ void wgr_input_handle_event(const sapp_event *ev)
     /* held state */
     switch (ev->type) {
         case SAPP_EVENTTYPE_MOUSE_MOVE:
-            wgr_input.x = (int)(ev->mouse_x / wgr_window_dpi_scale()); /* logical pixels */
-            wgr_input.y = (int)(ev->mouse_y / wgr_window_dpi_scale());
+            wgr_input.x = (int)(ev->mouse_x / wgri_window_dpi_scale()); /* logical pixels */
+            wgr_input.y = (int)(ev->mouse_y / wgri_window_dpi_scale());
             break;
         case SAPP_EVENTTYPE_MOUSE_DOWN:
             wgr_input.down[ev->mouse_button] = true;
@@ -365,12 +365,12 @@ void wgr_input_handle_event(const sapp_event *ev)
     }
 }
 
-wgr_input_context_t wgr_input_get_context(void)
+wgri_input_context_t wgri_input_get_context(void)
 {
     return wgr_input.context;
 }
 
-void wgr_input_get_pointer_frame(float *x, float *y, bool *down, bool *pressed, bool *released)
+void wgri_input_get_pointer_frame(float *x, float *y, bool *down, bool *pressed, bool *released)
 {
     *x = (float)wgr_input.x;
     *y = (float)wgr_input.y;
@@ -379,45 +379,45 @@ void wgr_input_get_pointer_frame(float *x, float *y, bool *down, bool *pressed, 
     *released = wgr_input.frame_edges.released[0];
 }
 
-void wgr_input_set_scene_pointer_captured(bool captured)
+void wgri_input_set_scene_pointer_captured(bool captured)
 {
     wgr_input.scene_pointer_captured = captured;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_input_set_pointer_captured(bool captured)
 {
     wgr_input.ui_pointer_captured = captured;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_input_is_pointer_captured(void)
 {
     return wgr_input.scene_pointer_captured || wgr_input.ui_pointer_captured;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_input_set_keyboard_captured(bool captured)
 {
     wgr_input.ui_keyboard_captured = captured;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_input_is_keyboard_captured(void)
 {
     return wgr_input.ui_keyboard_captured;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_input_capture_cursor(void)
 {
-    wgr_platform_lock_mouse(true);
+    wgri_platform_lock_mouse(true);
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_input_release_cursor(void)
 {
-    wgr_platform_lock_mouse(false);
+    wgri_platform_lock_mouse(false);
 }
 
 vec2_t wgr_input_get_mouse_position(void)
@@ -430,19 +430,19 @@ vec2_t wgr_input_get_mouse_delta(void)
     return (vec2_t){(float)current_edges()->dx, (float)current_edges()->dy};
 }
 
-WGR_KEEP
+WGRI_KEEP
 float wgr_input_get_mouse_wheel(void)
 {
     return current_edges()->wheel;
 }
 
-WGR_KEEP
+WGRI_KEEP
 float wgr_input_get_mouse_wheel_x(void)
 {
     return current_edges()->wheel_x;
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_input_get_mouse_button(int button)
 {
     if (button < 0 || button >= WGR_MOUSE_BUTTONS) {
@@ -452,7 +452,7 @@ int wgr_input_get_mouse_button(int button)
                         current_edges()->released[button]);
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_mouse_state_t wgr_input_get_mouse_state(void)
 {
     const wgr_input_edges_t *edges = current_edges();
@@ -472,7 +472,7 @@ wgr_mouse_state_t wgr_input_get_mouse_state(void)
     return state;
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_input_get_key(wgr_keycode_t key)
 {
     const wgr_input_edges_t *edges = current_edges();
@@ -482,7 +482,7 @@ int wgr_input_get_key(wgr_keycode_t key)
     return button_state(wgr_input.key_down[key], edges->key_pressed[key], edges->key_released[key]);
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_keyboard_state_t wgr_input_get_keyboard_state(void)
 {
     const wgr_input_edges_t *edges = current_edges();
@@ -529,14 +529,14 @@ static int list_touches(int out[WGR_INPUT_MAX_TOUCHES])
     return count;
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_input_get_touch_count(void)
 {
     int slots[WGR_INPUT_MAX_TOUCHES];
     return list_touches(slots);
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_touch_t wgr_input_get_touch(int index)
 {
     int slots[WGR_INPUT_MAX_TOUCHES];
@@ -558,7 +558,7 @@ wgr_touch_t wgr_input_get_touch(int index)
     };
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_touch_gesture_t wgr_input_get_touch_gesture(void)
 {
     const wgr_input_edges_t *edges = current_edges();

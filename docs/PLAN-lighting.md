@@ -114,7 +114,7 @@ final_rgb = base_color_rgb * lit
 
 ## Efficiency: per-draw light selection
 
-- Uniform block holds **`WGR_MAX_DRAW_LIGHTS = 8`** lights, packed std140 as four
+- Uniform block holds **`WGRI_MAX_DRAW_LIGHTS = 8`** lights, packed std140 as four
   `vec4[8]` arrays (position+range, direction+type, color*intensity, spot cosines)
   plus a count and the ambient term. About 136 floats, uploaded with the existing
   per-primitive `fs_params` call.
@@ -140,7 +140,7 @@ final_rgb = base_color_rgb * lit
 ## Internals
 
 - `src/wgr_light.c`: handle pool, light storage, public API, and a pure
-  `wgr_light_select(...)` used by `wgr_model`.
+  `wgri_light_select(...)` used by `wgr_model`.
 - `src/internal/wgr_light.h`: packed per-draw light data and the selection API.
 - `wgr_scene`: `wgr_scene_set_ambient`; while drawing a layer, collect enabled lights
   (scene members with the light handle kind) and hand them to `wgr_model` for the

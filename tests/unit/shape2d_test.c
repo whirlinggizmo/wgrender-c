@@ -33,12 +33,12 @@ void test_shape2d(void)
 {
     const vec2_t screen = wgr_window_get_screen_size();
 
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_shape2d_init();
-    wgr_shape3d_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_shape2d_init();
+    wgri_shape3d_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
     CHECK(wgr_window_set_size(800, 600));
 
@@ -141,11 +141,11 @@ void test_shape2d(void)
     CHECK(wgr_window_set_size((int)screen.x, (int)screen.y));
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgr_scene_destroy(scene);
-    wgr_shape2d_deinit();
-    wgr_shape3d_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_shape2d_deinit();
+    wgri_shape3d_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }
 
@@ -153,12 +153,12 @@ void test_shape2d(void)
  * geometry, and what each draw emits (sokol_gl vertex counts on the dummy backend). */
 void test_shape2d_immediate(void)
 {
-    float xy[WGR_SHAPE2D_OUTLINE_POINTS * 2];
-    const int per_corner = WGR_SHAPE2D_OUTLINE_POINTS / 4;
+    float xy[WGRI_SHAPE2D_OUTLINE_POINTS * 2];
+    const int per_corner = WGRI_SHAPE2D_OUTLINE_POINTS / 4;
 
     /* square corners: every point of a corner's arc sits on the corner */
     const float square[4] = {0, 0, 0, 0};
-    CHECK(wgr_shape2d_rounded_outline(10, 20, 100, 50, square, xy) == WGR_SHAPE2D_OUTLINE_POINTS);
+    CHECK(wgri_shape2d_rounded_outline(10, 20, 100, 50, square, xy) == WGRI_SHAPE2D_OUTLINE_POINTS);
     CHECK_NEAR(xy[0], 10, 1e-4);                                /* top-left */
     CHECK_NEAR(xy[1], 20, 1e-4);
     CHECK_NEAR(xy[per_corner * 2], 110, 1e-4);                  /* top-right */
@@ -168,9 +168,9 @@ void test_shape2d_immediate(void)
 
     /* per-corner radii, the outline stays inside the rectangle */
     const float mixed[4] = {10, 0, 5, 20};
-    wgr_shape2d_rounded_outline(0, 0, 100, 50, mixed, xy);
+    wgri_shape2d_rounded_outline(0, 0, 100, 50, mixed, xy);
     float min_x = 1e9f, max_x = -1e9f, min_y = 1e9f, max_y = -1e9f;
-    for (int i = 0; i < WGR_SHAPE2D_OUTLINE_POINTS; i++) {
+    for (int i = 0; i < WGRI_SHAPE2D_OUTLINE_POINTS; i++) {
         min_x = fminf(min_x, xy[i * 2]), max_x = fmaxf(max_x, xy[i * 2]);
         min_y = fminf(min_y, xy[i * 2 + 1]), max_y = fmaxf(max_y, xy[i * 2 + 1]);
     }
@@ -185,23 +185,23 @@ void test_shape2d_immediate(void)
 
     /* radii clamp to half the shorter side: 10x4 with radius 10 rounds by 2 */
     const float huge[4] = {10, 10, 10, 10};
-    wgr_shape2d_rounded_outline(0, 0, 10, 4, huge, xy);
+    wgri_shape2d_rounded_outline(0, 0, 10, 4, huge, xy);
     CHECK_NEAR(xy[1], 2, 1e-4);
     CHECK_NEAR(xy[(per_corner - 1) * 2], 2, 1e-4);
 
     /* what the draws emit */
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
     wgr_render_begin();
     int before = sgl_num_vertices();
     wgr_shape2d_draw_rounded_rectangle(10.5f, 20.25f, 100, 50, 8, 8, 8, 8, WGR_COLOR_RED); /* fractional: floats */
     const int fan = sgl_num_vertices() - before;
-    CHECK(fan == WGR_SHAPE2D_OUTLINE_POINTS * 3); /* a triangle per outline edge */
+    CHECK(fan == WGRI_SHAPE2D_OUTLINE_POINTS * 3); /* a triangle per outline edge */
 
     before = sgl_num_vertices();
     wgr_shape2d_draw_border(10, 20, 100, 50, 2, 2, 2, 2, 8, 8, 8, 8, WGR_COLOR_RED);
-    CHECK(sgl_num_vertices() - before == WGR_SHAPE2D_OUTLINE_POINTS * 6); /* two per band segment */
+    CHECK(sgl_num_vertices() - before == WGRI_SHAPE2D_OUTLINE_POINTS * 6); /* two per band segment */
 
     before = sgl_num_vertices(); /* nothing to draw: no vertices */
     wgr_shape2d_draw_rounded_rectangle(0, 0, 0, 50, 4, 4, 4, 4, WGR_COLOR_RED);
@@ -210,7 +210,7 @@ void test_shape2d_immediate(void)
     CHECK(sgl_num_vertices() == before);
 
     wgr_shape2d_draw_border(0, 0, 10, 10, 50, 50, 50, 50, 0, 0, 0, 0, WGR_COLOR_RED); /* wider than the box: fills it */
-    CHECK(sgl_num_vertices() - before == WGR_SHAPE2D_OUTLINE_POINTS * 6);
+    CHECK(sgl_num_vertices() - before == WGRI_SHAPE2D_OUTLINE_POINTS * 6);
 
     before = sgl_num_vertices();
     wgr_shape2d_draw_rectangle(0.5f, 0.5f, 10.25f, 4.75f, WGR_COLOR_RED);
@@ -218,6 +218,6 @@ void test_shape2d_immediate(void)
     wgr_render_end();
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_render_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }

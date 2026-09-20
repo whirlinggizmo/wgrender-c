@@ -9,7 +9,7 @@
  *   facing 2+ its own axes (flat on the ground, or free)
  * The billboard axes come from the camera, the same for every sprite in a batch, so
  * they're uniforms; the CPU works them out exactly as picking does
- * (wgr_sprite3d_facing_basis). Colors are sRGB values, like sokol_gl's: texture x tint.
+ * (wgri_sprite3d_facing_basis). Colors are sRGB values, like sokol_gl's: texture x tint.
  *
  * Alpha: > 0 a mask cutoff (texels below it are discarded, the rest are opaque),
  * < 0 opaque, 0 as is (blended or added by the pipeline).

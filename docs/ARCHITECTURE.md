@@ -196,10 +196,10 @@ typedef struct {
     vec3_t point;   /* in the ray's space */
     vec3_t normal;  /* in the ray's space, oriented against the ray */
     float u, v;     /* barycentric weights of v1/v2 (triangle tests only) */
-} wgr_ray_hit_t;
+} wgri_ray_hit_t;
 ```
 
-Resolvers (`wgr_pick_result_from_local` / `_from_world`) convert that into the
+Resolvers (`wgri_pick_result_from_local` / `_from_world`) convert that into the
 public result, which carries **both** spaces plus a single world-space distance:
 
 ```c
@@ -221,7 +221,7 @@ registered a hit. Fix:
 
 1. The sprite's texture must retain a CPU **alpha mask** (created *pickable*).
 2. On a quad hit, the barycentric `u,v` map to texture UVs; we sample the mask
-   (`wgr_texture_sample_alpha`).
+   (`wgri_texture_sample_alpha`).
 3. If alpha `< threshold`, the hit is **rejected** (the ray passes through).
 
 The mask lives on the **Texture resource** (CPU-side), and the test is enabled
@@ -370,7 +370,7 @@ wgr_asset_add_task(wgr_asset_ensure_async(path, NULL, WGR_ASSET_NONE), on_ready,
 
 The callback receives the file actually found, and files it references (a glTF's
 buffers and images) resolve the same way: the loader reads them from where the asset
-layer found them (`wgr_asset_found_path`). Direct `wgr_*_create(path)` calls load the
+layer found them (`wgri_asset_found_path`). Direct `wgr_*_create(path)` calls load the
 path as given. Networking beyond this (WebSockets, HTTP APIs) is outside libwgrender
 ([ROADMAP.md](ROADMAP.md)).
 
@@ -381,20 +381,20 @@ path as given. Networking beyond this (WebSockets, HTTP APIs) is outside libwgre
 A program links only the subsystems it uses. The **core** is always there: the
 runtime (`wgr.c`), platform and window, input, rendering (sokol_gl), cameras, scenes,
 picking math, files and assets, fonts and text, 2D/3D shapes, events and debug. The
-rest are **optional modules** (`src/internal/wgr_module.h`): textures, lights,
+rest are **optional modules** (`src/internal/wgri_module.h`): textures, lights,
 materials, environments, models (with glTF), sprites and their batcher, particles,
 2D/3D text objects, audio and sounds (with their decoders), and gamepads.
 
 - An optional subsystem registers itself from a constructor in its own source file
-  (`WGR_MODULE`): a static library links that file only when the program references
+  (`WGRI_MODULE`): a static library links that file only when the program references
   something in it (`wgr_model_create`, `wgr_sound_play`, ...). The registration gives
   the runtime its init order, init / deinit, and per-frame work (input: begin the
   frame before the ticks, end each tick, finish the frame after its callback; update
   after the ticks; flush before the render passes; end of frame after them). The runtime starts
   the linked modules after the core, in order, and stops them before it, in reverse.
 - The core never calls an optional subsystem by name. What it needs from one goes
-  through hooks the subsystem sets in its init: `wgr_render_hooks` (draw models and
-  sprite batches, render-target textures) and `wgr_scene_hooks` (environments,
+  through hooks the subsystem sets in its init: `wgri_render_hooks` (draw models and
+  sprite batches, render-target textures) and `wgri_scene_hooks` (environments,
   lighting, sprite grouping). A hook that isn't set means the subsystem isn't linked,
   and the core does without (no lighting, no background).
 - Asset loaders register in the subsystem's init, at startup, so assets still
@@ -434,7 +434,7 @@ drawing models ~240 KB, one using everything ~300 KB (all ~311 KB before).
 
 - **Done — Audio/Sound split, Music folded in.** `wgr_audio.c` owns an **Audio**
   resource (`wgr_audio_t`, kind `WGR_HANDLE_KIND_AUDIO`) holding decoded PCM,
-  refcounted and path-deduped; the mixer plays **Sound** objects (`wgr_sound_t`,
+  refcounted and path-deduped; the mixer plays **Sound** objects (`wgri_sound_t`,
   kind SOUND) that carry playback state (`pos`/`volume`/`pitch`/`loop`/`playing`)
   and reference an Audio by handle. There is **no separate Music type** — a
   looping background track is just a Sound with `wgr_sound_set_loop(true)`

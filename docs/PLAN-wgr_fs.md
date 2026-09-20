@@ -18,9 +18,9 @@ and every cached file stayed in memory whether the program used it or not. Now
 Blob per file, keyed by its full MEMFS path):
 
 - **Startup** opens the store and reads only its keys (`wgr:fs-ready`, ~10 ms after
-  libwgrender's init); `wgr_fs_is_ready()` polls that.
+  libwgrender's init); `wgri_fs_is_ready()` polls that.
 - **A cached file** is read when it's ensured: `wgr_asset` sees it isn't in MEMFS but
-  is cached (`wgr_fs_is_cached`), starts `wgr_fs_cache_read_begin` and polls it, then
+  is cached (`wgri_fs_is_cached`), starts `wgri_fs_cache_read_begin` and polls it, then
   resolves the task. A failed read drops the key and the file downloads instead.
   Blobs, because reading a stored `Uint8Array` unpacked it on the main thread
   (~6 ms per 5.6 MB file); a Blob's bytes are read off it (`blob.arrayBuffer()`) and
@@ -54,7 +54,7 @@ barriers. rl_fs handles this with three, all polled like our asset tasks:
 - **Flush (writes):** MEMFS → IDBFS sync; run after writes and before deinit, or
   cached data is lost on reload.
 - **JS↔C coordination:** plain `EM_JS` callbacks — `FS.syncfs` is kicked
-  non-blocking and sets a `Module.wgr_fs_restore` flag that `wgr_fs_is_ready()`
+  non-blocking and sets a `Module.wgr_fs_restore` flag that `wgri_fs_is_ready()`
   polls. **No JSPI suspension** (see the JSPI finding under "Decisions locked":
   `sapp_run` owns the loop, so callbacks can't suspend).
 
@@ -68,18 +68,18 @@ add user-facing ops only when something needs them.
 
 ```c
 /* lifecycle — IDBFS on wasm, a real directory on desktop */
-int          wgr_fs_init(const char *root_dir);        /* sync (desktop / JSPI) */
+int          wgri_fs_init(const char *root_dir);        /* sync (desktop / JSPI) */
 wgr_handle_t  wgr_fs_restore_async(void);                /* IDBFS→MEMFS; poll via tick */
-bool         wgr_fs_is_ready(void);                     /* restore barrier cleared? */
+bool         wgri_fs_is_ready(void);                     /* restore barrier cleared? */
 int          wgr_fs_flush(void);                        /* MEMFS→IDBFS (persist)  */
-void         wgr_fs_deinit(void);                       /* flush + unmount         */
+void         wgri_fs_deinit(void);                       /* flush + unmount         */
 const char  *wgr_fs_get_root_dir(void);
 
 /* file ops — all paths jailed to root_dir (internal at first) */
-bool wgr_fs_exists(const char *path);
-int  wgr_fs_read(const char *path, unsigned char **out_data, size_t *out_size);
-void wgr_fs_read_free(unsigned char *data);
-int  wgr_fs_write(const char *path, const unsigned char *data, size_t size);
+bool wgri_fs_exists(const char *path);
+int  wgri_fs_read(const char *path, unsigned char **out_data, size_t *out_size);
+void wgri_fs_read_free(unsigned char *data);
+int  wgri_fs_write(const char *path, const unsigned char *data, size_t size);
 ```
 
 Defer rl_fs's richer surface (mkdir/rmdir/remove/clear/normalize, the LRU memory
@@ -87,15 +87,15 @@ cache, dependency prefetch) until a caller needs it — keep `wgr_fs` small.
 
 ## How ensure uses wgr_fs
 
-`wgr_asset_ensure_async` / `wgr_asset_tick` (already task-based) gain a web path;
+`wgr_asset_ensure_async` / `wgri_asset_tick` (already task-based) gain a web path;
 desktop is unchanged:
 
-- **Desktop:** `wgr_fs_is_ready()` is always true; ensure = `wgr_fs_exists(path)`
+- **Desktop:** `wgri_fs_is_ready()` is always true; ensure = `wgri_fs_exists(path)`
   (today's fopen check, routed through wgr_fs) → fire callback.
-- **Web:** the ensure task advances through states in `wgr_asset_tick`:
-  1. wait for `wgr_fs_is_ready()` (restore barrier),
-  2. `wgr_fs_exists(path)`? → ready,
-  3. else fetch from the asset host (sokol_fetch) → `wgr_fs_write(path)` →
+- **Web:** the ensure task advances through states in `wgri_asset_tick`:
+  1. wait for `wgri_fs_is_ready()` (restore barrier),
+  2. `wgri_fs_exists(path)`? → ready,
+  3. else fetch from the asset host (sokol_fetch) → `wgri_fs_write(path)` →
      `wgr_fs_flush()` → ready,
   4. fire `on_ready(path)`; the sync `wgr_*_create(path)` now reads a local file.
 
@@ -110,7 +110,7 @@ wasm/desktop abstraction). We can vendor it, but likely don't need to:
   barrier+timeout+fallback logic, and the IDBFS mount/setup sequence. These are
   small and the tricky, proven part.
 - **Reuse what we already have:** sokol_fetch for HTTP (already a dep) instead of
-  `fetch_url_op`; our asset-task pool + `wgr_asset_tick` instead of rl_fs's task
+  `fetch_url_op`; our asset-task pool + `wgri_asset_tick` instead of rl_fs's task
   pool.
 - **Skip (for now):** the LRU memory cache, dependency/batch prefetch state
   machine, host-ping. Not needed for basic ensure.
@@ -140,7 +140,7 @@ installed (`~/toolchains/emsdk`).
   renders in a Chromium-class browser. Desktop build untouched. (No files yet, so
   no `FORCE_FILESYSTEM`/idbfs — that's step 3.)
 - **Step 2 (was 2a) — `wgr_fs` desktop seam.** Add `wgr_fs` (real-dir backend), route
-  ensure's existence check behind `wgr_fs_exists`; `wgr_fs_is_ready()`→true on
+  ensure's existence check behind `wgri_fs_exists`; `wgri_fs_is_ready()`→true on
   desktop, web path a `__EMSCRIPTEN__`-gated stub. Behavior-preserving; both
   targets build.
 - **Step 3 (was 2c) — web idbfs + fetch.** IDBFS mount, restore/flush barriers
@@ -161,8 +161,8 @@ installed (`~/toolchains/emsdk`).
   promising — suspending in them throws `SuspendError: trying to suspend without
   WebAssembly.promising`. librl could use JSPI because it drove its *own* tick
   loop; sokol_app doesn't expose that. So `wgr_fs` restore is a **polled barrier**
-  (`FS.syncfs` kicked non-blocking; `wgr_fs_is_ready()` reflects a flag; `ensure`
-  waits via the existing `wgr_asset_tick` gate). `-sJSPI` is dropped (it only
+  (`FS.syncfs` kicked non-blocking; `wgri_fs_is_ready()` reflects a flag; `ensure`
+  waits via the existing `wgri_asset_tick` gate). `-sJSPI` is dropped (it only
   narrowed browser support). Reconsider only if we ever drive our own loop
   instead of `sapp_run`.
 - **Web backend is parameterized** (`make wasm BACKEND=gl|wgpu`). WebGPU

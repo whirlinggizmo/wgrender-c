@@ -59,7 +59,7 @@ typedef struct {
 
 /* A sprite held back while unordered, to be grouped with others like it. */
 typedef struct {
-    wgr_sprite_quad_t quad;
+    wgri_sprite_quad_t quad;
     uint32_t view, sampler;
     int pipeline;
     wgr_handle_t material;
@@ -80,7 +80,7 @@ typedef struct {
 
 /* A camera as the shader needs it, and what it was made from (to reuse it). */
 typedef struct {
-    wgr_camera3d_t source;
+    wgri_camera3d_t source;
     float aspect;
     sprite_vs_params_t params;
 } wgr_sprite_camera_t;
@@ -110,7 +110,7 @@ static struct {
     sg_buffer quad;
     sg_buffer instance_buffer;
     int instance_buffer_capacity;
-    wgr_sprite_quad_t *instances;
+    wgri_sprite_quad_t *instances;
     int instance_count, instance_capacity;
     wgr_sprite_batch_t *batches;
     int batch_count, batch_capacity;
@@ -158,7 +158,7 @@ static bool reserve(void **items, int *capacity, int count, size_t item_size, in
 static int wgr_sb_users;
 
 /* A lit sprite in this lighting environment: it receives shadows (sprites don't cast).
- * wgr_render_hooks.sprites_lit_in. */
+ * wgri_render_hooks.sprites_lit_in. */
 static bool wgr_sprite_batch_lit_in(int light_env)
 {
     for (int i = 0; i < wgr_sb.batch_count; i++) {
@@ -169,13 +169,13 @@ static bool wgr_sprite_batch_lit_in(int light_env)
     return false;
 }
 
-void wgr_sprite_batch_init(void)
+void wgri_sprite_batch_init(void)
 {
     if (wgr_sb_users++ > 0) return;
-    wgr_render_hooks.draw_sprites = wgr_sprite_batch_draw;
-    wgr_render_hooks.sprites_lit_in = wgr_sprite_batch_lit_in;
-    wgr_scene_hooks.sprites_begin_unordered = wgr_sprite_batch_begin_unordered;
-    wgr_scene_hooks.sprites_end_unordered = wgr_sprite_batch_end_unordered;
+    wgri_render_hooks.draw_sprites = wgri_sprite_batch_draw;
+    wgri_render_hooks.sprites_lit_in = wgr_sprite_batch_lit_in;
+    wgri_scene_hooks.sprites_begin_unordered = wgri_sprite_batch_begin_unordered;
+    wgri_scene_hooks.sprites_end_unordered = wgri_sprite_batch_end_unordered;
     memset(&wgr_sb, 0, sizeof(wgr_sb));
     wgr_sb.base_instance = sg_query_features().draw_base_instance;
 #ifdef WGR_SPRITES_PULLED /* build-time switch: read sprites from the texture everywhere (tests, benchmarks) */
@@ -269,13 +269,13 @@ static void ensure_gpu(void)
     wgr_sb.ready = true;
 }
 
-void wgr_sprite_batch_deinit(void)
+void wgri_sprite_batch_deinit(void)
 {
     if (wgr_sb_users == 0 || --wgr_sb_users > 0) return;
-    wgr_render_hooks.draw_sprites = NULL;
-    wgr_render_hooks.sprites_lit_in = NULL;
-    wgr_scene_hooks.sprites_begin_unordered = NULL;
-    wgr_scene_hooks.sprites_end_unordered = NULL;
+    wgri_render_hooks.draw_sprites = NULL;
+    wgri_render_hooks.sprites_lit_in = NULL;
+    wgri_scene_hooks.sprites_begin_unordered = NULL;
+    wgri_scene_hooks.sprites_end_unordered = NULL;
     if (wgr_sb.ready) {
         sg_destroy_buffer(wgr_sb.instance_buffer);
         sg_destroy_view(wgr_sb.data_view);
@@ -312,13 +312,13 @@ void wgr_sprite_batch_deinit(void)
  * reused while the camera and the target's aspect stay the same; -1 if there's none. */
 static int current_camera(void)
 {
-    wgr_camera3d_t cam;
-    const vec2_t size = wgr_render_target_size();
+    wgri_camera3d_t cam;
+    const vec2_t size = wgri_render_target_size();
     const float aspect = size.y > 0.0f ? size.x / size.y : 1.0f;
     wgr_sprite_camera_t *c;
     vec3_t right, up, upright, unused;
 
-    if (!wgr_camera3d_get_active_data(&cam)) {
+    if (!wgri_camera3d_get_active_data(&cam)) {
         return -1;
     }
     if (wgr_sb.camera_count > 0) {
@@ -334,11 +334,11 @@ static int current_camera(void)
     c = &wgr_sb.cameras[wgr_sb.camera_count];
     c->source = cam;
     c->aspect = aspect;
-    const wgr_mat4_t view_proj = wgr_mat4_mul(wgr_camera3d_projection(&cam, aspect), wgr_camera3d_view(&cam));
+    const wgri_mat4_t view_proj = wgri_mat4_mul(wgri_camera3d_projection(&cam, aspect), wgri_camera3d_view(&cam));
     memcpy(c->params.view_proj, view_proj.m, sizeof(c->params.view_proj));
     /* the billboard axes, exactly as picking works them out */
-    wgr_sprite3d_facing_basis(WGR_SPRITE3D_FACING_CAMERA, (vec3_t){0, 0, 0}, &cam, &right, &up);
-    wgr_sprite3d_facing_basis(WGR_SPRITE3D_FACING_CAMERA_FIXED_Y, (vec3_t){0, 0, 0}, &cam, &upright, &unused);
+    wgri_sprite3d_facing_basis(WGR_SPRITE3D_FACING_CAMERA, (vec3_t){0, 0, 0}, &cam, &right, &up);
+    wgri_sprite3d_facing_basis(WGR_SPRITE3D_FACING_CAMERA_FIXED_Y, (vec3_t){0, 0, 0}, &cam, &upright, &unused);
     memcpy(c->params.camera_right, (float[4]){right.x, right.y, right.z, 0.0f}, sizeof(c->params.camera_right));
     memcpy(c->params.camera_up, (float[4]){up.x, up.y, up.z, 0.0f}, sizeof(c->params.camera_up));
     memcpy(c->params.upright, (float[4]){upright.x, upright.y, upright.z, 0.0f}, sizeof(c->params.upright));
@@ -349,8 +349,8 @@ static int current_camera(void)
  * origin, y down, as sokol_gl's 2D projection (setup_2d_projection). */
 static int current_camera_2d(void)
 {
-    const vec2_t size = wgr_render_current_pass() == 0 ? wgr_window_get_screen_size() : wgr_render_target_size();
-    const wgr_mat4_t ortho = wgr_mat4_ortho(0.0f, size.x, size.y, 0.0f, -1.0f, 1.0f);
+    const vec2_t size = wgri_render_current_pass() == 0 ? wgr_window_get_screen_size() : wgri_render_target_size();
+    const wgri_mat4_t ortho = wgri_mat4_ortho(0.0f, size.x, size.y, 0.0f, -1.0f, 1.0f);
     wgr_sprite_camera_t *c;
 
     if (!reserve((void **)&wgr_sb.cameras, &wgr_sb.camera_capacity, wgr_sb.camera_count, sizeof(wgr_sprite_camera_t),
@@ -368,8 +368,8 @@ static int current_camera_2d(void)
 static const wgr_sprite_state_t *current_state(bool two_d)
 {
     wgr_sprite_state_t *st = two_d ? &wgr_sb.state_2d : &wgr_sb.state_3d;
-    const unsigned render_revision = wgr_render_state_revision();
-    const unsigned camera_revision = two_d ? 0u : wgr_camera3d_revision();
+    const unsigned render_revision = wgri_render_state_revision();
+    const unsigned camera_revision = two_d ? 0u : wgri_camera3d_revision();
     float x, y, w, h, scale;
 
     if (st->valid && st->render_revision == render_revision && st->camera_revision == camera_revision) {
@@ -380,9 +380,9 @@ static const wgr_sprite_state_t *current_state(bool two_d)
         st->valid = false;
         return NULL;
     }
-    st->pass = wgr_render_current_pass();
-    wgr_render_get_clip(&x, &y, &w, &h); /* the whole target when nothing is pushed */
-    scale = wgr_render_pixel_scale();
+    st->pass = wgri_render_current_pass();
+    wgri_render_get_clip(&x, &y, &w, &h); /* the whole target when nothing is pushed */
+    scale = wgri_render_pixel_scale();
     st->scissor[0] = x * scale, st->scissor[1] = y * scale;
     st->scissor[2] = w * scale, st->scissor[3] = h * scale;
     st->render_revision = render_revision;
@@ -395,16 +395,16 @@ static const wgr_sprite_state_t *current_state(bool two_d)
 /* A built-in material (not a custom shader's): drawn with libwgrender's model shading. */
 static bool material_is_lit(wgr_handle_t material)
 {
-    const wgr_material_t *material_ptr = material != 0 ? wgr_material_get(material) : NULL;
+    const wgri_material_t *material_ptr = material != 0 ? wgri_material_get(material) : NULL;
     return material_ptr != NULL && material_ptr->shader == 0;
 }
 
-static void record(const wgr_sprite_quad_t *instance, uint32_t view, uint32_t sampler, int pipeline,
+static void record(const wgri_sprite_quad_t *instance, uint32_t view, uint32_t sampler, int pipeline,
                    wgr_handle_t material)
 {
     const bool lit = material_is_lit(material);
     /* any material's sprites are lit: a custom shader gets the same lights (wgr_frame) */
-    const int light_env = material != 0 ? wgr_light_env_current() : -1;
+    const int light_env = material != 0 ? wgri_light_env_current() : -1;
     const wgr_sprite_state_t *st;
     wgr_sprite_batch_t *last;
 
@@ -413,7 +413,7 @@ static void record(const wgr_sprite_quad_t *instance, uint32_t view, uint32_t sa
     if (st == NULL) {
         return;
     }
-    if (!reserve((void **)&wgr_sb.instances, &wgr_sb.instance_capacity, wgr_sb.instance_count, sizeof(wgr_sprite_quad_t),
+    if (!reserve((void **)&wgr_sb.instances, &wgr_sb.instance_capacity, wgr_sb.instance_count, sizeof(wgri_sprite_quad_t),
                  INSTANCES_INITIAL)) {
         return;
     }
@@ -423,12 +423,12 @@ static void record(const wgr_sprite_quad_t *instance, uint32_t view, uint32_t sa
         last->material != material || last->light_env != light_env ||
         last->camera != st->camera || last->pass != st->pass ||
         memcmp(last->scissor, st->scissor, sizeof(last->scissor)) != 0 ||
-        !wgr_render_sprites_open(wgr_sb.batch_count - 1)) {
+        !wgri_render_sprites_open(wgr_sb.batch_count - 1)) {
         if (!reserve((void **)&wgr_sb.batches, &wgr_sb.batch_capacity, wgr_sb.batch_count, sizeof(wgr_sprite_batch_t),
                      BATCHES_INITIAL)) {
             return;
         }
-        if (!wgr_render_submit_sprites(wgr_sb.batch_count)) {
+        if (!wgri_render_submit_sprites(wgr_sb.batch_count)) {
             return; /* out of render commands (logged there) */
         }
         last = &wgr_sb.batches[wgr_sb.batch_count++];
@@ -458,7 +458,7 @@ static void record(const wgr_sprite_quad_t *instance, uint32_t view, uint32_t sa
     last->count++;
 }
 
-void wgr_sprite_batch_add_3d(const wgr_sprite_quad_t *instance, uint32_t view, uint32_t sampler, wgr_alpha_mode_t mode,
+void wgri_sprite_batch_add_3d(const wgri_sprite_quad_t *instance, uint32_t view, uint32_t sampler, wgr_alpha_mode_t mode,
                             bool blend_depth_write, wgr_handle_t material)
 {
     const int pipeline = mode == WGR_ALPHA_OPAQUE || mode == WGR_ALPHA_MASK ? PIPELINE_OPAQUE
@@ -477,7 +477,7 @@ void wgr_sprite_batch_add_3d(const wgr_sprite_quad_t *instance, uint32_t view, u
         .quad = *instance, .view = view, .sampler = sampler, .pipeline = pipeline, .material = material};
 }
 
-void wgr_sprite_batch_add_2d(const wgr_sprite_quad_t *instance, uint32_t view, uint32_t sampler, wgr_alpha_mode_t mode,
+void wgri_sprite_batch_add_2d(const wgri_sprite_quad_t *instance, uint32_t view, uint32_t sampler, wgr_alpha_mode_t mode,
                             wgr_handle_t material)
 {
     const int pipeline = mode == WGR_ALPHA_OPAQUE || mode == WGR_ALPHA_MASK ? PIPELINE_2D_OPAQUE
@@ -486,7 +486,7 @@ void wgr_sprite_batch_add_2d(const wgr_sprite_quad_t *instance, uint32_t view, u
     record(instance, view, sampler, pipeline, material); /* 2D keeps its order: never grouped */
 }
 
-void wgr_sprite_batch_begin_unordered(void)
+void wgri_sprite_batch_begin_unordered(void)
 {
     wgr_sb.unordered = true;
     wgr_sb.pending_count = 0;
@@ -535,7 +535,7 @@ static int group_of(wgr_sprite_group_t *groups, int *count, const wgr_sprite_pen
     return (*count)++;
 }
 
-void wgr_sprite_batch_end_unordered(void)
+void wgri_sprite_batch_end_unordered(void)
 {
     wgr_sprite_group_t groups[MAX_GROUPS];
     int group_count = 0, hint = -1, placed = 0;
@@ -625,7 +625,7 @@ static void flush_pulled(void)
         wgr_sb.data_rows = height;
     }
     for (int i = 0; i < wgr_sb.instance_count; i++) {
-        const wgr_sprite_quad_t *q = &wgr_sb.instances[i];
+        const wgri_sprite_quad_t *q = &wgr_sb.instances[i];
         float *t = &wgr_sb.data[(size_t)i * 4 * PULLED_TEXELS]; /* rows are whole sprites */
         const float texels[4 * PULLED_TEXELS] = {
             q->position[0], q->position[1], q->position[2], q->facing,
@@ -646,9 +646,9 @@ static void flush_pulled(void)
     });
 }
 
-void wgr_sprite_batch_flush(void)
+void wgri_sprite_batch_flush(void)
 {
-    const size_t bytes = sizeof(wgr_sprite_quad_t) * (size_t)wgr_sb.instance_count;
+    const size_t bytes = sizeof(wgri_sprite_quad_t) * (size_t)wgr_sb.instance_count;
 
     if (!wgr_sb.ready || wgr_sb.instance_count == 0) {
         return;
@@ -662,7 +662,7 @@ void wgr_sprite_batch_flush(void)
         while (capacity < wgr_sb.instance_count) capacity *= 2;
         sg_destroy_buffer(wgr_sb.instance_buffer);
         wgr_sb.instance_buffer = sg_make_buffer(&(sg_buffer_desc){
-            .size = sizeof(wgr_sprite_quad_t) * (size_t)capacity,
+            .size = sizeof(wgri_sprite_quad_t) * (size_t)capacity,
             .usage = {.vertex_buffer = true, .write_transient = true},
             .label = "wgr-sprite-instances",
         });
@@ -688,23 +688,23 @@ typedef struct {
  * when the material or its shader has gone (the batch then draws as usual). */
 static bool draw_custom(const wgr_sprite_batch_t *b)
 {
-    const wgr_material_t *material = wgr_material_get(b->material);
-    wgr_shader_t *shader = material != NULL && material->shader != 0 && wgr_shader_hooks.get != NULL
-                              ? wgr_shader_hooks.get(material->shader)
+    const wgri_material_t *material = wgri_material_get(b->material);
+    wgri_shader_t *shader = material != NULL && material->shader != 0 && wgri_shader_hooks.get != NULL
+                              ? wgri_shader_hooks.get(material->shader)
                               : NULL;
     const wgr_sprite_camera_t *cam = &wgr_sb.cameras[b->camera];
-    const wgr_light_env_t *env = wgr_light_env_get(b->light_env);
+    const wgri_light_env_t *env = wgri_light_env_get(b->light_env);
     const float time = (float)wgr_get_time();
-    const wgr_shader_program_t *program;
+    const wgri_shader_program_t *program;
     wgr_sprite_custom_view_t view;
-    wgr_environment_binding_t environment = {0};
-    wgr_shadow_binding_t custom_shadow = {0};
+    wgri_environment_binding_t environment = {0};
+    wgri_shadow_binding_t custom_shadow = {0};
     sg_bindings bind = {0};
     sg_view white, black_cube;
     sg_sampler linear;
 
     if (shader == NULL) return false;
-    program = &shader->programs[wgr_sb.base_instance ? WGR_SHADER_PROGRAM_SPRITE : WGR_SHADER_PROGRAM_SPRITE_PULLED];
+    program = &shader->programs[wgr_sb.base_instance ? WGRI_SHADER_PROGRAM_SPRITE : WGRI_SHADER_PROGRAM_SPRITE_PULLED];
     if (shader->sprite_pipelines[0].id == SG_INVALID_ID) {
         make_pipelines(program->shader, shader->sprite_pipelines);
     }
@@ -716,17 +716,17 @@ static bool draw_custom(const wgr_sprite_batch_t *b)
     memcpy(view.upright, cam->params.upright, sizeof(view.upright));
     view.time[0] = time;
     view.time[1] = view.time[2] = view.time[3] = 0.0f;
-    sg_apply_uniforms(WGR_SHADER_BLOCK_OBJECT, &SG_RANGE(view));
-    if (wgr_environment_hooks.get_binding != NULL) {
-        wgr_environment_hooks.get_binding(env != NULL ? env->environment : 0, &environment);
+    sg_apply_uniforms(WGRI_SHADER_BLOCK_OBJECT, &SG_RANGE(view));
+    if (wgri_environment_hooks.get_binding != NULL) {
+        wgri_environment_hooks.get_binding(env != NULL ? env->environment : 0, &environment);
     }
-    if (wgr_shadow_hooks.get_binding != NULL) {
-        wgr_shadow_hooks.get_binding(b->light_env, &custom_shadow);
+    if (wgri_shadow_hooks.get_binding != NULL) {
+        wgri_shadow_hooks.get_binding(b->light_env, &custom_shadow);
     }
-    if (program->has_block[WGR_SHADER_BLOCK_FRAME]) {
+    if (program->has_block[WGRI_SHADER_BLOCK_FRAME]) {
         /* the scene's lights and environment, as a model's shader gets them */
-        wgr_shader_frame_t frame;
-        int lights[WGR_MAX_DRAW_LIGHTS];
+        wgri_shader_frame_t frame;
+        int lights[WGRI_MAX_DRAW_LIGHTS];
         memset(&frame, 0, sizeof(frame));
         if (cam->aspect >= 0.0f) { /* 3D: the camera's position (2D has none) */
             frame.camera_time[0] = cam->source.position.x;
@@ -742,10 +742,10 @@ static bool draw_custom(const wgr_sprite_batch_t *b)
             frame.ambient_count[0] = env->ambient.x;
             frame.ambient_count[1] = env->ambient.y;
             frame.ambient_count[2] = env->ambient.z;
-            const int light_count = wgr_light_select(env, b->bounds_min, b->bounds_max, lights, WGR_MAX_DRAW_LIGHTS);
+            const int light_count = wgri_light_select(env, b->bounds_min, b->bounds_max, lights, WGRI_MAX_DRAW_LIGHTS);
             frame.ambient_count[3] = (float)light_count;
             for (int i = 0; i < light_count; i++) {
-                const wgr_scene_light_t *light = &env->lights[lights[i]];
+                const wgri_scene_light_t *light = &env->lights[lights[i]];
                 frame.light_pos_range[i][0] = light->position.x;
                 frame.light_pos_range[i][1] = light->position.y;
                 frame.light_pos_range[i][2] = light->position.z;
@@ -772,40 +772,40 @@ static bool draw_custom(const wgr_sprite_batch_t *b)
                 }
             }
             /* the frame's casting lights, as the built-in shading gets them */
-            wgr_shadow_fill_uniforms(&custom_shadow, frame.shadow_mat, frame.shadow_params, frame.shadow_tint,
+            wgri_shadow_fill_uniforms(&custom_shadow, frame.shadow_mat, frame.shadow_params, frame.shadow_tint,
                                     frame.shadow_extra, frame.shadow_map);
             for (int i = 0; i < light_count; i++) {
-                frame.light_spot[i][2] = (float)wgr_shadow_slot_of(&custom_shadow, lights[i]);
+                frame.light_spot[i][2] = (float)wgri_shadow_slot_of(&custom_shadow, lights[i]);
             }
         }
-        sg_apply_uniforms(WGR_SHADER_BLOCK_FRAME, &SG_RANGE(frame));
+        sg_apply_uniforms(WGRI_SHADER_BLOCK_FRAME, &SG_RANGE(frame));
     }
-    if (program->has_block[WGR_SHADER_BLOCK_FS_PARAMS]) {
-        sg_apply_uniforms(WGR_SHADER_BLOCK_FS_PARAMS,
+    if (program->has_block[WGRI_SHADER_BLOCK_FS_PARAMS]) {
+        sg_apply_uniforms(WGRI_SHADER_BLOCK_FS_PARAMS,
                           &(sg_range){.ptr = material->custom_params,
-                                      .size = (size_t)shader->block_size[WGR_SHADER_BLOCK_FS_PARAMS]});
+                                      .size = (size_t)shader->block_size[WGRI_SHADER_BLOCK_FS_PARAMS]});
     }
-    if (program->has_block[WGR_SHADER_BLOCK_VS_PARAMS]) {
-        sg_apply_uniforms(WGR_SHADER_BLOCK_VS_PARAMS,
-                          &(sg_range){.ptr = material->custom_params + shader->block_size[WGR_SHADER_BLOCK_FS_PARAMS],
-                                      .size = (size_t)shader->block_size[WGR_SHADER_BLOCK_VS_PARAMS]});
+    if (program->has_block[WGRI_SHADER_BLOCK_VS_PARAMS]) {
+        sg_apply_uniforms(WGRI_SHADER_BLOCK_VS_PARAMS,
+                          &(sg_range){.ptr = material->custom_params + shader->block_size[WGRI_SHADER_BLOCK_FS_PARAMS],
+                                      .size = (size_t)shader->block_size[WGRI_SHADER_BLOCK_VS_PARAMS]});
     }
-    if (!wgr_sb.base_instance && program->has_block[WGR_SHADER_BLOCK_SPRITE_BATCH]) {
+    if (!wgr_sb.base_instance && program->has_block[WGRI_SHADER_BLOCK_SPRITE_BATCH]) {
         const float first[4] = {(float)b->first, 0.0f, 0.0f, 0.0f};
-        sg_apply_uniforms(WGR_SHADER_BLOCK_SPRITE_BATCH, &SG_RANGE(first));
+        sg_apply_uniforms(WGRI_SHADER_BLOCK_SPRITE_BATCH, &SG_RANGE(first));
     }
 
-    wgr_shader_hooks.fallbacks(&white, &black_cube, &linear);
+    wgri_shader_hooks.fallbacks(&white, &black_cube, &linear);
     bind.vertex_buffers[0] = wgr_sb.quad;
     if (wgr_sb.base_instance) bind.vertex_buffers[1] = wgr_sb.instance_buffer;
     for (int t = 0; t < shader->texture_count; t++) { /* the material's (a texture not set: white) */
-        const wgr_material_texture_t *texture = &material->textures[t];
+        const wgri_material_texture_t *texture = &material->textures[t];
         sg_view texture_view = white;
-        if (texture->texture != 0) wgr_texture_get_binding(texture->texture, &texture_view, NULL, NULL, NULL);
+        if (texture->texture != 0) wgri_texture_get_binding(texture->texture, &texture_view, NULL, NULL, NULL);
         if (program->view_slot[t] >= 0) bind.views[program->view_slot[t]] = texture_view;
         if (program->sampler_slot[t] >= 0) {
             bind.samplers[program->sampler_slot[t]] =
-                wgr_texture_sampler(texture->wrap_u, texture->wrap_v, texture->filter, texture->mipmaps);
+                wgri_texture_sampler(texture->wrap_u, texture->wrap_v, texture->filter, texture->mipmaps);
         }
     }
     if (program->sprite_view_slot >= 0) bind.views[program->sprite_view_slot] = (sg_view){b->view};
@@ -883,17 +883,17 @@ static void ensure_lit(void)
  * rest. */
 static bool draw_lit(const wgr_sprite_batch_t *b)
 {
-    const wgr_material_t *material = wgr_material_get(b->material);
-    const wgr_light_env_t *env = wgr_light_env_get(b->light_env);
+    const wgri_material_t *material = wgri_material_get(b->material);
+    const wgri_light_env_t *env = wgri_light_env_get(b->light_env);
     const wgr_sprite_camera_t *cam = &wgr_sb.cameras[b->camera];
     const bool lit = env != NULL && material != NULL && material->shading == WGR_MATERIAL_PBR;
-    int lights[WGR_MAX_DRAW_LIGHTS];
+    int lights[WGRI_MAX_DRAW_LIGHTS];
     int light_count = 0;
     sprite_fs_params_t params;
     sprite_fs_scene_t scene;
     sprite_fs_lights_t light_block;
-    wgr_environment_binding_t environment = {0};
-    wgr_shadow_binding_t shadow = {0};
+    wgri_environment_binding_t environment = {0};
+    wgri_shadow_binding_t shadow = {0};
     sg_bindings bind = {0};
 
     if (material == NULL) return false; /* released while the batch waited */
@@ -901,8 +901,8 @@ static bool draw_lit(const wgr_sprite_batch_t *b)
     memset(&params, 0, sizeof(params));
     memset(&scene, 0, sizeof(scene));
     memset(&light_block, 0, sizeof(light_block));
-    if (wgr_environment_hooks.get_binding != NULL) {
-        wgr_environment_hooks.get_binding(lit ? env->environment : 0, &environment);
+    if (wgri_environment_hooks.get_binding != NULL) {
+        wgri_environment_hooks.get_binding(lit ? env->environment : 0, &environment);
     }
 
     params.u_base_color[0] = material->base_color[0]; /* the sprite's tint is its vertex color */
@@ -912,16 +912,16 @@ static bool draw_lit(const wgr_sprite_batch_t *b)
     params.u_emissive[0] = material->emissive[0];
     params.u_emissive[1] = material->emissive[1];
     params.u_emissive[2] = material->emissive[2];
-    params.u_emissive[3] = material->textures[WGR_MATERIAL_TEXTURE_NORMAL].texture != 0 ? material->normal_scale : 0.0f;
+    params.u_emissive[3] = material->textures[WGRI_MATERIAL_TEXTURE_NORMAL].texture != 0 ? material->normal_scale : 0.0f;
     params.u_pbr[0] = material->metallic;
     params.u_pbr[1] = material->roughness;
     params.u_pbr[2] = material->occlusion_strength;
     params.u_pbr[3] = lit ? 1.0f : 0.0f;
     params.u_material[0] = material->alpha_mode == WGR_ALPHA_MASK ? material->alpha_cutoff : 0.0f;
     params.u_material[2] = lit ? 1.0f : 0.0f; /* sprites receive shadows when they're lit */
-    for (int t = 0; t < WGR_MATERIAL_TEXTURE_COUNT; t++) { /* the material's texture transforms */
+    for (int t = 0; t < WGRI_MATERIAL_TEXTURE_COUNT; t++) { /* the material's texture transforms */
         float m[6];
-        wgr_material_uv_matrix(&material->textures[t], m);
+        wgri_material_uv_matrix(&material->textures[t], m);
         params.u_uv_row0[t][0] = m[0], params.u_uv_row0[t][1] = m[1], params.u_uv_row0[t][2] = m[2];
         params.u_uv_row1[t][0] = m[3], params.u_uv_row1[t][1] = m[4], params.u_uv_row1[t][2] = m[5];
     }
@@ -930,8 +930,8 @@ static bool draw_lit(const wgr_sprite_batch_t *b)
     scene.u_camera_pos[2] = cam->source.position.z;
     scene.u_tonemap[0] = env != NULL ? (float)env->tonemap : 0.0f;
     scene.u_tonemap[1] = env != NULL ? powf(2.0f, env->exposure) : 1.0f;
-    if (wgr_shadow_hooks.get_binding != NULL) {
-        wgr_shadow_hooks.get_binding(b->light_env, &shadow);
+    if (wgri_shadow_hooks.get_binding != NULL) {
+        wgri_shadow_hooks.get_binding(b->light_env, &shadow);
     }
     if (lit) {
         scene.u_ambient[0] = env->ambient.x;
@@ -948,13 +948,13 @@ static bool draw_lit(const wgr_sprite_batch_t *b)
                 scene.u_sh[k][2] = environment.sh.c[k][2];
             }
         }
-        light_count = wgr_light_select(env, b->bounds_min, b->bounds_max, lights, WGR_MAX_DRAW_LIGHTS);
+        light_count = wgri_light_select(env, b->bounds_min, b->bounds_max, lights, WGRI_MAX_DRAW_LIGHTS);
         params.u_material[1] = (float)light_count;
         /* the frame's casting lights, a layer of the map each */
-        wgr_shadow_fill_uniforms(&shadow, scene.u_shadow_mat, scene.u_shadow_params, scene.u_shadow_tint,
+        wgri_shadow_fill_uniforms(&shadow, scene.u_shadow_mat, scene.u_shadow_params, scene.u_shadow_tint,
                                 scene.u_shadow_extra, scene.u_shadow_map);
         for (int i = 0; i < light_count; i++) {
-            light_block.u_light_spot[i][2] = (float)wgr_shadow_slot_of(&shadow, lights[i]);
+            light_block.u_light_spot[i][2] = (float)wgri_shadow_slot_of(&shadow, lights[i]);
         }
     }
 
@@ -975,19 +975,19 @@ static bool draw_lit(const wgr_sprite_batch_t *b)
     /* the sprite's texture is the base color; the material's maps are the rest */
     bind.views[VIEW_sprite_base_color_tex] = (sg_view){b->view};
     bind.samplers[SMP_sprite_base_color_smp] = (sg_sampler){b->sampler};
-    static const int slots[4] = {WGR_MATERIAL_TEXTURE_METALLIC_ROUGHNESS, WGR_MATERIAL_TEXTURE_NORMAL,
-                                 WGR_MATERIAL_TEXTURE_OCCLUSION, WGR_MATERIAL_TEXTURE_EMISSIVE};
+    static const int slots[4] = {WGRI_MATERIAL_TEXTURE_METALLIC_ROUGHNESS, WGRI_MATERIAL_TEXTURE_NORMAL,
+                                 WGRI_MATERIAL_TEXTURE_OCCLUSION, WGRI_MATERIAL_TEXTURE_EMISSIVE};
     const int views[4] = {VIEW_sprite_metallic_roughness_tex, VIEW_sprite_normal_tex, VIEW_sprite_occlusion_tex,
                           VIEW_sprite_emissive_tex};
     const int samplers[4] = {SMP_sprite_metallic_roughness_smp, SMP_sprite_normal_smp, SMP_sprite_occlusion_smp,
                              SMP_sprite_emissive_smp};
     for (int i = 0; i < 4; i++) {
-        const wgr_material_texture_t *texture = &material->textures[slots[i]];
-        sg_view view = slots[i] == WGR_MATERIAL_TEXTURE_NORMAL ? wgr_sb.flat_normal_view : wgr_sb.white_view;
-        if (texture->texture != 0) wgr_texture_get_binding(texture->texture, &view, NULL, NULL, NULL);
+        const wgri_material_texture_t *texture = &material->textures[slots[i]];
+        sg_view view = slots[i] == WGRI_MATERIAL_TEXTURE_NORMAL ? wgr_sb.flat_normal_view : wgr_sb.white_view;
+        if (texture->texture != 0) wgri_texture_get_binding(texture->texture, &view, NULL, NULL, NULL);
         bind.views[views[i]] = view;
         bind.samplers[samplers[i]] =
-            wgr_texture_sampler(texture->wrap_u, texture->wrap_v, texture->filter, texture->mipmaps);
+            wgri_texture_sampler(texture->wrap_u, texture->wrap_v, texture->filter, texture->mipmaps);
     }
     /* without the environment module there's none to bind: black, and zero intensity */
     bind.views[VIEW_sprite_env_tex] = environment.cube.id != 0 ? environment.cube : wgr_sb.black_cube_view;
@@ -1008,7 +1008,7 @@ static bool draw_lit(const wgr_sprite_batch_t *b)
     return true;
 }
 
-void wgr_sprite_batch_draw(int batch, bool follows)
+void wgri_sprite_batch_draw(int batch, bool follows)
 {
     const wgr_sprite_batch_t *b, *before;
 
@@ -1069,7 +1069,7 @@ void wgr_sprite_batch_draw(int batch, bool follows)
     }
 }
 
-void wgr_sprite_batch_end_frame(void)
+void wgri_sprite_batch_end_frame(void)
 {
     wgr_sb.instance_count = 0;
     wgr_sb.batch_count = 0;
@@ -1079,13 +1079,13 @@ void wgr_sprite_batch_end_frame(void)
     wgr_sb.last_drawn = -1;
 }
 
-int wgr_sprite_batch_count(void)
+int wgri_sprite_batch_count(void)
 {
     return wgr_sb.batch_count;
 }
 
 /* Part of the runtime when sprites are (sprite3d and sprite2d start and stop it): the
- * frame's instances go up before any pass, and start over after (internal/wgr_module.h). */
-static wgr_module_t wgr_sprite_batch_module = {.name = "sprite_batch", .order = 55, .flush = wgr_sprite_batch_flush,
-                                             .end_frame = wgr_sprite_batch_end_frame};
-WGR_MODULE(wgr_sprite_batch_module)
+ * frame's instances go up before any pass, and start over after (internal/wgri_module.h). */
+static wgri_module_t wgr_sprite_batch_module = {.name = "sprite_batch", .order = 55, .flush = wgri_sprite_batch_flush,
+                                             .end_frame = wgri_sprite_batch_end_frame};
+WGRI_MODULE(wgr_sprite_batch_module)

@@ -1,5 +1,5 @@
-#ifndef WGR_INTERNAL_MESH_SHAPES_H
-#define WGR_INTERNAL_MESH_SHAPES_H
+#ifndef WGRI_INTERNAL_MESH_SHAPES_H
+#define WGRI_INTERNAL_MESH_SHAPES_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -17,23 +17,23 @@ typedef struct {
     uint32_t *indices;
     int vertex_count;
     int index_count;
-} wgr_mesh_shape_t;
+} wgri_mesh_shape_t;
 
 /* Parameter limits: counts outside them are clamped (sizes aren't: <= 0 fails). */
-#define WGR_MESH_MAX_SUBDIVISIONS 256
-#define WGR_MESH_MIN_RINGS 2
-#define WGR_MESH_MAX_RINGS 256
-#define WGR_MESH_MIN_SEGMENTS 3
-#define WGR_MESH_MAX_SEGMENTS 512
+#define WGRI_MESH_MAX_SUBDIVISIONS 256
+#define WGRI_MESH_MIN_RINGS 2
+#define WGRI_MESH_MAX_RINGS 256
+#define WGRI_MESH_MIN_SEGMENTS 3
+#define WGRI_MESH_MAX_SEGMENTS 512
 
 /* false (and *out empty) for sizes <= 0 or out of memory. */
-bool wgr_mesh_shape_plane(float width, float length, int subdivisions, wgr_mesh_shape_t *out);
-bool wgr_mesh_shape_cube(float width, float height, float length, wgr_mesh_shape_t *out);
-bool wgr_mesh_shape_sphere(float radius, int rings, int segments, wgr_mesh_shape_t *out);
-bool wgr_mesh_shape_cylinder(float radius, float height, int segments, wgr_mesh_shape_t *out);
-bool wgr_mesh_shape_cone(float radius, float height, int segments, wgr_mesh_shape_t *out);
-bool wgr_mesh_shape_capsule(float radius, float height, int rings, int segments, wgr_mesh_shape_t *out);
-bool wgr_mesh_shape_torus(float radius, float thickness, int rings, int segments, wgr_mesh_shape_t *out);
-void wgr_mesh_shape_free(wgr_mesh_shape_t *shape);
+bool wgri_mesh_shape_plane(float width, float length, int subdivisions, wgri_mesh_shape_t *out);
+bool wgri_mesh_shape_cube(float width, float height, float length, wgri_mesh_shape_t *out);
+bool wgri_mesh_shape_sphere(float radius, int rings, int segments, wgri_mesh_shape_t *out);
+bool wgri_mesh_shape_cylinder(float radius, float height, int segments, wgri_mesh_shape_t *out);
+bool wgri_mesh_shape_cone(float radius, float height, int segments, wgri_mesh_shape_t *out);
+bool wgri_mesh_shape_capsule(float radius, float height, int rings, int segments, wgri_mesh_shape_t *out);
+bool wgri_mesh_shape_torus(float radius, float thickness, int rings, int segments, wgri_mesh_shape_t *out);
+void wgri_mesh_shape_free(wgri_mesh_shape_t *shape);
 
-#endif // WGR_INTERNAL_MESH_SHAPES_H
+#endif // WGRI_INTERNAL_MESH_SHAPES_H

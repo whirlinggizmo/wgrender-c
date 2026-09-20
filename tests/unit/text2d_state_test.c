@@ -29,25 +29,25 @@
 
 static void begin(void)
 {
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_font_init();
-    wgr_text_init();
-    wgr_text2d_init();
-    wgr_shape2d_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_font_init();
+    wgri_text_init();
+    wgri_text2d_init();
+    wgri_shape2d_init();
 }
 
 static void end(void)
 {
-    wgr_shape2d_deinit();
-    wgr_text2d_deinit();
-    wgr_text_deinit();
-    wgr_font_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_shape2d_deinit();
+    wgri_text2d_deinit();
+    wgri_text_deinit();
+    wgri_font_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }
 
@@ -133,10 +133,10 @@ void test_text2d_state(void)
  * changes which one wins. */
 void test_scene_layer_order(void)
 {
-    const int was_width = wgr_platform_width(), was_height = wgr_platform_height();
+    const int was_width = wgri_platform_width(), was_height = wgri_platform_height();
 
     begin();
-    wgr_platform_set_window_size((int)SCREEN, (int)SCREEN);
+    wgri_platform_set_window_size((int)SCREEN, (int)SCREEN);
 
     const wgr_handle_t scene = wgr_scene_create();
     const wgr_handle_t low = wgr_shape2d_create();
@@ -190,6 +190,6 @@ void test_scene_layer_order(void)
     wgr_scene_destroy(scene);
     wgr_shape2d_destroy(high);
     wgr_shape2d_destroy(low);
-    wgr_platform_set_window_size(was_width, was_height);
+    wgri_platform_set_window_size(was_width, was_height);
     end();
 }

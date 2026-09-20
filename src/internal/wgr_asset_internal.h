@@ -1,5 +1,5 @@
-#ifndef WGR_INTERNAL_ASSET_H
-#define WGR_INTERNAL_ASSET_H
+#ifndef WGRI_INTERNAL_ASSET_H
+#define WGRI_INTERNAL_ASSET_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -15,42 +15,42 @@
  * (e.g. an image, which the loader replaces with a placeholder). `fallback_uri`
  * (or NULL): a file to ensure instead when `uri` is missing, e.g. a texture's own
  * image for its compressed file. */
-typedef void (*wgr_asset_add_dependency_fn)(const char *uri, const char *fallback_uri, bool required,
+typedef void (*wgri_asset_add_dependency_fn)(const char *uri, const char *fallback_uri, bool required,
                                            void *context);
 
 /* Report every URI the file references by calling `add`, as written in the file
  * (non-relative URIs such as data: are skipped by the caller). `data` is the whole
  * file. */
-typedef void (*wgr_asset_dependencies_fn)(const unsigned char *data, int size, wgr_asset_add_dependency_fn add,
+typedef void (*wgri_asset_dependencies_fn)(const unsigned char *data, int size, wgri_asset_add_dependency_fn add,
                                          void *context);
 
 /* `extension` includes the dot, e.g. ".gltf"; matched case-insensitively.
- * Registrations persist across wgr_asset_init (drawables register first). */
-void wgr_asset_register_dependencies(const char *extension, wgr_asset_dependencies_fn list);
+ * Registrations persist across wgri_asset_init (drawables register first). */
+void wgri_asset_register_dependencies(const char *extension, wgri_asset_dependencies_fn list);
 
 /* Resolve `uri`, relative to the directory of `base_path`, into `out`: decodes
  * %XX escapes, drops "." segments and applies ".." segments. Fails (false) when
  * the result would climb above the base path's top directory, or doesn't fit.
  * A leading "/" in base_path is kept. Pure; exposed for tests. */
-bool wgr_asset_join_relative(const char *base_path, const char *uri, char *out, size_t out_size);
+bool wgri_asset_join_relative(const char *base_path, const char *uri, char *out, size_t out_size);
 
 /* Where the asset layer found the file at local path `local` (a redirect or a
  * fallback, wgr_asset_add_redirect), into `out`: true if elsewhere, else `local` as
  * it is. Loaders reading the files a file references (a glTF's buffers and images)
  * look them up here. Any thread. */
-bool wgr_asset_found_path(const char *local, char *out, size_t out_size);
+bool wgri_asset_found_path(const char *local, char *out, size_t out_size);
 
 /* True when `uri` names a file relative to the referencing file; false for
  * "data:" URIs, absolute URLs ("scheme://...") and absolute paths. */
-bool wgr_asset_is_relative_uri(const char *uri);
+bool wgri_asset_is_relative_uri(const char *uri);
 
 /* Prepare workers: -1 = the default (CPU cores - 1, at most 4; none without
  * threads), 0 = prepare on the main thread, one file per frame. Restarts the
  * workers when the asset layer is running; call it while nothing is loading. */
-void wgr_asset_set_worker_count(int count);
-int wgr_asset_get_worker_count(void);
+void wgri_asset_set_worker_count(int count);
+int wgri_asset_get_worker_count(void);
 
 /* Asset tasks not finished yet (for test tooling). */
-int wgr_asset_pending_count(void);
+int wgri_asset_pending_count(void);
 
-#endif // WGR_INTERNAL_ASSET_H
+#endif // WGRI_INTERNAL_ASSET_H

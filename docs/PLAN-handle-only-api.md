@@ -84,7 +84,7 @@ wgr_asset_add_task_result_t wgr_asset_add_task(wgr_handle_t task,
                                              wgr_asset_callback_fn on_success,
                                              wgr_asset_callback_fn on_failure,
                                              void *user_data);
-void        wgr_asset_tick(void); /* pump the queue each frame (runtime-driven) */
+void        wgri_asset_tick(void); /* pump the queue each frame (runtime-driven) */
 /* + poll/finish/get_task_path/free_task as in librl */
 ```
 

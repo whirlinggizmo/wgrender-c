@@ -14,14 +14,14 @@
 #endif
 
 typedef struct {
-    wgr_thread_fn fn;
+    wgri_thread_fn fn;
     void *arg;
 } start_t;
 
 #if defined(_WIN32)
 
-_Static_assert(sizeof(CRITICAL_SECTION) <= sizeof(wgr_mutex_t), "wgr_mutex_t too small");
-_Static_assert(sizeof(CONDITION_VARIABLE) <= sizeof(wgr_cond_t), "wgr_cond_t too small");
+_Static_assert(sizeof(CRITICAL_SECTION) <= sizeof(wgri_mutex_t), "wgri_mutex_t too small");
+_Static_assert(sizeof(CONDITION_VARIABLE) <= sizeof(wgri_cond_t), "wgri_cond_t too small");
 
 static DWORD WINAPI run(LPVOID param)
 {
@@ -31,16 +31,16 @@ static DWORD WINAPI run(LPVOID param)
     return 0;
 }
 
-bool wgr_thread_available(void) { return true; }
+bool wgri_thread_available(void) { return true; }
 
-int wgr_thread_cpu_count(void)
+int wgri_thread_cpu_count(void)
 {
     SYSTEM_INFO info;
     GetSystemInfo(&info);
     return info.dwNumberOfProcessors > 0 ? (int)info.dwNumberOfProcessors : 1;
 }
 
-bool wgr_thread_create(wgr_thread_t *thread, wgr_thread_fn fn, void *arg)
+bool wgri_thread_create(wgri_thread_t *thread, wgri_thread_fn fn, void *arg)
 {
     start_t *start = (start_t *)malloc(sizeof(start_t));
     if (start == NULL) return false;
@@ -53,28 +53,28 @@ bool wgr_thread_create(wgr_thread_t *thread, wgr_thread_fn fn, void *arg)
     return true;
 }
 
-void wgr_thread_join(wgr_thread_t *thread)
+void wgri_thread_join(wgri_thread_t *thread)
 {
     WaitForSingleObject((HANDLE)thread->handle, INFINITE);
     CloseHandle((HANDLE)thread->handle);
 }
 
-void wgr_thread_detach(wgr_thread_t *thread) { CloseHandle((HANDLE)thread->handle); }
+void wgri_thread_detach(wgri_thread_t *thread) { CloseHandle((HANDLE)thread->handle); }
 
-void wgr_mutex_init(wgr_mutex_t *mutex) { InitializeCriticalSection((CRITICAL_SECTION *)mutex); }
-void wgr_mutex_destroy(wgr_mutex_t *mutex) { DeleteCriticalSection((CRITICAL_SECTION *)mutex); }
-void wgr_mutex_lock(wgr_mutex_t *mutex) { EnterCriticalSection((CRITICAL_SECTION *)mutex); }
-void wgr_mutex_unlock(wgr_mutex_t *mutex) { LeaveCriticalSection((CRITICAL_SECTION *)mutex); }
+void wgri_mutex_init(wgri_mutex_t *mutex) { InitializeCriticalSection((CRITICAL_SECTION *)mutex); }
+void wgri_mutex_destroy(wgri_mutex_t *mutex) { DeleteCriticalSection((CRITICAL_SECTION *)mutex); }
+void wgri_mutex_lock(wgri_mutex_t *mutex) { EnterCriticalSection((CRITICAL_SECTION *)mutex); }
+void wgri_mutex_unlock(wgri_mutex_t *mutex) { LeaveCriticalSection((CRITICAL_SECTION *)mutex); }
 
-void wgr_cond_init(wgr_cond_t *cond) { InitializeConditionVariable((CONDITION_VARIABLE *)cond); }
-void wgr_cond_destroy(wgr_cond_t *cond) { (void)cond; }
-void wgr_cond_wait(wgr_cond_t *cond, wgr_mutex_t *mutex)
+void wgri_cond_init(wgri_cond_t *cond) { InitializeConditionVariable((CONDITION_VARIABLE *)cond); }
+void wgri_cond_destroy(wgri_cond_t *cond) { (void)cond; }
+void wgri_cond_wait(wgri_cond_t *cond, wgri_mutex_t *mutex)
 {
     SleepConditionVariableCS((CONDITION_VARIABLE *)cond, (CRITICAL_SECTION *)mutex, INFINITE);
 }
-void wgr_cond_broadcast(wgr_cond_t *cond) { WakeAllConditionVariable((CONDITION_VARIABLE *)cond); }
+void wgri_cond_broadcast(wgri_cond_t *cond) { WakeAllConditionVariable((CONDITION_VARIABLE *)cond); }
 
-double wgr_thread_now(void)
+double wgri_thread_now(void)
 {
     static LARGE_INTEGER frequency;
     LARGE_INTEGER counter;
@@ -93,7 +93,7 @@ static void *run(void *param)
     return NULL;
 }
 
-bool wgr_thread_available(void)
+bool wgri_thread_available(void)
 {
 #if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
     return false;
@@ -102,7 +102,7 @@ bool wgr_thread_available(void)
 #endif
 }
 
-int wgr_thread_cpu_count(void)
+int wgri_thread_cpu_count(void)
 {
 #if defined(__EMSCRIPTEN__)
 #  if defined(__EMSCRIPTEN_PTHREADS__)
@@ -116,10 +116,10 @@ int wgr_thread_cpu_count(void)
     return count > 0 ? (int)count : 1;
 }
 
-bool wgr_thread_create(wgr_thread_t *thread, wgr_thread_fn fn, void *arg)
+bool wgri_thread_create(wgri_thread_t *thread, wgri_thread_fn fn, void *arg)
 {
     start_t *start;
-    if (!wgr_thread_available() || (start = (start_t *)malloc(sizeof(start_t))) == NULL) return false;
+    if (!wgri_thread_available() || (start = (start_t *)malloc(sizeof(start_t))) == NULL) return false;
     *start = (start_t){fn, arg};
     if (pthread_create(&thread->handle, NULL, run, start) != 0) {
         free(start);
@@ -128,20 +128,20 @@ bool wgr_thread_create(wgr_thread_t *thread, wgr_thread_fn fn, void *arg)
     return true;
 }
 
-void wgr_thread_join(wgr_thread_t *thread) { pthread_join(thread->handle, NULL); }
-void wgr_thread_detach(wgr_thread_t *thread) { pthread_detach(thread->handle); }
+void wgri_thread_join(wgri_thread_t *thread) { pthread_join(thread->handle, NULL); }
+void wgri_thread_detach(wgri_thread_t *thread) { pthread_detach(thread->handle); }
 
-void wgr_mutex_init(wgr_mutex_t *mutex) { pthread_mutex_init(&mutex->handle, NULL); }
-void wgr_mutex_destroy(wgr_mutex_t *mutex) { pthread_mutex_destroy(&mutex->handle); }
-void wgr_mutex_lock(wgr_mutex_t *mutex) { pthread_mutex_lock(&mutex->handle); }
-void wgr_mutex_unlock(wgr_mutex_t *mutex) { pthread_mutex_unlock(&mutex->handle); }
+void wgri_mutex_init(wgri_mutex_t *mutex) { pthread_mutex_init(&mutex->handle, NULL); }
+void wgri_mutex_destroy(wgri_mutex_t *mutex) { pthread_mutex_destroy(&mutex->handle); }
+void wgri_mutex_lock(wgri_mutex_t *mutex) { pthread_mutex_lock(&mutex->handle); }
+void wgri_mutex_unlock(wgri_mutex_t *mutex) { pthread_mutex_unlock(&mutex->handle); }
 
-void wgr_cond_init(wgr_cond_t *cond) { pthread_cond_init(&cond->handle, NULL); }
-void wgr_cond_destroy(wgr_cond_t *cond) { pthread_cond_destroy(&cond->handle); }
-void wgr_cond_wait(wgr_cond_t *cond, wgr_mutex_t *mutex) { pthread_cond_wait(&cond->handle, &mutex->handle); }
-void wgr_cond_broadcast(wgr_cond_t *cond) { pthread_cond_broadcast(&cond->handle); }
+void wgri_cond_init(wgri_cond_t *cond) { pthread_cond_init(&cond->handle, NULL); }
+void wgri_cond_destroy(wgri_cond_t *cond) { pthread_cond_destroy(&cond->handle); }
+void wgri_cond_wait(wgri_cond_t *cond, wgri_mutex_t *mutex) { pthread_cond_wait(&cond->handle, &mutex->handle); }
+void wgri_cond_broadcast(wgri_cond_t *cond) { pthread_cond_broadcast(&cond->handle); }
 
-double wgr_thread_now(void)
+double wgri_thread_now(void)
 {
 #if defined(__EMSCRIPTEN__)
     return emscripten_get_now() / 1000.0;

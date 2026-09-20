@@ -15,17 +15,17 @@ typedef struct {
 
 static wgr_debug_state_t wgr_debug_state;
 
-void wgr_debug_init(void)
+void wgri_debug_init(void)
 {
     wgr_debug_state = (wgr_debug_state_t){0};
 }
 
-void wgr_debug_deinit(void)
+void wgri_debug_deinit(void)
 {
     wgr_debug_state.fps_enabled = false;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_debug_enable_fps(int x, int y, int font_size)
 {
     wgr_debug_state.fps_enabled = true;
@@ -34,13 +34,13 @@ void wgr_debug_enable_fps(int x, int y, int font_size)
     wgr_debug_state.fps_font_size = font_size > 0 ? font_size : 16;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_debug_disable_fps(void)
 {
     wgr_debug_state.fps_enabled = false;
 }
 
-void wgr_debug_draw(void)
+void wgri_debug_draw(void)
 {
     if (!wgr_debug_state.fps_enabled) {
         return;

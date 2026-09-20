@@ -1,6 +1,6 @@
 /* Skeletal animation sampling (src/wgr_model.c): posing a clip at a time samples its
  * keyframes and composes the node hierarchy into joint matrices. The pose itself is
- * what's checked here — wgr_model_get_joint_matrices — since it's what the skinned
+ * what's checked here — wgri_model_get_joint_matrices — since it's what the skinned
  * shader and CPU picking both read. Timing (wrap, clamp, a time set before the mesh
  * arrives) is covered by test_parity_model. */
 #include <math.h>
@@ -28,7 +28,7 @@
 static int snapshot(wgr_handle_t model, float *out)
 {
     const float *matrices = NULL;
-    const int joints = wgr_model_get_joint_matrices(model, &matrices);
+    const int joints = wgri_model_get_joint_matrices(model, &matrices);
     const int floats = joints * 16 < MAX_FLOATS ? joints * 16 : MAX_FLOATS;
     if (matrices != NULL) memcpy(out, matrices, (size_t)floats * sizeof(float));
     return floats;
@@ -49,15 +49,15 @@ void test_animation_sampling(void)
 {
     static float rest[MAX_FLOATS], start[MAX_FLOATS], middle[MAX_FLOATS], other[MAX_FLOATS];
 
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_texture_init();
-    wgr_light_init();
-    wgr_material_init();
-    wgr_environment_init();
-    wgr_model_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_texture_init();
+    wgri_light_init();
+    wgri_material_init();
+    wgri_environment_init();
+    wgri_model_init();
 
     const wgr_handle_t mesh = wgr_mesh_create(GUMSHOE);
     const wgr_handle_t model = wgr_model_create(mesh);
@@ -148,19 +148,19 @@ void test_animation_sampling(void)
 
     /* a model with no mesh has no joints and nothing to animate */
     const wgr_handle_t empty = wgr_model_create(0);
-    CHECK(wgr_model_get_joint_matrices(empty, NULL) == 0);
+    CHECK(wgri_model_get_joint_matrices(empty, NULL) == 0);
     CHECK(!wgr_model_animate(empty, 0.1f));
     CHECK(wgr_model_get_animation_count(empty) == 0);
     wgr_model_destroy(empty);
 
     wgr_model_destroy(model);
-    wgr_model_deinit();
-    wgr_environment_deinit();
-    wgr_material_deinit();
-    wgr_light_deinit();
-    wgr_texture_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_model_deinit();
+    wgri_environment_deinit();
+    wgri_material_deinit();
+    wgri_light_deinit();
+    wgri_texture_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }

@@ -71,7 +71,7 @@ ensure (fetch; exists) ─▶ prepare (worker) ─▶ finish (main thread, budge
   in the callback finds it by path (the existing dedupe) and adds its own
   reference. After the callback, the task drops its reference, so a resource
   nobody created in the callback is freed.
-- **Finish is resumable and budgeted:** `wgr_asset_tick` runs finish steps until a
+- **Finish is resumable and budgeted:** `wgri_asset_tick` runs finish steps until a
   per-frame time budget is used up, always doing at least one step so loading
   can't stall. A mesh finishes over several steps (buffers, then one texture per
   step), so Sponza spreads over frames instead of uploading 69 textures at once.
@@ -162,7 +162,7 @@ float wgr_asset_get_progress(wgr_handle_t task);
   and from single 2048² texture uploads, which can't be split.
 - **Loaders** (`src/internal/wgr_loader.h`): each resource type registers
   `prepare` (any thread), `finish` (main thread, one step per call), `discard`,
-  `find` and `release` for its extensions; `wgr_loader_create` runs them inline for
+  `find` and `release` for its extensions; `wgri_loader_create` runs them inline for
   the sync creates, so both paths share one implementation. Registered: texture
   (`.png .jpg .jpeg`), mesh (`.gltf .glb`), environment (`.hdr`), audio
   (`.wav .ogg .mp3`). Fonts have none (a TTF load is cheap; glyphs rasterize on
@@ -180,7 +180,7 @@ float wgr_asset_get_progress(wgr_handle_t task);
 - **Failures:** a file that can't be decoded now fires the failure callback
   ("Asset couldn't be loaded"), where before the success callback's create failed.
 - **Threads:** `src/wgr_thread.c` (POSIX, Win32, Emscripten pthreads). Workers:
-  CPU cores − 1, at most 4 (internal `wgr_asset_set_worker_count` for tests).
+  CPU cores − 1, at most 4 (internal `wgri_asset_set_worker_count` for tests).
   Windows is written but untested.
 - **Web:** `-pthread -sPTHREAD_POOL_SIZE=4` by default; `WEB_THREADS=0` builds
   into `build/<backend>-nothreads`. `tools/serve.py` sends COOP/COEP. webcheck
@@ -201,7 +201,7 @@ float wgr_asset_get_progress(wgr_handle_t task);
   buffer and writes one `fprintf` per message.
 - **Tests** run the pipeline with zero and with two workers (`pipeline_*`, also
   under `SANITIZE=thread` and `address`).
-- **Also fixed:** `wgr_fs_init` leaked its `getcwd` buffer (found by the new tests
+- **Also fixed:** `wgri_fs_init` leaked its `getcwd` buffer (found by the new tests
   under ASan).
 - **Found, not fixed** (docs/TASKS.md): the first frame drawing loaded PBR models
   stalls ~220 ms on WebGL2 (shader compile on first use); `wgr_request_quit` on web

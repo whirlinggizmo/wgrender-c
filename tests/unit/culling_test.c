@@ -30,9 +30,9 @@
 #include "sokol_time.h"
 
 /* A camera at (0, 0, 10) looking at the origin, 60 degrees, square. */
-static wgr_mat4_t test_view_proj(void)
+static wgri_mat4_t test_view_proj(void)
 {
-    wgr_camera3d_t cam = {
+    wgri_camera3d_t cam = {
         .position = {0.0f, 0.0f, 10.0f},
         .target = {0.0f, 0.0f, 0.0f},
         .up = {0.0f, 1.0f, 0.0f},
@@ -40,13 +40,13 @@ static wgr_mat4_t test_view_proj(void)
         .ortho_height = 10.0f,
         .projection = WGR_CAMERA3D_PERSPECTIVE,
     };
-    return wgr_mat4_mul(wgr_camera3d_projection(&cam, 1.0f), wgr_camera3d_view(&cam));
+    return wgri_mat4_mul(wgri_camera3d_projection(&cam, 1.0f), wgri_camera3d_view(&cam));
 }
 
 void test_cull_frustum(void)
 {
-    wgr_plane_t planes[6];
-    wgr_frustum_from_view_proj(test_view_proj(), planes);
+    wgri_plane_t planes[6];
+    wgri_frustum_from_view_proj(test_view_proj(), planes);
 
     /* the planes are unit length, so a test gives a real distance */
     for (int i = 0; i < 6; i++) {
@@ -55,19 +55,19 @@ void test_cull_frustum(void)
     }
 
     /* what the camera is looking at */
-    CHECK(wgr_frustum_test_aabb(planes, (vec3_t){-1, -1, -1}, (vec3_t){1, 1, 1}));
+    CHECK(wgri_frustum_test_aabb(planes, (vec3_t){-1, -1, -1}, (vec3_t){1, 1, 1}));
     /* behind it, to the side, and far past it */
-    CHECK(!wgr_frustum_test_aabb(planes, (vec3_t){-1, -1, 20}, (vec3_t){1, 1, 22}));
-    CHECK(!wgr_frustum_test_aabb(planes, (vec3_t){80, -1, -1}, (vec3_t){82, 1, 1}));
-    CHECK(!wgr_frustum_test_aabb(planes, (vec3_t){-1, -1, -3000}, (vec3_t){1, 1, -2998}));
+    CHECK(!wgri_frustum_test_aabb(planes, (vec3_t){-1, -1, 20}, (vec3_t){1, 1, 22}));
+    CHECK(!wgri_frustum_test_aabb(planes, (vec3_t){80, -1, -1}, (vec3_t){82, 1, 1}));
+    CHECK(!wgri_frustum_test_aabb(planes, (vec3_t){-1, -1, -3000}, (vec3_t){1, 1, -2998}));
     /* a box that straddles the edge is kept: the test never culls something visible */
-    CHECK(wgr_frustum_test_aabb(planes, (vec3_t){-100, -1, -1}, (vec3_t){0, 1, 1}));
+    CHECK(wgri_frustum_test_aabb(planes, (vec3_t){-100, -1, -1}, (vec3_t){0, 1, 1}));
     /* and one that swallows the whole frustum is too */
-    CHECK(wgr_frustum_test_aabb(planes, (vec3_t){-500, -500, -500}, (vec3_t){500, 500, 500}));
+    CHECK(wgri_frustum_test_aabb(planes, (vec3_t){-500, -500, -500}, (vec3_t){500, 500, 500}));
 
     /* a box swept along a direction covers where its shadow could fall */
     vec3_t smin, smax;
-    wgr_aabb_sweep((vec3_t){-1, 0, -1}, (vec3_t){1, 2, 1}, (vec3_t){0, -1, 0}, 5.0f, &smin, &smax);
+    wgri_aabb_sweep((vec3_t){-1, 0, -1}, (vec3_t){1, 2, 1}, (vec3_t){0, -1, 0}, 5.0f, &smin, &smax);
     CHECK_NEAR(smin.y, -5.0f, 1e-5f); /* down five */
     CHECK_NEAR(smax.y, 2.0f, 1e-5f);  /* and not up at all */
     CHECK_NEAR(smin.x, -1.0f, 1e-5f);
@@ -78,14 +78,14 @@ void test_cull_frustum(void)
  * (docs/PLAN-instancing.md), so what goes into one is what gets drawn. */
 void test_model_instance_record(void)
 {
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_camera3d_init();
-    wgr_texture_init();
-    wgr_light_init();
-    wgr_material_init();
-    wgr_environment_init();
-    wgr_model_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_camera3d_init();
+    wgri_texture_init();
+    wgri_light_init();
+    wgri_material_init();
+    wgri_environment_init();
+    wgri_model_init();
 
     const wgr_handle_t camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
     wgr_camera3d_set_view(camera, 0, 0, 10, 0, 0, 0, 0, 1, 0);
@@ -100,8 +100,8 @@ void test_model_instance_record(void)
     int count = 0;
     wgr_render_begin();
     wgr_model_draw(model);
-    wgr_model_flush();
-    const float *records = wgr_model_instance_records(&count);
+    wgri_model_flush();
+    const float *records = wgri_model_instance_records(&count);
     CHECK(count == 1 && records != NULL);
     if (records != NULL && count == 1) {
         /* the model matrix goes up as three rows, so the translation is each row's w */
@@ -114,7 +114,7 @@ void test_model_instance_record(void)
         CHECK_NEAR(records[10], 1.0f, 1e-5f);
         /* the tint is linear by the time it is a record; its alpha already was */
         CHECK_NEAR(records[24], 1.0f, 1e-4f);
-        CHECK_NEAR(records[25], wgr_srgb_to_linear(128.0f / 255.0f), 1e-4f);
+        CHECK_NEAR(records[25], wgri_srgb_to_linear(128.0f / 255.0f), 1e-4f);
         CHECK_NEAR(records[26], 0.0f, 1e-4f);
         CHECK_NEAR(records[27], 128.0f / 255.0f, 1e-3f);
         CHECK(records[28] == 0.0f); /* not skinned: no joints of its own */
@@ -123,13 +123,13 @@ void test_model_instance_record(void)
 
     wgr_model_destroy(model);
     wgr_camera3d_destroy(camera);
-    wgr_model_deinit();
-    wgr_environment_deinit();
-    wgr_material_deinit();
-    wgr_light_deinit();
-    wgr_texture_deinit();
-    wgr_camera3d_deinit();
-    wgr_render_deinit();
+    wgri_model_deinit();
+    wgri_environment_deinit();
+    wgri_material_deinit();
+    wgri_light_deinit();
+    wgri_texture_deinit();
+    wgri_camera3d_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }
 
@@ -137,16 +137,16 @@ void test_model_instance_record(void)
  * (docs/PLAN-instancing.md, phase 2). */
 void test_model_instancing(void)
 {
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_texture_init();
-    wgr_light_init();
-    wgr_material_init();
-    wgr_environment_init();
-    wgr_shader_init();
-    wgr_model_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_texture_init();
+    wgri_light_init();
+    wgri_material_init();
+    wgri_environment_init();
+    wgri_shader_init();
+    wgri_model_init();
     stm_setup(); /* custom shaders read the time (wgr_get_time), which wgr_run starts */
 
     const wgr_handle_t scene = wgr_scene_create();
@@ -170,7 +170,7 @@ void test_model_instancing(void)
     wgr_render_begin();
     wgr_scene_draw(scene);
     wgr_render_end();
-    CHECK(wgr_model_draw_call_count() == 1);
+    CHECK(wgri_model_draw_call_count() == 1);
 
     /* a different material splits it in two, wherever the models sit in the scene */
     const wgr_handle_t other = wgr_material_create(WGR_MATERIAL_PBR);
@@ -178,7 +178,7 @@ void test_model_instancing(void)
     wgr_render_begin();
     wgr_scene_draw(scene);
     wgr_render_end();
-    CHECK(wgr_model_draw_call_count() == 2);
+    CHECK(wgri_model_draw_call_count() == 2);
     wgr_model_set_material(models[3], -1, material);
     wgr_material_release(other);
 
@@ -190,7 +190,7 @@ void test_model_instancing(void)
     wgr_render_begin();
     wgr_scene_draw(scene);
     wgr_render_end();
-    CHECK(wgr_model_draw_call_count() == 2);
+    CHECK(wgri_model_draw_call_count() == 2);
 
     /* and a tint does not: that is what the instance record is for */
     wgr_model_set_mesh(models[5], mesh);
@@ -201,7 +201,7 @@ void test_model_instancing(void)
     wgr_render_begin();
     wgr_scene_draw(scene);
     wgr_render_end();
-    CHECK(wgr_model_draw_call_count() == 1);
+    CHECK(wgri_model_draw_call_count() == 1);
 
     /* a custom material shader batches like the built-in one: it reads each placement
        from the same records (docs/PLAN-instancing.md, phase 4) */
@@ -213,7 +213,7 @@ void test_model_instancing(void)
     wgr_render_begin();
     wgr_scene_draw(scene);
     wgr_render_end();
-    CHECK(wgr_model_draw_call_count() == 1);
+    CHECK(wgri_model_draw_call_count() == 1);
     for (int i = 0; i < 8; i++) { /* back to the built-in one */
         wgr_model_set_material(models[i], -1, material);
     }
@@ -238,9 +238,9 @@ void test_model_instancing(void)
         float bases[8] = {0};
         wgr_render_begin();
         wgr_scene_draw(scene);
-        wgr_model_queue_counts(&placements, &primitives, NULL);
-        wgr_model_flush();
-        const float *record = wgr_model_instance_records(&records);
+        wgri_model_queue_counts(&placements, &primitives, NULL);
+        wgri_model_flush();
+        const float *record = wgri_model_instance_records(&records);
         /* the walkers' records carry their own joint bases: walker_a's are at 0 and
            walker_b's after them, so at least two different values show up */
         for (int i = 0; record != NULL && i < records; i++) {
@@ -257,7 +257,7 @@ void test_model_instancing(void)
         CHECK(distinct_bases >= 2);
         /* one draw for the cubes, then one per kind of walker primitive: the two
            walkers share each of them */
-        CHECK(wgr_model_draw_call_count() == 1 + walker_prims);
+        CHECK(wgri_model_draw_call_count() == 1 + walker_prims);
     }
     wgr_model_destroy(walker_a);
     wgr_model_destroy(walker_b);
@@ -266,15 +266,15 @@ void test_model_instancing(void)
         wgr_model_destroy(models[i]);
     }
     wgr_scene_destroy(scene);
-    wgr_model_deinit();
-    wgr_shader_deinit();
-    wgr_environment_deinit();
-    wgr_material_deinit();
-    wgr_light_deinit();
-    wgr_texture_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_model_deinit();
+    wgri_shader_deinit();
+    wgri_environment_deinit();
+    wgri_material_deinit();
+    wgri_light_deinit();
+    wgri_texture_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }
 
@@ -284,22 +284,22 @@ static int queued(wgr_handle_t scene)
     int placements = 0;
     wgr_render_begin();
     wgr_scene_draw(scene);
-    wgr_model_queue_counts(&placements, NULL, NULL);
+    wgri_model_queue_counts(&placements, NULL, NULL);
     wgr_render_end();
     return placements;
 }
 
 void test_cull_scene(void)
 {
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_texture_init();
-    wgr_light_init();
-    wgr_material_init();
-    wgr_environment_init();
-    wgr_model_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_texture_init();
+    wgri_light_init();
+    wgri_material_init();
+    wgri_environment_init();
+    wgri_model_init();
 
     const wgr_handle_t scene = wgr_scene_create();
     const wgr_handle_t camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
@@ -355,13 +355,13 @@ void test_cull_scene(void)
     wgr_model_destroy(away);
     wgr_model_destroy(seen);
     wgr_scene_destroy(scene);
-    wgr_model_deinit();
-    wgr_environment_deinit();
-    wgr_material_deinit();
-    wgr_light_deinit();
-    wgr_texture_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_model_deinit();
+    wgri_environment_deinit();
+    wgri_material_deinit();
+    wgri_light_deinit();
+    wgri_texture_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }

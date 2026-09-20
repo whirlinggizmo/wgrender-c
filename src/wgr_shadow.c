@@ -16,7 +16,7 @@
  * casters into a depth map; the lit shaders then compare each surface against it.
  *
  * Phase 1 is one directional light: the first casting light a scene draw finds
- * (wgr_scene, wgr_light_env_t.shadow_light). The map is a depth texture sampled through
+ * (wgr_scene, wgri_light_env_t.shadow_light). The map is a depth texture sampled through
  * a comparison sampler, so the GPU does the depth test and filters the result. */
 
 #define WGR_SHADOW_PULLBACK 50.0f /* world units the light's near plane is pulled back */
@@ -24,20 +24,20 @@
 static struct {
     sg_image map;                 /* a depth array: one layer per casting light */
     sg_view map_view;
-    sg_view layer_attachment[WGR_MAX_SHADOW_LIGHTS];
+    sg_view layer_attachment[WGRI_MAX_SHADOW_LIGHTS];
     sg_sampler sampler;
     int size;              /* each layer's pixels each way, 0 = none made yet */
     int layers;
     bool unsupported;      /* the backend can't sample a depth array (said once) */
-    wgr_shadow_binding_t binding; /* this frame's, for the shaders */
+    wgri_shadow_binding_t binding; /* this frame's, for the shaders */
     int env;               /* the lighting environment it was drawn for, -1 none */
 } wgr_sm;
 
 /* --------------------------------------------------------------- fitting ---- */
 
-wgr_mat4_t wgr_shadow_ortho(float l, float r, float b, float t, float n, float f, bool zero_to_one)
+wgri_mat4_t wgri_shadow_ortho(float l, float r, float b, float t, float n, float f, bool zero_to_one)
 {
-    wgr_mat4_t m = {{0}};
+    wgri_mat4_t m = {{0}};
     m.m[0] = 2.0f / (r - l);
     m.m[5] = 2.0f / (t - b);
     m.m[12] = -(r + l) / (r - l);
@@ -54,40 +54,40 @@ wgr_mat4_t wgr_shadow_ortho(float l, float r, float b, float t, float n, float f
 }
 
 /* The eight corners of what the camera sees between its near plane and `distance`. */
-static void view_corners(const wgr_camera3d_t *cam, float aspect, float distance, vec3_t out[8])
+static void view_corners(const wgri_camera3d_t *cam, float aspect, float distance, vec3_t out[8])
 {
-    const vec3_t forward = wgr_v3_norm(wgr_v3_sub(cam->target, cam->position));
-    const vec3_t right = wgr_v3_norm(wgr_v3_cross(forward, cam->up));
-    const vec3_t up = wgr_v3_cross(right, forward);
+    const vec3_t forward = wgri_v3_norm(wgri_v3_sub(cam->target, cam->position));
+    const vec3_t right = wgri_v3_norm(wgri_v3_cross(forward, cam->up));
+    const vec3_t up = wgri_v3_cross(right, forward);
     const bool ortho = cam->projection == WGR_CAMERA3D_ORTHOGRAPHIC;
-    const float near_plane = ortho ? 0.0f : WGR_CAMERA3D_PERSPECTIVE_NEAR;
+    const float near_plane = ortho ? 0.0f : WGRI_CAMERA3D_PERSPECTIVE_NEAR;
     const float planes[2] = {near_plane, distance};
 
     for (int p = 0; p < 2; p++) {
         const float z = planes[p];
         const float half_height = ortho ? cam->ortho_height * 0.5f : tanf(cam->fov * 0.5f) * z;
         const float half_width = half_height * aspect;
-        const vec3_t centre = wgr_v3_add(cam->position, wgr_v3_scale(forward, z));
+        const vec3_t centre = wgri_v3_add(cam->position, wgri_v3_scale(forward, z));
         for (int c = 0; c < 4; c++) {
             const float x = (c & 1) ? half_width : -half_width;
             const float y = (c & 2) ? half_height : -half_height;
-            out[p * 4 + c] = wgr_v3_add(centre, wgr_v3_add(wgr_v3_scale(right, x), wgr_v3_scale(up, y)));
+            out[p * 4 + c] = wgri_v3_add(centre, wgri_v3_add(wgri_v3_scale(right, x), wgri_v3_scale(up, y)));
         }
     }
 }
 
-wgr_shadow_fit_t wgr_shadow_fit_directional(const wgr_camera3d_t *cam, float aspect, vec3_t light_direction,
+wgri_shadow_fit_t wgri_shadow_fit_directional(const wgri_camera3d_t *cam, float aspect, vec3_t light_direction,
                                           float distance, int map_size, float pullback, bool zero_to_one)
 {
     vec3_t corners[8];
     vec3_t centre = {0, 0, 0};
-    vec3_t dir = wgr_v3_norm(light_direction);
-    wgr_camera3d_t light_cam;
-    wgr_mat4_t light_view;
-    wgr_shadow_fit_t fit;
+    vec3_t dir = wgri_v3_norm(light_direction);
+    wgri_camera3d_t light_cam;
+    wgri_mat4_t light_view;
+    wgri_shadow_fit_t fit;
     float min_x = 1e30f, max_x = -1e30f, min_y = 1e30f, max_y = -1e30f, min_z = 1e30f, max_z = -1e30f;
 
-    if (!(wgr_v3_dot(dir, dir) > 0.0f)) {
+    if (!(wgri_v3_dot(dir, dir) > 0.0f)) {
         dir = (vec3_t){0.0f, -1.0f, 0.0f};
     }
     if (!(distance > 0.0f)) {
@@ -97,20 +97,20 @@ wgr_shadow_fit_t wgr_shadow_fit_directional(const wgr_camera3d_t *cam, float asp
         map_size = 1;
     }
     view_corners(cam, aspect, distance, corners);
-    for (int i = 0; i < 8; i++) centre = wgr_v3_add(centre, corners[i]);
-    centre = wgr_v3_scale(centre, 1.0f / 8.0f);
+    for (int i = 0; i < 8; i++) centre = wgri_v3_add(centre, corners[i]);
+    centre = wgri_v3_scale(centre, 1.0f / 8.0f);
 
     /* look from far enough back along the light that the whole slice is in front */
-    light_cam.position = wgr_v3_sub(centre, wgr_v3_scale(dir, distance + pullback));
+    light_cam.position = wgri_v3_sub(centre, wgri_v3_scale(dir, distance + pullback));
     light_cam.target = centre;
     light_cam.up = fabsf(dir.y) > 0.99f ? (vec3_t){0.0f, 0.0f, 1.0f} : (vec3_t){0.0f, 1.0f, 0.0f};
     light_cam.fov = 1.0f;
     light_cam.ortho_height = 1.0f;
     light_cam.projection = WGR_CAMERA3D_ORTHOGRAPHIC;
-    light_view = wgr_camera3d_view(&light_cam);
+    light_view = wgri_camera3d_view(&light_cam);
 
     for (int i = 0; i < 8; i++) {
-        const vec3_t p = wgr_mat4_mul_point(light_view, corners[i]);
+        const vec3_t p = wgri_mat4_mul_point(light_view, corners[i]);
         if (p.x < min_x) min_x = p.x;
         if (p.x > max_x) max_x = p.x;
         if (p.y < min_y) min_y = p.y;
@@ -139,17 +139,17 @@ wgr_shadow_fit_t wgr_shadow_fit_directional(const wgr_camera3d_t *cam, float asp
         fit.texel_world = texel;
     }
     fit.depth_range = max_z + pullback;
-    fit.view_proj = wgr_mat4_mul(wgr_shadow_ortho(min_x, max_x, min_y, max_y, 0.0f, fit.depth_range, zero_to_one),
+    fit.view_proj = wgri_mat4_mul(wgri_shadow_ortho(min_x, max_x, min_y, max_y, 0.0f, fit.depth_range, zero_to_one),
                                 light_view);
     return fit;
 }
 
 /* A perspective projection in the depth range the backend clips to, like
- * wgr_shadow_ortho but for a spot light's cone. */
-static wgr_mat4_t shadow_perspective(float fovy, float aspect, float n, float f, bool zero_to_one)
+ * wgri_shadow_ortho but for a spot light's cone. */
+static wgri_mat4_t shadow_perspective(float fovy, float aspect, float n, float f, bool zero_to_one)
 {
     const float t = tanf(fovy * 0.5f);
-    wgr_mat4_t m = {{0}};
+    wgri_mat4_t m = {{0}};
     m.m[0] = 1.0f / (aspect * t);
     m.m[5] = 1.0f / t;
     m.m[11] = -1.0f;
@@ -163,15 +163,15 @@ static wgr_mat4_t shadow_perspective(float fovy, float aspect, float n, float f,
     return m;
 }
 
-wgr_shadow_fit_t wgr_shadow_fit_spot(vec3_t position, vec3_t direction, float cos_outer, float distance,
+wgri_shadow_fit_t wgri_shadow_fit_spot(vec3_t position, vec3_t direction, float cos_outer, float distance,
                                    float near_plane, int map_size, bool zero_to_one)
 {
-    vec3_t dir = wgr_v3_norm(direction);
-    wgr_camera3d_t light_cam;
-    wgr_shadow_fit_t fit;
+    vec3_t dir = wgri_v3_norm(direction);
+    wgri_camera3d_t light_cam;
+    wgri_shadow_fit_t fit;
     float fovy;
 
-    if (!(wgr_v3_dot(dir, dir) > 0.0f)) {
+    if (!(wgri_v3_dot(dir, dir) > 0.0f)) {
         dir = (vec3_t){0.0f, -1.0f, 0.0f};
     }
     if (!(distance > 0.0f)) {
@@ -193,7 +193,7 @@ wgr_shadow_fit_t wgr_shadow_fit_spot(vec3_t position, vec3_t direction, float co
         fovy = 0.02f;
     }
     light_cam.position = position;
-    light_cam.target = wgr_v3_add(position, dir);
+    light_cam.target = wgri_v3_add(position, dir);
     light_cam.up = fabsf(dir.y) > 0.99f ? (vec3_t){0.0f, 0.0f, 1.0f} : (vec3_t){0.0f, 1.0f, 0.0f};
     light_cam.fov = fovy;
     light_cam.ortho_height = 1.0f;
@@ -203,8 +203,8 @@ wgr_shadow_fit_t wgr_shadow_fit_spot(vec3_t position, vec3_t direction, float co
     /* a spot's texels grow with distance; this is the size at the far end, which is
        where its shadow usually lands */
     fit.texel_world = 2.0f * tanf(fovy * 0.5f) * distance / (float)map_size;
-    fit.view_proj = wgr_mat4_mul(shadow_perspective(fovy, 1.0f, near_plane, distance, zero_to_one),
-                                wgr_camera3d_view(&light_cam));
+    fit.view_proj = wgri_mat4_mul(shadow_perspective(fovy, 1.0f, near_plane, distance, zero_to_one),
+                                wgri_camera3d_view(&light_cam));
     return fit;
 }
 
@@ -230,7 +230,7 @@ static bool ensure_map(int size, int layers)
         }
         return false;
     }
-    for (int i = 0; i < WGR_MAX_SHADOW_LIGHTS; i++) {
+    for (int i = 0; i < WGRI_MAX_SHADOW_LIGHTS; i++) {
         sg_destroy_view(wgr_sm.layer_attachment[i]);
         wgr_sm.layer_attachment[i] = (sg_view){0};
     }
@@ -274,7 +274,7 @@ static bool ensure_map(int size, int layers)
 static int casting_env(void)
 {
     for (int i = 0;; i++) {
-        const wgr_light_env_t *env = wgr_light_env_get(i);
+        const wgri_light_env_t *env = wgri_light_env_get(i);
         if (env == NULL) {
             return -1;
         }
@@ -285,44 +285,44 @@ static int casting_env(void)
 }
 
 /* Where one casting light looks, and how big its texels are there. */
-static wgr_shadow_fit_t fit_light(const wgr_scene_light_t *light, const wgr_camera3d_t *cam, float aspect,
+static wgri_shadow_fit_t fit_light(const wgri_scene_light_t *light, const wgri_camera3d_t *cam, float aspect,
                                  bool zero_to_one)
 {
     if (light->type == WGR_LIGHT_SPOT) {
         /* a spot only lights its own cone, and only as far as its range reaches */
         const float reach = light->range > 0.0f && light->range < light->shadow_distance ? light->range
                                                                                          : light->shadow_distance;
-        return wgr_shadow_fit_spot(light->position, light->direction, light->cos_outer, reach, reach * 0.01f,
+        return wgri_shadow_fit_spot(light->position, light->direction, light->cos_outer, reach, reach * 0.01f,
                                   wgr_sm.size, zero_to_one);
     }
-    return wgr_shadow_fit_directional(cam, aspect, light->direction, light->shadow_distance, wgr_sm.size,
+    return wgri_shadow_fit_directional(cam, aspect, light->direction, light->shadow_distance, wgr_sm.size,
                                      WGR_SHADOW_PULLBACK, zero_to_one);
 }
 
-/* wgr_render_hooks: draw the casters into each casting light's layer, before anything
+/* wgri_render_hooks: draw the casters into each casting light's layer, before anything
  * is shaded. */
 static void shadows_draw(void)
 {
     const int env_index = casting_env();
-    const wgr_light_env_t *env = env_index >= 0 ? wgr_light_env_get(env_index) : NULL;
+    const wgri_light_env_t *env = env_index >= 0 ? wgri_light_env_get(env_index) : NULL;
     const bool zero_to_one = sg_query_backend() == SG_BACKEND_WGPU;
-    wgr_camera3d_t cam;
+    wgri_camera3d_t cam;
     vec2_t screen;
     float aspect;
     int wanted_size = 0;
 
-    wgr_sm.binding = (wgr_shadow_binding_t){0};
+    wgr_sm.binding = (wgri_shadow_binding_t){0};
     wgr_sm.env = -1;
-    if (env == NULL || !wgr_model_has_shadow_casters(env_index)) {
+    if (env == NULL || !wgri_model_has_shadow_casters(env_index)) {
         return;
     }
     /* a map nobody samples is a pass for nothing: models can turn receiving off, and
        lit sprites receive without ever casting */
-    if (!wgr_model_has_shadow_receivers(env_index) &&
-        (wgr_render_hooks.sprites_lit_in == NULL || !wgr_render_hooks.sprites_lit_in(env_index))) {
+    if (!wgri_model_has_shadow_receivers(env_index) &&
+        (wgri_render_hooks.sprites_lit_in == NULL || !wgri_render_hooks.sprites_lit_in(env_index))) {
         return;
     }
-    if (!wgr_camera3d_get_active_data(&cam)) {
+    if (!wgri_camera3d_get_active_data(&cam)) {
         return;
     }
     /* the layers of an array share one size, so the largest map anyone asked for wins */
@@ -333,7 +333,7 @@ static void shadows_draw(void)
     if (!ensure_map(wanted_size, env->shadow_count)) {
         return;
     }
-    screen = wgr_render_target_size();
+    screen = wgri_render_target_size();
     aspect = screen.y > 0.0f ? screen.x / screen.y : 1.0f;
 
     wgr_sm.binding.valid = true;
@@ -345,8 +345,8 @@ static void shadows_draw(void)
     wgr_sm.binding.flipped = sg_query_features().origin_top_left;
 
     for (int i = 0; i < env->shadow_count; i++) {
-        const wgr_scene_light_t *light = &env->lights[env->shadow_lights[i]];
-        const wgr_shadow_fit_t fit = fit_light(light, &cam, aspect, zero_to_one);
+        const wgri_scene_light_t *light = &env->lights[env->shadow_lights[i]];
+        const wgri_shadow_fit_t fit = fit_light(light, &cam, aspect, zero_to_one);
 
         /* the depth buffer is the whole point here, so say it must be kept: sokol's
            default for depth is DONTCARE, which WebGPU takes at its word and discards
@@ -359,10 +359,10 @@ static void shadows_draw(void)
             .attachments = {.depth_stencil = wgr_sm.layer_attachment[i]},
             .label = "wgr-shadow-map",
         });
-        wgr_model_draw_shadow_casters(env_index, &fit.view_proj);
+        wgri_model_draw_shadow_casters(env_index, &fit.view_proj);
         sg_end_pass();
 
-        wgr_sm.binding.lights[i] = (wgr_shadow_light_t){
+        wgr_sm.binding.lights[i] = (wgri_shadow_light_t){
             .light = env->shadow_lights[i],
             .view_proj = fit.view_proj,
             .texel = 1.0f / (float)wgr_sm.size,
@@ -379,7 +379,7 @@ static void shadows_draw(void)
     wgr_sm.env = env_index;
 }
 
-static bool get_binding(int light_env, wgr_shadow_binding_t *out)
+static bool get_binding(int light_env, wgri_shadow_binding_t *out)
 {
     if (out == NULL) {
         return false;
@@ -394,69 +394,69 @@ static bool get_binding(int light_env, wgr_shadow_binding_t *out)
 
 /* ---------------------------------------------------------- public API ---- */
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_light_set_casts_shadows(wgr_handle_t light, bool casts)
 {
-    return wgr_light_shadow_set_casts(light, casts);
+    return wgri_light_shadow_set_casts(light, casts);
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_light_get_casts_shadows(wgr_handle_t light)
 {
-    return wgr_light_shadow_casts(light);
+    return wgri_light_shadow_casts(light);
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_light_set_shadow_distance(wgr_handle_t light, float distance)
 {
-    return wgr_light_shadow_set_distance(light, distance);
+    return wgri_light_shadow_set_distance(light, distance);
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_light_set_shadow_map_size(wgr_handle_t light, int size)
 {
-    return wgr_light_shadow_set_map_size(light, size);
+    return wgri_light_shadow_set_map_size(light, size);
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_light_set_shadow_bias(wgr_handle_t light, float constant, float slope)
 {
-    return wgr_light_shadow_set_bias(light, constant, slope);
+    return wgri_light_shadow_set_bias(light, constant, slope);
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_light_set_shadow_strength(wgr_handle_t light, float strength)
 {
-    return wgr_light_shadow_set_strength(light, strength);
+    return wgri_light_shadow_set_strength(light, strength);
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_light_set_shadow_color(wgr_handle_t light, wgr_color_t color)
 {
-    return wgr_light_shadow_set_color(light, color);
+    return wgri_light_shadow_set_color(light, color);
 }
 
-void wgr_shadow_init(void)
+void wgri_shadow_init(void)
 {
     memset(&wgr_sm, 0, sizeof(wgr_sm));
     wgr_sm.env = -1;
-    wgr_render_hooks.shadows_draw = shadows_draw;
-    wgr_shadow_hooks.get_binding = get_binding;
+    wgri_render_hooks.shadows_draw = shadows_draw;
+    wgri_shadow_hooks.get_binding = get_binding;
 }
 
-void wgr_shadow_deinit(void)
+void wgri_shadow_deinit(void)
 {
     sg_destroy_sampler(wgr_sm.sampler);
-    for (int i = 0; i < WGR_MAX_SHADOW_LIGHTS; i++) sg_destroy_view(wgr_sm.layer_attachment[i]);
+    for (int i = 0; i < WGRI_MAX_SHADOW_LIGHTS; i++) sg_destroy_view(wgr_sm.layer_attachment[i]);
     sg_destroy_view(wgr_sm.map_view);
     sg_destroy_image(wgr_sm.map);
     memset(&wgr_sm, 0, sizeof(wgr_sm));
-    wgr_render_hooks.shadows_draw = NULL;
-    wgr_shadow_hooks = (wgr_shadow_hooks_t){0};
+    wgri_render_hooks.shadows_draw = NULL;
+    wgri_shadow_hooks = (wgri_shadow_hooks_t){0};
 }
 
 /* An optional subsystem: part of the runtime when a program turns shadows on
- * (internal/wgr_module.h). After models, whose casters it draws. */
-static wgr_module_t wgr_shadow_module = {.name = "shadow", .order = 52, .init = wgr_shadow_init,
-                                       .deinit = wgr_shadow_deinit};
-WGR_MODULE(wgr_shadow_module)
+ * (internal/wgri_module.h). After models, whose casters it draws. */
+static wgri_module_t wgr_shadow_module = {.name = "shadow", .order = 52, .init = wgri_shadow_init,
+                                       .deinit = wgri_shadow_deinit};
+WGRI_MODULE(wgr_shadow_module)

@@ -12,7 +12,7 @@
 #define PI 3.14159265358979f
 
 typedef struct {
-    wgr_mesh_shape_t *shape;
+    wgri_mesh_shape_t *shape;
     int vertex_capacity, index_capacity;
     bool failed;
 } builder_t;
@@ -24,7 +24,7 @@ static int clamp_int(int value, int low, int high)
 
 static int vertex(builder_t *b, float px, float py, float pz, float nx, float ny, float nz, float u, float v)
 {
-    wgr_mesh_shape_t *s = b->shape;
+    wgri_mesh_shape_t *s = b->shape;
     if (b->failed) return 0;
     if (s->vertex_count == b->vertex_capacity) {
         const int capacity = b->vertex_capacity > 0 ? b->vertex_capacity * 2 : 64;
@@ -53,7 +53,7 @@ static int vertex(builder_t *b, float px, float py, float pz, float nx, float ny
 /* A triangle, turned to face along its vertices' normals; skipped if it has no area. */
 static void triangle(builder_t *b, int i0, int i1, int i2)
 {
-    wgr_mesh_shape_t *s = b->shape;
+    wgri_mesh_shape_t *s = b->shape;
     if (b->failed) return;
     const float *p0 = &s->positions[i0 * 3], *p1 = &s->positions[i1 * 3], *p2 = &s->positions[i2 * 3];
     const float e1[3] = {p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]};
@@ -118,19 +118,19 @@ static void disc(builder_t *b, float radius, float y, float up, int segments)
 static bool finish(builder_t *b)
 {
     if (b->failed || b->shape->index_count == 0) {
-        wgr_mesh_shape_free(b->shape);
+        wgri_mesh_shape_free(b->shape);
         return false;
     }
     return true;
 }
 
-static void begin(builder_t *b, wgr_mesh_shape_t *out)
+static void begin(builder_t *b, wgri_mesh_shape_t *out)
 {
     memset(out, 0, sizeof(*out));
     *b = (builder_t){.shape = out};
 }
 
-void wgr_mesh_shape_free(wgr_mesh_shape_t *shape)
+void wgri_mesh_shape_free(wgri_mesh_shape_t *shape)
 {
     free(shape->positions);
     free(shape->normals);
@@ -139,12 +139,12 @@ void wgr_mesh_shape_free(wgr_mesh_shape_t *shape)
     memset(shape, 0, sizeof(*shape));
 }
 
-bool wgr_mesh_shape_plane(float width, float length, int subdivisions, wgr_mesh_shape_t *out)
+bool wgri_mesh_shape_plane(float width, float length, int subdivisions, wgri_mesh_shape_t *out)
 {
     builder_t b;
     begin(&b, out);
     if (!(width > 0.0f) || !(length > 0.0f)) return false;
-    const int n = clamp_int(subdivisions, 0, WGR_MESH_MAX_SUBDIVISIONS) + 1; /* cells each way */
+    const int n = clamp_int(subdivisions, 0, WGRI_MESH_MAX_SUBDIVISIONS) + 1; /* cells each way */
     for (int j = 0; j <= n; j++) {
         for (int i = 0; i <= n; i++) {
             const float u = (float)i / (float)n, v = (float)j / (float)n;
@@ -155,7 +155,7 @@ bool wgr_mesh_shape_plane(float width, float length, int subdivisions, wgr_mesh_
     return finish(&b);
 }
 
-bool wgr_mesh_shape_cube(float width, float height, float length, wgr_mesh_shape_t *out)
+bool wgri_mesh_shape_cube(float width, float height, float length, wgri_mesh_shape_t *out)
 {
     /* per face: its normal, then the directions texture u and v run along it */
     static const float faces[6][3][3] = {
@@ -181,13 +181,13 @@ bool wgr_mesh_shape_cube(float width, float height, float length, wgr_mesh_shape
     return finish(&b);
 }
 
-bool wgr_mesh_shape_sphere(float radius, int rings, int segments, wgr_mesh_shape_t *out)
+bool wgri_mesh_shape_sphere(float radius, int rings, int segments, wgri_mesh_shape_t *out)
 {
     builder_t b;
     begin(&b, out);
     if (!(radius > 0.0f)) return false;
-    rings = clamp_int(rings, WGR_MESH_MIN_RINGS, WGR_MESH_MAX_RINGS);
-    segments = clamp_int(segments, WGR_MESH_MIN_SEGMENTS, WGR_MESH_MAX_SEGMENTS);
+    rings = clamp_int(rings, WGRI_MESH_MIN_RINGS, WGRI_MESH_MAX_RINGS);
+    segments = clamp_int(segments, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);
     for (int r = 0; r <= rings; r++) {
         const float polar = PI * (float)r / (float)rings, sp = sinf(polar), cp = cosf(polar);
         for (int c = 0; c <= segments; c++) {
@@ -201,12 +201,12 @@ bool wgr_mesh_shape_sphere(float radius, int rings, int segments, wgr_mesh_shape
     return finish(&b);
 }
 
-bool wgr_mesh_shape_cylinder(float radius, float height, int segments, wgr_mesh_shape_t *out)
+bool wgri_mesh_shape_cylinder(float radius, float height, int segments, wgri_mesh_shape_t *out)
 {
     builder_t b;
     begin(&b, out);
     if (!(radius > 0.0f) || !(height > 0.0f)) return false;
-    segments = clamp_int(segments, WGR_MESH_MIN_SEGMENTS, WGR_MESH_MAX_SEGMENTS);
+    segments = clamp_int(segments, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);
     for (int r = 0; r < 2; r++) { /* the side: top row, then bottom */
         for (int c = 0; c <= segments; c++) {
             const float a = 2.0f * PI * (float)c / (float)segments, x = cosf(a), z = -sinf(a);
@@ -220,12 +220,12 @@ bool wgr_mesh_shape_cylinder(float radius, float height, int segments, wgr_mesh_
     return finish(&b);
 }
 
-bool wgr_mesh_shape_cone(float radius, float height, int segments, wgr_mesh_shape_t *out)
+bool wgri_mesh_shape_cone(float radius, float height, int segments, wgri_mesh_shape_t *out)
 {
     builder_t b;
     begin(&b, out);
     if (!(radius > 0.0f) || !(height > 0.0f)) return false;
-    segments = clamp_int(segments, WGR_MESH_MIN_SEGMENTS, WGR_MESH_MAX_SEGMENTS);
+    segments = clamp_int(segments, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);
     /* the side: per segment, a tip vertex (its normal halfway round) and base vertices */
     for (int c = 0; c < segments; c++) {
         const float a0 = 2.0f * PI * (float)c / (float)segments, a1 = 2.0f * PI * (float)(c + 1) / (float)segments;
@@ -242,15 +242,15 @@ bool wgr_mesh_shape_cone(float radius, float height, int segments, wgr_mesh_shap
     return finish(&b);
 }
 
-bool wgr_mesh_shape_capsule(float radius, float height, int rings, int segments, wgr_mesh_shape_t *out)
+bool wgri_mesh_shape_capsule(float radius, float height, int rings, int segments, wgri_mesh_shape_t *out)
 {
     builder_t b;
     begin(&b, out);
     if (!(radius > 0.0f) || !(height > 0.0f)) return false;
-    const int half_rings = clamp_int(rings, WGR_MESH_MIN_RINGS, WGR_MESH_MAX_RINGS) / 2 > 0
-                               ? clamp_int(rings, WGR_MESH_MIN_RINGS, WGR_MESH_MAX_RINGS) / 2
+    const int half_rings = clamp_int(rings, WGRI_MESH_MIN_RINGS, WGRI_MESH_MAX_RINGS) / 2 > 0
+                               ? clamp_int(rings, WGRI_MESH_MIN_RINGS, WGRI_MESH_MAX_RINGS) / 2
                                : 1;
-    segments = clamp_int(segments, WGR_MESH_MIN_SEGMENTS, WGR_MESH_MAX_SEGMENTS);
+    segments = clamp_int(segments, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);
     const float straight = height > 2.0f * radius ? height * 0.5f - radius : 0.0f; /* half the middle */
     const float total = PI * radius + 2.0f * straight;                             /* pole to pole */
     /* the top half-sphere's rows, then the bottom's: the two equators join as the side */
@@ -271,13 +271,13 @@ bool wgr_mesh_shape_capsule(float radius, float height, int rings, int segments,
     return finish(&b);
 }
 
-bool wgr_mesh_shape_torus(float radius, float thickness, int rings, int segments, wgr_mesh_shape_t *out)
+bool wgri_mesh_shape_torus(float radius, float thickness, int rings, int segments, wgri_mesh_shape_t *out)
 {
     builder_t b;
     begin(&b, out);
     if (!(radius > 0.0f) || !(thickness > 0.0f)) return false;
-    rings = clamp_int(rings, WGR_MESH_MIN_SEGMENTS, WGR_MESH_MAX_SEGMENTS);       /* around the ring */
-    segments = clamp_int(segments, WGR_MESH_MIN_SEGMENTS, WGR_MESH_MAX_SEGMENTS); /* around the tube */
+    rings = clamp_int(rings, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);       /* around the ring */
+    segments = clamp_int(segments, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS); /* around the tube */
     for (int i = 0; i <= rings; i++) {
         const float a = 2.0f * PI * (float)i / (float)rings, ca = cosf(a), sa = -sinf(a);
         for (int j = 0; j <= segments; j++) {

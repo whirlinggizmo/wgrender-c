@@ -78,12 +78,12 @@ void wgr_logger_set_level(wgr_log_level_t level)
     wgr_log_level = level;
 }
 
-void wgr_logger_init(void)
+void wgri_logger_init(void)
 {
     /* nothing to set up for the stderr backend */
 }
 
-void wgr_logger_deinit(void)
+void wgri_logger_deinit(void)
 {
     /* no-op */
 }

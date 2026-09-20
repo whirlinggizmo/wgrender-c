@@ -23,7 +23,7 @@ static void remove_tree(void)
 
 static bool write_text(const char *path, const char *text)
 {
-    return wgr_fs_write(path, (const unsigned char *)text, (int)strlen(text));
+    return wgri_fs_write(path, (const unsigned char *)text, (int)strlen(text));
 }
 
 /* Text a file holds, or NULL; the buffer is NUL-terminated, so it compares as a
@@ -31,40 +31,40 @@ static bool write_text(const char *path, const char *text)
 static char *read_text(const char *path, int *size)
 {
     unsigned char *data = NULL;
-    return wgr_fs_read(path, &data, size) ? (char *)data : NULL;
+    return wgri_fs_read(path, &data, size) ? (char *)data : NULL;
 }
 
 void test_fs_paths(void)
 {
     char out[512];
 
-    wgr_fs_init(NULL);
-    CHECK(wgr_fs_is_ready()); /* desktop: always */
+    wgri_fs_init(NULL);
+    CHECK(wgri_fs_is_ready()); /* desktop: always */
 
     /* the root is joined with one separator, however it's given */
-    wgr_fs_set_root("/tmp/libwgrender-root");
-    wgr_fs_resolve("a/b.txt", out, sizeof(out));
+    wgri_fs_set_root("/tmp/libwgrender-root");
+    wgri_fs_resolve("a/b.txt", out, sizeof(out));
     CHECK(strcmp(out, "/tmp/libwgrender-root/a/b.txt") == 0);
-    wgr_fs_set_root("/tmp/libwgrender-root/"); /* a trailing slash doesn't double it */
-    wgr_fs_resolve("a/b.txt", out, sizeof(out));
+    wgri_fs_set_root("/tmp/libwgrender-root/"); /* a trailing slash doesn't double it */
+    wgri_fs_resolve("a/b.txt", out, sizeof(out));
     CHECK(strcmp(out, "/tmp/libwgrender-root/a/b.txt") == 0);
 
     /* an absolute path is already where it says it is */
-    wgr_fs_resolve("/etc/hosts", out, sizeof(out));
+    wgri_fs_resolve("/etc/hosts", out, sizeof(out));
     CHECK(strcmp(out, "/etc/hosts") == 0);
 
     /* no root: the path as it stands, relative to the working directory */
-    wgr_fs_set_root("");
-    wgr_fs_resolve("a/b.txt", out, sizeof(out));
+    wgri_fs_set_root("");
+    wgri_fs_resolve("a/b.txt", out, sizeof(out));
     CHECK(strcmp(out, "a/b.txt") == 0);
 
     /* a path too long for the buffer is cut, not overrun */
     char small[8];
-    wgr_fs_set_root("/a/very/long/root");
-    wgr_fs_resolve("and/a/long/path.txt", small, sizeof(small));
+    wgri_fs_set_root("/a/very/long/root");
+    wgri_fs_resolve("and/a/long/path.txt", small, sizeof(small));
     CHECK(strlen(small) == sizeof(small) - 1);
 
-    wgr_fs_deinit();
+    wgri_fs_deinit();
 }
 
 void test_fs_files(void)
@@ -72,51 +72,51 @@ void test_fs_files(void)
     int size = 0;
     char *text;
 
-    wgr_fs_init(NULL);
-    wgr_fs_set_root(ROOT);
+    wgri_fs_init(NULL);
+    wgri_fs_set_root(ROOT);
     remove_tree(); /* a previous run's files */
 
-    CHECK(!wgr_fs_exists("plain.txt"));
+    CHECK(!wgri_fs_exists("plain.txt"));
     CHECK(read_text("plain.txt", &size) == NULL); /* reading what isn't there fails */
 
     CHECK(write_text("plain.txt", "hello libwgrender"));
-    CHECK(wgr_fs_exists("plain.txt"));
+    CHECK(wgri_fs_exists("plain.txt"));
     text = read_text("plain.txt", &size);
     CHECK(text != NULL && size == (int)strlen("hello libwgrender") && strcmp(text, "hello libwgrender") == 0);
-    wgr_fs_read_free((unsigned char *)text);
+    wgri_fs_read_free((unsigned char *)text);
 
     /* a write makes the directories above it */
-    CHECK(!wgr_fs_exists("nested/deep/file.txt"));
+    CHECK(!wgri_fs_exists("nested/deep/file.txt"));
     CHECK(write_text("nested/deep/file.txt", "deep"));
-    CHECK(wgr_fs_exists("nested/deep/file.txt"));
+    CHECK(wgri_fs_exists("nested/deep/file.txt"));
     text = read_text("nested/deep/file.txt", &size);
     CHECK(text != NULL && size == 4 && strcmp(text, "deep") == 0);
-    wgr_fs_read_free((unsigned char *)text);
+    wgri_fs_read_free((unsigned char *)text);
 
     /* writing again replaces what was there */
     CHECK(write_text("plain.txt", "second"));
     text = read_text("plain.txt", &size);
     CHECK(text != NULL && size == 6 && strcmp(text, "second") == 0);
-    wgr_fs_read_free((unsigned char *)text);
+    wgri_fs_read_free((unsigned char *)text);
 
     /* an empty file exists and reads as no bytes */
-    CHECK(wgr_fs_write("empty.bin", (const unsigned char *)"", 0));
-    CHECK(wgr_fs_exists("empty.bin"));
+    CHECK(wgri_fs_write("empty.bin", (const unsigned char *)"", 0));
+    CHECK(wgri_fs_exists("empty.bin"));
     text = read_text("empty.bin", &size);
     CHECK(text != NULL && size == 0 && text[0] == '\0');
-    wgr_fs_read_free((unsigned char *)text);
+    wgri_fs_read_free((unsigned char *)text);
 
     /* the root moves, so the same relative path is a different file */
-    wgr_fs_set_root(ROOT "/nested");
-    CHECK(!wgr_fs_exists("plain.txt"));
-    CHECK(wgr_fs_exists("deep/file.txt"));
-    wgr_fs_set_root(ROOT);
+    wgri_fs_set_root(ROOT "/nested");
+    CHECK(!wgri_fs_exists("plain.txt"));
+    CHECK(wgri_fs_exists("deep/file.txt"));
+    wgri_fs_set_root(ROOT);
 
     /* the cache is the web's; on desktop a file is either local or it isn't */
-    CHECK(!wgr_fs_is_cached("plain.txt"));
-    CHECK(wgr_fs_cache_read_begin("plain.txt") == 0);
-    CHECK(wgr_fs_cache_read_poll(1) == -1);
+    CHECK(!wgri_fs_is_cached("plain.txt"));
+    CHECK(wgri_fs_cache_read_begin("plain.txt") == 0);
+    CHECK(wgri_fs_cache_read_poll(1) == -1);
 
     remove_tree();
-    wgr_fs_deinit();
+    wgri_fs_deinit();
 }

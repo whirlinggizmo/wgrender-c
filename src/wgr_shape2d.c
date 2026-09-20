@@ -49,30 +49,30 @@ typedef struct {
 } wgr_shape2d_t;
 
 static wgr_shape2d_t *wgr_shapes2d; /* grown by the pool: don't hold a pointer across a create */
-static wgr_handle_pool_t wgr_shape2d_pool;
+static wgri_handle_pool_t wgr_shape2d_pool;
 
 static void draw_2d(wgr_handle_t shape);
 static bool pick_2d(wgr_handle_t shape, float screen_x, float screen_y, wgr_pick_result_t *out);
 
-void wgr_shape2d_init(void)
+void wgri_shape2d_init(void)
 {
-    if (!wgr_handle_pool_init(&wgr_shape2d_pool, WGR_HANDLE_KIND_SHAPE2D, "shape2d", (void **)&wgr_shapes2d,
-                             sizeof(wgr_shape2d_t), SHAPES2D_INITIAL, WGR_HANDLE_POOL_MAX_SLOTS)) {
+    if (!wgri_handle_pool_init(&wgr_shape2d_pool, WGR_HANDLE_KIND_SHAPE2D, "shape2d", (void **)&wgr_shapes2d,
+                             sizeof(wgr_shape2d_t), SHAPES2D_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         log_error("shape2d: out of memory");
     }
-    wgr_scene_register_2d(WGR_HANDLE_KIND_SHAPE2D, draw_2d, pick_2d);
-    wgr_scene_register_enabled(WGR_HANDLE_KIND_SHAPE2D, wgr_shape2d_is_enabled);
+    wgri_scene_register_2d(WGR_HANDLE_KIND_SHAPE2D, draw_2d, pick_2d);
+    wgri_scene_register_enabled(WGR_HANDLE_KIND_SHAPE2D, wgr_shape2d_is_enabled);
 }
 
-void wgr_shape2d_deinit(void)
+void wgri_shape2d_deinit(void)
 {
-    wgr_handle_pool_destroy(&wgr_shape2d_pool);
+    wgri_handle_pool_destroy(&wgr_shape2d_pool);
 }
 
 static wgr_shape2d_t *resolve(wgr_handle_t shape)
 {
     uint16_t index = 0;
-    if (!wgr_handle_pool_resolve(&wgr_shape2d_pool, shape, &index)) {
+    if (!wgri_handle_pool_resolve(&wgr_shape2d_pool, shape, &index)) {
         if (shape != 0) {
             log_warn("Invalid shape2d handle (%u)", (unsigned int)shape);
         }
@@ -83,13 +83,13 @@ static wgr_shape2d_t *resolve(wgr_handle_t shape)
 
 static void set_color(wgr_color_t color)
 {
-    wgr_colorf_t c = wgr_color_unpack(color);
+    wgri_colorf_t c = wgri_color_unpack(color);
     sgl_c4f(c.r, c.g, c.b, c.a);
 }
 
 /* --------------------------------------------------------- immediate 2D ---- */
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape2d_draw_rectangle(float x, float y, float width, float height, wgr_color_t color)
 {
     const float x0 = x, y0 = y, x1 = x + width, y1 = y + height;
@@ -103,7 +103,7 @@ void wgr_shape2d_draw_rectangle(float x, float y, float width, float height, wgr
     sgl_end();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape2d_draw_rectangle_lines(float x, float y, float width, float height, wgr_color_t color)
 {
     const float x0 = x, y0 = y, x1 = x + width, y1 = y + height;
@@ -118,7 +118,7 @@ void wgr_shape2d_draw_rectangle_lines(float x, float y, float width, float heigh
     sgl_end();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape2d_draw_line(float start_x, float start_y, float end_x, float end_y, wgr_color_t color)
 {
     sgl_begin_lines();
@@ -128,7 +128,7 @@ void wgr_shape2d_draw_line(float start_x, float start_y, float end_x, float end_
     sgl_end();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape2d_draw_circle(float center_x, float center_y, float radius, wgr_color_t color)
 {
     const float cx = center_x, cy = center_y;
@@ -145,7 +145,7 @@ void wgr_shape2d_draw_circle(float center_x, float center_y, float radius, wgr_c
     sgl_end();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape2d_draw_circle_lines(float center_x, float center_y, float radius, wgr_color_t color)
 {
     const float cx = center_x, cy = center_y;
@@ -159,7 +159,7 @@ void wgr_shape2d_draw_circle_lines(float center_x, float center_y, float radius,
     sgl_end();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape2d_draw_triangle(float x0, float y0, float x1, float y1, float x2, float y2, wgr_color_t color)
 {
     sgl_begin_triangles();
@@ -172,17 +172,17 @@ void wgr_shape2d_draw_triangle(float x0, float y0, float x1, float y1, float x2,
 
 /* ------------------------------------------------------- retained shapes ---- */
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_shape2d_create(void)
 {
-    wgr_handle_t handle = wgr_handle_pool_alloc(&wgr_shape2d_pool);
+    wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_shape2d_pool);
     uint16_t index = 0;
 
     if (handle == 0) {
         log_error("shape2d: pool full (%u)", (unsigned)wgr_shape2d_pool.max - 1u);
         return 0;
     }
-    wgr_handle_pool_resolve(&wgr_shape2d_pool, handle, &index);
+    wgri_handle_pool_resolve(&wgr_shape2d_pool, handle, &index);
     wgr_shapes2d[index] = (wgr_shape2d_t){
         .kind = WGR_SHAPE2D_NONE,
         .scale_x = 1.0f,
@@ -195,16 +195,16 @@ wgr_handle_t wgr_shape2d_create(void)
     return handle;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape2d_destroy(wgr_handle_t shape)
 {
     wgr_shape2d_t *shape_ptr = resolve(shape);
     if (shape_ptr == NULL) {
         return;
     }
-    wgr_scene_forget(shape);
+    wgri_scene_forget(shape);
     *shape_ptr = (wgr_shape2d_t){0};
-    wgr_handle_pool_free(&wgr_shape2d_pool, shape);
+    wgri_handle_pool_free(&wgr_shape2d_pool, shape);
 }
 
 /* One shape kind with dim[] set. */
@@ -220,26 +220,26 @@ static bool set_kind(wgr_handle_t shape, wgr_shape2d_kind_t kind, const float *d
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape2d_set_rectangle(wgr_handle_t shape, float width, float height, float corner_radius)
 {
     const float radius = fmaxf(0.0f, fminf(corner_radius, fminf(width, height) * 0.5f));
     return set_kind(shape, WGR_SHAPE2D_RECTANGLE, (float[]){width, height, radius}, 3);
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape2d_set_circle(wgr_handle_t shape, float radius)
 {
     return set_kind(shape, WGR_SHAPE2D_CIRCLE, (float[]){radius}, 1);
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape2d_set_line(wgr_handle_t shape, float x0, float y0, float x1, float y1, float thickness)
 {
     return set_kind(shape, WGR_SHAPE2D_LINE, (float[]){x0, y0, x1, y1, thickness > 0.0f ? thickness : 1.0f}, 5);
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape2d_set_transform(wgr_handle_t shape, float x, float y, float rotation, float scale_x, float scale_y)
 {
     wgr_shape2d_t *shape_ptr = resolve(shape);
@@ -254,7 +254,7 @@ bool wgr_shape2d_set_transform(wgr_handle_t shape, float x, float y, float rotat
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape2d_set_pivot(wgr_handle_t shape, float x, float y)
 {
     wgr_shape2d_t *shape_ptr = resolve(shape);
@@ -267,7 +267,7 @@ bool wgr_shape2d_set_pivot(wgr_handle_t shape, float x, float y)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape2d_set_outline(wgr_handle_t shape, float thickness)
 {
     wgr_shape2d_t *shape_ptr = resolve(shape);
@@ -278,7 +278,7 @@ bool wgr_shape2d_set_outline(wgr_handle_t shape, float thickness)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape2d_set_color(wgr_handle_t shape, wgr_color_t color)
 {
     wgr_shape2d_t *shape_ptr = resolve(shape);
@@ -289,7 +289,7 @@ bool wgr_shape2d_set_color(wgr_handle_t shape, wgr_color_t color)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape2d_set_visible(wgr_handle_t shape, bool visible)
 {
     wgr_shape2d_t *shape_ptr = resolve(shape);
@@ -300,14 +300,14 @@ bool wgr_shape2d_set_visible(wgr_handle_t shape, bool visible)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape2d_is_visible(wgr_handle_t shape)
 {
     const wgr_shape2d_t *shape_ptr = resolve(shape);
     return shape_ptr != NULL && shape_ptr->visible;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape2d_set_pickable(wgr_handle_t shape, bool pickable)
 {
     wgr_shape2d_t *shape_ptr = resolve(shape);
@@ -318,14 +318,14 @@ bool wgr_shape2d_set_pickable(wgr_handle_t shape, bool pickable)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape2d_is_pickable(wgr_handle_t shape)
 {
     const wgr_shape2d_t *shape_ptr = resolve(shape);
     return shape_ptr != NULL && shape_ptr->pickable;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape2d_set_enabled(wgr_handle_t shape, bool enabled)
 {
     wgr_shape2d_t *shape_ptr = resolve(shape);
@@ -336,7 +336,7 @@ bool wgr_shape2d_set_enabled(wgr_handle_t shape, bool enabled)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape2d_is_enabled(wgr_handle_t shape)
 {
     const wgr_shape2d_t *shape_ptr = resolve(shape);
@@ -375,7 +375,7 @@ static void pivot_offset(const wgr_shape2d_t *shape_ptr, float *out_x, float *ou
  * top-right, bottom-right, bottom-left), each clamped to half the shorter side,
  * clockwise from the top-left corner's arc: WGR_CORNER_SEGMENTS + 1 points per corner,
  * so any two outlines have the same count and can be joined into a band. */
-int wgr_shape2d_rounded_outline(float x, float y, float width, float height, const float radii[4], float *xy)
+int wgri_shape2d_rounded_outline(float x, float y, float width, float height, const float radii[4], float *xy)
 {
     const float w = width > 0.0f ? width : 0.0f, h = height > 0.0f ? height : 0.0f;
     const float limit = fminf(w, h) * 0.5f;
@@ -402,7 +402,7 @@ static int rounded_rect_points(float width, float height, float radius, float in
 {
     const float r = fmaxf(0.0f, radius - inset);
     const float radii[4] = {r, r, r, r};
-    return wgr_shape2d_rounded_outline(inset, inset, width - 2.0f * inset, height - 2.0f * inset, radii, xy);
+    return wgri_shape2d_rounded_outline(inset, inset, width - 2.0f * inset, height - 2.0f * inset, radii, xy);
 }
 
 static void fill_fan(float cx, float cy, const float *xy, int n)
@@ -433,17 +433,17 @@ static void fill_band(const float *outer, const float *inner, int n)
     sgl_end();
 }
 
-#define OUTLINE_POINTS WGR_SHAPE2D_OUTLINE_POINTS
-_Static_assert(WGR_SHAPE2D_OUTLINE_POINTS == 4 * (WGR_CORNER_SEGMENTS + 1), "outline size out of step");
+#define OUTLINE_POINTS WGRI_SHAPE2D_OUTLINE_POINTS
+_Static_assert(WGRI_SHAPE2D_OUTLINE_POINTS == 4 * (WGR_CORNER_SEGMENTS + 1), "outline size out of step");
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape2d_draw_rounded_rectangle(float x, float y, float width, float height, float r_top_left,
                                        float r_top_right, float r_bottom_right, float r_bottom_left,
                                        wgr_color_t color)
 {
     const float radii[4] = {r_top_left, r_top_right, r_bottom_right, r_bottom_left};
     float xy[OUTLINE_POINTS * 2];
-    const int n = wgr_shape2d_rounded_outline(x, y, width, height, radii, xy);
+    const int n = wgri_shape2d_rounded_outline(x, y, width, height, radii, xy);
     if (width <= 0.0f || height <= 0.0f) {
         return;
     }
@@ -451,7 +451,7 @@ void wgr_shape2d_draw_rounded_rectangle(float x, float y, float width, float hei
     fill_fan(x + width * 0.5f, y + height * 0.5f, xy, n);
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape2d_draw_border(float x, float y, float width, float height, float left, float top, float right,
                             float bottom, float r_top_left, float r_top_right, float r_bottom_right,
                             float r_bottom_left, wgr_color_t color)
@@ -467,9 +467,9 @@ void wgr_shape2d_draw_border(float x, float y, float width, float height, float 
     if (width <= 0.0f || height <= 0.0f || l + t + r + b <= 0.0f) {
         return;
     }
-    n = wgr_shape2d_rounded_outline(x, y, width, height, outer_radii, outer);
+    n = wgri_shape2d_rounded_outline(x, y, width, height, outer_radii, outer);
     /* borders wider than the box fill it: the inner outline stays inside the outer one */
-    wgr_shape2d_rounded_outline(x + fminf(l, width), y + fminf(t, height), width - l - r, height - t - b, inner_radii, inner);
+    wgri_shape2d_rounded_outline(x + fminf(l, width), y + fminf(t, height), width - l - r, height - t - b, inner_radii, inner);
     set_color(color);
     fill_band(outer, inner, n);
 }
@@ -538,7 +538,7 @@ static void draw_shape(const wgr_shape2d_t *shape_ptr)
     sgl_pop_matrix();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape2d_draw(wgr_handle_t shape)
 {
     const wgr_shape2d_t *shape_ptr = resolve(shape);

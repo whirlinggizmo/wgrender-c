@@ -96,7 +96,7 @@ edges are as smooth as on screen. Targets have no mipmaps.
   framebuffer origin is bottom-left stores its rows bottom-up. Rather than flip
   projections while rendering (which would also flip winding and can't reach the
   bitmap text shader), whoever samples a target maps v to 1 - v
-  (`wgr_texture_is_flipped`): sprites, `wgr_texture_draw`, sprite3d and material UV
+  (`wgri_texture_is_flipped`): sprites, `wgr_texture_draw`, sprite3d and material UV
   transforms. Verified identical on WebGL2 and WebGPU.
 - **Bitmap text (`wgr_text_draw`) works in targets:** each pass records into its own
   sokol_debugtext layer, drawn at the end of that pass.
@@ -135,7 +135,7 @@ each effect redraws it, the last one onto the screen.
   one and writes the other — and the second is only made when effects follow each
   other. They follow the framebuffer size and are rebuilt when it changes.
 - **The core doesn't know about materials.** The chain lives in its own optional module
-  (`src/wgr_effect.c`), which registers `wgr_render_hooks.effects_begin` (where the
+  (`src/wgr_effect.c`), which registers `wgri_render_hooks.effects_begin` (where the
   screen's pass draws) and `effects_draw` (the chain, ending on the swapchain). A
   program that never adds an effect doesn't link it (`make check`).
 - **GL's bottom-up targets** are handled as elsewhere: the shader gets a flag in its

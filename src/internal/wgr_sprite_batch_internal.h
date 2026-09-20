@@ -1,5 +1,5 @@
-#ifndef WGR_INTERNAL_SPRITE_BATCH_H
-#define WGR_INTERNAL_SPRITE_BATCH_H
+#ifndef WGRI_INTERNAL_SPRITE_BATCH_H
+#define WGRI_INTERNAL_SPRITE_BATCH_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -23,41 +23,41 @@ typedef struct {
     float up[3];
     float alpha;        /* > 0 mask cutoff, < 0 opaque, 0 as is (blended / added) */
     uint8_t color[4];   /* tint, sRGB */
-} wgr_sprite_quad_t;
+} wgri_sprite_quad_t;
 
-void wgr_sprite_batch_init(void);
-void wgr_sprite_batch_deinit(void);
+void wgri_sprite_batch_init(void);
+void wgri_sprite_batch_deinit(void);
 
 /* Record a 3D sprite for the current pass, seen by the active camera, drawn with its
  * alpha mode (the quad's `alpha` says how the shader treats alpha) and material (a
  * custom material's shader draws it; 0: libwgrender's sprite shader). blend_depth_write:
  * whether a blended sprite writes depth (direct draws do; a scene's sorted pass
- * doesn't). view and sampler: the texture's sokol ids (wgr_texture_get_binding). */
-void wgr_sprite_batch_add_3d(const wgr_sprite_quad_t *instance, uint32_t view, uint32_t sampler, wgr_alpha_mode_t mode,
+ * doesn't). view and sampler: the texture's sokol ids (wgri_texture_get_binding). */
+void wgri_sprite_batch_add_3d(const wgri_sprite_quad_t *instance, uint32_t view, uint32_t sampler, wgr_alpha_mode_t mode,
                             bool blend_depth_write, wgr_handle_t material);
 
 /* Record a 2D sprite (screen space: logical pixels, top-left origin, y down) for the
  * current pass, in order, with its alpha mode; no depth test. Its quad: position the
  * top-left corner, right and up the top and left edges (up points up the screen),
  * size (1, 1), pivot (0, 0), facing 2 (its own axes). */
-void wgr_sprite_batch_add_2d(const wgr_sprite_quad_t *instance, uint32_t view, uint32_t sampler, wgr_alpha_mode_t mode,
+void wgri_sprite_batch_add_2d(const wgri_sprite_quad_t *instance, uint32_t view, uint32_t sampler, wgr_alpha_mode_t mode,
                             wgr_handle_t material);
 
 /* Sprites added between these don't need their order (opaque, masked and additive
  * sprites in a scene): they're grouped by texture and mode, so 4 textures in any
  * order make 4 draws. end_unordered records them. */
-void wgr_sprite_batch_begin_unordered(void);
-void wgr_sprite_batch_end_unordered(void);
+void wgri_sprite_batch_begin_unordered(void);
+void wgri_sprite_batch_end_unordered(void);
 
 /* wgr_render: upload the frame's instances (before any pass), draw one batch (inside
  * its pass), and start over (after the frame is submitted). */
-void wgr_sprite_batch_flush(void);
+void wgri_sprite_batch_flush(void);
 /* follows: the previous command drawn in this pass was also a sprite batch, so the
  * pipeline, uniforms and scissor it applied are still in place */
-void wgr_sprite_batch_draw(int batch, bool follows);
-void wgr_sprite_batch_end_frame(void);
+void wgri_sprite_batch_draw(int batch, bool follows);
+void wgri_sprite_batch_end_frame(void);
 
 /* Batches recorded this frame so far. For tests. */
-int wgr_sprite_batch_count(void);
+int wgri_sprite_batch_count(void);
 
-#endif // WGR_INTERNAL_SPRITE_BATCH_H
+#endif // WGRI_INTERNAL_SPRITE_BATCH_H

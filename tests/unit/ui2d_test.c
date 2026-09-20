@@ -40,51 +40,51 @@ void test_nine_slice(void)
 
     /* 16 px borders of a 64 px region, drawn 256 px wide: the borders keep their
      * size on screen (16/256) and take a quarter of the source each */
-    CHECK(wgr_sprite2d_nine_slice_axis(16, 16, 256, 64, dest, source));
+    CHECK(wgri_sprite2d_nine_slice_axis(16, 16, 256, 64, dest, source));
     CHECK_NEAR(dest[0], 16.0f / 256.0f, 1e-6);
     CHECK_NEAR(dest[1], 1.0f - 16.0f / 256.0f, 1e-6);
     CHECK_NEAR(source[0], 0.25f, 1e-6);
     CHECK_NEAR(source[1], 0.75f, 1e-6);
 
     /* uneven borders */
-    CHECK(wgr_sprite2d_nine_slice_axis(8, 24, 100, 64, dest, source));
+    CHECK(wgri_sprite2d_nine_slice_axis(8, 24, 100, 64, dest, source));
     CHECK_NEAR(dest[0], 0.08f, 1e-6);
     CHECK_NEAR(dest[1], 0.76f, 1e-6);
     CHECK_NEAR(source[0], 0.125f, 1e-6);
     CHECK_NEAR(source[1], 0.625f, 1e-6);
 
     /* one-sided: the other edge stays at the end of the sprite */
-    CHECK(wgr_sprite2d_nine_slice_axis(10, 0, 50, 20, dest, source));
+    CHECK(wgri_sprite2d_nine_slice_axis(10, 0, 50, 20, dest, source));
     CHECK_NEAR(dest[0], 0.2f, 1e-6);
     CHECK_NEAR(dest[1], 1.0f, 1e-6);
     CHECK_NEAR(source[1], 1.0f, 1e-6);
 
     /* drawn smaller than its borders: they shrink to fill it, in order */
-    CHECK(wgr_sprite2d_nine_slice_axis(16, 16, 24, 64, dest, source));
+    CHECK(wgri_sprite2d_nine_slice_axis(16, 16, 24, 64, dest, source));
     CHECK_NEAR(dest[0], 0.5f, 1e-6);
     CHECK_NEAR(dest[1], 0.5f, 1e-6);
     CHECK(dest[0] <= dest[1]);
     CHECK_NEAR(source[0], 0.25f, 1e-6); /* the source split is unchanged */
 
     /* borders wider than the source region share it */
-    CHECK(wgr_sprite2d_nine_slice_axis(30, 10, 200, 20, dest, source));
+    CHECK(wgri_sprite2d_nine_slice_axis(30, 10, 200, 20, dest, source));
     CHECK_NEAR(source[0], 0.75f, 1e-6);
     CHECK_NEAR(source[1], 0.75f, 1e-6);
 
     /* no borders, or nothing to draw into */
-    CHECK(!wgr_sprite2d_nine_slice_axis(0, 0, 100, 64, dest, source));
-    CHECK(!wgr_sprite2d_nine_slice_axis(8, 8, 0, 64, dest, source));
-    CHECK(!wgr_sprite2d_nine_slice_axis(8, 8, 100, 0, dest, source));
+    CHECK(!wgri_sprite2d_nine_slice_axis(0, 0, 100, 64, dest, source));
+    CHECK(!wgri_sprite2d_nine_slice_axis(8, 8, 0, 64, dest, source));
+    CHECK(!wgri_sprite2d_nine_slice_axis(8, 8, 100, 0, dest, source));
 }
 
 void test_text2d_layout(void)
 {
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_font_init();
-    wgr_text_init();
-    wgr_text2d_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_font_init();
+    wgri_text_init();
+    wgri_text2d_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
 
     wgr_handle_t text = wgr_text2d_create(0);
@@ -143,10 +143,10 @@ void test_text2d_layout(void)
     wgr_text2d_destroy(text);
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_text2d_deinit();
-    wgr_font_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_text2d_deinit();
+    wgri_font_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }
 
@@ -154,11 +154,11 @@ void test_scene_clip(void)
 {
     const vec2_t screen = wgr_window_get_screen_size();
 
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_shape2d_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_shape2d_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
     CHECK(wgr_window_set_size(800, 600));
 
@@ -193,7 +193,7 @@ void test_scene_clip(void)
 
     /* interaction picks the same way (a clipped member can't be hovered) */
     CHECK(wgr_scene_set_interactive(scene, true));
-    wgr_scene_update_interaction();
+    wgri_scene_update_interaction();
     CHECK(wgr_scene_get_hovered(scene) == 0);
 
     /* a rectangle with no size removes the clip */
@@ -215,10 +215,10 @@ void test_scene_clip(void)
     CHECK(wgr_window_set_size((int)screen.x, (int)screen.y));
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgr_scene_destroy(scene);
-    wgr_shape2d_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_shape2d_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }
 
@@ -228,12 +228,12 @@ void test_sprite3d_2d_world(void)
 {
     const vec2_t screen = wgr_window_get_screen_size();
 
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_texture_init();
-    wgr_sprite3d_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_texture_init();
+    wgri_sprite3d_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
     CHECK(wgr_window_set_size(800, 600));
 
@@ -286,11 +286,11 @@ void test_sprite3d_2d_world(void)
 
     CHECK(wgr_window_set_size((int)screen.x, (int)screen.y));
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_sprite3d_deinit();
-    wgr_texture_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_sprite3d_deinit();
+    wgri_texture_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }
 
@@ -300,13 +300,13 @@ void test_text_layout_shared(void)
 {
     const vec2_t screen = wgr_window_get_screen_size();
 
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_font_init();
-    wgr_text_init();
-    wgr_text3d_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_font_init();
+    wgri_text_init();
+    wgri_text3d_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
 
     /* immediate text: newlines break lines, and the height grows by whole lines */
@@ -377,52 +377,52 @@ void test_text_layout_shared(void)
     wgr_text3d_destroy(label);
     CHECK(wgr_window_set_size((int)screen.x, (int)screen.y));
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_text3d_deinit();
-    wgr_font_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_text3d_deinit();
+    wgri_font_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }
 
-/* The four facings' quad bases (wgr_sprite3d_facing_basis, shared by sprite3d and
+/* The four facings' quad bases (wgri_sprite3d_facing_basis, shared by sprite3d and
  * text3d), under a camera pitched 45 degrees down: spherical faces the view plane,
  * cylindrical stays upright. */
 void test_sprite3d_facings(void)
 {
-    const wgr_camera3d_t pitched = {.position = {0, 10, 10}, .target = {0, 0, 0}, .up = {0, 1, 0}};
+    const wgri_camera3d_t pitched = {.position = {0, 10, 10}, .target = {0, 0, 0}, .up = {0, 1, 0}};
     const float h = 0.70710678f;
     vec3_t right, up;
 
     /* spherical: tilts back with the camera, so it faces it exactly */
-    wgr_sprite3d_facing_basis(WGR_SPRITE3D_FACING_CAMERA, (vec3_t){0, 0, 0}, &pitched, &right, &up);
+    wgri_sprite3d_facing_basis(WGR_SPRITE3D_FACING_CAMERA, (vec3_t){0, 0, 0}, &pitched, &right, &up);
     CHECK_VEC3_NEAR(right, 1, 0, 0, 1e-5);
     CHECK_VEC3_NEAR(up, 0, h, -h, 1e-5);
 
     /* cylindrical: same right, but upright however far the camera looks down */
-    wgr_sprite3d_facing_basis(WGR_SPRITE3D_FACING_CAMERA_FIXED_Y, (vec3_t){0, 0, 0}, &pitched, &right, &up);
+    wgri_sprite3d_facing_basis(WGR_SPRITE3D_FACING_CAMERA_FIXED_Y, (vec3_t){0, 0, 0}, &pitched, &right, &up);
     CHECK_VEC3_NEAR(right, 1, 0, 0, 1e-5);
     CHECK_VEC3_NEAR(up, 0, 1, 0, 1e-6);
 
     /* ... and it still turns about Y to follow a camera moving around it */
-    const wgr_camera3d_t side = {.position = {10, 10, 0}, .target = {0, 0, 0}, .up = {0, 1, 0}};
-    wgr_sprite3d_facing_basis(WGR_SPRITE3D_FACING_CAMERA_FIXED_Y, (vec3_t){0, 0, 0}, &side, &right, &up);
+    const wgri_camera3d_t side = {.position = {10, 10, 0}, .target = {0, 0, 0}, .up = {0, 1, 0}};
+    wgri_sprite3d_facing_basis(WGR_SPRITE3D_FACING_CAMERA_FIXED_Y, (vec3_t){0, 0, 0}, &side, &right, &up);
     CHECK_VEC3_NEAR(right, 0, 0, -1, 1e-5);
     CHECK_VEC3_NEAR(up, 0, 1, 0, 1e-6);
 
     /* looking straight down (up hint along -Z): no horizontal direction from the
        view, so it takes the camera's own right instead of collapsing */
-    const wgr_camera3d_t down = {.position = {0, 10, 0}, .target = {0, 0, 0}, .up = {0, 0, -1}};
-    wgr_sprite3d_facing_basis(WGR_SPRITE3D_FACING_CAMERA_FIXED_Y, (vec3_t){0, 0, 0}, &down, &right, &up);
+    const wgri_camera3d_t down = {.position = {0, 10, 0}, .target = {0, 0, 0}, .up = {0, 0, -1}};
+    wgri_sprite3d_facing_basis(WGR_SPRITE3D_FACING_CAMERA_FIXED_Y, (vec3_t){0, 0, 0}, &down, &right, &up);
     CHECK_NEAR(right.x * right.x + right.y * right.y + right.z * right.z, 1.0, 1e-5);
     CHECK_NEAR(right.y, 0.0, 1e-6);
     CHECK_VEC3_NEAR(up, 0, 1, 0, 1e-6);
 
     /* flat on the ground and free don't depend on the camera at all */
-    wgr_sprite3d_facing_basis(WGR_SPRITE3D_FACING_Y_UP, (vec3_t){0, 0, 0}, &pitched, &right, &up);
+    wgri_sprite3d_facing_basis(WGR_SPRITE3D_FACING_Y_UP, (vec3_t){0, 0, 0}, &pitched, &right, &up);
     CHECK_VEC3_NEAR(right, 1, 0, 0, 1e-6);
     CHECK_VEC3_NEAR(up, 0, 0, -1, 1e-6);
-    wgr_sprite3d_facing_basis(WGR_SPRITE3D_FACING_FREE, (vec3_t){0, 1.5707963f, 0}, &pitched, &right, &up);
+    wgri_sprite3d_facing_basis(WGR_SPRITE3D_FACING_FREE, (vec3_t){0, 1.5707963f, 0}, &pitched, &right, &up);
     CHECK_VEC3_NEAR(right, 0, 0, -1, 1e-5); /* a quarter turn about Y */
     CHECK_VEC3_NEAR(up, 0, 1, 0, 1e-5);
 }
@@ -436,13 +436,13 @@ void test_sprite_pools_grow(void)
     static wgr_handle_t sprites3d[COUNT], sprites2d[COUNT];
     bool created = true, positions = true, set2d = true;
 
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_texture_init();
-    wgr_sprite3d_init();
-    wgr_sprite2d_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_texture_init();
+    wgri_sprite3d_init();
+    wgri_sprite2d_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
 
     const wgr_handle_t scene = wgr_scene_create();
@@ -476,12 +476,12 @@ void test_sprite_pools_grow(void)
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgr_scene_destroy(scene);
-    wgr_sprite2d_deinit();
-    wgr_sprite3d_deinit();
-    wgr_texture_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_sprite2d_deinit();
+    wgri_sprite3d_deinit();
+    wgri_texture_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }
 
@@ -498,12 +498,12 @@ void test_sprites_interleaved(void)
 {
     enum { SWITCHES = 3000 };
 
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_texture_init();
-    wgr_sprite3d_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_texture_init();
+    wgri_sprite3d_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
 
     const wgr_handle_t sprite = wgr_sprite3d_create(wgr_texture_get_default());
@@ -515,7 +515,7 @@ void test_sprites_interleaved(void)
         wgr_shape3d_draw_line(0, 0, 0, 1, 1, 1, WGR_COLOR_WHITE);
     }
     wgr_render_end_mode_3d();
-    CHECK(wgr_render_command_count() >= 2 * SWITCHES); /* a sprite batch and a layer per switch */
+    CHECK(wgri_render_command_count() >= 2 * SWITCHES); /* a sprite batch and a layer per switch */
     const double recorded = now_seconds();
     wgr_render_end();
     fprintf(stderr, "    (%d switches: recorded in %.2f ms, replayed in %.2f ms)\n", SWITCHES,
@@ -523,11 +523,11 @@ void test_sprites_interleaved(void)
 
     wgr_sprite3d_destroy(sprite);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_sprite3d_deinit();
-    wgr_texture_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_sprite3d_deinit();
+    wgri_texture_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }
 
@@ -539,17 +539,17 @@ void test_sprite3d_alpha_modes(void)
     static wgr_handle_t sprites[COUNT];
     wgr_handle_t textures[TEXTURES];
 
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_texture_init();
-    wgr_sprite3d_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_texture_init();
+    wgri_sprite3d_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
 
     for (int t = 0; t < TEXTURES; t++) {
         const unsigned char pixel[4] = {(unsigned char)(60 * t), 200, 100, 255};
-        textures[t] = wgr_texture_create_rgba(pixel, 1, 1);
+        textures[t] = wgri_texture_create_rgba(pixel, 1, 1);
     }
     const wgr_handle_t scene = wgr_scene_create();
     const wgr_handle_t camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
@@ -568,7 +568,7 @@ void test_sprite3d_alpha_modes(void)
     /* blended: sorted back to front, the textures interleave */
     wgr_render_begin();
     wgr_scene_draw(scene);
-    CHECK(wgr_sprite_batch_count() > 100);
+    CHECK(wgri_sprite_batch_count() > 100);
     wgr_render_end();
 
     /* masked: one batch per texture */
@@ -576,25 +576,25 @@ void test_sprite3d_alpha_modes(void)
     CHECK(wgr_sprite3d_get_alpha_mode(sprites[7]) == WGR_ALPHA_MASK);
     wgr_render_begin();
     wgr_scene_draw(scene);
-    CHECK(wgr_sprite_batch_count() == TEXTURES);
+    CHECK(wgri_sprite_batch_count() == TEXTURES);
     wgr_render_end();
 
     /* additive: one batch per texture too; opaque the same */
     for (int i = 0; i < COUNT; i++) wgr_sprite3d_set_alpha_mode(sprites[i], i < COUNT / 2 ? WGR_ALPHA_ADD : WGR_ALPHA_OPAQUE, 0);
     wgr_render_begin();
     wgr_scene_draw(scene);
-    CHECK(wgr_sprite_batch_count() == 2 * TEXTURES);
+    CHECK(wgri_sprite_batch_count() == 2 * TEXTURES);
     wgr_render_end();
 
     for (int i = 0; i < COUNT; i++) wgr_sprite3d_destroy(sprites[i]);
     for (int t = 0; t < TEXTURES; t++) wgr_texture_release(textures[t]);
     wgr_scene_destroy(scene);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_sprite3d_deinit();
-    wgr_texture_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_sprite3d_deinit();
+    wgri_texture_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }
 
@@ -607,18 +607,18 @@ void test_sprite2d_batches(void)
     static wgr_handle_t sprites[COUNT];
     wgr_handle_t textures[2];
 
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_texture_init();
-    wgr_sprite2d_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_texture_init();
+    wgri_sprite2d_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
 
     for (int t = 0; t < 2; t++) {
         const unsigned char pixels[16] = {255, 255, 255, 255, 255, 255, 255, 255,
                                           255, 255, 255, 255, 255, 255, 255, (unsigned char)(100 * t)};
-        textures[t] = wgr_texture_create_rgba(pixels, 2, 2);
+        textures[t] = wgri_texture_create_rgba(pixels, 2, 2);
     }
     const wgr_handle_t scene = wgr_scene_create();
     for (int i = 0; i < COUNT; i++) {
@@ -631,14 +631,14 @@ void test_sprite2d_batches(void)
 
     wgr_render_begin();
     wgr_scene_draw(scene);
-    CHECK(wgr_sprite_batch_count() == 1);
+    CHECK(wgri_sprite_batch_count() == 1);
     wgr_render_end();
 
     /* alternating textures: in order, a batch each */
     for (int i = 0; i < COUNT; i++) wgr_sprite2d_set_texture(sprites[i], textures[i % 2]);
     wgr_render_begin();
     wgr_scene_draw(scene);
-    CHECK(wgr_sprite_batch_count() == COUNT);
+    CHECK(wgri_sprite_batch_count() == COUNT);
     wgr_render_end();
 
     /* alpha modes */
@@ -652,17 +652,17 @@ void test_sprite2d_batches(void)
     }
     wgr_render_begin();
     wgr_scene_draw(scene);
-    CHECK(wgr_sprite_batch_count() == 2); /* the masked run, then the blended run */
+    CHECK(wgri_sprite_batch_count() == 2); /* the masked run, then the blended run */
     wgr_render_end();
 
     for (int i = 0; i < COUNT; i++) wgr_sprite2d_destroy(sprites[i]);
     for (int t = 0; t < 2; t++) wgr_texture_release(textures[t]);
     wgr_scene_destroy(scene);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_sprite2d_deinit();
-    wgr_texture_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_sprite2d_deinit();
+    wgri_texture_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }

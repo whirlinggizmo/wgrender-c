@@ -42,7 +42,7 @@ static bool fail(const char **error, const char *why)
     return false;
 }
 
-bool wgr_ktx_parse(const unsigned char *bytes, size_t size, wgr_ktx_t *out, const char **error)
+bool wgri_ktx_parse(const unsigned char *bytes, size_t size, wgri_ktx_t *out, const char **error)
 {
     uint32_t key_value_bytes, mips;
     size_t at;

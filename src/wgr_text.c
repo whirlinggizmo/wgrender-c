@@ -25,16 +25,16 @@
 static wgr_handle_t wgr_text_builtin_font; /* referenced; 0 if it couldn't be created */
 static wgr_handle_t wgr_text_default_font; /* referenced; 0 = the built-in font */
 
-void wgr_text_init(void)
+void wgri_text_init(void)
 {
     wgr_text_default_font = 0;
-    wgr_text_builtin_font = wgr_font_create_builtin();
+    wgr_text_builtin_font = wgri_font_create_builtin();
     if (wgr_text_builtin_font == 0) {
         log_error("text: the built-in font couldn't be created");
     }
 }
 
-void wgr_text_deinit(void)
+void wgri_text_deinit(void)
 {
     wgr_font_release(wgr_text_default_font);
     wgr_font_release(wgr_text_builtin_font);
@@ -42,12 +42,12 @@ void wgr_text_deinit(void)
     wgr_text_builtin_font = 0;
 }
 
-wgr_handle_t wgr_text_resolve_font(wgr_handle_t font)
+wgr_handle_t wgri_text_resolve_font(wgr_handle_t font)
 {
     if (font == 0) {
         font = wgr_text_default_font != 0 ? wgr_text_default_font : wgr_text_builtin_font;
     }
-    return wgr_font_fons_id(font) != FONS_INVALID ? font : wgr_text_builtin_font;
+    return wgri_font_fons_id(font) != FONS_INVALID ? font : wgr_text_builtin_font;
 }
 
 /* Framebuffer pixels per logical pixel where text is drawn now: the screen's DPI
@@ -56,7 +56,7 @@ wgr_handle_t wgr_text_resolve_font(wgr_handle_t font)
  * on high-DPI screens). Measurement divides it back out: sizes stay logical. */
 static float pixel_scale(void)
 {
-    const float scale = wgr_render_pixel_scale();
+    const float scale = wgri_render_pixel_scale();
     return scale > 0.0f ? scale : 1.0f;
 }
 
@@ -64,8 +64,8 @@ static float pixel_scale(void)
  * there's no font at all (text not initialized). */
 static bool use_font(wgr_handle_t font, float size, float scale)
 {
-    FONScontext *fons = wgr_font_context();
-    const int id = wgr_font_fons_id(wgr_text_resolve_font(font));
+    FONScontext *fons = wgri_font_context();
+    const int id = wgri_font_fons_id(wgri_text_resolve_font(font));
     if (fons == NULL || id == FONS_INVALID) {
         return false;
     }
@@ -187,10 +187,10 @@ static void collect_line(const char *start, const char *end, int index, void *us
     }
 }
 
-int wgr_text_split_lines(const char *text, int length, float max_width, const char **starts, const char **ends,
+int wgri_text_split_lines(const char *text, int length, float max_width, const char **starts, const char **ends,
                         int max_lines)
 {
-    FONScontext *fons = wgr_font_context();
+    FONScontext *fons = wgri_font_context();
     split_t ctx = {.starts = starts, .ends = ends, .max_lines = max_lines, .count = 0};
     float width = 0.0f;
 
@@ -201,9 +201,9 @@ int wgr_text_split_lines(const char *text, int length, float max_width, const ch
     return ctx.count;
 }
 
-vec2_t wgr_text_block_size(wgr_handle_t font, const char *text, int length, float size, float max_width)
+vec2_t wgri_text_block_size(wgr_handle_t font, const char *text, int length, float size, float max_width)
 {
-    FONScontext *fons = wgr_font_context();
+    FONScontext *fons = wgri_font_context();
     const float scale = pixel_scale();
     float ascender = 0.0f, descender = 0.0f, line_height = 0.0f, width = 0.0f;
     int lines;
@@ -238,11 +238,11 @@ static void draw_line(const char *start, const char *end, int index, void *user)
     fonsDrawText(ctx->fons, x, ctx->top + (float)index * ctx->line_height, start, end);
 }
 
-void wgr_text_block_draw(wgr_handle_t font, const char *text, int length, float left, float top, float size,
+void wgri_text_block_draw(wgr_handle_t font, const char *text, int length, float left, float top, float size,
                         wgr_color_t color, float max_width, float box_width, wgr_text_align_t align_x)
 {
-    FONScontext *fons = wgr_font_context();
-    const wgr_colorf_t c = wgr_color_unpack(color);
+    FONScontext *fons = wgri_font_context();
+    const wgri_colorf_t c = wgri_color_unpack(color);
     const float scale = pixel_scale();
     block_draw_t ctx;
     float ascender = 0.0f, descender = 0.0f, line_height = 0.0f, width = 0.0f;
@@ -265,26 +265,26 @@ void wgr_text_block_draw(wgr_handle_t font, const char *text, int length, float 
     sgl_pop_matrix();
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_text_set_default_font(wgr_handle_t font)
 {
-    if (font != 0 && wgr_font_fons_id(font) == FONS_INVALID) {
+    if (font != 0 && wgri_font_fons_id(font) == FONS_INVALID) {
         log_warn("wgr_text_set_default_font: %u isn't a loaded font", (unsigned int)font);
         return false;
     }
-    wgr_font_retain(font); /* the default font holds a reference; no-op for 0 */
+    wgri_font_retain(font); /* the default font holds a reference; no-op for 0 */
     wgr_font_release(wgr_text_default_font);
     wgr_text_default_font = font;
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_text_get_default_font(void)
 {
     return wgr_text_default_font;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_text_draw(const char *text, int x, int y, int font_size, wgr_color_t color)
 {
     wgr_text_draw_n(0, text, -1, (float)x, (float)y, (float)font_size, color);
@@ -292,11 +292,11 @@ void wgr_text_draw(const char *text, int x, int y, int font_size, wgr_color_t co
 
 static void format_fps(char *buf, size_t size)
 {
-    const double dt = wgr_get_fps_delta(); /* frames that ran, not display refreshes */
+    const double dt = wgri_get_fps_delta(); /* frames that ran, not display refreshes */
     snprintf(buf, size, "%d FPS", dt > 0.0 ? (int)(1.0 / dt + 0.5) : 0);
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_text_draw_fps(int x, int y)
 {
     char buf[32];
@@ -304,7 +304,7 @@ void wgr_text_draw_fps(int x, int y)
     wgr_text_draw_n(0, buf, -1, (float)x, (float)y, WGR_TEXT_DEFAULT_SIZE, 0x00FF00FFu);
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_text_draw_fps_ex(wgr_handle_t font, float x, float y, float size, wgr_color_t color)
 {
     char buf[32];
@@ -312,31 +312,31 @@ void wgr_text_draw_fps_ex(wgr_handle_t font, float x, float y, float size, wgr_c
     wgr_text_draw_n(font, buf, -1, x, y, size, color);
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_text_measure(const char *text, int font_size)
 {
     return (int)(wgr_text_measure_ex(0, text, (float)font_size).x + 0.5f);
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_text_draw_n(wgr_handle_t font, const char *text, int length, float x, float y, float size, wgr_color_t color)
 {
-    wgr_text_block_draw(font, text, length, x, y, size, color, 0.0f, 0.0f, WGR_TEXT_ALIGN_LEFT);
+    wgri_text_block_draw(font, text, length, x, y, size, color, 0.0f, 0.0f, WGR_TEXT_ALIGN_LEFT);
 }
 
-WGR_KEEP
+WGRI_KEEP
 vec2_t wgr_text_measure_n(wgr_handle_t font, const char *text, int length, float size)
 {
-    return wgr_text_block_size(font, text, length, size, 0.0f);
+    return wgri_text_block_size(font, text, length, size, 0.0f);
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_text_draw_ex(wgr_handle_t font, const char *text, float x, float y, float size, wgr_color_t color)
 {
     wgr_text_draw_n(font, text, -1, x, y, size, color);
 }
 
-WGR_KEEP
+WGRI_KEEP
 vec2_t wgr_text_measure_ex(wgr_handle_t font, const char *text, float size)
 {
     return wgr_text_measure_n(font, text, -1, size);

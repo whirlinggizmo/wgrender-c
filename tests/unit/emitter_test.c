@@ -1,6 +1,6 @@
 /* Particle emitters (wgr_emitter.c): spawning by rate and burst, lives, the ring's
  * limit, seeds, the velocity cone, the clock's rebase, and drawing in a scene. The
- * frame update is driven directly (wgr_emitter_update), as the runtime would. */
+ * frame update is driven directly (wgri_emitter_update), as the runtime would. */
 #include <math.h>
 
 #include "internal/wgr_camera3d_internal.h"
@@ -26,23 +26,23 @@
 
 static void start(void)
 {
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_texture_init();
-    wgr_emitter_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_texture_init();
+    wgri_emitter_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
 }
 
 static void stop(void)
 {
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_emitter_deinit();
-    wgr_texture_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_emitter_deinit();
+    wgri_texture_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }
 
@@ -57,16 +57,16 @@ void test_emitter_spawning(void)
     /* a steady rate: 100 a second for half a second, each living 1 s */
     CHECK(wgr_emitter3d_set_rate(e, 100));
     CHECK(wgr_emitter3d_set_life(e, 1, 1));
-    for (int i = 0; i < 10; i++) wgr_emitter_update(0.05f);
+    for (int i = 0; i < 10; i++) wgri_emitter_update(0.05f);
     CHECK(wgr_emitter3d_get_count(e) == 50);
-    for (int i = 0; i < 20; i++) wgr_emitter_update(0.05f); /* 1.5 s in: the first 0.5 s have died */
+    for (int i = 0; i < 20; i++) wgri_emitter_update(0.05f); /* 1.5 s in: the first 0.5 s have died */
     CHECK(wgr_emitter3d_get_count(e) >= 99 && wgr_emitter3d_get_count(e) <= 101);
 
     /* stop: the living finish their lives */
     CHECK(wgr_emitter3d_set_emitting(e, false));
-    wgr_emitter_update(0.5f);
+    wgri_emitter_update(0.5f);
     CHECK(wgr_emitter3d_get_count(e) > 0);
-    wgr_emitter_update(0.6f);
+    wgri_emitter_update(0.6f);
     CHECK(wgr_emitter3d_get_count(e) == 0);
 
     /* bursts, capped by max (the newest replace the oldest) */
@@ -110,7 +110,7 @@ void test_emitter_particles(void)
         CHECK(wgr_emitter3d_burst(e, 200));
     }
     for (int i = 0; i < 200; i++) {
-        CHECK(wgr_emitter_particle(a, i, born_a, motion_a, shape) && wgr_emitter_particle(b, i, born_b, motion_b, shape));
+        CHECK(wgri_emitter_particle(a, i, born_a, motion_a, shape) && wgri_emitter_particle(b, i, born_b, motion_b, shape));
         for (int c = 0; c < 4; c++) same = same && born_a[c] == born_b[c] && motion_a[c] == motion_b[c];
         /* within the box, the cone (0.3 rad around +y), the speed and the life */
         const float speed = sqrtf(motion_a[0] * motion_a[0] + motion_a[1] * motion_a[1] + motion_a[2] * motion_a[2]);
@@ -120,14 +120,14 @@ void test_emitter_particles(void)
     }
     CHECK(same);
     CHECK(in_cone);
-    CHECK(!wgr_emitter_particle(a, 200, born_a, motion_a, shape));
+    CHECK(!wgri_emitter_particle(a, 200, born_a, motion_a, shape));
 
     /* 2D: turned up to `spread` either way, in the screen's plane */
     const wgr_handle_t flat = wgr_emitter2d_create(wgr_texture_get_default());
     CHECK(wgr_emitter2d_set_velocity(flat, 100, 0, 0.5f, 0));
     CHECK(wgr_emitter2d_burst(flat, 100));
     for (int i = 0; i < 100; i++) {
-        wgr_emitter_particle(flat, i, born_a, motion_a, shape);
+        wgri_emitter_particle(flat, i, born_a, motion_a, shape);
         in_fan = in_fan && motion_a[2] == 0 && fabsf(atan2f(motion_a[1], motion_a[0])) <= 0.5f + 1e-4f;
     }
     CHECK(in_fan);
@@ -138,10 +138,10 @@ void test_emitter_particles(void)
     CHECK(wgr_emitter3d_set_life(b, 8000, 8000));
     wgr_emitter3d_clear(b);
     CHECK(wgr_emitter3d_burst(b, 3));
-    wgr_emitter_update(3000.0f);
-    wgr_emitter_update(3000.0f); /* past 4096: rebased, 6000 s old of 8000 */
+    wgri_emitter_update(3000.0f);
+    wgri_emitter_update(3000.0f); /* past 4096: rebased, 6000 s old of 8000 */
     CHECK(wgr_emitter3d_get_count(b) == 3);
-    wgr_emitter_update(3000.0f); /* 9000 > 8000 */
+    wgri_emitter_update(3000.0f); /* 9000 > 8000 */
     CHECK(wgr_emitter3d_get_count(b) == 0);
 
     wgr_emitter3d_destroy(a);
@@ -168,9 +168,9 @@ void test_emitter_scene(void)
     CHECK(wgr_scene_add(scene, fire, 0) && wgr_scene_add(scene, smoke, 0) && wgr_scene_add(scene, confetti, 0));
 
     wgr_render_begin();
-    const int before = wgr_render_command_count();
+    const int before = wgri_render_command_count();
     wgr_scene_draw(scene);
-    CHECK(wgr_render_command_count() >= before + 3); /* a draw each (and the layers between) */
+    CHECK(wgri_render_command_count() >= before + 3); /* a draw each (and the layers between) */
     wgr_render_end();
 
     wgr_emitter3d_destroy(fire);
@@ -196,9 +196,9 @@ void test_emitter_motion(void)
     CHECK(wgr_emitter3d_set_life(e, 10, 10));
     CHECK(wgr_emitter3d_set_position(e, 5, 0, 0)); /* the first position: not a move */
     CHECK(wgr_emitter3d_set_rate(e, 100));
-    wgr_emitter_update(0.1f); /* 10 at x = 5 */
+    wgri_emitter_update(0.1f); /* 10 at x = 5 */
     for (int i = 0; i < 10; i++) {
-        wgr_emitter_particle(e, i, born, motion, shape);
+        wgri_emitter_particle(e, i, born, motion, shape);
         jumped = jumped && born[0] == 5 && motion[0] == 0;
     }
     CHECK(jumped);
@@ -206,9 +206,9 @@ void test_emitter_motion(void)
     /* moved 10 in 0.1 s: the next 10 spread from 5 to 15, a tenth of the way each */
     CHECK(wgr_emitter3d_set_inherit_velocity(e, 0.5f));
     CHECK(wgr_emitter3d_set_position(e, 15, 0, 0));
-    wgr_emitter_update(0.1f);
+    wgri_emitter_update(0.1f);
     for (int i = 0; i < 10; i++) {
-        wgr_emitter_particle(e, 10 + i, born, motion, shape);
+        wgri_emitter_particle(e, 10 + i, born, motion, shape);
         along = along && fabsf(born[0] - (5.0f + (float)(i + 1))) < 1e-4f;
         inherited = inherited && fabsf(motion[0] - 50.0f) < 1e-2f; /* half of 100 a second */
     }
@@ -218,23 +218,23 @@ void test_emitter_motion(void)
     /* a jump: no trail, nothing to inherit */
     jumped = true;
     CHECK(wgr_emitter3d_jump(e, 100, 0, 0));
-    wgr_emitter_update(0.1f);
+    wgri_emitter_update(0.1f);
     for (int i = 0; i < 10; i++) {
-        wgr_emitter_particle(e, 20 + i, born, motion, shape);
+        wgri_emitter_particle(e, 20 + i, born, motion, shape);
         jumped = jumped && born[0] == 100 && motion[0] == 0;
     }
     CHECK(jumped);
 
     /* standing still: nothing inherited */
-    wgr_emitter_update(0.1f);
-    wgr_emitter_particle(e, 30, born, motion, shape);
+    wgri_emitter_update(0.1f);
+    wgri_emitter_particle(e, 30, born, motion, shape);
     CHECK(born[0] == 100 && motion[0] == 0);
 
     /* uneven frames: the move was made over the last frame (0.1 s), not the next (0.02 s) */
     CHECK(wgr_emitter3d_set_position(e, 110, 0, 0));
-    wgr_emitter_update(0.02f);
+    wgri_emitter_update(0.02f);
     CHECK(wgr_emitter3d_get_count(e) == 42);
-    wgr_emitter_particle(e, 41, born, motion, shape);
+    wgri_emitter_particle(e, 41, born, motion, shape);
     CHECK(fabsf(motion[0] - 50.0f) < 1e-2f); /* half of 10 / 0.1 s */
 
     CHECK(wgr_emitter3d_set_drag(e, 2) && wgr_emitter3d_set_stretch(e, 0.05f));
@@ -251,19 +251,19 @@ void test_emitter_curves(void)
     int picks[4] = {0};
     start();
     const wgr_handle_t e = wgr_emitter3d_create(wgr_texture_get_default());
-    CHECK(wgr_emitter_size_keys(e, times, values) == 2); /* 1 -> 1 */
+    CHECK(wgri_emitter_size_keys(e, times, values) == 2); /* 1 -> 1 */
     CHECK(wgr_emitter3d_set_size(e, 2, 5, 0));
-    CHECK(wgr_emitter_size_keys(e, times, values) == 2 && times[0] == 0 && values[0] == 2 && times[1] == 1 &&
+    CHECK(wgri_emitter_size_keys(e, times, values) == 2 && times[0] == 0 && values[0] == 2 && times[1] == 1 &&
           values[1] == 5);
 
     /* added out of order: kept in order; the same time twice is a step, in added order */
     CHECK(wgr_emitter3d_clear_size_keys(e));
-    CHECK(wgr_emitter_size_keys(e, times, values) == 0);
+    CHECK(wgri_emitter_size_keys(e, times, values) == 0);
     CHECK(wgr_emitter3d_add_size_key(e, 1, 0));
     CHECK(wgr_emitter3d_add_size_key(e, 0, 1));
     CHECK(wgr_emitter3d_add_size_key(e, 0.5f, 3));
     CHECK(wgr_emitter3d_add_size_key(e, 0.5f, 4));
-    CHECK(wgr_emitter_size_keys(e, times, values) == 4);
+    CHECK(wgri_emitter_size_keys(e, times, values) == 4);
     CHECK(times[0] == 0 && values[0] == 1 && times[1] == 0.5f && values[1] == 3 && times[2] == 0.5f &&
           values[2] == 4 && times[3] == 1 && values[3] == 0);
     for (int i = 0; i < 4; i++) CHECK(wgr_emitter3d_add_size_key(e, 0.9f, 1));
@@ -278,7 +278,7 @@ void test_emitter_curves(void)
     CHECK(wgr_emitter3d_clear_palette(e));
     CHECK(wgr_emitter3d_set_max(e, 4000) && wgr_emitter3d_burst(e, 4000));
     for (int i = 0; i < 4000; i++) {
-        wgr_emitter_particle(e, i, born, motion, shape);
+        wgri_emitter_particle(e, i, born, motion, shape);
         CHECK(shape[3] >= 0 && shape[3] < 1);
         picks[(int)(shape[3] * 4)]++;
     }
@@ -300,7 +300,7 @@ void test_emitter_start(void)
     CHECK(wgr_emitter3d_burst(e, 10));
     CHECK(wgr_emitter3d_prewarm(e, 5));
     CHECK(wgr_emitter3d_get_count(e) >= 99 && wgr_emitter3d_get_count(e) <= 100); /* the burst went */
-    wgr_emitter_update(0.5f); /* the steady state goes on */
+    wgri_emitter_update(0.5f); /* the steady state goes on */
     CHECK(wgr_emitter3d_get_count(e) >= 99 && wgr_emitter3d_get_count(e) <= 101);
     /* only as many as fit; less time, fewer */
     CHECK(wgr_emitter3d_set_max(e, 50) && wgr_emitter3d_prewarm(e, 5));
@@ -313,7 +313,7 @@ void test_emitter_start(void)
     CHECK(wgr_emitter3d_set_position(e, 1, 2, 3) && wgr_emitter3d_set_spawn_sphere(e, 2));
     CHECK(wgr_emitter3d_burst(e, 500));
     for (int i = 0; i < 500; i++) {
-        wgr_emitter_particle(e, wgr_emitter3d_get_count(e) - 500 + i, born, motion, shape);
+        wgri_emitter_particle(e, wgr_emitter3d_get_count(e) - 500 + i, born, motion, shape);
         const float r = sqrtf((born[0] - 1) * (born[0] - 1) + (born[1] - 2) * (born[1] - 2) + (born[2] - 3) * (born[2] - 3));
         inside = inside && r <= 2 + 1e-4f;
         filled = filled || r > 1.8f;
@@ -326,7 +326,7 @@ void test_emitter_start(void)
     CHECK(wgr_emitter2d_set_spawn_circle(flat, 10) && wgr_emitter2d_burst(flat, 100));
     inside = true;
     for (int i = 0; i < 100; i++) {
-        wgr_emitter_particle(flat, i, born, motion, shape);
+        wgri_emitter_particle(flat, i, born, motion, shape);
         inside = inside && born[2] == 0 && born[0] * born[0] + born[1] * born[1] <= 100 + 1e-3f;
     }
     CHECK(inside);

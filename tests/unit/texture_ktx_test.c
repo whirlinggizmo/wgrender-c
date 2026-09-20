@@ -46,14 +46,14 @@ void test_ktx_parse(void)
         {FLAME ".etc2.ktx", SG_PIXELFORMAT_ETC2_RGBA8},
     };
     const char *error = NULL;
-    wgr_ktx_t ktx;
+    wgri_ktx_t ktx;
     size_t size;
 
     for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++) {
         unsigned char *bytes = read_all(files[i].path, &size);
         CHECK(bytes != NULL);
         if (bytes == NULL) return;
-        CHECK(wgr_ktx_parse(bytes, size, &ktx, &error));
+        CHECK(wgri_ktx_parse(bytes, size, &ktx, &error));
         CHECK(ktx.format == files[i].format);
         CHECK(ktx.width == 256 && ktx.height == 256 && ktx.mip_count == 9); /* 256 .. 1 */
         CHECK(ktx.sizes[0] == 64 * 64 * 16 && ktx.sizes[8] == 16);     /* 4x4 blocks, 16 bytes */
@@ -68,16 +68,16 @@ void test_ktx_parse(void)
     if (bytes == NULL || copy == NULL) return;
     memcpy(copy, bytes, size);
     copy[1] = 'X'; /* identifier */
-    CHECK(!wgr_ktx_parse(copy, size, &ktx, &error) && strstr(error, "KTX") != NULL);
+    CHECK(!wgri_ktx_parse(copy, size, &ktx, &error) && strstr(error, "KTX") != NULL);
     memcpy(copy, bytes, size);
     copy[12 + 4 * 4] = 0x01; /* glInternalFormat: something else */
-    CHECK(!wgr_ktx_parse(copy, size, &ktx, &error));
-    CHECK(!wgr_ktx_parse(bytes, size - 100, &ktx, &error) && strstr(error, "truncated") != NULL);
+    CHECK(!wgri_ktx_parse(copy, size, &ktx, &error));
+    CHECK(!wgri_ktx_parse(bytes, size - 100, &ktx, &error) && strstr(error, "truncated") != NULL);
     memcpy(copy, bytes, size);
     copy[12 + 6 * 4] = 0x80; /* pixelWidth 128: level 0's size no longer fits it */
-    CHECK(!wgr_ktx_parse(copy, size, &ktx, &error));
-    CHECK(!wgr_ktx_parse(bytes, 20, &ktx, &error));
-    CHECK(!wgr_ktx_parse(NULL, 0, &ktx, &error));
+    CHECK(!wgri_ktx_parse(copy, size, &ktx, &error));
+    CHECK(!wgri_ktx_parse(bytes, 20, &ktx, &error));
+    CHECK(!wgri_ktx_parse(NULL, 0, &ktx, &error));
     free(copy);
     free(bytes);
 }
@@ -86,22 +86,22 @@ void test_ktx_variants(void)
 {
     char out[128];
 
-    wgr_texture_set_ktx_support(0x7); /* all three: BC7 first */
-    CHECK(wgr_texture_ktx_path("textures/rock.ktx", out, sizeof(out)) && strcmp(out, "textures/rock.bc7.ktx") == 0);
-    wgr_texture_set_ktx_support(0x6); /* a phone: ASTC and ETC2 */
-    CHECK(wgr_texture_ktx_path("textures/rock.ktx", out, sizeof(out)) && strcmp(out, "textures/rock.astc.ktx") == 0);
-    wgr_texture_set_ktx_support(0x4);
-    CHECK(wgr_texture_ktx_path("textures/rock.ktx", out, sizeof(out)) && strcmp(out, "textures/rock.etc2.ktx") == 0);
-    wgr_texture_set_ktx_support(0);   /* none: the PNG */
-    CHECK(wgr_texture_ktx_path("textures/rock.ktx", out, sizeof(out)) && strcmp(out, "textures/rock.png") == 0);
+    wgri_texture_set_ktx_support(0x7); /* all three: BC7 first */
+    CHECK(wgri_texture_ktx_path("textures/rock.ktx", out, sizeof(out)) && strcmp(out, "textures/rock.bc7.ktx") == 0);
+    wgri_texture_set_ktx_support(0x6); /* a phone: ASTC and ETC2 */
+    CHECK(wgri_texture_ktx_path("textures/rock.ktx", out, sizeof(out)) && strcmp(out, "textures/rock.astc.ktx") == 0);
+    wgri_texture_set_ktx_support(0x4);
+    CHECK(wgri_texture_ktx_path("textures/rock.ktx", out, sizeof(out)) && strcmp(out, "textures/rock.etc2.ktx") == 0);
+    wgri_texture_set_ktx_support(0);   /* none: the PNG */
+    CHECK(wgri_texture_ktx_path("textures/rock.ktx", out, sizeof(out)) && strcmp(out, "textures/rock.png") == 0);
 
     /* a variant named outright is kept; other paths aren't ours */
-    wgr_texture_set_ktx_support(0x7);
-    CHECK(wgr_texture_ktx_path("a/rock.astc.ktx", out, sizeof(out)) && strcmp(out, "a/rock.astc.ktx") == 0);
-    CHECK(!wgr_texture_ktx_path("textures/rock.png", out, sizeof(out)));
-    CHECK(!wgr_texture_ktx_path(NULL, out, sizeof(out)));
-    CHECK(!wgr_texture_ktx_path("textures/a-very-long-name.ktx", out, 8)); /* doesn't fit */
-    wgr_texture_set_ktx_support(-1);
+    wgri_texture_set_ktx_support(0x7);
+    CHECK(wgri_texture_ktx_path("a/rock.astc.ktx", out, sizeof(out)) && strcmp(out, "a/rock.astc.ktx") == 0);
+    CHECK(!wgri_texture_ktx_path("textures/rock.png", out, sizeof(out)));
+    CHECK(!wgri_texture_ktx_path(NULL, out, sizeof(out)));
+    CHECK(!wgri_texture_ktx_path("textures/a-very-long-name.ktx", out, 8)); /* doesn't fit */
+    wgri_texture_set_ktx_support(-1);
 }
 
 /* Loading through wgr_texture_create. sokol's dummy backend (these tests) samples no
@@ -109,24 +109,24 @@ void test_ktx_variants(void)
  * compressed format is usable. Real GPUs are checked by examples/textures.c. */
 void test_ktx_load(void)
 {
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_texture_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_texture_init();
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL);
-    wgr_texture_set_ktx_support(1); /* pretend BC7 works: the file loads, the GPU refuses it */
+    wgri_texture_set_ktx_support(1); /* pretend BC7 works: the file loads, the GPU refuses it */
     CHECK(wgr_texture_create(FLAME ".ktx") == 0);
     CHECK(wgr_texture_create("../examples/assets/textures/missing.ktx") == 0);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
 
     /* no compressed format: rock.ktx loads rock.png */
-    wgr_texture_set_ktx_support(0);
+    wgri_texture_set_ktx_support(0);
     const wgr_handle_t png = wgr_texture_create(FLAME ".ktx");
     CHECK(png != 0 && wgr_texture_get_size(png).x == 256.0f && wgr_texture_get_size(png).y == 256.0f);
     CHECK(png == wgr_texture_create(FLAME ".png")); /* the same texture */
     wgr_texture_release(png);
     wgr_texture_release(png);
 
-    wgr_texture_set_ktx_support(-1);
-    wgr_texture_deinit();
+    wgri_texture_set_ktx_support(-1);
+    wgri_texture_deinit();
     sg_shutdown();
 }

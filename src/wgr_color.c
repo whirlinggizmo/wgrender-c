@@ -13,7 +13,7 @@ static unsigned int clamp_component(int v)
     return (unsigned int)(v < 0 ? 0 : v > 255 ? 255 : v);
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_color_t wgr_color_rgba(int r, int g, int b, int a)
 {
     return (wgr_color_t)((clamp_component(r) << 24) | (clamp_component(g) << 16) | (clamp_component(b) << 8) |
@@ -27,44 +27,44 @@ static unsigned int clamp_component_f(float v)
     return (unsigned int)(scaled < 0.0f ? 0.0f : scaled > 255.0f ? 255.0f : scaled);
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_color_t wgr_color_rgbaf(float r, float g, float b, float a)
 {
     return (wgr_color_t)((clamp_component_f(r) << 24) | (clamp_component_f(g) << 16) |
                         (clamp_component_f(b) << 8) | clamp_component_f(a));
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_color_get_red(wgr_color_t color)
 {
     return (int)((color >> 24) & 0xFFu);
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_color_get_green(wgr_color_t color)
 {
     return (int)((color >> 16) & 0xFFu);
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_color_get_blue(wgr_color_t color)
 {
     return (int)((color >> 8) & 0xFFu);
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_color_get_alpha(wgr_color_t color)
 {
     return (int)(color & 0xFFu);
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_color_t wgr_color_with_alpha(wgr_color_t color, int a)
 {
     return (wgr_color_t)((color & 0xFFFFFF00u) | clamp_component(a));
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_color_t wgr_color_lerp(wgr_color_t from, wgr_color_t to, float t)
 {
     const float k = t < 0.0f ? 0.0f : t > 1.0f ? 1.0f : t;
@@ -77,9 +77,9 @@ wgr_color_t wgr_color_lerp(wgr_color_t from, wgr_color_t to, float t)
     return out;
 }
 
-wgr_colorf_t wgr_color_unpack(wgr_color_t color)
+wgri_colorf_t wgri_color_unpack(wgr_color_t color)
 {
-    return (wgr_colorf_t){
+    return (wgri_colorf_t){
         .r = (float)((color >> 24) & 0xFFu) / 255.0f,
         .g = (float)((color >> 16) & 0xFFu) / 255.0f,
         .b = (float)((color >> 8) & 0xFFu) / 255.0f,

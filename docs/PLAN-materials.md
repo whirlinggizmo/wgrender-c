@@ -217,7 +217,7 @@ wgr_handle_t wgr_material_create_custom(wgr_handle_t shader);
   worker; parsed and made on the main thread), so it downloads on the web.
   Finishing picks the running backend's sources (the dummy backend takes the GL
   description) and builds `sg_shader_desc` from the file. Materials and models reach
-  it through hooks (`wgr_shader_hooks`), so programs that never load a shader don't
+  it through hooks (`wgri_shader_hooks`), so programs that never load a shader don't
   link it.
 - **Materials:** `wgr_material_create_custom(shader)`; shading reads
   `WGR_MATERIAL_CUSTOM`, which create and set_shading refuse. The existing setters
@@ -265,8 +265,8 @@ wgr_handle_t wgr_material_create_custom(wgr_handle_t shader);
   (read from a texture); the shader module gives fallback textures (white, a black
   cube) for libwgrender's slots with nothing to show.
 - **On the way:** the material texture samplers moved from the model module into the
-  texture module (`wgr_texture_sampler`), shared by models and sprites; `wgr_frame`'s C
-  layout is shared (`wgr_shader_frame_t`); GLSL names in a `.wgrshader` can be longer
+  texture module (`wgri_texture_sampler`), shared by models and sprites; `wgr_frame`'s C
+  layout is shared (`wgri_shader_frame_t`); GLSL names in a `.wgrshader` can be longer
   than parameter names (a texture-sampler pair joins two).
 - Checked: desktop GL, WebGL2 (sprites read from a texture), WebGPU; unit tests on
   both sprite paths (`-DWGR_SPRITES_PULLED`); `examples/shaders.c` outlines and flashes a
@@ -292,13 +292,13 @@ wgr_handle_t wgr_material_create_custom(wgr_handle_t shader);
   reaches the shader as a cutoff/opaque/as-is flag, now combined with the material's
   own `alphaCutoff` (`max` of the two) in the shared fragment stage.
 - **Lights are chosen once per batch, not per sprite.** A batch tracks the bounds of
-  the sprites in it and calls `wgr_light_select` on them, as a model draw does for its
+  the sprites in it and calls `wgri_light_select` on them, as a model draw does for its
   own bounds. The lighting environment joins texture, material, alpha mode, camera
   and clip in what a batch shares, so sprites drawn under different scene lighting
   don't merge. Cost, measured in Chromium (sprites in a grid, CPU per frame): 4,000
   lit 1.79 ms vs 1.77 unlit; 16,000 lit 2.52 vs 1.89 — the shading is on the GPU and
   the extra CPU is the per-batch uniform blocks.
-- **The sprite module doesn't link the environment module.** `wgr_environment_hooks`
+- **The sprite module doesn't link the environment module.** `wgri_environment_hooks`
   (one `get_binding`, defined in `wgr_render.c`, set by the environment module when
   it's linked) hands out the prefiltered cube, BRDF table and SH coefficients;
   without it the sprite batch binds a black cube and zero intensity, so a program

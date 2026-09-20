@@ -110,7 +110,7 @@ typedef struct {
     wgr_node_t *nodes;
     int node_count;
     int *joint_nodes;
-    wgr_mat4_t *inverse_bind;
+    wgri_mat4_t *inverse_bind;
     int joint_count;
     bool has_skin;
 
@@ -145,7 +145,7 @@ typedef struct {
     bool visible;
     bool pickable;
     bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
-    wgr_mat4_t world;      /* position/rotation/scale as a matrix, rebuilt when they change */
+    wgri_mat4_t world;      /* position/rotation/scale as a matrix, rebuilt when they change */
     bool world_dirty;
     bool casts_shadow;    /* drawn into a casting light's depth map */
     bool receives_shadow; /* shadows darken it */
@@ -156,7 +156,7 @@ typedef struct {
     float anim_time;
     float anim_speed;
     bool anim_loop;
-    wgr_mat4_t joint_matrices[WGR_MAX_JOINTS];
+    wgri_mat4_t joint_matrices[WGR_MAX_JOINTS];
     unsigned pose_version; /* bumped when joint_matrices change; 0 = bind pose */
 
     /* posed pick geometry, built on demand when a pick needs it */
@@ -170,17 +170,17 @@ typedef struct {
 /* One model placement queued this frame (matrices and tint captured at submit). */
 typedef struct {
     wgr_handle_t model;
-    int pass;             /* render pass it was queued in (wgr_render_current_pass) */
-    wgr_mat4_t view_proj;  /* the camera; the placement itself is in the instance record */
-    wgr_mat4_t mvp;
-    wgr_mat4_t model_mat;
-    wgr_mat4_t model_view; /* for view-space depth when sorting transparent parts */
-    wgr_mat4_t normal_mat; /* inverse transpose of model_mat */
+    int pass;             /* render pass it was queued in (wgri_render_current_pass) */
+    wgri_mat4_t view_proj;  /* the camera; the placement itself is in the instance record */
+    wgri_mat4_t mvp;
+    wgri_mat4_t model_mat;
+    wgri_mat4_t model_view; /* for view-space depth when sorting transparent parts */
+    wgri_mat4_t normal_mat; /* inverse transpose of model_mat */
     vec3_t camera_pos;
-    wgr_colorf_t tint;
+    wgri_colorf_t tint;
     int light_env;        /* lighting environment index, -1 = unlit */
     int light_count;      /* lights selected for this placement */
-    int lights[WGR_MAX_DRAW_LIGHTS]; /* indices into the environment's lights */
+    int lights[WGRI_MAX_DRAW_LIGHTS]; /* indices into the environment's lights */
     int joint_base;       /* its joint matrices in the frame's joint texture, -1 = not skinned */
     vec3_t wmin, wmax;    /* world bounds: picks this placement's lights, and culls it
                              out of a shadow map it can't reach (padded, see below) */
@@ -205,10 +205,10 @@ typedef struct {
  * shaders/wgr_model.glsl.h (included above) and mirror the shader uniform blocks. */
 
 static wgr_mesh_t *wgr_meshes; /* grown by the pool: don't hold a pointer across a create */
-static wgr_handle_pool_t wgr_mesh_pool;
+static wgri_handle_pool_t wgr_mesh_pool;
 
 static wgr_model_t *wgr_models; /* grown by the pool: don't hold a pointer across a create */
-static wgr_handle_pool_t wgr_model_pool;
+static wgri_handle_pool_t wgr_model_pool;
 
 /* [skinned][blended][double_sided] */
 static sg_pipeline wgr_pips[2][2][2];
@@ -271,10 +271,10 @@ static bool wgr_model_queue_full_logged;
 
 static void draw_immediate(wgr_handle_t handle);
 static void draw_opaque(wgr_handle_t handle);
-static int collect_transparent(wgr_handle_t handle, const wgr_camera3d_t *cam,
-                               wgr_transparent_item_t *out, int max_items);
+static int collect_transparent(wgr_handle_t handle, const wgri_camera3d_t *cam,
+                               wgri_transparent_item_t *out, int max_items);
 static void draw_transparent(wgr_handle_t handle, int part);
-static bool model_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, wgr_mat4_t *model_mat);
+static bool model_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, wgri_mat4_t *model_mat);
 static bool model_pick(wgr_handle_t handle, vec3_t origin, vec3_t dir, wgr_pick_result_t *out);
 static wgr_model_t *resolve(wgr_handle_t handle);
 static wgr_mesh_t *resolve_mesh(wgr_handle_t handle);
@@ -314,9 +314,9 @@ static sg_shader make_skinned_shader(void)
 /* Textures created while loading one glTF file, one per glTF image (0 = not
  * created yet). The loader holds one reference to each; materials add their own. */
 typedef struct {
-    wgr_texture_pixels_t *pixels; /* decoded while preparing; freed once uploaded */
+    wgri_texture_pixels_t *pixels; /* decoded while preparing; freed once uploaded */
     unsigned char *ktx_bytes;    /* or a compressed file, read while preparing (ktx points into it) */
-    wgr_ktx_t ktx;
+    wgri_ktx_t ktx;
     wgr_handle_t texture;         /* 0 = not uploaded (yet) */
     bool failed;                 /* couldn't be read or decoded (warned) */
 } wgr_gltf_image_t;
@@ -356,8 +356,8 @@ static const unsigned char *image_bytes(const wgr_gltf_textures_t *cache, const 
         if (cgltf_load_buffer_base64(&options, (cgltf_size)*size, base64, owned) != cgltf_result_success) return NULL;
         return (const unsigned char *)*owned;
     }
-    if (!wgr_asset_is_relative_uri(img->uri) || cache->path == NULL ||
-        !wgr_asset_join_relative(cache->path, img->uri, path, sizeof(path))) {
+    if (!wgri_asset_is_relative_uri(img->uri) || cache->path == NULL ||
+        !wgri_asset_join_relative(cache->path, img->uri, path, sizeof(path))) {
         return NULL;
     }
     *owned = read_file_bytes(path, size);
@@ -382,11 +382,11 @@ static void decode_image(wgr_gltf_textures_t *cache, const cgltf_image *img)
         cache->images[index].failed = true;
         return;
     }
-    cache->images[index].pixels = wgr_texture_pixels_decode(bytes, size);
+    cache->images[index].pixels = wgri_texture_pixels_decode(bytes, size);
     free(owned);
     if (cache->images[index].pixels == NULL) {
         log_warn("model: %s: image %zu couldn't be decoded (%s); using the placeholder texture", cache->path, index,
-                 wgr_texture_pixels_error());
+                 wgri_texture_pixels_error());
         cache->images[index].failed = true;
     }
 }
@@ -418,8 +418,8 @@ static const cgltf_image *ktx_image(const cgltf_data *g, const cgltf_texture *t)
 static bool ktx_variant(const cgltf_image *img, char *out, size_t out_size)
 {
     size_t n;
-    if (img == NULL || img->uri == NULL || img->buffer_view != NULL || !wgr_asset_is_relative_uri(img->uri) ||
-        !wgr_texture_ktx_path(img->uri, out, out_size)) {
+    if (img == NULL || img->uri == NULL || img->buffer_view != NULL || !wgri_asset_is_relative_uri(img->uri) ||
+        !wgri_texture_ktx_path(img->uri, out, out_size)) {
         return false;
     }
     n = strlen(out);
@@ -436,11 +436,11 @@ static bool read_ktx(wgr_gltf_textures_t *cache, const cgltf_image *img, const c
     int size = 0;
 
     if (slot->ktx_bytes != NULL) return true;
-    if (slot->failed || cache->path == NULL || !wgr_asset_join_relative(cache->path, uri, path, sizeof(path))) {
+    if (slot->failed || cache->path == NULL || !wgri_asset_join_relative(cache->path, uri, path, sizeof(path))) {
         return false;
     }
     slot->ktx_bytes = read_file_bytes(path, &size);
-    if (slot->ktx_bytes == NULL || !wgr_ktx_parse(slot->ktx_bytes, (size_t)size, &slot->ktx, &error)) {
+    if (slot->ktx_bytes == NULL || !wgri_ktx_parse(slot->ktx_bytes, (size_t)size, &slot->ktx, &error)) {
         log_warn("model: %s: %s can't be used (%s); using the texture's own image", cache->path, uri,
                  error != NULL ? error : "missing or unreadable");
         free(slot->ktx_bytes);
@@ -529,7 +529,7 @@ static void set_texture(wgr_gltf_textures_t *cache, wgr_handle_t material, const
         const bool nearest = mag == cgltf_filter_type_nearest || (mag == cgltf_filter_type_undefined && nearest_min);
         wgr_material_set_texture_sampling(material, name, gltf_wrap(sampler->wrap_s), gltf_wrap(sampler->wrap_t),
                                          nearest ? WGR_TEXTURE_FILTER_NEAREST : WGR_TEXTURE_FILTER_LINEAR);
-        wgr_material_set_texture_mipmaps(material, name,
+        wgri_material_set_texture_mipmaps(material, name,
                                         min != cgltf_filter_type_nearest && min != cgltf_filter_type_linear);
     }
 }
@@ -579,7 +579,7 @@ static wgr_handle_t create_gltf_material(wgr_gltf_textures_t *cache, const cgltf
  * the tangent follows increasing u, and w is the bitangent sign, with bitangent =
  * cross(normal, tangent.xyz) * w pointing toward decreasing v (texture up). Vertices without a usable
  * texture mapping get any tangent perpendicular to their normal. */
-void wgr_model_generate_tangents(const float *positions, const float *normals, const float *uvs, int vertex_count,
+void wgri_model_generate_tangents(const float *positions, const float *normals, const float *uvs, int vertex_count,
                                 const uint32_t *indices, int index_count, float *tangents)
 {
     float *bitangents = (float *)calloc((size_t)vertex_count * 3, sizeof(float));
@@ -622,15 +622,15 @@ void wgr_model_generate_tangents(const float *positions, const float *normals, c
         const vec3_t b = bitangents != NULL ? (vec3_t){bitangents[i * 3], bitangents[i * 3 + 1], bitangents[i * 3 + 2]}
                                             : (vec3_t){0, 0, 0};
         float w = 1.0f;
-        t = wgr_v3_sub(t, wgr_v3_scale(n, wgr_v3_dot(n, t)));
-        if (wgr_v3_dot(t, t) < 1e-12f) {
+        t = wgri_v3_sub(t, wgri_v3_scale(n, wgri_v3_dot(n, t)));
+        if (wgri_v3_dot(t, t) < 1e-12f) {
             /* no texture mapping here: any direction perpendicular to the normal */
             t = fabsf(n.x) < 0.9f ? (vec3_t){1, 0, 0} : (vec3_t){0, 1, 0};
-            t = wgr_v3_sub(t, wgr_v3_scale(n, wgr_v3_dot(n, t)));
-        } else if (wgr_v3_dot(wgr_v3_cross(n, t), b) > 0.0f) {
+            t = wgri_v3_sub(t, wgri_v3_scale(n, wgri_v3_dot(n, t)));
+        } else if (wgri_v3_dot(wgri_v3_cross(n, t), b) > 0.0f) {
             w = -1.0f; /* the normal map's up (green) points toward decreasing v: bitangent = -dP/dv */
         }
-        t = wgr_v3_norm(t);
+        t = wgri_v3_norm(t);
         tangents[i * 4] = t.x;
         tangents[i * 4 + 1] = t.y;
         tangents[i * 4 + 2] = t.z;
@@ -644,7 +644,7 @@ void wgr_model_generate_tangents(const float *positions, const float *normals, c
  * baked into positions, normals and tangents: glTF places them with their node's
  * world transform. Skinned primitives ignore it; their joints place them. */
 static bool build_primitive(const cgltf_data *g, const cgltf_primitive *prim, bool skinned,
-                            const wgr_mat4_t *node_world, int default_material, wgr_primitive_t *out)
+                            const wgri_mat4_t *node_world, int default_material, wgr_primitive_t *out)
 {
     const cgltf_accessor *pos = NULL, *nrm = NULL, *uv[2] = {NULL, NULL}, *tan = NULL, *col = NULL, *jnt = NULL,
                          *wgt = NULL;
@@ -697,7 +697,7 @@ static bool build_primitive(const cgltf_data *g, const cgltf_primitive *prim, bo
     }
 
     /* normals transform by the inverse transpose of the node matrix */
-    wgr_mat4_t normal_mat = node_world ? wgr_mat4_inverse(*node_world) : wgr_mat4_identity();
+    wgri_mat4_t normal_mat = node_world ? wgri_mat4_inverse(*node_world) : wgri_mat4_identity();
     bool mirrored = false;
     if (node_world) {
         const float *m = node_world->m;
@@ -712,7 +712,7 @@ static bool build_primitive(const cgltf_data *g, const cgltf_primitive *prim, bo
         float p[3] = {0}, n[3] = {0, 1, 0};
         cgltf_accessor_read_float(pos, i, p, 3);
         if (node_world) {
-            vec3_t wp = wgr_mat4_mul_point(*node_world, (vec3_t){p[0], p[1], p[2]});
+            vec3_t wp = wgri_mat4_mul_point(*node_world, (vec3_t){p[0], p[1], p[2]});
             p[0] = wp.x; p[1] = wp.y; p[2] = wp.z;
         }
         memcpy(&positions[i * 3], p, sizeof(p));
@@ -726,7 +726,7 @@ static bool build_primitive(const cgltf_data *g, const cgltf_primitive *prim, bo
         if (node_world) {
             /* transpose(inverse) applied as rows of the inverse */
             const float *im = normal_mat.m;
-            vec3_t wn = wgr_v3_norm((vec3_t){im[0] * n[0] + im[1] * n[1] + im[2] * n[2],
+            vec3_t wn = wgri_v3_norm((vec3_t){im[0] * n[0] + im[1] * n[1] + im[2] * n[2],
                                             im[4] * n[0] + im[5] * n[1] + im[6] * n[2],
                                             im[8] * n[0] + im[9] * n[1] + im[10] * n[2]});
             n[0] = wn.x; n[1] = wn.y; n[2] = wn.z;
@@ -771,7 +771,7 @@ static bool build_primitive(const cgltf_data *g, const cgltf_primitive *prim, bo
             float t[4] = {1, 0, 0, 1};
             cgltf_accessor_read_float(tan, i, t, 4);
             if (node_world) {
-                vec3_t wt = wgr_v3_norm(wgr_mat4_mul_dir(*node_world, (vec3_t){t[0], t[1], t[2]}));
+                vec3_t wt = wgri_v3_norm(wgri_mat4_mul_dir(*node_world, (vec3_t){t[0], t[1], t[2]}));
                 t[0] = wt.x; t[1] = wt.y; t[2] = wt.z;
                 if (mirrored) t[3] = -t[3];
             }
@@ -780,7 +780,7 @@ static bool build_primitive(const cgltf_data *g, const cgltf_primitive *prim, bo
     } else {
         /* after baking and winding fixes, so the generated frame matches what's drawn.
          * From texture coordinate set 0: normal maps using set 1 need tangents in the file. */
-        wgr_model_generate_tangents(positions, normals, uvs[0], (int)vcount, indices, (int)icount, tangents);
+        wgri_model_generate_tangents(positions, normals, uvs[0], (int)vcount, indices, (int)icount, tangents);
     }
 
     for (i = 0; i < vcount; i++) {
@@ -898,14 +898,14 @@ static void parse_skeleton(wgr_mesh_t *mesh, const cgltf_data *g)
         mesh->joint_count = WGR_MAX_JOINTS;
     }
     mesh->joint_nodes = (int *)calloc((size_t)mesh->joint_count, sizeof(int));
-    mesh->inverse_bind = (wgr_mat4_t *)calloc((size_t)mesh->joint_count, sizeof(wgr_mat4_t));
+    mesh->inverse_bind = (wgri_mat4_t *)calloc((size_t)mesh->joint_count, sizeof(wgri_mat4_t));
     for (int j = 0; j < mesh->joint_count; j++) {
         mesh->joint_nodes[j] = node_index(g, skin->joints[j]);
         if (skin->inverse_bind_matrices) {
             cgltf_accessor_read_float(skin->inverse_bind_matrices, (cgltf_size)j,
                                       mesh->inverse_bind[j].m, 16);
         } else {
-            mesh->inverse_bind[j] = wgr_mat4_identity();
+            mesh->inverse_bind[j] = wgri_mat4_identity();
         }
     }
     mesh->has_skin = true;
@@ -1033,7 +1033,7 @@ static bool parse_model(wgr_mesh_t *mesh, const unsigned char *data, int size, c
         const cgltf_node *node = &g->nodes[n];
         if (node->mesh == NULL) continue;
         bool node_skinned = (node->skin != NULL) && mesh->has_skin;
-        wgr_mat4_t node_world;
+        wgri_mat4_t node_world;
         cgltf_node_transform_world(node, node_world.m);
         for (cgltf_size p = 0; p < node->mesh->primitives_count; p++) {
             if (node->mesh->primitives[p].type != cgltf_primitive_type_triangles) continue;
@@ -1099,24 +1099,24 @@ static void sample_channel(const wgr_anim_channel_t *ch, float time, vec3_t *t, 
     const float *v0 = &ch->values[k0 * comp];
     const float *v1 = &ch->values[k1 * comp];
     if (ch->path == 0) {
-        *t = wgr_v3_lerp((vec3_t){v0[0], v0[1], v0[2]}, (vec3_t){v1[0], v1[1], v1[2]}, f);
+        *t = wgri_v3_lerp((vec3_t){v0[0], v0[1], v0[2]}, (vec3_t){v1[0], v1[1], v1[2]}, f);
     } else if (ch->path == 2) {
-        *s = wgr_v3_lerp((vec3_t){v0[0], v0[1], v0[2]}, (vec3_t){v1[0], v1[1], v1[2]}, f);
+        *s = wgri_v3_lerp((vec3_t){v0[0], v0[1], v0[2]}, (vec3_t){v1[0], v1[1], v1[2]}, f);
     } else {
-        *r = wgr_quat_slerp((quat_t){v0[0], v0[1], v0[2], v0[3]},
+        *r = wgri_quat_slerp((quat_t){v0[0], v0[1], v0[2], v0[3]},
                            (quat_t){v1[0], v1[1], v1[2], v1[3]}, f);
     }
 }
 
 /* recursive global transform with per-call cache */
-static wgr_mat4_t global_of(wgr_mesh_t *mesh, vec3_t *ct, quat_t *cr, vec3_t *cs,
-                           wgr_mat4_t *cache, bool *done, int i)
+static wgri_mat4_t global_of(wgr_mesh_t *mesh, vec3_t *ct, quat_t *cr, vec3_t *cs,
+                           wgri_mat4_t *cache, bool *done, int i)
 {
-    wgr_mat4_t local;
+    wgri_mat4_t local;
     if (done[i]) return cache[i];
-    local = wgr_mat4_compose(ct[i], cr[i], cs[i]);
+    local = wgri_mat4_compose(ct[i], cr[i], cs[i]);
     if (mesh->nodes[i].parent >= 0) {
-        cache[i] = wgr_mat4_mul(global_of(mesh, ct, cr, cs, cache, done, mesh->nodes[i].parent), local);
+        cache[i] = wgri_mat4_mul(global_of(mesh, ct, cr, cs, cache, done, mesh->nodes[i].parent), local);
     } else {
         cache[i] = local;
     }
@@ -1158,7 +1158,7 @@ static void pose(wgr_model_t *model_ptr, wgr_mesh_t *mesh_ptr, const wgr_animati
     vec3_t *ct = (vec3_t *)malloc((size_t)mesh_ptr->node_count * sizeof(vec3_t));
     quat_t *cr = (quat_t *)malloc((size_t)mesh_ptr->node_count * sizeof(quat_t));
     vec3_t *cs = (vec3_t *)malloc((size_t)mesh_ptr->node_count * sizeof(vec3_t));
-    wgr_mat4_t *cache = (wgr_mat4_t *)malloc((size_t)mesh_ptr->node_count * sizeof(wgr_mat4_t));
+    wgri_mat4_t *cache = (wgri_mat4_t *)malloc((size_t)mesh_ptr->node_count * sizeof(wgri_mat4_t));
     bool *done = (bool *)calloc((size_t)mesh_ptr->node_count, sizeof(bool));
 
     if (ct == NULL || cr == NULL || cs == NULL || cache == NULL || done == NULL) {
@@ -1175,14 +1175,14 @@ static void pose(wgr_model_t *model_ptr, wgr_mesh_t *mesh_ptr, const wgr_animati
     }
     for (int j = 0; j < mesh_ptr->joint_count; j++) {
         int jn = mesh_ptr->joint_nodes[j];
-        wgr_mat4_t gjoint = global_of(mesh_ptr, ct, cr, cs, cache, done, jn);
-        model_ptr->joint_matrices[j] = wgr_mat4_mul(gjoint, mesh_ptr->inverse_bind[j]);
+        wgri_mat4_t gjoint = global_of(mesh_ptr, ct, cr, cs, cache, done, jn);
+        model_ptr->joint_matrices[j] = wgri_mat4_mul(gjoint, mesh_ptr->inverse_bind[j]);
     }
     model_ptr->pose_version++;
     free(ct); free(cr); free(cs); free(cache); free(done);
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_model_animate(wgr_handle_t handle, float delta_seconds)
 {
     wgr_model_t *model_ptr = resolve(handle);
@@ -1196,7 +1196,7 @@ bool wgr_model_animate(wgr_handle_t handle, float delta_seconds)
     return true;
 }
 
-int wgr_model_get_joint_matrices(wgr_handle_t handle, const float **matrices)
+int wgri_model_get_joint_matrices(wgr_handle_t handle, const float **matrices)
 {
     wgr_model_t *model_ptr = resolve(handle);
     wgr_mesh_t *mesh_ptr = model_ptr != NULL ? resolve_mesh(model_ptr->mesh) : NULL;
@@ -1206,7 +1206,7 @@ int wgr_model_get_joint_matrices(wgr_handle_t handle, const float **matrices)
     return mesh_ptr->joint_count < WGR_MAX_JOINTS ? mesh_ptr->joint_count : WGR_MAX_JOINTS;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_model_set_animation_time(wgr_handle_t handle, float seconds)
 {
     wgr_model_t *model_ptr = resolve(handle);
@@ -1223,14 +1223,14 @@ bool wgr_model_set_animation_time(wgr_handle_t handle, float seconds)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 float wgr_model_get_animation_time(wgr_handle_t handle)
 {
     wgr_model_t *model_ptr = resolve(handle);
     return model_ptr != NULL ? model_ptr->anim_time : 0.0f;
 }
 
-WGR_KEEP
+WGRI_KEEP
 float wgr_model_get_animation_duration(wgr_handle_t handle, int animation_index)
 {
     wgr_model_t *model_ptr = resolve(handle);
@@ -1239,23 +1239,23 @@ float wgr_model_get_animation_duration(wgr_handle_t handle, int animation_index)
     return mesh_ptr->animations[animation_index].duration;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_model_is_ready(wgr_handle_t handle)
 {
     wgr_model_t *model_ptr = resolve(handle);
     uint16_t index = 0;
-    return model_ptr != NULL && model_ptr->mesh != 0 && wgr_handle_pool_resolve(&wgr_mesh_pool, model_ptr->mesh, &index) &&
+    return model_ptr != NULL && model_ptr->mesh != 0 && wgri_handle_pool_resolve(&wgr_mesh_pool, model_ptr->mesh, &index) &&
            wgr_meshes[index].prim_count > 0;
 }
 
-WGR_KEEP int wgr_model_get_animation_count(wgr_handle_t handle)
+WGRI_KEEP int wgr_model_get_animation_count(wgr_handle_t handle)
 {
     wgr_model_t *model_ptr = resolve(handle);
     wgr_mesh_t *mesh_ptr = model_ptr ? resolve_mesh(model_ptr->mesh) : NULL;
     return mesh_ptr ? mesh_ptr->animation_count : 0;
 }
 
-WGR_KEEP bool wgr_model_set_animation(wgr_handle_t handle, int animation_index)
+WGRI_KEEP bool wgr_model_set_animation(wgr_handle_t handle, int animation_index)
 {
     wgr_model_t *model_ptr = resolve(handle);
     if (model_ptr == NULL) return false;
@@ -1267,7 +1267,7 @@ WGR_KEEP bool wgr_model_set_animation(wgr_handle_t handle, int animation_index)
     return true;
 }
 
-WGR_KEEP bool wgr_model_set_animation_speed(wgr_handle_t handle, float speed)
+WGRI_KEEP bool wgr_model_set_animation_speed(wgr_handle_t handle, float speed)
 {
     wgr_model_t *model_ptr = resolve(handle);
     if (model_ptr == NULL) return false;
@@ -1275,7 +1275,7 @@ WGR_KEEP bool wgr_model_set_animation_speed(wgr_handle_t handle, float speed)
     return true;
 }
 
-WGR_KEEP bool wgr_model_set_animation_loop(wgr_handle_t handle, bool loop)
+WGRI_KEEP bool wgr_model_set_animation_loop(wgr_handle_t handle, bool loop)
 {
     wgr_model_t *model_ptr = resolve(handle);
     if (model_ptr == NULL) return false;
@@ -1288,7 +1288,7 @@ WGR_KEEP bool wgr_model_set_animation_loop(wgr_handle_t handle, bool loop)
 static wgr_mesh_t *resolve_mesh(wgr_handle_t handle)
 {
     uint16_t index = 0;
-    if (!wgr_handle_pool_resolve(&wgr_mesh_pool, handle, &index)) {
+    if (!wgri_handle_pool_resolve(&wgr_mesh_pool, handle, &index)) {
         if (handle != 0) log_warn("Invalid mesh handle (%u)", (unsigned int)handle);
         return NULL;
     }
@@ -1298,7 +1298,7 @@ static wgr_mesh_t *resolve_mesh(wgr_handle_t handle)
 static wgr_model_t *resolve(wgr_handle_t handle)
 {
     uint16_t index = 0;
-    if (!wgr_handle_pool_resolve(&wgr_model_pool, handle, &index)) {
+    if (!wgri_handle_pool_resolve(&wgr_model_pool, handle, &index)) {
         if (handle != 0) log_warn("Invalid model handle (%u)", (unsigned int)handle);
         return NULL;
     }
@@ -1358,7 +1358,7 @@ static void release_mesh(wgr_handle_t mesh_handle)
     if (mesh_ptr->ref_count == 0) {
         free_mesh_data(mesh_ptr);
         memset(mesh_ptr, 0, sizeof(*mesh_ptr));
-        wgr_handle_pool_free(&wgr_mesh_pool, mesh_handle);
+        wgri_handle_pool_free(&wgr_mesh_pool, mesh_handle);
     }
 }
 
@@ -1368,7 +1368,7 @@ static wgr_handle_t find_mesh_by_key(const char *path, bool generated)
     for (uint16_t i = 1; i < wgr_mesh_pool.capacity; i++) {
         if (wgr_mesh_pool.occupied[i] && wgr_meshes[i].has_path && wgr_meshes[i].generated == generated &&
             strcmp(wgr_meshes[i].path, path) == 0) {
-            return wgr_handle_pool_handle_from_index(&wgr_mesh_pool, i);
+            return wgri_handle_pool_handle_from_index(&wgr_mesh_pool, i);
         }
     }
     return 0;
@@ -1444,7 +1444,7 @@ static void discard_mesh(void *data)
     if (prepared == NULL) return;
     if (prepared->textures.images != NULL) {
         for (cgltf_size i = 0; i < prepared->gltf->images_count; i++) {
-            wgr_texture_pixels_free(prepared->textures.images[i].pixels);
+            wgri_texture_pixels_free(prepared->textures.images[i].pixels);
             free(prepared->textures.images[i].ktx_bytes);
             wgr_texture_release(prepared->textures.images[i].texture); /* materials hold what they use */
         }
@@ -1530,7 +1530,7 @@ static bool upload_primitive(wgr_primitive_t *prim)
     return true;
 }
 
-static wgr_loader_step_t finish_mesh(void *data, const char *path, wgr_handle_t *resource)
+static wgri_loader_step_t finish_mesh(void *data, const char *path, wgr_handle_t *resource)
 {
     wgr_mesh_prepared_t *prepared = (wgr_mesh_prepared_t *)data;
     wgr_mesh_t *mesh = &prepared->mesh;
@@ -1540,28 +1540,28 @@ static wgr_loader_step_t finish_mesh(void *data, const char *path, wgr_handle_t 
     if (prepared->step == 0) {
         for (int p = 0; p < mesh->prim_count; p++) {
             if (!upload_primitive(&mesh->prims[p])) {
-                return WGR_LOADER_FAILED;
+                return WGRI_LOADER_FAILED;
             }
         }
         prepared->step = 1;
-        return WGR_LOADER_MORE;
+        return WGRI_LOADER_MORE;
     }
     if (prepared->textures.images != NULL) {
         while (prepared->next_image < prepared->gltf->images_count) {
             wgr_gltf_image_t *image = &prepared->textures.images[prepared->next_image++];
             if (image->ktx_bytes != NULL) {
-                image->texture = wgr_texture_create_ktx(&image->ktx);
+                image->texture = wgri_texture_create_ktx(&image->ktx);
                 image->failed = image->texture == 0;
                 free(image->ktx_bytes);
                 image->ktx_bytes = NULL;
-                return WGR_LOADER_MORE;
+                return WGRI_LOADER_MORE;
             }
             if (image->pixels != NULL) {
-                image->texture = wgr_texture_create_pixels(image->pixels, NULL, true);
+                image->texture = wgri_texture_create_pixels(image->pixels, NULL, true);
                 image->failed = image->texture == 0;
-                wgr_texture_pixels_free(image->pixels);
+                wgri_texture_pixels_free(image->pixels);
                 image->pixels = NULL;
-                return WGR_LOADER_MORE;
+                return WGRI_LOADER_MORE;
             }
         }
     }
@@ -1569,21 +1569,21 @@ static wgr_loader_step_t finish_mesh(void *data, const char *path, wgr_handle_t 
     prepared->textures.path = path;
     load_materials(mesh, prepared->gltf, &prepared->textures);
     prepared->textures.path = NULL;
-    const wgr_handle_t handle = wgr_handle_pool_alloc(&wgr_mesh_pool);
+    const wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_mesh_pool);
     if (handle == 0) {
         log_error("mesh: pool full (%u)", (unsigned)wgr_mesh_pool.max - 1u);
-        return WGR_LOADER_FAILED;
+        return WGRI_LOADER_FAILED;
     }
     if (path != NULL && path[0] != '\0') {
         snprintf(mesh->path, sizeof(mesh->path), "%s", path);
         mesh->has_path = true;
     }
     mesh->ref_count = 1;
-    wgr_handle_pool_resolve(&wgr_mesh_pool, handle, &index);
+    wgri_handle_pool_resolve(&wgr_mesh_pool, handle, &index);
     wgr_meshes[index] = *mesh;
     memset(mesh, 0, sizeof(*mesh));
     *resource = handle;
-    return WGR_LOADER_DONE;
+    return WGRI_LOADER_DONE;
 }
 
 /* ------------------------------------------------------ generated meshes */
@@ -1592,7 +1592,7 @@ static wgr_loader_step_t finish_mesh(void *data, const char *path, wgr_handle_t 
  * parameters): one primitive in the glTF vertex layout, with generated tangents and
  * picking data, and one material: white, not metallic, roughness 0.5. Takes the
  * shape's arrays. */
-static wgr_handle_t create_generated(const char *key, wgr_mesh_shape_t *shape)
+static wgr_handle_t create_generated(const char *key, wgri_mesh_shape_t *shape)
 {
     const int vcount = shape->vertex_count;
     const size_t stride = 18; /* position 3, normal 3, texcoord0 2, texcoord1 2, tangent 4, color 4 */
@@ -1611,10 +1611,10 @@ static wgr_handle_t create_generated(const char *key, wgr_mesh_shape_t *shape)
         free(verts);
         free(mesh.prims);
         free(mesh.materials);
-        wgr_mesh_shape_free(shape);
+        wgri_mesh_shape_free(shape);
         return 0;
     }
-    wgr_model_generate_tangents(shape->positions, shape->normals, shape->uvs, vcount, shape->indices,
+    wgri_model_generate_tangents(shape->positions, shape->normals, shape->uvs, vcount, shape->indices,
                                shape->index_count, tangents);
     prim = &mesh.prims[0];
     prim->pmin = (vec3_t){1e30f, 1e30f, 1e30f};
@@ -1640,7 +1640,7 @@ static wgr_handle_t create_generated(const char *key, wgr_mesh_shape_t *shape)
     prim->pick_vertex_count = vcount;
     shape->positions = NULL;
     shape->indices = NULL;
-    wgr_mesh_shape_free(shape);
+    wgri_mesh_shape_free(shape);
     mesh.prim_count = 1;
     mesh.lmin = prim->pmin;
     mesh.lmax = prim->pmax;
@@ -1653,12 +1653,12 @@ static wgr_handle_t create_generated(const char *key, wgr_mesh_shape_t *shape)
     mesh.generated = true;
     mesh.ref_count = 1;
 
-    handle = upload_primitive(prim) ? wgr_handle_pool_alloc(&wgr_mesh_pool) : 0;
+    handle = upload_primitive(prim) ? wgri_handle_pool_alloc(&wgr_mesh_pool) : 0;
     if (handle == 0) {
         free_mesh_data(&mesh);
         return 0;
     }
-    wgr_handle_pool_resolve(&wgr_mesh_pool, handle, &index);
+    wgri_handle_pool_resolve(&wgr_mesh_pool, handle, &index);
     wgr_meshes[index] = mesh;
     return handle;
 }
@@ -1674,7 +1674,7 @@ static wgr_handle_t find_generated(const char *key)
 #define GENERATE(key_format, build, ...)                                         \
     do {                                                                         \
         char key[128];                                                           \
-        wgr_mesh_shape_t shape;                                                   \
+        wgri_mesh_shape_t shape;                                                   \
         snprintf(key, sizeof(key), key_format, __VA_ARGS__);                     \
         const wgr_handle_t existing = find_generated(key);                        \
         if (existing != 0) return existing;                                      \
@@ -1690,56 +1690,56 @@ static int clamp_count(int value, int low, int high)
     return value < low ? low : (value > high ? high : value);
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_mesh_create_plane(float width, float length, int subdivisions)
 {
-    subdivisions = clamp_count(subdivisions, 0, WGR_MESH_MAX_SUBDIVISIONS);
-    GENERATE("plane %g %g %d", wgr_mesh_shape_plane(width, length, subdivisions, &shape), width, length, subdivisions);
+    subdivisions = clamp_count(subdivisions, 0, WGRI_MESH_MAX_SUBDIVISIONS);
+    GENERATE("plane %g %g %d", wgri_mesh_shape_plane(width, length, subdivisions, &shape), width, length, subdivisions);
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_mesh_create_cube(float width, float height, float length)
 {
-    GENERATE("cube %g %g %g", wgr_mesh_shape_cube(width, height, length, &shape), width, height, length);
+    GENERATE("cube %g %g %g", wgri_mesh_shape_cube(width, height, length, &shape), width, height, length);
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_mesh_create_sphere(float radius, int rings, int segments)
 {
-    rings = clamp_count(rings, WGR_MESH_MIN_RINGS, WGR_MESH_MAX_RINGS);
-    segments = clamp_count(segments, WGR_MESH_MIN_SEGMENTS, WGR_MESH_MAX_SEGMENTS);
-    GENERATE("sphere %g %d %d", wgr_mesh_shape_sphere(radius, rings, segments, &shape), radius, rings, segments);
+    rings = clamp_count(rings, WGRI_MESH_MIN_RINGS, WGRI_MESH_MAX_RINGS);
+    segments = clamp_count(segments, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);
+    GENERATE("sphere %g %d %d", wgri_mesh_shape_sphere(radius, rings, segments, &shape), radius, rings, segments);
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_mesh_create_cylinder(float radius, float height, int segments)
 {
-    segments = clamp_count(segments, WGR_MESH_MIN_SEGMENTS, WGR_MESH_MAX_SEGMENTS);
-    GENERATE("cylinder %g %g %d", wgr_mesh_shape_cylinder(radius, height, segments, &shape), radius, height, segments);
+    segments = clamp_count(segments, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);
+    GENERATE("cylinder %g %g %d", wgri_mesh_shape_cylinder(radius, height, segments, &shape), radius, height, segments);
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_mesh_create_cone(float radius, float height, int segments)
 {
-    segments = clamp_count(segments, WGR_MESH_MIN_SEGMENTS, WGR_MESH_MAX_SEGMENTS);
-    GENERATE("cone %g %g %d", wgr_mesh_shape_cone(radius, height, segments, &shape), radius, height, segments);
+    segments = clamp_count(segments, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);
+    GENERATE("cone %g %g %d", wgri_mesh_shape_cone(radius, height, segments, &shape), radius, height, segments);
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_mesh_create_capsule(float radius, float height, int rings, int segments)
 {
-    rings = clamp_count(rings, WGR_MESH_MIN_RINGS, WGR_MESH_MAX_RINGS);
-    segments = clamp_count(segments, WGR_MESH_MIN_SEGMENTS, WGR_MESH_MAX_SEGMENTS);
-    GENERATE("capsule %g %g %d %d", wgr_mesh_shape_capsule(radius, height, rings, segments, &shape), radius, height,
+    rings = clamp_count(rings, WGRI_MESH_MIN_RINGS, WGRI_MESH_MAX_RINGS);
+    segments = clamp_count(segments, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);
+    GENERATE("capsule %g %g %d %d", wgri_mesh_shape_capsule(radius, height, rings, segments, &shape), radius, height,
              rings, segments);
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_mesh_create_torus(float radius, float thickness, int rings, int segments)
 {
-    rings = clamp_count(rings, WGR_MESH_MIN_SEGMENTS, WGR_MESH_MAX_SEGMENTS);
-    segments = clamp_count(segments, WGR_MESH_MIN_SEGMENTS, WGR_MESH_MAX_SEGMENTS);
-    GENERATE("torus %g %g %d %d", wgr_mesh_shape_torus(radius, thickness, rings, segments, &shape), radius,
+    rings = clamp_count(rings, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);
+    segments = clamp_count(segments, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);
+    GENERATE("torus %g %g %d %d", wgri_mesh_shape_torus(radius, thickness, rings, segments, &shape), radius,
              thickness, rings, segments);
 }
 
@@ -1750,7 +1750,7 @@ static wgr_handle_t find_mesh(const char *path)
     return mesh;
 }
 
-static const wgr_loader_t wgr_mesh_loader = {
+static const wgri_loader_t wgr_mesh_loader = {
     .name = "mesh",
     .prepare = prepare_mesh,
     .finish = finish_mesh,
@@ -1767,7 +1767,7 @@ static wgr_handle_t create_model(wgr_handle_t mesh_handle)
 
     /* mesh_handle may be 0 — create an empty model now and attach the mesh later
      * with wgr_model_set_mesh(); draw/animate no-op until then. */
-    handle = wgr_handle_pool_alloc(&wgr_model_pool);
+    handle = wgri_handle_pool_alloc(&wgr_model_pool);
     if (handle == 0) {
         log_error("model: pool full (%u)", (unsigned)wgr_model_pool.max - 1u);
         return 0;
@@ -1784,9 +1784,9 @@ static wgr_handle_t create_model(wgr_handle_t mesh_handle)
     model.cur_anim = -1;
     model.anim_speed = 1.0f;
     model.anim_loop = true;
-    for (int j = 0; j < WGR_MAX_JOINTS; j++) model.joint_matrices[j] = wgr_mat4_identity();
+    for (int j = 0; j < WGR_MAX_JOINTS; j++) model.joint_matrices[j] = wgri_mat4_identity();
     retain_mesh(mesh_handle);
-    wgr_handle_pool_resolve(&wgr_model_pool, handle, &index);
+    wgri_handle_pool_resolve(&wgr_model_pool, handle, &index);
     wgr_models[index] = model;
     return handle;
 }
@@ -1799,7 +1799,7 @@ static unsigned char *read_file_bytes(const char *path, int *out_size)
 
     char found[512];
     *out_size = 0;
-    if (path != NULL && wgr_asset_found_path(path, found, sizeof(found))) {
+    if (path != NULL && wgri_asset_found_path(path, found, sizeof(found))) {
         path = found; /* the asset layer found it elsewhere (a redirect, a fallback) */
     }
     if (path == NULL || (f = fopen(path, "rb")) == NULL) {
@@ -1817,21 +1817,21 @@ static unsigned char *read_file_bytes(const char *path, int *out_size)
 
 /* --------------------------------------------- public API (mesh resource) - */
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_mesh_create(const char *path)
 {
-    return wgr_loader_create(&wgr_mesh_loader, path);
+    return wgri_loader_create(&wgr_mesh_loader, path);
 }
 
-WGR_KEEP void wgr_mesh_release(wgr_handle_t mesh) { release_mesh(mesh); }
+WGRI_KEEP void wgr_mesh_release(wgr_handle_t mesh) { release_mesh(mesh); }
 
-WGR_KEEP int wgr_mesh_get_material_count(wgr_handle_t mesh)
+WGRI_KEEP int wgr_mesh_get_material_count(wgr_handle_t mesh)
 {
     wgr_mesh_t *mesh_ptr = resolve_mesh(mesh);
     return mesh_ptr != NULL ? mesh_ptr->material_count : 0;
 }
 
-WGR_KEEP wgr_handle_t wgr_mesh_get_material(wgr_handle_t mesh, int slot)
+WGRI_KEEP wgr_handle_t wgr_mesh_get_material(wgr_handle_t mesh, int slot)
 {
     wgr_mesh_t *mesh_ptr = resolve_mesh(mesh);
     if (mesh_ptr == NULL || slot < 0 || slot >= mesh_ptr->material_count) {
@@ -1843,12 +1843,12 @@ WGR_KEEP wgr_handle_t wgr_mesh_get_material(wgr_handle_t mesh, int slot)
 /* --------------------------------------------- public API (model object) -- */
 
 /* A drawable instance of a Mesh; adds its own reference to the mesh. */
-WGR_KEEP wgr_handle_t wgr_model_create(wgr_handle_t mesh) { return create_model(mesh); }
+WGRI_KEEP wgr_handle_t wgr_model_create(wgr_handle_t mesh) { return create_model(mesh); }
 
 /* Attach (or swap) the mesh resource on an existing model. Transform, tint,
  * visibility, and animation selection are retained, so a model created empty
  * picks them up the moment a mesh arrives. */
-WGR_KEEP bool wgr_model_set_mesh(wgr_handle_t handle, wgr_handle_t mesh)
+WGRI_KEEP bool wgr_model_set_mesh(wgr_handle_t handle, wgr_handle_t mesh)
 {
     wgr_model_t *model_ptr = resolve(handle);
     if (model_ptr == NULL) return false;
@@ -1857,12 +1857,12 @@ WGR_KEEP bool wgr_model_set_mesh(wgr_handle_t handle, wgr_handle_t mesh)
     model_ptr->mesh = mesh;
     retain_mesh(mesh);             /* no-op when 0 */
     /* old skeleton no longer valid; animate() rebuilds these next tick */
-    for (int j = 0; j < WGR_MAX_JOINTS; j++) model_ptr->joint_matrices[j] = wgr_mat4_identity();
+    for (int j = 0; j < WGR_MAX_JOINTS; j++) model_ptr->joint_matrices[j] = wgri_mat4_identity();
     model_ptr->pose_version = 0; /* bind pose until animated */
     return true;
 }
 
-WGR_KEEP bool wgr_model_set_transform(wgr_handle_t handle,
+WGRI_KEEP bool wgr_model_set_transform(wgr_handle_t handle,
                                     float px, float py, float pz,
                                     float rx, float ry, float rz,
                                     float sx, float sy, float sz)
@@ -1876,7 +1876,7 @@ WGR_KEEP bool wgr_model_set_transform(wgr_handle_t handle,
     return true;
 }
 
-WGR_KEEP bool wgr_model_set_tint(wgr_handle_t handle, wgr_color_t color)
+WGRI_KEEP bool wgr_model_set_tint(wgr_handle_t handle, wgr_color_t color)
 {
     wgr_model_t *model_ptr = resolve(handle);
     if (model_ptr == NULL) return false;
@@ -1887,21 +1887,21 @@ WGR_KEEP bool wgr_model_set_tint(wgr_handle_t handle, wgr_color_t color)
 static void set_material_slot(wgr_model_t *model_ptr, int slot, wgr_handle_t material)
 {
     if (model_ptr->materials[slot] != material) {
-        wgr_material_retain(material); /* no-op for 0 */
+        wgri_material_retain(material); /* no-op for 0 */
         wgr_material_release(model_ptr->materials[slot]);
         model_ptr->materials[slot] = material;
     }
 }
 
-WGR_KEEP bool wgr_model_set_material(wgr_handle_t handle, int slot, wgr_handle_t material)
+WGRI_KEEP bool wgr_model_set_material(wgr_handle_t handle, int slot, wgr_handle_t material)
 {
     wgr_model_t *model_ptr = resolve(handle);
     if (model_ptr == NULL) return false;
-    if (material != 0 && wgr_material_get(material) == NULL) {
+    if (material != 0 && wgri_material_get(material) == NULL) {
         log_warn("wgr_model_set_material: invalid material handle (%u)", (unsigned int)material);
         return false;
     }
-    if (wgr_material_is_screen(material)) {
+    if (wgri_material_is_screen(material)) {
         log_warn("wgr_model_set_material: that material's shader is a screen effect (wgr_render_add_effect), "
                  "not a surface shader");
         return false;
@@ -1918,19 +1918,19 @@ WGR_KEEP bool wgr_model_set_material(wgr_handle_t handle, int slot, wgr_handle_t
     return true;
 }
 
-WGR_KEEP wgr_handle_t wgr_model_get_material(wgr_handle_t handle, int slot)
+WGRI_KEEP wgr_handle_t wgr_model_get_material(wgr_handle_t handle, int slot)
 {
     wgr_model_t *model_ptr = resolve(handle);
     wgr_mesh_t *mesh_ptr;
     if (model_ptr == NULL || slot < 0) return 0;
-    if (slot < WGR_MAX_MATERIAL_SLOTS && wgr_material_get(model_ptr->materials[slot]) != NULL) {
+    if (slot < WGR_MAX_MATERIAL_SLOTS && wgri_material_get(model_ptr->materials[slot]) != NULL) {
         return model_ptr->materials[slot];
     }
     mesh_ptr = model_ptr->mesh != 0 ? resolve_mesh(model_ptr->mesh) : NULL;
     return mesh_ptr != NULL && slot < mesh_ptr->material_count ? mesh_ptr->materials[slot] : 0;
 }
 
-WGR_KEEP bool wgr_model_set_casts_shadow(wgr_handle_t handle, bool casts)
+WGRI_KEEP bool wgr_model_set_casts_shadow(wgr_handle_t handle, bool casts)
 {
     wgr_model_t *model_ptr = resolve(handle);
     if (model_ptr == NULL) return false;
@@ -1938,13 +1938,13 @@ WGR_KEEP bool wgr_model_set_casts_shadow(wgr_handle_t handle, bool casts)
     return true;
 }
 
-WGR_KEEP bool wgr_model_casts_shadow(wgr_handle_t handle)
+WGRI_KEEP bool wgr_model_casts_shadow(wgr_handle_t handle)
 {
     const wgr_model_t *model_ptr = resolve(handle);
     return model_ptr != NULL && model_ptr->casts_shadow;
 }
 
-WGR_KEEP bool wgr_model_set_receives_shadow(wgr_handle_t handle, bool receives)
+WGRI_KEEP bool wgr_model_set_receives_shadow(wgr_handle_t handle, bool receives)
 {
     wgr_model_t *model_ptr = resolve(handle);
     if (model_ptr == NULL) return false;
@@ -1952,13 +1952,13 @@ WGR_KEEP bool wgr_model_set_receives_shadow(wgr_handle_t handle, bool receives)
     return true;
 }
 
-WGR_KEEP bool wgr_model_receives_shadow(wgr_handle_t handle)
+WGRI_KEEP bool wgr_model_receives_shadow(wgr_handle_t handle)
 {
     const wgr_model_t *model_ptr = resolve(handle);
     return model_ptr != NULL && model_ptr->receives_shadow;
 }
 
-WGR_KEEP bool wgr_model_set_visible(wgr_handle_t handle, bool visible)
+WGRI_KEEP bool wgr_model_set_visible(wgr_handle_t handle, bool visible)
 {
     wgr_model_t *model_ptr = resolve(handle);
     if (model_ptr == NULL) return false;
@@ -1966,13 +1966,13 @@ WGR_KEEP bool wgr_model_set_visible(wgr_handle_t handle, bool visible)
     return true;
 }
 
-WGR_KEEP bool wgr_model_is_visible(wgr_handle_t handle)
+WGRI_KEEP bool wgr_model_is_visible(wgr_handle_t handle)
 {
     wgr_model_t *model_ptr = resolve(handle);
     return model_ptr != NULL && model_ptr->visible;
 }
 
-WGR_KEEP bool wgr_model_set_pickable(wgr_handle_t handle, bool pickable)
+WGRI_KEEP bool wgr_model_set_pickable(wgr_handle_t handle, bool pickable)
 {
     wgr_model_t *model_ptr = resolve(handle);
     if (model_ptr == NULL) return false;
@@ -1980,13 +1980,13 @@ WGR_KEEP bool wgr_model_set_pickable(wgr_handle_t handle, bool pickable)
     return true;
 }
 
-WGR_KEEP bool wgr_model_is_pickable(wgr_handle_t handle)
+WGRI_KEEP bool wgr_model_is_pickable(wgr_handle_t handle)
 {
     wgr_model_t *model_ptr = resolve(handle);
     return model_ptr != NULL && model_ptr->pickable;
 }
 
-WGR_KEEP bool wgr_model_set_enabled(wgr_handle_t handle, bool enabled)
+WGRI_KEEP bool wgr_model_set_enabled(wgr_handle_t handle, bool enabled)
 {
     wgr_model_t *model_ptr = resolve(handle);
     if (model_ptr == NULL) return false;
@@ -1994,21 +1994,21 @@ WGR_KEEP bool wgr_model_set_enabled(wgr_handle_t handle, bool enabled)
     return true;
 }
 
-WGR_KEEP bool wgr_model_is_enabled(wgr_handle_t handle)
+WGRI_KEEP bool wgr_model_is_enabled(wgr_handle_t handle)
 {
     wgr_model_t *model_ptr = resolve(handle);
     return model_ptr != NULL && model_ptr->enabled;
 }
 
-WGR_KEEP void wgr_model_draw(wgr_handle_t handle) { draw_immediate(handle); }
+WGRI_KEEP void wgr_model_draw(wgr_handle_t handle) { draw_immediate(handle); }
 
-vec3_t wgr_model_skin_position(const wgr_mat4_t *joints, int joint_count, vec3_t p,
+vec3_t wgri_model_skin_position(const wgri_mat4_t *joints, int joint_count, vec3_t p,
                               const uint8_t joint_index[4], const float weights[4])
 {
     vec3_t out = {0.0f, 0.0f, 0.0f};
     for (int k = 0; k < 4; k++) {
         const float w = weights[k];
-        const wgr_mat4_t *m;
+        const wgri_mat4_t *m;
         if (w == 0.0f || joint_index[k] >= joint_count) {
             continue;
         }
@@ -2035,7 +2035,7 @@ static float wrap_coord(float c, wgr_texture_wrap_t wrap)
     }
 }
 
-float wgr_model_sample_alpha(const uint8_t *alpha, int width, int height, float u, float v,
+float wgri_model_sample_alpha(const uint8_t *alpha, int width, int height, float u, float v,
                             wgr_texture_wrap_t wrap_u, wgr_texture_wrap_t wrap_v)
 {
     int x, y;
@@ -2096,7 +2096,7 @@ static bool update_posed_geometry(wgr_model_t *model_ptr, wgr_mesh_t *mesh_ptr)
         }
         for (int v = 0; v < prim->pick_vertex_count; v++) {
             vec3_t bind = {prim->pick_positions[v * 3], prim->pick_positions[v * 3 + 1], prim->pick_positions[v * 3 + 2]};
-            vec3_t posed = wgr_model_skin_position(model_ptr->joint_matrices, joint_count, bind,
+            vec3_t posed = wgri_model_skin_position(model_ptr->joint_matrices, joint_count, bind,
                                                   &prim->pick_joints[v * 4], &prim->pick_weights[v * 4]);
             float *dst = &model_ptr->posed_positions[(offset + v) * 3];
             dst[0] = posed.x; dst[1] = posed.y; dst[2] = posed.z;
@@ -2116,10 +2116,10 @@ static bool update_posed_geometry(wgr_model_t *model_ptr, wgr_mesh_t *mesh_ptr)
 
 /* The model's transform as a matrix. Built once and kept: a frame asks for it to cull,
  * again to draw, and again for bounds, and building it is four matrix multiplies. */
-static wgr_mat4_t model_world(wgr_model_t *model_ptr)
+static wgri_mat4_t model_world(wgr_model_t *model_ptr)
 {
     if (model_ptr->world_dirty) {
-        model_ptr->world = wgr_mat4_trs(model_ptr->position, model_ptr->rotation, model_ptr->scale);
+        model_ptr->world = wgri_mat4_trs(model_ptr->position, model_ptr->rotation, model_ptr->scale);
         model_ptr->world_dirty = false;
     }
     return model_ptr->world;
@@ -2129,7 +2129,7 @@ static wgr_mat4_t model_world(wgr_model_t *model_ptr)
  * every frame, so asking for exact posed bounds here would re-skin every vertex of
  * every model, every frame — the rest pose padded by the scene is what culling wants.
  * Posed bounds are used only when a pick has already worked them out for this pose. */
-static bool model_cull_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, wgr_mat4_t *model_mat)
+static bool model_cull_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, wgri_mat4_t *model_mat)
 {
     wgr_model_t *model_ptr = resolve(handle);
     wgr_mesh_t *mesh_ptr = model_ptr != NULL ? resolve_mesh(model_ptr->mesh) : NULL;
@@ -2149,7 +2149,7 @@ static bool model_cull_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, w
     return true;
 }
 
-static bool model_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, wgr_mat4_t *model_mat)
+static bool model_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, wgri_mat4_t *model_mat)
 {
     wgr_model_t *model_ptr = resolve(handle);
     wgr_mesh_t *mesh_ptr = model_ptr ? resolve_mesh(model_ptr->mesh) : NULL;
@@ -2169,10 +2169,10 @@ static bool model_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, wgr_ma
 
 /* The material a model draws a primitive with: the model's override for the
  * primitive's slot, else the mesh's material, else glTF's default material. */
-static const wgr_material_t *prim_material(const wgr_model_t *model_ptr, const wgr_mesh_t *mesh_ptr,
+static const wgri_material_t *prim_material(const wgr_model_t *model_ptr, const wgr_mesh_t *mesh_ptr,
                                           const wgr_primitive_t *prim)
 {
-    static const wgr_material_t fallback = {
+    static const wgri_material_t fallback = {
         .shading = WGR_MATERIAL_PBR,
         .alpha_cutoff = 0.5f,
         .base_color = {1.0f, 1.0f, 1.0f, 1.0f},
@@ -2181,13 +2181,13 @@ static const wgr_material_t *prim_material(const wgr_model_t *model_ptr, const w
         .normal_scale = 1.0f,
         .occlusion_strength = 1.0f,
     };
-    const wgr_material_t *material = NULL;
+    const wgri_material_t *material = NULL;
 
     if (prim->material >= 0 && prim->material < WGR_MAX_MATERIAL_SLOTS) {
-        material = wgr_material_get(model_ptr->materials[prim->material]);
+        material = wgri_material_get(model_ptr->materials[prim->material]);
     }
     if (material == NULL && prim->material >= 0 && prim->material < mesh_ptr->material_count) {
-        material = wgr_material_get(mesh_ptr->materials[prim->material]);
+        material = wgri_material_get(mesh_ptr->materials[prim->material]);
     }
     return material != NULL ? material : &fallback;
 }
@@ -2196,10 +2196,10 @@ static const wgr_material_t *prim_material(const wgr_model_t *model_ptr, const w
  * part of the material. Opaque materials always do. MASK uses its cutoff; BLEND
  * counts as solid where the material is at least half opaque. Tint is ignored:
  * fading a model doesn't make it unpickable. */
-static bool is_solid_at(const wgr_primitive_t *prim, const wgr_material_t *material, uint32_t i0, uint32_t i1,
+static bool is_solid_at(const wgr_primitive_t *prim, const wgri_material_t *material, uint32_t i0, uint32_t i1,
                         uint32_t i2, float u, float v)
 {
-    const wgr_material_texture_t *base = &material->textures[WGR_MATERIAL_TEXTURE_BASE_COLOR];
+    const wgri_material_texture_t *base = &material->textures[WGRI_MATERIAL_TEXTURE_BASE_COLOR];
     const float *uvs = prim->pick_uvs[base->texcoord == 1 ? 1 : 0];
     const float w0 = 1.0f - u - v;
     float alpha = material->base_color[3];
@@ -2213,12 +2213,12 @@ static bool is_solid_at(const wgr_primitive_t *prim, const wgr_material_t *mater
     if (prim->pick_alpha != NULL) {
         alpha *= prim->pick_alpha[i0] * w0 + prim->pick_alpha[i1] * u + prim->pick_alpha[i2] * v;
     }
-    if (uvs != NULL && wgr_texture_get_alpha_mask(base->texture, &mask, &width, &height)) {
+    if (uvs != NULL && wgri_texture_get_alpha_mask(base->texture, &mask, &width, &height)) {
         float m[6];
         const float su = uvs[i0 * 2] * w0 + uvs[i1 * 2] * u + uvs[i2 * 2] * v;
         const float sv = uvs[i0 * 2 + 1] * w0 + uvs[i1 * 2 + 1] * u + uvs[i2 * 2 + 1] * v;
-        wgr_material_uv_matrix(base, m);
-        alpha *= wgr_model_sample_alpha(mask, width, height, m[0] * su + m[1] * sv + m[2], m[3] * su + m[4] * sv + m[5],
+        wgri_material_uv_matrix(base, m);
+        alpha *= wgri_model_sample_alpha(mask, width, height, m[0] * su + m[1] * sv + m[2], m[3] * su + m[4] * sv + m[5],
                                        base->wrap_u, base->wrap_v);
     }
     return alpha >= (material->alpha_mode == WGR_ALPHA_MASK ? material->alpha_cutoff : 0.5f);
@@ -2228,9 +2228,9 @@ static bool model_pick(wgr_handle_t handle, vec3_t origin, vec3_t dir, wgr_pick_
 {
     wgr_model_t *model_ptr = resolve(handle);
     wgr_mesh_t *mesh_ptr = model_ptr ? resolve_mesh(model_ptr->mesh) : NULL;
-    wgr_mat4_t model_mat;
-    wgr_ray_t world, local;
-    wgr_ray_hit_t best = {0};
+    wgri_mat4_t model_mat;
+    wgri_ray_t world, local;
+    wgri_ray_hit_t best = {0};
     vec3_t lmin, lmax;
     bool posed;
     int posed_offset = 0;
@@ -2246,14 +2246,14 @@ static bool model_pick(wgr_handle_t handle, vec3_t origin, vec3_t dir, wgr_pick_
 
     world.origin = origin;
     world.dir = dir;
-    local = wgr_pick_ray_to_local(model_mat, world);
+    local = wgri_pick_ray_to_local(model_mat, world);
 
     /* Narrow phase: ray/triangle against the geometry as drawn: the current pose
      * for animated skinned primitives, skipping see-through parts of MASK/BLEND
      * materials. */
     for (int p = 0; p < mesh_ptr->prim_count; p++) {
         wgr_primitive_t *prim = &mesh_ptr->prims[p];
-        const wgr_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
+        const wgri_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
         const float *positions = prim->pick_positions;
         if (posed && prim->skinned && prim->pick_joints != NULL) {
             positions = &model_ptr->posed_positions[posed_offset * 3];
@@ -2271,8 +2271,8 @@ static bool model_pick(wgr_handle_t handle, vec3_t origin, vec3_t dir, wgr_pick_
             vec3_t v0 = {positions[i0 * 3], positions[i0 * 3 + 1], positions[i0 * 3 + 2]};
             vec3_t v1 = {positions[i1 * 3], positions[i1 * 3 + 1], positions[i1 * 3 + 2]};
             vec3_t v2 = {positions[i2 * 3], positions[i2 * 3 + 1], positions[i2 * 3 + 2]};
-            wgr_ray_hit_t th = {0};
-            if (wgr_pick_ray_triangle(local, v0, v1, v2, &th) && (!best.hit || th.t < best.t) &&
+            wgri_ray_hit_t th = {0};
+            if (wgri_pick_ray_triangle(local, v0, v1, v2, &th) && (!best.hit || th.t < best.t) &&
                 is_solid_at(prim, material, i0, i1, i2, th.u, th.v)) {
                 best = th;
             }
@@ -2280,7 +2280,7 @@ static bool model_pick(wgr_handle_t handle, vec3_t origin, vec3_t dir, wgr_pick_
     }
 
     if (best.hit) {
-        wgr_pick_result_from_local(&best, world, model_mat, out);
+        wgri_pick_result_from_local(&best, world, model_mat, out);
     } else {
         *out = (wgr_pick_result_t){0};
     }
@@ -2301,14 +2301,14 @@ static wgr_mesh_t *lookup_drawable(wgr_handle_t handle, wgr_model_t **model_out)
     return mesh_ptr;
 }
 
-static wgr_colorf_t model_tint(const wgr_model_t *model_ptr)
+static wgri_colorf_t model_tint(const wgr_model_t *model_ptr)
 {
-    return wgr_color_unpack(model_ptr->tint);
+    return wgri_color_unpack(model_ptr->tint);
 }
 
 /* A primitive is transparent if its material blends, or if the model's tint
  * makes it translucent (e.g. fading a model out). */
-static bool is_blended(wgr_colorf_t tint, const wgr_material_t *material)
+static bool is_blended(wgri_colorf_t tint, const wgri_material_t *material)
 {
     return material->alpha_mode == WGR_ALPHA_BLEND || tint.a < 1.0f;
 }
@@ -2359,43 +2359,43 @@ static bool reserve_queue(void **items, int *capacity, int count, size_t item_si
  * of the same model reuse one placement. Returns the placement index or -1. */
 static int begin_draw(wgr_handle_t handle, wgr_model_t *model_ptr)
 {
-    wgr_camera3d_t cam;
-    wgr_mat4_t model_mat, view, proj;
+    wgri_camera3d_t cam;
+    wgri_mat4_t model_mat, view, proj;
     float aspect;
     wgr_model_draw_t *e;
     vec2_t target_size;
 
-    const int light_env = wgr_light_env_current();
-    const wgr_light_env_t *env = wgr_light_env_get(light_env);
+    const int light_env = wgri_light_env_current();
+    const wgri_light_env_t *env = wgri_light_env_get(light_env);
     wgr_mesh_t *mesh_ptr = resolve_mesh(model_ptr->mesh);
 
     if (wgr_model_draw_count > 0 && wgr_model_draws[wgr_model_draw_count - 1].model == handle &&
         wgr_model_draws[wgr_model_draw_count - 1].light_env == light_env &&
-        wgr_model_draws[wgr_model_draw_count - 1].pass == wgr_render_current_pass()) {
+        wgr_model_draws[wgr_model_draw_count - 1].pass == wgri_render_current_pass()) {
         return wgr_model_draw_count - 1;
     }
     if (!reserve_queue((void **)&wgr_model_draws, &wgr_model_draw_capacity, wgr_model_draw_count,
                        sizeof(*wgr_model_draws), MODEL_DRAWS_INITIAL, MAX_MODEL_DRAWS)) {
         return -1;
     }
-    if (!wgr_camera3d_get_active_data(&cam)) {
+    if (!wgri_camera3d_get_active_data(&cam)) {
         return -1;
     }
 
-    target_size = wgr_render_target_size(); /* the screen, or the render target being drawn into */
+    target_size = wgri_render_target_size(); /* the screen, or the render target being drawn into */
     aspect = target_size.y > 0.0f ? target_size.x / target_size.y : 1.0f;
     model_mat = model_world(model_ptr);
-    view = wgr_camera3d_view(&cam);
-    proj = wgr_camera3d_projection(&cam, aspect);
+    view = wgri_camera3d_view(&cam);
+    proj = wgri_camera3d_projection(&cam, aspect);
 
     e = &wgr_model_draws[wgr_model_draw_count];
     e->model = handle;
-    e->pass = wgr_render_current_pass();
-    e->view_proj = wgr_mat4_mul(proj, view);
-    e->mvp = wgr_mat4_mul(e->view_proj, model_mat);
+    e->pass = wgri_render_current_pass();
+    e->view_proj = wgri_mat4_mul(proj, view);
+    e->mvp = wgri_mat4_mul(e->view_proj, model_mat);
     e->model_mat = model_mat;
-    e->model_view = wgr_mat4_mul(view, model_mat);
-    e->normal_mat = wgr_mat4_transpose(wgr_mat4_inverse(model_mat));
+    e->model_view = wgri_mat4_mul(view, model_mat);
+    e->normal_mat = wgri_mat4_transpose(wgri_mat4_inverse(model_mat));
     e->camera_pos = cam.position;
     e->tint = model_tint(model_ptr);
 
@@ -2428,11 +2428,11 @@ static int begin_draw(wgr_handle_t handle, wgr_model_t *model_ptr)
     e->light_count = 0;
     e->has_bounds = mesh_ptr != NULL;
     if (e->has_bounds) {
-        wgr_pick_world_aabb(mesh_ptr->lmin, mesh_ptr->lmax, model_mat, &e->wmin, &e->wmax);
-        wgr_aabb_pad(&e->wmin, &e->wmax, WGR_CULL_PAD); /* the rest pose isn't the whole animation */
+        wgri_pick_world_aabb(mesh_ptr->lmin, mesh_ptr->lmax, model_mat, &e->wmin, &e->wmax);
+        wgri_aabb_pad(&e->wmin, &e->wmax, WGRI_CULL_PAD); /* the rest pose isn't the whole animation */
     }
     if (env != NULL && e->has_bounds) {
-        e->light_count = wgr_light_select(env, e->wmin, e->wmax, e->lights, WGR_MAX_DRAW_LIGHTS);
+        e->light_count = wgri_light_select(env, e->wmin, e->wmax, e->lights, WGRI_MAX_DRAW_LIGHTS);
     }
     return wgr_model_draw_count++;
 }
@@ -2479,7 +2479,7 @@ static void draw_immediate(wgr_handle_t handle)
         } else if (blend_count < MAX_BLEND_PRIMS) {
             wgr_blend_prims[blend_count++] = (wgr_blend_prim_t){
                 .prim = p,
-                .depth = -wgr_mat4_mul_point(wgr_model_draws[draw].model_view, prim_center(prim)).z,
+                .depth = -wgri_mat4_mul_point(wgr_model_draws[draw].model_view, prim_center(prim)).z,
             };
         }
     }
@@ -2487,7 +2487,7 @@ static void draw_immediate(wgr_handle_t handle)
     for (int b = 0; b < blend_count; b++) {
         push_item(draw, wgr_blend_prims[b].prim, true);
     }
-    wgr_render_submit_models(first, wgr_model_item_count - first);
+    wgri_render_submit_models(first, wgr_model_item_count - first);
 }
 
 /* Scene opaque pass. */
@@ -2495,7 +2495,7 @@ static void draw_opaque(wgr_handle_t handle)
 {
     wgr_model_t *model_ptr = NULL;
     wgr_mesh_t *mesh_ptr = lookup_drawable(handle, &model_ptr);
-    wgr_colorf_t tint;
+    wgri_colorf_t tint;
     int draw = -1, first = wgr_model_item_count;
 
     if (mesh_ptr == NULL) {
@@ -2511,17 +2511,17 @@ static void draw_opaque(wgr_handle_t handle)
         }
         push_item(draw, p, false);
     }
-    wgr_render_submit_models(first, wgr_model_item_count - first);
+    wgri_render_submit_models(first, wgr_model_item_count - first);
 }
 
 /* Scene transparent pass: one item per transparent primitive. */
-static int collect_transparent(wgr_handle_t handle, const wgr_camera3d_t *cam,
-                               wgr_transparent_item_t *out, int max_items)
+static int collect_transparent(wgr_handle_t handle, const wgri_camera3d_t *cam,
+                               wgri_transparent_item_t *out, int max_items)
 {
     wgr_model_t *model_ptr = NULL;
     wgr_mesh_t *mesh_ptr = lookup_drawable(handle, &model_ptr);
-    wgr_colorf_t tint;
-    wgr_mat4_t model_mat;
+    wgri_colorf_t tint;
+    wgri_mat4_t model_mat;
     int count = 0;
 
     if (mesh_ptr == NULL) {
@@ -2534,10 +2534,10 @@ static int collect_transparent(wgr_handle_t handle, const wgr_camera3d_t *cam,
         if (!is_blended(tint, prim_material(model_ptr, mesh_ptr, prim))) {
             continue;
         }
-        out[count++] = (wgr_transparent_item_t){
+        out[count++] = (wgri_transparent_item_t){
             .handle = handle,
             .part = p,
-            .depth = wgr_scene_view_depth(cam, wgr_mat4_mul_point(model_mat, prim_center(prim))),
+            .depth = wgri_scene_view_depth(cam, wgri_mat4_mul_point(model_mat, prim_center(prim))),
         };
     }
     return count;
@@ -2554,7 +2554,7 @@ static void draw_transparent(wgr_handle_t handle, int part)
         return;
     }
     if (push_item(draw, part, true)) {
-        wgr_render_submit_models(first, 1);
+        wgri_render_submit_models(first, 1);
     }
 }
 
@@ -2571,13 +2571,13 @@ static void reset_fs_blocks(void)
 
 /* The material (every draw), and the scene and its lights (only when they change:
  * they're the same for most draws in a frame). */
-static void apply_fs(const wgr_model_draw_t *e, const wgr_material_t *material, const wgr_environment_binding_t *binding,
-                     const wgr_shadow_binding_t *shadow, bool receives_shadow)
+static void apply_fs(const wgr_model_draw_t *e, const wgri_material_t *material, const wgri_environment_binding_t *binding,
+                     const wgri_shadow_binding_t *shadow, bool receives_shadow)
 {
     fs_params_t fsp;
     fs_scene_t scene;
     fs_lights_t lights;
-    const wgr_light_env_t *env = wgr_light_env_get(e->light_env);
+    const wgri_light_env_t *env = wgri_light_env_get(e->light_env);
     const bool lit = env != NULL && material->shading == WGR_MATERIAL_PBR;
 
     memset(&fsp, 0, sizeof(fsp));
@@ -2593,17 +2593,17 @@ static void apply_fs(const wgr_model_draw_t *e, const wgr_material_t *material, 
     fsp.u_emissive[1] = material->emissive[1];
     fsp.u_emissive[2] = material->emissive[2];
     /* without a normal map the flat default texture must not tilt the normal */
-    fsp.u_emissive[3] = material->textures[WGR_MATERIAL_TEXTURE_NORMAL].texture != 0 ? material->normal_scale : 0.0f;
+    fsp.u_emissive[3] = material->textures[WGRI_MATERIAL_TEXTURE_NORMAL].texture != 0 ? material->normal_scale : 0.0f;
     fsp.u_pbr[0] = material->metallic;
     fsp.u_pbr[1] = material->roughness;
     fsp.u_pbr[2] = material->occlusion_strength;
     fsp.u_pbr[3] = lit ? 1.0f : 0.0f;
     fsp.u_material[0] = material->alpha_mode == WGR_ALPHA_MASK ? material->alpha_cutoff : 0.0f;
     fsp.u_material[2] = lit && receives_shadow ? 1.0f : 0.0f;
-    for (int t = 0; t < WGR_MATERIAL_TEXTURE_COUNT; t++) {
+    for (int t = 0; t < WGRI_MATERIAL_TEXTURE_COUNT; t++) {
         float m[6];
-        wgr_material_uv_matrix(&material->textures[t], m);
-        if (wgr_texture_is_flipped(material->textures[t].texture)) { /* render target stored bottom-up */
+        wgri_material_uv_matrix(&material->textures[t], m);
+        if (wgri_texture_is_flipped(material->textures[t].texture)) { /* render target stored bottom-up */
             m[3] = -m[3];
             m[4] = -m[4];
             m[5] = 1.0f - m[5];
@@ -2624,7 +2624,7 @@ static void apply_fs(const wgr_model_draw_t *e, const wgr_material_t *material, 
     scene.u_tonemap[0] = env != NULL ? (float)env->tonemap : 0.0f;
     scene.u_tonemap[1] = env != NULL ? powf(2.0f, env->exposure) : 1.0f;
     if (lit && receives_shadow) { /* the frame's casting lights, a layer each */
-        wgr_shadow_fill_uniforms(shadow, scene.u_shadow_mat, scene.u_shadow_params, scene.u_shadow_tint,
+        wgri_shadow_fill_uniforms(shadow, scene.u_shadow_mat, scene.u_shadow_params, scene.u_shadow_tint,
                                 scene.u_shadow_extra, scene.u_shadow_map);
     }
     if (lit && binding->valid && env->environment_intensity > 0.0f) {
@@ -2644,7 +2644,7 @@ static void apply_fs(const wgr_model_draw_t *e, const wgr_material_t *material, 
         scene.u_ambient[2] = env->ambient.z;
         fsp.u_material[1] = (float)e->light_count;
         for (int i = 0; i < e->light_count; i++) {
-            const wgr_scene_light_t *light = &env->lights[e->lights[i]];
+            const wgri_scene_light_t *light = &env->lights[e->lights[i]];
             lights.u_light_pos_range[i][0] = light->position.x;
             lights.u_light_pos_range[i][1] = light->position.y;
             lights.u_light_pos_range[i][2] = light->position.z;
@@ -2659,7 +2659,7 @@ static void apply_fs(const wgr_model_draw_t *e, const wgr_material_t *material, 
             lights.u_light_spot[i][0] = light->cos_inner;
             lights.u_light_spot[i][1] = light->cos_outer;
             lights.u_light_spot[i][2] =
-                (float)(lit && receives_shadow ? wgr_shadow_slot_of(shadow, e->lights[i]) : -1);
+                (float)(lit && receives_shadow ? wgri_shadow_slot_of(shadow, e->lights[i]) : -1);
         }
     }
     sg_apply_uniforms(UB_fs_params, &(sg_range){.ptr = &fsp, .size = sizeof(fsp)});
@@ -2675,42 +2675,42 @@ static void apply_fs(const wgr_model_draw_t *e, const wgr_material_t *material, 
     }
 }
 
-static sg_view texture_view(const wgr_material_texture_t *texture, sg_view fallback)
+static sg_view texture_view(const wgri_material_texture_t *texture, sg_view fallback)
 {
     sg_view view = fallback;
     if (texture->texture != 0) {
-        wgr_texture_get_binding(texture->texture, &view, NULL, NULL, NULL);
+        wgri_texture_get_binding(texture->texture, &view, NULL, NULL, NULL);
     }
     return view;
 }
 
-static sg_sampler texture_sampler(const wgr_material_texture_t *texture)
+static sg_sampler texture_sampler(const wgri_material_texture_t *texture)
 {
-    return wgr_texture_sampler(texture->wrap_u, texture->wrap_v, texture->filter, texture->mipmaps);
+    return wgri_texture_sampler(texture->wrap_u, texture->wrap_v, texture->filter, texture->mipmaps);
 }
 
 /* Uniform blocks of custom shaders (shaders/wgr.glsl), std140; wgr_frame is
- * wgr_shader_frame_t (internal/wgr_shader.h). */
+ * wgri_shader_frame_t (internal/wgr_shader.h). */
 typedef struct {
     float view_proj[16], time_base[4]; /* x seconds, y this draw's first instance record */
 } custom_object_t;
 
 /* A primitive whose material has a custom shader (wgr_shader.h). */
 static void draw_custom(const wgr_model_draw_t *e, const wgr_model_t *model_ptr, const wgr_primitive_t *prim,
-                        const wgr_material_t *material, bool blended, sg_pipeline *cur_pip, int instance_base,
+                        const wgri_material_t *material, bool blended, sg_pipeline *cur_pip, int instance_base,
                         int instances)
 {
-    wgr_shader_t *shader = wgr_shader_hooks.get != NULL ? wgr_shader_hooks.get(material->shader) : NULL;
+    wgri_shader_t *shader = wgri_shader_hooks.get != NULL ? wgri_shader_hooks.get(material->shader) : NULL;
     const int s = prim->skinned ? 1 : 0, b = blended ? 1 : 0, d = material->double_sided ? 1 : 0;
-    const wgr_shader_program_t *program;
-    const wgr_light_env_t *env = wgr_light_env_get(e->light_env);
+    const wgri_shader_program_t *program;
+    const wgri_light_env_t *env = wgri_light_env_get(e->light_env);
     const float time = (float)wgr_get_time();
     sg_bindings bind = {.vertex_buffers[0] = prim->vbuf, .index_buffer = prim->ibuf};
-    wgr_environment_binding_t environment;
-    wgr_shadow_binding_t shadow = {0};
-    wgr_environment_get_binding(env != NULL ? env->environment : 0, &environment);
-    if (wgr_shadow_hooks.get_binding != NULL) {
-        wgr_shadow_hooks.get_binding(e->light_env, &shadow);
+    wgri_environment_binding_t environment;
+    wgri_shadow_binding_t shadow = {0};
+    wgri_environment_get_binding(env != NULL ? env->environment : 0, &environment);
+    if (wgri_shadow_hooks.get_binding != NULL) {
+        wgri_shadow_hooks.get_binding(e->light_env, &shadow);
     }
 
     if (shader == NULL) return; /* released while the material was queued */
@@ -2726,11 +2726,11 @@ static void draw_custom(const wgr_model_draw_t *e, const wgr_model_t *model_ptr,
     {   /* the camera, and where this draw's placements start; the rest is per record */
         custom_object_t object = {.time_base = {time, (float)instance_base}};
         memcpy(object.view_proj, e->view_proj.m, sizeof(object.view_proj));
-        sg_apply_uniforms(WGR_SHADER_BLOCK_OBJECT, &(sg_range){.ptr = &object, .size = sizeof(object)});
+        sg_apply_uniforms(WGRI_SHADER_BLOCK_OBJECT, &(sg_range){.ptr = &object, .size = sizeof(object)});
     }
 
-    if (program->has_block[WGR_SHADER_BLOCK_FRAME]) {
-        wgr_shader_frame_t frame;
+    if (program->has_block[WGRI_SHADER_BLOCK_FRAME]) {
+        wgri_shader_frame_t frame;
         memset(&frame, 0, sizeof(frame));
         frame.camera_time[0] = e->camera_pos.x;
         frame.camera_time[1] = e->camera_pos.y;
@@ -2746,7 +2746,7 @@ static void draw_custom(const wgr_model_draw_t *e, const wgr_model_t *model_ptr,
             frame.ambient_count[2] = env->ambient.z;
             frame.ambient_count[3] = (float)e->light_count;
             for (int i = 0; i < e->light_count; i++) {
-                const wgr_scene_light_t *light = &env->lights[e->lights[i]];
+                const wgri_scene_light_t *light = &env->lights[e->lights[i]];
                 frame.light_pos_range[i][0] = light->position.x;
                 frame.light_pos_range[i][1] = light->position.y;
                 frame.light_pos_range[i][2] = light->position.z;
@@ -2761,7 +2761,7 @@ static void draw_custom(const wgr_model_draw_t *e, const wgr_model_t *model_ptr,
                 frame.light_spot[i][0] = light->cos_inner;
                 frame.light_spot[i][1] = light->cos_outer;
                 frame.light_spot[i][2] =
-                    (float)(model_ptr->receives_shadow ? wgr_shadow_slot_of(&shadow, e->lights[i]) : -1);
+                    (float)(model_ptr->receives_shadow ? wgri_shadow_slot_of(&shadow, e->lights[i]) : -1);
             }
             if (environment.valid && env->environment_intensity > 0.0f) {
                 frame.env[0] = env->environment_intensity;
@@ -2777,20 +2777,20 @@ static void draw_custom(const wgr_model_draw_t *e, const wgr_model_t *model_ptr,
         }
         /* the frame's casting lights, as the built-in shading gets them */
         if (model_ptr->receives_shadow) {
-            wgr_shadow_fill_uniforms(&shadow, frame.shadow_mat, frame.shadow_params, frame.shadow_tint,
+            wgri_shadow_fill_uniforms(&shadow, frame.shadow_mat, frame.shadow_params, frame.shadow_tint,
                                     frame.shadow_extra, frame.shadow_map);
         }
-        sg_apply_uniforms(WGR_SHADER_BLOCK_FRAME, &(sg_range){.ptr = &frame, .size = sizeof(frame)});
+        sg_apply_uniforms(WGRI_SHADER_BLOCK_FRAME, &(sg_range){.ptr = &frame, .size = sizeof(frame)});
     }
-    if (program->has_block[WGR_SHADER_BLOCK_FS_PARAMS]) {
-        sg_apply_uniforms(WGR_SHADER_BLOCK_FS_PARAMS,
+    if (program->has_block[WGRI_SHADER_BLOCK_FS_PARAMS]) {
+        sg_apply_uniforms(WGRI_SHADER_BLOCK_FS_PARAMS,
                           &(sg_range){.ptr = material->custom_params,
-                                      .size = (size_t)shader->block_size[WGR_SHADER_BLOCK_FS_PARAMS]});
+                                      .size = (size_t)shader->block_size[WGRI_SHADER_BLOCK_FS_PARAMS]});
     }
-    if (program->has_block[WGR_SHADER_BLOCK_VS_PARAMS]) {
-        sg_apply_uniforms(WGR_SHADER_BLOCK_VS_PARAMS,
-                          &(sg_range){.ptr = material->custom_params + shader->block_size[WGR_SHADER_BLOCK_FS_PARAMS],
-                                      .size = (size_t)shader->block_size[WGR_SHADER_BLOCK_VS_PARAMS]});
+    if (program->has_block[WGRI_SHADER_BLOCK_VS_PARAMS]) {
+        sg_apply_uniforms(WGRI_SHADER_BLOCK_VS_PARAMS,
+                          &(sg_range){.ptr = material->custom_params + shader->block_size[WGRI_SHADER_BLOCK_FS_PARAMS],
+                                      .size = (size_t)shader->block_size[WGRI_SHADER_BLOCK_VS_PARAMS]});
     }
 
     for (int t = 0; t < shader->texture_count; t++) {
@@ -2828,7 +2828,7 @@ static void draw_custom(const wgr_model_draw_t *e, const wgr_model_t *model_ptr,
     if (program->sprite_view_slot >= 0) { /* wgr_sprite_color(): white on models, so it's the vertex color */
         sg_view white, black_cube;
         sg_sampler linear;
-        wgr_shader_hooks.fallbacks(&white, &black_cube, &linear);
+        wgri_shader_hooks.fallbacks(&white, &black_cube, &linear);
         bind.views[program->sprite_view_slot] = white;
         if (program->sprite_sampler_slot >= 0) bind.samplers[program->sprite_sampler_slot] = linear;
     }
@@ -2843,9 +2843,9 @@ static void draw_custom(const wgr_model_draw_t *e, const wgr_model_t *model_ptr,
 typedef struct {
     const void *material; /* resolved material, or NULL when the item can't be drawn */
     unsigned vbuf, ibuf;
-    int pass, light_env, light_count, lights[WGR_MAX_DRAW_LIGHTS];
+    int pass, light_env, light_count, lights[WGRI_MAX_DRAW_LIGHTS];
     bool skinned, blended, double_sided, receives_shadow, custom;
-    const wgr_mat4_t *view_proj;
+    const wgri_mat4_t *view_proj;
     vec3_t camera_pos;
 } group_key_t;
 
@@ -2859,7 +2859,7 @@ static bool item_key(const wgr_model_item_t *item, group_key_t *key)
         return false;
     }
     const wgr_primitive_t *prim = &mesh_ptr->prims[item->prim];
-    const wgr_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
+    const wgri_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
     memset(key, 0, sizeof(*key));
     key->material = material;
     key->vbuf = prim->vbuf.id;
@@ -2867,7 +2867,7 @@ static bool item_key(const wgr_model_item_t *item, group_key_t *key)
     key->pass = e->pass;
     key->light_env = e->light_env;
     key->light_count = e->light_count;
-    for (int i = 0; i < e->light_count && i < WGR_MAX_DRAW_LIGHTS; i++) {
+    for (int i = 0; i < e->light_count && i < WGRI_MAX_DRAW_LIGHTS; i++) {
         key->lights[i] = e->lights[i];
     }
     key->skinned = prim->skinned;
@@ -2914,13 +2914,13 @@ static unsigned long long key_hash(const group_key_t *k, int item)
     for (bytes = (const unsigned char *)&k->material, size = 0; size < sizeof(k->material); size++) {
         h = (h ^ bytes[size]) * 1099511628211ULL;
     }
-    unsigned rest[6 + WGR_MAX_DRAW_LIGHTS] = {k->vbuf,      k->ibuf,
+    unsigned rest[6 + WGRI_MAX_DRAW_LIGHTS] = {k->vbuf,      k->ibuf,
                                              (unsigned)k->pass, (unsigned)k->light_env,
                                              (unsigned)k->light_count,
                                              (unsigned)((k->skinned ? 1 : 0) | (k->blended ? 2 : 0) |
                                                         (k->double_sided ? 4 : 0) |
                                                         (k->receives_shadow ? 8 : 0))};
-    for (int i = 0; i < k->light_count && i < WGR_MAX_DRAW_LIGHTS; i++) {
+    for (int i = 0; i < k->light_count && i < WGRI_MAX_DRAW_LIGHTS; i++) {
         rest[6 + i] = (unsigned)k->lights[i];
     }
     bytes = (const unsigned char *)rest;
@@ -2994,18 +2994,18 @@ static void draw_primitive(const wgr_model_draw_t *e, const wgr_model_t *model_p
                            const wgr_primitive_t *prim, bool blended, sg_pipeline *cur_pip, int instance_base,
                            int instances)
 {
-    const wgr_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
+    const wgri_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
     if (material->shader != 0) {
         draw_custom(e, model_ptr, prim, material, blended, cur_pip, instance_base, instances);
         return;
     }
-    const wgr_material_texture_t *textures = material->textures;
-    const wgr_light_env_t *light_env = wgr_light_env_get(e->light_env);
-    wgr_environment_binding_t environment;
-    wgr_shadow_binding_t shadow = {0};
-    wgr_environment_get_binding(light_env != NULL ? light_env->environment : 0, &environment);
-    if (wgr_shadow_hooks.get_binding != NULL) {
-        wgr_shadow_hooks.get_binding(e->light_env, &shadow);
+    const wgri_material_texture_t *textures = material->textures;
+    const wgri_light_env_t *light_env = wgri_light_env_get(e->light_env);
+    wgri_environment_binding_t environment;
+    wgri_shadow_binding_t shadow = {0};
+    wgri_environment_get_binding(light_env != NULL ? light_env->environment : 0, &environment);
+    if (wgri_shadow_hooks.get_binding != NULL) {
+        wgri_shadow_hooks.get_binding(e->light_env, &shadow);
     }
     ensure_pipelines();
     sg_pipeline pip = wgr_pips[prim->skinned ? 1 : 0][blended ? 1 : 0][material->double_sided ? 1 : 0];
@@ -3027,17 +3027,17 @@ static void draw_primitive(const wgr_model_draw_t *e, const wgr_model_t *model_p
     sg_apply_bindings(&(sg_bindings){
         .vertex_buffers[0] = prim->vbuf,
         .index_buffer = prim->ibuf,
-        .views[VIEW_base_color_tex] = texture_view(&textures[WGR_MATERIAL_TEXTURE_BASE_COLOR], wgr_model_white_view),
+        .views[VIEW_base_color_tex] = texture_view(&textures[WGRI_MATERIAL_TEXTURE_BASE_COLOR], wgr_model_white_view),
         .views[VIEW_metallic_roughness_tex] =
-            texture_view(&textures[WGR_MATERIAL_TEXTURE_METALLIC_ROUGHNESS], wgr_model_white_view),
-        .views[VIEW_normal_tex] = texture_view(&textures[WGR_MATERIAL_TEXTURE_NORMAL], wgr_model_flat_normal_view),
-        .views[VIEW_occlusion_tex] = texture_view(&textures[WGR_MATERIAL_TEXTURE_OCCLUSION], wgr_model_white_view),
-        .views[VIEW_emissive_tex] = texture_view(&textures[WGR_MATERIAL_TEXTURE_EMISSIVE], wgr_model_white_view),
-        .samplers[SMP_base_color_smp] = texture_sampler(&textures[WGR_MATERIAL_TEXTURE_BASE_COLOR]),
-        .samplers[SMP_metallic_roughness_smp] = texture_sampler(&textures[WGR_MATERIAL_TEXTURE_METALLIC_ROUGHNESS]),
-        .samplers[SMP_normal_smp] = texture_sampler(&textures[WGR_MATERIAL_TEXTURE_NORMAL]),
-        .samplers[SMP_occlusion_smp] = texture_sampler(&textures[WGR_MATERIAL_TEXTURE_OCCLUSION]),
-        .samplers[SMP_emissive_smp] = texture_sampler(&textures[WGR_MATERIAL_TEXTURE_EMISSIVE]),
+            texture_view(&textures[WGRI_MATERIAL_TEXTURE_METALLIC_ROUGHNESS], wgr_model_white_view),
+        .views[VIEW_normal_tex] = texture_view(&textures[WGRI_MATERIAL_TEXTURE_NORMAL], wgr_model_flat_normal_view),
+        .views[VIEW_occlusion_tex] = texture_view(&textures[WGRI_MATERIAL_TEXTURE_OCCLUSION], wgr_model_white_view),
+        .views[VIEW_emissive_tex] = texture_view(&textures[WGRI_MATERIAL_TEXTURE_EMISSIVE], wgr_model_white_view),
+        .samplers[SMP_base_color_smp] = texture_sampler(&textures[WGRI_MATERIAL_TEXTURE_BASE_COLOR]),
+        .samplers[SMP_metallic_roughness_smp] = texture_sampler(&textures[WGRI_MATERIAL_TEXTURE_METALLIC_ROUGHNESS]),
+        .samplers[SMP_normal_smp] = texture_sampler(&textures[WGRI_MATERIAL_TEXTURE_NORMAL]),
+        .samplers[SMP_occlusion_smp] = texture_sampler(&textures[WGRI_MATERIAL_TEXTURE_OCCLUSION]),
+        .samplers[SMP_emissive_smp] = texture_sampler(&textures[WGRI_MATERIAL_TEXTURE_EMISSIVE]),
         .views[VIEW_joint_tex] = wgr_model_joint_view,
         .samplers[SMP_joint_smp] = wgr_model_joint_sampler,
         .views[VIEW_instance_tex] = wgr_model_instance_view,
@@ -3103,7 +3103,7 @@ static bool caster_of(const wgr_model_draw_t *e, wgr_model_t **model_out, wgr_me
     return true;
 }
 
-bool wgr_model_has_shadow_casters(int light_env)
+bool wgri_model_has_shadow_casters(int light_env)
 {
     for (int i = 0; i < wgr_model_item_count; i++) {
         wgr_model_t *model_ptr;
@@ -3118,24 +3118,24 @@ bool wgr_model_has_shadow_casters(int light_env)
 
 /* Whether anything queued for this environment is darkened by shadows at all. A map
  * nothing samples is a pass for nothing, so the shadow module asks before drawing it. */
-void wgr_model_queue_counts(int *placements, int *primitives, int *placement_ceiling)
+void wgri_model_queue_counts(int *placements, int *primitives, int *placement_ceiling)
 {
     if (placements != NULL) *placements = wgr_model_draw_count;
     if (primitives != NULL) *primitives = wgr_model_item_count;
     if (placement_ceiling != NULL) *placement_ceiling = MAX_MODEL_DRAWS;
 }
 
-int wgr_model_draw_call_count(void)
+int wgri_model_draw_call_count(void)
 {
     return wgr_model_draw_calls;
 }
 
-int wgr_model_shadow_draw_call_count(void)
+int wgri_model_shadow_draw_call_count(void)
 {
     return wgr_model_shadow_draw_calls;
 }
 
-bool wgr_model_has_shadow_receivers(int light_env)
+bool wgri_model_has_shadow_receivers(int light_env)
 {
     for (int i = 0; i < wgr_model_item_count; i++) {
         const wgr_model_draw_t *e = &wgr_model_draws[wgr_model_items[i].draw];
@@ -3150,8 +3150,8 @@ bool wgr_model_has_shadow_receivers(int light_env)
 /* What a caster contributes to a light's map, or nothing. Fills `prim` and `material`
  * when this item is drawn into the map at all: it belongs to this lighting environment,
  * it casts, it isn't see-through, its buffers are up, and the light's fit reaches it. */
-static bool depth_item(int index, int light_env, const wgr_plane_t planes[6], const wgr_primitive_t **prim_out,
-                       const wgr_material_t **material_out)
+static bool depth_item(int index, int light_env, const wgri_plane_t planes[6], const wgr_primitive_t **prim_out,
+                       const wgri_material_t **material_out)
 {
     const wgr_model_item_t *item = &wgr_model_items[index];
     const wgr_model_draw_t *e = &wgr_model_draws[item->draw];
@@ -3161,7 +3161,7 @@ static bool depth_item(int index, int light_env, const wgr_plane_t planes[6], co
         item->prim >= mesh_ptr->prim_count) {
         return false; /* see-through parts don't cast: a blob shadow would double up */
     }
-    if (e->has_bounds && !wgr_frustum_test_aabb(planes, e->wmin, e->wmax)) {
+    if (e->has_bounds && !wgri_frustum_test_aabb(planes, e->wmin, e->wmax)) {
         return false; /* outside what this light's map covers */
     }
     const wgr_primitive_t *prim = &mesh_ptr->prims[item->prim];
@@ -3176,32 +3176,32 @@ static bool depth_item(int index, int light_env, const wgr_plane_t planes[6], co
 /* The depth pass sets less than the shading pass does, so it batches on less: the
  * buffers it binds, the base color texture and cutoff it alpha-tests with, and the
  * pipeline. Everything else about a caster is in its instance record. */
-static bool same_depth_group(const wgr_primitive_t *a, const wgr_material_t *am, const wgr_primitive_t *b,
-                             const wgr_material_t *bm)
+static bool same_depth_group(const wgr_primitive_t *a, const wgri_material_t *am, const wgr_primitive_t *b,
+                             const wgri_material_t *bm)
 {
     return a->vbuf.id == b->vbuf.id && a->ibuf.id == b->ibuf.id && a->index_count == b->index_count &&
            a->skinned == b->skinned && am == bm;
 }
 
-void wgr_model_draw_shadow_casters(int light_env, const wgr_mat4_t *light_view_proj)
+void wgri_model_draw_shadow_casters(int light_env, const wgri_mat4_t *light_view_proj)
 {
     sg_pipeline current = {0};
     float cutoff[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     bool cutoff_applied = false;
     /* a light's map covers only what its fit reaches; a caster outside it draws
        nothing but costs a draw call, so test each placement against the fit */
-    wgr_plane_t light_planes[6];
+    wgri_plane_t light_planes[6];
     int i = 0;
 
     if (light_view_proj == NULL) {
         return;
     }
-    wgr_frustum_from_view_proj(*light_view_proj, light_planes);
+    wgri_frustum_from_view_proj(*light_view_proj, light_planes);
     while (i < wgr_model_item_count) {
         const wgr_primitive_t *prim = NULL;
-        const wgr_material_t *material = NULL;
+        const wgri_material_t *material = NULL;
         const wgr_primitive_t *next_prim = NULL;
-        const wgr_material_t *next_material = NULL;
+        const wgri_material_t *next_material = NULL;
         int last;
         if (!depth_item(i, light_env, light_planes, &prim, &material)) {
             i++;
@@ -3241,8 +3241,8 @@ void wgr_model_draw_shadow_casters(int light_env, const wgr_mat4_t *light_view_p
         }
         sg_bindings bind = {.vertex_buffers[0] = prim->vbuf, .index_buffer = prim->ibuf};
         bind.views[VIEW_base_color_tex] =
-            texture_view(&material->textures[WGR_MATERIAL_TEXTURE_BASE_COLOR], wgr_model_white_view);
-        bind.samplers[SMP_base_color_smp] = texture_sampler(&material->textures[WGR_MATERIAL_TEXTURE_BASE_COLOR]);
+            texture_view(&material->textures[WGRI_MATERIAL_TEXTURE_BASE_COLOR], wgr_model_white_view);
+        bind.samplers[SMP_base_color_smp] = texture_sampler(&material->textures[WGRI_MATERIAL_TEXTURE_BASE_COLOR]);
         bind.views[VIEW_instance_tex] = wgr_model_instance_view;
         bind.samplers[SMP_instance_smp] = wgr_model_instance_sampler;
         if (skinned) {
@@ -3256,7 +3256,7 @@ void wgr_model_draw_shadow_casters(int light_env, const wgr_mat4_t *light_view_p
     }
 }
 
-void wgr_model_draw_items(int first, int count)
+void wgri_model_draw_items(int first, int count)
 {
     sg_pipeline cur_pip = {0}; /* sokol_gl may have changed the pipeline since last time */
     const int end = first + count < wgr_model_item_count ? first + count : wgr_model_item_count;
@@ -3366,9 +3366,9 @@ static void write_instance(float *r, const wgr_model_draw_t *e)
         }
     }
     /* a tint is an sRGB color like any color handle; its alpha is already linear */
-    r[24] = wgr_srgb_to_linear(e->tint.r);
-    r[25] = wgr_srgb_to_linear(e->tint.g);
-    r[26] = wgr_srgb_to_linear(e->tint.b);
+    r[24] = wgri_srgb_to_linear(e->tint.r);
+    r[25] = wgri_srgb_to_linear(e->tint.g);
+    r[26] = wgri_srgb_to_linear(e->tint.b);
     r[27] = e->tint.a;
     r[28] = (float)(e->joint_base > 0 ? e->joint_base : 0);
     r[29] = r[30] = r[31] = 0.0f;
@@ -3414,17 +3414,17 @@ static void upload_instances(void)
     });
 }
 
-void wgr_model_begin_unordered(void)
+void wgri_model_begin_unordered(void)
 {
     wgr_model_region = ++wgr_model_region_seq;
 }
 
-void wgr_model_end_unordered(void)
+void wgri_model_end_unordered(void)
 {
     wgr_model_region = -1;
 }
 
-const float *wgr_model_instance_records(int *count)
+const float *wgri_model_instance_records(int *count)
 {
     if (count != NULL) {
         *count = wgr_model_instance_count;
@@ -3434,7 +3434,7 @@ const float *wgr_model_instance_records(int *count)
 
 /* The frame's per-placement data, into the textures the vertex shaders read
  * (wgr_render: before any pass). */
-void wgr_model_flush(void)
+void wgri_model_flush(void)
 {
     wgr_model_draw_calls = wgr_model_shadow_draw_calls = 0; /* the passes after this are the frame's draws */
     upload_joints();
@@ -3442,7 +3442,7 @@ void wgr_model_flush(void)
     upload_instances();
 }
 
-void wgr_model_end_frame(void)
+void wgri_model_end_frame(void)
 {
     wgr_model_draw_count = 0;
     wgr_model_item_count = 0;
@@ -3465,24 +3465,24 @@ static void free_mesh_cpu(wgr_mesh_t *mesh)
     free(mesh->inverse_bind);
 }
 
-WGR_KEEP void wgr_model_destroy(wgr_handle_t handle)
+WGRI_KEEP void wgr_model_destroy(wgr_handle_t handle)
 {
     wgr_model_t *model_ptr = resolve(handle);
     wgr_handle_t mesh;
     if (model_ptr == NULL) return;
-    wgr_scene_forget(handle);
+    wgri_scene_forget(handle);
     mesh = model_ptr->mesh;
     for (int m = 0; m < WGR_MAX_MATERIAL_SLOTS; m++) {
         wgr_material_release(model_ptr->materials[m]); /* no-op for 0 */
     }
     free(model_ptr->posed_positions);
     memset(model_ptr, 0, sizeof(*model_ptr));
-    wgr_handle_pool_free(&wgr_model_pool, handle);
+    wgri_handle_pool_free(&wgr_model_pool, handle);
     release_mesh(mesh); /* frees the mesh once its last model/owner is gone */
 }
 
 /* wgr_asset: the buffer and image files a glTF file references. */
-void wgr_model_list_gltf_dependencies(const unsigned char *data, int size, wgr_asset_add_dependency_fn add,
+void wgri_model_list_gltf_dependencies(const unsigned char *data, int size, wgri_asset_add_dependency_fn add,
                                      void *context)
 {
     cgltf_options options = {0};
@@ -3527,21 +3527,21 @@ void wgr_model_list_gltf_dependencies(const unsigned char *data, int size, wgr_a
     cgltf_free(g);
 }
 
-void wgr_model_init(void)
+void wgri_model_init(void)
 {
-    wgr_render_hooks.draw_models = wgr_model_draw_items;
-    wgr_scene_hooks.models_begin_unordered = wgr_model_begin_unordered;
-    wgr_scene_hooks.models_end_unordered = wgr_model_end_unordered;
+    wgri_render_hooks.draw_models = wgri_model_draw_items;
+    wgri_scene_hooks.models_begin_unordered = wgri_model_begin_unordered;
+    wgri_scene_hooks.models_end_unordered = wgri_model_end_unordered;
     static const unsigned char white[4] = {255, 255, 255, 255};
     static const unsigned char flat_normal[4] = {128, 128, 255, 255};
 
-    wgr_model_end_frame();
-    if (!wgr_handle_pool_init(&wgr_model_pool, WGR_HANDLE_KIND_MODEL, "model", (void **)&wgr_models,
-                             sizeof(wgr_model_t), MODELS_INITIAL, WGR_HANDLE_POOL_MAX_SLOTS)) {
+    wgri_model_end_frame();
+    if (!wgri_handle_pool_init(&wgr_model_pool, WGR_HANDLE_KIND_MODEL, "model", (void **)&wgr_models,
+                             sizeof(wgr_model_t), MODELS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         log_error("model: out of memory");
     }
-    if (!wgr_handle_pool_init(&wgr_mesh_pool, WGR_HANDLE_KIND_MESH, "mesh", (void **)&wgr_meshes,
-                             sizeof(wgr_mesh_t), MESHES_INITIAL, WGR_HANDLE_POOL_MAX_SLOTS)) {
+    if (!wgri_handle_pool_init(&wgr_mesh_pool, WGR_HANDLE_KIND_MESH, "mesh", (void **)&wgr_meshes,
+                             sizeof(wgr_mesh_t), MESHES_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         log_error("mesh: out of memory");
     }
 
@@ -3562,19 +3562,19 @@ void wgr_model_init(void)
         .wrap_u = SG_WRAP_CLAMP_TO_EDGE, .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
         .compare = SG_COMPAREFUNC_LESS_EQUAL, .label = "wgr-model-no-shadow-smp"});
 
-    wgr_scene_register_passes(WGR_HANDLE_KIND_MODEL, draw_opaque, collect_transparent, draw_transparent);
-    wgr_scene_register_bounds(WGR_HANDLE_KIND_MODEL, model_bounds);
-    wgr_scene_register_casts_shadow(WGR_HANDLE_KIND_MODEL, wgr_model_casts_shadow);
-    wgr_scene_register_cull_bounds(WGR_HANDLE_KIND_MODEL, model_cull_bounds);
-    wgr_scene_register_pick(WGR_HANDLE_KIND_MODEL, model_pick);
-    wgr_scene_register_enabled(WGR_HANDLE_KIND_MODEL, wgr_model_is_enabled);
-    wgr_asset_register_dependencies(".gltf", wgr_model_list_gltf_dependencies);
-    wgr_asset_register_dependencies(".glb", wgr_model_list_gltf_dependencies);
-    wgr_asset_register_loader(".gltf", &wgr_mesh_loader);
-    wgr_asset_register_loader(".glb", &wgr_mesh_loader);
+    wgri_scene_register_passes(WGR_HANDLE_KIND_MODEL, draw_opaque, collect_transparent, draw_transparent);
+    wgri_scene_register_bounds(WGR_HANDLE_KIND_MODEL, model_bounds);
+    wgri_scene_register_casts_shadow(WGR_HANDLE_KIND_MODEL, wgr_model_casts_shadow);
+    wgri_scene_register_cull_bounds(WGR_HANDLE_KIND_MODEL, model_cull_bounds);
+    wgri_scene_register_pick(WGR_HANDLE_KIND_MODEL, model_pick);
+    wgri_scene_register_enabled(WGR_HANDLE_KIND_MODEL, wgr_model_is_enabled);
+    wgri_asset_register_dependencies(".gltf", wgri_model_list_gltf_dependencies);
+    wgri_asset_register_dependencies(".glb", wgri_model_list_gltf_dependencies);
+    wgri_asset_register_loader(".gltf", &wgr_mesh_loader);
+    wgri_asset_register_loader(".glb", &wgr_mesh_loader);
 }
 
-void wgr_model_deinit(void)
+void wgri_model_deinit(void)
 {
     free(wgr_model_draws);
     free(wgr_model_items);
@@ -3593,13 +3593,13 @@ void wgr_model_deinit(void)
         if (wgr_depth_pips[i].id != SG_INVALID_ID) sg_destroy_pipeline(wgr_depth_pips[i]);
         wgr_depth_pips[i] = (sg_pipeline){0};
     }
-    wgr_render_hooks.draw_models = NULL;
-    wgr_scene_hooks.models_begin_unordered = NULL;
-    wgr_scene_hooks.models_end_unordered = NULL;
+    wgri_render_hooks.draw_models = NULL;
+    wgri_scene_hooks.models_begin_unordered = NULL;
+    wgri_scene_hooks.models_end_unordered = NULL;
     wgr_model_region = -1;
     for (uint16_t i = 1; i < wgr_model_pool.capacity; i++) {
         if (wgr_model_pool.occupied[i]) {
-            wgr_handle_t h = wgr_handle_pool_handle_from_index(&wgr_model_pool, i);
+            wgr_handle_t h = wgri_handle_pool_handle_from_index(&wgr_model_pool, i);
             wgr_model_destroy(h);
         }
     }
@@ -3650,11 +3650,11 @@ void wgr_model_deinit(void)
         sg_destroy_shader(wgr_shd_skinned);
         wgr_model_pipelines_ready = false;
     }
-    wgr_handle_pool_destroy(&wgr_model_pool);
-    wgr_handle_pool_destroy(&wgr_mesh_pool);
+    wgri_handle_pool_destroy(&wgr_model_pool);
+    wgri_handle_pool_destroy(&wgr_mesh_pool);
 }
 
-/* An optional subsystem: part of the runtime when a program uses it (internal/wgr_module.h). */
-static wgr_module_t wgr_model_module = {.name = "model", .order = 50, .init = wgr_model_init, .deinit = wgr_model_deinit,
-                                      .flush = wgr_model_flush, .end_frame = wgr_model_end_frame};
-WGR_MODULE(wgr_model_module)
+/* An optional subsystem: part of the runtime when a program uses it (internal/wgri_module.h). */
+static wgri_module_t wgr_model_module = {.name = "model", .order = 50, .init = wgri_model_init, .deinit = wgri_model_deinit,
+                                      .flush = wgri_model_flush, .end_frame = wgri_model_end_frame};
+WGRI_MODULE(wgr_model_module)

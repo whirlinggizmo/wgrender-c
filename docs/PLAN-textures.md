@@ -36,7 +36,7 @@ KB of C to read the files, and no work at load but reading and uploading.
 - **Names:** a program loads `name.ktx`, through `wgr_asset` or `wgr_texture_create`.
   The texture module maps it to the first variant the GPU can sample, in order BC7,
   ASTC, ETC2, else `name.png`: the asset layer maps it before fetching
-  (`wgr_asset_register_path_mapper`), so the web downloads and caches only that file
+  (`wgri_asset_register_path_mapper`), so the web downloads and caches only that file
   and the callback gets its path, and `wgr_texture_create` maps it the same way. A
   variant named outright (`name.astc.ktx`) is used as is.
 - **Missing files:** when this GPU's variant is missing (compressed for some formats,

@@ -15,7 +15,7 @@
  *   fs_depth_params      = x alpha cutoff (0 = no alpha test)
  *
  * Regen: `make shaders`. */
-@ctype mat4 wgr_mat4_t
+@ctype mat4 wgri_mat4_t
 
 @include wgr_instance.glsl
 

@@ -27,12 +27,12 @@
 
 /* declared in internal/wgr_font.h (not included: fontstash.h would expand its
  * implementation a second time) */
-bool wgr_fontstash_render_state(FONScontext *context, sg_view *atlas, sg_sampler *sampler, sg_shader *shader);
+bool wgri_fontstash_render_state(FONScontext *context, sg_view *atlas, sg_sampler *sampler, sg_shader *shader);
 
 /* What sokol_fontstash renders with, for drawing glyph quads with another
  * pipeline (wgr_text3d: depth-tested). The atlas view changes when fontstash grows
  * the atlas, so ask again for every draw. */
-bool wgr_fontstash_render_state(FONScontext *context, sg_view *atlas, sg_sampler *sampler, sg_shader *shader)
+bool wgri_fontstash_render_state(FONScontext *context, sg_view *atlas, sg_sampler *sampler, sg_shader *shader)
 {
     const _sfons_t *sfons = context != NULL ? (const _sfons_t *)context->params.userPtr : NULL;
     if (sfons == NULL || sfons->shd.id == SG_INVALID_ID || sfons->tex_view.id == SG_INVALID_ID) {

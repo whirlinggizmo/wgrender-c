@@ -81,7 +81,7 @@ Keep this file short and rule-shaped. The authoritative design doc is
   `make example-shaders` repacks `examples/shaders/*.glsl` into the committed
   `examples/assets/shaders/`; run it after changing one of them or `shaders/wgr.glsl`.
 - `make brdf-lut` — regenerate the baked BRDF table (`src/data/wgr_brdf_lut.h`) after
-  changing `wgr_environment_brdf_lut` or its size (a unit test fails until you do).
+  changing `wgri_environment_brdf_lut` or its size (a unit test fails until you do).
 - `make websize [BACKEND=webgpu] [WEB_THREADS=0]` — wasm/JS sizes per web example
   (raw and gzip; brotli if installed), also summarized after `make wasm-all`.
 - Run `make verify` (lib + examples + `make check` + `make test` + `make smoke`,
@@ -162,9 +162,9 @@ the sync `wgr_*_create(path)`. Bytes never cross into user code.
 ## Core and optional subsystems
 
 - Optional subsystems (textures, models, sprites, particles, audio, ...) register with
-  `WGR_MODULE` (`src/internal/wgr_module_internal.h`), so a program links only what it uses. The
+  `WGRI_MODULE` (`src/internal/wgr_module_internal.h`), so a program links only what it uses. The
   core (`wgr.c`, `wgr_render`, `wgr_scene`, ...) never calls them by name: add a module
-  callback or a hook (`wgr_render_hooks`, `wgr_scene_hooks`) instead. `make check`
+  callback or a hook (`wgri_render_hooks`, `wgri_scene_hooks`) instead. `make check`
   enforces it (`tools/check_modules.sh`). Details: ARCHITECTURE.md §7b.
 
 ## Naming
@@ -178,7 +178,10 @@ Each level has its own rule; `lib` belongs to exactly one of them.
   `lib` appears, and it isn't a choice: `-lwgrender` resolves to `libwgrender.a`. A
   future MSVC/DLL target would be `wgrender.dll` + `wgrender.lib` (MinGW keeps
   `libwgrender.a` / `libwgrender.dll.a`, since it uses ld).
-- **Macros and build flags:** `WGR_` (`WGR_HEADLESS`, `WGR_MODULE`), as for symbols.
+- **Macros:** `WGR_` public, `WGRI_` internal, as for functions. The exception is a
+  **build flag** the build system also passes: `-DWGR_HEADLESS` and `#ifdef
+  WGR_HEADLESS` have to spell it the same, so build flags stay `WGR_` wherever they
+  are used.
 - **Tooling environment variables:** `WGRENDER_` (`WGRENDER_WEB_PROFILE`). They aren't
   library symbols, and three letters collide too easily in a process environment. A
   variable naming another project takes *that* project's name (`LIBRL_DIR`, because
@@ -188,23 +191,26 @@ Each level has its own rule; `lib` belongs to exactly one of them.
   `wgr_`); products and apps are `wg-<name>` (`wg-renderer`). Don't share one `wg_`
   prefix across libraries: several own a logger, event and fs, which would collide at
   link time. librl stays under robknopf as the maintenance-only predecessor.
-- **Prefix:** all library symbols are `wgr_`.
+- **Prefix says which surface it is:** `wgr_` is public, `wgri_` is internal. A call
+  site reads as what it is without looking anything up, and `make check` can enforce
+  it, which it can't when one prefix covers both.
 - **Public API** (`include/*.h`): subsystem-first `wgr_<section>_<action>`.
-- **Cross-`.c` internals** (one `src/*.c` calling another's symbol): `wgr_<subsystem>_…`,
-  declared **only** in `src/internal/*_internal.h` — not public unless promoted to
-  `include/`. The suffix is what keeps basenames unique: 17 subsystems have both a
+- **Cross-`.c` internals** (one `src/*.c` calling another's symbol): `wgri_<subsystem>_…`,
+  declared **only** in `src/internal/*_internal.h` — promoting one to `include/` is a
+  rename to `wgr_`, which is the point: the contract changed. The file suffix keeps
+  basenames unique: 17 subsystems have both a
   public and an internal header, and without it a quoted `#include "wgr_texture.h"`
   from inside `src/internal/` finds the sibling instead of the public one — which is
   why those includes used to need angle brackets and a comment each.
-- **File-local `static`** helpers: no `wgr_` prefix; `verb_noun` in `snake_case`;
+- **File-local `static`** helpers: no prefix at all; `verb_noun` in `snake_case`;
   shortest name that's unambiguous in the file. Prefer `resolve_*` / `lookup_*` for
   handle→pointer helpers and `is_*` / `has_*` for predicates.
-- **Types:** `wgr_<noun>_t` — no `_data`/`_instance` suffix. The noun carries the
-  layer: resource (`wgr_texture_t`, `wgr_mesh_t`) vs object (`wgr_sprite3d_t`,
-  `wgr_model_t`). Handle kinds live in `include/wgr_handle.h`.
-- **Resolved instance pointers:** a local/param holding a raw `wgr_<noun>_t *` that
+- **Types:** `wgri_<noun>_t` internally, `wgr_<noun>_t` for the few public ones — no `_data`/`_instance` suffix. The noun carries the
+  layer: resource (`wgri_texture_t`, `wgri_mesh_t`) vs object (`wgri_sprite3d_t`,
+  `wgri_model_t`). Handle kinds live in `include/wgr_handle.h`.
+- **Resolved instance pointers:** a local/param holding a raw `wgri_<noun>_t *` that
   was resolved from a `wgr_handle_t` is named `<noun>_ptr` (e.g.
-  `wgr_model_t *model_ptr = resolve(handle);`). This keeps the **pointer path**
+  `wgri_model_t *model_ptr = resolve(handle);`). This keeps the **pointer path**
   visually distinct from the **handle path** at every call site. Don't add `_ptr`
   redundantly where no handle coexists (pure-pointer helpers, value locals).
 

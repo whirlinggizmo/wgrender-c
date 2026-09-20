@@ -1,5 +1,5 @@
-#ifndef WGR_INTERNAL_SHADERS_H
-#define WGR_INTERNAL_SHADERS_H
+#ifndef WGRI_INTERNAL_SHADERS_H
+#define WGRI_INTERNAL_SHADERS_H
 
 /* The generated shaders (src/shaders/wgr_model.glsl.h, wgr_sprite.glsl.h, wgr_depth.glsl.h;
  * `make shaders`). sokol-shdc
@@ -25,4 +25,4 @@
 #  include "shaders/wgr_depth.glsl.h"
 #endif
 
-#endif // WGR_INTERNAL_SHADERS_H
+#endif // WGRI_INTERNAL_SHADERS_H

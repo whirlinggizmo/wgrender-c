@@ -31,35 +31,35 @@
 
 static void setup(void)
 {
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_texture_init();
-    wgr_sprite3d_init();
-    wgr_light_init();
-    wgr_material_init();
-    wgr_environment_init();
-    wgr_model_init();
-    wgr_font_init();
-    wgr_text3d_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_texture_init();
+    wgri_sprite3d_init();
+    wgri_light_init();
+    wgri_material_init();
+    wgri_environment_init();
+    wgri_model_init();
+    wgri_font_init();
+    wgri_text3d_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL);
 }
 
 static void teardown(void)
 {
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_text3d_deinit();
-    wgr_font_deinit();
-    wgr_model_deinit();
-    wgr_environment_deinit();
-    wgr_material_deinit();
-    wgr_light_deinit();
-    wgr_sprite3d_deinit();
-    wgr_texture_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_text3d_deinit();
+    wgri_font_deinit();
+    wgri_model_deinit();
+    wgri_environment_deinit();
+    wgri_material_deinit();
+    wgri_light_deinit();
+    wgri_sprite3d_deinit();
+    wgri_texture_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }
 
@@ -185,8 +185,8 @@ void test_parity_sound_pan(void)
 {
     float buffer[64 * 2];
 
-    wgr_audio_init();
-    wgr_sound_init();
+    wgri_audio_init();
+    wgri_sound_init();
     wgr_handle_t audio = wgr_audio_create("../examples/assets/sounds/click_004.ogg");
     wgr_handle_t sound = wgr_sound_create(audio);
     wgr_audio_release(audio);
@@ -195,29 +195,29 @@ void test_parity_sound_pan(void)
     /* find the loudest frame at center, then check the same frame panned */
     const int frame = 20;
     wgr_sound_play(sound);
-    wgr_audio_mix(buffer, 64, 44100);
+    wgri_audio_mix(buffer, 64, 44100);
     const float center_l = buffer[frame * 2], center_r = buffer[frame * 2 + 1];
 
     CHECK(wgr_sound_set_pan(sound, 1.0f)); /* right only */
     wgr_sound_play(sound);
-    wgr_audio_mix(buffer, 64, 44100);
+    wgri_audio_mix(buffer, 64, 44100);
     CHECK_NEAR(buffer[frame * 2], 0.0f, 1e-6f);
     CHECK_NEAR(buffer[frame * 2 + 1], center_r, 1e-6f);
 
     CHECK(wgr_sound_set_pan(sound, -0.5f)); /* left full, right half */
     wgr_sound_play(sound);
-    wgr_audio_mix(buffer, 64, 44100);
+    wgri_audio_mix(buffer, 64, 44100);
     CHECK_NEAR(buffer[frame * 2], center_l, 1e-6f);
     CHECK_NEAR(buffer[frame * 2 + 1], center_r * 0.5f, 1e-6f);
 
     CHECK(wgr_sound_set_pan(sound, -5.0f)); /* clamped to -1 */
     wgr_sound_play(sound);
-    wgr_audio_mix(buffer, 64, 44100);
+    wgri_audio_mix(buffer, 64, 44100);
     CHECK_NEAR(buffer[frame * 2 + 1], 0.0f, 1e-6f);
 
     wgr_sound_destroy(sound);
-    wgr_sound_deinit();
-    wgr_audio_deinit();
+    wgri_sound_deinit();
+    wgri_audio_deinit();
 }
 
 void test_parity_asset_host(void)

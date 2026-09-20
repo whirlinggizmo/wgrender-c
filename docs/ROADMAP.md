@@ -143,7 +143,7 @@ functions (value returns instead), public `fs_*` (internal; see
 - **Desktop asset downloads** — on web a local cache miss downloads over HTTP
   (sokol_fetch, which reads only local files on native platforms and is compiled only
   into web builds); on **desktop** a local miss just fails (TODO in
-  `wgr_asset_tick`). Plan: the OS's HTTP clients (WinHTTP on Windows, NSURLSession on
+  `wgri_asset_tick`). Plan: the OS's HTTP clients (WinHTTP on Windows, NSURLSession on
   macOS, libcurl on Linux, where it comes with the system), so HTTPS needs no bundled
   TLS library, plus a hook to fetch a missing file some other way. Deferred until
   desktop downloads are wanted. (Asset redirects and host ping are done, in the core;

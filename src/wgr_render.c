@@ -14,8 +14,8 @@
 #include "internal/wgr_shadow_internal.h"
 
 /* internal/wgr_environment.h: the environment module fills this in when it's linked. */
-wgr_environment_hooks_t wgr_environment_hooks;
-wgr_shadow_hooks_t wgr_shadow_hooks; /* internal/wgr_shadow.h: set by the shadow module */
+wgri_environment_hooks_t wgri_environment_hooks;
+wgri_shadow_hooks_t wgri_shadow_hooks; /* internal/wgr_shadow.h: set by the shadow module */
 #include "wgr_camera3d.h"
 #include "wgr_logger.h"
 #include "wgr_window.h"
@@ -23,18 +23,18 @@ wgr_shadow_hooks_t wgr_shadow_hooks; /* internal/wgr_shadow.h: set by the shadow
 #include "sokol_gfx.h"
 #include "util/sokol_gl.h"
 
-wgr_render_hooks_t wgr_render_hooks;
+wgri_render_hooks_t wgri_render_hooks;
 
 /* Render targets are textures (wgr_texture, through its hooks): false when `texture`
  * isn't one, or textures aren't linked. */
 static bool target_of(wgr_handle_t texture, sg_attachments *attachments, int *w, int *h)
 {
-    return wgr_render_hooks.texture_target != NULL && wgr_render_hooks.texture_target(texture, attachments, w, h);
+    return wgri_render_hooks.texture_target != NULL && wgri_render_hooks.texture_target(texture, attachments, w, h);
 }
 
 static void drawing_into(wgr_handle_t texture)
 {
-    if (wgr_render_hooks.texture_drawing_into != NULL) wgr_render_hooks.texture_drawing_into(texture);
+    if (wgri_render_hooks.texture_drawing_into != NULL) wgri_render_hooks.texture_drawing_into(texture);
 }
 
 /* sokol_gl's per-frame budgets, shared by everything drawn through it in a frame:
@@ -88,14 +88,14 @@ typedef struct {
     int first; /* RENDER_CMD_MODELS: item range in wgr_model's queue; RENDER_CMD_SGL_LAYER:
                   the layer's sokol_gl command range; RENDER_CMD_SPRITES: the batch */
     int count;
-    wgr_render_callback_fn callback; /* RENDER_CMD_CALLBACK: called with `first` */
+    wgri_render_callback_fn callback; /* RENDER_CMD_CALLBACK: called with `first` */
 } wgr_render_cmd_t;
 
 /* A render pass recorded this frame: pass 0 is the screen, the rest are render
  * targets in the order they were begun. */
 typedef struct {
     wgr_handle_t target; /* 0 = the screen */
-    wgr_colorf_t clear_color;
+    wgri_colorf_t clear_color;
 } wgr_render_pass_t;
 
 static wgr_render_pass_t wgr_render_passes[MAX_RENDER_PASSES];
@@ -168,7 +168,7 @@ static void open_sgl_layer(void)
 static void reset_frame_commands(void)
 {
     wgr_render_revision++;
-    const wgr_colorf_t screen_clear = wgr_render_passes[0].clear_color;
+    const wgri_colorf_t screen_clear = wgr_render_passes[0].clear_color;
     wgr_render_cmd_count = 0;
     wgr_render_next_layer = 0;
     wgr_render_pass_count = 1;
@@ -178,12 +178,12 @@ static void reset_frame_commands(void)
     open_sgl_layer();
 }
 
-int wgr_render_current_pass(void)
+int wgri_render_current_pass(void)
 {
     return wgr_render_current_pass_index;
 }
 
-vec2_t wgr_render_target_size(void)
+vec2_t wgri_render_target_size(void)
 {
     const wgr_handle_t target = wgr_render_passes[wgr_render_current_pass_index].target;
     sg_attachments attachments;
@@ -191,10 +191,10 @@ vec2_t wgr_render_target_size(void)
     if (target != 0 && target_of(target, &attachments, &w, &h)) {
         return (vec2_t){(float)w, (float)h};
     }
-    return (vec2_t){(float)wgr_platform_width(), (float)wgr_platform_height()};
+    return (vec2_t){(float)wgri_platform_width(), (float)wgri_platform_height()};
 }
 
-void wgr_render_submit_models(int first, int count)
+void wgri_render_submit_models(int first, int count)
 {
     wgr_render_cmd_t *last;
 
@@ -235,7 +235,7 @@ void wgr_render_submit_models(int first, int count)
     open_sgl_layer();
 }
 
-void wgr_render_submit_callback(wgr_render_callback_fn draw, int arg)
+void wgri_render_submit_callback(wgri_render_callback_fn draw, int arg)
 {
     wgr_render_cmd_t *last;
 
@@ -264,7 +264,7 @@ static bool layer_is_empty(void)
     return sgl_num_vertices() == wgr_layer_mark_vertices && sgl_num_commands() == wgr_layer_mark_commands;
 }
 
-bool wgr_render_submit_sprites(int batch)
+bool wgri_render_submit_sprites(int batch)
 {
     wgr_render_cmd_t *last;
 
@@ -287,7 +287,7 @@ bool wgr_render_submit_sprites(int batch)
     return true;
 }
 
-bool wgr_render_sprites_open(int batch)
+bool wgri_render_sprites_open(int batch)
 {
     /* the batch's command, then only the (empty) sgl layer opened after it */
     return batch >= 0 && wgr_render_cmd_count >= 2 && layer_is_empty() &&
@@ -299,18 +299,18 @@ bool wgr_render_sprites_open(int batch)
 
 static bool wgr_render_transparent_3d;
 
-void wgr_render_set_3d_transparent(bool transparent)
+void wgri_render_set_3d_transparent(bool transparent)
 {
     sgl_load_pipeline(transparent ? wgr_pip_3d_transparent : wgr_pip_3d);
     wgr_render_transparent_3d = transparent;
 }
 
-bool wgr_render_is_3d_transparent(void)
+bool wgri_render_is_3d_transparent(void)
 {
     return wgr_render_transparent_3d;
 }
 
-void wgr_render_init(void)
+void wgri_render_init(void)
 {
     /* sokol_gl's default context can't be resized or destroyed, so it stays minimal
      * and unused; recording goes into a context of our own that can be replaced
@@ -369,11 +369,11 @@ void wgr_render_init(void)
         },
     });
 
-    wgr_render_passes[0].clear_color = (wgr_colorf_t){0.1f, 0.1f, 0.1f, 1.0f};
+    wgr_render_passes[0].clear_color = (wgri_colorf_t){0.1f, 0.1f, 0.1f, 1.0f};
     reset_frame_commands();
 }
 
-void wgr_render_deinit(void)
+void wgri_render_deinit(void)
 {
     free(wgr_render_cmds);
     wgr_render_cmds = NULL;
@@ -391,7 +391,7 @@ static void setup_2d_projection(void)
 {
     wgr_render_revision++;
     /* the screen in logical pixels, a render target in its pixels */
-    const vec2_t size = wgr_render_current_pass_index == 0 ? wgr_window_get_screen_size() : wgr_render_target_size();
+    const vec2_t size = wgr_render_current_pass_index == 0 ? wgr_window_get_screen_size() : wgri_render_target_size();
     const float w = size.x;
     const float h = size.y;
 
@@ -405,16 +405,16 @@ static void setup_2d_projection(void)
     sgl_load_identity();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_render_begin(void)
 {
     setup_2d_projection();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_render_clear_background(wgr_color_t color)
 {
-    wgr_render_passes[wgr_render_current_pass_index].clear_color = wgr_color_unpack(color);
+    wgr_render_passes[wgr_render_current_pass_index].clear_color = wgri_color_unpack(color);
 }
 
 /* the clip stack, below */
@@ -423,7 +423,7 @@ static void clip_end_pass(void);
 static void clip_end_frame(void);
 static void apply_clip(void);
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_render_begin_texture(wgr_handle_t texture)
 {
     sg_attachments attachments;
@@ -453,7 +453,7 @@ bool wgr_render_begin_texture(wgr_handle_t texture)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_render_end_texture(void)
 {
     wgr_render_revision++;
@@ -503,12 +503,12 @@ static void replay_pass(int index)
                many layers stays linear */
             sgl_draw_layer_range(cmd->layer, cmd->first, cmd->count);
         } else if (cmd->kind == RENDER_CMD_MODELS) {
-            if (wgr_render_hooks.draw_models != NULL) { /* custom-pipeline meshes */
-                wgr_render_hooks.draw_models(cmd->first, cmd->count);
+            if (wgri_render_hooks.draw_models != NULL) { /* custom-pipeline meshes */
+                wgri_render_hooks.draw_models(cmd->first, cmd->count);
             }
         } else if (cmd->kind == RENDER_CMD_SPRITES) {
-            if (wgr_render_hooks.draw_sprites != NULL) { /* instanced sprite quads */
-                wgr_render_hooks.draw_sprites(cmd->first, previous_sprites);
+            if (wgri_render_hooks.draw_sprites != NULL) { /* instanced sprite quads */
+                wgri_render_hooks.draw_sprites(cmd->first, previous_sprites);
             }
         } else {
             cmd->callback(cmd->first);
@@ -520,8 +520,8 @@ static void replay_pass(int index)
 /* Clear the pass, or keep what an earlier pass drew into the same target. */
 static sg_pass_action pass_action(int index)
 {
-    wgr_colorf_t color = wgr_render_passes[index].clear_color;
-    if (index == 0 && wgr_platform_is_window_transparent()) {
+    wgri_colorf_t color = wgr_render_passes[index].clear_color;
+    if (index == 0 && wgri_platform_is_window_transparent()) {
         /* a transparent window composites premultiplied: clearing to (1, 0, 0, 0)
            would add red to what's behind it, so the clear color's alpha applies */
         color.r *= color.a, color.g *= color.a, color.b *= color.a;
@@ -539,7 +539,7 @@ static sg_pass_action pass_action(int index)
     };
 }
 
-WGR_KEEP
+WGRI_KEEP
 /* After a frame that ran out of sokol_gl's vertex or command budget (its draws past
  * the budget were dropped): switch to a context with that budget doubled, up to
  * WGR_SGL_MAX_*. Pipelines carry over: they depend only on the pixel formats, which
@@ -595,17 +595,17 @@ void wgr_render_end(void)
         wgr_render_end_texture();
     }
     clip_end_frame();
-    wgr_debug_draw();
+    wgri_debug_draw();
 
     /* upload the font atlas before opening the pass (sg_update_image cannot run
      * inside a render pass) */
-    wgr_font_flush();
-    wgr_module_flush_all(); /* the frame's sprite instances, particles, ... in one update each */
+    wgri_font_flush();
+    wgri_module_flush_all(); /* the frame's sprite instances, particles, ... in one update each */
     count_layer_commands();
 
     /* the casting light's shadow map, before anything that shades with it */
-    if (wgr_render_hooks.shadows_draw != NULL) {
-        wgr_render_hooks.shadows_draw();
+    if (wgri_render_hooks.shadows_draw != NULL) {
+        wgri_render_hooks.shadows_draw();
     }
 
     /* render targets first, in the order they were begun, then the screen */
@@ -628,33 +628,33 @@ void wgr_render_end(void)
     /* with screen effects the frame draws into a texture, and the chain puts it on
      * the screen (src/wgr_effect.c) */
     sg_attachments effects = {0};
-    const bool to_effects = wgr_render_hooks.effects_begin != NULL && wgr_render_hooks.effects_begin(&effects);
+    const bool to_effects = wgri_render_hooks.effects_begin != NULL && wgri_render_hooks.effects_begin(&effects);
     if (to_effects) {
         sg_begin_pass(&(sg_pass){.action = pass_action(0), .attachments = effects, .label = "wgr-screen-effects"});
     } else {
-        sg_begin_pass(&(sg_pass){.action = pass_action(0), .swapchain = wgr_platform_swapchain()});
+        sg_begin_pass(&(sg_pass){.action = pass_action(0), .swapchain = wgri_platform_swapchain()});
     }
     replay_pass(0);
     sg_end_pass();
     if (to_effects) {
-        wgr_render_hooks.effects_draw();
+        wgri_render_hooks.effects_draw();
     }
     sgl_err = sgl_error(); /* sg_commit clears it */
     sg_commit();
     grow_sgl_budgets(sgl_err);
 
-    wgr_module_end_frame_all(); /* models, sprites, particles, lights, ... start over */
-    wgr_font_end_frame();
+    wgri_module_end_frame_all(); /* models, sprites, particles, lights, ... start over */
+    wgri_font_end_frame();
     reset_frame_commands();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_render_begin_mode_2d(void)
 {
     setup_2d_projection();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_render_end_mode_2d(void)
 {
     /* 2D is the default projection; nothing to restore for the milestone. */
@@ -665,14 +665,14 @@ void wgr_render_end_mode_2d(void)
 /* Clip rectangles are logical pixels with a top-left origin, like 2D drawing,
  * while the scissor rect is in framebuffer pixels: screen rects scale by the DPI
  * scale, render targets are already in their own pixels. */
-float wgr_render_pixel_scale(void)
+float wgri_render_pixel_scale(void)
 {
-    return wgr_render_current_pass_index == 0 ? wgr_platform_dpi_scale() : 1.0f;
+    return wgr_render_current_pass_index == 0 ? wgri_platform_dpi_scale() : 1.0f;
 }
 
 static void set_scissor(float x, float y, float width, float height)
 {
-    const float scale = wgr_render_pixel_scale();
+    const float scale = wgri_render_pixel_scale();
     sgl_scissor_rectf(x * scale, y * scale, width * scale, height * scale, true);
 }
 
@@ -703,7 +703,7 @@ static void warn_clips(const char *what)
 /* The whole drawing target, in logical pixels (a render target's own pixels). */
 static clip_rect_t target_rect(void)
 {
-    const vec2_t size = wgr_render_current_pass_index == 0 ? wgr_window_get_screen_size() : wgr_render_target_size();
+    const vec2_t size = wgr_render_current_pass_index == 0 ? wgr_window_get_screen_size() : wgri_render_target_size();
     return (clip_rect_t){0.0f, 0.0f, size.x, size.y};
 }
 
@@ -719,7 +719,7 @@ static void apply_clip(void)
     set_scissor(clip.x, clip.y, clip.width, clip.height);
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_render_push_clip(float x, float y, float width, float height)
 {
     const clip_rect_t parent = current_clip();
@@ -738,7 +738,7 @@ void wgr_render_push_clip(float x, float y, float width, float height)
     apply_clip();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_render_pop_clip(void)
 {
     if (wgr_clip_overflow > 0) {
@@ -753,7 +753,7 @@ void wgr_render_pop_clip(void)
     apply_clip();
 }
 
-bool wgr_render_get_clip(float *x, float *y, float *width, float *height)
+bool wgri_render_get_clip(float *x, float *y, float *width, float *height)
 {
     const clip_rect_t clip = current_clip();
     *x = clip.x;
@@ -788,15 +788,15 @@ static void clip_end_frame(void)
     wgr_clip_depth = wgr_clip_base = wgr_clip_overflow = 0;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_render_begin_mode_3d(void)
 {
     wgr_render_revision++;
-    wgr_camera3d_t cam;
-    const vec2_t size = wgr_render_target_size();
+    wgri_camera3d_t cam;
+    const vec2_t size = wgri_render_target_size();
     const float aspect = size.y > 0.0f ? size.x / size.y : 1.0f;
 
-    if (!wgr_camera3d_get_active_data(&cam)) {
+    if (!wgri_camera3d_get_active_data(&cam)) {
         return;
     }
 
@@ -804,25 +804,25 @@ void wgr_render_begin_mode_3d(void)
     sgl_load_pipeline(wgr_pip_3d);
     wgr_render_transparent_3d = false;
 
-    /* same matrices as models and picking (wgr_camera3d_projection / _view) */
+    /* same matrices as models and picking (wgri_camera3d_projection / _view) */
     sgl_matrix_mode_projection();
-    sgl_load_matrix(wgr_camera3d_projection(&cam, aspect).m);
+    sgl_load_matrix(wgri_camera3d_projection(&cam, aspect).m);
     sgl_matrix_mode_modelview();
-    sgl_load_matrix(wgr_camera3d_view(&cam).m);
+    sgl_load_matrix(wgri_camera3d_view(&cam).m);
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_render_end_mode_3d(void)
 {
     setup_2d_projection();
 }
 
-unsigned wgr_render_state_revision(void)
+unsigned wgri_render_state_revision(void)
 {
     return wgr_render_revision;
 }
 
-int wgr_render_command_count(void)
+int wgri_render_command_count(void)
 {
     return wgr_render_cmd_count;
 }

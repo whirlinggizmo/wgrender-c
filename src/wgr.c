@@ -23,7 +23,7 @@
 #include "sokol_log.h"
 #include "sokol_time.h"
 
-bool wgr_initialized = false;
+bool wgri_initialized = false;
 
 typedef struct {
     int window_width;
@@ -35,7 +35,7 @@ typedef struct {
     void *frame_user_data;
     wgr_tick_fn tick_fn;
     void *tick_user_data;
-    wgr_tick_clock_t tick_clock;
+    wgri_tick_clock_t tick_clock;
     unsigned tick_generation; /* bumped by wgr_set_tick, to notice changes made inside a tick */
     wgr_lifecycle_fn init_fn;
     void *init_user_data;
@@ -43,7 +43,7 @@ typedef struct {
     void *cleanup_user_data;
 
     int target_fps;
-    wgr_frame_pace_t pace;
+    wgri_frame_pace_t pace;
 
     uint64_t start_ticks;
     double delta_time;      /* this frame's delta (seconds), passed to the frame callback */
@@ -69,16 +69,16 @@ static void apply_defaults(wgr_runtime_t *rt)
     if (rt->target_fps == 0) {
         rt->target_fps = -1; /* -1: unpaced (vsync, or uncapped with WGR_WINDOW_FLAG_VSYNC_OFF) */
     }
-    wgr_frame_pace_set_fps(&rt->pace, rt->target_fps);
+    wgri_frame_pace_set_fps(&rt->pace, rt->target_fps);
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_init_values(int window_width,
                    int window_height,
                    const char *window_title,
                    unsigned int window_flags)
 {
-    if (wgr_initialized) {
+    if (wgri_initialized) {
         return WGR_INIT_ERR_ALREADY_INITIALIZED;
     }
 
@@ -91,37 +91,37 @@ int wgr_init_values(int window_width,
     }
     apply_defaults(&wgr_rt);
 
-    wgr_logger_init();
+    wgri_logger_init();
     wgr_logger_info("libwgrender %s", wgr_version_string());
 
     wgr_configured = true;
     return WGR_INIT_OK;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_set_frame(wgr_frame_fn frame_fn, void *user_data)
 {
     wgr_rt.frame_fn = frame_fn;
     wgr_rt.frame_user_data = user_data;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_set_tick(wgr_tick_fn tick_fn, void *user_data, int hz)
 {
     wgr_rt.tick_fn = hz > 0 ? tick_fn : NULL;
     wgr_rt.tick_user_data = user_data;
-    wgr_tick_clock_set_rate(&wgr_rt.tick_clock, tick_fn != NULL ? hz : 0);
+    wgri_tick_clock_set_rate(&wgr_rt.tick_clock, tick_fn != NULL ? hz : 0);
     wgr_rt.tick_generation++;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_set_init(wgr_lifecycle_fn init_fn, void *user_data)
 {
     wgr_rt.init_fn = init_fn;
     wgr_rt.init_user_data = user_data;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_set_cleanup(wgr_lifecycle_fn cleanup_fn, void *user_data)
 {
     wgr_rt.cleanup_fn = cleanup_fn;
@@ -145,52 +145,52 @@ static const char *backend_name(sg_backend b)
 
 static void on_init(void)
 {
-    wgr_platform_mark("wgr:init"); /* startup points: tools/webstart.mjs */
+    wgri_platform_mark("wgr:init"); /* startup points: tools/webstart.mjs */
     /* the window's style, as soon as it exists (sokol_app made it, visible, before
        this: a hidden window can show for a moment first) */
-    wgr_platform_set_window_style((wgr_rt.window_flags & WGR_WINDOW_FLAG_WINDOW_RESIZABLE) != 0,
+    wgri_platform_set_window_style((wgr_rt.window_flags & WGR_WINDOW_FLAG_WINDOW_RESIZABLE) != 0,
                                  (wgr_rt.window_flags & WGR_WINDOW_FLAG_WINDOW_UNDECORATED) == 0);
     if ((wgr_rt.window_flags & WGR_WINDOW_FLAG_WINDOW_HIDDEN) != 0) {
-        wgr_platform_set_window_visible(false);
+        wgri_platform_set_window_visible(false);
     }
     sg_setup(&(sg_desc){
-        .environment = wgr_platform_environment(),
+        .environment = wgri_platform_environment(),
         .logger.func = slog_func,
-        .buffer_pool_size = WGR_GFX_BUFFER_POOL_SIZE,
-        .image_pool_size = WGR_GFX_IMAGE_POOL_SIZE,
-        .view_pool_size = WGR_GFX_VIEW_POOL_SIZE,
+        .buffer_pool_size = WGRI_GFX_BUFFER_POOL_SIZE,
+        .image_pool_size = WGRI_GFX_IMAGE_POOL_SIZE,
+        .view_pool_size = WGRI_GFX_VIEW_POOL_SIZE,
     });
     wgr_logger_info("libwgrender: %s backend", backend_name(sg_query_backend()));
     stm_setup();
     wgr_rt.start_ticks = stm_now();
 
     /* GPU-backed subsystems (need a live sg context) */
-    wgr_render_init();
-    wgr_scene_init();  /* registry must exist before drawables register */
-    wgr_shape2d_init();
-    wgr_shape3d_init();
-    wgr_font_init();
-    wgr_text_init();
+    wgri_render_init();
+    wgri_scene_init();  /* registry must exist before drawables register */
+    wgri_shape2d_init();
+    wgri_shape3d_init();
+    wgri_font_init();
+    wgri_text_init();
 
     /* CPU-side stores */
-    wgr_camera3d_init();
-    wgr_fs_init(NULL);   /* local storage; asset acquisition sits on top */
-    wgr_asset_init();
-    wgr_event_init();
-    wgr_input_init();
-    wgr_debug_init();
+    wgri_camera3d_init();
+    wgri_fs_init(NULL);   /* local storage; asset acquisition sits on top */
+    wgri_asset_init();
+    wgri_event_init();
+    wgri_input_init();
+    wgri_debug_init();
 
     /* the optional subsystems the program uses (textures, models, sprites, particles,
-       audio, ...): those linked, in their order (internal/wgr_module.h) */
-    wgr_module_init_all();
+       audio, ...): those linked, in their order (internal/wgri_module.h) */
+    wgri_module_init_all();
 
-    wgr_initialized = true;
-    wgr_platform_mark("wgr:subsystems");
+    wgri_initialized = true;
+    wgri_platform_mark("wgr:subsystems");
 
     if (wgr_rt.init_fn != NULL) {
         wgr_rt.init_fn(wgr_rt.init_user_data);
     }
-    wgr_platform_mark("wgr:user-init");
+    wgri_platform_mark("wgr:user-init");
 }
 
 #if !defined(__EMSCRIPTEN__)
@@ -230,22 +230,22 @@ static void wait_until(double deadline)
  * keeps showing the last drawn frame). */
 static bool pace_frame(void)
 {
-    static wgr_frame_pace_t headless_vsync = {.period = 1.0 / 60.0};
-    wgr_frame_pace_t *pace = &wgr_rt.pace;
+    static wgri_frame_pace_t headless_vsync = {.period = 1.0 / 60.0};
+    wgri_frame_pace_t *pace = &wgr_rt.pace;
     double now = wgr_get_time();
     double wait;
 
-    if (!wgr_frame_pace_enabled(pace)) {
-        if (!wgr_platform_is_headless()) {
+    if (!wgri_frame_pace_enabled(pace)) {
+        if (!wgri_platform_is_headless()) {
             return true; /* the display's vsync paces frames */
         }
         pace = &headless_vsync; /* no display: stand in for 60 Hz so async loads get real time */
     }
-    wait = wgr_frame_pace_wait(pace, now);
+    wait = wgri_frame_pace_wait(pace, now);
 #if defined(__EMSCRIPTEN__)
     /* run a frame that's due within half a display frame, so e.g. 30 fps on a
      * 60 Hz display runs every other frame instead of drifting */
-    if (wait > 0.5 * wgr_platform_frame_duration()) {
+    if (wait > 0.5 * wgri_platform_frame_duration()) {
         return false;
     }
 #else
@@ -254,7 +254,7 @@ static bool pace_frame(void)
         now = wgr_get_time();
     }
 #endif
-    wgr_frame_pace_mark(pace, now);
+    wgri_frame_pace_mark(pace, now);
     return true;
 }
 
@@ -274,7 +274,7 @@ static double update_frame_timing(void)
     if (wgr_rt.last_frame_time > 0.0) {
         dt = elapsed;
     } else {
-        dt = wgr_frame_pace_enabled(&wgr_rt.pace) ? wgr_rt.pace.period : 1.0 / 60.0;
+        dt = wgri_frame_pace_enabled(&wgr_rt.pace) ? wgr_rt.pace.period : 1.0 / 60.0;
     }
     dt = dt < 0.000001 ? 0.000001 : (dt > 0.1 ? 0.1 : dt);
     wgr_rt.last_frame_time = now;
@@ -289,58 +289,58 @@ static void run_ticks(double elapsed)
 {
     const unsigned generation = wgr_rt.tick_generation;
     const float step = (float)wgr_rt.tick_clock.step;
-    int ticks = wgr_tick_clock_advance(&wgr_rt.tick_clock, elapsed, WGR_MAX_TICKS_PER_FRAME);
+    int ticks = wgri_tick_clock_advance(&wgr_rt.tick_clock, elapsed, WGRI_MAX_TICKS_PER_FRAME);
 
-    wgr_input_set_context(WGR_INPUT_CONTEXT_TICK);
+    wgri_input_set_context(WGRI_INPUT_CONTEXT_TICK);
     for (int i = 0; i < ticks; i++) {
         if (wgr_rt.tick_fn == NULL || wgr_rt.tick_generation != generation) {
             break; /* the tick was changed or removed from inside a tick */
         }
         wgr_rt.tick_fn(step, wgr_rt.tick_user_data);
-        wgr_input_end_tick();
-        wgr_module_end_tick_all();
-        wgr_scene_end_tick_interaction();
+        wgri_input_end_tick();
+        wgri_module_end_tick_all();
+        wgri_scene_end_tick_interaction();
     }
-    wgr_input_set_context(WGR_INPUT_CONTEXT_FRAME);
+    wgri_input_set_context(WGRI_INPUT_CONTEXT_FRAME);
 }
 
 static void on_frame(void)
 {
     /* pump async asset loads; completion callbacks fire here (main thread) */
-    wgr_asset_tick();
+    wgri_asset_tick();
 
     if (!pace_frame()) {
         return;
     }
-    wgr_module_begin_frame_all(); /* e.g. gamepads: polled, so ticks and the frame see them */
-    wgr_scene_update_interaction(); /* before the ticks: they read it too */
+    wgri_module_begin_frame_all(); /* e.g. gamepads: polled, so ticks and the frame see them */
+    wgri_scene_update_interaction(); /* before the ticks: they read it too */
     run_ticks(update_frame_timing());
-    wgr_module_update_all((float)wgr_rt.delta_time); /* e.g. particles: spawn and retire, once a frame */
+    wgri_module_update_all((float)wgr_rt.delta_time); /* e.g. particles: spawn and retire, once a frame */
 
     if (wgr_rt.frame_fn != NULL) {
-        wgr_rt.frame_fn((float)wgr_rt.delta_time, wgr_tick_clock_fraction(&wgr_rt.tick_clock),
+        wgr_rt.frame_fn((float)wgr_rt.delta_time, wgri_tick_clock_fraction(&wgr_rt.tick_clock),
                        wgr_rt.frame_user_data);
     }
     if (!wgr_rt.first_frame_done) {
         wgr_rt.first_frame_done = true;
-        wgr_platform_mark("wgr:first-frame");
+        wgri_platform_mark("wgr:first-frame");
     }
 
     /* clear frame input edges after the frame; sokol delivers the next frame's
      * events before the next frame_cb */
-    wgr_input_end_frame();
-    wgr_module_frame_done_all();
-    wgr_scene_end_frame_interaction();
+    wgri_input_end_frame();
+    wgri_module_frame_done_all();
+    wgri_scene_end_frame_interaction();
     if (wgr_rt.tick_fn == NULL) { /* nothing reads tick edges: don't let them pile up */
-        wgr_input_end_tick();
-        wgr_module_end_tick_all();
-        wgr_scene_end_tick_interaction();
+        wgri_input_end_tick();
+        wgri_module_end_tick_all();
+        wgri_scene_end_tick_interaction();
     }
 }
 
 static void on_event(const void *ev)
 {
-    wgr_input_handle_event((const struct sapp_event *)ev);
+    wgri_input_handle_event((const struct sapp_event *)ev);
 }
 
 static void on_cleanup(void)
@@ -349,27 +349,27 @@ static void on_cleanup(void)
         wgr_rt.cleanup_fn(wgr_rt.cleanup_user_data);
     }
 
-    wgr_module_deinit_all(); /* before the core they use */
-    wgr_debug_deinit();
-    wgr_input_deinit();
-    wgr_event_deinit();
-    wgr_asset_deinit();
-    wgr_fs_deinit();
-    wgr_camera3d_deinit();
+    wgri_module_deinit_all(); /* before the core they use */
+    wgri_debug_deinit();
+    wgri_input_deinit();
+    wgri_event_deinit();
+    wgri_asset_deinit();
+    wgri_fs_deinit();
+    wgri_camera3d_deinit();
 
-    wgr_text_deinit();
-    wgr_font_deinit();
-    wgr_shape2d_deinit();
-    wgr_shape3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_text_deinit();
+    wgri_font_deinit();
+    wgri_shape2d_deinit();
+    wgri_shape3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
 
     sg_shutdown();
-    wgr_initialized = false;
-    wgr_logger_deinit();
+    wgri_initialized = false;
+    wgri_logger_deinit();
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_run(void)
 {
     if (!wgr_configured) {
@@ -383,7 +383,7 @@ int wgr_run(void)
     /* vsync is on unless explicitly turned off; wgr_set_target_fps() caps below it */
     bool disable_vsync = (wgr_rt.window_flags & WGR_WINDOW_FLAG_VSYNC_OFF) != 0;
 
-    wgr_platform_run(&(wgr_platform_desc_t){
+    wgri_platform_run(&(wgri_platform_desc_t){
         .init = on_init,
         .frame = on_frame,
         .event = on_event,
@@ -400,19 +400,19 @@ int wgr_run(void)
     return 0;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_request_quit(void)
 {
-    wgr_platform_request_quit();
+    wgri_platform_request_quit();
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_is_initialized(void)
 {
-    return wgr_initialized;
+    return wgri_initialized;
 }
 
-WGR_KEEP
+WGRI_KEEP
 const char *wgr_get_platform(void)
 {
 #if defined(PLATFORM_WEB) || defined(__EMSCRIPTEN__)
@@ -422,19 +422,19 @@ const char *wgr_get_platform(void)
 #endif
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_set_target_fps(int fps)
 {
     wgr_rt.target_fps = fps;
-    wgr_frame_pace_set_fps(&wgr_rt.pace, fps);
+    wgri_frame_pace_set_fps(&wgr_rt.pace, fps);
 }
 
-double wgr_get_fps_delta(void)
+double wgri_get_fps_delta(void)
 {
     return wgr_rt.fps_delta;
 }
 
-WGR_KEEP
+WGRI_KEEP
 double wgr_get_time(void)
 {
     return stm_sec(stm_since(wgr_rt.start_ticks));

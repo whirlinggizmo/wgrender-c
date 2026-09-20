@@ -80,19 +80,19 @@ void test_color_values(void)
     }
 
     /* what the renderer sees: normalized 0..1, alpha included */
-    const wgr_colorf_t white = wgr_color_unpack(WGR_COLOR_WHITE);
+    const wgri_colorf_t white = wgri_color_unpack(WGR_COLOR_WHITE);
     CHECK_NEAR(white.r, 1.0, 1e-6);
     CHECK_NEAR(white.a, 1.0, 1e-6);
-    const wgr_colorf_t blank = wgr_color_unpack(WGR_COLOR_BLANK);
+    const wgri_colorf_t blank = wgri_color_unpack(WGR_COLOR_BLANK);
     CHECK_NEAR(blank.r, 0.0, 1e-6);
     CHECK_NEAR(blank.a, 0.0, 1e-6);
-    const wgr_colorf_t red = wgr_color_unpack(WGR_COLOR_RED);
+    const wgri_colorf_t red = wgri_color_unpack(WGR_COLOR_RED);
     CHECK_NEAR(red.r, 230.0 / 255.0, 1e-6);
     CHECK_NEAR(red.g, 41.0 / 255.0, 1e-6);
     CHECK_NEAR(red.b, 55.0 / 255.0, 1e-6);
 
     /* round trip */
     for (int v = 0; v <= 255; v += 17) {
-        CHECK_NEAR(wgr_color_unpack(wgr_color_rgba(v, v, v, v)).g, (double)v / 255.0, 1e-6);
+        CHECK_NEAR(wgri_color_unpack(wgr_color_rgba(v, v, v, v)).g, (double)v / 255.0, 1e-6);
     }
 }

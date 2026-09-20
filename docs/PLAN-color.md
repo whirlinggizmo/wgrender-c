@@ -1,7 +1,7 @@
 # Plan: colors are values, not handles
 
 Status: **done** (2026-09-17). Implemented as proposed, with the `color_t` ->
-`wgr_colorf_t` move folded in; see "As built".
+`wgri_colorf_t` move folded in; see "As built".
 
 ## What exists
 
@@ -15,7 +15,7 @@ Status: **done** (2026-09-17). Implemented as proposed, with the `color_t` ->
   and `WGR_COLOR_DEFAULT` is magenta and unused outside `wgr_color.c`.
 - 29 public parameters across 13 headers take a color; 12 `src/*.c` files unpack one
   with the internal `wgr_color_get`.
-- Colors are immutable (no public `wgr_color_set`), so animating a tint means
+- Colors are immutable (no public `wgri_color_set`), so animating a tint means
   pre-creating a palette — `examples/sprite2d.c` does exactly that — and with 256
   slots and no dedupe, a color created per frame exhausts the pool in about four
   seconds at 60 fps.
@@ -41,7 +41,7 @@ wgr_color_t wgr_color_lerp(wgr_color_t a, wgr_color_t b, float t); /* animation 
 ```
 
 - Every public `wgr_handle_t color` / `tint` parameter becomes `wgr_color_t`.
-- The internal `wgr_color_get(handle)` becomes `wgr_color_unpack(wgr_color_t)`, still
+- The internal `wgr_color_get(handle)` becomes `wgri_color_unpack(wgr_color_t)`, still
   returning the float struct the renderer already uses. Nothing else in the drawing
   path changes.
 - `wgr_color_create`, `wgr_color_destroy`, the pool and `WGR_HANDLE_KIND_COLOR` go away
@@ -58,14 +58,14 @@ takes them, and the sRGB -> linear conversion needs them), so the float struct d
 | | today | proposed |
 |---|---|---|
 | in the public API | `wgr_handle_t` (a pool handle) | `wgr_color_t` = `uint32_t`, packed `0xRRGGBBAA` |
-| inside the renderer | `color_t` — `{float r, g, b, a}` — via `wgr_color_get(handle)` | `wgr_colorf_t`, same struct, via `wgr_color_unpack(wgr_color_t)` |
+| inside the renderer | `color_t` — `{float r, g, b, a}` — via `wgr_color_get(handle)` | `wgri_colorf_t`, same struct, via `wgri_color_unpack(wgr_color_t)` |
 
 `color_t` is declared in the **public** `include/wgr_types.h` today, but no public
 function uses it (only 12 `src/*.c` files do, through `wgr_color_get`), and it is the
 one type in the repo with no `wgr_` prefix although it crosses `.c` files, which
 AGENTS.md requires. So it moves to `src/internal/wgr_color.h` next to
-`wgr_color_unpack` and becomes `wgr_colorf_t` — one struct fewer on the surface every
-binding generator has to read, and `wgr_color_t` (packed, public) vs `wgr_colorf_t`
+`wgri_color_unpack` and becomes `wgri_colorf_t` — one struct fewer on the surface every
+binding generator has to read, and `wgr_color_t` (packed, public) vs `wgri_colorf_t`
 (float, internal) can't be misread for each other the way `wgr_color_t` vs `color_t`
 could.
 
@@ -117,8 +117,8 @@ removes a pool, a handle kind, two public functions, the 256-color ceiling and t
 - `wgr_color_t` (packed `0xRRGGBBAA`) in `wgr_types.h`; the 26 built-ins are `#define`s
   with their raylib values in `wgr_color.h`; `wgr_color_rgba`, `wgr_color_with_alpha` and
   `wgr_color_lerp` are exported functions. `WGR_COLOR_DEFAULT` (magenta, unused) is gone.
-- The float struct moved to `src/internal/wgr_color.h` as `wgr_colorf_t`, with
-  `wgr_color_unpack`. `src/wgr_color.c` went from a 190-line pool to 50 lines of
+- The float struct moved to `src/internal/wgr_color.h` as `wgri_colorf_t`, with
+  `wgri_color_unpack`. `src/wgr_color.c` went from a 190-line pool to 50 lines of
   arithmetic; `wgr_color_init` / `wgr_color_deinit` and their calls in `wgr.c` are gone,
   and handle kind 1 is retired in `wgr_handle.h`.
 - **Defaults had to move with the meaning of 0.** Every object that defaulted its
@@ -158,5 +158,5 @@ removes a pool, a handle kind, two public functions, the 256-color ceiling and t
 `make verify`, ASan, `make parity` (librl's `rl_color_create` / `rl_color_destroy`
 need map entries: created values, no lifecycle), webcheck on both backends, and
 `make websize` before and after — the pool and its handle plumbing should come out of
-the wasm. Unit tests: packing round-trips through `wgr_color_rgba` / `wgr_color_unpack`,
+the wasm. Unit tests: packing round-trips through `wgr_color_rgba` / `wgri_color_unpack`,
 `with_alpha` and `lerp` endpoints, and a drawing path that takes a literal color.

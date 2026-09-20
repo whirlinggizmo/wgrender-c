@@ -36,7 +36,7 @@ typedef struct {
 } wgr_font_parked_t;
 
 static wgr_font_t *wgr_fonts; /* grown by the pool: don't hold a pointer across a create */
-static wgr_handle_pool_t wgr_font_pool;
+static wgri_handle_pool_t wgr_font_pool;
 static wgr_font_parked_t wgr_font_parked[MAX_PARKED];
 static int wgr_font_parked_count;
 static int wgr_font_added; /* fonts added to fontstash (their names) */
@@ -45,7 +45,7 @@ static FONScontext *wgr_fons = NULL;
 static wgr_font_t *resolve(wgr_handle_t handle)
 {
     uint16_t index = 0;
-    if (!wgr_handle_pool_resolve(&wgr_font_pool, handle, &index)) {
+    if (!wgri_handle_pool_resolve(&wgr_font_pool, handle, &index)) {
         return NULL;
     }
     return &wgr_fonts[index];
@@ -75,7 +75,7 @@ static wgr_handle_t find_by_path(const char *path)
 {
     for (uint16_t i = 1; i < wgr_font_pool.capacity; i++) {
         if (wgr_font_pool.occupied[i] && strcmp(wgr_fonts[i].path, path) == 0) {
-            return wgr_handle_pool_handle_from_index(&wgr_font_pool, i);
+            return wgri_handle_pool_handle_from_index(&wgr_font_pool, i);
         }
     }
     return 0;
@@ -127,7 +127,7 @@ static int add_font(const char *path)
     return fid;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_font_create(const char *path)
 {
     wgr_handle_t handle;
@@ -139,7 +139,7 @@ wgr_handle_t wgr_font_create(const char *path)
     }
     handle = find_by_path(path);
     if (handle != 0) {
-        wgr_font_retain(handle);
+        wgri_font_retain(handle);
         return handle;
     }
     if (strlen(path) >= sizeof(wgr_fonts[0].path)) {
@@ -153,13 +153,13 @@ wgr_handle_t wgr_font_create(const char *path)
             return 0;
         }
     }
-    handle = wgr_handle_pool_alloc(&wgr_font_pool);
+    handle = wgri_handle_pool_alloc(&wgr_font_pool);
     if (handle == 0) {
         log_error("font: pool full (%u)", (unsigned)wgr_font_pool.max - 1u);
         park(fid, path); /* keep it for later */
         return 0;
     }
-    wgr_handle_pool_resolve(&wgr_font_pool, handle, &index);
+    wgri_handle_pool_resolve(&wgr_font_pool, handle, &index);
     wgr_fonts[index].fons_id = fid;
     wgr_fonts[index].ref_count = 1;
     snprintf(wgr_fonts[index].path, sizeof(wgr_fonts[index].path), "%s", path);
@@ -167,7 +167,7 @@ wgr_handle_t wgr_font_create(const char *path)
 }
 
 /* The embedded default font, deduped under a path no file can have. */
-wgr_handle_t wgr_font_create_builtin(void)
+wgr_handle_t wgri_font_create_builtin(void)
 {
     static const char *const path = "<built-in>";
     wgr_handle_t handle;
@@ -179,7 +179,7 @@ wgr_handle_t wgr_font_create_builtin(void)
     }
     handle = find_by_path(path);
     if (handle != 0) {
-        wgr_font_retain(handle);
+        wgri_font_retain(handle);
         return handle;
     }
     fid = take_parked(path);
@@ -191,19 +191,19 @@ wgr_handle_t wgr_font_create_builtin(void)
             return 0;
         }
     }
-    handle = wgr_handle_pool_alloc(&wgr_font_pool);
+    handle = wgri_handle_pool_alloc(&wgr_font_pool);
     if (handle == 0) {
         park(fid, path);
         return 0;
     }
-    wgr_handle_pool_resolve(&wgr_font_pool, handle, &index);
+    wgri_handle_pool_resolve(&wgr_font_pool, handle, &index);
     wgr_fonts[index].fons_id = fid;
     wgr_fonts[index].ref_count = 1;
     snprintf(wgr_fonts[index].path, sizeof(wgr_fonts[index].path), "%s", path);
     return handle;
 }
 
-void wgr_font_retain(wgr_handle_t handle)
+void wgri_font_retain(wgr_handle_t handle)
 {
     wgr_font_t *font_ptr = resolve(handle);
     if (font_ptr != NULL) {
@@ -211,7 +211,7 @@ void wgr_font_retain(wgr_handle_t handle)
     }
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_font_release(wgr_handle_t handle)
 {
     wgr_font_t *font_ptr = resolve(handle);
@@ -220,23 +220,23 @@ void wgr_font_release(wgr_handle_t handle)
     }
     park(font_ptr->fons_id, font_ptr->path);
     memset(font_ptr, 0, sizeof(*font_ptr));
-    wgr_handle_pool_free(&wgr_font_pool, handle);
+    wgri_handle_pool_free(&wgr_font_pool, handle);
 }
 
 /* Drops the caller's reference; the font stays while text objects (or the default
  * font) still use it. */
-FONScontext *wgr_font_context(void)
+FONScontext *wgri_font_context(void)
 {
     return wgr_fons;
 }
 
-int wgr_font_fons_id(wgr_handle_t handle)
+int wgri_font_fons_id(wgr_handle_t handle)
 {
     wgr_font_t *font_ptr = resolve(handle);
     return font_ptr != NULL ? font_ptr->fons_id : FONS_INVALID;
 }
 
-void wgr_font_flush(void)
+void wgri_font_flush(void)
 {
     if (wgr_fons != NULL) {
         sfons_flush(wgr_fons);
@@ -246,7 +246,7 @@ void wgr_font_flush(void)
 /* A full glyph atlas grows, but never in the middle of a frame: draws recorded
  * earlier in the frame refer to the atlas texture and to UVs for its size, and
  * growing recreates both. So a full atlas only asks to grow; the glyphs that didn't
- * fit skip this one frame, and wgr_font_end_frame grows it once the frame is
+ * fit skip this one frame, and wgri_font_end_frame grows it once the frame is
  * submitted. More likely with high-DPI text, whose glyphs take up to four times the
  * area. The smaller side doubles each time, up to WGR_FONT_ATLAS_MAX. */
 static bool wgr_font_grow_pending;
@@ -262,7 +262,7 @@ static void on_fons_error(void *user, int error, int value)
     }
 }
 
-void wgr_font_end_frame(void)
+void wgri_font_end_frame(void)
 {
     static bool full_warned;
     int width = 0, height = 0;
@@ -286,13 +286,13 @@ void wgr_font_end_frame(void)
     }
 }
 
-void wgr_font_init(void)
+void wgri_font_init(void)
 {
     wgr_font_parked_count = 0;
     wgr_font_grow_pending = false;
     wgr_font_added = 0;
-    if (!wgr_handle_pool_init(&wgr_font_pool, WGR_HANDLE_KIND_FONT, "font", (void **)&wgr_fonts,
-                             sizeof(wgr_font_t), FONTS_INITIAL, WGR_HANDLE_POOL_MAX_SLOTS)) {
+    if (!wgri_handle_pool_init(&wgr_font_pool, WGR_HANDLE_KIND_FONT, "font", (void **)&wgr_fonts,
+                             sizeof(wgr_font_t), FONTS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         log_error("font: out of memory");
     }
 
@@ -307,11 +307,11 @@ void wgr_font_init(void)
     fonsSetErrorCallback(wgr_fons, on_fons_error, NULL);
 }
 
-void wgr_font_deinit(void)
+void wgri_font_deinit(void)
 {
     if (wgr_fons != NULL) {
         sfons_destroy(wgr_fons);
         wgr_fons = NULL;
     }
-    wgr_handle_pool_destroy(&wgr_font_pool);
+    wgri_handle_pool_destroy(&wgr_font_pool);
 }

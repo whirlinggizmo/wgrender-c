@@ -78,7 +78,7 @@ const PAGE_PROBE = `(() => {
     const timer = setInterval(() => {
         if (performance.getEntriesByName("wgr:first-frame").length === 0) return;
         const m = globalThis.Module;
-        const pending = m && m._wgr_asset_pending_count ? m._wgr_asset_pending_count() : -1;
+        const pending = m && m._wgri_asset_pending_count ? m._wgri_asset_pending_count() : -1;
         if (pending === 0) { performance.mark("wgr:ready"); clearInterval(timer); }
     }, 5);
 })();`;

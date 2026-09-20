@@ -24,9 +24,9 @@ back. The test that rejects it is a few dozen instructions.
 - `wgr_scene` keeps members in layers and, for each layer, calls each drawable's
   `draw_opaque` and `collect_transparent` in turn (`draw_layer`).
 - Every 3D kind already registers bounds with the scene for picking:
-  `wgr_scene_register_bounds(kind, fn)` gives a local AABB plus the model matrix, and
+  `wgri_scene_register_bounds(kind, fn)` gives a local AABB plus the model matrix, and
   models, sprite3d, shape3d and text3d all provide one.
-- `wgr_model`'s `begin_draw` already builds a world AABB (`wgr_pick_world_aabb`) to pick
+- `wgr_model`'s `begin_draw` already builds a world AABB (`wgri_pick_world_aabb`) to pick
   the placement's lights, so a model's world bounds are computed either way.
 - The shadow pass redraws **every** caster in the lighting environment, including ones
   outside what the light's map covers (`shadow_distance`).
@@ -44,10 +44,10 @@ Pure helpers, in `internal/wgr_math.h`, exposed for tests:
 
 ```c
 /* The six planes of a view-projection, outward normals, for testing AABBs. */
-void wgr_frustum_from_view_proj(wgr_mat4_t view_proj, wgr_plane_t out[6]);
+void wgri_frustum_from_view_proj(wgri_mat4_t view_proj, wgri_plane_t out[6]);
 /* False when the box is wholly outside any plane (a conservative test: a box that
  * straddles a corner may pass and be drawn). */
-bool wgr_frustum_test_aabb(const wgr_plane_t planes[6], vec3_t min, vec3_t max);
+bool wgri_frustum_test_aabb(const wgri_plane_t planes[6], vec3_t min, vec3_t max);
 ```
 
 ### Casters must not vanish
@@ -61,7 +61,7 @@ camera pass as they are today — correct, and no worse than now.
 
 ### The shadow pass culls too
 
-Separately, `wgr_model_draw_shadow_casters` tests each placement against the light's own
+Separately, `wgri_model_draw_shadow_casters` tests each placement against the light's own
 frustum (the fit it is already given) and skips casters outside it. A light's map covers
 `shadow_distance`; today every caster in the scene is redrawn into it regardless. This
 needs the placement to keep the world AABB it already computes for light selection.
@@ -103,9 +103,9 @@ rejected model, the test pays for itself at any scene size.
 ## Phase 1 as built
 
 Three pure helpers in `src/internal/wgr_math.h`, so the tests can reach them without a
-GPU: `wgr_frustum_from_view_proj` (Gribb-Hartmann, planes normalized so a test gives a
-real distance), `wgr_frustum_test_aabb` (the corner furthest along each normal — out
-only when the box is wholly behind one plane) and `wgr_aabb_sweep` (a box pushed along
+GPU: `wgri_frustum_from_view_proj` (Gribb-Hartmann, planes normalized so a test gives a
+real distance), `wgri_frustum_test_aabb` (the corner furthest along each normal — out
+only when the box is wholly behind one plane) and `wgri_aabb_sweep` (a box pushed along
 a direction: where its shadow could land).
 
 `wgr_scene` builds the planes once per draw, in `begin_culling`, from the camera it is
@@ -118,7 +118,7 @@ then asks `visible()` per member, for the opaque pass and the transparent one al
 `visible()` resolves the member's bounds through the scene's existing bounds registry,
 so every 3D kind is covered at once — model, sprite3d, shape3d, text3d — and a member
 with no bounds (the 2D kinds) is always drawn. The world AABB is padded by 15%
-(`WGR_CULL_PAD`) because a skinned model's bounds are its rest pose; better to draw a
+(`WGRI_CULL_PAD`) because a skinned model's bounds are its rest pose; better to draw a
 little too much than to cull a raised arm. If the box misses the view, and the member
 casts, the box is swept along each casting light and tested again: a caster off screen
 whose shadow falls on screen is kept.
@@ -152,7 +152,7 @@ paying for the test.
 
 The depth pass had been redrawing every caster in the lighting environment, whatever
 the light's map actually covered. It now builds that light's six planes from the fit it
-is already given (`wgr_frustum_from_view_proj(fit.view_proj)`) and tests each placement
+is already given (`wgri_frustum_from_view_proj(fit.view_proj)`) and tests each placement
 against them once, remembering the answer for the rest of that placement's primitives.
 
 The test is exact here, not just conservative. A directional fit is an ortho box whose
@@ -163,9 +163,9 @@ plane is pulled back (`WGR_SHADOW_PULLBACK`) precisely so a caster between the l
 the box is kept, and the unit test checks that a body overhead still makes the cut.
 
 For this, `wgr_model` stores the world AABB it already builds at submit time to pick a
-placement's lights (padded once, there, by the same `WGR_CULL_PAD`), so the depth pass
+placement's lights (padded once, there, by the same `WGRI_CULL_PAD`), so the depth pass
 costs one box test per placement per casting light and no bounds work of its own. The
-pad constant and `wgr_aabb_pad` moved to `internal/wgr_math.h`, which is where the
+pad constant and `wgri_aabb_pad` moved to `internal/wgr_math.h`, which is where the
 frustum helpers live, so the scene and the depth pass grow boxes the same way.
 
 ### Measured

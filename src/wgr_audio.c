@@ -43,8 +43,8 @@
  * ---------------------------------
  * sokol_audio calls the mixer from the audio device's thread (on web, from the
  * browser's audio callback). It reads every Sound and its Audio, so every
- * change to those happens under wgr_audio_lock. Audio is either decoded (PCM held
- * in memory; files up to WGR_AUDIO_STREAM_MIN_BYTES) or streamed (the encoded file
+ * change to those happens under wgri_audio_lock. Audio is either decoded (PCM held
+ * in memory; files up to WGRI_AUDIO_STREAM_MIN_BYTES) or streamed (the encoded file
  * held in memory, decoded while playing by a per-Sound decoder). Both play through
  * the same frame-lookup, so they sound identical. */
 
@@ -69,7 +69,7 @@ typedef struct {
     bool has_path;
 } wgr_audio_t;
 
-struct wgr_audio_stream {
+struct wgri_audio_stream {
     wgr_handle_t audio;  /* the Audio this decoder reads (reopened when it changes) */
     audio_format_t format;
     int channels;
@@ -83,7 +83,7 @@ struct wgr_audio_stream {
 };
 
 static wgr_audio_t *wgr_audios; /* grown by the pool: don't hold a pointer across a create */
-static wgr_handle_pool_t wgr_audio_pool;
+static wgri_handle_pool_t wgr_audio_pool;
 
 
 /* ----------------------------------------------------------------- lock ---- */
@@ -92,8 +92,8 @@ static wgr_handle_pool_t wgr_audio_pool;
 static CRITICAL_SECTION wgr_audio_mutex; /* recursive */
 static void lock_init(void) { InitializeCriticalSection(&wgr_audio_mutex); }
 static void lock_destroy(void) { DeleteCriticalSection(&wgr_audio_mutex); }
-void wgr_audio_lock(void) { EnterCriticalSection(&wgr_audio_mutex); }
-void wgr_audio_unlock(void) { LeaveCriticalSection(&wgr_audio_mutex); }
+void wgri_audio_lock(void) { EnterCriticalSection(&wgr_audio_mutex); }
+void wgri_audio_unlock(void) { LeaveCriticalSection(&wgr_audio_mutex); }
 #else
 static pthread_mutex_t wgr_audio_mutex;
 static void lock_init(void)
@@ -105,8 +105,8 @@ static void lock_init(void)
     pthread_mutexattr_destroy(&attr);
 }
 static void lock_destroy(void) { pthread_mutex_destroy(&wgr_audio_mutex); }
-void wgr_audio_lock(void) { pthread_mutex_lock(&wgr_audio_mutex); }
-void wgr_audio_unlock(void) { pthread_mutex_unlock(&wgr_audio_mutex); }
+void wgri_audio_lock(void) { pthread_mutex_lock(&wgr_audio_mutex); }
+void wgri_audio_unlock(void) { pthread_mutex_unlock(&wgr_audio_mutex); }
 #endif
 
 /* ------------------------------------------------------------- decoding ---- */
@@ -169,7 +169,7 @@ static audio_format_t probe(const unsigned char *data, int size, const char *hin
     return FORMAT_UNKNOWN;
 }
 
-static bool stream_open(wgr_audio_stream_t *stream, const wgr_audio_t *audio)
+static bool stream_open(wgri_audio_stream_t *stream, const wgr_audio_t *audio)
 {
     bool ok = false;
     switch (audio->format) {
@@ -191,7 +191,7 @@ static bool stream_open(wgr_audio_stream_t *stream, const wgr_audio_t *audio)
     return ok;
 }
 
-static void stream_close(wgr_audio_stream_t *stream)
+static void stream_close(wgri_audio_stream_t *stream)
 {
     switch (stream->format) {
         case FORMAT_MP3: drmp3_uninit(&stream->mp3); break;
@@ -203,7 +203,7 @@ static void stream_close(wgr_audio_stream_t *stream)
     stream->vorbis = NULL;
 }
 
-static bool stream_seek(wgr_audio_stream_t *stream, uint64_t frame)
+static bool stream_seek(wgri_audio_stream_t *stream, uint64_t frame)
 {
     bool ok = false;
     switch (stream->format) {
@@ -219,7 +219,7 @@ static bool stream_seek(wgr_audio_stream_t *stream, uint64_t frame)
 }
 
 /* Decode the next chunk into the buffer. */
-static void stream_fill(wgr_audio_stream_t *stream)
+static void stream_fill(wgri_audio_stream_t *stream)
 {
     uint64_t got = 0;
     switch (stream->format) {
@@ -298,7 +298,7 @@ static unsigned char *read_file(const char *path, int *out_size)
 static wgr_audio_t *resolve_audio(wgr_handle_t handle)
 {
     uint16_t index = 0;
-    if (!wgr_handle_pool_resolve(&wgr_audio_pool, handle, &index)) {
+    if (!wgri_handle_pool_resolve(&wgr_audio_pool, handle, &index)) {
         if (handle != 0) log_warn("Invalid audio handle (%u)", (unsigned int)handle);
         return NULL;
     }
@@ -310,7 +310,7 @@ static wgr_handle_t find_audio_by_path(const char *path)
     if (path == NULL || path[0] == '\0') return 0;
     for (uint16_t i = 1; i < wgr_audio_pool.capacity; i++) {
         if (wgr_audio_pool.occupied[i] && wgr_audios[i].has_path && strcmp(wgr_audios[i].path, path) == 0) {
-            return wgr_handle_pool_handle_from_index(&wgr_audio_pool, i);
+            return wgri_handle_pool_handle_from_index(&wgr_audio_pool, i);
         }
     }
     return 0;
@@ -324,7 +324,7 @@ static void free_audio_data(wgr_audio_t *audio_ptr)
 
 /* The CPU half of loading audio (any thread): a probed file, decoded or kept for
  * streaming. */
-static void *prepare_audio_mode(const char *path, wgr_audio_mode_t mode)
+static void *prepare_audio_mode(const char *path, wgri_audio_mode_t mode)
 {
     wgr_audio_t *audio = (wgr_audio_t *)calloc(1, sizeof(wgr_audio_t));
     unsigned char *bytes;
@@ -346,7 +346,7 @@ static void *prepare_audio_mode(const char *path, wgr_audio_mode_t mode)
         free(audio);
         return NULL;
     }
-    if (mode == WGR_AUDIO_MODE_STREAM || (mode == WGR_AUDIO_MODE_AUTO && size > WGR_AUDIO_STREAM_MIN_BYTES)) {
+    if (mode == WGRI_AUDIO_MODE_STREAM || (mode == WGRI_AUDIO_MODE_AUTO && size > WGRI_AUDIO_STREAM_MIN_BYTES)) {
         audio->encoded = bytes; /* kept; decoded while playing */
         audio->encoded_size = size;
     } else {
@@ -364,7 +364,7 @@ static void *prepare_audio_mode(const char *path, wgr_audio_mode_t mode)
 
 static void *prepare_audio(const char *path)
 {
-    return prepare_audio_mode(path, WGR_AUDIO_MODE_AUTO);
+    return prepare_audio_mode(path, WGRI_AUDIO_MODE_AUTO);
 }
 
 static void discard_audio(void *prepared)
@@ -377,7 +377,7 @@ static void discard_audio(void *prepared)
 
 static void ensure_device(void); /* below: the device starts with the first resource */
 
-static wgr_loader_step_t finish_audio(void *prepared, const char *path, wgr_handle_t *resource)
+static wgri_loader_step_t finish_audio(void *prepared, const char *path, wgr_handle_t *resource)
 {
     wgr_audio_t *audio = (wgr_audio_t *)prepared;
     uint16_t index = 0;
@@ -389,41 +389,41 @@ static wgr_loader_step_t finish_audio(void *prepared, const char *path, wgr_hand
     }
     audio->ref_count = 1; /* the caller's, until wgr_audio_release */
 
-    wgr_audio_lock();
-    *resource = wgr_handle_pool_alloc(&wgr_audio_pool);
+    wgri_audio_lock();
+    *resource = wgri_handle_pool_alloc(&wgr_audio_pool);
     if (*resource == 0) {
-        wgr_audio_unlock();
+        wgri_audio_unlock();
         log_error("audio: pool full (%u)", (unsigned)wgr_audio_pool.max - 1u);
-        return WGR_LOADER_FAILED;
+        return WGRI_LOADER_FAILED;
     }
-    wgr_handle_pool_resolve(&wgr_audio_pool, *resource, &index);
+    wgri_handle_pool_resolve(&wgr_audio_pool, *resource, &index);
     wgr_audios[index] = *audio;
-    wgr_audio_unlock();
+    wgri_audio_unlock();
     audio->pcm = NULL; /* owned by the resource now */
     audio->encoded = NULL;
-    return WGR_LOADER_DONE;
+    return WGRI_LOADER_DONE;
 }
 
 static wgr_handle_t find_audio(const char *path)
 {
     wgr_handle_t handle;
-    wgr_audio_lock();
+    wgri_audio_lock();
     handle = find_audio_by_path(path);
     if (handle != 0) {
-        wgr_audio_retain(handle);
+        wgri_audio_retain(handle);
     }
-    wgr_audio_unlock();
+    wgri_audio_unlock();
     return handle;
 }
 
 static void release_audio(wgr_handle_t audio)
 {
-    wgr_audio_lock();
+    wgri_audio_lock();
     wgr_audio_release(audio);
-    wgr_audio_unlock();
+    wgri_audio_unlock();
 }
 
-static const wgr_loader_t wgr_audio_loader = {
+static const wgri_loader_t wgr_audio_loader = {
     .name = "audio",
     .prepare = prepare_audio,
     .finish = finish_audio,
@@ -432,7 +432,7 @@ static const wgr_loader_t wgr_audio_loader = {
     .release = release_audio,
 };
 
-wgr_handle_t wgr_audio_create_mode(const char *path, wgr_audio_mode_t mode)
+wgr_handle_t wgri_audio_create_mode(const char *path, wgri_audio_mode_t mode)
 {
     wgr_handle_t handle = find_audio(path);
     wgr_audio_t *prepared;
@@ -445,41 +445,41 @@ wgr_handle_t wgr_audio_create_mode(const char *path, wgr_audio_mode_t mode)
     if (prepared == NULL) {
         return 0;
     }
-    if (finish_audio(prepared, path, &handle) != WGR_LOADER_DONE) {
+    if (finish_audio(prepared, path, &handle) != WGRI_LOADER_DONE) {
         handle = 0;
     }
     discard_audio(prepared);
     return handle;
 }
 
-bool wgr_audio_is_streamed(wgr_handle_t handle)
+bool wgri_audio_is_streamed(wgr_handle_t handle)
 {
     bool streamed;
-    wgr_audio_lock();
+    wgri_audio_lock();
     const wgr_audio_t *audio_ptr = resolve_audio(handle);
     streamed = audio_ptr != NULL && audio_ptr->encoded != NULL;
-    wgr_audio_unlock();
+    wgri_audio_unlock();
     return streamed;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_audio_create(const char *path)
 {
-    return wgr_audio_create_mode(path, WGR_AUDIO_MODE_AUTO);
+    return wgri_audio_create_mode(path, WGRI_AUDIO_MODE_AUTO);
 }
 
-void wgr_audio_retain(wgr_handle_t handle)
+void wgri_audio_retain(wgr_handle_t handle)
 {
-    wgr_audio_lock();
+    wgri_audio_lock();
     wgr_audio_t *audio_ptr = resolve_audio(handle);
     if (audio_ptr != NULL) audio_ptr->ref_count++;
-    wgr_audio_unlock();
+    wgri_audio_unlock();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_audio_release(wgr_handle_t handle)
 {
-    wgr_audio_lock();
+    wgri_audio_lock();
     wgr_audio_t *audio_ptr = resolve_audio(handle);
     if (audio_ptr != NULL) {
         if (audio_ptr->ref_count > 0) audio_ptr->ref_count--;
@@ -487,35 +487,35 @@ void wgr_audio_release(wgr_handle_t handle)
             /* no Sound references it, so no stream reads its bytes */
             free_audio_data(audio_ptr);
             memset(audio_ptr, 0, sizeof(*audio_ptr));
-            wgr_handle_pool_free(&wgr_audio_pool, handle);
+            wgri_handle_pool_free(&wgr_audio_pool, handle);
         }
     }
-    wgr_audio_unlock();
+    wgri_audio_unlock();
 }
 
 /* -------------------------------------------------------------- mixer ------ */
 
-void wgr_audio_stream_free(wgr_sound_t *sound)
+void wgri_audio_stream_free(wgri_sound_t *sound)
 {
-    wgr_audio_lock();
+    wgri_audio_lock();
     if (sound != NULL && sound->stream != NULL) {
         stream_close(sound->stream);
         free(sound->stream->buffer);
         free(sound->stream);
         sound->stream = NULL;
     }
-    wgr_audio_unlock();
+    wgri_audio_unlock();
 }
 
 /* The sound's decoder for a streamed Audio, (re)opened when needed. */
-static wgr_audio_stream_t *sound_stream(wgr_sound_t *sound, const wgr_audio_t *audio)
+static wgri_audio_stream_t *sound_stream(wgri_sound_t *sound, const wgr_audio_t *audio)
 {
-    wgr_audio_stream_t *stream = sound->stream;
+    wgri_audio_stream_t *stream = sound->stream;
     if (stream != NULL && stream->audio == sound->audio && stream->format != FORMAT_UNKNOWN) {
         return stream;
     }
     if (stream == NULL) {
-        stream = (wgr_audio_stream_t *)calloc(1, sizeof(*stream));
+        stream = (wgri_audio_stream_t *)calloc(1, sizeof(*stream));
         if (stream == NULL) return NULL;
         sound->stream = stream;
     } else {
@@ -532,7 +532,7 @@ static wgr_audio_stream_t *sound_stream(wgr_sound_t *sound, const wgr_audio_t *a
 }
 
 /* Samples of source frame `idx` (must be < frame_count). False if unavailable. */
-static bool read_frame(wgr_sound_t *sound, const wgr_audio_t *audio, uint64_t idx, float *l, float *r)
+static bool read_frame(wgri_sound_t *sound, const wgr_audio_t *audio, uint64_t idx, float *l, float *r)
 {
     const float *frame;
     const int ch = audio->channels;
@@ -540,7 +540,7 @@ static bool read_frame(wgr_sound_t *sound, const wgr_audio_t *audio, uint64_t id
     if (audio->pcm != NULL) {
         frame = &audio->pcm[idx * (uint64_t)ch];
     } else {
-        wgr_audio_stream_t *stream = sound_stream(sound, audio);
+        wgri_audio_stream_t *stream = sound_stream(sound, audio);
         if (stream == NULL) return false;
         if (idx < stream->start || idx >= stream->start + (uint64_t)stream->count) {
             if (idx != stream->next && !stream_seek(stream, idx)) {
@@ -558,7 +558,7 @@ static bool read_frame(wgr_sound_t *sound, const wgr_audio_t *audio, uint64_t id
     return true;
 }
 
-static void mix_sound(wgr_sound_t *sound, const wgr_audio_t *audio, float *buf, int frames, int out_rate)
+static void mix_sound(wgri_sound_t *sound, const wgr_audio_t *audio, float *buf, int frames, int out_rate)
 {
     const double step = ((double)audio->sample_rate / (double)out_rate) * (double)sound->pitch;
     const double length = (double)audio->frame_count;
@@ -586,22 +586,22 @@ static void mix_sound(wgr_sound_t *sound, const wgr_audio_t *audio, float *buf, 
     }
 }
 
-void wgr_audio_mix(float *out, int frames, int sample_rate)
+void wgri_audio_mix(float *out, int frames, int sample_rate)
 {
     memset(out, 0, (size_t)frames * 2 * sizeof(float));
-    wgr_audio_lock();
-    for (int i = 1; i < wgr_sound_slot_count(); i++) {
-        wgr_sound_t *sound = wgr_sound_slot(i);
+    wgri_audio_lock();
+    for (int i = 1; i < wgri_sound_slot_count(); i++) {
+        wgri_sound_t *sound = wgri_sound_slot(i);
         if (sound == NULL || !sound->playing) {
             continue;
         }
         uint16_t index = 0;
-        if (!wgr_handle_pool_resolve(&wgr_audio_pool, sound->audio, &index)) {
+        if (!wgri_handle_pool_resolve(&wgr_audio_pool, sound->audio, &index)) {
             continue; /* no Audio attached yet */
         }
         mix_sound(sound, &wgr_audios[index], out, frames, sample_rate);
     }
-    wgr_audio_unlock();
+    wgri_audio_unlock();
 }
 
 #if !defined(WGR_HEADLESS)
@@ -616,11 +616,11 @@ static void stream_callback(float *buffer, int num_frames, int num_channels)
 {
     int sample_rate;
 
-    wgr_audio_lock();
+    wgri_audio_lock();
     sample_rate = wgr_audio_device_rate;
-    wgr_audio_unlock();
+    wgri_audio_unlock();
     if (num_channels == 2 && sample_rate > 0) {
-        wgr_audio_mix(buffer, num_frames, sample_rate);
+        wgri_audio_mix(buffer, num_frames, sample_rate);
     } else {
         memset(buffer, 0, (size_t)num_frames * (size_t)num_channels * sizeof(float));
     }
@@ -646,29 +646,29 @@ static void ensure_device(void)
     if (!saudio_isvalid()) {
         log_warn("audio device unavailable; playback disabled");
     } else {
-        wgr_audio_lock();
+        wgri_audio_lock();
         wgr_audio_device_rate = saudio_sample_rate();
-        wgr_audio_unlock();
+        wgri_audio_unlock();
     }
 #endif
 }
 
-void wgr_audio_init(void)
+void wgri_audio_init(void)
 {
     lock_init();
-    if (!wgr_handle_pool_init(&wgr_audio_pool, WGR_HANDLE_KIND_AUDIO, "audio", (void **)&wgr_audios,
-                             sizeof(wgr_audio_t), AUDIO_INITIAL, WGR_HANDLE_POOL_MAX_SLOTS)) {
+    if (!wgri_handle_pool_init(&wgr_audio_pool, WGR_HANDLE_KIND_AUDIO, "audio", (void **)&wgr_audios,
+                             sizeof(wgr_audio_t), AUDIO_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         log_error("audio: out of memory");
     }
-    wgr_asset_register_loader(".wav", &wgr_audio_loader);
-    wgr_asset_register_loader(".ogg", &wgr_audio_loader);
-    wgr_asset_register_loader(".mp3", &wgr_audio_loader);
+    wgri_asset_register_loader(".wav", &wgr_audio_loader);
+    wgri_asset_register_loader(".ogg", &wgr_audio_loader);
+    wgri_asset_register_loader(".mp3", &wgr_audio_loader);
 #if defined(WGR_HEADLESS)
     log_info("audio: headless build, no playback");
 #endif
 }
 
-void wgr_audio_deinit(void)
+void wgri_audio_deinit(void)
 {
 #if !defined(WGR_HEADLESS)
     if (wgr_audio_device_tried && saudio_isvalid()) {
@@ -676,7 +676,7 @@ void wgr_audio_deinit(void)
     }
 #endif
     wgr_audio_device_tried = false;
-    wgr_audio_lock(); /* sounds (and their decoders) are gone: wgr_sound_deinit runs first */
+    wgri_audio_lock(); /* sounds (and their decoders) are gone: wgri_sound_deinit runs first */
     /* free any audio resources still alive (sounds should have released theirs) */
     for (uint16_t i = 1; i < wgr_audio_pool.capacity; i++) {
         if (wgr_audio_pool.occupied[i]) {
@@ -684,11 +684,11 @@ void wgr_audio_deinit(void)
             wgr_audios[i] = (wgr_audio_t){0};
         }
     }
-    wgr_handle_pool_destroy(&wgr_audio_pool);
-    wgr_audio_unlock();
+    wgri_handle_pool_destroy(&wgr_audio_pool);
+    wgri_audio_unlock();
     lock_destroy();
 }
 
-/* An optional subsystem: part of the runtime when a program uses it (internal/wgr_module.h). */
-static wgr_module_t wgr_audio_module = {.name = "audio", .order = 90, .init = wgr_audio_init, .deinit = wgr_audio_deinit};
-WGR_MODULE(wgr_audio_module)
+/* An optional subsystem: part of the runtime when a program uses it (internal/wgri_module.h). */
+static wgri_module_t wgr_audio_module = {.name = "audio", .order = 90, .init = wgri_audio_init, .deinit = wgri_audio_deinit};
+WGRI_MODULE(wgr_audio_module)

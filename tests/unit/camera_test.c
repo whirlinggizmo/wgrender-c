@@ -6,7 +6,7 @@
 
 #define EPS 1e-4f
 
-static const wgr_camera3d_t ORTHO = {
+static const wgri_camera3d_t ORTHO = {
     .position = {0, 0, 10},
     .target = {0, 0, 0},
     .up = {0, 1, 0},
@@ -17,31 +17,31 @@ static const wgr_camera3d_t ORTHO = {
 void test_camera_projection(void)
 {
     const float aspect = 2.0f;
-    wgr_mat4_t view_proj;
+    wgri_mat4_t view_proj;
     vec3_t ndc;
 
     /* perspective is the existing perspective matrix */
-    wgr_camera3d_t persp = ORTHO;
+    wgri_camera3d_t persp = ORTHO;
     persp.fov = 0.785398163f; /* pi / 4 */
     persp.projection = WGR_CAMERA3D_PERSPECTIVE;
-    wgr_mat4_t expected = wgr_mat4_perspective(0.785398163f, aspect, WGR_CAMERA3D_PERSPECTIVE_NEAR,
-                                             WGR_CAMERA3D_PERSPECTIVE_FAR);
-    wgr_mat4_t actual = wgr_camera3d_projection(&persp, aspect);
+    wgri_mat4_t expected = wgri_mat4_perspective(0.785398163f, aspect, WGRI_CAMERA3D_PERSPECTIVE_NEAR,
+                                             WGRI_CAMERA3D_PERSPECTIVE_FAR);
+    wgri_mat4_t actual = wgri_camera3d_projection(&persp, aspect);
     for (int i = 0; i < 16; i++) {
         CHECK_NEAR(actual.m[i], expected.m[i], EPS);
     }
 
     /* orthographic: the view spans ortho_height vertically and ortho_height * aspect horizontally,
      * with no perspective divide (distance doesn't change size) */
-    view_proj = wgr_mat4_mul(wgr_camera3d_projection(&ORTHO, aspect), wgr_camera3d_view(&ORTHO));
-    ndc = wgr_mat4_mul_point(view_proj, (vec3_t){10, 5, 0}); /* right edge, top edge */
+    view_proj = wgri_mat4_mul(wgri_camera3d_projection(&ORTHO, aspect), wgri_camera3d_view(&ORTHO));
+    ndc = wgri_mat4_mul_point(view_proj, (vec3_t){10, 5, 0}); /* right edge, top edge */
     CHECK_NEAR(ndc.x, 1, EPS);
     CHECK_NEAR(ndc.y, 1, EPS);
-    ndc = wgr_mat4_mul_point(view_proj, (vec3_t){10, 5, -50}); /* same, much farther away */
+    ndc = wgri_mat4_mul_point(view_proj, (vec3_t){10, 5, -50}); /* same, much farther away */
     CHECK_NEAR(ndc.x, 1, EPS);
     CHECK_NEAR(ndc.y, 1, EPS);
     CHECK_NEAR(actual.m[15], 0, EPS);                                   /* perspective has w = -z */
-    CHECK_NEAR(wgr_camera3d_projection(&ORTHO, aspect).m[15], 1, EPS); /* orthographic doesn't */
+    CHECK_NEAR(wgri_camera3d_projection(&ORTHO, aspect).m[15], 1, EPS); /* orthographic doesn't */
 }
 
 void test_pick_ray_from_screen_ortho(void)
@@ -49,8 +49,8 @@ void test_pick_ray_from_screen_ortho(void)
     const float w = 800, h = 400; /* aspect 2: visible area 20 x 10 world units */
 
     /* every orthographic ray points along the view direction */
-    wgr_ray_t center = wgr_pick_ray_from_screen(&ORTHO, w / 2, h / 2, w, h);
-    wgr_ray_t corner = wgr_pick_ray_from_screen(&ORTHO, w, 0, w, h);
+    wgri_ray_t center = wgri_pick_ray_from_screen(&ORTHO, w / 2, h / 2, w, h);
+    wgri_ray_t corner = wgri_pick_ray_from_screen(&ORTHO, w, 0, w, h);
     CHECK_VEC3_NEAR(center.dir, 0, 0, -1, EPS);
     CHECK_VEC3_NEAR(corner.dir, 0, 0, -1, EPS);
 
@@ -61,16 +61,16 @@ void test_pick_ray_from_screen_ortho(void)
     CHECK_NEAR(corner.origin.y, 5, 1e-3f);  /* top edge: half of 10 */
 
     /* so a box off to the side is hit straight on, not at a perspective angle */
-    wgr_ray_hit_t hit = {0};
-    wgr_ray_t ray = wgr_pick_ray_from_screen(&ORTHO, w * 0.75f, h / 2, w, h); /* x = 5 */
-    CHECK(wgr_pick_ray_aabb(ray, (vec3_t){4.5f, -0.5f, -0.5f}, (vec3_t){5.5f, 0.5f, 0.5f}, &hit));
+    wgri_ray_hit_t hit = {0};
+    wgri_ray_t ray = wgri_pick_ray_from_screen(&ORTHO, w * 0.75f, h / 2, w, h); /* x = 5 */
+    CHECK(wgri_pick_ray_aabb(ray, (vec3_t){4.5f, -0.5f, -0.5f}, (vec3_t){5.5f, 0.5f, 0.5f}, &hit));
     CHECK_VEC3_NEAR(hit.point, 5, 0, 0.5f, 1e-3f);
     CHECK_VEC3_NEAR(hit.normal, 0, 0, 1, EPS);
 }
 
 void test_camera_api(void)
 {
-    wgr_camera3d_init();
+    wgri_camera3d_init();
 
     wgr_handle_t camera = wgr_camera3d_create(WGR_CAMERA3D_ORTHOGRAPHIC);
     CHECK(camera != 0);
@@ -98,11 +98,11 @@ void test_camera_api(void)
     /* the view is what the projection helper uses */
     CHECK(wgr_camera3d_set_view(camera, 1, 2, 3, 4, 5, 6, 0, 1, 0));
     CHECK(wgr_camera3d_set_active(camera));
-    wgr_camera3d_t data;
-    CHECK(wgr_camera3d_get_active_data(&data));
+    wgri_camera3d_t data;
+    CHECK(wgri_camera3d_get_active_data(&data));
     CHECK_VEC3_NEAR(data.position, 1, 2, 3, EPS);
     CHECK_VEC3_NEAR(data.target, 4, 5, 6, EPS);
 
     wgr_camera3d_destroy(camera);
-    wgr_camera3d_deinit();
+    wgri_camera3d_deinit();
 }

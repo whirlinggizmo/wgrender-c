@@ -122,7 +122,7 @@ selected sets are identical anyway.
 ## Phase 1 as built
 
 `wgr_model` keeps a second frame data texture beside the joint one: RGBA32F, eight texels
-a placement, 128 records a row, written once in `wgr_model_flush` before any pass. A
+a placement, 128 records a row, written once in `wgri_model_flush` before any pass. A
 record holds three rows of the model matrix, three of its inverse transpose, the tint
 (converted to linear on the way in) and the skin base. `vs_params` is now the camera's
 view-projection and the draw's first record; `vs_skin_params` is the same, since the
@@ -146,14 +146,14 @@ draw thousands of placements from one call.
 An item remembers which *unordered region* it was submitted in — `wgr_scene` already
 declares those around the opaque part of a layer, for sprites, and now tells `wgr_model`
 too through two scene hooks. Inside one region the items may be drawn in any order, so
-`wgr_model_flush` sorts each region by a hash of everything a draw has to set outside the
+`wgri_model_flush` sorts each region by a hash of everything a draw has to set outside the
 instance record: material, primitive buffers, pipeline (skinned / blended / double
 sided), pass, lighting environment, the selected light set, whether the model receives
 shadows, and the camera. See-through parts are marked region −1 and never move, so the
 back-to-front order stands.
 
 Records are written per item in that sorted order, so a run of equal items occupies
-consecutive records. `wgr_model_draw_items` then walks the run, comparing each item to
+consecutive records. `wgri_model_draw_items` then walks the run, comparing each item to
 the first *exactly* (the hash only decides the sort; a collision costs a split, never a
 wrong batch), and issues one `sg_draw` with that many instances. A material with a
 custom shader never joins a run — that path has its own uniforms per placement until

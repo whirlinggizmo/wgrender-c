@@ -66,7 +66,7 @@ Measured: `wgr_audio_create` on the 6 MB example MP3 takes **215 ms** and holds
   from headers in ~1 ms), so looping works exactly like decoded Audio.
 - Streamed and decoded Audio produce identical samples (unit test, block by block,
   WAV/OGG/MP3 with loop, pitch and resampling), including rewinds.
-- One recursive mutex (`wgr_audio_lock`) guards Sounds and Audio; decoding a file at
+- One recursive mutex (`wgri_audio_lock`) guards Sounds and Audio; decoding a file at
   create happens outside it. Seeking a streamed MP3 far forward takes up to ~80 ms
   on the mixer thread, which only happens when a sound's position jumps (rewinding
   to the start is cheap).

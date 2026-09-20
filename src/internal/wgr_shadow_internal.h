@@ -1,5 +1,5 @@
-#ifndef WGR_INTERNAL_SHADOW_H
-#define WGR_INTERNAL_SHADOW_H
+#ifndef WGRI_INTERNAL_SHADOW_H
+#define WGRI_INTERNAL_SHADOW_H
 
 #include <stdbool.h>
 
@@ -13,20 +13,20 @@
  * depth map before the passes that shade, and the lit shaders compare against it.
  * An optional subsystem — a program that never turns shadows on doesn't link it. */
 
-void wgr_shadow_init(void);
-void wgr_shadow_deinit(void);
+void wgri_shadow_init(void);
+void wgri_shadow_deinit(void);
 
 /* One casting light's map: a layer of the shadow array, and how a shader reads it. */
 typedef struct {
     int light;           /* which light in the environment casts (index into its lights) */
-    wgr_mat4_t view_proj; /* world -> that light's clip space */
+    wgri_mat4_t view_proj; /* world -> that light's clip space */
     float texel;         /* 1 / map size, for the sampling kernel */
     float bias_constant, bias_slope; /* in shadow texels (see wgr_light_set_shadow_bias) */
     float bias_scale;                /* texels -> the map's depth units */
     float texel_world;               /* world units one texel covers */
     float strength;   /* how much of the light a shadow blocks (0..1) */
     float tint[3];    /* linear rgb mixed into what a shadow leaves behind */
-} wgr_shadow_light_t;
+} wgri_shadow_light_t;
 
 /* What a draw needs to shade with this frame's shadows: the array every casting light
  * shares, and a layer's worth of numbers for each of them. */
@@ -34,23 +34,23 @@ typedef struct {
     bool valid;         /* false: nothing casts this frame; shading ignores the rest */
     sg_view map;        /* the depth array, one layer per casting light */
     sg_sampler sampler; /* comparison: sampling it returns "how lit", not a depth */
-    int count;          /* casting lights, 0..WGR_MAX_SHADOW_LIGHTS */
-    wgr_shadow_light_t lights[WGR_MAX_SHADOW_LIGHTS];
+    int count;          /* casting lights, 0..WGRI_MAX_SHADOW_LIGHTS */
+    wgri_shadow_light_t lights[WGRI_MAX_SHADOW_LIGHTS];
     float depth_scale, depth_offset; /* clip z -> the depth the map holds (per backend) */
     bool flipped;                    /* the map's first row is its top, not its bottom */
-} wgr_shadow_binding_t;
+} wgri_shadow_binding_t;
 
 /* What the model and sprite shading reaches shadows through, so they don't depend on
  * this module being linked: it fills these in when it starts and clears them when it
  * stops, and they're NULL otherwise. Defined in wgr_render.c. */
 typedef struct {
-    bool (*get_binding)(int light_env, wgr_shadow_binding_t *out);
-} wgr_shadow_hooks_t;
-extern wgr_shadow_hooks_t wgr_shadow_hooks;
+    bool (*get_binding)(int light_env, wgri_shadow_binding_t *out);
+} wgri_shadow_hooks_t;
+extern wgri_shadow_hooks_t wgri_shadow_hooks;
 
 /* Which layer of the map a light in the lighting environment casts into, or -1 when
- * it casts no shadow. `env_light` indexes wgr_light_env_t.lights. Pure. */
-static inline int wgr_shadow_slot_of(const wgr_shadow_binding_t *binding, int env_light)
+ * it casts no shadow. `env_light` indexes wgri_light_env_t.lights. Pure. */
+static inline int wgri_shadow_slot_of(const wgri_shadow_binding_t *binding, int env_light)
 {
     if (binding == NULL || !binding->valid) {
         return -1;
@@ -63,14 +63,14 @@ static inline int wgr_shadow_slot_of(const wgr_shadow_binding_t *binding, int en
 
 /* Copy this frame's shadows into the per-slot arrays a shader reads (the same layout
  * in every shading path: models, sprites and custom shaders). Pure. */
-static inline void wgr_shadow_fill_uniforms(const wgr_shadow_binding_t *binding, float mat[][16], float params[][4],
+static inline void wgri_shadow_fill_uniforms(const wgri_shadow_binding_t *binding, float mat[][16], float params[][4],
                                            float tint[][4], float extra[][4], float map[4])
 {
     if (binding == NULL || !binding->valid) {
         return;
     }
-    for (int i = 0; i < binding->count && i < WGR_MAX_SHADOW_LIGHTS; i++) {
-        const wgr_shadow_light_t *light = &binding->lights[i];
+    for (int i = 0; i < binding->count && i < WGRI_MAX_SHADOW_LIGHTS; i++) {
+        const wgri_shadow_light_t *light = &binding->lights[i];
         for (int k = 0; k < 16; k++) mat[i][k] = light->view_proj.m[k];
         params[i][0] = light->texel;
         params[i][1] = light->texel_world;
@@ -90,7 +90,7 @@ static inline void wgr_shadow_fill_uniforms(const wgr_shadow_binding_t *binding,
 /* An orthographic projection for a light, in the depth range the backend clips to:
  * -1..1 for GL and WebGL2, 0..1 for WebGPU. `zero_to_one` picks it (pure; exposed for
  * tests, where the backend is the dummy one). */
-wgr_mat4_t wgr_shadow_ortho(float l, float r, float b, float t, float n, float f, bool zero_to_one);
+wgri_mat4_t wgri_shadow_ortho(float l, float r, float b, float t, float n, float f, bool zero_to_one);
 
 /* A directional light's view of what the camera can see, out to `distance`: the
  * world -> light clip matrix and the world size of one shadow texel. The fit is
@@ -98,18 +98,18 @@ wgr_mat4_t wgr_shadow_ortho(float l, float r, float b, float t, float n, float f
  * near plane is pulled back by `pullback` so casters behind the camera still cast.
  * Pure; exposed for tests. */
 typedef struct {
-    wgr_mat4_t view_proj;
+    wgri_mat4_t view_proj;
     float texel_world; /* world units one shadow texel covers */
     float depth_range; /* world units the map's 0..1 depth spans */
-} wgr_shadow_fit_t;
+} wgri_shadow_fit_t;
 
-wgr_shadow_fit_t wgr_shadow_fit_directional(const wgr_camera3d_t *cam, float aspect, vec3_t light_direction,
+wgri_shadow_fit_t wgri_shadow_fit_directional(const wgri_camera3d_t *cam, float aspect, vec3_t light_direction,
                                           float distance, int map_size, float pullback, bool zero_to_one);
 
 /* A spot light's view of its own cone: a perspective frustum from `position` along
  * `direction`, wide enough for the outer cone angle, reaching `distance`. `near_plane`
  * keeps the projection sane close to the lamp. Pure; exposed for tests. */
-wgr_shadow_fit_t wgr_shadow_fit_spot(vec3_t position, vec3_t direction, float cos_outer, float distance,
+wgri_shadow_fit_t wgri_shadow_fit_spot(vec3_t position, vec3_t direction, float cos_outer, float distance,
                                    float near_plane, int map_size, bool zero_to_one);
 
-#endif // WGR_INTERNAL_SHADOW_H
+#endif // WGRI_INTERNAL_SHADOW_H

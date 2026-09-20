@@ -15,12 +15,12 @@ static void send_key(sapp_event_type type, bool repeat)
     ev.type = type;
     ev.key_code = (sapp_keycode)KEY;
     ev.key_repeat = repeat;
-    wgr_input_handle_event(&ev);
+    wgri_input_handle_event(&ev);
 }
 
-static int key_in(wgr_input_context_t context)
+static int key_in(wgri_input_context_t context)
 {
-    wgr_input_set_context(context);
+    wgri_input_set_context(context);
     const int key = wgr_input_get_key((wgr_keycode_t)KEY);
     CHECK(wgr_input_get_keyboard_state().keys[KEY] == key); /* the same state either way */
     return key;
@@ -29,46 +29,46 @@ static int key_in(wgr_input_context_t context)
 /* A press must reach exactly one tick, however many ticks a frame runs. */
 void test_input_tick_edges(void)
 {
-    wgr_input_init();
+    wgri_input_init();
     CHECK(wgr_input_get_key((wgr_keycode_t)-1) == WGR_BUTTON_UP); /* out of range */
     CHECK(wgr_input_get_key((wgr_keycode_t)WGR_KEYBOARD_MAX_KEYS) == WGR_BUTTON_UP);
 
     /* frame 1 runs no ticks: the frame sees the press, and so does the next tick */
     send_key(SAPP_EVENTTYPE_KEY_DOWN, false);
-    CHECK(key_in(WGR_INPUT_CONTEXT_FRAME) == WGR_BUTTON_PRESSED);
-    wgr_input_end_frame();
+    CHECK(key_in(WGRI_INPUT_CONTEXT_FRAME) == WGR_BUTTON_PRESSED);
+    wgri_input_end_frame();
 
     /* frame 2 runs three ticks: only the first sees the press */
-    CHECK(key_in(WGR_INPUT_CONTEXT_TICK) == WGR_BUTTON_PRESSED);
-    wgr_input_end_tick();
-    CHECK(key_in(WGR_INPUT_CONTEXT_TICK) == WGR_BUTTON_DOWN);
-    wgr_input_end_tick();
-    CHECK(key_in(WGR_INPUT_CONTEXT_TICK) == WGR_BUTTON_DOWN);
-    wgr_input_end_tick();
-    CHECK(key_in(WGR_INPUT_CONTEXT_FRAME) == WGR_BUTTON_DOWN); /* the frame already saw it */
-    wgr_input_end_frame();
+    CHECK(key_in(WGRI_INPUT_CONTEXT_TICK) == WGR_BUTTON_PRESSED);
+    wgri_input_end_tick();
+    CHECK(key_in(WGRI_INPUT_CONTEXT_TICK) == WGR_BUTTON_DOWN);
+    wgri_input_end_tick();
+    CHECK(key_in(WGRI_INPUT_CONTEXT_TICK) == WGR_BUTTON_DOWN);
+    wgri_input_end_tick();
+    CHECK(key_in(WGRI_INPUT_CONTEXT_FRAME) == WGR_BUTTON_DOWN); /* the frame already saw it */
+    wgri_input_end_frame();
 
     /* key repeat is not a new press in either context */
     send_key(SAPP_EVENTTYPE_KEY_DOWN, true);
-    CHECK(key_in(WGR_INPUT_CONTEXT_TICK) == WGR_BUTTON_DOWN);
-    CHECK(key_in(WGR_INPUT_CONTEXT_FRAME) == WGR_BUTTON_DOWN);
+    CHECK(key_in(WGRI_INPUT_CONTEXT_TICK) == WGR_BUTTON_DOWN);
+    CHECK(key_in(WGRI_INPUT_CONTEXT_FRAME) == WGR_BUTTON_DOWN);
 
     /* release: one tick and one frame see it, then the key is up */
     send_key(SAPP_EVENTTYPE_KEY_UP, false);
-    CHECK(key_in(WGR_INPUT_CONTEXT_TICK) == WGR_BUTTON_RELEASED);
-    wgr_input_end_tick();
-    CHECK(key_in(WGR_INPUT_CONTEXT_TICK) == WGR_BUTTON_UP);
-    CHECK(key_in(WGR_INPUT_CONTEXT_FRAME) == WGR_BUTTON_RELEASED);
-    wgr_input_end_frame();
-    CHECK(key_in(WGR_INPUT_CONTEXT_FRAME) == WGR_BUTTON_UP);
+    CHECK(key_in(WGRI_INPUT_CONTEXT_TICK) == WGR_BUTTON_RELEASED);
+    wgri_input_end_tick();
+    CHECK(key_in(WGRI_INPUT_CONTEXT_TICK) == WGR_BUTTON_UP);
+    CHECK(key_in(WGRI_INPUT_CONTEXT_FRAME) == WGR_BUTTON_RELEASED);
+    wgri_input_end_frame();
+    CHECK(key_in(WGRI_INPUT_CONTEXT_FRAME) == WGR_BUTTON_UP);
 
-    wgr_input_set_context(WGR_INPUT_CONTEXT_FRAME);
+    wgri_input_set_context(WGRI_INPUT_CONTEXT_FRAME);
 }
 
 void test_input_tick_deltas(void)
 {
     sapp_event ev;
-    wgr_input_init();
+    wgri_input_init();
 
     memset(&ev, 0, sizeof(ev));
     ev.type = SAPP_EVENTTYPE_MOUSE_MOVE;
@@ -76,22 +76,22 @@ void test_input_tick_deltas(void)
     ev.mouse_y = 50;
     ev.mouse_dx = 5;
     ev.mouse_dy = -2;
-    wgr_input_handle_event(&ev);
-    wgr_input_handle_event(&ev); /* two moves accumulate */
+    wgri_input_handle_event(&ev);
+    wgri_input_handle_event(&ev); /* two moves accumulate */
 
-    wgr_input_set_context(WGR_INPUT_CONTEXT_TICK);
+    wgri_input_set_context(WGRI_INPUT_CONTEXT_TICK);
     wgr_mouse_state_t tick = wgr_input_get_mouse_state();
     CHECK(tick.dx == 10 && tick.dy == -4);
     CHECK(tick.x == 100 && tick.y == 50);
-    wgr_input_end_tick();
+    wgri_input_end_tick();
     tick = wgr_input_get_mouse_state();
     CHECK(tick.dx == 0 && tick.dy == 0);
     CHECK(tick.x == 100 && tick.y == 50); /* position is shared, not an edge */
 
-    wgr_input_set_context(WGR_INPUT_CONTEXT_FRAME);
+    wgri_input_set_context(WGRI_INPUT_CONTEXT_FRAME);
     wgr_mouse_state_t frame = wgr_input_get_mouse_state();
     CHECK(frame.dx == 10 && frame.dy == -4); /* ticks don't consume frame deltas */
-    wgr_input_end_frame();
+    wgri_input_end_frame();
     frame = wgr_input_get_mouse_state();
     CHECK(frame.dx == 0 && frame.dy == 0);
 }
@@ -101,15 +101,15 @@ void test_input_tick_deltas(void)
 void test_input_wheel(void)
 {
     sapp_event ev;
-    wgr_input_init();
-    wgr_input_set_context(WGR_INPUT_CONTEXT_FRAME);
+    wgri_input_init();
+    wgri_input_set_context(WGRI_INPUT_CONTEXT_FRAME);
 
     memset(&ev, 0, sizeof(ev));
     ev.type = SAPP_EVENTTYPE_MOUSE_SCROLL;
     ev.scroll_y = 0.25f;
     ev.scroll_x = -0.5f;
     for (int i = 0; i < 4; i++) {
-        wgr_input_handle_event(&ev);
+        wgri_input_handle_event(&ev);
     }
     CHECK_NEAR(wgr_input_get_mouse_state().wheel, 1.0, 1e-6);
     CHECK_NEAR(wgr_input_get_mouse_state().wheel_x, -2.0, 1e-6);
@@ -118,10 +118,10 @@ void test_input_wheel(void)
 
     ev.scroll_y = 0.03f; /* one trackpad step: kept, not rounded away */
     ev.scroll_x = 0.0f;
-    wgr_input_handle_event(&ev);
+    wgri_input_handle_event(&ev);
     CHECK_NEAR(wgr_input_get_mouse_wheel(), 1.03, 1e-5);
 
-    wgr_input_end_frame();
+    wgri_input_end_frame();
     CHECK(wgr_input_get_mouse_state().wheel == 0.0f && wgr_input_get_mouse_state().wheel_x == 0.0f);
 }
 
@@ -129,24 +129,24 @@ void test_input_wheel(void)
  * scene press. */
 void test_input_capture(void)
 {
-    wgr_input_init();
+    wgri_input_init();
     CHECK(!wgr_input_is_pointer_captured());
     CHECK(!wgr_input_is_keyboard_captured());
 
     wgr_input_set_pointer_captured(true);
     CHECK(wgr_input_is_pointer_captured());
-    wgr_input_end_frame(); /* sticky: survives the frame */
-    wgr_input_end_tick();
+    wgri_input_end_frame(); /* sticky: survives the frame */
+    wgri_input_end_tick();
     CHECK(wgr_input_is_pointer_captured());
 
-    wgr_input_set_scene_pointer_captured(true); /* a scene press as well */
+    wgri_input_set_scene_pointer_captured(true); /* a scene press as well */
     wgr_input_set_pointer_captured(false);
     CHECK(wgr_input_is_pointer_captured());     /* still held by the scene */
-    wgr_input_set_scene_pointer_captured(false);
+    wgri_input_set_scene_pointer_captured(false);
     CHECK(!wgr_input_is_pointer_captured());
 
     wgr_input_set_keyboard_captured(true);
-    wgr_input_end_frame();
+    wgri_input_end_frame();
     CHECK(wgr_input_is_keyboard_captured());
     CHECK(!wgr_input_is_pointer_captured());    /* independent of the pointer */
     wgr_input_set_keyboard_captured(false);
@@ -164,7 +164,7 @@ static void send_touches(sapp_event_type type, int count, const float fingers[][
         ev.touches[i] = (sapp_touchpoint){
             .identifier = (uintptr_t)fingers[i][0], .pos_x = fingers[i][1], .pos_y = fingers[i][2], .changed = true};
     }
-    wgr_input_handle_event(&ev);
+    wgri_input_handle_event(&ev);
 }
 
 static void send_touch(sapp_event_type type, float id, float x, float y)
@@ -176,8 +176,8 @@ static void send_touch(sapp_event_type type, float id, float x, float y)
 /* Fingers: ids, positions, edges and deltas per context, oldest first. */
 void test_input_touches(void)
 {
-    wgr_input_init();
-    wgr_input_set_context(WGR_INPUT_CONTEXT_FRAME);
+    wgri_input_init();
+    wgri_input_set_context(WGRI_INPUT_CONTEXT_FRAME);
     CHECK(wgr_input_get_touch_count() == 0);
     CHECK(wgr_input_get_touch(0).id == -1);
 
@@ -188,7 +188,7 @@ void test_input_touches(void)
     CHECK(first.state == WGR_BUTTON_PRESSED && second.state == WGR_BUTTON_PRESSED);
     CHECK(first.x == 10 && first.y == 20 && second.x == 50 && second.y == 60);
     CHECK(first.id != second.id);
-    wgr_input_end_frame();
+    wgri_input_end_frame();
 
     send_touch(SAPP_EVENTTYPE_TOUCHES_MOVED, 200, 55, 70);
     send_touch(SAPP_EVENTTYPE_TOUCHES_MOVED, 200, 58, 71);
@@ -198,20 +198,20 @@ void test_input_touches(void)
     CHECK(wgr_input_get_touch(0).dx == 0);
 
     /* the tick hasn't run since they went down: it sees the presses and all the movement */
-    wgr_input_set_context(WGR_INPUT_CONTEXT_TICK);
+    wgri_input_set_context(WGRI_INPUT_CONTEXT_TICK);
     CHECK(wgr_input_get_touch(0).state == WGR_BUTTON_PRESSED);
     CHECK(wgr_input_get_touch(1).dx == 8);
-    wgr_input_end_tick();
+    wgri_input_end_tick();
     CHECK(wgr_input_get_touch(1).state == WGR_BUTTON_DOWN && wgr_input_get_touch(1).dx == 0);
-    wgr_input_set_context(WGR_INPUT_CONTEXT_FRAME);
-    wgr_input_end_frame();
+    wgri_input_set_context(WGRI_INPUT_CONTEXT_FRAME);
+    wgri_input_end_frame();
 
     /* the first lifts: listed as released this frame, then gone; the other keeps its id */
     send_touch(SAPP_EVENTTYPE_TOUCHES_ENDED, 100, 12, 20);
     CHECK(wgr_input_get_touch_count() == 2);
     CHECK(wgr_input_get_touch(0).state == WGR_BUTTON_RELEASED && wgr_input_get_touch(0).dx == 2);
-    wgr_input_end_frame();
-    wgr_input_end_tick();
+    wgri_input_end_frame();
+    wgri_input_end_tick();
     CHECK(wgr_input_get_touch_count() == 1);
     CHECK(wgr_input_get_touch(0).id == second.id);
 
@@ -222,31 +222,31 @@ void test_input_touches(void)
     CHECK(wgr_input_get_touch(1).state == WGR_BUTTON_PRESSED);
 
     /* a tap within one frame: pressed and lifted together, then gone */
-    wgr_input_end_frame();
+    wgri_input_end_frame();
     send_touch(SAPP_EVENTTYPE_TOUCHES_BEGAN, 400, 5, 5);
     send_touch(SAPP_EVENTTYPE_TOUCHES_ENDED, 400, 5, 5);
     CHECK(wgr_input_get_touch_count() == 3);
     CHECK(wgr_input_get_touch(2).state == WGR_BUTTON_PRESSED);
-    wgr_input_end_frame();
-    wgr_input_end_tick();
+    wgri_input_end_frame();
+    wgri_input_end_tick();
     CHECK(wgr_input_get_touch_count() == 2);
 
     /* a cancelled touch sequence lifts everything */
     const float both[2][3] = {{200, 58, 71}, {300, 1, 1}};
     send_touches(SAPP_EVENTTYPE_TOUCHES_CANCELLED, 2, both);
     CHECK(wgr_input_get_touch(0).state == WGR_BUTTON_RELEASED && wgr_input_get_touch(1).state == WGR_BUTTON_RELEASED);
-    wgr_input_end_frame();
-    wgr_input_end_tick();
+    wgri_input_end_frame();
+    wgri_input_end_tick();
     CHECK(wgr_input_get_touch_count() == 0);
-    wgr_input_deinit();
+    wgri_input_deinit();
 }
 
 /* Two fingers: pan, pinch and twist, per frame and per tick. */
 void test_input_touch_gesture(void)
 {
     const float eps = 1e-4f;
-    wgr_input_init();
-    wgr_input_set_context(WGR_INPUT_CONTEXT_FRAME);
+    wgri_input_init();
+    wgri_input_set_context(WGRI_INPUT_CONTEXT_FRAME);
 
     send_touch(SAPP_EVENTTYPE_TOUCHES_BEGAN, 1, 100, 100);
     wgr_touch_gesture_t gesture = wgr_input_get_touch_gesture();
@@ -256,8 +256,8 @@ void test_input_touch_gesture(void)
     CHECK(gesture.active);
     CHECK(gesture.x == 150 && gesture.y == 100);
     CHECK(gesture.scale == 1.0f && gesture.dx == 0 && gesture.rotation == 0); /* no movement yet */
-    wgr_input_end_frame();
-    wgr_input_end_tick();
+    wgri_input_end_frame();
+    wgri_input_end_tick();
 
     /* spread to 200 apart, around the same centre: a pinch of 2 */
     send_touch(SAPP_EVENTTYPE_TOUCHES_MOVED, 1, 50, 100);
@@ -266,7 +266,7 @@ void test_input_touch_gesture(void)
     CHECK_NEAR(gesture.scale, 2.0f, eps);
     CHECK_NEAR(gesture.dx, 0.0f, eps);
     CHECK_NEAR(gesture.rotation, 0.0f, eps);
-    wgr_input_end_frame();
+    wgri_input_end_frame();
 
     /* a quarter turn clockwise (screen y is down), then a pan of (10, 20) */
     send_touches(SAPP_EVENTTYPE_TOUCHES_MOVED, 2, (const float[][3]){{1, 150, 0}, {2, 150, 200}});
@@ -279,13 +279,13 @@ void test_input_touch_gesture(void)
     CHECK(gesture.x == 160 && gesture.y == 120);
 
     /* the tick hasn't run since the pinch: it sees both steps, the pinches multiplied */
-    wgr_input_set_context(WGR_INPUT_CONTEXT_TICK);
+    wgri_input_set_context(WGRI_INPUT_CONTEXT_TICK);
     gesture = wgr_input_get_touch_gesture();
     CHECK_NEAR(gesture.scale, 2.0f, eps);
     CHECK_NEAR(gesture.rotation, (float)M_PI / 2.0f, eps);
-    wgr_input_set_context(WGR_INPUT_CONTEXT_FRAME);
-    wgr_input_end_frame();
-    wgr_input_end_tick();
+    wgri_input_set_context(WGRI_INPUT_CONTEXT_FRAME);
+    wgri_input_end_frame();
+    wgri_input_end_tick();
 
     /* a third finger doesn't change the pair; when the first lifts, the pair is new and
        the jump isn't a gesture */
@@ -297,5 +297,5 @@ void test_input_touch_gesture(void)
     CHECK(gesture.scale == 1.0f && gesture.dx == 0);
     send_touch(SAPP_EVENTTYPE_TOUCHES_ENDED, 2, 160, 220);
     CHECK(!wgr_input_get_touch_gesture().active);
-    wgr_input_deinit();
+    wgri_input_deinit();
 }

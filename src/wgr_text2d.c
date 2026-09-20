@@ -36,12 +36,12 @@ typedef struct {
 } wgr_text2d_t;
 
 static wgr_text2d_t *wgr_texts; /* grown by the pool: don't hold a pointer across a create */
-static wgr_handle_pool_t wgr_text2d_pool;
+static wgri_handle_pool_t wgr_text2d_pool;
 
 static wgr_text2d_t *resolve(wgr_handle_t handle)
 {
     uint16_t index = 0;
-    if (!wgr_handle_pool_resolve(&wgr_text2d_pool, handle, &index)) {
+    if (!wgri_handle_pool_resolve(&wgr_text2d_pool, handle, &index)) {
         if (handle != 0) log_warn("Invalid text2d handle (%u)", (unsigned int)handle);
         return NULL;
     }
@@ -53,7 +53,7 @@ static wgr_text2d_t *resolve(wgr_handle_t handle)
  * block is as wide as its max width, an unwrapped one as wide as its widest line. */
 static bool block_rect(const wgr_text2d_t *text_ptr, float *left, float *top, float *width, float *height)
 {
-    const vec2_t size = wgr_text_block_size(text_ptr->font, text_ptr->text, -1, text_ptr->size, text_ptr->max_width);
+    const vec2_t size = wgri_text_block_size(text_ptr->font, text_ptr->text, -1, text_ptr->size, text_ptr->max_width);
     if (size.y <= 0.0f) {
         return false;
     }
@@ -93,37 +93,37 @@ static bool pick_2d(wgr_handle_t handle, float x, float y, wgr_pick_result_t *ou
     return true;
 }
 
-void wgr_text2d_init(void)
+void wgri_text2d_init(void)
 {
-    if (!wgr_handle_pool_init(&wgr_text2d_pool, WGR_HANDLE_KIND_TEXT2D, "text2d", (void **)&wgr_texts,
-                             sizeof(wgr_text2d_t), TEXT2D_INITIAL, WGR_HANDLE_POOL_MAX_SLOTS)) {
+    if (!wgri_handle_pool_init(&wgr_text2d_pool, WGR_HANDLE_KIND_TEXT2D, "text2d", (void **)&wgr_texts,
+                             sizeof(wgr_text2d_t), TEXT2D_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         log_error("text2d: out of memory");
     }
-    wgr_scene_register_2d(WGR_HANDLE_KIND_TEXT2D, draw_2d, pick_2d);
-    wgr_scene_register_enabled(WGR_HANDLE_KIND_TEXT2D, wgr_text2d_is_enabled);
+    wgri_scene_register_2d(WGR_HANDLE_KIND_TEXT2D, draw_2d, pick_2d);
+    wgri_scene_register_enabled(WGR_HANDLE_KIND_TEXT2D, wgr_text2d_is_enabled);
 }
 
-void wgr_text2d_deinit(void)
+void wgri_text2d_deinit(void)
 {
     for (int i = 0; i < wgr_text2d_pool.capacity; i++) {
         if (wgr_text2d_pool.occupied[i]) wgr_font_release(wgr_texts[i].font);
         free(wgr_texts[i].text);
         wgr_texts[i].text = NULL;
     }
-    wgr_handle_pool_destroy(&wgr_text2d_pool);
+    wgri_handle_pool_destroy(&wgr_text2d_pool);
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_text2d_create(wgr_handle_t font)
 {
-    wgr_handle_t handle = wgr_handle_pool_alloc(&wgr_text2d_pool);
+    wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_text2d_pool);
     uint16_t index = 0;
     if (handle == 0) {
         log_error("text2d: pool full (%u)", (unsigned)wgr_text2d_pool.max - 1u);
         return 0;
     }
-    wgr_handle_pool_resolve(&wgr_text2d_pool, handle, &index);
-    wgr_font_retain(font); /* no-op for 0 */
+    wgri_handle_pool_resolve(&wgr_text2d_pool, handle, &index);
+    wgri_font_retain(font); /* no-op for 0 */
     wgr_texts[index] = (wgr_text2d_t){
         .font = font,
         .text = NULL,
@@ -138,18 +138,18 @@ wgr_handle_t wgr_text2d_create(wgr_handle_t font)
     return handle;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_text2d_set_font(wgr_handle_t handle, wgr_handle_t font)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL) return false;
-    wgr_font_retain(font); /* before releasing, in case they're the same font */
+    wgri_font_retain(font); /* before releasing, in case they're the same font */
     wgr_font_release(text_ptr->font);
     text_ptr->font = font;
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_text2d_set_text(wgr_handle_t handle, const char *text)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
@@ -166,7 +166,7 @@ bool wgr_text2d_set_text(wgr_handle_t handle, const char *text)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_text2d_set_position(wgr_handle_t handle, float x, float y)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
@@ -176,7 +176,7 @@ bool wgr_text2d_set_position(wgr_handle_t handle, float x, float y)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_text2d_set_size(wgr_handle_t handle, float size)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
@@ -185,7 +185,7 @@ bool wgr_text2d_set_size(wgr_handle_t handle, float size)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_text2d_set_color(wgr_handle_t handle, wgr_color_t color)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
@@ -194,7 +194,7 @@ bool wgr_text2d_set_color(wgr_handle_t handle, wgr_color_t color)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_text2d_set_visible(wgr_handle_t handle, bool visible)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
@@ -203,14 +203,14 @@ bool wgr_text2d_set_visible(wgr_handle_t handle, bool visible)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_text2d_is_visible(wgr_handle_t handle)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
     return text_ptr != NULL && text_ptr->visible;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_text2d_set_align(wgr_handle_t handle, wgr_text_align_t horizontal, wgr_text_align_t vertical)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
@@ -224,7 +224,7 @@ bool wgr_text2d_set_align(wgr_handle_t handle, wgr_text_align_t horizontal, wgr_
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_text2d_set_max_width(wgr_handle_t handle, float width)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
@@ -233,23 +233,23 @@ bool wgr_text2d_set_max_width(wgr_handle_t handle, float width)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 float wgr_text2d_measure_width(wgr_handle_t handle)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL || text_ptr->text == NULL) return 0.0f;
-    return wgr_text_block_size(text_ptr->font, text_ptr->text, -1, text_ptr->size, text_ptr->max_width).x;
+    return wgri_text_block_size(text_ptr->font, text_ptr->text, -1, text_ptr->size, text_ptr->max_width).x;
 }
 
-WGR_KEEP
+WGRI_KEEP
 float wgr_text2d_measure_height(wgr_handle_t handle)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL || text_ptr->text == NULL) return 0.0f;
-    return wgr_text_block_size(text_ptr->font, text_ptr->text, -1, text_ptr->size, text_ptr->max_width).y;
+    return wgri_text_block_size(text_ptr->font, text_ptr->text, -1, text_ptr->size, text_ptr->max_width).y;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_text2d_set_pickable(wgr_handle_t handle, bool pickable)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
@@ -258,14 +258,14 @@ bool wgr_text2d_set_pickable(wgr_handle_t handle, bool pickable)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_text2d_is_pickable(wgr_handle_t handle)
 {
     const wgr_text2d_t *text_ptr = resolve(handle);
     return text_ptr != NULL && text_ptr->pickable;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_text2d_set_enabled(wgr_handle_t handle, bool enabled)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
@@ -274,14 +274,14 @@ bool wgr_text2d_set_enabled(wgr_handle_t handle, bool enabled)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_text2d_is_enabled(wgr_handle_t handle)
 {
     const wgr_text2d_t *text_ptr = resolve(handle);
     return text_ptr != NULL && text_ptr->enabled;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_text2d_draw(wgr_handle_t handle)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
@@ -291,22 +291,22 @@ void wgr_text2d_draw(wgr_handle_t handle)
         return;
     }
     /* font 0 or a font that isn't loaded resolves to the default / built-in font */
-    wgr_text_block_draw(text_ptr->font, text_ptr->text, -1, left, top, text_ptr->size, text_ptr->color,
+    wgri_text_block_draw(text_ptr->font, text_ptr->text, -1, left, top, text_ptr->size, text_ptr->color,
                        text_ptr->max_width, width, text_ptr->align_x);
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_text2d_destroy(wgr_handle_t handle)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL) return;
-    wgr_scene_forget(handle);
+    wgri_scene_forget(handle);
     free(text_ptr->text);
     wgr_font_release(text_ptr->font);
     memset(text_ptr, 0, sizeof(*text_ptr));
-    wgr_handle_pool_free(&wgr_text2d_pool, handle);
+    wgri_handle_pool_free(&wgr_text2d_pool, handle);
 }
 
-/* An optional subsystem: part of the runtime when a program uses it (internal/wgr_module.h). */
-static wgr_module_t wgr_text2d_module = {.name = "text2d", .order = 80, .init = wgr_text2d_init, .deinit = wgr_text2d_deinit};
-WGR_MODULE(wgr_text2d_module)
+/* An optional subsystem: part of the runtime when a program uses it (internal/wgri_module.h). */
+static wgri_module_t wgr_text2d_module = {.name = "text2d", .order = 80, .init = wgri_text2d_init, .deinit = wgri_text2d_deinit};
+WGRI_MODULE(wgr_text2d_module)

@@ -49,29 +49,29 @@ void test_sprite_pick_alpha(void)
     float centre_alpha = 0.0f, corner_alpha = 0.0f;
 
     /* other tests pick on the headless default screen: put it back at the end */
-    const int was_width = wgr_platform_width(), was_height = wgr_platform_height();
+    const int was_width = wgri_platform_width(), was_height = wgri_platform_height();
 
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_platform_set_window_size((int)SCREEN, (int)SCREEN);
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_texture_init();
-    wgr_material_init();
-    wgr_sprite3d_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_platform_set_window_size((int)SCREEN, (int)SCREEN);
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_texture_init();
+    wgri_material_init();
+    wgri_sprite3d_init();
 
     /* a round blob on a square texture: opaque in the middle, clear at the corners */
     const wgr_handle_t texture = wgr_texture_create(BLOB);
     CHECK(texture != 0);
-    CHECK(wgr_texture_ensure_alpha_mask(texture));
-    CHECK(wgr_texture_get_alpha_mask(texture, &mask, &width, &height));
+    CHECK(wgri_texture_ensure_alpha_mask(texture));
+    CHECK(wgri_texture_get_alpha_mask(texture, &mask, &width, &height));
     CHECK(mask != NULL && width > 0 && height > 0);
-    CHECK(wgr_texture_sample_alpha(texture, 0.5f, 0.5f, &centre_alpha));
-    CHECK(wgr_texture_sample_alpha(texture, 0.02f, 0.02f, &corner_alpha));
+    CHECK(wgri_texture_sample_alpha(texture, 0.5f, 0.5f, &centre_alpha));
+    CHECK(wgri_texture_sample_alpha(texture, 0.02f, 0.02f, &corner_alpha));
     CHECK(centre_alpha > 0.9f && corner_alpha < 0.1f);
     /* outside 0..1 the mask wraps like the sampler, so a corner stays a corner */
     float wrapped = -1.0f;
-    CHECK(wgr_texture_sample_alpha(texture, 1.02f, 1.02f, &wrapped));
+    CHECK(wgri_texture_sample_alpha(texture, 1.02f, 1.02f, &wrapped));
     CHECK_NEAR(wrapped, corner_alpha, 1e-6f);
 
     const wgr_handle_t camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
@@ -106,9 +106,9 @@ void test_sprite_pick_alpha(void)
     /* a texture made from pixels has no file to re-read, so it keeps a mask when it
        has any transparency at all: a clear texture rejects every pick */
     static const unsigned char clear[4] = {255, 255, 255, 0};
-    const wgr_handle_t clear_texture = wgr_texture_create_rgba(clear, 1, 1);
+    const wgr_handle_t clear_texture = wgri_texture_create_rgba(clear, 1, 1);
     CHECK(clear_texture != 0);
-    CHECK(wgr_texture_get_alpha_mask(clear_texture, &mask, &width, &height));
+    CHECK(wgri_texture_get_alpha_mask(clear_texture, &mask, &width, &height));
     const wgr_handle_t clear_sprite = wgr_sprite3d_create(clear_texture);
     wgr_sprite3d_set_transform(clear_sprite, 0, 0, 0, 0, 0, 0, 1, 1, 1);
     CHECK(wgr_pick_object(clear_sprite, camera, middle, middle).hit); /* until it's asked */
@@ -117,10 +117,10 @@ void test_sprite_pick_alpha(void)
 
     /* an opaque one keeps none: there is nothing for the alpha test to reject */
     static const unsigned char opaque[4] = {255, 255, 255, 255};
-    const wgr_handle_t opaque_texture = wgr_texture_create_rgba(opaque, 1, 1);
+    const wgr_handle_t opaque_texture = wgri_texture_create_rgba(opaque, 1, 1);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL); /* the mask it hasn't got warns on purpose */
-    CHECK(!wgr_texture_ensure_alpha_mask(opaque_texture));
-    CHECK(!wgr_texture_get_alpha_mask(opaque_texture, &mask, &width, &height));
+    CHECK(!wgri_texture_ensure_alpha_mask(opaque_texture));
+    CHECK(!wgri_texture_get_alpha_mask(opaque_texture, &mask, &width, &height));
     const wgr_handle_t plain = wgr_sprite3d_create(opaque_texture);
     wgr_sprite3d_set_transform(plain, 0, 0, 0, 0, 0, 0, 1, 1, 1);
     CHECK(wgr_sprite3d_set_pick_alpha_test(plain, true, 0.5f));
@@ -133,12 +133,12 @@ void test_sprite_pick_alpha(void)
     wgr_texture_release(clear_texture);
     wgr_sprite3d_destroy(sprite);
     wgr_texture_release(texture);
-    wgr_sprite3d_deinit();
-    wgr_material_deinit();
-    wgr_texture_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
-    wgr_platform_set_window_size(was_width, was_height);
+    wgri_sprite3d_deinit();
+    wgri_material_deinit();
+    wgri_texture_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
+    wgri_platform_set_window_size(was_width, was_height);
     sg_shutdown();
 }

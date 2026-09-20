@@ -1,5 +1,5 @@
-#ifndef WGR_INTERNAL_LIGHT_H
-#define WGR_INTERNAL_LIGHT_H
+#ifndef WGRI_INTERNAL_LIGHT_H
+#define WGRI_INTERNAL_LIGHT_H
 
 #include <stdbool.h>
 
@@ -11,13 +11,13 @@
  * wgr_model (which picks lights per placement and uploads them) and the model
  * shader. See docs/PLAN-lighting.md. */
 
-#define WGR_MAX_DRAW_LIGHTS 8    /* lights per model placement (shader array size) */
-#define WGR_MAX_SHADOW_LIGHTS 4  /* lights casting shadows at once (layers in the map) */
-#define WGR_MAX_SCENE_LIGHTS 64 /* enabled lights considered per scene draw */
-#define WGR_MAX_LIGHT_ENVS 16   /* lighting environments (scene draws) per frame */
+#define WGRI_MAX_DRAW_LIGHTS 8    /* lights per model placement (shader array size) */
+#define WGRI_MAX_SHADOW_LIGHTS 4  /* lights casting shadows at once (layers in the map) */
+#define WGRI_MAX_SCENE_LIGHTS 64 /* enabled lights considered per scene draw */
+#define WGRI_MAX_LIGHT_ENVS 16   /* lighting environments (scene draws) per frame */
 
-void wgr_light_init(void);
-void wgr_light_deinit(void);
+void wgri_light_init(void);
+void wgri_light_deinit(void);
 
 /* A light resolved for shading, in world space. */
 typedef struct {
@@ -35,11 +35,11 @@ typedef struct {
     float shadow_bias_constant, shadow_bias_slope;
     float shadow_strength;  /* how much of this light a shadow blocks (0..1) */
     vec3_t shadow_tint;     /* linear rgb mixed into what a shadow leaves (black: none) */
-} wgr_scene_light_t;
+} wgri_scene_light_t;
 
 /* The lights and ambient a scene draw provides to the models drawn in it. */
 typedef struct {
-    wgr_scene_light_t lights[WGR_MAX_SCENE_LIGHTS];
+    wgri_scene_light_t lights[WGRI_MAX_SCENE_LIGHTS];
     int count;
     vec3_t ambient; /* color rgb * intensity */
     /* environment lighting and output (docs/PLAN-environment.md) */
@@ -50,41 +50,41 @@ typedef struct {
     float exposure;             /* stops */
     /* the lights casting shadows, in the order the scene found them: indices into
      * lights, and where each one's map sits in the shadow array */
-    int shadow_lights[WGR_MAX_SHADOW_LIGHTS];
+    int shadow_lights[WGRI_MAX_SHADOW_LIGHTS];
     int shadow_count;
-} wgr_light_env_t;
+} wgri_light_env_t;
 
 /* Resolve a light handle. False if the handle is invalid, not a light, or disabled. */
-bool wgr_light_get_scene_light(wgr_handle_t light, wgr_scene_light_t *out);
+bool wgri_light_get_scene_light(wgr_handle_t light, wgri_scene_light_t *out);
 
 /* A light's shadow settings. The public functions for these live in the shadow module
  * (src/wgr_shadow.c), so a program that asks for shadows links it; a program that never
  * does doesn't carry the depth pass at all. */
-bool wgr_light_shadow_set_casts(wgr_handle_t light, bool casts);
-bool wgr_light_shadow_casts(wgr_handle_t light);
-bool wgr_light_shadow_set_distance(wgr_handle_t light, float distance);
-bool wgr_light_shadow_set_map_size(wgr_handle_t light, int size);
-bool wgr_light_shadow_set_bias(wgr_handle_t light, float constant, float slope);
-bool wgr_light_shadow_set_strength(wgr_handle_t light, float strength);
-bool wgr_light_shadow_set_color(wgr_handle_t light, wgr_color_t color);
+bool wgri_light_shadow_set_casts(wgr_handle_t light, bool casts);
+bool wgri_light_shadow_casts(wgr_handle_t light);
+bool wgri_light_shadow_set_distance(wgr_handle_t light, float distance);
+bool wgri_light_shadow_set_map_size(wgr_handle_t light, int size);
+bool wgri_light_shadow_set_bias(wgr_handle_t light, float constant, float slope);
+bool wgri_light_shadow_set_strength(wgr_handle_t light, float strength);
+bool wgri_light_shadow_set_color(wgr_handle_t light, wgr_color_t color);
 
 /* Shading helpers; the model shader implements the same formulas. */
-float wgr_light_attenuation(float distance, float range);
-float wgr_light_spot_factor(float cos_angle, float cos_inner, float cos_outer);
-float wgr_light_luminance(vec3_t rgb);
+float wgri_light_attenuation(float distance, float range);
+float wgri_light_spot_factor(float cos_angle, float cos_inner, float cos_outer);
+float wgri_light_luminance(vec3_t rgb);
 
 /* Pick up to `max_out` lights from `env` for a model whose world-space bounds are
  * [world_min, world_max], strongest estimated contribution first. Writes indices
  * into env->lights and returns how many. Pure; exposed for tests. */
-int wgr_light_select(const wgr_light_env_t *env, vec3_t world_min, vec3_t world_max,
+int wgri_light_select(const wgri_light_env_t *env, vec3_t world_min, vec3_t world_max,
                     int *out_indices, int max_out);
 
 /* Per-frame lighting environments. A scene draw pushes one and makes it current;
  * model draws queued while it is current reference it by index. -1 = unlit. */
-int  wgr_light_env_push(const wgr_light_env_t *env);
-const wgr_light_env_t *wgr_light_env_get(int index);
-void wgr_light_env_set_current(int index);
-int  wgr_light_env_current(void);
-void wgr_light_end_frame(void);
+int  wgri_light_env_push(const wgri_light_env_t *env);
+const wgri_light_env_t *wgri_light_env_get(int index);
+void wgri_light_env_set_current(int index);
+int  wgri_light_env_current(void);
+void wgri_light_end_frame(void);
 
-#endif // WGR_INTERNAL_LIGHT_H
+#endif // WGRI_INTERNAL_LIGHT_H

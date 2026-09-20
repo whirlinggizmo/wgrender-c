@@ -48,43 +48,43 @@ typedef struct {
 } wgr_shape3d_t;
 
 static wgr_shape3d_t *wgr_shapes3d; /* grown by the pool: don't hold a pointer across a create */
-static wgr_handle_pool_t wgr_shape3d_pool;
+static wgri_handle_pool_t wgr_shape3d_pool;
 
 static void draw_handle(wgr_handle_t shape);
 static void draw_opaque(wgr_handle_t shape);
-static int collect_transparent(wgr_handle_t shape, const wgr_camera3d_t *cam,
-                               wgr_transparent_item_t *out, int max_items);
+static int collect_transparent(wgr_handle_t shape, const wgri_camera3d_t *cam,
+                               wgri_transparent_item_t *out, int max_items);
 static void draw_transparent(wgr_handle_t shape, int part);
-static bool shape_bounds(wgr_handle_t shape, vec3_t *lmin, vec3_t *lmax, wgr_mat4_t *model);
+static bool shape_bounds(wgr_handle_t shape, vec3_t *lmin, vec3_t *lmax, wgri_mat4_t *model);
 static bool shape_pick(wgr_handle_t shape, vec3_t origin, vec3_t dir, wgr_pick_result_t *out);
 
-void wgr_shape3d_init(void)
+void wgri_shape3d_init(void)
 {
-    if (!wgr_handle_pool_init(&wgr_shape3d_pool, WGR_HANDLE_KIND_SHAPE3D, "shape3d", (void **)&wgr_shapes3d,
-                             sizeof(wgr_shape3d_t), SHAPES3D_INITIAL, WGR_HANDLE_POOL_MAX_SLOTS)) {
+    if (!wgri_handle_pool_init(&wgr_shape3d_pool, WGR_HANDLE_KIND_SHAPE3D, "shape3d", (void **)&wgr_shapes3d,
+                             sizeof(wgr_shape3d_t), SHAPES3D_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         log_error("shape3d: out of memory");
     }
-    wgr_scene_register_passes(WGR_HANDLE_KIND_SHAPE3D, draw_opaque, collect_transparent, draw_transparent);
-    wgr_scene_register_bounds(WGR_HANDLE_KIND_SHAPE3D, shape_bounds);
-    wgr_scene_register_pick(WGR_HANDLE_KIND_SHAPE3D, shape_pick);
-    wgr_scene_register_enabled(WGR_HANDLE_KIND_SHAPE3D, wgr_shape3d_is_enabled);
+    wgri_scene_register_passes(WGR_HANDLE_KIND_SHAPE3D, draw_opaque, collect_transparent, draw_transparent);
+    wgri_scene_register_bounds(WGR_HANDLE_KIND_SHAPE3D, shape_bounds);
+    wgri_scene_register_pick(WGR_HANDLE_KIND_SHAPE3D, shape_pick);
+    wgri_scene_register_enabled(WGR_HANDLE_KIND_SHAPE3D, wgr_shape3d_is_enabled);
 }
 
-void wgr_shape3d_deinit(void)
+void wgri_shape3d_deinit(void)
 {
     for (int i = 0; i < wgr_shape3d_pool.capacity; i++) {
         free(wgr_shapes3d[i].points);
     }
-    wgr_handle_pool_destroy(&wgr_shape3d_pool);
+    wgri_handle_pool_destroy(&wgr_shape3d_pool);
 }
 
 static void set_color(wgr_color_t color)
 {
-    wgr_colorf_t c = wgr_color_unpack(color);
+    wgri_colorf_t c = wgri_color_unpack(color);
     sgl_c4f(c.r, c.g, c.b, c.a);
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape3d_draw_line(float x0, float y0, float z0,
                            float x1, float y1, float z1, wgr_color_t color)
 {
@@ -95,7 +95,7 @@ void wgr_shape3d_draw_line(float x0, float y0, float z0,
     sgl_end();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape3d_draw_cube(float cx, float cy, float cz,
                         float width, float height, float length, wgr_color_t color)
 {
@@ -117,7 +117,7 @@ void wgr_shape3d_draw_cube(float cx, float cy, float cz,
     sgl_end();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape3d_draw_cube_wires(float cx, float cy, float cz,
                               float width, float height, float length, wgr_color_t color)
 {
@@ -145,7 +145,7 @@ void wgr_shape3d_draw_cube_wires(float cx, float cy, float cz,
     sgl_end();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape3d_draw_sphere(float cx, float cy, float cz, float radius, wgr_color_t color)
 {
     const int rings = 16;
@@ -210,7 +210,7 @@ static void circle_xy(float radius, wgr_color_t color)
     sgl_end();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape3d_draw_rectangle(float cx, float cy, float cz, float width, float height,
                                 float rx, float ry, float rz, wgr_color_t color)
 {
@@ -219,7 +219,7 @@ void wgr_shape3d_draw_rectangle(float cx, float cy, float cz, float width, float
     sgl_pop_matrix();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape3d_draw_circle(float cx, float cy, float cz, float radius,
                              float rx, float ry, float rz, wgr_color_t color)
 {
@@ -228,7 +228,7 @@ void wgr_shape3d_draw_circle(float cx, float cy, float cz, float radius,
     sgl_pop_matrix();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape3d_draw_grid(int slices, float spacing, wgr_color_t color)
 {
     const float half = slices * spacing * 0.5f;
@@ -248,7 +248,7 @@ void wgr_shape3d_draw_grid(int slices, float spacing, wgr_color_t color)
 static wgr_shape3d_t *resolve(wgr_handle_t shape)
 {
     uint16_t index = 0;
-    if (!wgr_handle_pool_resolve(&wgr_shape3d_pool, shape, &index)) {
+    if (!wgri_handle_pool_resolve(&wgr_shape3d_pool, shape, &index)) {
         if (shape != 0) {
             log_warn("Invalid shape handle (%u)", (unsigned int)shape);
         }
@@ -257,17 +257,17 @@ static wgr_shape3d_t *resolve(wgr_handle_t shape)
     return &wgr_shapes3d[index];
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_shape3d_create(void)
 {
-    wgr_handle_t handle = wgr_handle_pool_alloc(&wgr_shape3d_pool);
+    wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_shape3d_pool);
     uint16_t index = 0;
 
     if (handle == 0) {
         log_error("shape3d: pool full (%u)", (unsigned)wgr_shape3d_pool.max - 1u);
         return 0;
     }
-    wgr_handle_pool_resolve(&wgr_shape3d_pool, handle, &index);
+    wgri_handle_pool_resolve(&wgr_shape3d_pool, handle, &index);
     wgr_shapes3d[index] = (wgr_shape3d_t){
         .kind = WGR_SHAPE3D_NONE,
         .dim = {1.0f, 1.0f, 1.0f},
@@ -282,20 +282,20 @@ wgr_handle_t wgr_shape3d_create(void)
     return handle;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape3d_destroy(wgr_handle_t shape)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
     if (shape_ptr == NULL) {
         return;
     }
-    wgr_scene_forget(shape);
+    wgri_scene_forget(shape);
     free(shape_ptr->points);
     *shape_ptr = (wgr_shape3d_t){0};
-    wgr_handle_pool_free(&wgr_shape3d_pool, shape);
+    wgri_handle_pool_free(&wgr_shape3d_pool, shape);
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape3d_set_cube(wgr_handle_t shape, float width, float height, float length)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
@@ -309,7 +309,7 @@ bool wgr_shape3d_set_cube(wgr_handle_t shape, float width, float height, float l
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape3d_set_sphere(wgr_handle_t shape, float radius)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
@@ -321,7 +321,7 @@ bool wgr_shape3d_set_sphere(wgr_handle_t shape, float radius)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape3d_set_rectangle(wgr_handle_t shape, float width, float height)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
@@ -334,7 +334,7 @@ bool wgr_shape3d_set_rectangle(wgr_handle_t shape, float width, float height)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape3d_set_circle(wgr_handle_t shape, float radius)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
@@ -346,7 +346,7 @@ bool wgr_shape3d_set_circle(wgr_handle_t shape, float radius)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape3d_set_line(wgr_handle_t shape, float x0, float y0, float z0, float x1, float y1, float z1)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
@@ -359,7 +359,7 @@ bool wgr_shape3d_set_line(wgr_handle_t shape, float x0, float y0, float z0, floa
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape3d_set_line_strip(wgr_handle_t shape)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
@@ -371,7 +371,7 @@ bool wgr_shape3d_set_line_strip(wgr_handle_t shape)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape3d_add_point(wgr_handle_t shape, float x, float y, float z)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
@@ -396,14 +396,14 @@ bool wgr_shape3d_add_point(wgr_handle_t shape, float x, float y, float z)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 int wgr_shape3d_get_point_count(wgr_handle_t shape)
 {
     const wgr_shape3d_t *shape_ptr = resolve(shape);
     return shape_ptr != NULL && shape_ptr->kind == WGR_SHAPE3D_LINE_STRIP ? shape_ptr->point_count : 0;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape3d_set_transform(wgr_handle_t shape,
                               float position_x, float position_y, float position_z,
                               float rotation_x, float rotation_y, float rotation_z,
@@ -419,7 +419,7 @@ bool wgr_shape3d_set_transform(wgr_handle_t shape,
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape3d_set_color(wgr_handle_t shape, wgr_color_t color)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
@@ -430,7 +430,7 @@ bool wgr_shape3d_set_color(wgr_handle_t shape, wgr_color_t color)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape3d_set_visible(wgr_handle_t shape, bool visible)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
@@ -441,14 +441,14 @@ bool wgr_shape3d_set_visible(wgr_handle_t shape, bool visible)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape3d_is_visible(wgr_handle_t shape)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
     return shape_ptr != NULL && shape_ptr->visible;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape3d_set_pickable(wgr_handle_t shape, bool pickable)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
@@ -459,14 +459,14 @@ bool wgr_shape3d_set_pickable(wgr_handle_t shape, bool pickable)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape3d_is_pickable(wgr_handle_t shape)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
     return shape_ptr != NULL && shape_ptr->pickable;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape3d_set_enabled(wgr_handle_t shape, bool enabled)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
@@ -477,7 +477,7 @@ bool wgr_shape3d_set_enabled(wgr_handle_t shape, bool enabled)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_shape3d_is_enabled(wgr_handle_t shape)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
@@ -535,7 +535,7 @@ static void draw_handle(wgr_handle_t shape)
 static bool is_translucent(wgr_handle_t shape)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
-    return shape_ptr != NULL && wgr_color_unpack(shape_ptr->color).a < 1.0f;
+    return shape_ptr != NULL && wgri_color_unpack(shape_ptr->color).a < 1.0f;
 }
 
 static void draw_opaque(wgr_handle_t shape)
@@ -545,18 +545,18 @@ static void draw_opaque(wgr_handle_t shape)
     }
 }
 
-static int collect_transparent(wgr_handle_t shape, const wgr_camera3d_t *cam,
-                               wgr_transparent_item_t *out, int max_items)
+static int collect_transparent(wgr_handle_t shape, const wgri_camera3d_t *cam,
+                               wgri_transparent_item_t *out, int max_items)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
     if (shape_ptr == NULL || !shape_ptr->visible || shape_ptr->kind == WGR_SHAPE3D_NONE ||
         !is_translucent(shape) || max_items < 1) {
         return 0;
     }
-    out[0] = (wgr_transparent_item_t){
+    out[0] = (wgri_transparent_item_t){
         .handle = shape,
         .part = 0,
-        .depth = wgr_scene_view_depth(cam, shape_ptr->position),
+        .depth = wgri_scene_view_depth(cam, shape_ptr->position),
     };
     return 1;
 }
@@ -567,13 +567,13 @@ static void draw_transparent(wgr_handle_t shape, int part)
     draw_handle(shape);
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_shape3d_draw(wgr_handle_t shape)
 {
     draw_handle(shape);
 }
 
-static bool shape_bounds(wgr_handle_t shape, vec3_t *lmin, vec3_t *lmax, wgr_mat4_t *model)
+static bool shape_bounds(wgr_handle_t shape, vec3_t *lmin, vec3_t *lmax, wgri_mat4_t *model)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
     float hx, hy, hz;
@@ -603,7 +603,7 @@ static bool shape_bounds(wgr_handle_t shape, vec3_t *lmin, vec3_t *lmax, wgr_mat
                 lmin->x = fminf(lmin->x, p.x); lmin->y = fminf(lmin->y, p.y); lmin->z = fminf(lmin->z, p.z);
                 lmax->x = fmaxf(lmax->x, p.x); lmax->y = fmaxf(lmax->y, p.y); lmax->z = fmaxf(lmax->z, p.z);
             }
-            *model = wgr_mat4_trs(shape_ptr->position, shape_ptr->rotation, shape_ptr->scale);
+            *model = wgri_mat4_trs(shape_ptr->position, shape_ptr->rotation, shape_ptr->scale);
             return true;
         }
         default: /* sphere: dim[0] = radius */
@@ -612,16 +612,16 @@ static bool shape_bounds(wgr_handle_t shape, vec3_t *lmin, vec3_t *lmax, wgr_mat
     }
     *lmin = (vec3_t){-hx, -hy, -hz};
     *lmax = (vec3_t){hx, hy, hz};
-    *model = wgr_mat4_trs(shape_ptr->position, shape_ptr->rotation, shape_ptr->scale);
+    *model = wgri_mat4_trs(shape_ptr->position, shape_ptr->rotation, shape_ptr->scale);
     return true;
 }
 
 static bool shape_pick(wgr_handle_t shape, vec3_t origin, vec3_t dir, wgr_pick_result_t *out)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
-    wgr_mat4_t model;
-    wgr_ray_t world, local;
-    wgr_ray_hit_t h = {0};
+    wgri_mat4_t model;
+    wgri_ray_t world, local;
+    wgri_ray_hit_t h = {0};
     vec3_t lmin, lmax;
     bool hit;
 
@@ -629,10 +629,10 @@ static bool shape_pick(wgr_handle_t shape, vec3_t origin, vec3_t dir, wgr_pick_r
         return false;
     }
 
-    model = wgr_mat4_trs(shape_ptr->position, shape_ptr->rotation, shape_ptr->scale);
+    model = wgri_mat4_trs(shape_ptr->position, shape_ptr->rotation, shape_ptr->scale);
     world.origin = origin;
     world.dir = dir;
-    local = wgr_pick_ray_to_local(model, world);
+    local = wgri_pick_ray_to_local(model, world);
 
     if (shape_ptr->kind == WGR_SHAPE3D_CUBE) {
         float hx = shape_ptr->dim[0] * 0.5f;
@@ -640,7 +640,7 @@ static bool shape_pick(wgr_handle_t shape, vec3_t origin, vec3_t dir, wgr_pick_r
         float hz = shape_ptr->dim[2] * 0.5f;
         lmin = (vec3_t){-hx, -hy, -hz};
         lmax = (vec3_t){hx, hy, hz};
-        hit = wgr_pick_ray_aabb(local, lmin, lmax, &h);
+        hit = wgri_pick_ray_aabb(local, lmin, lmax, &h);
     } else if (shape_ptr->kind == WGR_SHAPE3D_RECTANGLE || shape_ptr->kind == WGR_SHAPE3D_CIRCLE) {
         /* the XY plane (both sides); circles are picked anywhere inside the outline */
         hit = false;
@@ -651,19 +651,19 @@ static bool shape_pick(wgr_handle_t shape, vec3_t origin, vec3_t dir, wgr_pick_r
                                     ? fabsf(px) <= shape_ptr->dim[0] * 0.5f && fabsf(py) <= shape_ptr->dim[1] * 0.5f
                                     : px * px + py * py <= shape_ptr->dim[0] * shape_ptr->dim[0];
             if (t >= 0.0f && inside) {
-                h = (wgr_ray_hit_t){.hit = true, .t = t, .point = {px, py, 0.0f},
+                h = (wgri_ray_hit_t){.hit = true, .t = t, .point = {px, py, 0.0f},
                                    .normal = {0.0f, 0.0f, local.dir.z < 0.0f ? 1.0f : -1.0f}};
                 hit = true;
             }
         }
     } else if (shape_ptr->kind == WGR_SHAPE3D_SPHERE) {
-        hit = wgr_pick_ray_sphere(local, (vec3_t){0, 0, 0}, shape_ptr->dim[0], &h);
+        hit = wgri_pick_ray_sphere(local, (vec3_t){0, 0, 0}, shape_ptr->dim[0], &h);
     } else {
         return false; /* lines have no area to hit */
     }
 
     if (hit) {
-        wgr_pick_result_from_local(&h, world, model, out);
+        wgri_pick_result_from_local(&h, world, model, out);
     } else {
         *out = (wgr_pick_result_t){0};
     }

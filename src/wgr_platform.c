@@ -26,7 +26,7 @@ static void forward_event(const sapp_event *ev)
 
 static bool wgr_platform_transparent;
 
-void wgr_platform_run(const wgr_platform_desc_t *desc)
+void wgri_platform_run(const wgri_platform_desc_t *desc)
 {
     wgr_platform_event_fn = desc->event;
     wgr_platform_transparent = desc->transparent;
@@ -48,17 +48,17 @@ void wgr_platform_run(const wgr_platform_desc_t *desc)
     });
 }
 
-void wgr_platform_request_quit(void) { sapp_request_quit(); }
-bool wgr_platform_is_headless(void) { return false; }
-int wgr_platform_width(void) { return sapp_width(); }
-int wgr_platform_height(void) { return sapp_height(); }
-double wgr_platform_frame_duration(void) { return sapp_frame_duration_unfiltered(); }
-void wgr_platform_set_title(const char *title) { sapp_set_window_title(title); }
-void wgr_platform_lock_mouse(bool locked) { sapp_lock_mouse(locked); }
-sg_environment wgr_platform_environment(void) { return sglue_environment(); }
-sg_swapchain wgr_platform_swapchain(void) { return sglue_swapchain(); }
+void wgri_platform_request_quit(void) { sapp_request_quit(); }
+bool wgri_platform_is_headless(void) { return false; }
+int wgri_platform_width(void) { return sapp_width(); }
+int wgri_platform_height(void) { return sapp_height(); }
+double wgri_platform_frame_duration(void) { return sapp_frame_duration_unfiltered(); }
+void wgri_platform_set_title(const char *title) { sapp_set_window_title(title); }
+void wgri_platform_lock_mouse(bool locked) { sapp_lock_mouse(locked); }
+sg_environment wgri_platform_environment(void) { return sglue_environment(); }
+sg_swapchain wgri_platform_swapchain(void) { return sglue_swapchain(); }
 
-float wgr_platform_dpi_scale(void)
+float wgri_platform_dpi_scale(void)
 {
     const float scale = sapp_dpi_scale();
     return scale > 0.0f ? scale : 1.0f;
@@ -78,23 +78,23 @@ static void apply_style(void)
     sapp_set_window_decorated(wgr_style_decorated);
 }
 
-void wgr_platform_set_window_style(bool resizable, bool decorated)
+void wgri_platform_set_window_style(bool resizable, bool decorated)
 {
     wgr_style_resizable = resizable;
     wgr_style_decorated = decorated;
     if (!sapp_is_fullscreen()) apply_style();
 }
 
-bool wgr_platform_set_window_visible(bool visible)
+bool wgri_platform_set_window_visible(bool visible)
 {
     sapp_set_window_visible(visible);
     return true;
 }
 
-bool wgr_platform_is_window_visible(void) { return sapp_window_visible(); }
-bool wgr_platform_is_window_transparent(void) { return wgr_platform_transparent; }
+bool wgri_platform_is_window_visible(void) { return sapp_window_visible(); }
+bool wgri_platform_is_window_transparent(void) { return wgr_platform_transparent; }
 
-bool wgr_platform_set_fullscreen(bool fullscreen)
+bool wgri_platform_set_fullscreen(bool fullscreen)
 {
     if (sapp_is_fullscreen() != fullscreen) {
         if (fullscreen) sapp_set_window_resizable(true);
@@ -104,7 +104,7 @@ bool wgr_platform_set_fullscreen(bool fullscreen)
     return true;
 }
 
-bool wgr_platform_is_fullscreen(void) { return sapp_is_fullscreen(); }
+bool wgri_platform_is_fullscreen(void) { return sapp_is_fullscreen(); }
 
 #if defined(__EMSCRIPTEN__)
 /* The canvas is the window: its CSS size is the logical size. sokol_app reads the
@@ -124,17 +124,17 @@ EM_JS(int, document_has_focus, (void), { return document.hasFocus() ? 1 : 0; });
 
 EM_JS(void, performance_mark, (const char *name), { performance.mark(UTF8ToString(name)); });
 
-void wgr_platform_mark(const char *name) { performance_mark(name); }
-bool wgr_platform_set_window_size(int width, int height) { return canvas_set_size(width, height) != 0; }
-bool wgr_platform_set_window_position(int x, int y) { (void)x; (void)y; return false; }
-bool wgr_platform_get_window_position(int *x, int *y) { *x = 0; *y = 0; return false; }
-bool wgr_platform_is_focused(void) { return document_has_focus() != 0; }
-int wgr_platform_monitor_count(void) { return 1; }
-int wgr_platform_current_monitor(void) { return 0; }
-bool wgr_platform_set_monitor(int monitor) { return monitor == 0; }
-const char *wgr_platform_monitor_name(int monitor) { (void)monitor; return ""; }
+void wgri_platform_mark(const char *name) { performance_mark(name); }
+bool wgri_platform_set_window_size(int width, int height) { return canvas_set_size(width, height) != 0; }
+bool wgri_platform_set_window_position(int x, int y) { (void)x; (void)y; return false; }
+bool wgri_platform_get_window_position(int *x, int *y) { *x = 0; *y = 0; return false; }
+bool wgri_platform_is_focused(void) { return document_has_focus() != 0; }
+int wgri_platform_monitor_count(void) { return 1; }
+int wgri_platform_current_monitor(void) { return 0; }
+bool wgri_platform_set_monitor(int monitor) { return monitor == 0; }
+const char *wgri_platform_monitor_name(int monitor) { (void)monitor; return ""; }
 
-bool wgr_platform_monitor_rect(int monitor, int *x, int *y, int *width, int *height)
+bool wgri_platform_monitor_rect(int monitor, int *x, int *y, int *width, int *height)
 {
     if (monitor != 0) return false;
     *x = 0;
@@ -145,7 +145,7 @@ bool wgr_platform_monitor_rect(int monitor, int *x, int *y, int *width, int *hei
 }
 
 #else
-void wgr_platform_mark(const char *name) { (void)name; }
+void wgri_platform_mark(const char *name) { (void)name; }
 
 /* Desktop, through deps/sokol_utils. Window and monitor sizes are in the OS's
  * pixels, except on macOS where they're already points (logical). */
@@ -154,11 +154,11 @@ static float desktop_scale(void)
 #if defined(__APPLE__)
     return 1.0f;
 #else
-    return wgr_platform_dpi_scale();
+    return wgri_platform_dpi_scale();
 #endif
 }
 
-bool wgr_platform_set_window_size(int width, int height)
+bool wgri_platform_set_window_size(int width, int height)
 {
     const float scale = desktop_scale();
     sapp_set_window_size((int)((float)width * scale + 0.5f), (int)((float)height * scale + 0.5f));
@@ -179,14 +179,14 @@ static bool can_move(void)
     return false;
 }
 
-bool wgr_platform_set_window_position(int x, int y)
+bool wgri_platform_set_window_position(int x, int y)
 {
     if (!can_move()) return false;
     sapp_set_window_position(x, y);
     return true;
 }
 
-bool wgr_platform_get_window_position(int *x, int *y)
+bool wgri_platform_get_window_position(int *x, int *y)
 {
     if (!can_move()) {
         *x = 0, *y = 0;
@@ -196,18 +196,18 @@ bool wgr_platform_get_window_position(int *x, int *y)
     return true;
 }
 
-bool wgr_platform_is_focused(void) { return sapp_window_focused(); }
-int wgr_platform_monitor_count(void) { return sapp_num_displays(); }
-int wgr_platform_current_monitor(void) { return sapp_current_display(); }
+bool wgri_platform_is_focused(void) { return sapp_window_focused(); }
+int wgri_platform_monitor_count(void) { return sapp_num_displays(); }
+int wgri_platform_current_monitor(void) { return sapp_current_display(); }
 
-bool wgr_platform_set_monitor(int monitor)
+bool wgri_platform_set_monitor(int monitor)
 {
     if (monitor < 0 || monitor >= sapp_num_displays() || !can_move()) return false;
     sapp_set_display(monitor);
     return true;
 }
 
-bool wgr_platform_monitor_rect(int monitor, int *x, int *y, int *width, int *height)
+bool wgri_platform_monitor_rect(int monitor, int *x, int *y, int *width, int *height)
 {
     const float scale = desktop_scale();
     if (monitor < 0 || monitor >= sapp_num_displays()) return false;
@@ -217,7 +217,7 @@ bool wgr_platform_monitor_rect(int monitor, int *x, int *y, int *width, int *hei
     return true;
 }
 
-const char *wgr_platform_monitor_name(int monitor)
+const char *wgri_platform_monitor_name(int monitor)
 {
     return monitor >= 0 && monitor < sapp_num_displays() ? sapp_display_name(monitor) : "";
 }
@@ -229,13 +229,13 @@ const char *wgr_platform_monitor_name(int monitor)
 #include "sokol_time.h"
 
 static struct {
-    wgr_platform_desc_t desc;
+    wgri_platform_desc_t desc;
     bool quit;
     bool hidden;
     double frame_duration;
 } wgr_headless;
 
-void wgr_platform_run(const wgr_platform_desc_t *desc)
+void wgri_platform_run(const wgri_platform_desc_t *desc)
 {
     const char *frames_env = getenv("WGR_HEADLESS_FRAMES");
     const long max_frames = frames_env != NULL ? strtol(frames_env, NULL, 10) : 0;
@@ -262,65 +262,65 @@ void wgr_platform_run(const wgr_platform_desc_t *desc)
     }
 }
 
-void wgr_platform_request_quit(void) { wgr_headless.quit = true; }
-bool wgr_platform_is_headless(void) { return true; }
+void wgri_platform_request_quit(void) { wgr_headless.quit = true; }
+bool wgri_platform_is_headless(void) { return true; }
 
 /* A headless "window" is its framebuffer size on one virtual monitor of the same
  * size; resizing works, the rest has nothing to act on. */
-bool wgr_platform_set_window_size(int width, int height)
+bool wgri_platform_set_window_size(int width, int height)
 {
     if (width <= 0 || height <= 0) return false;
     wgr_headless.desc.width = width;
     wgr_headless.desc.height = height;
     return true;
 }
-bool wgr_platform_set_window_position(int x, int y) { (void)x; (void)y; return false; }
-bool wgr_platform_get_window_position(int *x, int *y) { *x = 0; *y = 0; return false; }
-bool wgr_platform_set_fullscreen(bool fullscreen) { (void)fullscreen; return false; }
-bool wgr_platform_is_fullscreen(void) { return false; }
-void wgr_platform_set_window_style(bool resizable, bool decorated) { (void)resizable, (void)decorated; }
-bool wgr_platform_set_window_visible(bool visible)
+bool wgri_platform_set_window_position(int x, int y) { (void)x; (void)y; return false; }
+bool wgri_platform_get_window_position(int *x, int *y) { *x = 0; *y = 0; return false; }
+bool wgri_platform_set_fullscreen(bool fullscreen) { (void)fullscreen; return false; }
+bool wgri_platform_is_fullscreen(void) { return false; }
+void wgri_platform_set_window_style(bool resizable, bool decorated) { (void)resizable, (void)decorated; }
+bool wgri_platform_set_window_visible(bool visible)
 {
     wgr_headless.hidden = !visible;
     return true;
 }
-bool wgr_platform_is_window_visible(void) { return !wgr_headless.hidden; }
-bool wgr_platform_is_window_transparent(void) { return wgr_headless.desc.transparent; }
-bool wgr_platform_is_focused(void) { return true; }
-int wgr_platform_monitor_count(void) { return 1; }
-int wgr_platform_current_monitor(void) { return 0; }
-bool wgr_platform_set_monitor(int monitor) { return monitor == 0; }
-const char *wgr_platform_monitor_name(int monitor) { (void)monitor; return "headless"; }
+bool wgri_platform_is_window_visible(void) { return !wgr_headless.hidden; }
+bool wgri_platform_is_window_transparent(void) { return wgr_headless.desc.transparent; }
+bool wgri_platform_is_focused(void) { return true; }
+int wgri_platform_monitor_count(void) { return 1; }
+int wgri_platform_current_monitor(void) { return 0; }
+bool wgri_platform_set_monitor(int monitor) { return monitor == 0; }
+const char *wgri_platform_monitor_name(int monitor) { (void)monitor; return "headless"; }
 
-bool wgr_platform_monitor_rect(int monitor, int *x, int *y, int *width, int *height)
+bool wgri_platform_monitor_rect(int monitor, int *x, int *y, int *width, int *height)
 {
     if (monitor != 0) return false;
     *x = 0;
     *y = 0;
-    *width = wgr_platform_width();
-    *height = wgr_platform_height();
+    *width = wgri_platform_width();
+    *height = wgri_platform_height();
     return true;
 }
 /* No display, so no DPI of its own: tests pick the scale it reports. */
 static float wgr_headless_dpi_scale = 1.0f;
-float wgr_platform_dpi_scale(void) { return wgr_headless_dpi_scale; }
-void wgr_platform_set_headless_dpi_scale(float scale) { wgr_headless_dpi_scale = scale > 0.0f ? scale : 1.0f; }
-double wgr_platform_frame_duration(void) { return wgr_headless.frame_duration; }
-void wgr_platform_set_title(const char *title) { (void)title; }
-void wgr_platform_mark(const char *name) { (void)name; }
-void wgr_platform_lock_mouse(bool locked) { (void)locked; }
+float wgri_platform_dpi_scale(void) { return wgr_headless_dpi_scale; }
+void wgri_platform_set_headless_dpi_scale(float scale) { wgr_headless_dpi_scale = scale > 0.0f ? scale : 1.0f; }
+double wgri_platform_frame_duration(void) { return wgr_headless.frame_duration; }
+void wgri_platform_set_title(const char *title) { (void)title; }
+void wgri_platform_mark(const char *name) { (void)name; }
+void wgri_platform_lock_mouse(bool locked) { (void)locked; }
 
-int wgr_platform_width(void)
+int wgri_platform_width(void)
 {
     return wgr_headless.desc.width > 0 ? wgr_headless.desc.width : 1;
 }
 
-int wgr_platform_height(void)
+int wgri_platform_height(void)
 {
     return wgr_headless.desc.height > 0 ? wgr_headless.desc.height : 1;
 }
 
-sg_environment wgr_platform_environment(void)
+sg_environment wgri_platform_environment(void)
 {
     return (sg_environment){
         .defaults = {
@@ -331,11 +331,11 @@ sg_environment wgr_platform_environment(void)
     };
 }
 
-sg_swapchain wgr_platform_swapchain(void)
+sg_swapchain wgri_platform_swapchain(void)
 {
     return (sg_swapchain){
-        .width = wgr_platform_width(),
-        .height = wgr_platform_height(),
+        .width = wgri_platform_width(),
+        .height = wgri_platform_height(),
         .sample_count = wgr_headless.desc.sample_count > 0 ? wgr_headless.desc.sample_count : 1,
         .color_format = SG_PIXELFORMAT_RGBA8,
         .depth_format = SG_PIXELFORMAT_DEPTH_STENCIL,

@@ -1,5 +1,5 @@
-#ifndef WGR_INTERNAL_COLOR_H
-#define WGR_INTERNAL_COLOR_H
+#ifndef WGRI_INTERNAL_COLOR_H
+#define WGRI_INTERNAL_COLOR_H
 
 #include "wgr_color.h"
 #include "wgr_types.h"
@@ -12,8 +12,8 @@ typedef struct {
     float g;
     float b;
     float a;
-} wgr_colorf_t;
+} wgri_colorf_t;
 
-wgr_colorf_t wgr_color_unpack(wgr_color_t color);
+wgri_colorf_t wgri_color_unpack(wgr_color_t color);
 
-#endif // WGR_INTERNAL_COLOR_H
+#endif // WGRI_INTERNAL_COLOR_H

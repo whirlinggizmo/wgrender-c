@@ -19,30 +19,30 @@
 #include "wgr_render.h"
 #include "wgr_window.h"
 
-wgr_scene_hooks_t wgr_scene_hooks;
+wgri_scene_hooks_t wgri_scene_hooks;
 
-/* Environments and lights are optional modules (internal/wgr_module.h): a scene reaches
+/* Environments and lights are optional modules (internal/wgri_module.h): a scene reaches
  * them through its hooks, and does without when they aren't linked. */
 static void retain_environment(wgr_handle_t environment)
 {
-    if (environment != 0 && wgr_scene_hooks.environment_retain != NULL) wgr_scene_hooks.environment_retain(environment);
+    if (environment != 0 && wgri_scene_hooks.environment_retain != NULL) wgri_scene_hooks.environment_retain(environment);
 }
 
 static void release_environment(wgr_handle_t environment)
 {
-    if (environment != 0 && wgr_scene_hooks.environment_release != NULL) wgr_scene_hooks.environment_release(environment);
+    if (environment != 0 && wgri_scene_hooks.environment_release != NULL) wgri_scene_hooks.environment_release(environment);
 }
 
 static void begin_unordered(void)
 {
-    if (wgr_scene_hooks.sprites_begin_unordered != NULL) wgr_scene_hooks.sprites_begin_unordered();
-    if (wgr_scene_hooks.models_begin_unordered != NULL) wgr_scene_hooks.models_begin_unordered();
+    if (wgri_scene_hooks.sprites_begin_unordered != NULL) wgri_scene_hooks.sprites_begin_unordered();
+    if (wgri_scene_hooks.models_begin_unordered != NULL) wgri_scene_hooks.models_begin_unordered();
 }
 
 static void end_unordered(void)
 {
-    if (wgr_scene_hooks.sprites_end_unordered != NULL) wgr_scene_hooks.sprites_end_unordered();
-    if (wgr_scene_hooks.models_end_unordered != NULL) wgr_scene_hooks.models_end_unordered();
+    if (wgri_scene_hooks.sprites_end_unordered != NULL) wgri_scene_hooks.sprites_end_unordered();
+    if (wgri_scene_hooks.models_end_unordered != NULL) wgri_scene_hooks.models_end_unordered();
 }
 
 #define SCENES_INITIAL 8 /* slots to start with; the pool doubles as needed */
@@ -113,32 +113,32 @@ typedef struct {
 } wgr_scene_t;
 
 static wgr_scene_t *wgr_scenes; /* grown by the pool: don't hold a pointer across a create */
-static wgr_handle_pool_t wgr_scene_pool;
+static wgri_handle_pool_t wgr_scene_pool;
 
 typedef struct {
-    wgr_drawable_draw_opaque_fn draw_opaque;
-    wgr_drawable_collect_transparent_fn collect_transparent;
-    wgr_drawable_draw_transparent_fn draw_transparent;
-    wgr_drawable_draw_opaque_fn draw_additive;
-    wgr_drawable_draw_2d_fn draw_2d;
-    wgr_drawable_pick_2d_fn pick_2d;
+    wgri_drawable_draw_opaque_fn draw_opaque;
+    wgri_drawable_collect_transparent_fn collect_transparent;
+    wgri_drawable_draw_transparent_fn draw_transparent;
+    wgri_drawable_draw_opaque_fn draw_additive;
+    wgri_drawable_draw_2d_fn draw_2d;
+    wgri_drawable_pick_2d_fn pick_2d;
 } wgr_drawable_passes_t;
 
 static wgr_drawable_passes_t wgr_passes_registry[WGR_DRAWABLE_KIND_COUNT];
-static wgr_transparent_item_t *wgr_transparent_items;
+static wgri_transparent_item_t *wgr_transparent_items;
 static int wgr_transparent_capacity;
 static bool wgr_transparent_overflow_logged;
-static wgr_drawable_bounds_fn wgr_bounds_registry[WGR_DRAWABLE_KIND_COUNT];
-static wgr_drawable_pick_fn wgr_pick_registry[WGR_DRAWABLE_KIND_COUNT];
-static wgr_drawable_enabled_fn wgr_enabled_registry[WGR_DRAWABLE_KIND_COUNT];
+static wgri_drawable_bounds_fn wgr_bounds_registry[WGR_DRAWABLE_KIND_COUNT];
+static wgri_drawable_pick_fn wgr_pick_registry[WGR_DRAWABLE_KIND_COUNT];
+static wgri_drawable_enabled_fn wgr_enabled_registry[WGR_DRAWABLE_KIND_COUNT];
 static bool wgr_scene_capture_releasing; /* the capturing press was released last frame */
 
 /* ---- drawable dispatch registry --------------------------------------- */
 
-void wgr_scene_register_passes(wgr_handle_kind_t kind,
-                              wgr_drawable_draw_opaque_fn draw_opaque,
-                              wgr_drawable_collect_transparent_fn collect_transparent,
-                              wgr_drawable_draw_transparent_fn draw_transparent)
+void wgri_scene_register_passes(wgr_handle_kind_t kind,
+                              wgri_drawable_draw_opaque_fn draw_opaque,
+                              wgri_drawable_collect_transparent_fn collect_transparent,
+                              wgri_drawable_draw_transparent_fn draw_transparent)
 {
     if ((int)kind < 0 || (int)kind >= WGR_DRAWABLE_KIND_COUNT) {
         return;
@@ -148,7 +148,7 @@ void wgr_scene_register_passes(wgr_handle_kind_t kind,
     wgr_passes_registry[kind].draw_transparent = draw_transparent;
 }
 
-void wgr_scene_register_additive(wgr_handle_kind_t kind, wgr_drawable_draw_opaque_fn draw_additive)
+void wgri_scene_register_additive(wgr_handle_kind_t kind, wgri_drawable_draw_opaque_fn draw_additive)
 {
     if ((int)kind < 0 || (int)kind >= WGR_DRAWABLE_KIND_COUNT) {
         return;
@@ -156,7 +156,7 @@ void wgr_scene_register_additive(wgr_handle_kind_t kind, wgr_drawable_draw_opaqu
     wgr_passes_registry[kind].draw_additive = draw_additive;
 }
 
-void wgr_scene_register_2d(wgr_handle_kind_t kind, wgr_drawable_draw_2d_fn draw, wgr_drawable_pick_2d_fn pick)
+void wgri_scene_register_2d(wgr_handle_kind_t kind, wgri_drawable_draw_2d_fn draw, wgri_drawable_pick_2d_fn pick)
 {
     if ((int)kind < 0 || (int)kind >= WGR_DRAWABLE_KIND_COUNT) {
         return;
@@ -174,17 +174,17 @@ static const wgr_drawable_passes_t *lookup_passes(wgr_handle_t handle)
     return &wgr_passes_registry[kind];
 }
 
-float wgr_scene_view_depth(const wgr_camera3d_t *cam, vec3_t world_point)
+float wgri_scene_view_depth(const wgri_camera3d_t *cam, vec3_t world_point)
 {
-    vec3_t forward = wgr_v3_norm(wgr_v3_sub(cam->target, cam->position));
-    vec3_t offset = wgr_v3_sub(world_point, cam->position);
+    vec3_t forward = wgri_v3_norm(wgri_v3_sub(cam->target, cam->position));
+    vec3_t offset = wgri_v3_sub(world_point, cam->position);
     return offset.x * forward.x + offset.y * forward.y + offset.z * forward.z;
 }
 
 static int compare_transparent(const void *lhs, const void *rhs)
 {
-    const wgr_transparent_item_t *a = (const wgr_transparent_item_t *)lhs;
-    const wgr_transparent_item_t *b = (const wgr_transparent_item_t *)rhs;
+    const wgri_transparent_item_t *a = (const wgri_transparent_item_t *)lhs;
+    const wgri_transparent_item_t *b = (const wgri_transparent_item_t *)rhs;
     if (a->depth != b->depth) {
         return a->depth > b->depth ? -1 : 1; /* farther first */
     }
@@ -202,13 +202,13 @@ static uint32_t far_first_key(float depth)
     return ~bits;
 }
 
-static wgr_transparent_item_t *wgr_sort_scratch;
+static wgri_transparent_item_t *wgr_sort_scratch;
 static int wgr_sort_scratch_capacity;
 
-void wgr_scene_sort_transparent(wgr_transparent_item_t *items, int count)
+void wgri_scene_sort_transparent(wgri_transparent_item_t *items, int count)
 {
     bool in_order = true;
-    wgr_transparent_item_t *from = items, *to;
+    wgri_transparent_item_t *from = items, *to;
 
     if (count < 2) {
         return;
@@ -222,7 +222,7 @@ void wgr_scene_sort_transparent(wgr_transparent_item_t *items, int count)
         return;
     }
     if (count > wgr_sort_scratch_capacity) {
-        wgr_transparent_item_t *grown = realloc(wgr_sort_scratch, sizeof(*grown) * (size_t)count);
+        wgri_transparent_item_t *grown = realloc(wgr_sort_scratch, sizeof(*grown) * (size_t)count);
         if (grown == NULL) {
             qsort(items, (size_t)count, sizeof(items[0]), compare_transparent);
             return;
@@ -241,17 +241,17 @@ void wgr_scene_sort_transparent(wgr_transparent_item_t *items, int count)
             sum += n;
         }
         for (int i = 0; i < count; i++) to[offsets[(far_first_key(from[i].depth) >> shift) & 255]++] = from[i];
-        wgr_transparent_item_t *swap = from;
+        wgri_transparent_item_t *swap = from;
         from = to;
         to = swap;
     }
     /* an even number of passes: the sorted items are back in `items` */
 }
 
-static wgr_drawable_bounds_fn wgr_cull_bounds_registry[WGR_DRAWABLE_KIND_COUNT];
-static wgr_drawable_casts_shadow_fn wgr_casts_shadow_registry[WGR_DRAWABLE_KIND_COUNT];
+static wgri_drawable_bounds_fn wgr_cull_bounds_registry[WGR_DRAWABLE_KIND_COUNT];
+static wgri_drawable_casts_shadow_fn wgr_casts_shadow_registry[WGR_DRAWABLE_KIND_COUNT];
 
-void wgr_scene_register_cull_bounds(wgr_handle_kind_t kind, wgr_drawable_bounds_fn bounds)
+void wgri_scene_register_cull_bounds(wgr_handle_kind_t kind, wgri_drawable_bounds_fn bounds)
 {
     if ((int)kind >= 0 && (int)kind < WGR_DRAWABLE_KIND_COUNT) {
         wgr_cull_bounds_registry[kind] = bounds;
@@ -259,16 +259,16 @@ void wgr_scene_register_cull_bounds(wgr_handle_kind_t kind, wgr_drawable_bounds_
 }
 
 /* The cheap bounds a kind offers for culling, else the ones it picks with. */
-static bool cull_bounds(wgr_handle_t drawable, vec3_t *lmin, vec3_t *lmax, wgr_mat4_t *model)
+static bool cull_bounds(wgr_handle_t drawable, vec3_t *lmin, vec3_t *lmax, wgri_mat4_t *model)
 {
     const wgr_handle_kind_t kind = wgr_handle_get_kind(drawable);
     if ((int)kind >= 0 && (int)kind < WGR_DRAWABLE_KIND_COUNT && wgr_cull_bounds_registry[kind] != NULL) {
         return wgr_cull_bounds_registry[kind](drawable, lmin, lmax, model);
     }
-    return wgr_drawable_bounds(drawable, lmin, lmax, model);
+    return wgri_drawable_bounds(drawable, lmin, lmax, model);
 }
 
-void wgr_scene_register_casts_shadow(wgr_handle_kind_t kind, wgr_drawable_casts_shadow_fn casts)
+void wgri_scene_register_casts_shadow(wgr_handle_kind_t kind, wgri_drawable_casts_shadow_fn casts)
 {
     if ((int)kind >= 0 && (int)kind < WGR_DRAWABLE_KIND_COUNT) {
         wgr_casts_shadow_registry[kind] = casts;
@@ -283,7 +283,7 @@ static bool drawable_casts_shadow(wgr_handle_t drawable)
            wgr_casts_shadow_registry[kind](drawable);
 }
 
-void wgr_scene_register_bounds(wgr_handle_kind_t kind, wgr_drawable_bounds_fn bounds)
+void wgri_scene_register_bounds(wgr_handle_kind_t kind, wgri_drawable_bounds_fn bounds)
 {
     if ((int)kind < 0 || (int)kind >= WGR_DRAWABLE_KIND_COUNT) {
         return;
@@ -291,7 +291,7 @@ void wgr_scene_register_bounds(wgr_handle_kind_t kind, wgr_drawable_bounds_fn bo
     wgr_bounds_registry[kind] = bounds;
 }
 
-bool wgr_drawable_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, wgr_mat4_t *model)
+bool wgri_drawable_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, wgri_mat4_t *model)
 {
     wgr_handle_kind_t kind = wgr_handle_get_kind(handle);
     if ((int)kind >= 0 && (int)kind < WGR_DRAWABLE_KIND_COUNT &&
@@ -301,7 +301,7 @@ bool wgr_drawable_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, wgr_ma
     return false;
 }
 
-void wgr_scene_register_pick(wgr_handle_kind_t kind, wgr_drawable_pick_fn pick)
+void wgri_scene_register_pick(wgr_handle_kind_t kind, wgri_drawable_pick_fn pick)
 {
     if ((int)kind < 0 || (int)kind >= WGR_DRAWABLE_KIND_COUNT) {
         return;
@@ -309,7 +309,7 @@ void wgr_scene_register_pick(wgr_handle_kind_t kind, wgr_drawable_pick_fn pick)
     wgr_pick_registry[kind] = pick;
 }
 
-void wgr_scene_register_enabled(wgr_handle_kind_t kind, wgr_drawable_enabled_fn enabled)
+void wgri_scene_register_enabled(wgr_handle_kind_t kind, wgri_drawable_enabled_fn enabled)
 {
     if ((int)kind < 0 || (int)kind >= WGR_DRAWABLE_KIND_COUNT) {
         return;
@@ -354,7 +354,7 @@ static bool is_enabled(wgr_handle_t handle)
     return wgr_enabled_registry[kind](handle);
 }
 
-bool wgr_drawable_pick(wgr_handle_t handle, vec3_t origin, vec3_t dir, wgr_pick_result_t *out)
+bool wgri_drawable_pick(wgr_handle_t handle, vec3_t origin, vec3_t dir, wgr_pick_result_t *out)
 {
     wgr_handle_kind_t kind = wgr_handle_get_kind(handle);
     if ((int)kind >= 0 && (int)kind < WGR_DRAWABLE_KIND_COUNT &&
@@ -385,20 +385,20 @@ static bool pick_2d(wgr_handle_t drawable, const wgr_drawable_passes_t *passes, 
 
 /* A 3D drawable along a world ray: bounding box first, then the kind's exact test.
  * Kinds without an exact test count a bounding box hit. */
-static bool pick_3d(wgr_handle_t drawable, wgr_ray_t ray, wgr_pick_result_t *out)
+static bool pick_3d(wgr_handle_t drawable, wgri_ray_t ray, wgr_pick_result_t *out)
 {
     const wgr_handle_kind_t kind = wgr_handle_get_kind(drawable);
     const bool has_exact = (int)kind >= 0 && (int)kind < WGR_DRAWABLE_KIND_COUNT && wgr_pick_registry[kind] != NULL;
     vec3_t lmin, lmax;
-    wgr_mat4_t model;
+    wgri_mat4_t model;
     float broad_t;
 
     *out = (wgr_pick_result_t){0};
-    if (!wgr_drawable_bounds(drawable, &lmin, &lmax, &model)) {
+    if (!wgri_drawable_bounds(drawable, &lmin, &lmax, &model)) {
         return false; /* not a 3D drawable, or nothing loaded yet */
     }
     wgr_pick_stats.broadphase_tests++;
-    if (!wgr_pick_ray_world_aabb(ray, lmin, lmax, model, &broad_t)) {
+    if (!wgri_pick_ray_world_aabb(ray, lmin, lmax, model, &broad_t)) {
         wgr_pick_stats.broadphase_rejects++;
         return false;
     }
@@ -416,7 +416,7 @@ static bool pick_3d(wgr_handle_t drawable, wgr_ray_t ray, wgr_pick_result_t *out
         out->hit = true;
         out->distance = broad_t;
         out->point_world = wp;
-        out->point_local = wgr_mat4_mul_point(wgr_mat4_inverse(model), wp);
+        out->point_local = wgri_mat4_mul_point(wgri_mat4_inverse(model), wp);
     }
     out->handle = drawable;
     return true;
@@ -427,7 +427,7 @@ static bool pick_3d(wgr_handle_t drawable, wgr_ray_t ray, wgr_pick_result_t *out
 static wgr_scene_t *resolve(wgr_handle_t scene)
 {
     uint16_t index = 0;
-    if (!wgr_handle_pool_resolve(&wgr_scene_pool, scene, &index)) {
+    if (!wgri_handle_pool_resolve(&wgr_scene_pool, scene, &index)) {
         if (scene != 0) {
             log_warn("Invalid scene handle (%u)", (unsigned int)scene);
         }
@@ -528,22 +528,22 @@ static void tidy(wgr_scene_t *scene_ptr)
     scene_ptr->dirty = false;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_scene_create(void)
 {
-    wgr_handle_t handle = wgr_handle_pool_alloc(&wgr_scene_pool);
+    wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_scene_pool);
     uint16_t index = 0;
 
     if (handle == 0) {
         log_error("scene: pool full (%u)", (unsigned)wgr_scene_pool.max - 1u);
         return 0;
     }
-    wgr_handle_pool_resolve(&wgr_scene_pool, handle, &index);
+    wgri_handle_pool_resolve(&wgr_scene_pool, handle, &index);
     wgr_scenes[index] = (wgr_scene_t){.tonemap = WGR_TONEMAP_NEUTRAL, .culling = true};
     return handle;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_scene_destroy(wgr_handle_t scene)
 {
     wgr_scene_t *scene_ptr = resolve(scene);
@@ -555,10 +555,10 @@ void wgr_scene_destroy(wgr_handle_t scene)
     release_environment(scene_ptr->environment); /* no-op for 0 */
     release_environment(scene_ptr->background);
     *scene_ptr = (wgr_scene_t){0};
-    wgr_handle_pool_free(&wgr_scene_pool, scene);
+    wgri_handle_pool_free(&wgr_scene_pool, scene);
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_scene_add(wgr_handle_t scene, wgr_handle_t drawable, int layer)
 {
     wgr_scene_t *scene_ptr = resolve(scene);
@@ -596,7 +596,7 @@ bool wgr_scene_add(wgr_handle_t scene, wgr_handle_t drawable, int layer)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_scene_set_layer(wgr_handle_t scene, wgr_handle_t drawable, int layer)
 {
     wgr_scene_t *scene_ptr = resolve(scene);
@@ -613,7 +613,7 @@ bool wgr_scene_set_layer(wgr_handle_t scene, wgr_handle_t drawable, int layer)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_scene_remove(wgr_handle_t scene, wgr_handle_t drawable)
 {
     wgr_scene_t *scene_ptr = resolve(scene);
@@ -629,7 +629,7 @@ bool wgr_scene_remove(wgr_handle_t scene, wgr_handle_t drawable)
     return true;
 }
 
-void wgr_scene_forget(wgr_handle_t object)
+void wgri_scene_forget(wgr_handle_t object)
 {
     if (object == 0) {
         return;
@@ -655,7 +655,7 @@ void wgr_scene_forget(wgr_handle_t object)
     }
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_scene_clear(wgr_handle_t scene)
 {
     wgr_scene_t *scene_ptr = resolve(scene);
@@ -669,7 +669,7 @@ void wgr_scene_clear(wgr_handle_t scene)
     }
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_scene_set_clip(wgr_handle_t scene, int layer, float x, float y, float width, float height)
 {
     wgr_scene_t *scene_ptr = resolve(scene);
@@ -701,7 +701,7 @@ bool wgr_scene_set_clip(wgr_handle_t scene, int layer, float x, float y, float w
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_scene_set_active_camera(wgr_handle_t scene, wgr_handle_t camera)
 {
     wgr_scene_t *scene_ptr = resolve(scene);
@@ -711,7 +711,7 @@ void wgr_scene_set_active_camera(wgr_handle_t scene, wgr_handle_t camera)
     scene_ptr->camera = camera;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_scene_set_ambient(wgr_handle_t scene, wgr_color_t color, float intensity)
 {
     wgr_scene_t *scene_ptr = resolve(scene);
@@ -723,7 +723,7 @@ bool wgr_scene_set_ambient(wgr_handle_t scene, wgr_color_t color, float intensit
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_scene_set_environment(wgr_handle_t scene, wgr_handle_t environment, float intensity, float rotation)
 {
     wgr_scene_t *scene_ptr = resolve(scene);
@@ -738,7 +738,7 @@ bool wgr_scene_set_environment(wgr_handle_t scene, wgr_handle_t environment, flo
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_scene_set_background(wgr_handle_t scene, wgr_handle_t environment, float blur)
 {
     wgr_scene_t *scene_ptr = resolve(scene);
@@ -752,7 +752,7 @@ bool wgr_scene_set_background(wgr_handle_t scene, wgr_handle_t environment, floa
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_scene_set_tonemap(wgr_handle_t scene, wgr_tonemap_t tonemap, float exposure)
 {
     wgr_scene_t *scene_ptr = resolve(scene);
@@ -768,8 +768,8 @@ bool wgr_scene_set_tonemap(wgr_handle_t scene, wgr_tonemap_t tonemap, float expo
  * lighting environment for the models drawn by this scene draw. */
 static int push_lighting(const wgr_scene_t *scene_ptr)
 {
-    static wgr_light_env_t env; /* large; built and copied once per scene draw */
-    wgr_colorf_t ambient = wgr_color_unpack(scene_ptr->ambient_color);
+    static wgri_light_env_t env; /* large; built and copied once per scene draw */
+    wgri_colorf_t ambient = wgri_color_unpack(scene_ptr->ambient_color);
 
     env.count = 0;
     env.environment = scene_ptr->environment;
@@ -777,21 +777,21 @@ static int push_lighting(const wgr_scene_t *scene_ptr)
     env.environment_rotation = scene_ptr->environment_rotation;
     env.tonemap = (int)scene_ptr->tonemap;
     env.exposure = scene_ptr->exposure;
-    env.ambient = (vec3_t){wgr_srgb_to_linear(ambient.r) * scene_ptr->ambient_intensity,
-                           wgr_srgb_to_linear(ambient.g) * scene_ptr->ambient_intensity,
-                           wgr_srgb_to_linear(ambient.b) * scene_ptr->ambient_intensity};
+    env.ambient = (vec3_t){wgri_srgb_to_linear(ambient.r) * scene_ptr->ambient_intensity,
+                           wgri_srgb_to_linear(ambient.g) * scene_ptr->ambient_intensity,
+                           wgri_srgb_to_linear(ambient.b) * scene_ptr->ambient_intensity};
     env.shadow_count = 0;
-    for (int i = 0; i < scene_ptr->count && env.count < WGR_MAX_SCENE_LIGHTS; i++) {
+    for (int i = 0; i < scene_ptr->count && env.count < WGRI_MAX_SCENE_LIGHTS; i++) {
         if (wgr_handle_get_kind(scene_ptr->items[i].drawable) == WGR_HANDLE_KIND_LIGHT &&
-            wgr_scene_hooks.scene_light(scene_ptr->items[i].drawable, &env.lights[env.count])) {
+            wgri_scene_hooks.scene_light(scene_ptr->items[i].drawable, &env.lights[env.count])) {
             /* the first few casting lights get a shadow map; the rest light as usual */
-            if (env.lights[env.count].casts_shadows && env.shadow_count < WGR_MAX_SHADOW_LIGHTS) {
+            if (env.lights[env.count].casts_shadows && env.shadow_count < WGRI_MAX_SHADOW_LIGHTS) {
                 env.shadow_lights[env.shadow_count++] = env.count;
             }
             env.count++;
         }
     }
-    return wgr_scene_hooks.light_env_push(&env);
+    return wgri_scene_hooks.light_env_push(&env);
 }
 
 /* One layer: opaque parts first, then transparent parts sorted back to front
@@ -802,7 +802,7 @@ static int push_lighting(const wgr_scene_t *scene_ptr)
 static bool grow_transparent_items(void)
 {
     const int capacity = wgr_transparent_capacity == 0 ? TRANSPARENT_INITIAL : wgr_transparent_capacity * 2;
-    wgr_transparent_item_t *items;
+    wgri_transparent_item_t *items;
     if (wgr_transparent_capacity >= WGR_MAX_TRANSPARENT_ITEMS) {
         return false;
     }
@@ -822,16 +822,16 @@ static bool grow_transparent_items(void)
  * something on screen is still drawn. Rebuilt per scene draw. */
 static struct {
     bool on;                 /* the scene's switch, and a camera to build planes from */
-    wgr_plane_t planes[6];
+    wgri_plane_t planes[6];
     int shadow_count;
-    vec3_t shadow_dir[WGR_MAX_SHADOW_LIGHTS];
-    float shadow_reach[WGR_MAX_SHADOW_LIGHTS];
+    vec3_t shadow_dir[WGRI_MAX_SHADOW_LIGHTS];
+    float shadow_reach[WGRI_MAX_SHADOW_LIGHTS];
 } wgr_cull;
 
-static void begin_culling(const wgr_scene_t *scene_ptr, const wgr_camera3d_t *cam, int light_env)
+static void begin_culling(const wgr_scene_t *scene_ptr, const wgri_camera3d_t *cam, int light_env)
 {
-    const wgr_light_env_t *env = NULL;
-    vec2_t size = wgr_render_target_size();
+    const wgri_light_env_t *env = NULL;
+    vec2_t size = wgri_render_target_size();
     const float aspect = size.y > 0.0f ? size.x / size.y : 1.0f;
 
     wgr_cull.on = scene_ptr->culling;
@@ -839,13 +839,13 @@ static void begin_culling(const wgr_scene_t *scene_ptr, const wgr_camera3d_t *ca
     if (!wgr_cull.on) {
         return;
     }
-    wgr_frustum_from_view_proj(wgr_mat4_mul(wgr_camera3d_projection(cam, aspect), wgr_camera3d_view(cam)),
+    wgri_frustum_from_view_proj(wgri_mat4_mul(wgri_camera3d_projection(cam, aspect), wgri_camera3d_view(cam)),
                               wgr_cull.planes);
-    if (wgr_scene_hooks.light_env_get != NULL && light_env >= 0) {
-        env = wgr_scene_hooks.light_env_get(light_env);
+    if (wgri_scene_hooks.light_env_get != NULL && light_env >= 0) {
+        env = wgri_scene_hooks.light_env_get(light_env);
     }
     for (int i = 0; env != NULL && i < env->shadow_count; i++) {
-        const wgr_scene_light_t *light = &env->lights[env->shadow_lights[i]];
+        const wgri_scene_light_t *light = &env->lights[env->shadow_lights[i]];
         const float reach = light->type == WGR_LIGHT_SPOT && light->range > 0.0f && light->range < light->shadow_distance
                                 ? light->range
                                 : light->shadow_distance;
@@ -860,14 +860,14 @@ static void begin_culling(const wgr_scene_t *scene_ptr, const wgr_camera3d_t *ca
 static bool visible(wgr_handle_t drawable)
 {
     vec3_t lmin, lmax, wmin, wmax;
-    wgr_mat4_t model;
+    wgri_mat4_t model;
 
     if (!wgr_cull.on || !cull_bounds(drawable, &lmin, &lmax, &model)) {
         return true; /* culling off, or nothing to test it with */
     }
-    wgr_pick_world_aabb(lmin, lmax, model, &wmin, &wmax);
-    wgr_aabb_pad(&wmin, &wmax, WGR_CULL_PAD);
-    if (wgr_frustum_test_aabb(wgr_cull.planes, wmin, wmax)) {
+    wgri_pick_world_aabb(lmin, lmax, model, &wmin, &wmax);
+    wgri_aabb_pad(&wmin, &wmax, WGRI_CULL_PAD);
+    if (wgri_frustum_test_aabb(wgr_cull.planes, wmin, wmax)) {
         return true;
     }
     if (wgr_cull.shadow_count == 0 || !drawable_casts_shadow(drawable)) {
@@ -875,15 +875,15 @@ static bool visible(wgr_handle_t drawable)
     }
     for (int i = 0; i < wgr_cull.shadow_count; i++) { /* could its shadow reach the view? */
         vec3_t smin, smax;
-        wgr_aabb_sweep(wmin, wmax, wgr_cull.shadow_dir[i], wgr_cull.shadow_reach[i], &smin, &smax);
-        if (wgr_frustum_test_aabb(wgr_cull.planes, smin, smax)) {
+        wgri_aabb_sweep(wmin, wmax, wgr_cull.shadow_dir[i], wgr_cull.shadow_reach[i], &smin, &smax);
+        if (wgri_frustum_test_aabb(wgr_cull.planes, smin, smax)) {
             return true;
         }
     }
     return false;
 }
 
-static void draw_layer(const wgr_scene_entry_t *entries, int count, const wgr_camera3d_t *cam)
+static void draw_layer(const wgr_scene_entry_t *entries, int count, const wgri_camera3d_t *cam)
 {
     int transparent_count = 0;
 
@@ -928,16 +928,16 @@ static void draw_layer(const wgr_scene_entry_t *entries, int count, const wgr_ca
     }
 
     if (transparent_count > 0) {
-        wgr_scene_sort_transparent(wgr_transparent_items, transparent_count);
-        wgr_render_set_3d_transparent(true);
+        wgri_scene_sort_transparent(wgr_transparent_items, transparent_count);
+        wgri_render_set_3d_transparent(true);
         for (int t = 0; t < transparent_count; t++) {
-            const wgr_transparent_item_t *item = &wgr_transparent_items[t];
+            const wgri_transparent_item_t *item = &wgr_transparent_items[t];
             const wgr_drawable_passes_t *passes = lookup_passes(item->handle);
             if (passes != NULL && passes->draw_transparent != NULL) {
                 passes->draw_transparent(item->handle, item->part);
             }
         }
-        wgr_render_set_3d_transparent(false);
+        wgri_render_set_3d_transparent(false);
     }
 
     /* additive parts, after the blended ones, unsorted */
@@ -951,11 +951,11 @@ static void draw_layer(const wgr_scene_entry_t *entries, int count, const wgr_ca
     end_unordered();
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_scene_draw(wgr_handle_t scene)
 {
     wgr_scene_t *scene_ptr = resolve(scene);
-    wgr_camera3d_t cam;
+    wgri_camera3d_t cam;
     if (scene_ptr == NULL) {
         return;
     }
@@ -966,18 +966,18 @@ void wgr_scene_draw(wgr_handle_t scene)
 
     tidy(scene_ptr);
 
-    if (!wgr_camera3d_get_active_data(&cam)) {
+    if (!wgri_camera3d_get_active_data(&cam)) {
         return;
     }
 
     int light_env = -1;
-    if (wgr_scene_hooks.light_env_push != NULL) { /* lights linked: what the models drawn here see */
+    if (wgri_scene_hooks.light_env_push != NULL) { /* lights linked: what the models drawn here see */
         light_env = push_lighting(scene_ptr);
-        wgr_scene_hooks.light_env_set_current(light_env);
+        wgri_scene_hooks.light_env_set_current(light_env);
     }
-    if (scene_ptr->background != 0 && wgr_scene_hooks.environment_background != NULL) {
+    if (scene_ptr->background != 0 && wgri_scene_hooks.environment_background != NULL) {
         const bool same = scene_ptr->background == scene_ptr->environment;
-        wgr_scene_hooks.environment_background(scene_ptr->background, scene_ptr->background_blur,
+        wgri_scene_hooks.environment_background(scene_ptr->background, scene_ptr->background_blur,
                                          same ? scene_ptr->environment_intensity : 1.0f,
                                          same ? scene_ptr->environment_rotation : 0.0f,
                                          (int)scene_ptr->tonemap, scene_ptr->exposure);
@@ -994,8 +994,8 @@ void wgr_scene_draw(wgr_handle_t scene)
         start = end;
     }
     wgr_render_end_mode_3d();
-    if (wgr_scene_hooks.light_env_set_current != NULL) {
-        wgr_scene_hooks.light_env_set_current(-1); /* models drawn outside a scene are unlit */
+    if (wgri_scene_hooks.light_env_set_current != NULL) {
+        wgri_scene_hooks.light_env_set_current(-1); /* models drawn outside a scene are unlit */
     }
 
     /* 2D members on top of all 3D, in layer then member order, each layer inside
@@ -1032,14 +1032,14 @@ void wgr_scene_draw(wgr_handle_t scene)
 
 /* ---- picking ----------------------------------------------------------- */
 
-WGR_KEEP
+WGRI_KEEP
 wgr_pick_result_t wgr_scene_pick(wgr_handle_t scene, wgr_handle_t camera,
                                float mouse_x, float mouse_y)
 {
     wgr_pick_result_t result = {0};
     wgr_scene_t *scene_ptr = resolve(scene);
-    wgr_camera3d_t cam;
-    wgr_ray_t ray;
+    wgri_camera3d_t cam;
+    wgri_ray_t ray;
     vec2_t screen;
     float best_t = 1e30f;
 
@@ -1066,12 +1066,12 @@ wgr_pick_result_t wgr_scene_pick(wgr_handle_t scene, wgr_handle_t camera,
     if (camera != 0) {
         wgr_camera3d_set_active(camera);
     }
-    if (!wgr_camera3d_get_active_data(&cam)) {
+    if (!wgri_camera3d_get_active_data(&cam)) {
         return result;
     }
 
     screen = wgr_window_get_screen_size();
-    ray = wgr_pick_ray_from_screen(&cam, mouse_x, mouse_y, screen.x, screen.y);
+    ray = wgri_pick_ray_from_screen(&cam, mouse_x, mouse_y, screen.x, screen.y);
 
     for (int i = 0; i < scene_ptr->count; i++) {
         wgr_pick_result_t hit = {0};
@@ -1084,12 +1084,12 @@ wgr_pick_result_t wgr_scene_pick(wgr_handle_t scene, wgr_handle_t camera,
     return result;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_pick_result_t wgr_pick_object(wgr_handle_t object, wgr_handle_t camera, float x, float y)
 {
     wgr_pick_result_t result = {0};
     const wgr_drawable_passes_t *passes = lookup_passes(object);
-    wgr_camera3d_t cam;
+    wgri_camera3d_t cam;
     vec2_t screen;
 
     if (object == 0) {
@@ -1102,21 +1102,21 @@ wgr_pick_result_t wgr_pick_object(wgr_handle_t object, wgr_handle_t camera, floa
     if (camera != 0) {
         wgr_camera3d_set_active(camera);
     }
-    if (!wgr_camera3d_get_active_data(&cam)) {
+    if (!wgri_camera3d_get_active_data(&cam)) {
         return result;
     }
     screen = wgr_window_get_screen_size();
-    pick_3d(object, wgr_pick_ray_from_screen(&cam, x, y, screen.x, screen.y), &result);
+    pick_3d(object, wgri_pick_ray_from_screen(&cam, x, y, screen.x, screen.y), &result);
     return result;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_pick_stats_t wgr_pick_get_stats(void)
 {
     return wgr_pick_stats;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_pick_reset_stats(void)
 {
     wgr_pick_stats = (wgr_pick_stats_t){0};
@@ -1133,7 +1133,7 @@ static wgr_handle_t pick_member(wgr_scene_t *scene_ptr, float x, float y, bool *
     wgr_pick_result_t result = {0};
     wgr_handle_t hit = 0;
     float best_t = 1e30f;
-    wgr_camera3d_t cam;
+    wgri_camera3d_t cam;
 
     *is_2d = false;
     tidy(scene_ptr);
@@ -1146,9 +1146,9 @@ static wgr_handle_t pick_member(wgr_scene_t *scene_ptr, float x, float y, bool *
             *is_2d = true;
         }
     }
-    if (hit == 0 && wgr_camera3d_get_data(scene_ptr->camera, &cam)) {
+    if (hit == 0 && wgri_camera3d_get_data(scene_ptr->camera, &cam)) {
         const vec2_t screen = wgr_window_get_screen_size();
-        const wgr_ray_t ray = wgr_pick_ray_from_screen(&cam, x, y, screen.x, screen.y);
+        const wgri_ray_t ray = wgri_pick_ray_from_screen(&cam, x, y, screen.x, screen.y);
         for (int i = 0; i < scene_ptr->count; i++) {
             wgr_pick_result_t candidate = {0};
             if (!is_2d_member(scene_ptr->items[i].drawable) && pick_3d(scene_ptr->items[i].drawable, ray, &candidate) &&
@@ -1182,15 +1182,15 @@ static void add_interaction_edges(wgr_interaction_t *state, wgr_handle_t entered
     }
 }
 
-void wgr_scene_update_interaction(void)
+void wgri_scene_update_interaction(void)
 {
     float x, y;
     bool down, pressed, released;
     bool captured = false;
 
-    wgr_input_get_pointer_frame(&x, &y, &down, &pressed, &released);
+    wgri_input_get_pointer_frame(&x, &y, &down, &pressed, &released);
     if (wgr_scene_capture_releasing) {
-        wgr_input_set_scene_pointer_captured(false); /* captured through the release frame */
+        wgri_input_set_scene_pointer_captured(false); /* captured through the release frame */
         wgr_scene_capture_releasing = false;
     }
     for (int i = 0; i < wgr_scene_pool.capacity; i++) {
@@ -1225,21 +1225,21 @@ void wgr_scene_update_interaction(void)
         add_interaction_edges(state, entered, left, pressed_on, released_on, clicked_on);
     }
     if (captured) {
-        wgr_input_set_scene_pointer_captured(true);
+        wgri_input_set_scene_pointer_captured(true);
     }
     if (released) {
         wgr_scene_capture_releasing = true; /* clears next frame */
     }
 }
 
-void wgr_scene_end_tick_interaction(void)
+void wgri_scene_end_tick_interaction(void)
 {
     for (int i = 0; i < wgr_scene_pool.capacity; i++) {
         wgr_scenes[i].interaction.tick_edges = (wgr_interaction_edges_t){0};
     }
 }
 
-void wgr_scene_end_frame_interaction(void)
+void wgri_scene_end_frame_interaction(void)
 {
     for (int i = 0; i < wgr_scene_pool.capacity; i++) {
         wgr_scenes[i].interaction.frame_edges = (wgr_interaction_edges_t){0};
@@ -1248,7 +1248,7 @@ void wgr_scene_end_frame_interaction(void)
 
 static const wgr_interaction_edges_t *current_interaction_edges(const wgr_scene_t *scene_ptr)
 {
-    return wgr_input_get_context() == WGR_INPUT_CONTEXT_TICK ? &scene_ptr->interaction.tick_edges
+    return wgri_input_get_context() == WGRI_INPUT_CONTEXT_TICK ? &scene_ptr->interaction.tick_edges
                                                             : &scene_ptr->interaction.frame_edges;
 }
 
@@ -1260,8 +1260,8 @@ static bool contains(const wgr_handle_t *list, int count, wgr_handle_t handle)
     return false;
 }
 
-WGR_KEEP
-WGR_KEEP
+WGRI_KEEP
+WGRI_KEEP
 bool wgr_scene_set_culling(wgr_handle_t scene, bool culling)
 {
     wgr_scene_t *scene_ptr = resolve(scene);
@@ -1270,7 +1270,7 @@ bool wgr_scene_set_culling(wgr_handle_t scene, bool culling)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_scene_is_culling(wgr_handle_t scene)
 {
     const wgr_scene_t *scene_ptr = resolve(scene);
@@ -1287,21 +1287,21 @@ bool wgr_scene_set_interactive(wgr_handle_t scene, bool interactive)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_scene_is_interactive(wgr_handle_t scene)
 {
     const wgr_scene_t *scene_ptr = resolve(scene);
     return scene_ptr != NULL && scene_ptr->interaction.interactive;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_scene_get_hovered(wgr_handle_t scene)
 {
     const wgr_scene_t *scene_ptr = resolve(scene);
     return scene_ptr != NULL ? scene_ptr->interaction.hovered : 0;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_button_state_t wgr_scene_get_hover(wgr_handle_t scene, wgr_handle_t object)
 {
     const wgr_scene_t *scene_ptr = resolve(scene);
@@ -1315,7 +1315,7 @@ wgr_button_state_t wgr_scene_get_hover(wgr_handle_t scene, wgr_handle_t object)
     return scene_ptr->interaction.hovered == object ? WGR_BUTTON_DOWN : WGR_BUTTON_UP;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_button_state_t wgr_scene_get_press(wgr_handle_t scene, wgr_handle_t object)
 {
     const wgr_scene_t *scene_ptr = resolve(scene);
@@ -1330,7 +1330,7 @@ wgr_button_state_t wgr_scene_get_press(wgr_handle_t scene, wgr_handle_t object)
                                                                                                : WGR_BUTTON_UP;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_scene_is_clicked(wgr_handle_t scene, wgr_handle_t object)
 {
     const wgr_scene_t *scene_ptr = resolve(scene);
@@ -1338,20 +1338,20 @@ bool wgr_scene_is_clicked(wgr_handle_t scene, wgr_handle_t object)
            current_interaction_edges(scene_ptr)->clicked == object;
 }
 
-void wgr_scene_init(void)
+void wgri_scene_init(void)
 {
     memset(wgr_passes_registry, 0, sizeof(wgr_passes_registry));
     memset(wgr_bounds_registry, 0, sizeof(wgr_bounds_registry));
     memset(wgr_pick_registry, 0, sizeof(wgr_pick_registry));
     memset(wgr_enabled_registry, 0, sizeof(wgr_enabled_registry));
     wgr_scene_capture_releasing = false;
-    if (!wgr_handle_pool_init(&wgr_scene_pool, WGR_HANDLE_KIND_SCENE, "scene", (void **)&wgr_scenes,
-                             sizeof(wgr_scene_t), SCENES_INITIAL, WGR_HANDLE_POOL_MAX_SLOTS)) {
+    if (!wgri_handle_pool_init(&wgr_scene_pool, WGR_HANDLE_KIND_SCENE, "scene", (void **)&wgr_scenes,
+                             sizeof(wgr_scene_t), SCENES_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         log_error("scene: out of memory");
     }
 }
 
-void wgr_scene_deinit(void)
+void wgri_scene_deinit(void)
 {
     free(wgr_sort_scratch);
     wgr_sort_scratch = NULL;
@@ -1364,5 +1364,5 @@ void wgr_scene_deinit(void)
         free(wgr_scenes[i].index);
         wgr_scenes[i] = (wgr_scene_t){0};
     }
-    wgr_handle_pool_destroy(&wgr_scene_pool);
+    wgri_handle_pool_destroy(&wgr_scene_pool);
 }

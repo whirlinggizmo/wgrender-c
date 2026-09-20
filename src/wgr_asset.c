@@ -69,7 +69,7 @@ typedef struct {
     bool armed; /* callbacks attached via wgr_asset_add_task */
     int state;
     int fetch_result;         /* web: FETCH_* set by the sokol_fetch callback */
-    int cache_read;           /* web: reading the file from the cache (wgr_fs_cache_read_begin), or 0 */
+    int cache_read;           /* web: reading the file from the cache (wgri_fs_cache_read_begin), or 0 */
     unsigned char *fetch_buf; /* web: chunk buffer bound to the in-flight fetch */
     unsigned char *acc;       /* web: accumulated file bytes across chunks */
     size_t acc_len;
@@ -82,7 +82,7 @@ typedef struct {
     bool optional;            /* a dependency its parent can do without */
     /* loading (docs/PLAN-pipeline.md): prepare on a worker, finish on the main thread */
     char local[512];          /* the local path: the resource's name and the callback's path */
-    const wgr_loader_t *loader;
+    const wgri_loader_t *loader;
     void *prepared;
     wgr_handle_t resource;     /* holds one reference until the callback has run */
     bool load_failed;
@@ -105,25 +105,25 @@ typedef struct wgr_asset_candidate {
 } wgr_asset_candidate_t;
 
 typedef struct wgr_asset_held {
-    const wgr_loader_t *loader;
+    const wgri_loader_t *loader;
     wgr_handle_t resource;
 } wgr_asset_held_t;
 
 /* A prepare job for the workers, or its result. */
 typedef struct {
     uint16_t slot;
-    const wgr_loader_t *loader;
+    const wgri_loader_t *loader;
     char path[512];
     void *prepared;
 } wgr_asset_job_t;
 
 typedef struct {
     char extension[16];
-    wgr_asset_dependencies_fn list;
+    wgri_asset_dependencies_fn list;
 } wgr_asset_format_t;
 
 static wgr_asset_task_t *wgr_asset_tasks; /* grown by the pool: don't hold a pointer across a create */
-static wgr_handle_pool_t wgr_asset_pool;
+static wgri_handle_pool_t wgr_asset_pool;
 static bool wgr_asset_ready = false;
 static char wgr_asset_host[256] = "";
 static wgr_asset_format_t wgr_asset_formats[MAX_DEPENDENCY_FORMATS];
@@ -131,7 +131,7 @@ static int wgr_asset_format_count;
 
 typedef struct {
     char extension[16];
-    const wgr_loader_t *loader;
+    const wgri_loader_t *loader;
 } wgr_asset_loader_format_t;
 
 static wgr_asset_loader_format_t wgr_asset_loaders[MAX_LOADER_FORMATS];
@@ -148,9 +148,9 @@ typedef struct {
 /* Workers and their queues. Guarded by wgr_asset_jobs.lock. The rings are never
  * freed: on web, workers detached at shutdown may still push to them. */
 static struct {
-    wgr_mutex_t lock;
-    wgr_cond_t wake;
-    wgr_thread_t threads[MAX_WORKERS];
+    wgri_mutex_t lock;
+    wgri_cond_t wake;
+    wgri_thread_t threads[MAX_WORKERS];
     int worker_count;
     bool stop;
     bool lock_live;
@@ -166,7 +166,7 @@ static wgr_handle_t alloc_task(void);
 static wgr_asset_task_t *resolve(wgr_handle_t handle)
 {
     uint16_t index = 0;
-    if (!wgr_handle_pool_resolve(&wgr_asset_pool, handle, &index)) {
+    if (!wgri_handle_pool_resolve(&wgr_asset_pool, handle, &index)) {
         return NULL;
     }
     return &wgr_asset_tasks[index];
@@ -181,11 +181,11 @@ void wgr_asset_set_host(const char *host)
     while (n > 1 && wgr_asset_host[n - 1] == '/') wgr_asset_host[--n] = '\0';
 #ifndef __EMSCRIPTEN__
     /* Desktop: the asset base IS the local root reads resolve against. */
-    wgr_fs_set_root(wgr_asset_host);
+    wgri_fs_set_root(wgr_asset_host);
 #endif
 }
 
-WGR_KEEP
+WGRI_KEEP
 const char *wgr_asset_get_host(void)
 {
     return wgr_asset_host;
@@ -193,7 +193,7 @@ const char *wgr_asset_get_host(void)
 
 #ifdef __EMSCRIPTEN__
 /* sokol_fetch delivers chunks on the main thread when sfetch_dowork() (called in
- * wgr_asset_tick) pumps it. We grow `acc` chunk by chunk; on the final chunk we
+ * wgri_asset_tick) pumps it. We grow `acc` chunk by chunk; on the final chunk we
  * hand the whole file to wgr_fs (which writes it and keeps it in the cache) and
  * flag the slot, then tick resolves the task. */
 static void on_fetch(const sfetch_response_t *r)
@@ -213,7 +213,7 @@ static void on_fetch(const sfetch_response_t *r)
     }
     if (r->finished) {
         bool ok = !r->failed && !task->acc_error &&
-                  wgr_fs_write(task->path, task->acc, (int)task->acc_len);
+                  wgri_fs_write(task->path, task->acc, (int)task->acc_len);
         task->fetch_result = ok ? FETCH_OK : FETCH_FAILED;
         wgr_asset_fetching--;
         free(task->acc);
@@ -267,7 +267,7 @@ static void start_fetch(uint16_t slot)
 
 /* ------------------------------------------------------------ dependencies */
 
-void wgr_asset_register_dependencies(const char *extension, wgr_asset_dependencies_fn list)
+void wgri_asset_register_dependencies(const char *extension, wgri_asset_dependencies_fn list)
 {
     if (extension == NULL || list == NULL || wgr_asset_format_count >= MAX_DEPENDENCY_FORMATS) {
         return;
@@ -280,11 +280,11 @@ void wgr_asset_register_dependencies(const char *extension, wgr_asset_dependenci
 #define MAX_PATH_MAPPERS 4
 static struct {
     char extension[16];
-    wgr_asset_path_mapper_fn map;
+    wgri_asset_path_mapper_fn map;
 } wgr_asset_mappers[MAX_PATH_MAPPERS];
 static int wgr_asset_mapper_count;
 
-void wgr_asset_register_path_mapper(const char *extension, wgr_asset_path_mapper_fn map)
+void wgri_asset_register_path_mapper(const char *extension, wgri_asset_path_mapper_fn map)
 {
     for (int i = 0; i < wgr_asset_mapper_count; i++) {
         if (strcmp(wgr_asset_mappers[i].extension, extension) == 0) {
@@ -311,7 +311,7 @@ static struct {
 } wgr_asset_redirects[MAX_REDIRECTS];
 static int wgr_asset_redirect_count;
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_asset_add_redirect(const char *prefix, const char *target)
 {
     if (prefix == NULL || target == NULL || prefix[0] == '\0' || target[0] == '\0') {
@@ -336,7 +336,7 @@ bool wgr_asset_add_redirect(const char *prefix, const char *target)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_asset_clear_redirects(void)
 {
     wgr_asset_redirect_count = 0;
@@ -455,7 +455,7 @@ EM_JS(double, wgr_asset_ping_poll, (int id), {
 });
 #endif
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_asset_ping_host(const char *host, int timeout_ms, wgr_asset_ping_fn on_done, void *user_data)
 {
     int slot = -1;
@@ -513,7 +513,7 @@ static void deliver_pings(void)
 
 /* Files found somewhere other than their own path (a redirect, a fallback), by local
  * path: a model reads the files it references from where they were found
- * (wgr_asset_found_path, from loading workers). Under wgr_asset_jobs.lock. */
+ * (wgri_asset_found_path, from loading workers). Under wgr_asset_jobs.lock. */
 typedef struct {
     char from[512];
     char to[512];
@@ -526,9 +526,9 @@ static void record_found(const char *origin, const char *path)
 {
     char from[512], to[512];
     int i;
-    wgr_fs_resolve(origin, from, sizeof(from));
-    wgr_fs_resolve(path, to, sizeof(to));
-    wgr_mutex_lock(&wgr_asset_jobs.lock);
+    wgri_fs_resolve(origin, from, sizeof(from));
+    wgri_fs_resolve(path, to, sizeof(to));
+    wgri_mutex_lock(&wgr_asset_jobs.lock);
     for (i = 0; i < wgr_asset_found_count && strcmp(wgr_asset_found[i].from, from) != 0; i++) {
     }
     if (strcmp(from, to) == 0) {
@@ -548,26 +548,26 @@ static void record_found(const char *origin, const char *path)
             if (i == wgr_asset_found_count) wgr_asset_found_count++;
         }
     }
-    wgr_mutex_unlock(&wgr_asset_jobs.lock);
+    wgri_mutex_unlock(&wgr_asset_jobs.lock);
 }
 
-bool wgr_asset_found_path(const char *local, char *out, size_t out_size)
+bool wgri_asset_found_path(const char *local, char *out, size_t out_size)
 {
     bool found = false;
     snprintf(out, out_size, "%s", local != NULL ? local : "");
     if (local == NULL || !wgr_asset_jobs.lock_live) return false;
-    wgr_mutex_lock(&wgr_asset_jobs.lock);
+    wgri_mutex_lock(&wgr_asset_jobs.lock);
     for (int i = 0; i < wgr_asset_found_count && !found; i++) {
         if (strcmp(wgr_asset_found[i].from, local) == 0) {
             snprintf(out, out_size, "%s", wgr_asset_found[i].to);
             found = true;
         }
     }
-    wgr_mutex_unlock(&wgr_asset_jobs.lock);
+    wgri_mutex_unlock(&wgr_asset_jobs.lock);
     return found;
 }
 
-void wgr_asset_register_loader(const char *extension, const wgr_loader_t *loader)
+void wgri_asset_register_loader(const char *extension, const wgri_loader_t *loader)
 {
     for (int i = 0; i < wgr_asset_loader_count; i++) {
         if (strcmp(wgr_asset_loaders[i].extension, extension) == 0) {
@@ -583,11 +583,11 @@ void wgr_asset_register_loader(const char *extension, const wgr_loader_t *loader
     wgr_asset_loaders[wgr_asset_loader_count++].loader = loader;
 }
 
-wgr_handle_t wgr_loader_create(const wgr_loader_t *loader, const char *path)
+wgr_handle_t wgri_loader_create(const wgri_loader_t *loader, const char *path)
 {
     wgr_handle_t resource = loader->find(path);
     void *prepared;
-    wgr_loader_step_t step = WGR_LOADER_MORE;
+    wgri_loader_step_t step = WGRI_LOADER_MORE;
 
     if (resource != 0) {
         return resource;
@@ -596,14 +596,14 @@ wgr_handle_t wgr_loader_create(const wgr_loader_t *loader, const char *path)
     if (prepared == NULL) {
         return 0;
     }
-    while (step == WGR_LOADER_MORE) {
+    while (step == WGRI_LOADER_MORE) {
         step = loader->finish(prepared, path, &resource);
     }
     loader->discard(prepared);
-    return step == WGR_LOADER_DONE ? resource : 0;
+    return step == WGRI_LOADER_DONE ? resource : 0;
 }
 
-bool wgr_asset_is_relative_uri(const char *uri)
+bool wgri_asset_is_relative_uri(const char *uri)
 {
     if (uri == NULL || uri[0] == '\0' || uri[0] == '/' || strncmp(uri, "data:", 5) == 0) {
         return false;
@@ -624,7 +624,7 @@ static int hex_value(char c)
     return -1;
 }
 
-bool wgr_asset_join_relative(const char *base_path, const char *uri, char *out, size_t out_size)
+bool wgri_asset_join_relative(const char *base_path, const char *uri, char *out, size_t out_size)
 {
     char buffer[1024];
     const char *segments[128];
@@ -696,7 +696,7 @@ static bool has_extension(const char *path, const char *extension)
     return true;
 }
 
-static const wgr_loader_t *lookup_loader(const char *path)
+static const wgri_loader_t *lookup_loader(const char *path)
 {
     for (int i = 0; i < wgr_asset_loader_count; i++) {
         if (has_extension(path, wgr_asset_loaders[i].extension)) return wgr_asset_loaders[i].loader;
@@ -704,7 +704,7 @@ static const wgr_loader_t *lookup_loader(const char *path)
     return NULL;
 }
 
-static wgr_asset_dependencies_fn lookup_format(const char *path)
+static wgri_asset_dependencies_fn lookup_format(const char *path)
 {
     const size_t path_len = strlen(path);
     for (int f = 0; f < wgr_asset_format_count; f++) {
@@ -744,10 +744,10 @@ static void add_dependency(const char *uri, const char *fallback_uri, bool requi
     wgr_handle_t handle;
     wgr_asset_task_t *task;
 
-    if (!wgr_asset_is_relative_uri(uri)) {
+    if (!wgri_asset_is_relative_uri(uri)) {
         return;
     }
-    if (!wgr_asset_join_relative(parent_task->path, uri, path, sizeof(path))) {
+    if (!wgri_asset_join_relative(parent_task->path, uri, path, sizeof(path))) {
         log_warn("Asset %s: can't use dependency '%s' (outside the asset root or too long)", parent_task->path, uri);
         parent_task->dependency_failed = true;
         return;
@@ -769,8 +769,8 @@ static void add_dependency(const char *uri, const char *fallback_uri, bool requi
     *task = (wgr_asset_task_t){0};
     snprintf(task->origin, sizeof(task->origin), "%s", path);
     char fallback[512] = "";
-    if (fallback_uri != NULL && wgr_asset_is_relative_uri(fallback_uri)) {
-        wgr_asset_join_relative(parent_task->path, fallback_uri, fallback, sizeof(fallback));
+    if (fallback_uri != NULL && wgri_asset_is_relative_uri(fallback_uri)) {
+        wgri_asset_join_relative(parent_task->path, fallback_uri, fallback, sizeof(fallback));
     }
     if (parent_task->caller_url) {
         /* a file fetched from the caller's URL: its dependencies come from next to it */
@@ -799,7 +799,7 @@ static void add_dependency(const char *uri, const char *fallback_uri, bool requi
 static void start_dependencies(uint16_t slot)
 {
     wgr_asset_task_t *task = &wgr_asset_tasks[slot];
-    const wgr_asset_dependencies_fn list = lookup_format(task->path);
+    const wgri_asset_dependencies_fn list = lookup_format(task->path);
     unsigned char *data = NULL;
     int size = 0;
     uint16_t context = slot;
@@ -808,18 +808,18 @@ static void start_dependencies(uint16_t slot)
     if (list == NULL) {
         return;
     }
-    if (!wgr_fs_read(task->path, &data, &size)) {
+    if (!wgri_fs_read(task->path, &data, &size)) {
         return; /* the resource creator reports the unreadable file */
     }
     list(data, size, add_dependency, &context);
-    wgr_fs_read_free(data);
+    wgri_fs_read_free(data);
     task = &wgr_asset_tasks[slot]; /* queueing dependencies may have moved the tasks */
     if (task->pending > 0) {
         task->state = TASK_WAITING;
     }
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
                                   unsigned int flags)
 {
@@ -858,7 +858,7 @@ wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
     return handle;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_asset_add_task_result_t wgr_asset_add_task(wgr_handle_t handle,
                                              wgr_asset_callback_fn on_success,
                                              wgr_asset_callback_fn on_failure,
@@ -912,18 +912,18 @@ static bool grow_ring(wgr_asset_ring_t *ring, int capacity)
 /* A new task slot, with the job rings grown to match the pool; 0 when there's none. */
 static wgr_handle_t alloc_task(void)
 {
-    const wgr_handle_t handle = wgr_handle_pool_alloc(&wgr_asset_pool);
+    const wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_asset_pool);
     bool ok;
     if (handle == 0) {
         log_error("asset: too many tasks (%u)", (unsigned)wgr_asset_pool.max - 1u);
         return 0;
     }
-    wgr_mutex_lock(&wgr_asset_jobs.lock);
+    wgri_mutex_lock(&wgr_asset_jobs.lock);
     ok = grow_ring(&wgr_asset_jobs.queue, wgr_asset_pool.capacity) &&
          grow_ring(&wgr_asset_jobs.done, wgr_asset_pool.capacity);
-    wgr_mutex_unlock(&wgr_asset_jobs.lock);
+    wgri_mutex_unlock(&wgr_asset_jobs.lock);
     if (!ok) {
-        wgr_handle_pool_free(&wgr_asset_pool, handle);
+        wgri_handle_pool_free(&wgr_asset_pool, handle);
         log_error("asset: out of memory");
         return 0;
     }
@@ -934,25 +934,25 @@ static void worker_main(void *arg)
 {
     wgr_asset_job_t job;
     (void)arg;
-    wgr_mutex_lock(&wgr_asset_jobs.lock);
+    wgri_mutex_lock(&wgr_asset_jobs.lock);
     for (;;) {
         while (!wgr_asset_jobs.stop && wgr_asset_jobs.queue.count == 0) {
-            wgr_cond_wait(&wgr_asset_jobs.wake, &wgr_asset_jobs.lock);
+            wgri_cond_wait(&wgr_asset_jobs.wake, &wgr_asset_jobs.lock);
         }
         if (wgr_asset_jobs.stop) break;
         pop_job(&wgr_asset_jobs.queue, &job);
-        wgr_mutex_unlock(&wgr_asset_jobs.lock);
+        wgri_mutex_unlock(&wgr_asset_jobs.lock);
         job.prepared = job.loader->prepare(job.path);
-        wgr_mutex_lock(&wgr_asset_jobs.lock);
+        wgri_mutex_lock(&wgr_asset_jobs.lock);
         push_job(&wgr_asset_jobs.done, &job);
     }
-    wgr_mutex_unlock(&wgr_asset_jobs.lock);
+    wgri_mutex_unlock(&wgr_asset_jobs.lock);
 }
 
 static int default_worker_count(void)
 {
-    const int count = wgr_thread_cpu_count() - 1;
-    if (!wgr_thread_available()) return 0;
+    const int count = wgri_thread_cpu_count() - 1;
+    if (!wgri_thread_available()) return 0;
     return count < 1 ? 1 : (count > MAX_WORKERS ? MAX_WORKERS : count);
 }
 
@@ -961,7 +961,7 @@ static void start_workers(int count)
     wgr_asset_jobs.stop = false;
     wgr_asset_jobs.worker_count = 0;
     for (int i = 0; i < count && i < MAX_WORKERS; i++) {
-        if (!wgr_thread_create(&wgr_asset_jobs.threads[i], worker_main, NULL)) {
+        if (!wgri_thread_create(&wgr_asset_jobs.threads[i], worker_main, NULL)) {
             log_warn("Asset workers: started %d of %d; the rest of loading runs on the main thread", i, count);
             break;
         }
@@ -973,21 +973,21 @@ static void start_workers(int count)
  * detached and end on their own; the job lock must then stay alive. */
 static void stop_workers(bool wait)
 {
-    wgr_mutex_lock(&wgr_asset_jobs.lock);
+    wgri_mutex_lock(&wgr_asset_jobs.lock);
     wgr_asset_jobs.stop = true;
-    wgr_cond_broadcast(&wgr_asset_jobs.wake);
-    wgr_mutex_unlock(&wgr_asset_jobs.lock);
+    wgri_cond_broadcast(&wgr_asset_jobs.wake);
+    wgri_mutex_unlock(&wgr_asset_jobs.lock);
     for (int i = 0; i < wgr_asset_jobs.worker_count; i++) {
         if (wait) {
-            wgr_thread_join(&wgr_asset_jobs.threads[i]);
+            wgri_thread_join(&wgr_asset_jobs.threads[i]);
         } else {
-            wgr_thread_detach(&wgr_asset_jobs.threads[i]);
+            wgri_thread_detach(&wgr_asset_jobs.threads[i]);
         }
     }
     wgr_asset_jobs.worker_count = 0;
 }
 
-void wgr_asset_set_worker_count(int count)
+void wgri_asset_set_worker_count(int count)
 {
     wgr_asset_worker_request = count;
     if (wgr_asset_ready) {
@@ -996,12 +996,12 @@ void wgr_asset_set_worker_count(int count)
     }
 }
 
-int wgr_asset_get_worker_count(void)
+int wgri_asset_get_worker_count(void)
 {
     return wgr_asset_jobs.worker_count;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_asset_set_upload_budget(float milliseconds)
 {
     wgr_asset_upload_budget_ms = milliseconds > 0.0f ? milliseconds : 0.0f;
@@ -1009,7 +1009,7 @@ void wgr_asset_set_upload_budget(float milliseconds)
 
 /* ------------------------------------------------------ groups, progress */
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_asset_group_create(void)
 {
     wgr_handle_t handle;
@@ -1029,7 +1029,7 @@ wgr_handle_t wgr_asset_group_create(void)
     return handle;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_asset_group_add(wgr_handle_t group, wgr_handle_t task)
 {
     wgr_asset_task_t *group_ptr = resolve(group), *task_ptr = resolve(task);
@@ -1040,7 +1040,7 @@ bool wgr_asset_group_add(wgr_handle_t group, wgr_handle_t task)
         log_warn("wgr_asset_group_add: needs a group and a file task that isn't in a group");
         return false;
     }
-    wgr_handle_pool_resolve(&wgr_asset_pool, group, &group_index);
+    wgri_handle_pool_resolve(&wgr_asset_pool, group, &group_index);
     task_ptr->group = group_index;
     task_ptr->armed = true; /* loads even without callbacks of its own */
     group_ptr->pending++;
@@ -1062,7 +1062,7 @@ static float task_progress(const wgr_asset_task_t *task)
     }
 }
 
-WGR_KEEP
+WGRI_KEEP
 float wgr_asset_get_progress(wgr_handle_t task)
 {
     uint16_t index = 0;
@@ -1072,7 +1072,7 @@ float wgr_asset_get_progress(wgr_handle_t task)
     if (wgr_handle_get_kind(task) != WGR_HANDLE_KIND_ASSET_TASK) {
         return 0.0f;
     }
-    if (!wgr_handle_pool_resolve(&wgr_asset_pool, task, &index)) {
+    if (!wgri_handle_pool_resolve(&wgr_asset_pool, task, &index)) {
         return 1.0f; /* finished: its callbacks have run */
     }
     task_ptr = &wgr_asset_tasks[index];
@@ -1091,10 +1091,10 @@ float wgr_asset_get_progress(wgr_handle_t task)
     return sum / (float)task_ptr->dependency_count;
 }
 
-void wgr_asset_init(void)
+void wgri_asset_init(void)
 {
-    if (!wgr_handle_pool_init(&wgr_asset_pool, WGR_HANDLE_KIND_ASSET_TASK, "asset", (void **)&wgr_asset_tasks,
-                             sizeof(wgr_asset_task_t), ASSET_TASKS_INITIAL, WGR_HANDLE_POOL_MAX_SLOTS)) {
+    if (!wgri_handle_pool_init(&wgr_asset_pool, WGR_HANDLE_KIND_ASSET_TASK, "asset", (void **)&wgr_asset_tasks,
+                             sizeof(wgr_asset_task_t), ASSET_TASKS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         log_error("asset: out of memory");
     }
 #ifdef __EMSCRIPTEN__
@@ -1106,14 +1106,14 @@ void wgr_asset_init(void)
     });
 #endif
     if (!wgr_asset_jobs.lock_live) { /* still alive after a web shutdown (workers detached) */
-        wgr_mutex_init(&wgr_asset_jobs.lock);
-        wgr_cond_init(&wgr_asset_jobs.wake);
+        wgri_mutex_init(&wgr_asset_jobs.lock);
+        wgri_cond_init(&wgr_asset_jobs.wake);
         wgr_asset_jobs.lock_live = true;
     }
-    wgr_mutex_lock(&wgr_asset_jobs.lock);
+    wgri_mutex_lock(&wgr_asset_jobs.lock);
     wgr_asset_jobs.queue.head = wgr_asset_jobs.queue.count = 0;
     wgr_asset_jobs.done.head = wgr_asset_jobs.done.count = 0;
-    wgr_mutex_unlock(&wgr_asset_jobs.lock);
+    wgri_mutex_unlock(&wgr_asset_jobs.lock);
     start_workers(wgr_asset_worker_request >= 0 ? wgr_asset_worker_request : default_worker_count());
     log_info("wgr_asset: %d loading worker(s)%s", wgr_asset_jobs.worker_count,
              wgr_asset_jobs.worker_count == 0 ? " (loading on the main thread)" : "");
@@ -1122,7 +1122,7 @@ void wgr_asset_init(void)
 
 static void ready(uint16_t i, bool ok);
 
-static bool hold(wgr_asset_task_t *group, const wgr_loader_t *loader, wgr_handle_t resource)
+static bool hold(wgr_asset_task_t *group, const wgri_loader_t *loader, wgr_handle_t resource)
 {
     if (group->held_count == group->held_capacity) {
         const int capacity = group->held_capacity > 0 ? group->held_capacity * 2 : 8;
@@ -1139,7 +1139,7 @@ static bool hold(wgr_asset_task_t *group, const wgr_loader_t *loader, wgr_handle
  * then tell the task it's a dependency of, if any. */
 static void complete(uint16_t i, bool ok)
 {
-    wgr_handle_t handle = wgr_handle_pool_handle_from_index(&wgr_asset_pool, i);
+    wgr_handle_t handle = wgri_handle_pool_handle_from_index(&wgr_asset_pool, i);
     const wgr_asset_task_t task = wgr_asset_tasks[i];
     char local[512];
 
@@ -1148,11 +1148,11 @@ static void complete(uint16_t i, bool ok)
     } else if (task.local[0] != '\0') {
         snprintf(local, sizeof(local), "%s", task.local);
     } else {
-        wgr_fs_resolve(task.path, local, sizeof(local));
+        wgri_fs_resolve(task.path, local, sizeof(local));
     }
     free(task.candidates);
     wgr_asset_tasks[i] = (wgr_asset_task_t){0};
-    wgr_handle_pool_free(&wgr_asset_pool, handle);
+    wgri_handle_pool_free(&wgr_asset_pool, handle);
     if (ok) {
         if (task.on_success) task.on_success(local, task.user_data);
     } else {
@@ -1207,7 +1207,7 @@ static void ready(uint16_t i, bool ok)
         complete(i, ok);
         return;
     }
-    wgr_fs_resolve(task->path, task->local, sizeof(task->local));
+    wgri_fs_resolve(task->path, task->local, sizeof(task->local));
     task->resource = task->loader->find(task->local);
     if (task->resource != 0) {
         complete(i, true); /* already loaded */
@@ -1216,10 +1216,10 @@ static void ready(uint16_t i, bool ok)
     task->state = TASK_PREPARING;
     job.loader = task->loader;
     snprintf(job.path, sizeof(job.path), "%s", task->local);
-    wgr_mutex_lock(&wgr_asset_jobs.lock);
+    wgri_mutex_lock(&wgr_asset_jobs.lock);
     push_job(&wgr_asset_jobs.queue, &job);
-    wgr_cond_broadcast(&wgr_asset_jobs.wake);
-    wgr_mutex_unlock(&wgr_asset_jobs.lock);
+    wgri_cond_broadcast(&wgr_asset_jobs.wake);
+    wgri_mutex_unlock(&wgr_asset_jobs.lock);
 }
 
 /* A task's own file is local (ok) or unavailable: ensure its dependencies, or finish. */
@@ -1249,20 +1249,20 @@ static void collect_prepared(void)
     bool have;
 
     if (wgr_asset_jobs.worker_count == 0) {
-        wgr_mutex_lock(&wgr_asset_jobs.lock);
+        wgri_mutex_lock(&wgr_asset_jobs.lock);
         have = pop_job(&wgr_asset_jobs.queue, &job);
-        wgr_mutex_unlock(&wgr_asset_jobs.lock);
+        wgri_mutex_unlock(&wgr_asset_jobs.lock);
         if (have) { /* one per frame, so loads don't stack into one stall */
             job.prepared = job.loader->prepare(job.path);
-            wgr_mutex_lock(&wgr_asset_jobs.lock);
+            wgri_mutex_lock(&wgr_asset_jobs.lock);
             push_job(&wgr_asset_jobs.done, &job);
-            wgr_mutex_unlock(&wgr_asset_jobs.lock);
+            wgri_mutex_unlock(&wgr_asset_jobs.lock);
         }
     }
     for (;;) {
-        wgr_mutex_lock(&wgr_asset_jobs.lock);
+        wgri_mutex_lock(&wgr_asset_jobs.lock);
         have = pop_job(&wgr_asset_jobs.done, &job);
-        wgr_mutex_unlock(&wgr_asset_jobs.lock);
+        wgri_mutex_unlock(&wgr_asset_jobs.lock);
         if (!have) break;
         wgr_asset_task_t *task = &wgr_asset_tasks[job.slot];
         if (job.prepared == NULL) {
@@ -1293,13 +1293,13 @@ static uint16_t next_finishing(void)
  * one step per frame. */
 static void load(void)
 {
-    const double start = wgr_thread_now();
+    const double start = wgri_thread_now();
     uint16_t i;
 
     collect_prepared();
     while ((i = next_finishing()) != 0) {
         wgr_asset_task_t *task = &wgr_asset_tasks[i];
-        wgr_loader_step_t step = WGR_LOADER_DONE;
+        wgri_loader_step_t step = WGRI_LOADER_DONE;
 
         if (!task->finish_started) {
             /* created meanwhile, e.g. by a sync create of the same file: use that one */
@@ -1309,13 +1309,13 @@ static void load(void)
         if (task->resource == 0) {
             step = task->loader->finish(task->prepared, task->local, &task->resource);
         }
-        if (step != WGR_LOADER_MORE) {
+        if (step != WGRI_LOADER_MORE) {
             task->loader->discard(task->prepared);
             task->prepared = NULL;
-            task->load_failed = step == WGR_LOADER_FAILED;
-            complete(i, step == WGR_LOADER_DONE);
+            task->load_failed = step == WGRI_LOADER_FAILED;
+            complete(i, step == WGRI_LOADER_DONE);
         }
-        if ((wgr_thread_now() - start) * 1000.0 >= (double)wgr_asset_upload_budget_ms) {
+        if ((wgri_thread_now() - start) * 1000.0 >= (double)wgr_asset_upload_budget_ms) {
             break;
         }
     }
@@ -1341,7 +1341,7 @@ static bool use_fallback(wgr_asset_task_t *task)
     return true;
 }
 
-void wgr_asset_tick(void)
+void wgri_asset_tick(void)
 {
     /* Nothing can be ensured until storage is up (web: once the cache's list of
      * files is read; desktop: immediately). Tasks stay queued until then. */
@@ -1349,7 +1349,7 @@ void wgr_asset_tick(void)
         return;
     }
     deliver_pings();
-    if (!wgr_fs_is_ready()) {
+    if (!wgri_fs_is_ready()) {
         return;
     }
 #ifdef __EMSCRIPTEN__
@@ -1372,7 +1372,7 @@ void wgr_asset_tick(void)
 
 #ifdef __EMSCRIPTEN__
         if (task->cache_read != 0) {
-            const int read = wgr_fs_cache_read_poll(task->cache_read);
+            const int read = wgri_fs_cache_read_poll(task->cache_read);
             if (read == 0) continue; /* still reading */
             task->cache_read = 0;
             if (read > 0) {
@@ -1389,13 +1389,13 @@ void wgr_asset_tick(void)
             continue;
         }
         /* FORCE_FETCH re-downloads; otherwise serve the cache when present. */
-        if (!(task->flags & WGR_ASSET_FORCE_FETCH) && wgr_fs_exists(task->path)) {
+        if (!(task->flags & WGR_ASSET_FORCE_FETCH) && wgri_fs_exists(task->path)) {
             resolved(i, true);
             continue;
         }
-        if (!(task->flags & WGR_ASSET_FORCE_FETCH) && wgr_fs_is_cached(task->path)) {
+        if (!(task->flags & WGR_ASSET_FORCE_FETCH) && wgri_fs_is_cached(task->path)) {
             task->state = TASK_FETCHING;
-            task->cache_read = wgr_fs_cache_read_begin(task->path); /* resolves on a later tick */
+            task->cache_read = wgri_fs_cache_read_begin(task->path); /* resolves on a later tick */
             continue;
         }
         if (wgr_asset_fetching >= MAX_FETCHES) {
@@ -1405,16 +1405,16 @@ void wgr_asset_tick(void)
 #else
         /* Desktop has no network fetcher yet, so FORCE_FETCH is a no-op: resolve
          * from the jailed local fs (miss = failure). Network fallback is TODO. */
-        if (!wgr_fs_exists(task->path) && use_fallback(task)) continue;
-        resolved(i, wgr_fs_exists(task->path));
+        if (!wgri_fs_exists(task->path) && use_fallback(task)) continue;
+        resolved(i, wgri_fs_exists(task->path));
 #endif
     }
     load();
 }
 /* Tasks not finished yet (queued, downloading or waiting on dependencies).
  * Exported on web so tools/webcheck.mjs can tell when an example is done loading. */
-WGR_KEEP
-int wgr_asset_pending_count(void)
+WGRI_KEEP
+int wgri_asset_pending_count(void)
 {
     int count = 0;
     for (uint16_t i = 1; i < wgr_asset_pool.capacity; i++) {
@@ -1423,15 +1423,15 @@ int wgr_asset_pending_count(void)
     return count;
 }
 
-void wgr_asset_deinit(void)
+void wgri_asset_deinit(void)
 {
     wgr_asset_job_t job;
 
     wgr_asset_ready = false;
     memset(wgr_asset_pings, 0, sizeof(wgr_asset_pings)); /* unreported: dropped */
-    wgr_mutex_lock(&wgr_asset_jobs.lock);
+    wgri_mutex_lock(&wgr_asset_jobs.lock);
     wgr_asset_found_count = 0;
-    wgr_mutex_unlock(&wgr_asset_jobs.lock);
+    wgri_mutex_unlock(&wgr_asset_jobs.lock);
     /* Loads still in progress are dropped: queued jobs, prepared data, and resources
      * partly finished (their loader's discard releases what it created).
      * On web this runs on the browser's main thread when the app quits, where
@@ -1444,12 +1444,12 @@ void wgr_asset_deinit(void)
     const bool wait = true;
 #endif
     stop_workers(wait);
-    wgr_mutex_lock(&wgr_asset_jobs.lock);
+    wgri_mutex_lock(&wgr_asset_jobs.lock);
     wgr_asset_jobs.queue.count = 0;
     while (pop_job(&wgr_asset_jobs.done, &job)) {
         if (job.prepared != NULL) job.loader->discard(job.prepared);
     }
-    wgr_mutex_unlock(&wgr_asset_jobs.lock);
+    wgri_mutex_unlock(&wgr_asset_jobs.lock);
     for (uint16_t i = 1; i < wgr_asset_pool.capacity; i++) {
         wgr_asset_task_t *task = &wgr_asset_tasks[i];
         if (!wgr_asset_pool.occupied[i]) continue;
@@ -1467,12 +1467,12 @@ void wgr_asset_deinit(void)
         task->candidates = NULL;
     }
     if (wait) {
-        wgr_cond_destroy(&wgr_asset_jobs.wake);
-        wgr_mutex_destroy(&wgr_asset_jobs.lock);
+        wgri_cond_destroy(&wgr_asset_jobs.wake);
+        wgri_mutex_destroy(&wgr_asset_jobs.lock);
         wgr_asset_jobs.lock_live = false;
     }
 #ifdef __EMSCRIPTEN__
     sfetch_shutdown();
 #endif
-    wgr_handle_pool_destroy(&wgr_asset_pool);
+    wgri_handle_pool_destroy(&wgr_asset_pool);
 }

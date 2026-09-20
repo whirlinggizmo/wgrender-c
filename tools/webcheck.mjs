@@ -144,7 +144,7 @@ async function checkExample(browser, debugBase, baseUrl, example, opts) {
                 continue;
             }
             const { result: value } = await session.send("Runtime.evaluate", {
-                expression: "typeof Module !== 'undefined' && Module._wgr_asset_pending_count ? Module._wgr_asset_pending_count() : -1",
+                expression: "typeof Module !== 'undefined' && Module._wgri_asset_pending_count ? Module._wgri_asset_pending_count() : -1",
                 returnByValue: true,
             });
             if (value.value !== pending) {

@@ -43,7 +43,7 @@ static struct {
     wgr_pad_edges_t frame_edges[WGR_INPUT_MAX_GAMEPADS];
     wgr_pad_edges_t tick_edges[WGR_INPUT_MAX_GAMEPADS];
     float deadzone;
-    bool testing; /* wgr_gamepad_set_test_pad: the platform is ignored */
+    bool testing; /* wgri_gamepad_set_test_pad: the platform is ignored */
     wgr_pad_t test_pads[WGR_INPUT_MAX_GAMEPADS];
 } wgr_gp;
 
@@ -431,14 +431,14 @@ static void platform_poll(wgr_pad_t pads[WGR_INPUT_MAX_GAMEPADS]) { (void)pads; 
 
 /* ------------------------------------------------------------ frames ---- */
 
-void wgr_gamepad_init(void)
+void wgri_gamepad_init(void)
 {
     memset(&wgr_gp, 0, sizeof(wgr_gp));
     wgr_gp.deadzone = 0.15f;
     platform_open();
 }
 
-void wgr_gamepad_deinit(void)
+void wgri_gamepad_deinit(void)
 {
     platform_close();
     memset(&wgr_gp, 0, sizeof(wgr_gp));
@@ -446,7 +446,7 @@ void wgr_gamepad_deinit(void)
 
 /* Poll, then record what changed since the last poll in both edge sets. A pad that
  * went away releases what it held. */
-void wgr_gamepad_begin_frame(void)
+void wgri_gamepad_begin_frame(void)
 {
     wgr_pad_t next[WGR_INPUT_MAX_GAMEPADS];
     if (!wgr_gp.testing) platform_poll(wgr_gp.raw);
@@ -475,17 +475,17 @@ void wgr_gamepad_begin_frame(void)
     memcpy(wgr_gp.pads, next, sizeof(next));
 }
 
-void wgr_gamepad_end_tick(void)
+void wgri_gamepad_end_tick(void)
 {
     memset(wgr_gp.tick_edges, 0, sizeof(wgr_gp.tick_edges));
 }
 
-void wgr_gamepad_frame_done(void)
+void wgri_gamepad_frame_done(void)
 {
     memset(wgr_gp.frame_edges, 0, sizeof(wgr_gp.frame_edges));
 }
 
-void wgr_gamepad_set_test_pad(int pad, bool connected, const char *name, const bool buttons[WGR_GAMEPAD_BUTTON_COUNT],
+void wgri_gamepad_set_test_pad(int pad, bool connected, const char *name, const bool buttons[WGR_GAMEPAD_BUTTON_COUNT],
                              const float axes[WGR_GAMEPAD_AXIS_COUNT])
 {
     wgr_pad_t *p;
@@ -506,25 +506,25 @@ static const wgr_pad_t *lookup_pad(int pad)
     return pad >= 0 && pad < WGR_INPUT_MAX_GAMEPADS && wgr_gp.pads[pad].connected ? &wgr_gp.pads[pad] : NULL;
 }
 
-WGR_KEEP bool wgr_input_is_gamepad_connected(int pad)
+WGRI_KEEP bool wgr_input_is_gamepad_connected(int pad)
 {
     return lookup_pad(pad) != NULL;
 }
 
-WGR_KEEP const char *wgr_input_get_gamepad_name(int pad)
+WGRI_KEEP const char *wgr_input_get_gamepad_name(int pad)
 {
     const wgr_pad_t *pad_ptr = lookup_pad(pad);
     return pad_ptr != NULL ? pad_ptr->name : "";
 }
 
-WGR_KEEP int wgr_input_get_gamepad_button(int pad, wgr_gamepad_button_t button)
+WGRI_KEEP int wgr_input_get_gamepad_button(int pad, wgr_gamepad_button_t button)
 {
     const wgr_pad_edges_t *edges;
     if (pad < 0 || pad >= WGR_INPUT_MAX_GAMEPADS || button < 0 || button >= WGR_GAMEPAD_BUTTON_COUNT) {
         return WGR_BUTTON_UP;
     }
     /* edges outlive a disconnect by a frame (the release), so read them regardless */
-    edges = wgr_input_get_context() == WGR_INPUT_CONTEXT_TICK ? &wgr_gp.tick_edges[pad] : &wgr_gp.frame_edges[pad];
+    edges = wgri_input_get_context() == WGRI_INPUT_CONTEXT_TICK ? &wgr_gp.tick_edges[pad] : &wgr_gp.frame_edges[pad];
     if (edges->pressed[button]) return WGR_BUTTON_PRESSED;
     if (edges->released[button]) return WGR_BUTTON_RELEASED;
     return wgr_gp.pads[pad].buttons[button] ? WGR_BUTTON_DOWN : WGR_BUTTON_UP;
@@ -542,7 +542,7 @@ static float stick_axis(const wgr_pad_t *pad_ptr, int x_axis, bool want_y)
     return (want_y ? y : x) * scale;
 }
 
-WGR_KEEP float wgr_input_get_gamepad_axis(int pad, wgr_gamepad_axis_t axis)
+WGRI_KEEP float wgr_input_get_gamepad_axis(int pad, wgr_gamepad_axis_t axis)
 {
     const wgr_pad_t *pad_ptr = lookup_pad(pad);
     if (pad_ptr == NULL || axis < 0 || axis >= WGR_GAMEPAD_AXIS_COUNT) return 0.0f;
@@ -555,7 +555,7 @@ WGR_KEEP float wgr_input_get_gamepad_axis(int pad, wgr_gamepad_axis_t axis)
     }
 }
 
-WGR_KEEP bool wgr_input_set_gamepad_deadzone(float radius)
+WGRI_KEEP bool wgr_input_set_gamepad_deadzone(float radius)
 {
     if (!(radius >= 0.0f && radius <= 0.9f)) return false;
     wgr_gp.deadzone = radius;
@@ -563,8 +563,8 @@ WGR_KEEP bool wgr_input_set_gamepad_deadzone(float radius)
 }
 
 /* An optional subsystem: part of the runtime when a program asks about gamepads
- * (internal/wgr_module.h). Polled before the frame's ticks, so they see it too. */
-static wgr_module_t wgr_gamepad_module = {.name = "gamepad", .order = 5, .init = wgr_gamepad_init,
-                                        .deinit = wgr_gamepad_deinit, .begin_frame = wgr_gamepad_begin_frame,
-                                        .end_tick = wgr_gamepad_end_tick, .frame_done = wgr_gamepad_frame_done};
-WGR_MODULE(wgr_gamepad_module)
+ * (internal/wgri_module.h). Polled before the frame's ticks, so they see it too. */
+static wgri_module_t wgr_gamepad_module = {.name = "gamepad", .order = 5, .init = wgri_gamepad_init,
+                                        .deinit = wgri_gamepad_deinit, .begin_frame = wgri_gamepad_begin_frame,
+                                        .end_tick = wgri_gamepad_end_tick, .frame_done = wgri_gamepad_frame_done};
+WGRI_MODULE(wgr_gamepad_module)

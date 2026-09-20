@@ -166,12 +166,12 @@ void wgr_render_end_clip(void);
 ### Step 1: enabled, pointer interaction, touch
 
 - `wgr_<kind>_set_enabled` / `is_enabled` on model, shape, sprite2d, sprite3d, text2d,
-  text3d; kinds register their getter with the scene (`wgr_scene_register_enabled`).
+  text3d; kinds register their getter with the scene (`wgri_scene_register_enabled`).
 - `wgr_scene_set_interactive`, `wgr_scene_is_interactive`, `wgr_scene_get_hovered`,
   `wgr_scene_get_hover`, `wgr_scene_get_press`, `wgr_scene_is_clicked`, and
   `wgr_input_is_pointer_captured`, as designed.
 - The runtime updates interaction once per frame before the ticks
-  (`wgr_scene_update_interaction`), from the frame's pointer edges; edges are kept per
+  (`wgri_scene_update_interaction`), from the frame's pointer edges; edges are kept per
   context like input (frame edges cleared after the frame callback, tick edges after
   each tick and carried over frames without ticks, up to 8 hover changes).
 - The interaction pick reads the scene's camera without changing the active camera
@@ -215,7 +215,7 @@ void wgr_render_end_clip(void);
   a word wider than the box keeps its own line; newlines always break). The position
   is the block's edge or center per its alignment, and wrapped lines line up the same
   way inside the block. Layout lives in the text layer
-  (`wgr_text_block_size` / `wgr_text_block_draw`, internal), so text3d can use it later.
+  (`wgri_text_block_size` / `wgri_text_block_draw`, internal), so text3d can use it later.
   **`wgr_text2d_measure_width`/`_height` now measure the laid-out block** — the widest
   line and whole lines of the font's line height, not one line's glyph extents — and
   picks use that rectangle.
@@ -223,7 +223,7 @@ void wgr_render_end_clip(void);
   `wgr_text_draw_ex` / `wgr_text_measure_ex` go through the same block layout, so
   newlines break lines there too and the measured height is whole lines rather than
   one line's glyph extents; text3d gained `set_align` and `set_max_width` and shares
-  the line splitting (`wgr_text_split_lines`) while still drawing its own glyphs in
+  the line splitting (`wgri_text_split_lines`) while still drawing its own glyphs in
   world space. **`wgr_text3d_get_size().y` now reports the font's line height** for a
   single line (about 1.2x the size) instead of the ink's height.
 - Clipping: `wgr_scene_set_clip(scene, layer, x, y, width, height)` clips a layer's 2D

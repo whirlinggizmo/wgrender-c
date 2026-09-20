@@ -87,7 +87,7 @@
 #define SMP_base_color_smp (0)
 #pragma pack(push,1)
 SOKOL_SHDC_ALIGN(16) typedef struct vs_depth_skin_params_t {
-    wgr_mat4_t light_view_proj;
+    wgri_mat4_t light_view_proj;
     float instance_base[4];
 } vs_depth_skin_params_t;
 #pragma pack(pop)
@@ -98,7 +98,7 @@ SOKOL_SHDC_ALIGN(16) typedef struct fs_depth_params_t {
 #pragma pack(pop)
 #pragma pack(push,1)
 SOKOL_SHDC_ALIGN(16) typedef struct vs_depth_params_t {
-    wgr_mat4_t light_view_proj;
+    wgri_mat4_t light_view_proj;
     float instance_base[4];
 } vs_depth_params_t;
 #pragma pack(pop)

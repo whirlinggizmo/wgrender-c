@@ -16,7 +16,7 @@
 #define LIGHTS_INITIAL 32 /* slots to start with; the pool doubles as needed */
 
 /* Light object: parameters as set through the API. Resolved into
- * wgr_scene_light_t (world-space, radiance, cone cosines) when a scene draws. */
+ * wgri_scene_light_t (world-space, radiance, cone cosines) when a scene draws. */
 typedef struct {
     wgr_light_type_t type;
     wgr_color_t color;
@@ -44,40 +44,40 @@ typedef struct {
 #define WGR_SHADOW_BIAS_SLOPE_DEFAULT 4.0f
 
 static wgr_light_t *wgr_lights; /* grown by the pool: don't hold a pointer across a create */
-static wgr_handle_pool_t wgr_light_pool;
+static wgri_handle_pool_t wgr_light_pool;
 
-static wgr_light_env_t wgr_light_envs[WGR_MAX_LIGHT_ENVS];
+static wgri_light_env_t wgr_light_envs[WGRI_MAX_LIGHT_ENVS];
 static int wgr_light_env_count;
 static int wgr_light_env_current_index = -1;
 static bool wgr_light_env_full_logged;
 
-void wgr_light_init(void)
+void wgri_light_init(void)
 {
-    wgr_scene_hooks.scene_light = wgr_light_get_scene_light;
-    wgr_scene_hooks.light_env_push = wgr_light_env_push;
-    wgr_scene_hooks.light_env_set_current = wgr_light_env_set_current;
-    wgr_scene_hooks.light_env_get = wgr_light_env_get;
-    if (!wgr_handle_pool_init(&wgr_light_pool, WGR_HANDLE_KIND_LIGHT, "light", (void **)&wgr_lights,
-                             sizeof(wgr_light_t), LIGHTS_INITIAL, WGR_HANDLE_POOL_MAX_SLOTS)) {
+    wgri_scene_hooks.scene_light = wgri_light_get_scene_light;
+    wgri_scene_hooks.light_env_push = wgri_light_env_push;
+    wgri_scene_hooks.light_env_set_current = wgri_light_env_set_current;
+    wgri_scene_hooks.light_env_get = wgri_light_env_get;
+    if (!wgri_handle_pool_init(&wgr_light_pool, WGR_HANDLE_KIND_LIGHT, "light", (void **)&wgr_lights,
+                             sizeof(wgr_light_t), LIGHTS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         log_error("light: out of memory");
     }
-    wgr_light_end_frame();
+    wgri_light_end_frame();
 }
 
-void wgr_light_deinit(void)
+void wgri_light_deinit(void)
 {
-    wgr_scene_hooks.scene_light = NULL;
-    wgr_scene_hooks.light_env_push = NULL;
-    wgr_scene_hooks.light_env_set_current = NULL;
-    wgr_scene_hooks.light_env_get = NULL;
-    wgr_handle_pool_destroy(&wgr_light_pool);
-    wgr_light_end_frame();
+    wgri_scene_hooks.scene_light = NULL;
+    wgri_scene_hooks.light_env_push = NULL;
+    wgri_scene_hooks.light_env_set_current = NULL;
+    wgri_scene_hooks.light_env_get = NULL;
+    wgri_handle_pool_destroy(&wgr_light_pool);
+    wgri_light_end_frame();
 }
 
 static wgr_light_t *resolve(wgr_handle_t light)
 {
     uint16_t index = 0;
-    if (!wgr_handle_pool_resolve(&wgr_light_pool, light, &index)) {
+    if (!wgri_handle_pool_resolve(&wgr_light_pool, light, &index)) {
         if (light != 0) {
             log_warn("Invalid light handle (%u)", (unsigned int)light);
         }
@@ -88,7 +88,7 @@ static wgr_light_t *resolve(wgr_handle_t light)
 
 /* ------------------------------------------------------------ public API ---- */
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_light_create(wgr_light_type_t type)
 {
     wgr_handle_t handle;
@@ -98,20 +98,20 @@ wgr_handle_t wgr_light_create(wgr_light_type_t type)
         log_error("wgr_light_create: unknown light type %d", (int)type);
         return 0;
     }
-    handle = wgr_handle_pool_alloc(&wgr_light_pool);
+    handle = wgri_handle_pool_alloc(&wgr_light_pool);
     if (handle == 0) {
         log_error("light: pool full (%u)", (unsigned)wgr_light_pool.max - 1u);
         return 0;
     }
-    wgr_handle_pool_resolve(&wgr_light_pool, handle, &index);
+    wgri_handle_pool_resolve(&wgr_light_pool, handle, &index);
     wgr_lights[index] = (wgr_light_t){
         .type = type,
         .color = WGR_COLOR_WHITE,
         .intensity = 1.0f,
         .direction = {0.0f, -1.0f, 0.0f},
         .range = 0.0f,
-        .inner_angle = 30.0f * WGR_DEG2RAD,
-        .outer_angle = 45.0f * WGR_DEG2RAD,
+        .inner_angle = 30.0f * WGRI_DEG2RAD,
+        .outer_angle = 45.0f * WGRI_DEG2RAD,
         .enabled = true,
         .shadow_distance = WGR_SHADOW_DISTANCE_DEFAULT,
         .shadow_map_size = WGR_SHADOW_MAP_SIZE_DEFAULT,
@@ -123,16 +123,16 @@ wgr_handle_t wgr_light_create(wgr_light_type_t type)
     return handle;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_light_destroy(wgr_handle_t light)
 {
     if (resolve(light) != NULL) {
-        wgr_scene_forget(light);
-        wgr_handle_pool_free(&wgr_light_pool, light);
+        wgri_scene_forget(light);
+        wgri_handle_pool_free(&wgr_light_pool, light);
     }
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_light_set_color(wgr_handle_t light, wgr_color_t color)
 {
     wgr_light_t *light_ptr = resolve(light);
@@ -143,7 +143,7 @@ bool wgr_light_set_color(wgr_handle_t light, wgr_color_t color)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_light_set_intensity(wgr_handle_t light, float intensity)
 {
     wgr_light_t *light_ptr = resolve(light);
@@ -154,7 +154,7 @@ bool wgr_light_set_intensity(wgr_handle_t light, float intensity)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_light_set_position(wgr_handle_t light, float x, float y, float z)
 {
     wgr_light_t *light_ptr = resolve(light);
@@ -165,11 +165,11 @@ bool wgr_light_set_position(wgr_handle_t light, float x, float y, float z)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_light_set_direction(wgr_handle_t light, float x, float y, float z)
 {
     wgr_light_t *light_ptr = resolve(light);
-    vec3_t direction = wgr_v3_norm((vec3_t){x, y, z});
+    vec3_t direction = wgri_v3_norm((vec3_t){x, y, z});
     if (light_ptr == NULL || (direction.x == 0.0f && direction.y == 0.0f && direction.z == 0.0f)) {
         return false; /* a zero vector has no direction */
     }
@@ -177,7 +177,7 @@ bool wgr_light_set_direction(wgr_handle_t light, float x, float y, float z)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_light_set_range(wgr_handle_t light, float range)
 {
     wgr_light_t *light_ptr = resolve(light);
@@ -188,7 +188,7 @@ bool wgr_light_set_range(wgr_handle_t light, float range)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_light_set_spot_cone(wgr_handle_t light, float inner_angle, float outer_angle)
 {
     const float half_pi = 1.5707963267948966f;
@@ -203,7 +203,7 @@ bool wgr_light_set_spot_cone(wgr_handle_t light, float inner_angle, float outer_
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_light_set_enabled(wgr_handle_t light, bool enabled)
 {
     wgr_light_t *light_ptr = resolve(light);
@@ -214,7 +214,7 @@ bool wgr_light_set_enabled(wgr_handle_t light, bool enabled)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_light_is_enabled(wgr_handle_t light)
 {
     wgr_light_t *light_ptr = resolve(light);
@@ -223,26 +223,26 @@ bool wgr_light_is_enabled(wgr_handle_t light)
 
 /* -------------------------------------------------------------- internal ---- */
 
-bool wgr_light_get_scene_light(wgr_handle_t light, wgr_scene_light_t *out)
+bool wgri_light_get_scene_light(wgr_handle_t light, wgri_scene_light_t *out)
 {
     uint16_t index = 0;
     const wgr_light_t *light_ptr;
-    wgr_colorf_t color;
+    wgri_colorf_t color;
 
     /* resolve quietly: scenes check every member, most of which aren't lights */
-    if (out == NULL || !wgr_handle_pool_resolve(&wgr_light_pool, light, &index)) {
+    if (out == NULL || !wgri_handle_pool_resolve(&wgr_light_pool, light, &index)) {
         return false;
     }
     light_ptr = &wgr_lights[index];
     if (!light_ptr->enabled) {
         return false;
     }
-    color = wgr_color_unpack(light_ptr->color);
-    *out = (wgr_scene_light_t){
+    color = wgri_color_unpack(light_ptr->color);
+    *out = (wgri_scene_light_t){
         .type = (int)light_ptr->type,
-        .radiance = {wgr_srgb_to_linear(color.r) * light_ptr->intensity,
-                     wgr_srgb_to_linear(color.g) * light_ptr->intensity,
-                     wgr_srgb_to_linear(color.b) * light_ptr->intensity},
+        .radiance = {wgri_srgb_to_linear(color.r) * light_ptr->intensity,
+                     wgri_srgb_to_linear(color.g) * light_ptr->intensity,
+                     wgri_srgb_to_linear(color.b) * light_ptr->intensity},
         .position = light_ptr->position,
         .direction = light_ptr->direction,
         .range = light_ptr->range,
@@ -254,9 +254,9 @@ bool wgr_light_get_scene_light(wgr_handle_t light, wgr_scene_light_t *out)
         .shadow_bias_constant = light_ptr->shadow_bias_constant,
         .shadow_bias_slope = light_ptr->shadow_bias_slope,
         .shadow_strength = light_ptr->shadow_strength,
-        .shadow_tint = {wgr_srgb_to_linear(wgr_color_unpack(light_ptr->shadow_color).r),
-                        wgr_srgb_to_linear(wgr_color_unpack(light_ptr->shadow_color).g),
-                        wgr_srgb_to_linear(wgr_color_unpack(light_ptr->shadow_color).b)},
+        .shadow_tint = {wgri_srgb_to_linear(wgri_color_unpack(light_ptr->shadow_color).r),
+                        wgri_srgb_to_linear(wgri_color_unpack(light_ptr->shadow_color).g),
+                        wgri_srgb_to_linear(wgri_color_unpack(light_ptr->shadow_color).b)},
     };
     return true;
 }
@@ -270,7 +270,7 @@ static int shadow_map_size(int size)
     return rounded;
 }
 
-bool wgr_light_shadow_set_casts(wgr_handle_t light, bool casts)
+bool wgri_light_shadow_set_casts(wgr_handle_t light, bool casts)
 {
     wgr_light_t *light_ptr = resolve(light);
     if (light_ptr == NULL) return false;
@@ -283,13 +283,13 @@ bool wgr_light_shadow_set_casts(wgr_handle_t light, bool casts)
     return true;
 }
 
-bool wgr_light_shadow_casts(wgr_handle_t light)
+bool wgri_light_shadow_casts(wgr_handle_t light)
 {
     const wgr_light_t *light_ptr = resolve(light);
     return light_ptr != NULL && light_ptr->casts_shadows;
 }
 
-bool wgr_light_shadow_set_distance(wgr_handle_t light, float distance)
+bool wgri_light_shadow_set_distance(wgr_handle_t light, float distance)
 {
     wgr_light_t *light_ptr = resolve(light);
     if (light_ptr == NULL || !(distance > 0.0f)) return false;
@@ -297,7 +297,7 @@ bool wgr_light_shadow_set_distance(wgr_handle_t light, float distance)
     return true;
 }
 
-bool wgr_light_shadow_set_map_size(wgr_handle_t light, int size)
+bool wgri_light_shadow_set_map_size(wgr_handle_t light, int size)
 {
     wgr_light_t *light_ptr = resolve(light);
     if (light_ptr == NULL || size < WGR_SHADOW_MAP_SIZE_MIN) return false;
@@ -305,7 +305,7 @@ bool wgr_light_shadow_set_map_size(wgr_handle_t light, int size)
     return true;
 }
 
-bool wgr_light_shadow_set_strength(wgr_handle_t light, float strength)
+bool wgri_light_shadow_set_strength(wgr_handle_t light, float strength)
 {
     wgr_light_t *light_ptr = resolve(light);
     if (light_ptr == NULL || strength < 0.0f || strength > 1.0f) return false;
@@ -313,7 +313,7 @@ bool wgr_light_shadow_set_strength(wgr_handle_t light, float strength)
     return true;
 }
 
-bool wgr_light_shadow_set_color(wgr_handle_t light, wgr_color_t color)
+bool wgri_light_shadow_set_color(wgr_handle_t light, wgr_color_t color)
 {
     wgr_light_t *light_ptr = resolve(light);
     if (light_ptr == NULL) return false;
@@ -321,7 +321,7 @@ bool wgr_light_shadow_set_color(wgr_handle_t light, wgr_color_t color)
     return true;
 }
 
-bool wgr_light_shadow_set_bias(wgr_handle_t light, float constant, float slope)
+bool wgri_light_shadow_set_bias(wgr_handle_t light, float constant, float slope)
 {
     wgr_light_t *light_ptr = resolve(light);
     if (light_ptr == NULL || constant < 0.0f || slope < 0.0f) return false;
@@ -330,7 +330,7 @@ bool wgr_light_shadow_set_bias(wgr_handle_t light, float constant, float slope)
     return true;
 }
 
-float wgr_light_attenuation(float distance, float range)
+float wgri_light_attenuation(float distance, float range)
 {
     float inverse_square = 1.0f / (distance * distance > 0.01f ? distance * distance : 0.01f);
     float ratio, window;
@@ -345,7 +345,7 @@ float wgr_light_attenuation(float distance, float range)
     return window * window * inverse_square;
 }
 
-float wgr_light_spot_factor(float cos_angle, float cos_inner, float cos_outer)
+float wgri_light_spot_factor(float cos_angle, float cos_inner, float cos_outer)
 {
     float t;
     if (cos_inner - cos_outer <= 1e-6f) {
@@ -356,7 +356,7 @@ float wgr_light_spot_factor(float cos_angle, float cos_inner, float cos_outer)
     return t * t * (3.0f - 2.0f * t); /* smoothstep */
 }
 
-float wgr_light_luminance(vec3_t rgb)
+float wgri_light_luminance(vec3_t rgb)
 {
     return 0.2126f * rgb.x + 0.7152f * rgb.y + 0.0722f * rgb.z;
 }
@@ -368,9 +368,9 @@ static float clampf(float v, float lo, float hi)
 
 /* Estimated contribution of `light` to a model with world bounds [bmin, bmax];
  * 0 means it can't reach the model. */
-static float score_light(const wgr_scene_light_t *light, vec3_t bmin, vec3_t bmax)
+static float score_light(const wgri_scene_light_t *light, vec3_t bmin, vec3_t bmax)
 {
-    float score = wgr_light_luminance(light->radiance);
+    float score = wgri_light_luminance(light->radiance);
     vec3_t nearest, to_nearest, center, to_center;
     float distance, center_distance;
 
@@ -379,39 +379,39 @@ static float score_light(const wgr_scene_light_t *light, vec3_t bmin, vec3_t bma
     }
     nearest = (vec3_t){clampf(light->position.x, bmin.x, bmax.x), clampf(light->position.y, bmin.y, bmax.y),
                        clampf(light->position.z, bmin.z, bmax.z)};
-    to_nearest = wgr_v3_sub(nearest, light->position);
+    to_nearest = wgri_v3_sub(nearest, light->position);
     distance = sqrtf(to_nearest.x * to_nearest.x + to_nearest.y * to_nearest.y + to_nearest.z * to_nearest.z);
     if (light->range > 0.0f && distance >= light->range) {
         return 0.0f;
     }
-    score *= wgr_light_attenuation(distance, light->range);
+    score *= wgri_light_attenuation(distance, light->range);
 
     if (light->type == 2 /* WGR_LIGHT_SPOT */ && distance > 0.0f) {
         center = (vec3_t){(bmin.x + bmax.x) * 0.5f, (bmin.y + bmax.y) * 0.5f, (bmin.z + bmax.z) * 0.5f};
-        to_center = wgr_v3_sub(center, light->position);
+        to_center = wgri_v3_sub(center, light->position);
         center_distance = sqrtf(to_center.x * to_center.x + to_center.y * to_center.y + to_center.z * to_center.z);
         if (center_distance > 1e-6f) {
             float cos_angle = (to_center.x * light->direction.x + to_center.y * light->direction.y +
                                to_center.z * light->direction.z) / center_distance;
-            score *= wgr_light_spot_factor(cos_angle, light->cos_inner, light->cos_outer);
+            score *= wgri_light_spot_factor(cos_angle, light->cos_inner, light->cos_outer);
         }
     }
     return score;
 }
 
-int wgr_light_select(const wgr_light_env_t *env, vec3_t world_min, vec3_t world_max,
+int wgri_light_select(const wgri_light_env_t *env, vec3_t world_min, vec3_t world_max,
                     int *out_indices, int max_out)
 {
-    float scores[WGR_MAX_SCENE_LIGHTS];
+    float scores[WGRI_MAX_SCENE_LIGHTS];
     int count = 0;
 
     if (env == NULL || out_indices == NULL || max_out <= 0) {
         return 0;
     }
-    if (max_out > WGR_MAX_SCENE_LIGHTS) {
-        max_out = WGR_MAX_SCENE_LIGHTS;
+    if (max_out > WGRI_MAX_SCENE_LIGHTS) {
+        max_out = WGRI_MAX_SCENE_LIGHTS;
     }
-    for (int i = 0; i < env->count && i < WGR_MAX_SCENE_LIGHTS; i++) {
+    for (int i = 0; i < env->count && i < WGRI_MAX_SCENE_LIGHTS; i++) {
         float score = score_light(&env->lights[i], world_min, world_max);
         int at;
         if (score <= 0.0f) {
@@ -438,15 +438,15 @@ int wgr_light_select(const wgr_light_env_t *env, vec3_t world_min, vec3_t world_
     return count;
 }
 
-int wgr_light_env_push(const wgr_light_env_t *env)
+int wgri_light_env_push(const wgri_light_env_t *env)
 {
     if (env == NULL) {
         return -1;
     }
-    if (wgr_light_env_count >= WGR_MAX_LIGHT_ENVS) {
+    if (wgr_light_env_count >= WGRI_MAX_LIGHT_ENVS) {
         if (!wgr_light_env_full_logged) {
             log_warn("lighting: more than %d scene draws in one frame; extra scenes render unlit",
-                     WGR_MAX_LIGHT_ENVS);
+                     WGRI_MAX_LIGHT_ENVS);
             wgr_light_env_full_logged = true;
         }
         return -1;
@@ -455,27 +455,27 @@ int wgr_light_env_push(const wgr_light_env_t *env)
     return wgr_light_env_count++;
 }
 
-const wgr_light_env_t *wgr_light_env_get(int index)
+const wgri_light_env_t *wgri_light_env_get(int index)
 {
     return index >= 0 && index < wgr_light_env_count ? &wgr_light_envs[index] : NULL;
 }
 
-void wgr_light_env_set_current(int index)
+void wgri_light_env_set_current(int index)
 {
     wgr_light_env_current_index = index;
 }
 
-int wgr_light_env_current(void)
+int wgri_light_env_current(void)
 {
     return wgr_light_env_current_index;
 }
 
-void wgr_light_end_frame(void)
+void wgri_light_end_frame(void)
 {
     wgr_light_env_count = 0;
     wgr_light_env_current_index = -1;
 }
 
-/* An optional subsystem: part of the runtime when a program uses it (internal/wgr_module.h). */
-static wgr_module_t wgr_light_module = {.name = "light", .order = 20, .init = wgr_light_init, .deinit = wgr_light_deinit, .end_frame = wgr_light_end_frame};
-WGR_MODULE(wgr_light_module)
+/* An optional subsystem: part of the runtime when a program uses it (internal/wgri_module.h). */
+static wgri_module_t wgr_light_module = {.name = "light", .order = 20, .init = wgri_light_init, .deinit = wgri_light_deinit, .end_frame = wgri_light_end_frame};
+WGRI_MODULE(wgr_light_module)

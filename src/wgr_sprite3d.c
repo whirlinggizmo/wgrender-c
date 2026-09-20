@@ -26,7 +26,7 @@
 /* The sprite3d pool starts at SPRITES_INITIAL slots and doubles as needed, up to
  * WGR_MAX_SPRITE3D (overridable at build time, -DWGR_MAX_SPRITE3D=...). */
 #ifndef WGR_MAX_SPRITE3D
-#define WGR_MAX_SPRITE3D WGR_HANDLE_POOL_MAX_SLOTS
+#define WGR_MAX_SPRITE3D WGRI_HANDLE_POOL_MAX_SLOTS
 #endif
 #define SPRITES_INITIAL 256
 
@@ -53,17 +53,17 @@ typedef struct {
 /* Swap `*slot` for `material` (built-in or custom, or 0), keeping one reference. */
 static bool assign_material(wgr_handle_t *slot, wgr_handle_t material, const char *who)
 {
-    const wgr_material_t *material_ptr = material != 0 ? wgr_material_get(material) : NULL;
+    const wgri_material_t *material_ptr = material != 0 ? wgri_material_get(material) : NULL;
     if (material != 0 && material_ptr == NULL) {
         log_warn("%s: needs a material (wgr_material_create or wgr_material_create_custom) or 0", who);
         return false;
     }
-    if (wgr_material_is_screen(material)) {
+    if (wgri_material_is_screen(material)) {
         log_warn("%s: that material's shader is a screen effect (wgr_render_add_effect), not a surface shader", who);
         return false;
     }
     if (*slot != material) {
-        wgr_material_retain(material); /* no-op for 0 */
+        wgri_material_retain(material); /* no-op for 0 */
         wgr_material_release(*slot);
         *slot = material;
     }
@@ -71,17 +71,17 @@ static bool assign_material(wgr_handle_t *slot, wgr_handle_t material, const cha
 }
 
 static wgr_sprite3d_t *wgr_sprites; /* grown by the pool: don't hold a pointer across a create */
-static wgr_handle_pool_t wgr_sprite_pool;
+static wgri_handle_pool_t wgr_sprite_pool;
 
 static void draw_handle(wgr_handle_t handle);
-static int collect_transparent(wgr_handle_t handle, const wgr_camera3d_t *cam,
-                               wgr_transparent_item_t *out, int max_items);
+static int collect_transparent(wgr_handle_t handle, const wgri_camera3d_t *cam,
+                               wgri_transparent_item_t *out, int max_items);
 static void draw_transparent(wgr_handle_t handle, int part);
-static bool sprite_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, wgr_mat4_t *model);
+static bool sprite_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, wgri_mat4_t *model);
 static bool sprite_pick(wgr_handle_t handle, vec3_t origin, vec3_t dir, wgr_pick_result_t *out);
 static void pivot_offset(const wgr_sprite3d_t *sprite_ptr, float *out_right, float *out_up);
 static void source_uv(const wgr_sprite3d_t *sprite_ptr, int texture_width, int texture_height, float out[4]);
-static void sprite_quad_corners(const wgr_sprite3d_t *sprite_ptr, const wgr_camera3d_t *cam,
+static void sprite_quad_corners(const wgr_sprite3d_t *sprite_ptr, const wgri_camera3d_t *cam,
                                 vec3_t *tl, vec3_t *tr, vec3_t *br, vec3_t *bl);
 
 /* ---- tiny vec3 helpers ------------------------------------------------- */
@@ -100,7 +100,7 @@ static vec3_t v3_norm(vec3_t a)
 static wgr_sprite3d_t *resolve(wgr_handle_t handle)
 {
     uint16_t index = 0;
-    if (!wgr_handle_pool_resolve(&wgr_sprite_pool, handle, &index)) {
+    if (!wgri_handle_pool_resolve(&wgr_sprite_pool, handle, &index)) {
         if (handle != 0) {
             log_warn("Invalid sprite3d handle (%u)", (unsigned int)handle);
         }
@@ -111,14 +111,14 @@ static wgr_sprite3d_t *resolve(wgr_handle_t handle)
 
 static wgr_handle_t create_sprite(wgr_handle_t texture)
 {
-    wgr_handle_t handle = wgr_handle_pool_alloc(&wgr_sprite_pool);
+    wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_sprite_pool);
     uint16_t index = 0;
 
     if (handle == 0) {
         log_error("sprite3d: pool full (%u)", (unsigned)wgr_sprite_pool.max - 1u);
         return 0;
     }
-    wgr_handle_pool_resolve(&wgr_sprite_pool, handle, &index);
+    wgri_handle_pool_resolve(&wgr_sprite_pool, handle, &index);
     wgr_sprites[index] = (wgr_sprite3d_t){
         .texture = texture,
         .scale = {1.0f, 1.0f, 1.0f},
@@ -135,18 +135,18 @@ static wgr_handle_t create_sprite(wgr_handle_t texture)
         .alpha_cutoff = 0.5f,
     };
     if (texture != 0) {
-        wgr_texture_retain(texture);
+        wgri_texture_retain(texture);
     }
     return handle;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_sprite3d_create(wgr_handle_t texture)
 {
     return create_sprite(texture);
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_set_texture(wgr_handle_t handle, wgr_handle_t texture)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
@@ -161,12 +161,12 @@ bool wgr_sprite3d_set_texture(wgr_handle_t handle, wgr_handle_t texture)
     }
     sprite_ptr->texture = texture;
     if (texture != 0) {
-        wgr_texture_retain(texture);
+        wgri_texture_retain(texture);
     }
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_set_transform(wgr_handle_t handle,
                                float px, float py, float pz,
                                float rx, float ry, float rz,
@@ -180,13 +180,13 @@ bool wgr_sprite3d_set_transform(wgr_handle_t handle,
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_set_size(wgr_handle_t handle, float size)
 {
     return wgr_sprite3d_set_extent(handle, size, size);
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_set_extent(wgr_handle_t handle, float width, float height)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
@@ -196,7 +196,7 @@ bool wgr_sprite3d_set_extent(wgr_handle_t handle, float width, float height)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_set_source(wgr_handle_t handle, float x, float y, float width, float height)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
@@ -208,7 +208,7 @@ bool wgr_sprite3d_set_source(wgr_handle_t handle, float x, float y, float width,
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_set_pivot(wgr_handle_t handle, float x, float y)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
@@ -218,7 +218,7 @@ bool wgr_sprite3d_set_pivot(wgr_handle_t handle, float x, float y)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_set_facing(wgr_handle_t handle, wgr_sprite3d_facing_t facing)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
@@ -227,7 +227,7 @@ bool wgr_sprite3d_set_facing(wgr_handle_t handle, wgr_sprite3d_facing_t facing)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_set_pickable(wgr_handle_t handle, bool pickable)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
@@ -236,14 +236,14 @@ bool wgr_sprite3d_set_pickable(wgr_handle_t handle, bool pickable)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_is_pickable(wgr_handle_t handle)
 {
     const wgr_sprite3d_t *sprite_ptr = resolve(handle);
     return sprite_ptr != NULL && sprite_ptr->pickable;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_set_enabled(wgr_handle_t handle, bool enabled)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
@@ -252,35 +252,35 @@ bool wgr_sprite3d_set_enabled(wgr_handle_t handle, bool enabled)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_is_enabled(wgr_handle_t handle)
 {
     const wgr_sprite3d_t *sprite_ptr = resolve(handle);
     return sprite_ptr != NULL && sprite_ptr->enabled;
 }
 
-WGR_KEEP
+WGRI_KEEP
 vec3_t wgr_sprite3d_get_position(wgr_handle_t handle)
 {
     const wgr_sprite3d_t *sprite_ptr = resolve(handle);
     return sprite_ptr != NULL ? sprite_ptr->position : (vec3_t){0, 0, 0};
 }
 
-WGR_KEEP
+WGRI_KEEP
 vec3_t wgr_sprite3d_get_rotation(wgr_handle_t handle)
 {
     const wgr_sprite3d_t *sprite_ptr = resolve(handle);
     return sprite_ptr != NULL ? sprite_ptr->rotation : (vec3_t){0, 0, 0};
 }
 
-WGR_KEEP
+WGRI_KEEP
 vec3_t wgr_sprite3d_get_scale(wgr_handle_t handle)
 {
     const wgr_sprite3d_t *sprite_ptr = resolve(handle);
     return sprite_ptr != NULL ? sprite_ptr->scale : (vec3_t){0, 0, 0};
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_set_tint(wgr_handle_t handle, wgr_color_t color)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
@@ -289,7 +289,7 @@ bool wgr_sprite3d_set_tint(wgr_handle_t handle, wgr_color_t color)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_set_visible(wgr_handle_t handle, bool visible)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
@@ -298,7 +298,7 @@ bool wgr_sprite3d_set_visible(wgr_handle_t handle, bool visible)
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_set_pick_alpha_test(wgr_handle_t handle, bool enable, float threshold)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
@@ -306,14 +306,14 @@ bool wgr_sprite3d_set_pick_alpha_test(wgr_handle_t handle, bool enable, float th
         return false;
     }
     if (enable && sprite_ptr->texture != 0) {
-        wgr_texture_ensure_alpha_mask(sprite_ptr->texture);
+        wgri_texture_ensure_alpha_mask(sprite_ptr->texture);
     }
     sprite_ptr->pick_alpha_test = enable;
     sprite_ptr->pick_alpha_threshold = threshold;
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_is_visible(wgr_handle_t handle)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
@@ -323,7 +323,7 @@ bool wgr_sprite3d_is_visible(wgr_handle_t handle)
 static void draw_handle(wgr_handle_t handle)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
-    wgr_sprite_quad_t instance;
+    wgri_sprite_quad_t instance;
     sg_view view;
     sg_sampler smp;
     int tw = 0, th = 0;
@@ -331,10 +331,10 @@ static void draw_handle(wgr_handle_t handle)
     if (sprite_ptr == NULL || !sprite_ptr->visible) {
         return;
     }
-    if (!wgr_texture_get_binding(sprite_ptr->texture, &view, &smp, &tw, &th)) {
+    if (!wgri_texture_get_binding(sprite_ptr->texture, &view, &smp, &tw, &th)) {
         return;
     }
-    instance = (wgr_sprite_quad_t){
+    instance = (wgri_sprite_quad_t){
         .position = {sprite_ptr->position.x, sprite_ptr->position.y, sprite_ptr->position.z},
         .facing = (float)sprite_ptr->facing,
         .size = {sprite_ptr->width * sprite_ptr->scale.x, sprite_ptr->height * sprite_ptr->scale.y},
@@ -343,15 +343,15 @@ static void draw_handle(wgr_handle_t handle)
                   (uint8_t)wgr_color_get_blue(sprite_ptr->tint), (uint8_t)wgr_color_get_alpha(sprite_ptr->tint)},
     };
     source_uv(sprite_ptr, tw, th, instance.uv);
-    if (wgr_texture_is_flipped(sprite_ptr->texture)) { /* render target stored bottom-up */
+    if (wgri_texture_is_flipped(sprite_ptr->texture)) { /* render target stored bottom-up */
         instance.uv[1] = 1.0f - instance.uv[1];
         instance.uv[3] = 1.0f - instance.uv[3];
     }
     if (sprite_ptr->facing != WGR_SPRITE3D_FACING_CAMERA && sprite_ptr->facing != WGR_SPRITE3D_FACING_CAMERA_FIXED_Y) {
         /* its own axes (the billboards' come from the camera, per batch) */
-        static const wgr_camera3d_t unused_camera;
+        static const wgri_camera3d_t unused_camera;
         vec3_t right, up;
-        wgr_sprite3d_facing_basis((wgr_sprite3d_facing_t)sprite_ptr->facing, sprite_ptr->rotation, &unused_camera,
+        wgri_sprite3d_facing_basis((wgr_sprite3d_facing_t)sprite_ptr->facing, sprite_ptr->rotation, &unused_camera,
                                  &right, &up);
         instance.right[0] = right.x, instance.right[1] = right.y, instance.right[2] = right.z;
         instance.up[0] = up.x, instance.up[1] = up.y, instance.up[2] = up.z;
@@ -359,8 +359,8 @@ static void draw_handle(wgr_handle_t handle)
     instance.alpha = sprite_ptr->alpha_mode == WGR_ALPHA_MASK     ? fmaxf(sprite_ptr->alpha_cutoff, 1e-6f)
                      : sprite_ptr->alpha_mode == WGR_ALPHA_OPAQUE ? -1.0f
                                                                  : 0.0f;
-    wgr_sprite_batch_add_3d(&instance, view.id, smp.id, (wgr_alpha_mode_t)sprite_ptr->alpha_mode,
-                           !wgr_render_is_3d_transparent(), sprite_ptr->material);
+    wgri_sprite_batch_add_3d(&instance, view.id, smp.id, (wgr_alpha_mode_t)sprite_ptr->alpha_mode,
+                           !wgri_render_is_3d_transparent(), sprite_ptr->material);
 }
 
 /* Scene passes: opaque and masked sprites in the opaque pass, blended ones sorted in the
@@ -389,7 +389,7 @@ static void draw_additive(wgr_handle_t handle)
     if (in_mode(handle, false, false, true)) draw_handle(handle);
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_set_alpha_mode(wgr_handle_t handle, wgr_alpha_mode_t mode, float cutoff)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
@@ -401,21 +401,21 @@ bool wgr_sprite3d_set_alpha_mode(wgr_handle_t handle, wgr_alpha_mode_t mode, flo
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 bool wgr_sprite3d_set_material(wgr_handle_t handle, wgr_handle_t material)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
     return sprite_ptr != NULL && assign_material(&sprite_ptr->material, material, "wgr_sprite3d_set_material");
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_handle_t wgr_sprite3d_get_material(wgr_handle_t handle)
 {
     const wgr_sprite3d_t *sprite_ptr = resolve(handle);
     return sprite_ptr != NULL ? sprite_ptr->material : 0;
 }
 
-WGR_KEEP
+WGRI_KEEP
 wgr_alpha_mode_t wgr_sprite3d_get_alpha_mode(wgr_handle_t handle)
 {
     const wgr_sprite3d_t *sprite_ptr = resolve(handle);
@@ -425,18 +425,18 @@ wgr_alpha_mode_t wgr_sprite3d_get_alpha_mode(wgr_handle_t handle)
 /* Scene: sprites are always in the transparent pass (textures usually have
  * alpha), sorted by their center. Direct wgr_sprite3d_draw() calls keep the
  * depth-writing pipeline. */
-static int collect_transparent(wgr_handle_t handle, const wgr_camera3d_t *cam,
-                               wgr_transparent_item_t *out, int max_items)
+static int collect_transparent(wgr_handle_t handle, const wgri_camera3d_t *cam,
+                               wgri_transparent_item_t *out, int max_items)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
     if (sprite_ptr == NULL || !sprite_ptr->visible || sprite_ptr->texture == 0 || max_items < 1 ||
         sprite_ptr->alpha_mode != WGR_ALPHA_BLEND) {
         return 0;
     }
-    out[0] = (wgr_transparent_item_t){
+    out[0] = (wgri_transparent_item_t){
         .handle = handle,
         .part = 0,
-        .depth = wgr_scene_view_depth(cam, sprite_ptr->position),
+        .depth = wgri_scene_view_depth(cam, sprite_ptr->position),
     };
     return 1;
 }
@@ -447,13 +447,13 @@ static void draw_transparent(wgr_handle_t handle, int part)
     draw_handle(handle);
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_sprite3d_draw(wgr_handle_t handle)
 {
     draw_handle(handle);
 }
 
-static bool sprite_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, wgr_mat4_t *model)
+static bool sprite_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, wgri_mat4_t *model)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
     float hw, hh, r, ox, oy;
@@ -469,11 +469,11 @@ static bool sprite_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, wgr_m
     r = sqrtf(hw * hw + hh * hh) + sqrtf(ox * ox + oy * oy);
     *lmin = (vec3_t){-r, -r, -r};
     *lmax = (vec3_t){r, r, r};
-    *model = wgr_mat4_translate(sprite_ptr->position.x, sprite_ptr->position.y, sprite_ptr->position.z);
+    *model = wgri_mat4_translate(sprite_ptr->position.x, sprite_ptr->position.y, sprite_ptr->position.z);
     return true;
 }
 
-void wgr_sprite3d_facing_basis(wgr_sprite3d_facing_t facing, vec3_t rotation, const wgr_camera3d_t *cam,
+void wgri_sprite3d_facing_basis(wgr_sprite3d_facing_t facing, vec3_t rotation, const wgri_camera3d_t *cam,
                               vec3_t *right, vec3_t *up)
 {
     if (facing == WGR_SPRITE3D_FACING_Y_UP) {
@@ -481,7 +481,7 @@ void wgr_sprite3d_facing_basis(wgr_sprite3d_facing_t facing, vec3_t rotation, co
         *up = (vec3_t){0, 0, -1};
     } else if (facing == WGR_SPRITE3D_FACING_FREE) {
         /* the quad lies in the sprite's local XY plane, turned by its rotation */
-        const wgr_mat4_t rot = wgr_mat4_trs((vec3_t){0, 0, 0}, rotation, (vec3_t){1, 1, 1});
+        const wgri_mat4_t rot = wgri_mat4_trs((vec3_t){0, 0, 0}, rotation, (vec3_t){1, 1, 1});
         *right = (vec3_t){rot.m[0], rot.m[1], rot.m[2]};
         *up = (vec3_t){rot.m[4], rot.m[5], rot.m[6]};
     } else if (facing == WGR_SPRITE3D_FACING_CAMERA_FIXED_Y) {
@@ -527,13 +527,13 @@ static void pivot_offset(const wgr_sprite3d_t *sprite_ptr, float *out_right, flo
 
 /* The sprite's quad for this camera; drawing and picking both use it, so the quad
  * picked is the quad on screen. */
-static void sprite_quad_corners(const wgr_sprite3d_t *sprite_ptr, const wgr_camera3d_t *cam,
+static void sprite_quad_corners(const wgr_sprite3d_t *sprite_ptr, const wgri_camera3d_t *cam,
                                 vec3_t *tl, vec3_t *tr, vec3_t *br, vec3_t *bl)
 {
     vec3_t right, up, c;
     float hw, hh, ox, oy;
 
-    wgr_sprite3d_facing_basis((wgr_sprite3d_facing_t)sprite_ptr->facing, sprite_ptr->rotation, cam, &right, &up);
+    wgri_sprite3d_facing_basis((wgr_sprite3d_facing_t)sprite_ptr->facing, sprite_ptr->rotation, cam, &right, &up);
 
     hw = 0.5f * sprite_ptr->width * sprite_ptr->scale.x;
     hh = 0.5f * sprite_ptr->height * sprite_ptr->scale.y;
@@ -551,17 +551,17 @@ static void sprite_quad_corners(const wgr_sprite3d_t *sprite_ptr, const wgr_came
 static bool sprite_pick(wgr_handle_t handle, vec3_t origin, vec3_t dir, wgr_pick_result_t *out)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
-    wgr_camera3d_t cam;
-    wgr_ray_t ray;
+    wgri_camera3d_t cam;
+    wgri_ray_t ray;
     vec3_t tl, tr, br, bl;
-    wgr_ray_hit_t h0 = {0}, h1 = {0};
-    const wgr_ray_hit_t *best = NULL;
+    wgri_ray_hit_t h0 = {0}, h1 = {0};
+    const wgri_ray_hit_t *best = NULL;
     bool got0, got1;
 
     if (out == NULL || sprite_ptr == NULL || !sprite_ptr->visible || !sprite_ptr->pickable) {
         return false;
     }
-    if (!wgr_camera3d_get_active_data(&cam)) {
+    if (!wgri_camera3d_get_active_data(&cam)) {
         return false;
     }
 
@@ -572,8 +572,8 @@ static bool sprite_pick(wgr_handle_t handle, vec3_t origin, vec3_t dir, wgr_pick
     /* The quad is built in world space (its orientation comes from the camera),
      * so the triangle hits are world-space. A billboard has no stable local
      * frame, so local space is just the sprite's translation. */
-    got0 = wgr_pick_ray_triangle(ray, tl, tr, br, &h0);
-    got1 = wgr_pick_ray_triangle(ray, tl, br, bl, &h1);
+    got0 = wgri_pick_ray_triangle(ray, tl, tr, br, &h0);
+    got1 = wgri_pick_ray_triangle(ray, tl, br, bl, &h1);
 
     if (got0 && (!got1 || h0.t <= h1.t)) {
         best = &h0;
@@ -589,7 +589,7 @@ static bool sprite_pick(wgr_handle_t handle, vec3_t origin, vec3_t dir, wgr_pick
         sg_view view;
         sg_sampler smp;
         int tw = 0, th = 0;
-        wgr_texture_get_binding(sprite_ptr->texture, &view, &smp, &tw, &th);
+        wgri_texture_get_binding(sprite_ptr->texture, &view, &smp, &tw, &th);
         source_uv(sprite_ptr, tw, th, uv);
         if (best == &h0) { /* tri (tl,tr,br): uv = (u+v, v) */
             uv_x = best->u + best->v;
@@ -600,22 +600,22 @@ static bool sprite_pick(wgr_handle_t handle, vec3_t origin, vec3_t dir, wgr_pick
         }
         uv_x = uv[0] + uv_x * (uv[2] - uv[0]);
         uv_y = uv[1] + uv_y * (uv[3] - uv[1]);
-        if (wgr_texture_sample_alpha(sprite_ptr->texture, uv_x, uv_y, &a) &&
+        if (wgri_texture_sample_alpha(sprite_ptr->texture, uv_x, uv_y, &a) &&
             a < sprite_ptr->pick_alpha_threshold) {
             best = NULL;
         }
     }
 
     if (best != NULL) {
-        wgr_mat4_t model = wgr_mat4_translate(sprite_ptr->position.x, sprite_ptr->position.y, sprite_ptr->position.z);
-        wgr_pick_result_from_world(best, ray, model, out);
+        wgri_mat4_t model = wgri_mat4_translate(sprite_ptr->position.x, sprite_ptr->position.y, sprite_ptr->position.z);
+        wgri_pick_result_from_world(best, ray, model, out);
     } else {
         *out = (wgr_pick_result_t){0};
     }
     return true;
 }
 
-WGR_KEEP
+WGRI_KEEP
 void wgr_sprite3d_destroy(wgr_handle_t handle)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
@@ -623,36 +623,36 @@ void wgr_sprite3d_destroy(wgr_handle_t handle)
     if (sprite_ptr == NULL) {
         return;
     }
-    wgr_scene_forget(handle);
+    wgri_scene_forget(handle);
     texture = sprite_ptr->texture;
     wgr_material_release(sprite_ptr->material); /* no-op for 0 */
     *sprite_ptr = (wgr_sprite3d_t){0};
-    wgr_handle_pool_free(&wgr_sprite_pool, handle);
+    wgri_handle_pool_free(&wgr_sprite_pool, handle);
     if (texture != 0) {
         wgr_texture_release(texture);
     }
 }
 
-void wgr_sprite3d_init(void)
+void wgri_sprite3d_init(void)
 {
-    wgr_sprite_batch_init(); /* shared with sprite2d: counted */
-    if (!wgr_handle_pool_init(&wgr_sprite_pool, WGR_HANDLE_KIND_SPRITE3D, "sprite3d", (void **)&wgr_sprites,
+    wgri_sprite_batch_init(); /* shared with sprite2d: counted */
+    if (!wgri_handle_pool_init(&wgr_sprite_pool, WGR_HANDLE_KIND_SPRITE3D, "sprite3d", (void **)&wgr_sprites,
                              sizeof(wgr_sprite3d_t), SPRITES_INITIAL, WGR_MAX_SPRITE3D)) {
         log_error("sprite3d: out of memory");
     }
-    wgr_scene_register_passes(WGR_HANDLE_KIND_SPRITE3D, draw_opaque, collect_transparent, draw_transparent);
-    wgr_scene_register_additive(WGR_HANDLE_KIND_SPRITE3D, draw_additive);
-    wgr_scene_register_bounds(WGR_HANDLE_KIND_SPRITE3D, sprite_bounds);
-    wgr_scene_register_pick(WGR_HANDLE_KIND_SPRITE3D, sprite_pick);
-    wgr_scene_register_enabled(WGR_HANDLE_KIND_SPRITE3D, wgr_sprite3d_is_enabled);
+    wgri_scene_register_passes(WGR_HANDLE_KIND_SPRITE3D, draw_opaque, collect_transparent, draw_transparent);
+    wgri_scene_register_additive(WGR_HANDLE_KIND_SPRITE3D, draw_additive);
+    wgri_scene_register_bounds(WGR_HANDLE_KIND_SPRITE3D, sprite_bounds);
+    wgri_scene_register_pick(WGR_HANDLE_KIND_SPRITE3D, sprite_pick);
+    wgri_scene_register_enabled(WGR_HANDLE_KIND_SPRITE3D, wgr_sprite3d_is_enabled);
 }
 
-void wgr_sprite3d_deinit(void)
+void wgri_sprite3d_deinit(void)
 {
-    wgr_handle_pool_destroy(&wgr_sprite_pool);
-    wgr_sprite_batch_deinit();
+    wgri_handle_pool_destroy(&wgr_sprite_pool);
+    wgri_sprite_batch_deinit();
 }
 
-/* An optional subsystem: part of the runtime when a program uses it (internal/wgr_module.h). */
-static wgr_module_t wgr_sprite3d_module = {.name = "sprite3d", .order = 60, .init = wgr_sprite3d_init, .deinit = wgr_sprite3d_deinit};
-WGR_MODULE(wgr_sprite3d_module)
+/* An optional subsystem: part of the runtime when a program uses it (internal/wgri_module.h). */
+static wgri_module_t wgr_sprite3d_module = {.name = "sprite3d", .order = 60, .init = wgri_sprite3d_init, .deinit = wgri_sprite3d_deinit};
+WGRI_MODULE(wgr_sprite3d_module)

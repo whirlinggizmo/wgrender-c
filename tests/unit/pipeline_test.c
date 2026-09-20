@@ -43,25 +43,25 @@ void test_pipeline_gpu_pools(void)
     static wgr_handle_t textures[600];
     int created = 0;
 
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment(),
-                        .buffer_pool_size = WGR_GFX_BUFFER_POOL_SIZE,
-                        .image_pool_size = WGR_GFX_IMAGE_POOL_SIZE,
-                        .view_pool_size = WGR_GFX_VIEW_POOL_SIZE});
-    wgr_texture_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment(),
+                        .buffer_pool_size = WGRI_GFX_BUFFER_POOL_SIZE,
+                        .image_pool_size = WGRI_GFX_IMAGE_POOL_SIZE,
+                        .view_pool_size = WGRI_GFX_VIEW_POOL_SIZE});
+    wgri_texture_init();
     for (int i = 0; i < 600; i++) {
-        textures[i] = wgr_texture_create_rgba(pixel, 1, 1);
+        textures[i] = wgri_texture_create_rgba(pixel, 1, 1);
         created += textures[i] != 0;
     }
     CHECK(created == 600);
-    wgr_texture_deinit();
+    wgri_texture_deinit();
     sg_shutdown();
 
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment(), .image_pool_size = 8});
-    wgr_texture_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment(), .image_pool_size = 8});
+    wgri_texture_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL); /* sokol and libwgrender report the exhaustion */
     created = 0;
     for (int i = 0; i < 16; i++) {
-        textures[i] = wgr_texture_create_rgba(pixel, 1, 1);
+        textures[i] = wgri_texture_create_rgba(pixel, 1, 1);
         created += textures[i] != 0;
         if (textures[i] != 0) {
             CHECK(wgr_texture_get_size(textures[i]).x == 1.0f);
@@ -69,35 +69,35 @@ void test_pipeline_gpu_pools(void)
     }
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     CHECK(created > 0 && created < 16);
-    wgr_texture_deinit();
+    wgri_texture_deinit();
     sg_shutdown();
 }
 
 static void setup(void)
 {
-    sg_setup(&(sg_desc){.environment = wgr_platform_environment()});
-    wgr_audio_init();
-    wgr_render_init();
-    wgr_scene_init();
-    wgr_camera3d_init();
-    wgr_texture_init();
-    wgr_light_init();
-    wgr_material_init();
-    wgr_environment_init();
-    wgr_model_init();
+    sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
+    wgri_audio_init();
+    wgri_render_init();
+    wgri_scene_init();
+    wgri_camera3d_init();
+    wgri_texture_init();
+    wgri_light_init();
+    wgri_material_init();
+    wgri_environment_init();
+    wgri_model_init();
 }
 
 static void teardown(void)
 {
-    wgr_audio_deinit();
-    wgr_model_deinit();
-    wgr_environment_deinit();
-    wgr_material_deinit();
-    wgr_light_deinit();
-    wgr_texture_deinit();
-    wgr_camera3d_deinit();
-    wgr_scene_deinit();
-    wgr_render_deinit();
+    wgri_audio_deinit();
+    wgri_model_deinit();
+    wgri_environment_deinit();
+    wgri_material_deinit();
+    wgri_light_deinit();
+    wgri_texture_deinit();
+    wgri_camera3d_deinit();
+    wgri_scene_deinit();
+    wgri_render_deinit();
     sg_shutdown();
 }
 
@@ -108,8 +108,8 @@ static int loaded_textures(wgr_handle_t mesh)
 {
     int count = 0;
     for (int m = 0; m < wgr_mesh_get_material_count(mesh); m++) {
-        const wgr_material_t *material = wgr_material_get(wgr_mesh_get_material(mesh, m));
-        for (int t = 0; material != NULL && t < WGR_MATERIAL_TEXTURE_COUNT; t++) {
+        const wgri_material_t *material = wgri_material_get(wgr_mesh_get_material(mesh, m));
+        for (int t = 0; material != NULL && t < WGRI_MATERIAL_TEXTURE_COUNT; t++) {
             const wgr_handle_t texture = material->textures[t].texture;
             count += texture != 0 && texture != wgr_texture_get_placeholder() && wgr_texture_get_size(texture).x > 1.0f;
         }
@@ -182,18 +182,18 @@ static void on_failed(const char *path, void *user)
 static void start_assets(int workers, const char *host)
 {
     setup();
-    wgr_fs_init(NULL);
-    wgr_asset_set_worker_count(workers);
-    wgr_asset_init();
+    wgri_fs_init(NULL);
+    wgri_asset_set_worker_count(workers);
+    wgri_asset_init();
     wgr_asset_set_host(host);
     memset(&got, 0, sizeof(got));
 }
 
 static void stop_assets(void)
 {
-    wgr_asset_deinit();
-    wgr_asset_set_worker_count(-1);
-    wgr_fs_deinit();
+    wgri_asset_deinit();
+    wgri_asset_set_worker_count(-1);
+    wgri_fs_deinit();
     teardown();
 }
 
@@ -207,9 +207,9 @@ static void load(const char *path, unsigned int flags, wgr_asset_callback_fn on_
 static int run_until_done(void)
 {
     for (int frame = 1; frame <= 2000; frame++) {
-        wgr_asset_tick();
-        if (wgr_asset_pending_count() == 0) return frame;
-        if (wgr_asset_get_worker_count() > 0) {
+        wgri_asset_tick();
+        if (wgri_asset_pending_count() == 0) return frame;
+        if (wgri_asset_get_worker_count() > 0) {
             struct timespec pause = {0, 1000000};
             nanosleep(&pause, NULL);
         }
@@ -229,7 +229,7 @@ static bool texture_freed(wgr_handle_t texture)
 static void check_async_loads(int workers)
 {
     start_assets(workers, ASSETS);
-    CHECK(wgr_asset_get_worker_count() == workers);
+    CHECK(wgri_asset_get_worker_count() == workers);
     load(TEXTURE, WGR_ASSET_NONE, on_texture);
     load("models/gumshoe/gumshoe.glb", WGR_ASSET_NONE, on_mesh);
     load("sounds/click_004.ogg", WGR_ASSET_NONE, on_audio);
@@ -269,7 +269,7 @@ void test_pipeline_unclaimed(void)
     got.destroy_in_callback = false;
     load(TEXTURE, WGR_ASSET_NONE, on_texture);
     char local[512];
-    wgr_fs_resolve(TEXTURE, local, sizeof(local));
+    wgri_fs_resolve(TEXTURE, local, sizeof(local));
     const wgr_handle_t texture = wgr_texture_create(local);
     CHECK(run_until_done() > 0);
     CHECK(got.texture == texture);
@@ -345,7 +345,7 @@ void test_pipeline_shutdown(void)
         load(TEXTURE, WGR_ASSET_NONE, on_texture);
         load("sounds/click_004.ogg", WGR_ASSET_NONE, on_audio);
         for (int frame = 0; frame < round * 3; frame++) {
-            wgr_asset_tick();
+            wgri_asset_tick();
         }
         if (got.mesh != 0) wgr_mesh_release(got.mesh);
         if (got.texture != 0) wgr_texture_release(got.texture);
@@ -390,8 +390,8 @@ void test_pipeline_group(void)
 
     float last = 0.0f;
     bool monotonic = true;
-    for (int frame = 0; frame < 2000 && wgr_asset_pending_count() > 0; frame++) {
-        wgr_asset_tick();
+    for (int frame = 0; frame < 2000 && wgri_asset_pending_count() > 0; frame++) {
+        wgri_asset_tick();
         const float progress = wgr_asset_get_progress(group);
         monotonic = monotonic && progress >= last && progress <= 1.0f;
         last = progress;
@@ -466,7 +466,7 @@ void test_pipeline_many(void)
     for (int i = 0; i < LOADS; i++) {
         load(TEXTURE, WGR_ASSET_NONE, i < CHAINS ? on_chain : on_nothing);
     }
-    CHECK(wgr_asset_pending_count() == LOADS);
+    CHECK(wgri_asset_pending_count() == LOADS);
     CHECK(run_until_done() > 0);
     CHECK(got.failures == 0);
     CHECK(got.successes == LOADS + chained);
@@ -566,20 +566,20 @@ void test_pipeline_gltf_ktx(void)
 
     /* what it needs: the compressed file this GPU can use, not the PNG; the PNG when
        there's none */
-    wgr_texture_set_ktx_support(1); /* BC7 */
+    wgri_texture_set_ktx_support(1); /* BC7 */
     listed.count = 0;
-    wgr_model_list_gltf_dependencies((const unsigned char *)KTX_GLTF, (int)strlen(KTX_GLTF), on_dependency, NULL);
+    wgri_model_list_gltf_dependencies((const unsigned char *)KTX_GLTF, (int)strlen(KTX_GLTF), on_dependency, NULL);
     CHECK(was_listed("tex.bc7.ktx") && !was_listed("tex.png") && !was_listed("tex.ktx"));
     CHECK(strcmp(listed_fallback("tex.bc7.ktx"), "tex.png") == 0); /* if the compressed file is missing */
-    wgr_texture_set_ktx_support(2); /* ASTC */
+    wgri_texture_set_ktx_support(2); /* ASTC */
     listed.count = 0;
-    wgr_model_list_gltf_dependencies((const unsigned char *)KTX_GLTF, (int)strlen(KTX_GLTF), on_dependency, NULL);
+    wgri_model_list_gltf_dependencies((const unsigned char *)KTX_GLTF, (int)strlen(KTX_GLTF), on_dependency, NULL);
     CHECK(was_listed("tex.astc.ktx") && !was_listed("tex.png"));
-    wgr_texture_set_ktx_support(0); /* none */
+    wgri_texture_set_ktx_support(0); /* none */
     listed.count = 0;
-    wgr_model_list_gltf_dependencies((const unsigned char *)KTX_GLTF, (int)strlen(KTX_GLTF), on_dependency, NULL);
+    wgri_model_list_gltf_dependencies((const unsigned char *)KTX_GLTF, (int)strlen(KTX_GLTF), on_dependency, NULL);
     CHECK(was_listed("tex.png") && !was_listed("tex.ktx") && !was_listed("tex.bc7.ktx") && !was_listed("tex.astc.ktx"));
-    wgr_texture_set_ktx_support(-1);
+    wgri_texture_set_ktx_support(-1);
 
     /* loaded on sokol's dummy backend (no compressed formats): the texture's own image */
     setup();
@@ -599,7 +599,7 @@ void test_pipeline_ktx_fallback(void)
     CHECK(copy_file("../examples/assets/textures/flame.png", KTX_DIR "/png_only.png"));
     remove(KTX_DIR "/png_only.bc7.ktx");
     start_assets(0, KTX_DIR);
-    wgr_texture_set_ktx_support(1); /* BC7, which png_only doesn't have */
+    wgri_texture_set_ktx_support(1); /* BC7, which png_only doesn't have */
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR); /* the fallback warns */
     load("png_only.ktx", WGR_ASSET_NONE, on_texture);
     CHECK(run_until_done() > 0);
@@ -616,7 +616,7 @@ void test_pipeline_ktx_fallback(void)
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 1 && got.failures == 1);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_texture_set_ktx_support(-1);
+    wgri_texture_set_ktx_support(-1);
     stop_assets();
 }
 
@@ -699,8 +699,8 @@ void test_pipeline_redirects(void)
     load("models/m.gltf", WGR_ASSET_NONE, on_mesh);
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 4 && got.mesh != 0);
-    const wgr_material_t *material = wgr_material_get(wgr_mesh_get_material(got.mesh, 0));
-    CHECK(material != NULL && wgr_texture_get_size(material->textures[WGR_MATERIAL_TEXTURE_BASE_COLOR].texture).x == 128.0f);
+    const wgri_material_t *material = wgri_material_get(wgr_mesh_get_material(got.mesh, 0));
+    CHECK(material != NULL && wgr_texture_get_size(material->textures[WGRI_MATERIAL_TEXTURE_BASE_COLOR].texture).x == 128.0f);
     wgr_mesh_release(got.mesh);
 
     wgr_asset_clear_redirects();
@@ -716,7 +716,7 @@ void test_pipeline_redirects(void)
     CHECK(wgr_asset_ping_host(REDIRECT_DIR "/missing", 0, on_ping, NULL));
     CHECK(wgr_asset_ping_host("https://example.com", 0, on_ping, NULL));
     CHECK(pinged.calls == 0); /* on a later tick */
-    wgr_asset_tick();
+    wgri_asset_tick();
     CHECK(pinged.calls == 3);
     CHECK(pinged.ms[0] == 0.0f && strcmp(pinged.host[0], REDIRECT_DIR) == 0);
     CHECK(pinged.ms[1] < 0.0f && pinged.ms[2] < 0.0f);
@@ -740,7 +740,7 @@ void test_pipeline_generated_meshes(void)
     CHECK(other != 0 && other != plane);
     CHECK(wgr_mesh_create_plane(0, 10, 2) == 0);
     CHECK(wgr_mesh_get_material_count(plane) == 1);
-    const wgr_material_t *material = wgr_material_get(wgr_mesh_get_material(plane, 0));
+    const wgri_material_t *material = wgri_material_get(wgr_mesh_get_material(plane, 0));
     CHECK(material != NULL && material->metallic == 0.0f && material->roughness == 0.5f);
 
     /* a ray straight down at the plane hits it, at its height */
@@ -774,7 +774,7 @@ void test_pipeline_generated_meshes(void)
 
 /* Skinned models draw through the frame's joint texture (src/wgr_model.c): several
  * models, each with its own pose, in one frame. The dummy backend validates the
- * uniform blocks and bindings; wgr_model_flush uploads the joints before the passes. */
+ * uniform blocks and bindings; wgri_model_flush uploads the joints before the passes. */
 void test_pipeline_skinned_joints(void)
 {
     enum { MODELS = 3 };

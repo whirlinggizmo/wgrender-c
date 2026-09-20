@@ -36,8 +36,8 @@
  *   u_sh[9]           environment irradiance / pi as spherical harmonics (xyz)
  *   u_tonemap         x mode (0 none, 1 Khronos PBR Neutral, 2 ACES), y exposure
  *                     scale (2^EV). Mode 0 and scale 1 outside scenes.
- * The attenuation and cone formulas match wgr_light_attenuation and
- * wgr_light_spot_factor in src/wgr_light.c. The BRDF follows the glTF 2.0
+ * The attenuation and cone formulas match wgri_light_attenuation and
+ * wgri_light_spot_factor in src/wgr_light.c. The BRDF follows the glTF 2.0
  * specification, appendix B (Lambert diffuse, GGX / Smith height-correlated
  * specular, Schlick Fresnel).
  */
