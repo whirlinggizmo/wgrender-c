@@ -100,7 +100,7 @@ LIB     := $(BUILD)/libsk.a
 SRCS    := $(wildcard src/*.c)
 OBJS    := $(patsubst src/%.c,$(BUILD)/obj/%.o,$(SRCS))
 
-.PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check parity loadbench spritebench brdf-lut example-shaders \
+.PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check parity loadbench spritebench shadowbench brdf-lut example-shaders \
         web print-web-flags windows windows-test windows-smoke FORCE
 
 all: $(LIB)
@@ -157,7 +157,7 @@ deps:
 # (BACKEND=, WASM_EXAMPLE=) propagate to the sub-make automatically.
 examples:
 	@$(MAKE) -C examples
-run wasm wasm-all websize serve serve-tls spritebench-web loadbench-web webcheck webstart smoke:
+run wasm wasm-all websize serve serve-tls spritebench-web shadowbench-web loadbench-web webcheck webstart smoke:
 	@$(MAKE) -C examples $@
 
 # --- tests (delegated to tests/Makefile) -------------------------------------
@@ -246,6 +246,25 @@ else
 	@$(CC) $(STD) -O2 -DSK_HEADLESS -DSOKOL_DUMMY_BACKEND $(SPRITEBENCH_INCS) tools/bench/spritebench.c \
 	    build/headless/libsk.a -ldl -lm -lpthread -o build/headless/spritebench
 	@build/headless/spritebench 2>/dev/null
+endif
+
+# --- shadow benchmark (tools/bench) ------------------------------------------
+# What a casting light costs a frame: the same scene with no shadows, one light at two
+# map sizes, two lights, and one where nothing receives. Headless by default (CPU
+# only, and no GPU at all); DESKTOP=1 uses the desktop build with vsync off.
+# `make shadowbench-web` builds it as a web page (examples/Makefile).
+shadowbench:
+ifeq ($(DESKTOP),1)
+	@$(MAKE) --no-print-directory -j$(NPROC) all
+	@libs="$$($(MAKE) --no-print-directory -s -C examples print-ldlibs)"; \
+	$(CC) $(STD) -O2 -DSOKOL_GLCORE $(SPRITEBENCH_INCS) tools/bench/shadowbench.c build/desktop/libsk.a \
+	    $$libs -lm -o build/desktop/shadowbench
+	@build/desktop/shadowbench 2>/dev/null
+else
+	@$(MAKE) --no-print-directory -j$(NPROC) all HEADLESS=1
+	@$(CC) $(STD) -O2 -DSK_HEADLESS -DSOKOL_DUMMY_BACKEND $(SPRITEBENCH_INCS) tools/bench/shadowbench.c \
+	    build/headless/libsk.a -ldl -lm -lpthread -o build/headless/shadowbench
+	@build/headless/shadowbench 2>/dev/null
 endif
 
 # --- shaders (sokol-shdc) ---------------------------------------------------

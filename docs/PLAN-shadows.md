@@ -247,8 +247,37 @@ before there was a way to see what the map held.
   `lights`, `shaders` and `postprocess` examples still look right.
 - `make verify`, `make webcheck` (both backends), `make test SANITIZE=address`,
   `make windows-test` / `windows-smoke` under Wine.
-- Cost: not measured yet. The desktop session here renders through llvmpipe on a
-  virtual display, where the numbers say nothing; measuring wants a browser session on
-  the GPU, as the skinning work used.
+- Cost, measured with `make shadowbench DESKTOP=1` (tools/bench/shadowbench.c) on an
+  RTX 4080 laptop GPU, vsync off — the same scene of generated shapes with a floor,
+  half of them turning, the camera moving so the fit re-snaps. Frame ms, and the CPU
+  ms inside it (one run; runs vary by about 0.05 ms):
+
+  | case             |  100 | cpu  |  400 | cpu  | 1000 | cpu  |
+  |------------------|-----:|-----:|-----:|-----:|-----:|-----:|
+  | no shadows       | 0.25 | 0.15 | 0.62 | 0.47 | 1.41 | 1.20 |
+  | sun, 1024        | 0.42 | 0.26 | 0.82 | 0.62 | 1.94 | 1.60 |
+  | sun, 2048        | 0.33 | 0.18 | 0.90 | 0.66 | 1.95 | 1.63 |
+  | sun, 4096        | 0.38 | 0.18 | 1.03 | 0.65 | 2.06 | 1.60 |
+  | sun + spot, 1024 | 0.40 | 0.23 | 1.11 | 0.88 | 2.21 | 2.04 |
+  | sun, no receive  | 0.30 | 0.18 | 0.84 | 0.66 | 1.91 | 1.62 |
+
+  Read the two columns against each other. **The CPU number barely moves across 1024,
+  2048 and 4096** — the pass draws the same casters whatever the map's size — so what
+  separates those rows is the map's fill, and it is real: sixteen times the pixels
+  costs about +0.05 ms at 100 models and +0.12 at 400. What separates "no shadows" from
+  "sun, 1024" is the other thing, submitting every caster a second time: +0.15 ms of
+  CPU at 400 models, +0.40 at 1000. A second casting light adds another pass and
+  roughly repeats it. Receiving is the cheapest part: turning it off saves ~0.02.
+
+  So a casting light costs one pass over its casters plus its map's fill, and which
+  dominates is a property of the scene rather than of shadows. Both point at the same
+  phase 3 work — skip a light's pass when nothing it sees has moved — and say cascades
+  should be budgeted as passes *and* pixels.
+
+  The model counts stop at 1000 because libsk drops model placements past 1024 a frame
+  (`MAX_MODEL_DRAWS`): asking for more measures the same 1024. Lighting alone is about
+  1.4 microseconds a mesh here, so a scene that could draw 4096 would spend roughly
+  5-6 ms before shadows.
+
 - Checked on desktop GL, WebGL2 and WebGPU: every caster throws a shadow, the no-cast
   sphere throws none, the no-receive sphere stays lit, shadows touch their casters.

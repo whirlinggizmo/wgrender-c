@@ -324,9 +324,24 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       need. Layers share the largest map size asked for; a light's slot rides in a
       spare component of its per-light data, so only the per-slot arrays grow.
       `.skshader` format 7 ([PLAN-shadows.md](PLAN-shadows.md), `examples/shadows.c`)
+- [x] Shadow cost measured (2026-09-21): `make shadowbench [DESKTOP=1]`
+      (tools/bench/shadowbench.c, also a web page). RTX 4080, vsync off, frame ms (and
+      the CPU ms in it) at 100 / 400 / 1000 models: none 0.25/0.62/1.41; sun at 1024
+      0.42/0.82/1.94, at 2048 0.33/0.90/1.95, at 4096 0.38/1.03/2.06; sun + spot
+      0.40/1.11/2.21; nothing receiving 0.30/0.84/1.91. The CPU cost barely moves with
+      the map's size, so that axis is GPU fill (16x the pixels: ~+0.05 / +0.12 ms),
+      while the extra pass over the casters is CPU (+0.15 at 400, +0.40 at 1000).
+      Receiving costs ~0.02. Which dominates is a property of the scene
+- [ ] Models past 1024 a frame are dropped (`MAX_MODEL_DRAWS` in src/sk_model.c, with
+      `MAX_MODEL_ITEMS` 8192 primitives): the queue is a fixed array, it warns once and
+      the rest of the frame's models silently don't draw. Found while benchmarking —
+      asking for 1600 and 4096 models measured the same 1024. A scene with more than a
+      thousand objects is not unusual, so the queue should grow like the render command
+      list does (realloc up to a ceiling), or say why it shouldn't. Lighting is about
+      1.4 microseconds a mesh, so 4096 would be ~5-6 ms of submission before shadows
 - [ ] Shadows later (phase 3): cascades for large scenes, point lights (six maps), and
-      sprites as casters; skip a light's pass when nothing it sees has moved. Measure
-      the frame cost on a GPU (off / 1024 / 2048) as the skinning work did
+      sprites as casters; skip a light's pass when nothing it sees has moved — the
+      measurement above says that is where the time is
 - [x] Materials, phase 3b (2026-09-21): lit 3D sprites — built-in PBR/unlit materials
       on `sk_sprite3d`, shaded with libsk's model PBR (normal, metallic-roughness,
       occlusion and emissive maps; the sprite's texture is the base color, its tint the
