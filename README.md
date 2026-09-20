@@ -8,6 +8,13 @@ Still early, but past the first vertical slice: desktop GL and web (WebGL2 /
 WebGPU) builds, 2D shapes and text, TTF fonts, textures, 3D sprites, glTF
 models with GPU skinning, a scene graph with picking, audio, and async assets.
 
+**The examples run in a browser: https://whirlinggizmo.github.io/wgrender-c/** —
+every example, published from `main` by `.github/workflows/pages.yml`. It is the
+`WEB_THREADS=0` WebGL2 build, because GitHub Pages can't send the COOP/COEP headers
+a threaded build needs; nothing needs threads, but asset decoding runs on the main
+thread there, which `loading` reports rather than hides. Locally, `make serve` sends
+those headers, so the same examples load on worker threads.
+
 ## Direction: libwgrender is the primary library
 
 As of 2026-09-16, **libwgrender is where new work happens**; librl is in maintenance mode.
