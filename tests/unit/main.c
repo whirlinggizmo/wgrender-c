@@ -59,6 +59,7 @@ static const test_case_t TESTS[] = {
     {"shader_effects", test_shader_effects},
     {"shadow_state", test_shadow_state},
     {"shadow_fit", test_shadow_fit},
+    {"shadow_fit_spot", test_shadow_fit_spot},
     {"shadow_casters", test_shadow_casters},
     {"animation_sampling", test_animation_sampling},
     {"sprite_pick_alpha", test_sprite_pick_alpha},

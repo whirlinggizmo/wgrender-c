@@ -5,7 +5,9 @@
  * scene is a floor, a wall, some generated shapes and an animated gumshoe, so the
  * shadows fall across each other and across themselves.
  *
- *   - 1 turns casting on and off, the difference this whole feature makes
+ *   - 1 turns the sun's casting on and off, the difference this whole feature makes
+ *   - 2 does the same for a spot light circling the scene, which casts through its own
+ *     cone: two lights casting at once, a layer of the shadow map each
  *   - the ball on the left doesn't cast (sk_model_set_casts_shadow), so it floats
  *     like everything did before shadows; the one on the right doesn't receive
  *     (sk_model_set_receives_shadow), so the wall's shadow passes over it
@@ -16,8 +18,8 @@
  *   - M cycles the map size (512, 1024, 2048, 4096)
  *   - S changes how much light a shadow blocks, and T tints what it leaves behind
  *
- * Keys: 1 shadows, UP/DOWN distance, [ ] bias, M map size, S strength, T tint,
- * O camera, ESC quit. */
+ * Keys: 1 sun shadows, 2 spot shadows, UP/DOWN distance, [ ] bias, M map size,
+ * S strength, T tint, O camera, ESC quit. */
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -31,13 +33,14 @@ enum { SIZE_COUNT = 4 };
 static const int MAP_SIZES[SIZE_COUNT] = {512, 1024, 2048, 4096};
 
 static struct {
-    sk_handle_t scene, camera, sun, gumshoe;
+    sk_handle_t scene, camera, sun, spot, spot_marker, gumshoe;
     sk_handle_t no_cast, no_receive;
-    bool shadows, orbit;
+    bool shadows, spot_shadows, orbit;
     float distance, bias, strength;
     int size_index, tint_index;
     float angle, time;
-} g = {.shadows = true, .orbit = true, .distance = 30.0f, .bias = 1.0f, .strength = 1.0f, .size_index = 2};
+} g = {.shadows = true, .spot_shadows = true, .orbit = true, .distance = 30.0f, .bias = 1.0f,
+       .strength = 1.0f, .size_index = 1};
 
 /* what a shadow keeps of the light: nothing (physical), then two stylised tints */
 enum { TINT_COUNT = 3 };
@@ -97,6 +100,22 @@ static void init(void *user_data)
     sk_light_set_shadow_color(g.sun, TINTS[g.tint_index]);
     sk_scene_add(g.scene, g.sun, 0);
 
+    /* a second caster: a spot light that circles the scene and shadows through its
+       own cone. Both share the map, so both use the same size */
+    g.spot = sk_light_create(SK_LIGHT_SPOT);
+    sk_light_set_color(g.spot, sk_color_rgba(150, 210, 255, 255));
+    sk_light_set_intensity(g.spot, 260.0f);
+    sk_light_set_range(g.spot, 24.0f);
+    sk_light_set_spot_cone(g.spot, 0.30f, 0.44f);
+    sk_light_set_casts_shadows(g.spot, true);
+    sk_light_set_shadow_map_size(g.spot, MAP_SIZES[g.size_index]);
+    sk_light_set_shadow_distance(g.spot, 24.0f);
+    sk_scene_add(g.scene, g.spot, 0);
+    g.spot_marker = sk_shape3d_create();
+    sk_shape3d_set_sphere(g.spot_marker, 0.16f);
+    sk_shape3d_set_color(g.spot_marker, sk_color_rgba(150, 210, 255, 255));
+    sk_scene_add(g.scene, g.spot_marker, 0);
+
     place(sk_mesh_create_plane(40.0f, 40.0f, 0), 0, 0, 0, 0.42f, 0.44f, 0.46f, 0.9f);
     /* a wall to throw a long shadow across the floor */
     place(sk_mesh_create_cube(0.5f, 3.0f, 7.0f), -4.5f, 1.5f, 0, 0.55f, 0.5f, 0.45f, 0.85f);
@@ -128,6 +147,10 @@ static void frame(float dt, float tick_fraction, void *user_data)
         g.shadows = !g.shadows;
         sk_light_set_casts_shadows(g.sun, g.shadows);
     }
+    if (sk_input_get_key(SK_KEY_2) == SK_BUTTON_PRESSED) {
+        g.spot_shadows = !g.spot_shadows;
+        sk_light_set_casts_shadows(g.spot, g.spot_shadows);
+    }
     if (sk_input_get_key(SK_KEY_O) == SK_BUTTON_PRESSED) g.orbit = !g.orbit;
     if (sk_input_get_key(SK_KEY_S) == SK_BUTTON_PRESSED) {
         g.strength = g.strength > 0.9f ? 0.65f : g.strength > 0.5f ? 0.35f : 1.0f;
@@ -140,6 +163,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     if (sk_input_get_key(SK_KEY_M) == SK_BUTTON_PRESSED) {
         g.size_index = (g.size_index + 1) % SIZE_COUNT;
         sk_light_set_shadow_map_size(g.sun, MAP_SIZES[g.size_index]);
+        sk_light_set_shadow_map_size(g.spot, MAP_SIZES[g.size_index]);
     }
     if (sk_input_get_key(SK_KEY_UP) != SK_BUTTON_UP || sk_input_get_key(SK_KEY_DOWN) != SK_BUTTON_UP) {
         const float step = sk_input_get_key(SK_KEY_UP) != SK_BUTTON_UP ? dt * 20.0f : -dt * 20.0f;
@@ -155,6 +179,11 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
     g.time += dt;
     sk_model_animate(g.gumshoe, dt);
+    /* the spot circles overhead, always aimed at the middle of the scene */
+    const float sx = 7.0f * sinf(g.time * 0.35f), sz = 7.0f * cosf(g.time * 0.35f);
+    sk_light_set_position(g.spot, sx, 6.5f, sz);
+    sk_light_set_direction(g.spot, -sx, -6.5f, -sz);
+    sk_shape3d_set_transform(g.spot_marker, sx, 6.5f, sz, 0, 0, 0, 1, 1, 1);
     if (g.orbit) g.angle += dt * 0.18f;
     sk_camera3d_set_view(g.camera, 11.0f * sinf(g.angle), 5.0f, 11.0f * cosf(g.angle), 0, 1.2f, 0, 0, 1, 0);
 
@@ -162,8 +191,9 @@ static void frame(float dt, float tick_fraction, void *user_data)
     sk_render_clear_background(sk_color_rgba(120, 150, 200, 255));
     sk_scene_draw(g.scene);
     sk_text_draw("libsk shadows: a directional light casting into a depth map", 12, 36, 20, SK_COLOR_RAYWHITE);
-    snprintf(line, sizeof(line), "[1] shadows %s   map %d   distance %.0f   bias %.1f texels", g.shadows ? "on" : "off",
-             MAP_SIZES[g.size_index], (double)g.distance, (double)g.bias);
+    snprintf(line, sizeof(line), "[1] sun %s   [2] spot %s   map %d   distance %.0f   bias %.1f texels",
+             g.shadows ? "on" : "off", g.spot_shadows ? "on" : "off", MAP_SIZES[g.size_index], (double)g.distance,
+             (double)g.bias);
     sk_text_draw(line, 12, 64, 16, SK_COLOR_LIGHTGRAY);
     snprintf(line, sizeof(line), "[S] strength %.2f   [T] tint %s", (double)g.strength, TINT_NAMES[g.tint_index]);
     sk_text_draw(line, 12, 86, 16, SK_COLOR_LIGHTGRAY);

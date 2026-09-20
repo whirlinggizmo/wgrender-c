@@ -227,9 +227,10 @@ reference/librl the raylib library this evolves from (read-only reference)
   metallic-roughness, occlusion and emissive maps), lit by the scene's lights and
   environment, which are chosen once per batch. Shapes are always unlit. See
   `examples/lights.c`.
-- Shadows: a directional light casts when
-  asked (`sk_light_set_casts_shadows`), drawing what casts into a depth map once a
-  frame; models, lit 3D sprites and custom shaders are darkened by it. Per light: how
+- Shadows: directional and spot lights cast when asked
+  (`sk_light_set_casts_shadows`), drawing what casts into a depth map once a frame;
+  models, lit 3D sprites and custom shaders are darkened by it. Up to four lights cast
+  at once, sharing one map (a layer each). Per light: how
   far its shadows reach, the map size, the depth bias (in texels), how much light a
   shadow takes away and what colour it leaves. Per model: whether it casts, and
   whether it receives. See `docs/PLAN-shadows.md` and `examples/shadows.c`.

@@ -22,11 +22,13 @@
 #define SK_SHADOW_PULLBACK 50.0f /* world units the light's near plane is pulled back */
 
 static struct {
-    sg_image map;
-    sg_view map_view, depth_attachment;
+    sg_image map;                 /* a depth array: one layer per casting light */
+    sg_view map_view;
+    sg_view layer_attachment[SK_MAX_SHADOW_LIGHTS];
     sg_sampler sampler;
-    int size;              /* the map's pixels each way, 0 = none made yet */
-    bool unsupported;      /* the backend can't sample a depth texture (said once) */
+    int size;              /* each layer's pixels each way, 0 = none made yet */
+    int layers;
+    bool unsupported;      /* the backend can't sample a depth array (said once) */
     sk_shadow_binding_t binding; /* this frame's, for the shaders */
     int env;               /* the lighting environment it was drawn for, -1 none */
 } sk_sm;
@@ -142,17 +144,83 @@ sk_shadow_fit_t sk_shadow_fit_directional(const sk_camera3d_t *cam, float aspect
     return fit;
 }
 
+/* A perspective projection in the depth range the backend clips to, like
+ * sk_shadow_ortho but for a spot light's cone. */
+static sk_mat4_t shadow_perspective(float fovy, float aspect, float n, float f, bool zero_to_one)
+{
+    const float t = tanf(fovy * 0.5f);
+    sk_mat4_t m = {{0}};
+    m.m[0] = 1.0f / (aspect * t);
+    m.m[5] = 1.0f / t;
+    m.m[11] = -1.0f;
+    if (zero_to_one) { /* WebGPU clips 0 <= z <= w */
+        m.m[10] = f / (n - f);
+        m.m[14] = (f * n) / (n - f);
+    } else { /* GL and WebGL2 clip -w <= z <= w */
+        m.m[10] = (f + n) / (n - f);
+        m.m[14] = (2.0f * f * n) / (n - f);
+    }
+    return m;
+}
+
+sk_shadow_fit_t sk_shadow_fit_spot(vec3_t position, vec3_t direction, float cos_outer, float distance,
+                                   float near_plane, int map_size, bool zero_to_one)
+{
+    vec3_t dir = sk_v3_norm(direction);
+    sk_camera3d_t light_cam;
+    sk_shadow_fit_t fit;
+    float fovy;
+
+    if (!(sk_v3_dot(dir, dir) > 0.0f)) {
+        dir = (vec3_t){0.0f, -1.0f, 0.0f};
+    }
+    if (!(distance > 0.0f)) {
+        distance = 1.0f;
+    }
+    if (!(near_plane > 0.0f) || near_plane >= distance) {
+        near_plane = distance * 0.01f;
+    }
+    if (map_size < 1) {
+        map_size = 1;
+    }
+    /* the whole cone has to fit, with a little margin so its edge isn't on the very
+       last texel; a cone at or past a right angle is clamped to something projectable */
+    fovy = 2.0f * acosf(cos_outer < -0.99f ? -0.99f : (cos_outer > 1.0f ? 1.0f : cos_outer)) * 1.1f;
+    if (fovy > 2.8f) {
+        fovy = 2.8f; /* about 160 degrees */
+    }
+    if (fovy < 0.02f) {
+        fovy = 0.02f;
+    }
+    light_cam.position = position;
+    light_cam.target = sk_v3_add(position, dir);
+    light_cam.up = fabsf(dir.y) > 0.99f ? (vec3_t){0.0f, 0.0f, 1.0f} : (vec3_t){0.0f, 1.0f, 0.0f};
+    light_cam.fov = fovy;
+    light_cam.ortho_height = 1.0f;
+    light_cam.projection = SK_CAMERA3D_PERSPECTIVE;
+
+    fit.depth_range = distance;
+    /* a spot's texels grow with distance; this is the size at the far end, which is
+       where its shadow usually lands */
+    fit.texel_world = 2.0f * tanf(fovy * 0.5f) * distance / (float)map_size;
+    fit.view_proj = sk_mat4_mul(shadow_perspective(fovy, 1.0f, near_plane, distance, zero_to_one),
+                                sk_camera3d_view(&light_cam));
+    return fit;
+}
+
 /* ------------------------------------------------------------------- map ---- */
 
 static bool depth_sampling_supported(void)
 {
-    return sg_query_pixelformat(SG_PIXELFORMAT_DEPTH).depth && sg_query_pixelformat(SG_PIXELFORMAT_DEPTH).sample;
+    const sg_pixelformat_info info = sg_query_pixelformat(SG_PIXELFORMAT_DEPTH);
+    return info.depth && info.sample;
 }
 
-/* The map at `size`, made on first use and again when the size changes. */
-static bool ensure_map(int size)
+/* The array at `size` with `layers` layers, made on first use and again when either
+ * changes. Layers share one size: that's what a texture array is. */
+static bool ensure_map(int size, int layers)
 {
-    if (sk_sm.size == size && sk_sm.map.id != SG_INVALID_ID) {
+    if (sk_sm.size == size && sk_sm.layers == layers && sk_sm.map.id != SG_INVALID_ID) {
         return true;
     }
     if (!depth_sampling_supported()) {
@@ -162,20 +230,27 @@ static bool ensure_map(int size)
         }
         return false;
     }
-    sg_destroy_view(sk_sm.depth_attachment);
+    for (int i = 0; i < SK_MAX_SHADOW_LIGHTS; i++) {
+        sg_destroy_view(sk_sm.layer_attachment[i]);
+        sk_sm.layer_attachment[i] = (sg_view){0};
+    }
     sg_destroy_view(sk_sm.map_view);
     sg_destroy_image(sk_sm.map);
     sk_sm.map = sg_make_image(&(sg_image_desc){
+        .type = SG_IMAGETYPE_ARRAY,
         .usage = {.depth_stencil_attachment = true},
         .width = size,
         .height = size,
+        .num_slices = layers,
         .pixel_format = SG_PIXELFORMAT_DEPTH,
         .sample_count = 1,
         .label = "sk-shadow-map",
     });
     sk_sm.map_view = sg_make_view(&(sg_view_desc){.texture.image = sk_sm.map, .label = "sk-shadow-map-view"});
-    sk_sm.depth_attachment =
-        sg_make_view(&(sg_view_desc){.depth_stencil_attachment.image = sk_sm.map, .label = "sk-shadow-map-depth"});
+    for (int i = 0; i < layers; i++) { /* one attachment per layer: a pass writes one */
+        sk_sm.layer_attachment[i] = sg_make_view(&(sg_view_desc){
+            .depth_stencil_attachment = {.image = sk_sm.map, .slice = i}, .label = "sk-shadow-map-layer"});
+    }
     if (sk_sm.sampler.id == SG_INVALID_ID) {
         /* comparison sampling: reading it gives how lit the point is, filtered by the
            GPU, not the depth that's stored */
@@ -189,6 +264,7 @@ static bool ensure_map(int size)
         });
     }
     sk_sm.size = size;
+    sk_sm.layers = layers;
     return sg_query_image_state(sk_sm.map) == SG_RESOURCESTATE_VALID;
 }
 
@@ -202,67 +278,99 @@ static int casting_env(void)
         if (env == NULL) {
             return -1;
         }
-        if (env->shadow_light >= 0 && env->shadow_light < env->count) {
+        if (env->shadow_count > 0) {
             return i;
         }
     }
 }
 
-/* sk_render_hooks: draw the casters into the map, before anything is shaded. */
+/* Where one casting light looks, and how big its texels are there. */
+static sk_shadow_fit_t fit_light(const sk_scene_light_t *light, const sk_camera3d_t *cam, float aspect,
+                                 bool zero_to_one)
+{
+    if (light->type == SK_LIGHT_SPOT) {
+        /* a spot only lights its own cone, and only as far as its range reaches */
+        const float reach = light->range > 0.0f && light->range < light->shadow_distance ? light->range
+                                                                                         : light->shadow_distance;
+        return sk_shadow_fit_spot(light->position, light->direction, light->cos_outer, reach, reach * 0.01f,
+                                  sk_sm.size, zero_to_one);
+    }
+    return sk_shadow_fit_directional(cam, aspect, light->direction, light->shadow_distance, sk_sm.size,
+                                     SK_SHADOW_PULLBACK, zero_to_one);
+}
+
+/* sk_render_hooks: draw the casters into each casting light's layer, before anything
+ * is shaded. */
 static void shadows_draw(void)
 {
     const int env_index = casting_env();
     const sk_light_env_t *env = env_index >= 0 ? sk_light_env_get(env_index) : NULL;
-    const sk_scene_light_t *light = env != NULL ? &env->lights[env->shadow_light] : NULL;
     const bool zero_to_one = sg_query_backend() == SG_BACKEND_WGPU;
     sk_camera3d_t cam;
-    sk_shadow_fit_t fit;
-    vec2_t size;
+    vec2_t screen;
+    float aspect;
+    int wanted_size = 0;
 
-    sk_sm.binding.valid = false;
+    sk_sm.binding = (sk_shadow_binding_t){0};
     sk_sm.env = -1;
-    if (light == NULL || !sk_model_has_shadow_casters(env_index)) {
+    if (env == NULL || !sk_model_has_shadow_casters(env_index)) {
         return;
     }
-    if (!sk_camera3d_get_active_data(&cam) || !ensure_map(light->shadow_map_size)) {
+    if (!sk_camera3d_get_active_data(&cam)) {
         return;
     }
-    size = sk_render_target_size();
-    fit = sk_shadow_fit_directional(&cam, size.y > 0.0f ? size.x / size.y : 1.0f, light->direction,
-                                    light->shadow_distance, sk_sm.size, SK_SHADOW_PULLBACK, zero_to_one);
+    /* the layers of an array share one size, so the largest map anyone asked for wins */
+    for (int i = 0; i < env->shadow_count; i++) {
+        const int size = env->lights[env->shadow_lights[i]].shadow_map_size;
+        if (size > wanted_size) wanted_size = size;
+    }
+    if (!ensure_map(wanted_size, env->shadow_count)) {
+        return;
+    }
+    screen = sk_render_target_size();
+    aspect = screen.y > 0.0f ? screen.x / screen.y : 1.0f;
 
-    /* the depth buffer is the whole point here, so say it must be kept: sokol's default
-       for depth is DONTCARE, which WebGPU takes at its word and discards (GL only treats
-       it as a hint, which is why this once looked like a WebGPU-only problem) */
-    sg_begin_pass(&(sg_pass){
-        .action = {.depth = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE,
-                             .clear_value = 1.0f},
-                   .stencil.load_action = SG_LOADACTION_DONTCARE},
-        .attachments = {.depth_stencil = sk_sm.depth_attachment},
-        .label = "sk-shadow-map",
-    });
-    sk_model_draw_shadow_casters(env_index, &fit.view_proj);
-    sg_end_pass();
+    sk_sm.binding.valid = true;
+    sk_sm.binding.map = sk_sm.map_view;
+    sk_sm.binding.sampler = sk_sm.sampler;
+    sk_sm.binding.count = env->shadow_count;
+    sk_sm.binding.depth_scale = zero_to_one ? 1.0f : 0.5f; /* clip z -> the 0..1 depth stored */
+    sk_sm.binding.depth_offset = zero_to_one ? 0.0f : 0.5f;
+    sk_sm.binding.flipped = sg_query_features().origin_top_left;
 
+    for (int i = 0; i < env->shadow_count; i++) {
+        const sk_scene_light_t *light = &env->lights[env->shadow_lights[i]];
+        const sk_shadow_fit_t fit = fit_light(light, &cam, aspect, zero_to_one);
+
+        /* the depth buffer is the whole point here, so say it must be kept: sokol's
+           default for depth is DONTCARE, which WebGPU takes at its word and discards
+           (GL only treats it as a hint, which is why this once looked like a
+           WebGPU-only problem) */
+        sg_begin_pass(&(sg_pass){
+            .action = {.depth = {.load_action = SG_LOADACTION_CLEAR, .store_action = SG_STOREACTION_STORE,
+                                 .clear_value = 1.0f},
+                       .stencil.load_action = SG_LOADACTION_DONTCARE},
+            .attachments = {.depth_stencil = sk_sm.layer_attachment[i]},
+            .label = "sk-shadow-map",
+        });
+        sk_model_draw_shadow_casters(env_index, &fit.view_proj);
+        sg_end_pass();
+
+        sk_sm.binding.lights[i] = (sk_shadow_light_t){
+            .light = env->shadow_lights[i],
+            .view_proj = fit.view_proj,
+            .texel = 1.0f / (float)sk_sm.size,
+            .bias_constant = light->shadow_bias_constant,
+            .bias_slope = light->shadow_bias_slope,
+            /* the bias is given in texels, which is what acne is made of; the shader
+               works in the map's depth units, so carry the conversion with it */
+            .bias_scale = fit.depth_range > 0.0f ? fit.texel_world / fit.depth_range : 0.0f,
+            .texel_world = fit.texel_world,
+            .strength = light->shadow_strength,
+            .tint = {light->shadow_tint.x, light->shadow_tint.y, light->shadow_tint.z},
+        };
+    }
     sk_sm.env = env_index;
-    sk_sm.binding = (sk_shadow_binding_t){
-        .valid = true,
-        .map = sk_sm.map_view,
-        .sampler = sk_sm.sampler,
-        .view_proj = fit.view_proj,
-        .light = env->shadow_light,
-        .texel = 1.0f / (float)sk_sm.size,
-        .bias_constant = light->shadow_bias_constant,
-        .bias_slope = light->shadow_bias_slope,
-        /* the bias is given in texels, which is what acne is made of; the shader
-           works in the map's depth units, so carry the conversion with it */
-        .bias_scale = fit.depth_range > 0.0f ? fit.texel_world / fit.depth_range : 0.0f,
-        .strength = light->shadow_strength,
-        .tint = {light->shadow_tint.x, light->shadow_tint.y, light->shadow_tint.z},
-        .depth_scale = zero_to_one ? 1.0f : 0.5f, /* clip z -> the 0..1 depth stored */
-        .depth_offset = zero_to_one ? 0.0f : 0.5f,
-        .texel_world = fit.texel_world,
-    };
 }
 
 static bool get_binding(int light_env, sk_shadow_binding_t *out)
@@ -333,7 +441,7 @@ void sk_shadow_init(void)
 void sk_shadow_deinit(void)
 {
     sg_destroy_sampler(sk_sm.sampler);
-    sg_destroy_view(sk_sm.depth_attachment);
+    for (int i = 0; i < SK_MAX_SHADOW_LIGHTS; i++) sg_destroy_view(sk_sm.layer_attachment[i]);
     sg_destroy_view(sk_sm.map_view);
     sg_destroy_image(sk_sm.map);
     memset(&sk_sm, 0, sizeof(sk_sm));

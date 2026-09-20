@@ -721,7 +721,6 @@ static bool draw_custom(const sk_sprite_batch_t *b)
         }
         frame.camera_time[3] = time;
         frame.tint[0] = frame.tint[1] = frame.tint[2] = frame.tint[3] = 1.0f; /* each sprite's is in sk_color */
-        frame.shadow_params[0] = -1.0f; /* set below when a light in this batch casts */
         frame.output[2] = 1.0f;                                               /* exposure */
         if (env != NULL) {
             frame.output[1] = (float)env->tonemap;
@@ -758,24 +757,11 @@ static bool draw_custom(const sk_sprite_batch_t *b)
                     frame.sh[k][2] = environment.sh.c[k][2];
                 }
             }
-            if (custom_shadow.valid) { /* the casting light, as built-in shading gets it */
-                memcpy(frame.shadow_mat, custom_shadow.view_proj.m, sizeof(frame.shadow_mat));
-                for (int i = 0; i < light_count; i++) {
-                    if (lights[i] == custom_shadow.light) frame.shadow_params[0] = (float)i;
-                }
-                frame.shadow_params[1] = custom_shadow.texel;
-                frame.shadow_params[2] = custom_shadow.bias_constant;
-                frame.shadow_params[3] = custom_shadow.bias_slope;
-                frame.shadow_depth[0] = custom_shadow.depth_scale;
-                frame.shadow_depth[1] = custom_shadow.depth_offset;
-                frame.shadow_depth[2] = 0.0f;
-                frame.shadow_texel[0] = custom_shadow.texel_world;
-                frame.shadow_depth[3] = custom_shadow.strength;
-                frame.shadow_tint[0] = custom_shadow.tint[0];
-                frame.shadow_tint[1] = custom_shadow.tint[1];
-                frame.shadow_tint[2] = custom_shadow.tint[2];
-                frame.shadow_tint[3] = custom_shadow.bias_scale;
-                frame.shadow_map[0] = sg_query_features().origin_top_left ? 1.0f : 0.0f;
+            /* the frame's casting lights, as the built-in shading gets them */
+            sk_shadow_fill_uniforms(&custom_shadow, frame.shadow_mat, frame.shadow_params, frame.shadow_tint,
+                                    frame.shadow_extra, frame.shadow_map);
+            for (int i = 0; i < light_count; i++) {
+                frame.light_spot[i][2] = (float)sk_shadow_slot_of(&custom_shadow, lights[i]);
             }
         }
         sg_apply_uniforms(SK_SHADER_BLOCK_FRAME, &SG_RANGE(frame));
@@ -868,8 +854,8 @@ static void ensure_lit(void)
     sk_sb.lit_sampler = sg_make_sampler(&(sg_sampler_desc){
         .min_filter = SG_FILTER_LINEAR, .mag_filter = SG_FILTER_LINEAR, .label = "sk-sprite-lit"});
     sk_sb.no_shadow = sg_make_image(&(sg_image_desc){
-        .usage.depth_stencil_attachment = true, .width = 1, .height = 1,
-        .pixel_format = SG_PIXELFORMAT_DEPTH, .sample_count = 1, .label = "sk-sprite-no-shadow"});
+        .type = SG_IMAGETYPE_ARRAY, .usage.depth_stencil_attachment = true, .width = 1, .height = 1,
+        .num_slices = 1, .pixel_format = SG_PIXELFORMAT_DEPTH, .sample_count = 1, .label = "sk-sprite-no-shadow"});
     sk_sb.no_shadow_view = sg_make_view(&(sg_view_desc){.texture.image = sk_sb.no_shadow});
     sk_sb.no_shadow_sampler = sg_make_sampler(&(sg_sampler_desc){
         .min_filter = SG_FILTER_LINEAR, .mag_filter = SG_FILTER_LINEAR,
@@ -930,7 +916,6 @@ static bool draw_lit(const sk_sprite_batch_t *b)
     scene.u_camera_pos[2] = cam->source.position.z;
     scene.u_tonemap[0] = env != NULL ? (float)env->tonemap : 0.0f;
     scene.u_tonemap[1] = env != NULL ? powf(2.0f, env->exposure) : 1.0f;
-    scene.u_shadow_params[0] = -1.0f; /* set below when a light in this batch casts */
     if (sk_shadow_hooks.get_binding != NULL) {
         sk_shadow_hooks.get_binding(b->light_env, &shadow);
     }
@@ -951,40 +936,11 @@ static bool draw_lit(const sk_sprite_batch_t *b)
         }
         light_count = sk_light_select(env, b->bounds_min, b->bounds_max, lights, SK_MAX_DRAW_LIGHTS);
         params.u_material[1] = (float)light_count;
-        if (shadow.valid) {
-            memcpy(scene.u_shadow_mat, shadow.view_proj.m, sizeof(scene.u_shadow_mat));
-            for (int i = 0; i < light_count; i++) {
-                if (lights[i] == shadow.light) scene.u_shadow_params[0] = (float)i;
-            }
-            scene.u_shadow_params[1] = shadow.texel;
-            scene.u_shadow_params[2] = shadow.bias_constant;
-            scene.u_shadow_params[3] = shadow.bias_slope;
-            scene.u_shadow_depth[0] = shadow.depth_scale;
-            scene.u_shadow_depth[1] = shadow.depth_offset;
-            scene.u_shadow_depth[2] = 0.0f;
-            scene.u_shadow_texel[0] = shadow.texel_world;
-            scene.u_shadow_depth[3] = shadow.strength;
-            scene.u_shadow_tint[0] = shadow.tint[0];
-            scene.u_shadow_tint[1] = shadow.tint[1];
-            scene.u_shadow_tint[2] = shadow.tint[2];
-            scene.u_shadow_tint[3] = shadow.bias_scale;
-            scene.u_shadow_map[0] = sg_query_features().origin_top_left ? 1.0f : 0.0f;
-        }
+        /* the frame's casting lights, a layer of the map each */
+        sk_shadow_fill_uniforms(&shadow, scene.u_shadow_mat, scene.u_shadow_params, scene.u_shadow_tint,
+                                scene.u_shadow_extra, scene.u_shadow_map);
         for (int i = 0; i < light_count; i++) {
-            const sk_scene_light_t *light = &env->lights[lights[i]];
-            light_block.u_light_pos_range[i][0] = light->position.x;
-            light_block.u_light_pos_range[i][1] = light->position.y;
-            light_block.u_light_pos_range[i][2] = light->position.z;
-            light_block.u_light_pos_range[i][3] = light->range;
-            light_block.u_light_dir_type[i][0] = light->direction.x;
-            light_block.u_light_dir_type[i][1] = light->direction.y;
-            light_block.u_light_dir_type[i][2] = light->direction.z;
-            light_block.u_light_dir_type[i][3] = (float)light->type;
-            light_block.u_light_radiance[i][0] = light->radiance.x;
-            light_block.u_light_radiance[i][1] = light->radiance.y;
-            light_block.u_light_radiance[i][2] = light->radiance.z;
-            light_block.u_light_spot[i][0] = light->cos_inner;
-            light_block.u_light_spot[i][1] = light->cos_outer;
+            light_block.u_light_spot[i][2] = (float)sk_shadow_slot_of(&shadow, lights[i]);
         }
     }
 

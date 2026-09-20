@@ -108,12 +108,12 @@ typedef struct {
     float light_spot[8][4];
     float env[4];
     float sh[9][4];
-    float shadow_mat[16];  /* world -> the casting light's clip space */
-    float shadow_params[4];
-    float shadow_depth[4];
-    float shadow_tint[4];
-    float shadow_map[4];   /* x 1 = the map is stored top-down */
-    float shadow_texel[4]; /* x one texel in world units */
+    /* shadows: up to four casting lights, a layer of the map each (sk_shadow.h) */
+    float shadow_mat[4][16];
+    float shadow_params[4][4];
+    float shadow_tint[4][4];
+    float shadow_extra[4][4];
+    float shadow_map[4];
 } sk_shader_frame_t;
 
 typedef struct {

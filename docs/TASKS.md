@@ -318,9 +318,15 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       only treats it as a hint. One explicit store action. `make webcheck` now records
       the browser's own log entries (Dawn's validation messages live there, not in the
       console API) and `--verbose` prints them (PLAN-shadows.md, "The WebGPU bug")
-- [ ] Shadows later: spot lights (a perspective map) and several casting lights at
-      once; then cascades for large scenes, point lights, and sprites as casters.
-      Measure the frame cost on a GPU (off / 1024 / 2048) as the skinning work did
+- [x] Shadows, phase 2 (2026-09-21): spot lights cast through their own cone (a
+      perspective fit), and up to four lights cast at once — one depth array with a
+      layer each, since a texture per light would eat the sampler slots custom shaders
+      need. Layers share the largest map size asked for; a light's slot rides in a
+      spare component of its per-light data, so only the per-slot arrays grow.
+      `.skshader` format 7 ([PLAN-shadows.md](PLAN-shadows.md), `examples/shadows.c`)
+- [ ] Shadows later (phase 3): cascades for large scenes, point lights (six maps), and
+      sprites as casters; skip a light's pass when nothing it sees has moved. Measure
+      the frame cost on a GPU (off / 1024 / 2048) as the skinning work did
 - [x] Materials, phase 3b (2026-09-21): lit 3D sprites — built-in PBR/unlit materials
       on `sk_sprite3d`, shaded with libsk's model PBR (normal, metallic-roughness,
       occlusion and emissive maps; the sprite's texture is the base color, its tint the

@@ -25,7 +25,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHDC = os.path.join(ROOT, "tools", "sokol-shdc")
 INTERFACE = os.path.join(ROOT, "shaders", "sk.glsl")
 SLANGS = ["glsl410", "glsl300es", "wgsl"]
-FORMAT_VERSION = 6
+FORMAT_VERSION = 7
 
 FS_PARAMS_BINDING = 2  # binding 0 is libsk's vertex block, 1 its sk_frame block
 VS_PARAMS_BINDING = 3

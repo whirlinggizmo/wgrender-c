@@ -11,7 +11,8 @@
  * sk_model (which picks lights per placement and uploads them) and the model
  * shader. See docs/PLAN-lighting.md. */
 
-#define SK_MAX_DRAW_LIGHTS 8   /* lights per model placement (shader array size) */
+#define SK_MAX_DRAW_LIGHTS 8    /* lights per model placement (shader array size) */
+#define SK_MAX_SHADOW_LIGHTS 4  /* lights casting shadows at once (layers in the map) */
 #define SK_MAX_SCENE_LIGHTS 64 /* enabled lights considered per scene draw */
 #define SK_MAX_LIGHT_ENVS 16   /* lighting environments (scene draws) per frame */
 
@@ -47,7 +48,10 @@ typedef struct {
     float environment_rotation; /* radians around +y */
     int tonemap;                /* sk_tonemap_t */
     float exposure;             /* stops */
-    int shadow_light;           /* index into lights of the one casting shadows, -1 none */
+    /* the lights casting shadows, in the order the scene found them: indices into
+     * lights, and where each one's map sits in the shadow array */
+    int shadow_lights[SK_MAX_SHADOW_LIGHTS];
+    int shadow_count;
 } sk_light_env_t;
 
 /* Resolve a light handle. False if the handle is invalid, not a light, or disabled. */

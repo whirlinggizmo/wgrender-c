@@ -1,6 +1,7 @@
 # Plan: Shadows
 
-Status: **phase 1 implemented (2026-09-21)** on desktop GL, WebGL2 and WebGPU.
+Status: **phases 1 and 2 implemented (2026-09-21)** on desktop GL, WebGL2 and WebGPU:
+one directional light, then spot lights and up to four casting at once.
 Decisions 1–7 were answered as recommended, with one addition during implementation:
 a shadow's strength and tint. See "Phase 1 as built", and "The WebGPU bug" for the one
 that took longest. Roadmap: the largest remaining gap against three.js, which ships
@@ -116,9 +117,10 @@ so a custom shader lights a surface the way built-in materials do, shadows inclu
    PCF, models cast and receive, lit sprites receive, `sk_shadow()` for custom
    shaders, an example. Everything above.
 2. **Spot lights** (a perspective map, the same machinery) and **several casting
-   lights** at once (a map each, capped).
+   lights** at once (a map each, capped). Done; see "Phase 2 as built".
 3. **Cascades** for large outdoor scenes, **point lights** (six faces or none), and
-   **sprite casters** (alpha-tested quads in the depth pass).
+   **sprite casters** (alpha-tested quads in the depth pass). Also worth doing then:
+   skip a light's pass when nothing it can see has moved.
 
 ## Decisions
 
@@ -185,6 +187,31 @@ so a custom shader lights a surface the way built-in materials do, shadows inclu
   cube and the BRDF table now share one sampler — both are linear and clamped.
 - `.skshader` format 6: `sk_frame` carries the light's matrix and parameters, and
   `sk_shadow(i, pos, n)` gives custom shaders the same answer built-in materials use.
+
+## Phase 2 as built
+
+- **One depth array, a layer per casting light** (`SK_MAX_SHADOW_LIGHTS` = 4), rather
+  than a texture each. Custom shaders have almost no sampler slots left (libsk owns 8
+  and 9 of the twelve), and an array costs one slot however many lights cast. Each
+  layer gets its own attachment view (`sg_view_desc.depth_stencil_attachment.slice`)
+  and its own pass.
+- **Layers share one size**, which is what an array is: the largest `shadow_map_size`
+  any casting light asked for wins, and `sk_light_set_shadow_map_size` says so. Keep
+  them equal unless you mean it — a 2048 sun drags a torch's layer up with it. The
+  alternative, an atlas with per-light tiles, buys memory back at the cost of uv rects
+  and PCF that must not bleed across tile borders; not worth it yet.
+- **A light's slot rides in `u_light_spot[i].z`** (-1: it casts nothing), so the
+  per-light arrays don't grow at all. Everything else is per slot: the matrix, the
+  texel sizes, the bias, the tint and the strength — about 460 bytes added to the
+  frame block. `.skshader` format 7.
+- **Spot lights fit their own cone**: a perspective frustum from the light, with the
+  field of view taken from the outer cone angle plus a tenth so the edge isn't on the
+  last texel, reaching the nearer of the light's range and its shadow distance. The
+  near plane is a hundredth of that reach. `sk_shadow_fit_spot` is pure and tested,
+  like the directional fit.
+- **Point lights still refuse**, and say why: they want six maps, one each way.
+- The scene hands out slots in the order it finds casting lights; past four, a light
+  lights the scene without shadowing it.
 
 ## The WebGPU bug
 

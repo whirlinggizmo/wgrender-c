@@ -70,13 +70,14 @@ void test_shadow_state(void)
     CHECK(sk_light_set_casts_shadows(sun, false));
     CHECK(!sk_light_get_casts_shadows(sun));
 
-    /* only directional lights cast for now */
+    /* spot lights cast too; point lights would need six maps, so they still don't */
     const sk_handle_t spot = sk_light_create(SK_LIGHT_SPOT);
     const sk_handle_t point = sk_light_create(SK_LIGHT_POINT);
-    CHECK(!sk_light_set_casts_shadows(spot, true));
+    CHECK(sk_light_set_casts_shadows(spot, true));
+    CHECK(sk_light_get_casts_shadows(spot));
     CHECK(!sk_light_set_casts_shadows(point, true));
-    CHECK(!sk_light_get_casts_shadows(spot) && !sk_light_get_casts_shadows(point));
-    CHECK(sk_light_set_casts_shadows(spot, false)); /* turning it off is always fine */
+    CHECK(!sk_light_get_casts_shadows(point));
+    CHECK(sk_light_set_casts_shadows(point, false)); /* turning it off is always fine */
 
     /* the settings take sensible values and refuse silly ones */
     CHECK(sk_light_set_shadow_distance(sun, 25.0f));
@@ -202,6 +203,45 @@ void test_shadow_fit(void)
     CHECK(degenerate.depth_range > 0.0f);
 }
 
+/* A spot light's map covers its own cone, from where it stands. */
+void test_shadow_fit_spot(void)
+{
+    const vec3_t at = {0.0f, 6.0f, 0.0f};
+    const vec3_t down = {0.0f, -1.0f, 0.0f};
+    const float cos_outer = cosf(0.5f); /* a 0.5 rad half-angle cone */
+
+    const sk_shadow_fit_t fit = sk_shadow_fit_spot(at, down, cos_outer, 20.0f, 0.2f, 1024, false);
+    /* straight below the lamp is the middle of its map */
+    const vec3_t under = to_light_clip(&fit.view_proj, (vec3_t){0.0f, 0.0f, 0.0f});
+    CHECK_NEAR(under.x, 0.0f, 1e-3f);
+    CHECK_NEAR(under.y, 0.0f, 1e-3f);
+    CHECK(under.z > -1.0f && under.z < 1.0f);
+
+    /* a point inside the cone is covered, one well outside it isn't */
+    const vec3_t inside = to_light_clip(&fit.view_proj, (vec3_t){1.0f, 0.0f, 0.0f});
+    CHECK(inside.x > -1.0f && inside.x < 1.0f && inside.y > -1.0f && inside.y < 1.0f);
+    const vec3_t outside = to_light_clip(&fit.view_proj, (vec3_t){20.0f, 0.0f, 0.0f});
+    CHECK(outside.x < -1.0f || outside.x > 1.0f);
+
+    /* behind the lamp is behind the projection, which the shader treats as unlit */
+    const vec3_t behind = to_light_clip(&fit.view_proj, (vec3_t){0.0f, 12.0f, 0.0f});
+    CHECK(behind.z < 0.0f || behind.z > 1.0f);
+
+    /* the depth range is how far it reaches, and its texels grow with the cone */
+    CHECK_NEAR(fit.depth_range, 20.0f, 1e-3f);
+    const sk_shadow_fit_t wide = sk_shadow_fit_spot(at, down, cosf(0.9f), 20.0f, 0.2f, 1024, false);
+    CHECK(wide.texel_world > fit.texel_world);
+    const sk_shadow_fit_t sharper = sk_shadow_fit_spot(at, down, cos_outer, 20.0f, 0.2f, 4096, false);
+    CHECK(sharper.texel_world < fit.texel_world);
+
+    /* WebGPU's depth range, and nonsense in, something sane out */
+    const sk_shadow_fit_t wgpu = sk_shadow_fit_spot(at, down, cos_outer, 20.0f, 0.2f, 1024, true);
+    const vec3_t near_wgpu = to_light_clip(&wgpu.view_proj, (vec3_t){0.0f, 5.0f, 0.0f});
+    CHECK(near_wgpu.z >= 0.0f && near_wgpu.z <= 1.0f);
+    const sk_shadow_fit_t silly = sk_shadow_fit_spot(at, (vec3_t){0, 0, 0}, 2.0f, -1.0f, -1.0f, 0, false);
+    CHECK(silly.texel_world > 0.0f && silly.depth_range > 0.0f);
+}
+
 /* The scene picks the casting light, and the casters are the models queued for it. */
 void test_shadow_casters(void)
 {
@@ -228,7 +268,7 @@ void test_shadow_casters(void)
     sk_scene_draw(scene);
     const sk_light_env_t *env = sk_light_env_get(0);
     CHECK(env != NULL && env->count == 2);
-    CHECK(env->shadow_light == -1);
+    CHECK(env->shadow_count == 0);
     sk_render_end();
 
     /* with the second light casting, that's the one the scene points at */
@@ -236,17 +276,18 @@ void test_shadow_casters(void)
     sk_render_begin();
     sk_scene_draw(scene);
     env = sk_light_env_get(0);
-    CHECK(env != NULL && env->shadow_light == 1);
-    CHECK(env->lights[env->shadow_light].casts_shadows);
+    CHECK(env != NULL && env->shadow_count == 1 && env->shadow_lights[0] == 1);
+    CHECK(env->lights[env->shadow_lights[0]].casts_shadows);
     CHECK(sk_model_has_shadow_casters(0)); /* the cube is queued for it */
     sk_render_end();
 
-    /* the first casting light wins when several do */
+    /* several casting lights each get a slot, in the order the scene found them */
     CHECK(sk_light_set_casts_shadows(plain, true));
     sk_render_begin();
     sk_scene_draw(scene);
     env = sk_light_env_get(0);
-    CHECK(env != NULL && env->shadow_light == 0);
+    CHECK(env != NULL && env->shadow_count == 2);
+    CHECK(env->shadow_lights[0] == 0 && env->shadow_lights[1] == 1);
     sk_render_end();
     CHECK(sk_light_set_casts_shadows(plain, false));
 
@@ -266,6 +307,27 @@ void test_shadow_casters(void)
     CHECK(!sk_model_has_shadow_casters(0));
     sk_render_end();
     CHECK(sk_model_set_visible(model, true));
+
+    /* at most SK_MAX_SHADOW_LIGHTS cast at once; the rest light without shadows */
+    sk_handle_t extra[SK_MAX_SHADOW_LIGHTS + 2];
+    for (int i = 0; i < SK_MAX_SHADOW_LIGHTS + 2; i++) {
+        extra[i] = sk_light_create(SK_LIGHT_DIRECTIONAL);
+        CHECK(sk_light_set_casts_shadows(extra[i], true));
+        sk_scene_add(scene, extra[i], 0);
+    }
+    sk_render_begin();
+    sk_scene_draw(scene);
+    env = sk_light_env_get(0);
+    CHECK(env != NULL && env->shadow_count == SK_MAX_SHADOW_LIGHTS);
+    for (int i = 0; i < env->shadow_count; i++) { /* each slot is a distinct light */
+        CHECK(env->lights[env->shadow_lights[i]].casts_shadows);
+        for (int j = 0; j < i; j++) CHECK(env->shadow_lights[i] != env->shadow_lights[j]);
+    }
+    sk_render_end();
+    for (int i = 0; i < SK_MAX_SHADOW_LIGHTS + 2; i++) {
+        sk_scene_remove(scene, extra[i]);
+        sk_light_destroy(extra[i]);
+    }
 
     /* a lighting environment nothing was queued for has no casters either */
     sk_render_begin();

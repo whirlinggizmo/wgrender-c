@@ -17,7 +17,7 @@
  * sprites), or a screen effect's one. */
 
 #define SHADERS_INITIAL 8
-#define FORMAT_VERSION 6
+#define FORMAT_VERSION 7
 #define GLSL_NAME_MAX 128 /* texture-sampler pairs join two names: longer than the parameters' */
 
 static sk_shader_t *sk_shaders; /* grown by the pool: don't hold a pointer across a create */

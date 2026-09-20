@@ -272,9 +272,9 @@ bool sk_light_shadow_set_casts(sk_handle_t light, bool casts)
 {
     sk_light_t *light_ptr = resolve(light);
     if (light_ptr == NULL) return false;
-    if (casts && light_ptr->type != SK_LIGHT_DIRECTIONAL) {
-        log_warn("sk_light_set_casts_shadows: only directional lights cast shadows for now "
-                 "(docs/PLAN-shadows.md)");
+    if (casts && light_ptr->type == SK_LIGHT_POINT) {
+        log_warn("sk_light_set_casts_shadows: point lights don't cast shadows yet — a point light "
+                 "needs six maps, one each way (docs/PLAN-shadows.md)");
         return false;
     }
     light_ptr->casts_shadows = casts;

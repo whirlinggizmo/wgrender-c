@@ -55,6 +55,7 @@ void test_shader_sprites(void);
 void test_shader_effects(void);
 void test_shadow_state(void);
 void test_shadow_fit(void);
+void test_shadow_fit_spot(void);
 void test_shadow_casters(void);
 void test_animation_sampling(void);
 void test_sprite_pick_alpha(void);

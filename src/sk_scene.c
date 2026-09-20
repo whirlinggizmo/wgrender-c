@@ -741,13 +741,13 @@ static int push_lighting(const sk_scene_t *scene_ptr)
     env.ambient = (vec3_t){sk_srgb_to_linear(ambient.r) * scene_ptr->ambient_intensity,
                            sk_srgb_to_linear(ambient.g) * scene_ptr->ambient_intensity,
                            sk_srgb_to_linear(ambient.b) * scene_ptr->ambient_intensity};
-    env.shadow_light = -1;
+    env.shadow_count = 0;
     for (int i = 0; i < scene_ptr->count && env.count < SK_MAX_SCENE_LIGHTS; i++) {
         if (sk_handle_get_kind(scene_ptr->items[i].drawable) == SK_HANDLE_KIND_LIGHT &&
             sk_scene_hooks.scene_light(scene_ptr->items[i].drawable, &env.lights[env.count])) {
-            /* the first casting light shadows the scene; the rest light it as usual */
-            if (env.lights[env.count].casts_shadows && env.shadow_light < 0) {
-                env.shadow_light = env.count;
+            /* the first few casting lights get a shadow map; the rest light as usual */
+            if (env.lights[env.count].casts_shadows && env.shadow_count < SK_MAX_SHADOW_LIGHTS) {
+                env.shadow_lights[env.shadow_count++] = env.count;
             }
             env.count++;
         }

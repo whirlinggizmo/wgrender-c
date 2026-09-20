@@ -2452,16 +2452,6 @@ static void draw_transparent(sk_handle_t handle, int part)
     }
 }
 
-/* Which of this draw's (up to 8) lights is the casting one, or -1 when the light
- * selection left it out — then nothing here is shadowed by it. */
-static int shadow_light_slot(const sk_model_draw_t *e, int env_light)
-{
-    for (int i = 0; i < e->light_count; i++) {
-        if (e->lights[i] == env_light) return i;
-    }
-    return -1;
-}
-
 /* The scene and light blocks applied last, and whether they still hold: sokol needs
  * every block applied again after a pipeline change (reset_fs_blocks). */
 static fs_scene_t last_scene;
@@ -2526,24 +2516,9 @@ static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material, co
     /* exposure and tone mapping come from the scene; models outside a scene show raw colors */
     scene.u_tonemap[0] = env != NULL ? (float)env->tonemap : 0.0f;
     scene.u_tonemap[1] = env != NULL ? powf(2.0f, env->exposure) : 1.0f;
-    /* the casting light's map, or -1 in x when nothing casts this frame */
-    scene.u_shadow_params[0] = -1.0f;
-    if (lit && shadow->valid) {
-        memcpy(scene.u_shadow_mat, shadow->view_proj.m, sizeof(scene.u_shadow_mat));
-        scene.u_shadow_params[0] = (float)shadow_light_slot(e, shadow->light);
-        scene.u_shadow_params[1] = shadow->texel;
-        scene.u_shadow_params[2] = shadow->bias_constant;
-        scene.u_shadow_params[3] = shadow->bias_slope;
-        scene.u_shadow_depth[0] = shadow->depth_scale;
-        scene.u_shadow_depth[1] = shadow->depth_offset;
-        scene.u_shadow_depth[2] = 0.0f;
-        scene.u_shadow_texel[0] = shadow->texel_world;
-        scene.u_shadow_depth[3] = shadow->strength;
-        scene.u_shadow_tint[0] = shadow->tint[0];
-        scene.u_shadow_tint[1] = shadow->tint[1];
-        scene.u_shadow_tint[2] = shadow->tint[2];
-        scene.u_shadow_tint[3] = shadow->bias_scale;
-        scene.u_shadow_map[0] = sg_query_features().origin_top_left ? 1.0f : 0.0f;
+    if (lit && receives_shadow) { /* the frame's casting lights, a layer each */
+        sk_shadow_fill_uniforms(shadow, scene.u_shadow_mat, scene.u_shadow_params, scene.u_shadow_tint,
+                                scene.u_shadow_extra, scene.u_shadow_map);
     }
     if (lit && binding->valid && env->environment_intensity > 0.0f) {
         scene.u_env[0] = env->environment_intensity;
@@ -2576,6 +2551,8 @@ static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material, co
             lights.u_light_radiance[i][2] = light->radiance.z;
             lights.u_light_spot[i][0] = light->cos_inner;
             lights.u_light_spot[i][1] = light->cos_outer;
+            lights.u_light_spot[i][2] =
+                (float)(lit && receives_shadow ? sk_shadow_slot_of(shadow, e->lights[i]) : -1);
         }
     }
     sg_apply_uniforms(UB_fs_params, &(sg_range){.ptr = &fsp, .size = sizeof(fsp)});
@@ -2689,6 +2666,8 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
                 frame.light_radiance[i][2] = light->radiance.z;
                 frame.light_spot[i][0] = light->cos_inner;
                 frame.light_spot[i][1] = light->cos_outer;
+                frame.light_spot[i][2] =
+                    (float)(model_ptr->receives_shadow ? sk_shadow_slot_of(&shadow, e->lights[i]) : -1);
             }
             if (environment.valid && env->environment_intensity > 0.0f) {
                 frame.env[0] = env->environment_intensity;
@@ -2702,24 +2681,10 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
                 }
             }
         }
-        /* the casting light, as the built-in shading gets it (sk_shadow in sk.glsl) */
-        frame.shadow_params[0] = -1.0f;
-        if (shadow.valid && model_ptr->receives_shadow) {
-            memcpy(frame.shadow_mat, shadow.view_proj.m, sizeof(frame.shadow_mat));
-            frame.shadow_params[0] = (float)shadow_light_slot(e, shadow.light);
-            frame.shadow_params[1] = shadow.texel;
-            frame.shadow_params[2] = shadow.bias_constant;
-            frame.shadow_params[3] = shadow.bias_slope;
-            frame.shadow_depth[0] = shadow.depth_scale;
-            frame.shadow_depth[1] = shadow.depth_offset;
-            frame.shadow_depth[2] = 0.0f;
-            frame.shadow_texel[0] = shadow.texel_world;
-            frame.shadow_depth[3] = shadow.strength;
-            frame.shadow_tint[0] = shadow.tint[0];
-            frame.shadow_tint[1] = shadow.tint[1];
-            frame.shadow_tint[2] = shadow.tint[2];
-            frame.shadow_tint[3] = shadow.bias_scale;
-            frame.shadow_map[0] = sg_query_features().origin_top_left ? 1.0f : 0.0f;
+        /* the frame's casting lights, as the built-in shading gets them */
+        if (model_ptr->receives_shadow) {
+            sk_shadow_fill_uniforms(&shadow, frame.shadow_mat, frame.shadow_params, frame.shadow_tint,
+                                    frame.shadow_extra, frame.shadow_map);
         }
         sg_apply_uniforms(SK_SHADER_BLOCK_FRAME, &(sg_range){.ptr = &frame, .size = sizeof(frame)});
     }
@@ -3146,8 +3111,8 @@ void sk_model_init(void)
         .data.mip_levels[0] = {.ptr = flat_normal, .size = sizeof(flat_normal)}});
     sk_model_flat_normal_view = sg_make_view(&(sg_view_desc){.texture.image = sk_model_flat_normal_img});
     sk_model_shadow_fallback_img = sg_make_image(&(sg_image_desc){
-        .usage.depth_stencil_attachment = true, .width = 1, .height = 1,
-        .pixel_format = SG_PIXELFORMAT_DEPTH, .sample_count = 1, .label = "sk-model-no-shadow"});
+        .type = SG_IMAGETYPE_ARRAY, .usage.depth_stencil_attachment = true, .width = 1, .height = 1,
+        .num_slices = 1, .pixel_format = SG_PIXELFORMAT_DEPTH, .sample_count = 1, .label = "sk-model-no-shadow"});
     sk_model_shadow_fallback_view = sg_make_view(&(sg_view_desc){.texture.image = sk_model_shadow_fallback_img});
     sk_model_shadow_fallback_sampler = sg_make_sampler(&(sg_sampler_desc){
         .min_filter = SG_FILTER_LINEAR, .mag_filter = SG_FILTER_LINEAR,
