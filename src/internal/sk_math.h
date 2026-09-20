@@ -261,7 +261,11 @@ typedef struct {
 
 /* The six planes of a view-projection (left, right, bottom, top, near, far), normals
  * pointing inward, normalized so a plane test gives a real distance. Gribb-Hartmann:
- * each plane is a sum or difference of two rows of the matrix. */
+ * each plane is a sum or difference of two rows of the matrix.
+ *
+ * This is the -1..1 clip depth of a camera projection. A 0..1 projection (a WebGPU
+ * shadow fit) has its near plane at z = 0, not z = -w, so the near plane this gives is
+ * looser than the real one — it keeps a little too much, never too little. */
 static inline void sk_frustum_from_view_proj(sk_mat4_t vp, sk_plane_t out[6])
 {
     const float *m = vp.m; /* column-major: m[col * 4 + row] */
@@ -295,6 +299,20 @@ static inline bool sk_frustum_test_aabb(const sk_plane_t planes[6], vec3_t min, 
         }
     }
     return true;
+}
+
+/* How much to grow a box before testing it. A skinned model's bounds are its rest
+ * pose, so an animation can reach outside them; better to draw a little too much than
+ * to cull a raised arm. */
+#define SK_CULL_PAD 0.15f
+
+/* Grow a box by a fraction of its own size, in place. */
+static inline void sk_aabb_pad(vec3_t *min, vec3_t *max, float fraction)
+{
+    const vec3_t pad = {(max->x - min->x) * fraction, (max->y - min->y) * fraction,
+                        (max->z - min->z) * fraction};
+    min->x -= pad.x, min->y -= pad.y, min->z -= pad.z;
+    max->x += pad.x, max->y += pad.y, max->z += pad.z;
 }
 
 /* A box swept along `direction` for `distance`: where a shadow of it could fall. */

@@ -818,8 +818,6 @@ static bool grow_transparent_items(void)
 /* What this scene draw can see: the camera's planes, and for each casting light the
  * direction and reach of the shadows it throws, so a caster off screen that shadows
  * something on screen is still drawn. Rebuilt per scene draw. */
-#define SK_CULL_PAD 0.15f /* bounds are a skinned model's rest pose: leave room to move */
-
 static struct {
     bool on;                 /* the scene's switch, and a camera to build planes from */
     sk_plane_t planes[6];
@@ -866,12 +864,7 @@ static bool visible(sk_handle_t drawable)
         return true; /* culling off, or nothing to test it with */
     }
     sk_pick_world_aabb(lmin, lmax, model, &wmin, &wmax);
-    {
-        const vec3_t pad = {(wmax.x - wmin.x) * SK_CULL_PAD, (wmax.y - wmin.y) * SK_CULL_PAD,
-                            (wmax.z - wmin.z) * SK_CULL_PAD};
-        wmin.x -= pad.x, wmin.y -= pad.y, wmin.z -= pad.z;
-        wmax.x += pad.x, wmax.y += pad.y, wmax.z += pad.z;
-    }
+    sk_aabb_pad(&wmin, &wmax, SK_CULL_PAD);
     if (sk_frustum_test_aabb(sk_cull.planes, wmin, wmax)) {
         return true;
     }

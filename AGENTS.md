@@ -45,8 +45,9 @@ Keep this file short and rule-shaped. The authoritative design doc is
   textures compressed (made the first time; needs `DESKTOP=1`: headless samples no
   compressed format).
 - `make shadowbench [DESKTOP=1]` — what a casting light costs a frame: the same scene
-  with no shadows, one light at two map sizes, two lights, and one where nothing
-  receives, at two model counts. Headless is CPU only (no GPU at all); `DESKTOP=1`
+  with no shadows, one light at three map sizes, two lights, one where nothing
+  receives, and two where the camera faces away from everything (with culling on and
+  off, which is what frustum culling is worth), at four model counts. Headless is CPU only (no GPU at all); `DESKTOP=1`
   opens a window with vsync off for real frame times. `make shadowbench-web` builds it
   as a page, `/bench/?ex=shadowbench`.
 - `make spritebench [DESKTOP=1]` — sprite-heavy scenes (a grid, a perspective field

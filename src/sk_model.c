@@ -181,6 +181,9 @@ typedef struct {
     int light_count;      /* lights selected for this placement */
     int lights[SK_MAX_DRAW_LIGHTS]; /* indices into the environment's lights */
     int joint_base;       /* its joint matrices in the frame's joint texture, -1 = not skinned */
+    vec3_t wmin, wmax;    /* world bounds: picks this placement's lights, and culls it
+                             out of a shadow map it can't reach (padded, see below) */
+    bool has_bounds;
 } sk_model_draw_t;
 
 /* One primitive to draw, in submission order. sk_render replays ranges of these. */
@@ -2396,10 +2399,13 @@ static int begin_draw(sk_handle_t handle, sk_model_t *model_ptr)
         }
     }
     e->light_count = 0;
-    if (env != NULL && mesh_ptr != NULL) {
-        vec3_t wmin, wmax;
-        sk_pick_world_aabb(mesh_ptr->lmin, mesh_ptr->lmax, model_mat, &wmin, &wmax);
-        e->light_count = sk_light_select(env, wmin, wmax, e->lights, SK_MAX_DRAW_LIGHTS);
+    e->has_bounds = mesh_ptr != NULL;
+    if (e->has_bounds) {
+        sk_pick_world_aabb(mesh_ptr->lmin, mesh_ptr->lmax, model_mat, &e->wmin, &e->wmax);
+        sk_aabb_pad(&e->wmin, &e->wmax, SK_CULL_PAD); /* the rest pose isn't the whole animation */
+    }
+    if (env != NULL && e->has_bounds) {
+        e->light_count = sk_light_select(env, e->wmin, e->wmax, e->lights, SK_MAX_DRAW_LIGHTS);
     }
     return sk_model_draw_count++;
 }
@@ -2964,10 +2970,17 @@ void sk_model_draw_shadow_casters(int light_env, const sk_mat4_t *light_view_pro
     sg_pipeline current = {0};
     float cutoff[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     bool cutoff_applied = false;
+    /* a light's map covers only what its fit reaches; a caster outside it draws
+       nothing but costs a draw call, so test each placement once and remember the
+       answer for the rest of its primitives */
+    sk_plane_t light_planes[6];
+    int tested_draw = -1;
+    bool tested_in_map = false;
 
     if (light_view_proj == NULL) {
         return;
     }
+    sk_frustum_from_view_proj(*light_view_proj, light_planes);
     for (int i = 0; i < sk_model_item_count; i++) {
         const sk_model_item_t *item = &sk_model_items[i];
         const sk_model_draw_t *e = &sk_model_draws[item->draw];
@@ -2975,6 +2988,13 @@ void sk_model_draw_shadow_casters(int light_env, const sk_mat4_t *light_view_pro
         sk_mesh_t *mesh_ptr;
         if (e->light_env != light_env || !caster_of(e, &model_ptr, &mesh_ptr) ||
             item->prim >= mesh_ptr->prim_count) {
+            continue;
+        }
+        if (item->draw != tested_draw) {
+            tested_draw = item->draw;
+            tested_in_map = !e->has_bounds || sk_frustum_test_aabb(light_planes, e->wmin, e->wmax);
+        }
+        if (!tested_in_map) {
             continue;
         }
         const sk_primitive_t *prim = &mesh_ptr->prims[item->prim];

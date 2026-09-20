@@ -243,6 +243,40 @@ void test_shadow_fit_spot(void)
 }
 
 /* The scene picks the casting light, and the casters are the models queued for it. */
+/* A light's map only covers what its fit reaches, so the depth pass tests each caster
+ * against that fit and skips the ones outside (docs/PLAN-culling.md, phase 2). */
+void test_shadow_caster_cull(void)
+{
+    sk_camera3d_t cam = {
+        .position = {0.0f, 2.0f, 0.0f},
+        .target = {0.0f, 2.0f, -1.0f},
+        .up = {0.0f, 1.0f, 0.0f},
+        .fov = 60.0f * 3.14159265f / 180.0f,
+        .projection = SK_CAMERA3D_PERSPECTIVE,
+    };
+    const vec3_t down = {-0.3f, -1.0f, -0.2f};
+    const sk_shadow_fit_t fit = sk_shadow_fit_directional(&cam, 1.0f, down, 30.0f, 1024, 50.0f, false);
+    sk_plane_t planes[6];
+    sk_frustum_from_view_proj(fit.view_proj, planes);
+
+    /* what the camera is looking at is in the map */
+    CHECK(sk_frustum_test_aabb(planes, (vec3_t){-1, 0, -12}, (vec3_t){1, 2, -10}));
+    /* something a world away from it is not, whichever way it lies */
+    CHECK(!sk_frustum_test_aabb(planes, (vec3_t){499, 0, -1}, (vec3_t){501, 2, 1}));
+    CHECK(!sk_frustum_test_aabb(planes, (vec3_t){-1, 0, -501}, (vec3_t){1, 2, -499}));
+    /* but something overhead is: it is between the light and the ground it shades,
+       which is what the fit's pull-back is for */
+    CHECK(sk_frustum_test_aabb(planes, (vec3_t){-1, 20, -12}, (vec3_t){1, 22, -10}));
+
+    /* a spot reaches only as far as its range */
+    const sk_shadow_fit_t spot = sk_shadow_fit_spot((vec3_t){0, 10, 0}, (vec3_t){0, -1, 0}, cosf(0.4f), 20.0f,
+                                                    0.2f, 1024, false);
+    sk_frustum_from_view_proj(spot.view_proj, planes);
+    CHECK(sk_frustum_test_aabb(planes, (vec3_t){-1, 4, -1}, (vec3_t){1, 6, 1}));     /* under it */
+    CHECK(!sk_frustum_test_aabb(planes, (vec3_t){39, 4, -1}, (vec3_t){41, 6, 1}));   /* outside the cone */
+    CHECK(!sk_frustum_test_aabb(planes, (vec3_t){-1, -40, -1}, (vec3_t){1, -38, 1})); /* past its range */
+}
+
 void test_shadow_casters(void)
 {
     begin();

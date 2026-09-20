@@ -237,7 +237,8 @@ reference/librl the raylib library this evolves from (read-only reference)
 - Frustum culling: a scene skips members the camera can't see, testing their bounds
   against the view before anything is submitted — 4000 models behind the camera cost
   0.5 ms a frame instead of 6.8. A caster whose shadow could still fall into view is
-  kept. `sk_scene_set_culling(scene, false)` turns it off to see everything submitted.
+  kept, and the shadow pass itself only redraws the casters that light's map can hold.
+  `sk_scene_set_culling(scene, false)` turns it off to see everything submitted.
   See `docs/PLAN-culling.md`.
 - All text is TrueType, through fontstash. `sk_text_draw` without a font uses the
   built-in font (an ASCII subset of JetBrains Mono embedded in the library,

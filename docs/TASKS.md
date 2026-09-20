@@ -351,8 +351,17 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       the camera cost 6.78 ms a frame before and 0.50 ms now, of which 0.42 is the test
       itself (~0.1 microseconds a member, against the 1.2 it saves); with everything in
       view nothing got slower, because the world matrix a model built twice is now
-      cached. Still to do: the shadow pass redraws every caster in the environment
-      regardless of the light's own frustum (phase 2), and 2D members aren't tested
+      cached. 2D members still aren't tested (nothing measured says they need to be)
+- [x] Frustum culling, phase 2 (2026-09-21): the depth pass tests each caster against
+      the casting light's own fit instead of redrawing every caster in the environment.
+      Exact, not merely conservative — a directional fit's side planes are parallel to
+      the light and a spot's all pass through it, so a caster outside one cannot shadow
+      anything inside, and the fit's pull-back keeps the ones between the light and the
+      box. The bounds come free: sk_model already builds a placement's world AABB to
+      pick its lights, and now keeps it. shadowbench at 4000 models, where the sun's
+      40-unit reach covers a fraction of a 140-unit grid: a casting light cost ~1.6 ms
+      over no shadows and now costs ~0.1 (6.55 -> 5.34 ms), two lights ~3.2 ms and now
+      ~0.1 (8.16 -> 5.36). At 100 models, where the fit covers everything, nothing moves
 - [ ] Models are one draw call each: 4000 lit models cost about 5 ms a frame on an
       RTX 4080 (shadowbench), and ~95% of that is CPU submission — roughly 1.2
       microseconds a model, whatever the model is. Sprites already avoid this (a run

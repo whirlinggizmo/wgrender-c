@@ -1,6 +1,7 @@
 # Plan: Frustum culling
 
-Status: **phase 1 built** (2026-09-21); phase 2 (the shadow pass's own cull) open.
+Status: **phases 1 and 2 built** (2026-09-21). Phase 3 (a visibility mask, 2D members,
+a spatial index) is open and not obviously needed yet.
 Builds on the scene's bounds registry ([ARCHITECTURE.md](ARCHITECTURE.md)) and shadows
 ([PLAN-shadows.md](PLAN-shadows.md)).
 
@@ -93,7 +94,8 @@ rejected model, the test pays for itself at any scene size.
 ## Phasing
 
 1. The helpers, the scene's camera cull (all 3D kinds), the caster volume, the switch.
-2. The shadow pass's own cull against each light's frustum.
+   **Built.**
+2. The shadow pass's own cull against each light's frustum. **Built.**
 3. Later, if wanted: the visibility mask from decision 1; 2D members against the screen
    rectangle; a spatial index so the per-member test itself stops scaling with the
    scene.
@@ -143,6 +145,43 @@ almost entirely the test itself — about 0.1 microseconds a member against the 
 saves. The shadow pass is skipped along with them: with nothing queued, nothing
 receives. With everything in view the bench is unchanged (4000 models, no shadows: 4.96
 against 5.18 before — the cached world matrix pays for the test).
+
+## Phase 2 as built
+
+The depth pass had been redrawing every caster in the lighting environment, whatever
+the light's map actually covered. It now builds that light's six planes from the fit it
+is already given (`sk_frustum_from_view_proj(fit.view_proj)`) and tests each placement
+against them once, remembering the answer for the rest of that placement's primitives.
+
+The test is exact here, not just conservative. A directional fit is an ortho box whose
+side planes are parallel to the light, so a caster outside one projects along the light
+to points that stay outside it — it cannot shadow anything in the box. A spot's planes
+all pass through the light's own position, so the same holds for its cone. The near
+plane is pulled back (`SK_SHADOW_PULLBACK`) precisely so a caster between the light and
+the box is kept, and the unit test checks that a body overhead still makes the cut.
+
+For this, `sk_model` stores the world AABB it already builds at submit time to pick a
+placement's lights (padded once, there, by the same `SK_CULL_PAD`), so the depth pass
+costs one box test per placement per casting light and no bounds work of its own. The
+pad constant and `sk_aabb_pad` moved to `internal/sk_math.h`, which is where the
+frustum helpers live, so the scene and the depth pass grow boxes the same way.
+
+### Measured
+
+`make shadowbench DESKTOP=1`, RTX 4080, 4000 models — the sun's `shadow_distance` is
+40 units and the grid is 140 across, so most casters were being drawn into a map that
+could never hold them:
+
+| case | before phase 2 | after |
+|------|---------------:|------:|
+| no shadows ("off") |  4.96 ms | 5.25 ms |
+| sun casting, 1024  |  6.55 ms | 5.34 ms |
+| sun and spot, 1024 |  8.16 ms | 5.36 ms |
+
+A casting light went from ~1.6 ms to ~0.1 ms over the same scene with no shadows, and a
+second casting light from ~3.2 ms to ~0.1 ms. At 100 models nothing moves: the fit
+covers the whole scene, so nothing is culled, which is the check that it isn't culling
+what the map needs.
 
 ## Verification
 
