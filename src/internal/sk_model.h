@@ -25,6 +25,11 @@ void sk_model_end_frame(void);
 void sk_model_list_gltf_dependencies(const unsigned char *data, int size, sk_asset_add_dependency_fn add,
                                      void *context);
 
+/* The model's joint matrices as the skinned shader reads them (16 floats each, in
+ * order), and how many; 0 when it has no skin or no mesh yet. The pointer is valid
+ * until the model is posed again. Exposed for tests. */
+int sk_model_get_joint_matrices(sk_handle_t model, const float **matrices);
+
 /* Picking helpers (pure; exposed for tests). */
 
 /* Linear blend skinning of one position, as the skinned vertex shader does:

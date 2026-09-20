@@ -1150,6 +1150,16 @@ bool sk_model_animate(sk_handle_t handle, float delta_seconds)
     return true;
 }
 
+int sk_model_get_joint_matrices(sk_handle_t handle, const float **matrices)
+{
+    sk_model_t *model_ptr = resolve(handle);
+    sk_mesh_t *mesh_ptr = model_ptr != NULL ? resolve_mesh(model_ptr->mesh) : NULL;
+
+    if (mesh_ptr == NULL || !mesh_ptr->has_skin) return 0;
+    if (matrices != NULL) *matrices = model_ptr->joint_matrices[0].m;
+    return mesh_ptr->joint_count < SK_MAX_JOINTS ? mesh_ptr->joint_count : SK_MAX_JOINTS;
+}
+
 SK_KEEP
 bool sk_model_set_animation_time(sk_handle_t handle, float seconds)
 {

@@ -53,6 +53,14 @@ void test_material_uv_matrix(void);
 void test_shader_custom_material(void);
 void test_shader_sprites(void);
 void test_shader_effects(void);
+void test_animation_sampling(void);
+void test_sprite_pick_alpha(void);
+void test_text2d_state(void);
+void test_scene_layer_order(void);
+void test_render_command_merging(void);
+void test_render_command_passes(void);
+void test_fs_paths(void);
+void test_fs_files(void);
 
 void test_math_angles(void);
 void test_math_inverse(void);

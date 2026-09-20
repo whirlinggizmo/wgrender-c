@@ -14,9 +14,18 @@ tick the box in the same commit.
 - [x] Unit test setup: `make test`, `tests/unit/` (no stubs, links the headless library);
       first tests cover the handle pool, matrix math, picking math and the
       transparent sort. They found two pick-normal bugs (fixed)
-- [ ] Unit tests: `sk_fs` / asset bookkeeping, scene layers and ordering, sprite
-      alpha-test picking, animation sampling, text2d state, render command-list
-      merging
+- [x] Unit tests for the gaps (2026-09-21): `sk_fs` paths and files (root joining,
+      absolute paths, reading, writing, the directories a write makes), animation
+      sampling (the posed joint matrices: interpolation, wrap, clamp, speed),
+      sprite alpha-test picking (and the CPU alpha mask behind it), text2d state
+      (font, color, visible / pickable / enabled, an invalid handle), scene layer
+      order (which member a pick finds), and the render command list (model runs
+      merging, what stops them merging, per-pass isolation, sprite batches, callbacks).
+      120 unit tests. Found on the way: a texture made from pixels keeps an alpha mask
+      when it has any transparency, so alpha-test picking works on it too
+- [ ] Unit tests still missing: the web half of `sk_fs` (MEMFS + IndexedDB) needs a
+      browser, so it wants the wasm-side tests below; `sk_asset` loader/mapper
+      registration is only exercised through real loaders
 - [x] Sanitizer test builds: `make test SANITIZE=thread|address|undefined` (TSan in CI)
 - [x] Faster checks (2026-09-16): `make verify` (~5 s incremental); smoke runs examples
       in parallel (46 s → 4 s); web library compiles once per backend, examples link
@@ -317,6 +326,11 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       with Clay and draws it through ~100 lines of public-API glue
 - [ ] UI later (PLAN-ui step 4): clipboard and keyboard capture in use with text
       fields, letter spacing, the Dear ImGui extension hook
+- [ ] UI widgets (decided 2026-09-21, see ROADMAP "GUI direction"): factor the
+      hand-built button / slider / scroll list in `examples/ui.c` into a shared
+      `examples/ui_widgets.h`. No widget API in the core: a real widget layer belongs
+      outside it, like the Clay glue, and anything it can't express through the public
+      API (focus order, text-field editing, clipboard) is a core gap to fix there
 - [x] Limits that grow (2026-09-18): the sprite3d and sprite2d pools start at 256
       and double up to 65,534 (the handle's 16-bit index); the scene's transparent
       list doubles as needed; sokol_gl's per-frame vertex and command budgets double

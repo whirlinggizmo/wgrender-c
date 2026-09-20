@@ -33,6 +33,14 @@ that lean on them. Items with a design doc link there.
      Refined in [PLAN-ui.md](PLAN-ui.md) (accepted): the glue uses only libsk's
      public API, so libsk gains the immediate drawing, text and input pieces a layout
      library needs, and no Clay code or types enter libsk.
+   - *Widgets* (decided 2026-09-21): still not in the core. Buttons, sliders and lists
+     are mostly policy — theming, focus order, keyboard navigation, text editing — and
+     choosing that policy for everyone is the toolkit this decision rules out. The
+     hand-built widgets in `examples/ui.c` move into a shared `examples/ui_widgets.h`
+     instead: no API commitment, and it keeps proving the public API is enough. A real
+     widget layer, if a game wants one, goes outside the core like the Clay glue.
+     Whatever such a layer can't express through the public API (focus, text-field
+     editing, clipboard) is a core gap and gets fixed in the core.
 3. **Particle emitters** — emitter object + **batched/instanced** quad rendering
    (rides the 2D batch path + materials from 1–2). High visual payoff; doing it
    right is what finally justifies a real batched renderer over sokol_gl immediate.
