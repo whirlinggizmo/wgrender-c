@@ -292,8 +292,18 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       Per draw: ~8.6 KB -> ~430 bytes. Measured in Chromium on the GPU (100 animated
       gumshoes: 15.2 -> 2.1 ms of frame CPU; 400: 19.4 -> 7.8 ms), with three.js 0.186
       at 2.0 and 6.1 ms. `.skshader` format 4 (rebuild custom shaders)
-- [ ] Materials, phase 3b: lit 3D sprites (built-in PBR/unlit materials on sprite3d;
-      the scene's lights and environment, chosen per batch)
+- [ ] Lightmaps: baked lighting as a material texture (its own texture coordinate set,
+      which materials already support), multiplied into the surface. No new passes;
+      bake them in Blender
+- [ ] Shadows (its own plan, after materials): shadow maps, a depth pass per casting
+      light, per-light and per-material controls, filtering; start with one directional
+      light. The biggest gap against three.js, which has them built in
+- [x] Materials, phase 3b (2026-09-21): lit 3D sprites — built-in PBR/unlit materials
+      on `sk_sprite3d`, shaded with libsk's model PBR (normal, metallic-roughness,
+      occlusion and emissive maps; the sprite's texture is the base color, its tint the
+      vertex color), and the scene's lights and environment chosen once per batch from
+      its bounds; custom sprite shaders now get the same lights and environment in
+      `sk_frame` ([PLAN-materials.md](PLAN-materials.md), `examples/lights.c`)
 - [ ] Materials later: particles (emitters) on custom shaders; custom shaders for 2D
       shapes
 - [x] 2D / UI layer: `enabled` and pointer interaction per scene member, touch as a

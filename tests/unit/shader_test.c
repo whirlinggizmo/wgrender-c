@@ -195,19 +195,20 @@ void test_shader_sprites(void)
         if (i % 2 == 0) CHECK(sk_sprite3d_set_material(sprites[i], custom)); /* alternating */
         sk_scene_add(scene, sprites[i], 0);
     }
-    CHECK(!sk_sprite3d_set_material(sprites[1], pbr)); /* built-in: not on sprites yet */
-    CHECK(sk_sprite3d_get_material(sprites[0]) == custom && sk_sprite3d_get_material(sprites[1]) == 0);
+    CHECK(sk_sprite3d_set_material(sprites[1], pbr)); /* built-in: lit, like a model */
+    CHECK(sk_sprite3d_get_material(sprites[0]) == custom && sk_sprite3d_get_material(sprites[1]) == pbr);
     const sk_handle_t sprite2d = sk_sprite2d_create(texture);
     CHECK(sk_sprite2d_set_material(sprite2d, custom));
-    CHECK(!sk_sprite2d_set_material(sprite2d, pbr));
+    CHECK(!sk_sprite2d_set_material(sprite2d, pbr)); /* 2D has no lights */
 
-    /* one texture, two materials: two batches, however they interleave */
+    /* one texture, three materials (custom, built-in, none): three batches, however
+       they interleave, drawn through the shader's sprite program and libsk's shading */
     sk_render_begin();
     sk_scene_draw(scene);
-    CHECK(sk_sprite_batch_count() == 2);
-    sk_sprite2d_draw(sprite2d);
     CHECK(sk_sprite_batch_count() == 3);
-    sk_render_end(); /* drawn: the custom batches through the shader's sprite program */
+    sk_sprite2d_draw(sprite2d);
+    CHECK(sk_sprite_batch_count() == 4);
+    sk_render_end();
 
     /* 0 goes back to libsk's shader: one batch again */
     for (int i = 0; i < COUNT; i++) CHECK(sk_sprite3d_set_material(sprites[i], 0));

@@ -60,12 +60,21 @@ bool sk_sprite3d_is_enabled(sk_handle_t sprite);
  * sprites are grouped by texture, so they draw in fewer batches. */
 bool sk_sprite3d_set_alpha_mode(sk_handle_t handle, sk_alpha_mode_t mode, float cutoff);
 sk_alpha_mode_t sk_sprite3d_get_alpha_mode(sk_handle_t handle);
-/* Draw the sprite with a custom material's shader (sk_material_create_custom, see
- * shaders/sk.glsl: sk_sprite_color() is the sprite's texture times its tint); 0 goes
- * back to libsk's sprite shader. The sprite keeps its texture, region, tint, facing
- * and alpha mode; the material holds the shader's parameters and textures, shared by
- * every sprite using it. The sprite holds its own reference. False for a built-in
- * material (lit sprites come later). */
+/* Draw the sprite with a material (sk_material.h); 0 goes back to libsk's sprite
+ * shader (texture x tint, unlit). The sprite keeps its texture, region, tint, facing
+ * and alpha mode, and holds its own reference to the material.
+ *
+ *   built-in (SK_MATERIAL_PBR): lit like a model, by the scene's lights and
+ *     environment. The sprite's texture is the base color (its tint multiplies it),
+ *     the material's factors and its normal, metallic-roughness, occlusion and
+ *     emissive maps do the rest, over the sprite's texture region. The quad's facing
+ *     is the surface normal, so normal maps work on billboards. Sprites drawn
+ *     together (one batch) share the lights chosen for where they are: a sprite far
+ *     from the rest of its batch can miss a light near it.
+ *   built-in (SK_MATERIAL_UNLIT): its base color x the sprite's texture and tint.
+ *   custom (sk_material_create_custom): its shader draws the sprite (shaders/sk.glsl:
+ *     sk_sprite_color() is the sprite's texture times its tint), with the same lights
+ *     and environment. */
 bool sk_sprite3d_set_material(sk_handle_t handle, sk_handle_t material);
 sk_handle_t sk_sprite3d_get_material(sk_handle_t handle); /* borrowed; 0 = none */
 

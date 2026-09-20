@@ -52,7 +52,8 @@ static bool assign_material(sk_handle_t *slot, sk_handle_t material, const char 
 {
     const sk_material_t *material_ptr = material != 0 ? sk_material_get(material) : NULL;
     if (material != 0 && (material_ptr == NULL || material_ptr->shader == 0)) {
-        log_warn("%s: sprites take custom materials (sk_material_create_custom) or 0", who);
+        /* built-in materials light a surface, and 2D has no lights (sk_sprite3d) */
+        log_warn("%s: 2D sprites take custom materials (sk_material_create_custom) or 0", who);
         return false;
     }
     if (*slot != material) {

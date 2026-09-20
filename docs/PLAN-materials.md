@@ -4,7 +4,9 @@ Status: **phase 1 implemented (2026-09-16)** (built-in materials for models; see
 `include/sk_material.h` and `examples/materials.c`) and **phase 2 (2026-09-20)**
 (custom shaders; see "Phase 2 as built", `include/sk_shader.h`, `shaders/sk.glsl` and
 `examples/shaders.c`). Phase 3a (2026-09-20): custom shaders on sprites; see "Phase 3a
-as built". 3b (lit sprites) is next.
+as built". Phase 3b (2026-09-21): lit 3D sprites; see "Phase 3b as built". That
+finishes the plan; what's left is recorded in [TASKS.md](TASKS.md) (particles and 2D
+shapes on custom shaders, parameter arrays and matrices, lightmaps, shadows).
 Decisions 1–5 below were accepted as proposed; "Phase 1 as built" records where the
 implementation refined the proposal.
 Roadmap item 1. Builds on lighting ([PLAN-lighting.md](PLAN-lighting.md)), render
@@ -269,6 +271,50 @@ sk_handle_t sk_material_create_custom(sk_handle_t shader);
 - Checked: desktop GL, WebGL2 (sprites read from a texture), WebGPU; unit tests on
   both sprite paths (`-DSK_SPRITES_PULLED`); `examples/shaders.c` outlines and flashes a
   logo sprite in the world and on screen with one material.
+
+## Phase 3b as built: lit 3D sprites
+
+- **One shading path for models and sprites.** The surface shading moved out of
+  `src/shaders/sk_model.glsl` into `src/shaders/sk_pbr.glsl` (`sk_pbr_color`,
+  `sk_pbr_surface`, `sk_pbr_main`), included by both. The sprite shader gained two
+  programs, `quad_lit` and `quad_lit_pulled` (the WebGL2 path that reads sprites from
+  a texture), whose vertex stage builds the quad as before and then writes the
+  varyings the shared fragment stage expects.
+- **What a built-in material does to a sprite:** the sprite's texture is the base
+  color and its tint the vertex color, multiplied by the material's `base_color`; the
+  material's normal, metallic-roughness, occlusion and emissive maps, their texture
+  transforms, and `metallic` / `roughness` / `occlusion_strength` / `emissive` apply
+  as on a model. `SK_MATERIAL_UNLIT` takes the shader's unlit branch (base color,
+  tone mapped), so an unlit material is still useful for the material's own maps and
+  tint. The quad's normal is its facing and its tangent its right edge, so a normal
+  map on a billboard lights as a flat card turned to the camera.
+- **Alpha:** unchanged from 3a — the sprite's alpha mode picks the pipeline and
+  reaches the shader as a cutoff/opaque/as-is flag, now combined with the material's
+  own `alphaCutoff` (`max` of the two) in the shared fragment stage.
+- **Lights are chosen once per batch, not per sprite.** A batch tracks the bounds of
+  the sprites in it and calls `sk_light_select` on them, as a model draw does for its
+  own bounds. The lighting environment joins texture, material, alpha mode, camera
+  and clip in what a batch shares, so sprites drawn under different scene lighting
+  don't merge. Cost, measured in Chromium (sprites in a grid, CPU per frame): 4,000
+  lit 1.79 ms vs 1.77 unlit; 16,000 lit 2.52 vs 1.89 — the shading is on the GPU and
+  the extra CPU is the per-batch uniform blocks.
+- **The sprite module doesn't link the environment module.** `sk_environment_hooks`
+  (one `get_binding`, defined in `sk_render.c`, set by the environment module when
+  it's linked) hands out the prefiltered cube, BRDF table and SH coefficients;
+  without it the sprite batch binds a black cube and zero intensity, so a program
+  that never touches environments doesn't pull one in (`make check`).
+- **Custom sprite shaders get the same lighting.** A custom sprite draw now fills
+  `sk_frame` with the batch's lights and environment, so `sk_environment_diffuse` /
+  `_specular` / `_brdf` and the light list work the same in a sprite shader as in a
+  model shader. `.skshader` format is unchanged by 3b (format 4 came from the
+  skinning work in the same series).
+- **API:** `sk_sprite3d_set_material` now accepts a built-in material as well as a
+  custom one; `sk_sprite2d_set_material` stays custom-only (screen-space sprites have
+  no place in a lit scene). No new functions.
+- Checked: desktop GL, WebGL2 (both sprite paths) and WebGPU; unit tests cover a
+  built-in material on a sprite forming its own batch; `examples/lights.c` puts four
+  lit billboards in the scene (verified lit by zeroing the sun and ambient: far
+  sprites go black, the ones by the point light stay cyan).
 
 ## Decisions
 

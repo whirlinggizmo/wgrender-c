@@ -779,6 +779,7 @@ static sg_backend shader_backend(void)
 
 void sk_environment_init(void)
 {
+    sk_environment_hooks.get_binding = sk_environment_get_binding;
     sk_scene_hooks.environment_retain = sk_environment_retain;
     sk_scene_hooks.environment_release = sk_environment_release;
     sk_scene_hooks.environment_background = sk_environment_submit_background;
@@ -842,6 +843,7 @@ void sk_environment_init(void)
 
 void sk_environment_deinit(void)
 {
+    sk_environment_hooks.get_binding = NULL;
     sk_scene_hooks.environment_retain = NULL;
     sk_scene_hooks.environment_release = NULL;
     sk_scene_hooks.environment_background = NULL;

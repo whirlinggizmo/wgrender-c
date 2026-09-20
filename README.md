@@ -221,7 +221,12 @@ reference/librl the raylib library this evolves from (read-only reference)
 - Lighting is explicit: models in a scene are lit only by lights added to that
   scene (`sk_light_create`, `sk_scene_add`) plus its ambient
   (`sk_scene_set_ambient`); a new scene is dark. Models drawn outside a scene are
-  unlit. Shapes and sprites are unlit. See `examples/lights.c`.
+  unlit. A 3D sprite is unlit until it's given a material
+  (`sk_sprite3d_set_material`): with one it's shaded like a model (the sprite's
+  texture is the base color, its tint the vertex color, plus the material's normal,
+  metallic-roughness, occlusion and emissive maps), lit by the scene's lights and
+  environment, which are chosen once per batch. Shapes are always unlit. See
+  `examples/lights.c`.
 - All text is TrueType, through fontstash. `sk_text_draw` without a font uses the
   built-in font (an ASCII subset of JetBrains Mono embedded in the library,
   `src/fonts/sk_default_font.h`); `sk_font_create` loads others (`sk_text_draw_ex`,
@@ -241,7 +246,8 @@ reference/librl the raylib library this evolves from (read-only reference)
   `sk_shader_create` (or through `sk_asset`) and use it with
   `sk_material_create_custom`. Its parameters and textures are set by the names in
   the shader. The same shader draws sprites (`sk_sprite3d_set_material`,
-  `sk_sprite2d_set_material`; `sk_sprite_color()` is the sprite's texture and tint).
+  `sk_sprite2d_set_material`; `sk_sprite_color()` is the sprite's texture and tint),
+  with the same lights and environment a model shader gets.
   See `docs/PLAN-materials.md` and `examples/shaders.c`.
 
 ## Not yet ported from librl

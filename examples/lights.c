@@ -5,7 +5,9 @@
  *   - a cyan point light orbiting through them, falling off with its range (the
  *     small sphere marks it; shapes are unlit, so it shows the light's color)
  *   - a white spotlight sweeping across them from above
- * Scenes start unlit (no lights, no ambient); everything here is explicit.
+ * Behind them stand billboard sprites with a built-in material (sk_sprite3d_set_material):
+ * they take the same lights as the models, facing the camera, with a normal map for
+ * relief. Scenes start unlit (no lights, no ambient); everything here is explicit.
  * Keys: 1 sun, 2 point light, 3 spotlight, ESC quit. */
 #include <math.h>
 #include <stddef.h>
@@ -16,8 +18,10 @@
 #include "sk.h"
 
 #define MODEL_PATH "models/gumshoe/gumshoe.glb"
+#define SPRITE_PATH "textures/tiles.png"
+#define NORMAL_PATH "textures/tiles_normal.png"
 
-enum { MODEL_COUNT = 5 };
+enum { MODEL_COUNT = 5, SPRITE_COUNT = 4 };
 
 static struct {
     sk_handle_t scene;
@@ -25,6 +29,8 @@ static struct {
     sk_color_t bg;
     sk_color_t grid;
     sk_handle_t models[MODEL_COUNT];
+    sk_handle_t sprites[SPRITE_COUNT]; /* lit billboards: one material, the same lights */
+    sk_handle_t sprite_material;
     sk_handle_t sun;
     sk_handle_t lamp;
     sk_handle_t lamp_marker;
@@ -40,6 +46,22 @@ static void on_mesh_loaded(const char *path, void *user)
         sk_model_set_mesh(g.models[i], mesh);
     }
     sk_mesh_release(mesh); /* the models hold their own references */
+}
+
+static void on_sprite_texture(const char *path, void *user)
+{
+    sk_handle_t texture = sk_texture_create(path);
+    (void)user;
+    for (int i = 0; i < SPRITE_COUNT; i++) sk_sprite3d_set_texture(g.sprites[i], texture);
+    sk_texture_release(texture); /* the sprites hold their own references */
+}
+
+static void on_sprite_normal_map(const char *path, void *user)
+{
+    sk_handle_t texture = sk_texture_create(path);
+    (void)user;
+    sk_material_set_texture(g.sprite_material, "normal_texture", texture);
+    sk_texture_release(texture);
 }
 
 static void on_failed(const char *path, void *user)
@@ -95,7 +117,23 @@ static void init(void *user_data)
     sk_light_set_intensity(g.spot, 125.0f);
     sk_scene_add(g.scene, g.spot, 0);
 
+    /* lit billboards: a built-in material, so the scene's lights reach them */
+    g.sprite_material = sk_material_create(SK_MATERIAL_PBR);
+    sk_material_set_float(g.sprite_material, "metallic", 0.0f);
+    sk_material_set_float(g.sprite_material, "roughness", 0.55f);
+    for (int i = 0; i < SPRITE_COUNT; i++) {
+        g.sprites[i] = sk_sprite3d_create(0);
+        sk_sprite3d_set_transform(g.sprites[i], -3.0f + 2.0f * (float)i, 1.0f, -2.5f, 0, 0, 0, 1, 1, 1);
+        sk_sprite3d_set_size(g.sprites[i], 1.6f);
+        sk_sprite3d_set_alpha_mode(g.sprites[i], SK_ALPHA_MASK, 0.5f);
+        sk_sprite3d_set_material(g.sprites[i], g.sprite_material);
+        sk_scene_add(g.scene, g.sprites[i], 0);
+    }
+    sk_material_release(g.sprite_material); /* the sprites hold it */
+
     sk_asset_add_task(sk_asset_ensure_async(MODEL_PATH, NULL, SK_ASSET_NONE), on_mesh_loaded, on_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(SPRITE_PATH, NULL, SK_ASSET_NONE), on_sprite_texture, on_failed, NULL);
+    sk_asset_add_task(sk_asset_ensure_async(NORMAL_PATH, NULL, SK_ASSET_NONE), on_sprite_normal_map, on_failed, NULL);
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)

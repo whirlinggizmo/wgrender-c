@@ -240,6 +240,96 @@ void main() {
 }
 @end
 
+/* Lit sprites (materials phase 3b): the same shading as models, from the sprite's
+ * texture (its base color), the material's other maps and the scene's lights, which
+ * the batch chooses once (src/sk_sprite_batch.c). The surface faces where the quad
+ * does. sk_pbr.glsl holds the shading; only the vertex shaders differ from a model's. */
+@include sk_pbr.glsl
+
+@block quad_lit_common
+@include_block sk_pbr_color
+layout(binding=0) uniform vs_params {
+    mat4 view_proj;
+    vec4 camera_right;
+    vec4 camera_up;
+    vec4 upright;
+};
+/* in the order sk_pbr.glsl's fragment shader reads them */
+out vec3 v_normal;
+out vec4 v_tangent;
+out vec2 v_uv0;
+out vec2 v_uv1;
+out vec4 v_color;
+out vec3 v_world_pos;
+out float v_alpha_mode;
+
+void place_lit(vec2 corner, vec4 pos, vec4 size, vec4 source, vec3 right_axis, vec4 up_axis, vec4 tint) {
+    vec3 right = right_axis;
+    vec3 up = up_axis.xyz;
+    if (pos.w < 0.5) {
+        right = camera_right.xyz;
+        up = camera_up.xyz;
+    } else if (pos.w < 1.5) {
+        right = upright.xyz;
+        up = vec3(0.0, 1.0, 0.0);
+    }
+    vec2 local = vec2((corner.x + 0.5 - size.z) * size.x, (corner.y - 0.5 + size.w) * size.y);
+    vec3 world = pos.xyz + right * local.x + up * local.y;
+    gl_Position = view_proj * vec4(world, 1.0);
+    v_world_pos = world;
+    v_normal = cross(right, up); /* the quad faces the way it's seen */
+    v_tangent = vec4(right, 1.0);
+    v_uv0 = vec2(mix(source.x, source.z, corner.x + 0.5), mix(source.y, source.w, 0.5 - corner.y));
+    v_uv1 = v_uv0;
+    v_color = vec4(srgb_to_linear(tint.rgb), tint.a); /* its tint, like a model's vertex color */
+    v_alpha_mode = up_axis.w;
+}
+@end
+
+@vs vs_lit
+@include_block quad_lit_common
+in vec2 corner;
+in vec4 inst_pos;
+in vec4 inst_size;
+in vec4 inst_uv;
+in vec3 inst_right;
+in vec4 inst_up;
+in vec4 inst_color;
+void main() {
+    place_lit(corner, inst_pos, inst_size, inst_uv, inst_right, inst_up, inst_color);
+}
+@end
+
+@vs vs_lit_pulled
+@include_block quad_lit_common
+layout(binding=4) uniform vs_batch_lit {
+    vec4 batch_lit; /* x: the batch's first sprite */
+};
+/* slots 0-6 are the material's textures and the environment's (sk_pbr.glsl) */
+layout(binding=7) uniform texture2D sprite_data_lit;
+layout(binding=7) uniform sampler sprite_data_lit_smp;
+@image_sample_type sprite_data_lit unfilterable_float
+@sampler_type sprite_data_lit_smp nonfiltering
+in vec2 corner;
+
+vec4 texel_lit(int sprite, int k) {
+    return texelFetch(sampler2D(sprite_data_lit, sprite_data_lit_smp), ivec2((sprite % 256) * 6 + k, sprite / 256), 0);
+}
+
+void main() {
+    int sprite = int(batch_lit.x) + gl_InstanceIndex;
+    place_lit(corner, texel_lit(sprite, 0), texel_lit(sprite, 1), texel_lit(sprite, 2), texel_lit(sprite, 3).xyz,
+              texel_lit(sprite, 4), texel_lit(sprite, 5));
+}
+@end
+
+@fs fs_lit
+@include_block sk_pbr_surface
+@include_block sk_pbr_main
+@end
+
 @program quad vs fs
 @program quad_pulled vs_pulled fs
 @program particle vs_particle fs
+@program quad_lit vs_lit fs_lit
+@program quad_lit_pulled vs_lit_pulled fs_lit

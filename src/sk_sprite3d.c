@@ -50,12 +50,12 @@ typedef struct {
     sk_handle_t material; /* a custom material (referenced), or 0 */
 } sk_sprite3d_t;
 
-/* Swap `*slot` for `material` (a custom material, or 0), keeping one reference. */
+/* Swap `*slot` for `material` (built-in or custom, or 0), keeping one reference. */
 static bool assign_material(sk_handle_t *slot, sk_handle_t material, const char *who)
 {
     const sk_material_t *material_ptr = material != 0 ? sk_material_get(material) : NULL;
-    if (material != 0 && (material_ptr == NULL || material_ptr->shader == 0)) {
-        log_warn("%s: sprites take custom materials (sk_material_create_custom) or 0", who);
+    if (material != 0 && material_ptr == NULL) {
+        log_warn("%s: needs a material (sk_material_create or sk_material_create_custom) or 0", who);
         return false;
     }
     if (*slot != material) {

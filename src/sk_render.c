@@ -9,7 +9,11 @@
 #include "internal/sk_internal.h"
 #include "internal/sk_module.h"
 #include "internal/sk_platform.h"
+#include "internal/sk_environment.h"
 #include "internal/sk_render.h"
+
+/* internal/sk_environment.h: the environment module fills this in when it's linked. */
+sk_environment_hooks_t sk_environment_hooks;
 #include "sk_camera3d.h"
 #include "sk_logger.h"
 #include "sk_window.h"

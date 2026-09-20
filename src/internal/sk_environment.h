@@ -89,6 +89,14 @@ typedef struct {
 
 void sk_environment_get_binding(sk_handle_t environment, sk_environment_binding_t *out);
 
+/* How other modules reach an environment without linking this one (sprites): set by
+ * this module's init, cleared by its deinit, NULL while it isn't linked. Defined in
+ * sk_render.c. */
+typedef struct {
+    void (*get_binding)(sk_handle_t environment, sk_environment_binding_t *out);
+} sk_environment_hooks_t;
+extern sk_environment_hooks_t sk_environment_hooks;
+
 /* Queue the background (skybox) for the current render pass, drawn with the
  * active camera. Called by sk_scene_draw before its 3D layers. */
 void sk_environment_submit_background(sk_handle_t environment, float blur, float intensity, float rotation,

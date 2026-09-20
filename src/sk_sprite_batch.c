@@ -1,9 +1,12 @@
 #include "internal/sk_sprite_batch.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "internal/sk_camera3d.h"
+#include "internal/sk_environment.h"
+#include "internal/sk_light.h"
 #include "internal/sk_material.h"
 #include "internal/sk_math.h"
 #include "internal/sk_module.h"
@@ -64,7 +67,10 @@ typedef struct {
 typedef struct {
     uint32_t view, sampler;
     int pipeline;
-    sk_handle_t material; /* a custom material (its shader draws the batch), or 0 */
+    sk_handle_t material; /* the material drawing it (custom or built-in), or 0 */
+    bool lit;             /* a built-in material: libsk's model shading, with lights */
+    int light_env;        /* the lighting environment it was recorded in, -1 = none */
+    vec3_t bounds_min, bounds_max; /* its sprites, for choosing lights once a batch */
     int camera; /* index into the frame's camera uniforms */
     int pass;
     float scissor[4]; /* framebuffer pixels: x, y, width, height (the clip, or the whole target) */
@@ -83,6 +89,12 @@ static struct {
     bool base_instance; /* the backend can draw from a base instance (not WebGL2) */
     sg_shader shader;
     sg_pipeline pipelines[PIPELINE_COUNT];
+    /* built-in materials: libsk's model shading (src/shaders/sk_pbr.glsl), made on first use */
+    sg_shader lit_shader;
+    sg_pipeline lit_pipelines[PIPELINE_COUNT];
+    sg_image white, flat_normal, black_cube; /* stand-ins for the material's maps and the environment */
+    sg_view white_view, flat_normal_view, black_cube_view;
+    sg_sampler lit_sampler;
     /* no base instance: the sprites as texels, read by index */
     sg_image data_image;
     sg_view data_view;
@@ -253,8 +265,17 @@ void sk_sprite_batch_deinit(void)
         sg_destroy_buffer(sk_sb.quad);
         for (int i = 0; i < PIPELINE_COUNT; i++) {
             sg_destroy_pipeline(sk_sb.pipelines[i]);
+            sg_destroy_pipeline(sk_sb.lit_pipelines[i]);
         }
         sg_destroy_shader(sk_sb.shader);
+        sg_destroy_shader(sk_sb.lit_shader);
+        sg_destroy_view(sk_sb.white_view);
+        sg_destroy_view(sk_sb.flat_normal_view);
+        sg_destroy_view(sk_sb.black_cube_view);
+        sg_destroy_image(sk_sb.white);
+        sg_destroy_image(sk_sb.flat_normal);
+        sg_destroy_image(sk_sb.black_cube);
+        sg_destroy_sampler(sk_sb.lit_sampler);
     }
     free(sk_sb.data);
     free(sk_sb.instances);
@@ -349,9 +370,19 @@ static const sk_sprite_state_t *current_state(bool two_d)
 }
 
 /* Add one sprite to the frame, joining the open batch when it can. */
+/* A built-in material (not a custom shader's): drawn with libsk's model shading. */
+static bool material_is_lit(sk_handle_t material)
+{
+    const sk_material_t *material_ptr = material != 0 ? sk_material_get(material) : NULL;
+    return material_ptr != NULL && material_ptr->shader == 0;
+}
+
 static void record(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sampler, int pipeline,
                    sk_handle_t material)
 {
+    const bool lit = material_is_lit(material);
+    /* any material's sprites are lit: a custom shader gets the same lights (sk_frame) */
+    const int light_env = material != 0 ? sk_light_env_current() : -1;
     const sk_sprite_state_t *st;
     sk_sprite_batch_t *last;
 
@@ -367,7 +398,7 @@ static void record(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sam
     last = sk_sb.batch_count > 0 ? &sk_sb.batches[sk_sb.batch_count - 1] : NULL;
     /* extend the open batch when nothing else was drawn since and everything matches */
     if (last == NULL || last->view != view || last->sampler != sampler || last->pipeline != pipeline ||
-        last->material != material ||
+        last->material != material || last->light_env != light_env ||
         last->camera != st->camera || last->pass != st->pass ||
         memcmp(last->scissor, st->scissor, sizeof(last->scissor)) != 0 ||
         !sk_render_sprites_open(sk_sb.batch_count - 1)) {
@@ -384,11 +415,22 @@ static void record(const sk_sprite_quad_t *instance, uint32_t view, uint32_t sam
             .sampler = sampler,
             .pipeline = pipeline,
             .material = material,
+            .lit = lit,
+            .light_env = light_env,
+            .bounds_min = {1e30f, 1e30f, 1e30f},
+            .bounds_max = {-1e30f, -1e30f, -1e30f},
             .camera = st->camera,
             .pass = st->pass,
             .first = sk_sb.instance_count,
         };
         memcpy(last->scissor, st->scissor, sizeof(last->scissor));
+    }
+    if (material != 0) { /* the batch's lights are chosen once, from where its sprites are */
+        const float *p = instance->position;
+        last->bounds_min = (vec3_t){fminf(last->bounds_min.x, p[0]), fminf(last->bounds_min.y, p[1]),
+                                    fminf(last->bounds_min.z, p[2])};
+        last->bounds_max = (vec3_t){fmaxf(last->bounds_max.x, p[0]), fmaxf(last->bounds_max.y, p[1]),
+                                    fmaxf(last->bounds_max.z, p[2])};
     }
     sk_sb.instances[sk_sb.instance_count++] = *instance;
     last->count++;
@@ -453,6 +495,7 @@ static bool in_group(const sk_sprite_group_t *group, const sk_sprite_pending_t *
     return group->view == p->view && group->sampler == p->sampler && group->pipeline == p->pipeline &&
            group->material == p->material;
 }
+
 
 static int group_of(sk_sprite_group_t *groups, int *count, const sk_sprite_pending_t *p, int hint)
 {
@@ -628,9 +671,11 @@ static bool draw_custom(const sk_sprite_batch_t *b)
                               ? sk_shader_hooks.get(material->shader)
                               : NULL;
     const sk_sprite_camera_t *cam = &sk_sb.cameras[b->camera];
+    const sk_light_env_t *env = sk_light_env_get(b->light_env);
     const float time = (float)sk_get_time();
     const sk_shader_program_t *program;
     sk_sprite_custom_view_t view;
+    sk_environment_binding_t environment = {0};
     sg_bindings bind = {0};
     sg_view white, black_cube;
     sg_sampler linear;
@@ -649,9 +694,13 @@ static bool draw_custom(const sk_sprite_batch_t *b)
     view.time[0] = time;
     view.time[1] = view.time[2] = view.time[3] = 0.0f;
     sg_apply_uniforms(SK_SHADER_BLOCK_OBJECT, &SG_RANGE(view));
+    if (sk_environment_hooks.get_binding != NULL) {
+        sk_environment_hooks.get_binding(env != NULL ? env->environment : 0, &environment);
+    }
     if (program->has_block[SK_SHADER_BLOCK_FRAME]) {
-        /* no lights, environment or tone mapping yet (lit sprites: materials phase 3b) */
+        /* the scene's lights and environment, as a model's shader gets them */
         sk_shader_frame_t frame;
+        int lights[SK_MAX_DRAW_LIGHTS];
         memset(&frame, 0, sizeof(frame));
         if (cam->aspect >= 0.0f) { /* 3D: the camera's position (2D has none) */
             frame.camera_time[0] = cam->source.position.x;
@@ -661,6 +710,42 @@ static bool draw_custom(const sk_sprite_batch_t *b)
         frame.camera_time[3] = time;
         frame.tint[0] = frame.tint[1] = frame.tint[2] = frame.tint[3] = 1.0f; /* each sprite's is in sk_color */
         frame.output[2] = 1.0f;                                               /* exposure */
+        if (env != NULL) {
+            frame.output[1] = (float)env->tonemap;
+            frame.output[2] = powf(2.0f, env->exposure);
+            frame.ambient_count[0] = env->ambient.x;
+            frame.ambient_count[1] = env->ambient.y;
+            frame.ambient_count[2] = env->ambient.z;
+            const int light_count = sk_light_select(env, b->bounds_min, b->bounds_max, lights, SK_MAX_DRAW_LIGHTS);
+            frame.ambient_count[3] = (float)light_count;
+            for (int i = 0; i < light_count; i++) {
+                const sk_scene_light_t *light = &env->lights[lights[i]];
+                frame.light_pos_range[i][0] = light->position.x;
+                frame.light_pos_range[i][1] = light->position.y;
+                frame.light_pos_range[i][2] = light->position.z;
+                frame.light_pos_range[i][3] = light->range;
+                frame.light_dir_type[i][0] = light->direction.x;
+                frame.light_dir_type[i][1] = light->direction.y;
+                frame.light_dir_type[i][2] = light->direction.z;
+                frame.light_dir_type[i][3] = (float)light->type;
+                frame.light_radiance[i][0] = light->radiance.x;
+                frame.light_radiance[i][1] = light->radiance.y;
+                frame.light_radiance[i][2] = light->radiance.z;
+                frame.light_spot[i][0] = light->cos_inner;
+                frame.light_spot[i][1] = light->cos_outer;
+            }
+            if (environment.valid && env->environment_intensity > 0.0f) {
+                frame.env[0] = env->environment_intensity;
+                frame.env[1] = environment.max_lod;
+                frame.env[2] = cosf(env->environment_rotation);
+                frame.env[3] = sinf(env->environment_rotation);
+                for (int k = 0; k < 9; k++) {
+                    frame.sh[k][0] = environment.sh.c[k][0];
+                    frame.sh[k][1] = environment.sh.c[k][1];
+                    frame.sh[k][2] = environment.sh.c[k][2];
+                }
+            }
+        }
         sg_apply_uniforms(SK_SHADER_BLOCK_FRAME, &SG_RANGE(frame));
     }
     if (program->has_block[SK_SHADER_BLOCK_FS_PARAMS]) {
@@ -695,10 +780,178 @@ static bool draw_custom(const sk_sprite_batch_t *b)
     if (program->sprite_sampler_slot >= 0) bind.samplers[program->sprite_sampler_slot] = (sg_sampler){b->sampler};
     if (program->data_view_slot >= 0) bind.views[program->data_view_slot] = sk_sb.data_view;
     if (program->data_sampler_slot >= 0) bind.samplers[program->data_sampler_slot] = sk_sb.data_sampler;
-    if (program->env_view_slot >= 0) bind.views[program->env_view_slot] = black_cube; /* no environment on sprites yet */
-    if (program->env_sampler_slot >= 0) bind.samplers[program->env_sampler_slot] = linear;
-    if (program->brdf_view_slot >= 0) bind.views[program->brdf_view_slot] = white;
-    if (program->brdf_sampler_slot >= 0) bind.samplers[program->brdf_sampler_slot] = linear;
+    if (program->env_view_slot >= 0) {
+        bind.views[program->env_view_slot] = environment.cube.id != 0 ? environment.cube : black_cube;
+    }
+    if (program->env_sampler_slot >= 0) {
+        bind.samplers[program->env_sampler_slot] =
+            environment.cube_sampler.id != 0 ? environment.cube_sampler : linear;
+    }
+    if (program->brdf_view_slot >= 0) {
+        bind.views[program->brdf_view_slot] = environment.brdf_lut.id != 0 ? environment.brdf_lut : white;
+    }
+    if (program->brdf_sampler_slot >= 0) {
+        bind.samplers[program->brdf_sampler_slot] = environment.lut_sampler.id != 0 ? environment.lut_sampler : linear;
+    }
+    sg_apply_bindings(&bind);
+    sg_apply_scissor_rectf(b->scissor[0], b->scissor[1], b->scissor[2], b->scissor[3], true);
+    if (sk_sb.base_instance) {
+        sg_draw_ex(0, 6, b->count, 0, b->first);
+    } else {
+        sg_draw(0, 6, b->count);
+    }
+    return true;
+}
+
+/* The shading pipelines and stand-in textures for built-in materials, on first use. */
+static void ensure_lit(void)
+{
+    static const uint32_t white_texel = 0xFFFFFFFFu, flat_normal_texel = 0xFFFF8080u; /* (0.5, 0.5, 1) */
+    if (sk_sb.lit_shader.id != SG_INVALID_ID) return;
+    sk_sb.lit_shader = sg_make_shader(sk_sb.base_instance ? sprite_quad_lit_shader_desc(shader_backend())
+                                                          : sprite_quad_lit_pulled_shader_desc(shader_backend()));
+    make_pipelines(sk_sb.lit_shader, sk_sb.lit_pipelines);
+    sk_sb.white = sg_make_image(&(sg_image_desc){
+        .width = 1, .height = 1, .data.mip_levels[0] = SG_RANGE(white_texel), .label = "sk-sprite-white"});
+    sk_sb.flat_normal = sg_make_image(&(sg_image_desc){
+        .width = 1, .height = 1, .data.mip_levels[0] = SG_RANGE(flat_normal_texel), .label = "sk-sprite-flat-normal"});
+    sg_image_desc cube = {.type = SG_IMAGETYPE_CUBE, .width = 1, .height = 1, .num_slices = 6,
+                          .label = "sk-sprite-black-cube"};
+    static const uint32_t black_texels[6] = {0xFF000000u, 0xFF000000u, 0xFF000000u,
+                                             0xFF000000u, 0xFF000000u, 0xFF000000u};
+    cube.data.mip_levels[0] = (sg_range){.ptr = black_texels, .size = sizeof(black_texels)};
+    sk_sb.black_cube = sg_make_image(&cube);
+    sk_sb.white_view = sg_make_view(&(sg_view_desc){.texture.image = sk_sb.white});
+    sk_sb.flat_normal_view = sg_make_view(&(sg_view_desc){.texture.image = sk_sb.flat_normal});
+    sk_sb.black_cube_view = sg_make_view(&(sg_view_desc){.texture.image = sk_sb.black_cube});
+    sk_sb.lit_sampler = sg_make_sampler(&(sg_sampler_desc){
+        .min_filter = SG_FILTER_LINEAR, .mag_filter = SG_FILTER_LINEAR, .label = "sk-sprite-lit"});
+}
+
+/* A batch of sprites with a built-in material: libsk's model shading, lit by the
+ * lights this batch's sprites are nearest (chosen once, from their bounds). The
+ * sprite's own texture is the base color; the material's maps and factors are the
+ * rest. */
+static bool draw_lit(const sk_sprite_batch_t *b)
+{
+    const sk_material_t *material = sk_material_get(b->material);
+    const sk_light_env_t *env = sk_light_env_get(b->light_env);
+    const sk_sprite_camera_t *cam = &sk_sb.cameras[b->camera];
+    const bool lit = env != NULL && material != NULL && material->shading == SK_MATERIAL_PBR;
+    int lights[SK_MAX_DRAW_LIGHTS];
+    int light_count = 0;
+    sprite_fs_params_t params;
+    sprite_fs_scene_t scene;
+    sprite_fs_lights_t light_block;
+    sk_environment_binding_t environment = {0};
+    sg_bindings bind = {0};
+
+    if (material == NULL) return false; /* released while the batch waited */
+    ensure_lit();
+    memset(&params, 0, sizeof(params));
+    memset(&scene, 0, sizeof(scene));
+    memset(&light_block, 0, sizeof(light_block));
+    if (sk_environment_hooks.get_binding != NULL) {
+        sk_environment_hooks.get_binding(lit ? env->environment : 0, &environment);
+    }
+
+    params.u_base_color[0] = material->base_color[0]; /* the sprite's tint is its vertex color */
+    params.u_base_color[1] = material->base_color[1];
+    params.u_base_color[2] = material->base_color[2];
+    params.u_base_color[3] = material->base_color[3];
+    params.u_emissive[0] = material->emissive[0];
+    params.u_emissive[1] = material->emissive[1];
+    params.u_emissive[2] = material->emissive[2];
+    params.u_emissive[3] = material->textures[SK_MATERIAL_TEXTURE_NORMAL].texture != 0 ? material->normal_scale : 0.0f;
+    params.u_pbr[0] = material->metallic;
+    params.u_pbr[1] = material->roughness;
+    params.u_pbr[2] = material->occlusion_strength;
+    params.u_pbr[3] = lit ? 1.0f : 0.0f;
+    params.u_material[0] = material->alpha_mode == SK_ALPHA_MASK ? material->alpha_cutoff : 0.0f;
+    for (int t = 0; t < SK_MATERIAL_TEXTURE_COUNT; t++) { /* the material's texture transforms */
+        float m[6];
+        sk_material_uv_matrix(&material->textures[t], m);
+        params.u_uv_row0[t][0] = m[0], params.u_uv_row0[t][1] = m[1], params.u_uv_row0[t][2] = m[2];
+        params.u_uv_row1[t][0] = m[3], params.u_uv_row1[t][1] = m[4], params.u_uv_row1[t][2] = m[5];
+    }
+    scene.u_camera_pos[0] = cam->source.position.x;
+    scene.u_camera_pos[1] = cam->source.position.y;
+    scene.u_camera_pos[2] = cam->source.position.z;
+    scene.u_tonemap[0] = env != NULL ? (float)env->tonemap : 0.0f;
+    scene.u_tonemap[1] = env != NULL ? powf(2.0f, env->exposure) : 1.0f;
+    if (lit) {
+        scene.u_ambient[0] = env->ambient.x;
+        scene.u_ambient[1] = env->ambient.y;
+        scene.u_ambient[2] = env->ambient.z;
+        if (environment.valid && env->environment_intensity > 0.0f) {
+            scene.u_env[0] = env->environment_intensity;
+            scene.u_env[1] = environment.max_lod;
+            scene.u_env[2] = cosf(env->environment_rotation);
+            scene.u_env[3] = sinf(env->environment_rotation);
+            for (int k = 0; k < 9; k++) {
+                scene.u_sh[k][0] = environment.sh.c[k][0];
+                scene.u_sh[k][1] = environment.sh.c[k][1];
+                scene.u_sh[k][2] = environment.sh.c[k][2];
+            }
+        }
+        light_count = sk_light_select(env, b->bounds_min, b->bounds_max, lights, SK_MAX_DRAW_LIGHTS);
+        params.u_material[1] = (float)light_count;
+        for (int i = 0; i < light_count; i++) {
+            const sk_scene_light_t *light = &env->lights[lights[i]];
+            light_block.u_light_pos_range[i][0] = light->position.x;
+            light_block.u_light_pos_range[i][1] = light->position.y;
+            light_block.u_light_pos_range[i][2] = light->position.z;
+            light_block.u_light_pos_range[i][3] = light->range;
+            light_block.u_light_dir_type[i][0] = light->direction.x;
+            light_block.u_light_dir_type[i][1] = light->direction.y;
+            light_block.u_light_dir_type[i][2] = light->direction.z;
+            light_block.u_light_dir_type[i][3] = (float)light->type;
+            light_block.u_light_radiance[i][0] = light->radiance.x;
+            light_block.u_light_radiance[i][1] = light->radiance.y;
+            light_block.u_light_radiance[i][2] = light->radiance.z;
+            light_block.u_light_spot[i][0] = light->cos_inner;
+            light_block.u_light_spot[i][1] = light->cos_outer;
+        }
+    }
+
+    sg_apply_pipeline(sk_sb.lit_pipelines[b->pipeline]);
+    sg_apply_uniforms(UB_sprite_vs_params, &SG_RANGE(sk_sb.cameras[b->camera].params));
+    sg_apply_uniforms(UB_sprite_fs_params, &SG_RANGE(params));
+    sg_apply_uniforms(UB_sprite_fs_scene, &SG_RANGE(scene));
+    sg_apply_uniforms(UB_sprite_fs_lights, &SG_RANGE(light_block));
+    bind.vertex_buffers[0] = sk_sb.quad;
+    if (sk_sb.base_instance) {
+        bind.vertex_buffers[1] = sk_sb.instance_buffer;
+    } else {
+        const sprite_vs_batch_lit_t batch_params = {.batch_lit = {(float)b->first, 0.0f, 0.0f, 0.0f}};
+        sg_apply_uniforms(UB_sprite_vs_batch_lit, &SG_RANGE(batch_params));
+        bind.views[VIEW_sprite_sprite_data_lit] = sk_sb.data_view;
+        bind.samplers[SMP_sprite_sprite_data_lit_smp] = sk_sb.data_sampler;
+    }
+    /* the sprite's texture is the base color; the material's maps are the rest */
+    bind.views[VIEW_sprite_base_color_tex] = (sg_view){b->view};
+    bind.samplers[SMP_sprite_base_color_smp] = (sg_sampler){b->sampler};
+    static const int slots[4] = {SK_MATERIAL_TEXTURE_METALLIC_ROUGHNESS, SK_MATERIAL_TEXTURE_NORMAL,
+                                 SK_MATERIAL_TEXTURE_OCCLUSION, SK_MATERIAL_TEXTURE_EMISSIVE};
+    const int views[4] = {VIEW_sprite_metallic_roughness_tex, VIEW_sprite_normal_tex, VIEW_sprite_occlusion_tex,
+                          VIEW_sprite_emissive_tex};
+    const int samplers[4] = {SMP_sprite_metallic_roughness_smp, SMP_sprite_normal_smp, SMP_sprite_occlusion_smp,
+                             SMP_sprite_emissive_smp};
+    for (int i = 0; i < 4; i++) {
+        const sk_material_texture_t *texture = &material->textures[slots[i]];
+        sg_view view = slots[i] == SK_MATERIAL_TEXTURE_NORMAL ? sk_sb.flat_normal_view : sk_sb.white_view;
+        if (texture->texture != 0) sk_texture_get_binding(texture->texture, &view, NULL, NULL, NULL);
+        bind.views[views[i]] = view;
+        bind.samplers[samplers[i]] =
+            sk_texture_sampler(texture->wrap_u, texture->wrap_v, texture->filter, texture->mipmaps);
+    }
+    /* without the environment module there's none to bind: black, and zero intensity */
+    bind.views[VIEW_sprite_env_tex] = environment.cube.id != 0 ? environment.cube : sk_sb.black_cube_view;
+    bind.samplers[SMP_sprite_env_smp] =
+        environment.cube_sampler.id != 0 ? environment.cube_sampler : sk_sb.lit_sampler;
+    bind.views[VIEW_sprite_brdf_tex] = environment.brdf_lut.id != 0 ? environment.brdf_lut : sk_sb.white_view;
+    bind.samplers[SMP_sprite_brdf_smp] =
+        environment.lut_sampler.id != 0 ? environment.lut_sampler : sk_sb.lit_sampler;
     sg_apply_bindings(&bind);
     sg_apply_scissor_rectf(b->scissor[0], b->scissor[1], b->scissor[2], b->scissor[3], true);
     if (sk_sb.base_instance) {
@@ -720,7 +973,11 @@ void sk_sprite_batch_draw(int batch, bool follows)
     if (b->count == 0) {
         return;
     }
-    if (b->material != 0 && draw_custom(b)) {
+    if (b->lit && draw_lit(b)) {
+        sk_sb.last_drawn = -1; /* the next batch applies everything again */
+        return;
+    }
+    if (b->material != 0 && !b->lit && draw_custom(b)) {
         sk_sb.last_drawn = -1; /* the next batch applies everything again */
         return;
     }
