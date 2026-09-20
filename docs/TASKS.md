@@ -340,6 +340,18 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       16384 / 131072, in the shape of sk_scene's transparent list, and the warning is
       kept for the ceiling (about 23 ms of submission, far past playable). Small
       programs stop carrying the room as well: ~448 KB of always-resident memory gone
+- [ ] Nothing is frustum culled: a scene submits every member every frame and lets the
+      GPU clip what is off screen. Measured with shadowbench: 4000 models cost 4.89 ms
+      with the camera pointed away from all of them, against 5.18 ms with every one on
+      screen — the same price for drawing nothing. A world bigger than its view pays
+      for all of it. The bounds are already at hand (`begin_draw` builds a world AABB
+      for light selection, `sk_pick_world_aabb`), so the test is six planes from the
+      view-projection against an AABB. Two things to get right: a skinned model's
+      bounds are its rest pose (see the light-selection note above), so they want
+      padding or the posed bounds; and the camera's frustum must not cull the shadow
+      pass — a model behind the camera can still cast into view, so that pass culls
+      against its own light's frustum instead, which is a win of its own since the map
+      only covers `shadow_distance`
 - [ ] Models are one draw call each: 4000 lit models cost about 5 ms a frame on an
       RTX 4080 (shadowbench), and ~95% of that is CPU submission — roughly 1.2
       microseconds a model, whatever the model is. Sprites already avoid this (a run
