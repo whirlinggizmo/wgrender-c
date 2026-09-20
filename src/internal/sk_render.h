@@ -40,6 +40,8 @@ typedef struct {
      * ends with the swapchain. */
     bool (*effects_begin)(sg_attachments *attachments);
     void (*effects_draw)(void);
+    /* sk_shadow: the casting light's depth map, drawn before anything is shaded */
+    void (*shadows_draw)(void);
 } sk_render_hooks_t;
 extern sk_render_hooks_t sk_render_hooks;
 

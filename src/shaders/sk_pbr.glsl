@@ -84,6 +84,13 @@ layout(binding=2) uniform fs_scene {
     vec4 u_env;
     vec4 u_sh[9];
     vec4 u_tonemap;
+    /* shadows (docs/PLAN-shadows.md) */
+    mat4 u_shadow_mat;    /* world -> the casting light's clip space */
+    vec4 u_shadow_params; /* x which light casts (-1 none), y 1/map size, z/w depth bias constant, slope */
+    vec4 u_shadow_depth;  /* x/y clip z -> stored depth (scale, offset), z texel in world units, w strength */
+    vec4 u_shadow_tint;   /* rgb mixed into what a shadow leaves behind (linear), w texels -> depth */
+    vec4 u_shadow_map;    /* x 1 = the map is stored top-down (WebGPU), y/z/w spare */
+    vec4 u_shadow_texel;  /* x one texel in world units (the normal offset) */
 };
 layout(binding=3) uniform fs_lights {
     vec4 u_light_pos_range[8];
@@ -105,6 +112,10 @@ layout(binding=5) uniform textureCube env_tex;
 layout(binding=6) uniform texture2D brdf_tex;
 layout(binding=5) uniform sampler env_smp;
 layout(binding=6) uniform sampler brdf_smp;
+layout(binding=8) uniform texture2D shadow_tex;
+layout(binding=8) uniform sampler shadow_smp;
+@image_sample_type shadow_tex depth
+@sampler_type shadow_smp comparison
 in vec3 v_normal;
 in vec4 v_tangent;
 in vec2 v_uv0;
@@ -113,6 +124,50 @@ in vec4 v_color;
 in vec3 v_world_pos;
 in float v_alpha_mode; /* sprites: their alpha mode (models write 0) */
 out vec4 frag_color;
+
+/* How much of the casting light reaches this point: 1 in the open, 0 in shadow, and
+ * in between across a shadow's edge (a 3x3 kernel the GPU filters). Everything is lit
+ * when nothing casts, when this surface doesn't receive, or when the point is outside
+ * what the light's map covers. */
+float shadow_factor(vec3 world_pos, vec3 n, float n_dot_l) {
+    if (u_shadow_params.x < 0.0 || u_material.z < 0.5) {
+        return 1.0; /* uniform for the whole draw: nothing casts, or this doesn't receive */
+    }
+    /* Look the map up a texel or so along the normal rather than pushing the depth far
+     * back: that stops a surface striping itself without lifting its shadow off its
+     * feet, which a big depth bias does. */
+    float slant = 1.0 - clamp(n_dot_l, 0.0, 1.0);
+    vec4 clip = u_shadow_mat * vec4(world_pos + n * (u_shadow_texel.x * (1.0 + 2.0 * slant)), 1.0);
+    vec3 ndc = clip.xyz / max(abs(clip.w), 1e-6) * sign(clip.w);
+    vec2 uv = ndc.xy * 0.5 + 0.5;
+    if (u_shadow_map.x > 0.5) {
+        uv.y = 1.0 - uv.y; /* where the map's first row is its top, not its bottom */
+    }
+    /* a little depth slack on top, in texels (what acne is made of) */
+    float bias = (u_shadow_params.z + u_shadow_params.w * slant) * u_shadow_tint.w;
+    float depth = ndc.z * u_shadow_depth.x + u_shadow_depth.y - bias;
+
+    /* Inside the map at all? Past its sides or its far end, everything is lit, and it
+     * fades out over the last tenth so a shadow running off the edge dissolves instead
+     * of being cut through. This is worked out as a weight rather than an early return
+     * because the comparison below must run for every pixel of the draw: sampling in
+     * branchy code is undefined where the GPU needs neighbouring pixels to filter. */
+    vec2 to_edge = 1.0 - abs(ndc.xy);
+    float inside = step(0.0, min(to_edge.x, to_edge.y)) * step(depth, 1.0) * step(0.0, clip.w);
+    float edge = clamp(min(to_edge.x, to_edge.y) / 0.1, 0.0, 1.0) * inside;
+
+    float texel = u_shadow_params.y;
+    vec2 at = clamp(uv, vec2(texel), vec2(1.0 - texel));
+    float lit = 0.0;
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+            lit += texture(sampler2DShadow(shadow_tex, shadow_smp),
+                           vec3(at + vec2(float(x), float(y)) * texel, clamp(depth, 0.0, 1.0)));
+        }
+    }
+    /* strength says how much of the light a shadow takes away */
+    return mix(1.0, lit / 9.0, edge * u_shadow_depth.w);
+}
 
 /* Environment irradiance / pi at a direction (environment frame). */
 vec3 eval_sh(vec3 n) {
@@ -232,6 +287,13 @@ void main() {
 
         vec3 diffuse = (1.0 - fresnel) * c_diff / PI;
         vec3 specular = fresnel * distribution * visibility;
+        /* only the casting light is shadowed; the others light the scene as before */
+        if (float(i) == u_shadow_params.x) {
+            float lit_here = shadow_factor(v_world_pos, n, n_dot_l);
+            /* the tint stands in for light a shadow "keeps", deepest where it's darkest */
+            color += u_shadow_tint.rgb * (1.0 - lit_here) * c_diff;
+            falloff *= lit_here;
+        }
         color += u_light_radiance[i].rgb * falloff * n_dot_l * (diffuse + specular);
     }
 

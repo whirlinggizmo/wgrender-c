@@ -1,7 +1,8 @@
 #ifndef SK_INTERNAL_SHADERS_H
 #define SK_INTERNAL_SHADERS_H
 
-/* The generated shaders (src/shaders/sk_model.glsl.h, sk_sprite.glsl.h; `make shaders`). sokol-shdc
+/* The generated shaders (src/shaders/sk_model.glsl.h, sk_sprite.glsl.h, sk_depth.glsl.h;
+ * `make shaders`). sokol-shdc
  * wraps each backend's sources and descriptions in #if defined(SOKOL_<backend>), so a
  * build only carries its own backend's shaders.
  *
@@ -16,10 +17,12 @@
 #  define SOKOL_GLCORE
 #  include "shaders/sk_model.glsl.h"
 #  include "shaders/sk_sprite.glsl.h"
+#  include "shaders/sk_depth.glsl.h"
 #  undef SOKOL_GLCORE
 #else
 #  include "shaders/sk_model.glsl.h"
 #  include "shaders/sk_sprite.glsl.h"
+#  include "shaders/sk_depth.glsl.h"
 #endif
 
 #endif // SK_INTERNAL_SHADERS_H

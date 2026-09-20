@@ -11,9 +11,11 @@
 #include "internal/sk_platform.h"
 #include "internal/sk_environment.h"
 #include "internal/sk_render.h"
+#include "internal/sk_shadow.h"
 
 /* internal/sk_environment.h: the environment module fills this in when it's linked. */
 sk_environment_hooks_t sk_environment_hooks;
+sk_shadow_hooks_t sk_shadow_hooks; /* internal/sk_shadow.h: set by the shadow module */
 #include "sk_camera3d.h"
 #include "sk_logger.h"
 #include "sk_window.h"
@@ -600,6 +602,11 @@ void sk_render_end(void)
     sk_font_flush();
     sk_module_flush_all(); /* the frame's sprite instances, particles, ... in one update each */
     count_layer_commands();
+
+    /* the casting light's shadow map, before anything that shades with it */
+    if (sk_render_hooks.shadows_draw != NULL) {
+        sk_render_hooks.shadows_draw();
+    }
 
     /* render targets first, in the order they were begun, then the screen */
     for (int p = 1; p < sk_render_pass_count; p++) {

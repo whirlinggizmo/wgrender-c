@@ -22,8 +22,9 @@
  *     }
  *     @end
  *
- * Textures 8 to 12 and samplers 8 to 11 are libsk's (the environment, the sprite's
- * texture, sprite data, skinned models' joints), as are uniform blocks 0, 1 and 4.
+ * Textures 8 and up, and samplers 8 and up, are libsk's (the environment, the sprite's
+ * texture, sprite data, skinned models' joints, a shadow map), as are uniform blocks 0,
+ * 1 and 4.
  * Parameters: the members of uniform block binding 2 in the fragment shader and
  * binding 3 in the vertex hook, set by name with sk_material_set_float / _vec2 /
  * _vec3 / _vec4 / _int / _color (float, vec2, vec3, vec4, int; not arrays or
@@ -59,6 +60,12 @@
  *                         for perceptual roughness 0..1 (linear rgb)
  *   sk_environment_brdf(n_dot_v, roughness)   split-sum scale (x) and bias (y): specular
  *                         reflection = sk_environment_specular(...) * (f0 * x + y)
+ *   sk_shadow(i, pos, n)  how much of light i reaches `pos` on a surface facing `n`:
+ *                         1 in the open, 0 in shadow (docs/PLAN-shadows.md). Only the
+ *                         scene's casting light is shadowed; the others are always 1.
+ *                         Multiply it into that light's contribution, as built-in
+ *                         materials do. It already has the light's shadow strength in
+ *                         it, and fades out where the light's map ends
  *   Built-in materials use exactly these (docs/PLAN-environment.md).
  *   sk_sprite_color()     a sprite's texture at its region times its tint, linear rgba
  *                         (on a model: its vertex color). The texture itself is
@@ -342,11 +349,20 @@ layout(binding=1) uniform sk_frame {
     vec4 sk_light_spot[8];       /* x cos(inner angle), y cos(outer angle) */
     vec4 sk_env;                 /* x intensity (0 none), y the cubemap's last mip, z/w cos/sin of its rotation */
     vec4 sk_sh[9];               /* environment irradiance / pi, spherical harmonics (xyz) */
+    mat4 sk_shadow_mat;          /* world -> the casting light's clip space */
+    vec4 sk_shadow_params;       /* x which light casts (-1 none), y 1/map size, z/w bias constant, slope */
+    vec4 sk_shadow_depth;        /* x/y clip z -> stored depth, z texel in world units, w strength */
+    vec4 sk_shadow_tint;         /* rgb what a shadow keeps (linear), w bias texels -> depth */
+    vec4 sk_shadow_map;          /* x 1 = the map is stored top-down (WebGPU) */
+    vec4 sk_shadow_texel;        /* x one texel in world units (the normal offset) */
 };
 layout(binding=8) uniform textureCube sk_env_tex;
-layout(binding=8) uniform sampler sk_env_smp;
+layout(binding=8) uniform sampler sk_env_smp; /* the BRDF table shares it: both are linear, clamped */
 layout(binding=9) uniform texture2D sk_brdf_tex;
-layout(binding=9) uniform sampler sk_brdf_smp;
+layout(binding=13) uniform texture2D sk_shadow_tex;
+layout(binding=9) uniform sampler sk_shadow_smp;
+@image_sample_type sk_shadow_tex depth
+@sampler_type sk_shadow_smp comparison
 layout(location=0) in vec3 sk_world_pos;
 layout(location=1) in vec3 sk_normal;
 layout(location=2) in vec4 sk_tangent;
@@ -422,8 +438,43 @@ vec3 sk_environment_specular(vec3 n, vec3 v, float roughness) {
     return textureLod(samplerCube(sk_env_tex, sk_env_smp), r, clamp(roughness, 0.0, 1.0) * sk_env.y).rgb * sk_env.x;
 }
 
+/* How much of light `i` reaches `pos`: 1 in the open, 0 in shadow, in between across
+ * the edge. Only the scene's casting light is shadowed; every other light returns 1,
+ * as does any light when nothing casts. `n_dot_l` tilts the depth bias for surfaces
+ * that face the light edge-on (pass max(dot(n, to_light), 0)). */
+float sk_shadow(int i, vec3 pos, vec3 n) {
+    if (float(i) != sk_shadow_params.x) {
+        return 1.0; /* only the scene's casting light is shadowed */
+    }
+    vec3 normal = normalize(n);
+    vec3 to_light = -normalize(sk_light_dir_type[i].xyz);
+    float slant = 1.0 - clamp(dot(normal, to_light), 0.0, 1.0);
+    vec4 clip = sk_shadow_mat * vec4(pos + normal * (sk_shadow_texel.x * (1.0 + 2.0 * slant)), 1.0);
+    vec3 ndc = clip.xyz / max(abs(clip.w), 1e-6) * sign(clip.w);
+    vec2 uv = ndc.xy * 0.5 + 0.5;
+    if (sk_shadow_map.x > 0.5) {
+        uv.y = 1.0 - uv.y;
+    }
+    float bias = (sk_shadow_params.z + sk_shadow_params.w * slant) * sk_shadow_tint.w;
+    float depth = ndc.z * sk_shadow_depth.x + sk_shadow_depth.y - bias;
+    /* a weight, not an early return: the comparison below runs for every pixel */
+    vec2 to_edge = 1.0 - abs(ndc.xy);
+    float inside = step(0.0, min(to_edge.x, to_edge.y)) * step(depth, 1.0) * step(0.0, clip.w);
+    float edge = clamp(min(to_edge.x, to_edge.y) / 0.1, 0.0, 1.0) * inside;
+    float texel = sk_shadow_params.y;
+    vec2 at = clamp(uv, vec2(texel), vec2(1.0 - texel));
+    float lit = 0.0;
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+            lit += texture(sampler2DShadow(sk_shadow_tex, sk_shadow_smp),
+                           vec3(at + vec2(float(x), float(y)) * texel, clamp(depth, 0.0, 1.0)));
+        }
+    }
+    return mix(1.0, lit / 9.0, edge * sk_shadow_depth.w);
+}
+
 vec2 sk_environment_brdf(float n_dot_v, float roughness) {
-    return texture(sampler2D(sk_brdf_tex, sk_brdf_smp), vec2(clamp(n_dot_v, 0.0, 1.0), clamp(roughness, 0.0, 1.0))).rg;
+    return texture(sampler2D(sk_brdf_tex, sk_env_smp), vec2(clamp(n_dot_v, 0.0, 1.0), clamp(roughness, 0.0, 1.0))).rg;
 }
 
 vec3 sk_tonemap_neutral(vec3 color) {

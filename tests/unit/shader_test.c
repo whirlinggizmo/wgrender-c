@@ -116,10 +116,11 @@ void test_shader_custom_material(void)
     CHECK(shader != NULL && shader->texture_count == 0);
     CHECK(shader->block_size[SK_SHADER_BLOCK_FS_PARAMS] == 48 && shader->block_size[SK_SHADER_BLOCK_VS_PARAMS] == 16);
     CHECK(shader->programs[0].has_block[SK_SHADER_BLOCK_VS_PARAMS]);
-    /* it reflects the environment: libsk's slots 8 and 9, in both programs */
+    /* it reflects the environment: libsk's textures 8 and 9 in both programs, sharing
+       one sampler (both are linear and clamped, and slots are scarce) */
     for (int p = 0; p < 2; p++) {
         CHECK(shader->programs[p].env_view_slot == 8 && shader->programs[p].env_sampler_slot == 8);
-        CHECK(shader->programs[p].brdf_view_slot == 9 && shader->programs[p].brdf_sampler_slot == 9);
+        CHECK(shader->programs[p].brdf_view_slot == 9 && shader->programs[p].brdf_sampler_slot == 8);
     }
     CHECK(sk_material_set_float(rippling, "amplitude", 0.5f));
     CHECK(sk_material_set_float(rippling, "wave_speed", 2.0f));

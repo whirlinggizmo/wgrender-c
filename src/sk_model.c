@@ -20,6 +20,7 @@
 #include "internal/sk_mesh_shapes.h"
 #include "internal/sk_model.h"
 #include "internal/sk_pick.h"
+#include "internal/sk_shadow.h"
 #include "internal/sk_render.h"
 #include "internal/sk_scene.h"
 #include "internal/sk_shader.h"
@@ -137,6 +138,8 @@ typedef struct {
     bool visible;
     bool pickable;
     bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
+    bool casts_shadow;    /* drawn into a casting light's depth map */
+    bool receives_shadow; /* shadows darken it */
     sk_handle_t materials[SK_MAX_MATERIAL_SLOTS]; /* per-slot overrides (referenced); 0 = mesh's */
 
     /* animation playback */
@@ -201,6 +204,11 @@ static sg_image sk_model_white_img;
 static sg_view sk_model_white_view;
 static sg_image sk_model_flat_normal_img;
 static sg_view sk_model_flat_normal_view;
+/* bound where a shadow map goes when nothing casts: a 1x1 depth texture, never read
+ * (the shader's shadow factor is 1 then), but sokol wants every slot filled */
+static sg_image sk_model_shadow_fallback_img;
+static sg_view sk_model_shadow_fallback_view;
+static sg_sampler sk_model_shadow_fallback_sampler;
 
 /* Skinned models' joint matrices for the frame, uploaded once (before the passes) into
  * one float texture the skinned shader reads: 4 texels a matrix, 256 matrices a row.
@@ -1732,6 +1740,8 @@ static sk_handle_t create_model(sk_handle_t mesh_handle)
     model.visible = true;
     model.pickable = true;
     model.enabled = true;
+    model.casts_shadow = true;
+    model.receives_shadow = true;
     model.cur_anim = -1;
     model.anim_speed = 1.0f;
     model.anim_loop = true;
@@ -1878,6 +1888,34 @@ SK_KEEP sk_handle_t sk_model_get_material(sk_handle_t handle, int slot)
     }
     mesh_ptr = model_ptr->mesh != 0 ? resolve_mesh(model_ptr->mesh) : NULL;
     return mesh_ptr != NULL && slot < mesh_ptr->material_count ? mesh_ptr->materials[slot] : 0;
+}
+
+SK_KEEP bool sk_model_set_casts_shadow(sk_handle_t handle, bool casts)
+{
+    sk_model_t *model_ptr = resolve(handle);
+    if (model_ptr == NULL) return false;
+    model_ptr->casts_shadow = casts;
+    return true;
+}
+
+SK_KEEP bool sk_model_casts_shadow(sk_handle_t handle)
+{
+    const sk_model_t *model_ptr = resolve(handle);
+    return model_ptr != NULL && model_ptr->casts_shadow;
+}
+
+SK_KEEP bool sk_model_set_receives_shadow(sk_handle_t handle, bool receives)
+{
+    sk_model_t *model_ptr = resolve(handle);
+    if (model_ptr == NULL) return false;
+    model_ptr->receives_shadow = receives;
+    return true;
+}
+
+SK_KEEP bool sk_model_receives_shadow(sk_handle_t handle)
+{
+    const sk_model_t *model_ptr = resolve(handle);
+    return model_ptr != NULL && model_ptr->receives_shadow;
 }
 
 SK_KEEP bool sk_model_set_visible(sk_handle_t handle, bool visible)
@@ -2414,6 +2452,16 @@ static void draw_transparent(sk_handle_t handle, int part)
     }
 }
 
+/* Which of this draw's (up to 8) lights is the casting one, or -1 when the light
+ * selection left it out — then nothing here is shadowed by it. */
+static int shadow_light_slot(const sk_model_draw_t *e, int env_light)
+{
+    for (int i = 0; i < e->light_count; i++) {
+        if (e->lights[i] == env_light) return i;
+    }
+    return -1;
+}
+
 /* The scene and light blocks applied last, and whether they still hold: sokol needs
  * every block applied again after a pipeline change (reset_fs_blocks). */
 static fs_scene_t last_scene;
@@ -2427,7 +2475,8 @@ static void reset_fs_blocks(void)
 
 /* The material (every draw), and the scene and its lights (only when they change:
  * they're the same for most draws in a frame). */
-static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material, const sk_environment_binding_t *binding)
+static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material, const sk_environment_binding_t *binding,
+                     const sk_shadow_binding_t *shadow, bool receives_shadow)
 {
     fs_params_t fsp;
     fs_scene_t scene;
@@ -2453,6 +2502,7 @@ static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material, co
     fsp.u_pbr[2] = material->occlusion_strength;
     fsp.u_pbr[3] = lit ? 1.0f : 0.0f;
     fsp.u_material[0] = material->alpha_mode == SK_ALPHA_MASK ? material->alpha_cutoff : 0.0f;
+    fsp.u_material[2] = lit && receives_shadow ? 1.0f : 0.0f;
     for (int t = 0; t < SK_MATERIAL_TEXTURE_COUNT; t++) {
         float m[6];
         sk_material_uv_matrix(&material->textures[t], m);
@@ -2476,6 +2526,25 @@ static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material, co
     /* exposure and tone mapping come from the scene; models outside a scene show raw colors */
     scene.u_tonemap[0] = env != NULL ? (float)env->tonemap : 0.0f;
     scene.u_tonemap[1] = env != NULL ? powf(2.0f, env->exposure) : 1.0f;
+    /* the casting light's map, or -1 in x when nothing casts this frame */
+    scene.u_shadow_params[0] = -1.0f;
+    if (lit && shadow->valid) {
+        memcpy(scene.u_shadow_mat, shadow->view_proj.m, sizeof(scene.u_shadow_mat));
+        scene.u_shadow_params[0] = (float)shadow_light_slot(e, shadow->light);
+        scene.u_shadow_params[1] = shadow->texel;
+        scene.u_shadow_params[2] = shadow->bias_constant;
+        scene.u_shadow_params[3] = shadow->bias_slope;
+        scene.u_shadow_depth[0] = shadow->depth_scale;
+        scene.u_shadow_depth[1] = shadow->depth_offset;
+        scene.u_shadow_depth[2] = 0.0f;
+        scene.u_shadow_texel[0] = shadow->texel_world;
+        scene.u_shadow_depth[3] = shadow->strength;
+        scene.u_shadow_tint[0] = shadow->tint[0];
+        scene.u_shadow_tint[1] = shadow->tint[1];
+        scene.u_shadow_tint[2] = shadow->tint[2];
+        scene.u_shadow_tint[3] = shadow->bias_scale;
+        scene.u_shadow_map[0] = sg_query_features().origin_top_left ? 1.0f : 0.0f;
+    }
     if (lit && binding->valid && env->environment_intensity > 0.0f) {
         scene.u_env[0] = env->environment_intensity;
         scene.u_env[1] = binding->max_lod;
@@ -2556,7 +2625,11 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
     const float time = (float)sk_get_time();
     sg_bindings bind = {.vertex_buffers[0] = prim->vbuf, .index_buffer = prim->ibuf};
     sk_environment_binding_t environment;
+    sk_shadow_binding_t shadow = {0};
     sk_environment_get_binding(env != NULL ? env->environment : 0, &environment);
+    if (sk_shadow_hooks.get_binding != NULL) {
+        sk_shadow_hooks.get_binding(e->light_env, &shadow);
+    }
 
     if (shader == NULL) return; /* released while the material was queued */
     program = &shader->programs[s];
@@ -2629,6 +2702,25 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
                 }
             }
         }
+        /* the casting light, as the built-in shading gets it (sk_shadow in sk.glsl) */
+        frame.shadow_params[0] = -1.0f;
+        if (shadow.valid && model_ptr->receives_shadow) {
+            memcpy(frame.shadow_mat, shadow.view_proj.m, sizeof(frame.shadow_mat));
+            frame.shadow_params[0] = (float)shadow_light_slot(e, shadow.light);
+            frame.shadow_params[1] = shadow.texel;
+            frame.shadow_params[2] = shadow.bias_constant;
+            frame.shadow_params[3] = shadow.bias_slope;
+            frame.shadow_depth[0] = shadow.depth_scale;
+            frame.shadow_depth[1] = shadow.depth_offset;
+            frame.shadow_depth[2] = 0.0f;
+            frame.shadow_texel[0] = shadow.texel_world;
+            frame.shadow_depth[3] = shadow.strength;
+            frame.shadow_tint[0] = shadow.tint[0];
+            frame.shadow_tint[1] = shadow.tint[1];
+            frame.shadow_tint[2] = shadow.tint[2];
+            frame.shadow_tint[3] = shadow.bias_scale;
+            frame.shadow_map[0] = sg_query_features().origin_top_left ? 1.0f : 0.0f;
+        }
         sg_apply_uniforms(SK_SHADER_BLOCK_FRAME, &(sg_range){.ptr = &frame, .size = sizeof(frame)});
     }
     if (program->has_block[SK_SHADER_BLOCK_FS_PARAMS]) {
@@ -2651,10 +2743,19 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
         }
     }
     /* the environment (a black cube without one: sk_frame's intensity is 0 then) */
+    if (program->shadow_view_slot >= 0) {
+        bind.views[program->shadow_view_slot] = shadow.valid ? shadow.map : sk_model_shadow_fallback_view;
+    }
+    if (program->shadow_sampler_slot >= 0) {
+        bind.samplers[program->shadow_sampler_slot] = shadow.valid ? shadow.sampler : sk_model_shadow_fallback_sampler;
+    }
     if (program->env_view_slot >= 0) bind.views[program->env_view_slot] = environment.cube;
     if (program->env_sampler_slot >= 0) bind.samplers[program->env_sampler_slot] = environment.cube_sampler;
     if (program->brdf_view_slot >= 0) bind.views[program->brdf_view_slot] = environment.brdf_lut;
-    if (program->brdf_sampler_slot >= 0) bind.samplers[program->brdf_sampler_slot] = environment.lut_sampler;
+    /* the BRDF table shares the environment's sampler unless it has one of its own */
+    if (program->brdf_sampler_slot >= 0 && program->brdf_sampler_slot != program->env_sampler_slot) {
+        bind.samplers[program->brdf_sampler_slot] = environment.lut_sampler;
+    }
     if (program->joint_view_slot >= 0) { /* skinned: the frame's joint matrices */
         bind.views[program->joint_view_slot] = sk_model_joint_view;
         if (program->joint_sampler_slot >= 0) bind.samplers[program->joint_sampler_slot] = sk_model_joint_sampler;
@@ -2681,7 +2782,11 @@ static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr
     const sk_material_texture_t *textures = material->textures;
     const sk_light_env_t *light_env = sk_light_env_get(e->light_env);
     sk_environment_binding_t environment;
+    sk_shadow_binding_t shadow = {0};
     sk_environment_get_binding(light_env != NULL ? light_env->environment : 0, &environment);
+    if (sk_shadow_hooks.get_binding != NULL) {
+        sk_shadow_hooks.get_binding(e->light_env, &shadow);
+    }
     ensure_pipelines();
     sg_pipeline pip = sk_pips[prim->skinned ? 1 : 0][blended ? 1 : 0][material->double_sided ? 1 : 0];
     if (pip.id != cur_pip->id) {
@@ -2726,9 +2831,141 @@ static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr
         .views[VIEW_brdf_tex] = environment.brdf_lut,
         .samplers[SMP_env_smp] = environment.cube_sampler,
         .samplers[SMP_brdf_smp] = environment.lut_sampler,
+        .views[VIEW_shadow_tex] = shadow.valid ? shadow.map : sk_model_shadow_fallback_view,
+        .samplers[SMP_shadow_smp] = shadow.valid ? shadow.sampler : sk_model_shadow_fallback_sampler,
     });
-    apply_fs(e, material, &environment);
+    apply_fs(e, material, &environment, &shadow, model_ptr->receives_shadow);
     sg_draw(0, prim->index_count, 1);
+}
+
+/* ------------------------------------------------------------- shadows ---- */
+
+/* Depth-only pipelines for the shadow pass (src/shaders/sk_depth.glsl), made on first
+ * use. The vertex layout gives explicit offsets into the interleaved vertex the model
+ * pipelines use, because the depth shader reads only the position, the texture
+ * coordinates an alpha cutout needs, and (skinned) the joints and weights. */
+static sg_pipeline sk_depth_pips[2]; /* [skinned] */
+
+static sg_pipeline depth_pipeline(bool skinned)
+{
+    const int stride = skinned ? 26 * 4 : 18 * 4; /* floats a vertex, as uploaded */
+    sg_pipeline_desc d = {
+        .shader = sg_make_shader(skinned ? depth_skinned_shader_desc(shader_backend())
+                                         : depth_static_shader_desc(shader_backend())),
+        .index_type = SG_INDEXTYPE_UINT32,
+        .face_winding = SG_FACEWINDING_CCW,
+        .depth = {.compare = SG_COMPAREFUNC_LESS_EQUAL, .write_enabled = true,
+                  .pixel_format = SG_PIXELFORMAT_DEPTH},
+        .colors[0].pixel_format = SG_PIXELFORMAT_NONE, /* depth only: no color attachment */
+        .color_count = 0,
+        .sample_count = 1, /* the map isn't multisampled, whatever the screen is */
+        .cull_mode = SG_CULLMODE_NONE, /* a one-sided floor should still cast */
+        .label = "sk-depth-pip",
+    };
+    d.layout.buffers[0].stride = stride;
+    d.layout.attrs[ATTR_depth_static_position] = (sg_vertex_attr_state){.format = SG_VERTEXFORMAT_FLOAT3, .offset = 0};
+    d.layout.attrs[ATTR_depth_static_texcoord0] =
+        (sg_vertex_attr_state){.format = SG_VERTEXFORMAT_FLOAT2, .offset = 6 * 4};
+    if (skinned) {
+        d.layout.attrs[ATTR_depth_skinned_joints] =
+            (sg_vertex_attr_state){.format = SG_VERTEXFORMAT_FLOAT4, .offset = 18 * 4};
+        d.layout.attrs[ATTR_depth_skinned_weights] =
+            (sg_vertex_attr_state){.format = SG_VERTEXFORMAT_FLOAT4, .offset = 22 * 4};
+    }
+    return sg_make_pipeline(&d);
+}
+
+/* Whether the model of this draw casts, and is there to draw at all. */
+static bool caster_of(const sk_model_draw_t *e, sk_model_t **model_out, sk_mesh_t **mesh_out)
+{
+    sk_model_t *model_ptr = resolve(e->model);
+    sk_mesh_t *mesh_ptr = model_ptr != NULL ? resolve_mesh(model_ptr->mesh) : NULL;
+    if (mesh_ptr == NULL || !model_ptr->visible || !model_ptr->casts_shadow) {
+        return false;
+    }
+    *model_out = model_ptr;
+    *mesh_out = mesh_ptr;
+    return true;
+}
+
+bool sk_model_has_shadow_casters(int light_env)
+{
+    for (int i = 0; i < sk_model_item_count; i++) {
+        sk_model_t *model_ptr;
+        sk_mesh_t *mesh_ptr;
+        const sk_model_draw_t *e = &sk_model_draws[sk_model_items[i].draw];
+        if (e->light_env == light_env && caster_of(e, &model_ptr, &mesh_ptr)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void sk_model_draw_shadow_casters(int light_env, const sk_mat4_t *light_view_proj)
+{
+    sg_pipeline current = {0};
+    float cutoff[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    bool cutoff_applied = false;
+
+    if (light_view_proj == NULL) {
+        return;
+    }
+    for (int i = 0; i < sk_model_item_count; i++) {
+        const sk_model_item_t *item = &sk_model_items[i];
+        const sk_model_draw_t *e = &sk_model_draws[item->draw];
+        sk_model_t *model_ptr;
+        sk_mesh_t *mesh_ptr;
+        if (e->light_env != light_env || !caster_of(e, &model_ptr, &mesh_ptr) ||
+            item->prim >= mesh_ptr->prim_count) {
+            continue;
+        }
+        const sk_primitive_t *prim = &mesh_ptr->prims[item->prim];
+        const sk_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
+        const bool skinned = prim->skinned;
+        if (item->blended) {
+            continue; /* see-through parts don't cast: a blob shadow would double up */
+        }
+        if (prim->vbuf.id == SG_INVALID_ID) {
+            continue; /* not uploaded yet */
+        }
+        if (sk_depth_pips[skinned ? 1 : 0].id == SG_INVALID_ID) {
+            sk_depth_pips[skinned ? 1 : 0] = depth_pipeline(skinned);
+        }
+        if (sk_depth_pips[skinned ? 1 : 0].id != current.id) {
+            current = sk_depth_pips[skinned ? 1 : 0];
+            sg_apply_pipeline(current);
+            cutoff_applied = false;
+        }
+        /* the light's mvp for this placement */
+        const sk_mat4_t mvp = sk_mat4_mul(*light_view_proj, e->model_mat);
+        if (skinned) {
+            struct {
+                float mvp[16], skin_base[4];
+            } vsp;
+            memcpy(vsp.mvp, mvp.m, sizeof(vsp.mvp));
+            vsp.skin_base[0] = (float)(e->joint_base >= 0 ? e->joint_base : 0);
+            vsp.skin_base[1] = vsp.skin_base[2] = vsp.skin_base[3] = 0.0f;
+            sg_apply_uniforms(UB_vs_depth_skin_params, &(sg_range){.ptr = &vsp, .size = sizeof(vsp)});
+        } else {
+            sg_apply_uniforms(UB_vs_depth_params, &(sg_range){.ptr = mvp.m, .size = sizeof(mvp.m)});
+        }
+        const float want_cutoff = material->alpha_mode == SK_ALPHA_MASK ? material->alpha_cutoff : 0.0f;
+        if (!cutoff_applied || want_cutoff != cutoff[0]) {
+            cutoff[0] = want_cutoff;
+            sg_apply_uniforms(UB_fs_depth_params, &(sg_range){.ptr = cutoff, .size = sizeof(cutoff)});
+            cutoff_applied = true;
+        }
+        sg_bindings bind = {.vertex_buffers[0] = prim->vbuf, .index_buffer = prim->ibuf};
+        bind.views[VIEW_base_color_tex] =
+            texture_view(&material->textures[SK_MATERIAL_TEXTURE_BASE_COLOR], sk_model_white_view);
+        bind.samplers[SMP_base_color_smp] = texture_sampler(&material->textures[SK_MATERIAL_TEXTURE_BASE_COLOR]);
+        if (skinned) {
+            bind.views[VIEW_joint_tex] = sk_model_joint_view;
+            bind.samplers[SMP_joint_smp] = sk_model_joint_sampler;
+        }
+        sg_apply_bindings(&bind);
+        sg_draw(0, prim->index_count, 1);
+    }
 }
 
 void sk_model_draw_items(int first, int count)
@@ -2908,6 +3145,14 @@ void sk_model_init(void)
         .width = 1, .height = 1, .pixel_format = SG_PIXELFORMAT_RGBA8,
         .data.mip_levels[0] = {.ptr = flat_normal, .size = sizeof(flat_normal)}});
     sk_model_flat_normal_view = sg_make_view(&(sg_view_desc){.texture.image = sk_model_flat_normal_img});
+    sk_model_shadow_fallback_img = sg_make_image(&(sg_image_desc){
+        .usage.depth_stencil_attachment = true, .width = 1, .height = 1,
+        .pixel_format = SG_PIXELFORMAT_DEPTH, .sample_count = 1, .label = "sk-model-no-shadow"});
+    sk_model_shadow_fallback_view = sg_make_view(&(sg_view_desc){.texture.image = sk_model_shadow_fallback_img});
+    sk_model_shadow_fallback_sampler = sg_make_sampler(&(sg_sampler_desc){
+        .min_filter = SG_FILTER_LINEAR, .mag_filter = SG_FILTER_LINEAR,
+        .wrap_u = SG_WRAP_CLAMP_TO_EDGE, .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
+        .compare = SG_COMPAREFUNC_LESS_EQUAL, .label = "sk-model-no-shadow-smp"});
 
     sk_scene_register_passes(SK_HANDLE_KIND_MODEL, draw_opaque, collect_transparent, draw_transparent);
     sk_scene_register_bounds(SK_HANDLE_KIND_MODEL, model_bounds);
@@ -2921,6 +3166,16 @@ void sk_model_init(void)
 
 void sk_model_deinit(void)
 {
+    sg_destroy_sampler(sk_model_shadow_fallback_sampler);
+    sg_destroy_view(sk_model_shadow_fallback_view);
+    sg_destroy_image(sk_model_shadow_fallback_img);
+    sk_model_shadow_fallback_sampler = (sg_sampler){0};
+    sk_model_shadow_fallback_view = (sg_view){0};
+    sk_model_shadow_fallback_img = (sg_image){0};
+    for (int i = 0; i < 2; i++) {
+        if (sk_depth_pips[i].id != SG_INVALID_ID) sg_destroy_pipeline(sk_depth_pips[i]);
+        sk_depth_pips[i] = (sg_pipeline){0};
+    }
     sk_render_hooks.draw_models = NULL;
     for (uint16_t i = 1; i < sk_model_pool.capacity; i++) {
         if (sk_model_pool.occupied[i]) {

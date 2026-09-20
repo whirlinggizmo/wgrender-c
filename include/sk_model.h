@@ -92,6 +92,15 @@ bool sk_model_is_pickable(sk_handle_t handle);
  * Disabled: still drawn and picked, and still blocks the pointer, but doesn't react. */
 bool sk_model_set_enabled(sk_handle_t model, bool enabled);
 bool sk_model_is_enabled(sk_handle_t model);
+
+/* Shadows (docs/PLAN-shadows.md), when a light in the scene casts them. Casting
+ * (default): the model is drawn into the light's depth map, so it shadows what's
+ * behind it — turn it off for a skybox or a glow. Receiving (default): shadows darken
+ * it — turn it off for something that shouldn't be shaded by them at all. */
+bool sk_model_set_casts_shadow(sk_handle_t model, bool casts);
+bool sk_model_casts_shadow(sk_handle_t model);
+bool sk_model_set_receives_shadow(sk_handle_t model, bool receives);
+bool sk_model_receives_shadow(sk_handle_t model);
 void sk_model_draw(sk_handle_t handle);
 void sk_model_destroy(sk_handle_t handle);
 

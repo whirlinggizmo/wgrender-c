@@ -227,6 +227,12 @@ reference/librl the raylib library this evolves from (read-only reference)
   metallic-roughness, occlusion and emissive maps), lit by the scene's lights and
   environment, which are chosen once per batch. Shapes are always unlit. See
   `examples/lights.c`.
+- Shadows (desktop GL and WebGL2; not on WebGPU yet): a directional light casts when
+  asked (`sk_light_set_casts_shadows`), drawing what casts into a depth map once a
+  frame; models, lit 3D sprites and custom shaders are darkened by it. Per light: how
+  far its shadows reach, the map size, the depth bias (in texels), how much light a
+  shadow takes away and what colour it leaves. Per model: whether it casts, and
+  whether it receives. See `docs/PLAN-shadows.md` and `examples/shadows.c`.
 - All text is TrueType, through fontstash. `sk_text_draw` without a font uses the
   built-in font (an ASCII subset of JetBrains Mono embedded in the library,
   `src/fonts/sk_default_font.h`); `sk_font_create` loads others (`sk_text_draw_ex`,

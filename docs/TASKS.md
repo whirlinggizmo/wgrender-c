@@ -304,9 +304,23 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 - [ ] Lightmaps: baked lighting as a material texture (its own texture coordinate set,
       which materials already support), multiplied into the surface. No new passes;
       bake them in Blender
-- [ ] Shadows (its own plan, after materials): shadow maps, a depth pass per casting
-      light, per-light and per-material controls, filtering; start with one directional
-      light. The biggest gap against three.js, which has them built in
+- [x] Shadows, phase 1 (2026-09-21, desktop GL and WebGL2): a directional light casts
+      into a depth map before the frame's passes, and models, lit sprites and custom
+      shaders (`sk_shadow`) are darkened by it. `sk_light_set_casts_shadows` /
+      `_shadow_distance` / `_shadow_map_size` / `_shadow_bias` (in texels) /
+      `_shadow_strength` / `_shadow_color`, and `sk_model_set_casts_shadow` /
+      `_set_receives_shadow`. Opt in twice: the module links only when a program calls
+      one of these, and a light casts only when asked. `.skshader` format 6
+      ([PLAN-shadows.md](PLAN-shadows.md), `examples/shadows.c`)
+- [ ] Shadows on WebGPU: every surface comes back fully shadowed there, while GL and
+      WebGL2 are correct; shadows are refused on that backend for now (a page draws
+      unshadowed, with one warning). Ruled out: the clip-space depth range, the map's v
+      orientation, branchy sampling. Next: see whether the depth pass writes at all
+      (read the map back), and compare with a minimal sokol WebGPU depth-sampling
+      sample (PLAN-shadows.md, "Not on WebGPU yet")
+- [ ] Shadows later: spot lights (a perspective map) and several casting lights at
+      once; then cascades for large scenes, point lights, and sprites as casters.
+      Measure the frame cost on a GPU (off / 1024 / 2048) as the skinning work did
 - [x] Materials, phase 3b (2026-09-21): lit 3D sprites — built-in PBR/unlit materials
       on `sk_sprite3d`, shaded with libsk's model PBR (normal, metallic-roughness,
       occlusion and emissive maps; the sprite's texture is the base color, its tint the

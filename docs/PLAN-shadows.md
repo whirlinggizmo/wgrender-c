@@ -1,0 +1,218 @@
+# Plan: Shadows
+
+Status: **phase 1 implemented (2026-09-21)** on desktop GL and WebGL2; **not on
+WebGPU yet** (see "Not on WebGPU yet"). Decisions 1–7 were answered as recommended,
+with one addition during implementation: a shadow's strength and tint. See
+"Phase 1 as built". Roadmap: the largest remaining gap against three.js, which ships
+shadow maps. Builds on lighting ([PLAN-lighting.md](PLAN-lighting.md)), materials
+([PLAN-materials.md](PLAN-materials.md)) and render targets
+([PLAN-render-target.md](PLAN-render-target.md)).
+
+## Why
+
+Without shadows, lit scenes read as objects floating in space: nothing tells the eye
+where a model meets the ground. Every screenshot in this repo shows it. Shadows are
+also what makes a directional light look like a sun rather than a flat wash.
+
+## Where we are
+
+- Lights are scene objects (directional, point, spot), resolved per scene draw into a
+  `sk_light_env_t` and selected per model (8 at a time, by contribution).
+- Model shading lives in `src/shaders/sk_pbr.glsl`, shared by models and lit sprites;
+  custom shaders get the same lights through `sk_frame` (`shaders/sk.glsl`).
+- Render targets exist (`sk_texture_create_target`), the frame runs target passes
+  before the screen pass, and screen effects already add their own passes after it
+  (`src/sk_effect.c`) — so "more passes before the screen" is a solved shape.
+- Nothing writes or reads a depth map; no light has any notion of casting.
+
+## Proposed design
+
+### API
+
+```c
+/* include/sk_light.h */
+/* Cast shadows from this light (off by default: a shadow map costs a pass and
+ * memory). Directional lights first; spot and point come later. */
+bool sk_light_set_casts_shadows(sk_handle_t light, bool casts);
+bool sk_light_get_casts_shadows(sk_handle_t light);
+
+/* Depth offsets that stop a surface shadowing itself, in shadow-map depth units:
+ * a constant, and one scaled by how steeply the surface faces the light.
+ * Defaults suit a scene a few tens of units across. */
+bool sk_light_set_shadow_bias(sk_handle_t light, float constant, float slope);
+
+/* Pixels each way of this light's shadow map (rounded to a power of two, 256 to
+ * 4096; default 2048). Bigger is sharper and slower. */
+bool sk_light_set_shadow_map_size(sk_handle_t light, int size);
+
+/* How far from the camera the light's shadows reach (world units; default 50).
+ * The map covers that much, so a smaller distance is a sharper shadow. */
+bool sk_light_set_shadow_distance(sk_handle_t light, float distance);
+
+/* include/sk_model.h */
+/* Whether this model is drawn into shadow maps (default: yes) and whether shadows
+ * darken it (default: yes). A character casts; a ground plane usually only
+ * receives; a glow or a skybox does neither. */
+bool sk_model_set_casts_shadow(sk_handle_t model, bool casts);
+bool sk_model_set_receives_shadow(sk_handle_t model, bool receives);
+```
+
+Nothing else changes: a program that enables shadows on its sun gets them everywhere
+lit shading runs — models, lit 3D sprites, and custom shaders that call the new
+`sk_shadow()` helper.
+
+### Frame shape
+
+A new optional module, `src/sk_shadow.c`, registers a render hook that runs before
+the frame's other passes:
+
+1. While the frame is recorded, each scene draw already pushes a `sk_light_env_t` and
+   queues model items against it. The shadow module notes which envs have a casting
+   light.
+2. Before the target and screen passes, for each casting light: fit the light's
+   projection, open a pass into that light's depth map, and replay the env's model
+   items with a depth-only pipeline (no fragment work beyond alpha cutout).
+3. The lit shaders then sample the map. `sk_frame` gains the light's view-projection
+   matrix and its parameters, so models, sprites and custom shaders read it the same
+   way (`.skshader` format 6 — custom shaders need rebuilding).
+
+The core stays as it is: this is another `sk_render_hooks` entry, like screen effects,
+so a program with no shadows doesn't link the module (`make check`).
+
+### Fitting
+
+A directional light has no position, so its map covers a box around what the camera
+can see, out to the light's shadow distance: fit an orthographic frustum to that
+slice of the view frustum, expanded to include casters behind it (so an object off
+screen still casts into view). Snap the fit to whole texels so the shadow doesn't
+crawl when the camera moves.
+
+### Sampling
+
+The shader transforms the surface point into the light's clip space, compares its
+depth to the map, and averages a small kernel (3x3 by default) for a soft edge.
+
+Two constraints found while planning:
+
+- **Sampler slots are full.** libsk owns sampler slots 8–11 (the environment cube,
+  the BRDF table, a sprite's texture, sprite data / joints), and 12 is sokol's limit.
+  The environment cube and the BRDF table are both sampled linear-clamp, so they can
+  share one slot, freeing one for the shadow map.
+- **Texture slots**: the map goes at 13, alongside the joints at 12.
+
+### Custom shaders
+
+`shaders/sk.glsl` gains, beside `sk_light()` and the environment helpers:
+
+```glsl
+float sk_shadow(int light, vec3 world_pos, vec3 normal);  /* 1 lit, 0 fully shadowed */
+```
+
+so a custom shader lights a surface the way built-in materials do, shadows included.
+
+## Phasing
+
+1. **One directional light**: casting flag, depth pass, fitted orthographic map,
+   PCF, models cast and receive, lit sprites receive, `sk_shadow()` for custom
+   shaders, an example. Everything above.
+2. **Spot lights** (a perspective map, the same machinery) and **several casting
+   lights** at once (a map each, capped).
+3. **Cascades** for large outdoor scenes, **point lights** (six faces or none), and
+   **sprite casters** (alpha-tested quads in the depth pass).
+
+## Decisions
+
+1. **Opt in per light** (`sk_light_set_casts_shadows`, off by default), rather than
+   shadows on for every light automatically. Recommend: opt in — a shadow map is a
+   pass and 16 MB at the default size, and most lights in a scene shouldn't pay it.
+2. **Phase 1 is one casting light** (the first casting directional light in the
+   scene; later ones warn once and are ignored), rather than N maps from the start.
+   Recommend: one — it's the common case (a sun), and it keeps the fit, the uniforms
+   and the slot pressure simple until the shape is proven.
+3. **Depth texture or color map.** Sample a real depth texture (with a comparison
+   sampler), or render depth into an R32F color target and compare by hand?
+   Recommend: depth texture — sokol supports `SG_IMAGESAMPLETYPE_DEPTH` with
+   `SG_SAMPLERTYPE_COMPARISON` on all three backends, it halves the memory, and
+   hardware comparison gives smoother PCF. Fall back to R32F only if a backend
+   refuses it.
+4. **Per-model receive flag** (`sk_model_set_receives_shadow`) as well as the cast
+   flag. Recommend: yes — it costs one bit and one branch, and it's how you keep a
+   skybox, a glowing object or a UI-ish model out of the shading.
+5. **The map size lives on the light** (`sk_light_set_shadow_map_size`) rather than a
+   global quality setting. Recommend: on the light — a flashlight and a sun want very
+   different sizes, and a global knob can come later as a multiplier.
+6. **Shadow distance on the light** (`sk_light_set_shadow_distance`, default 50)
+   rather than fitting the whole scene's bounds automatically. Recommend: on the
+   light — automatic fitting over a big scene gives uselessly blurry shadows, and
+   this is the one number that trades sharpness for range. Cascades (phase 3) remove
+   the trade.
+7. **`.skshader` format 6**: `sk_frame` grows the shadow matrix and parameters, so
+   custom shaders must be rebuilt (as they were for formats 4 and 5). Recommend: yes,
+   and keep refusing older files rather than carrying two layouts.
+
+## Phase 1 as built
+
+- **Opt in twice over.** `src/sk_shadow.c` is an optional module, so a program links
+  the depth pass only if it calls one of the shadow functions — which is why they live
+  there rather than beside the other light setters. (They started in `sk_light.c`; the
+  linker dropped the whole module and the first render came out with no shadows at
+  all.) At runtime a light casts only when asked, and a model says whether it casts
+  and whether it receives.
+- **One casting light**, the first the scene finds (`sk_light_env_t.shadow_light`),
+  and only a directional one: spot and point lights refuse with a warning.
+- **The fit** covers the slice of the camera's view out to the light's shadow
+  distance, as a square so its texel size doesn't change as the camera turns, snapped
+  to whole texels so shadows don't crawl, with the near plane pulled back 50 units so
+  casters behind the camera still cast. `sk_shadow_fit_directional` is pure and
+  tested.
+- **The bias is measured in shadow texels**, not in depth units. It started in depth
+  units, which read as "0.0015" but meant 20 cm along the light over the map's 155-unit
+  range: shadows lifted off their casters' feet and thin parts (a hat brim) vanished.
+  Texels hold at any map size or distance.
+- **Most of the acne is dealt with by offsetting the lookup along the surface normal**
+  (about a texel, more on surfaces facing the light edge-on) rather than by pushing
+  the depth back, which is what lifts shadows off their feet.
+- **A shadow fades out over the last tenth of the map** instead of being cut through
+  where the light's coverage ends.
+- **Strength and tint** (`sk_light_set_shadow_strength`, `_set_shadow_color`, added
+  during implementation): how much of the light a shadow takes away, and a colour
+  mixed into what it leaves. Shadows are really coloured by the ambient and
+  environment light that still reaches them; the tint is the stylised knob.
+- **The sampling runs for every pixel of a draw**, with the "outside the map" cases
+  folded in as weights rather than early returns: a texture comparison in branchy code
+  is undefined where the GPU needs neighbouring pixels to filter.
+- **Sampler slots were full** (libsk owns 8–11, sokol allows 12), so the environment
+  cube and the BRDF table now share one sampler — both are linear and clamped.
+- `.skshader` format 6: `sk_frame` carries the light's matrix and parameters, and
+  `sk_shadow(i, pos, n)` gives custom shaders the same answer built-in materials use.
+
+## Not on WebGPU yet
+
+On WebGPU every surface comes back fully shadowed, as though the map read as zero
+everywhere, while the same code is correct on desktop GL and WebGL2. Ruled out so far:
+the clip-space depth range (0..1 there, checked at runtime: the backend, the range and
+the map's texel size are all as expected), the map's v orientation (both rules tried),
+and branchy sampling (the lookup was restructured to run for every pixel). Rendering
+the map into an R32F colour target instead of a depth texture was tried and left GL
+broken in a different way, so it was reverted rather than shipped half-working.
+
+Until it's understood, `sk_shadow.c` refuses to make a map on WebGPU and logs once, so
+a WebGPU page draws the scene unshadowed rather than black. Next things to try: read
+the map back with `sg_query_image_*` or a debug blit to see whether the depth pass
+writes at all; compare against a minimal sokol WebGPU sample that samples a depth
+texture; check whether Dawn needs the depth view created with an explicit aspect.
+
+## Verification
+
+- Unit tests: the light's new state and its defaults; the fit (pure math: a frustum
+  slice in, an orthographic matrix out, texel snapping) against known values; a
+  casting light adding exactly one depth pass to the frame, and none when nothing
+  casts; per-model cast/receive flags reaching the draw.
+- Visual: a scene with a ground plane and a few models, shadows on and off,
+  screenshots on desktop GL, WebGL2 and WebGPU (`examples/shadows.c`); the existing
+  `lights`, `shaders` and `postprocess` examples still look right.
+- `make verify`, `make webcheck` (both backends), `make test SANITIZE=address`,
+  `make windows-test` / `windows-smoke` under Wine.
+- Cost: not measured yet. The desktop session here renders through llvmpipe on a
+  virtual display, where the numbers say nothing; measuring wants a browser session on
+  the GPU, as the skinning work used.

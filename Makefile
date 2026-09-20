@@ -258,7 +258,7 @@ endif
 #     && chmod +x tools/sokol-shdc
 SHDC       := tools/sokol-shdc
 SHDC_SLANG := glsl410:glsl300es:wgsl
-SHADERS    := src/shaders/sk_model.glsl src/shaders/sk_sprite.glsl
+SHADERS    := src/shaders/sk_model.glsl src/shaders/sk_sprite.glsl src/shaders/sk_depth.glsl
 
 shaders:
 	@for s in $(SHADERS); do \

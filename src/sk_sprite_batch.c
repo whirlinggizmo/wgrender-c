@@ -13,6 +13,7 @@
 #include "internal/sk_render.h"
 #include "internal/sk_scene.h"
 #include "internal/sk_shader.h"
+#include "internal/sk_shadow.h"
 #include "internal/sk_shaders.h"
 #include "internal/sk_sprite3d.h"
 #include "internal/sk_texture.h"
@@ -95,6 +96,10 @@ static struct {
     sg_image white, flat_normal, black_cube; /* stand-ins for the material's maps and the environment */
     sg_view white_view, flat_normal_view, black_cube_view;
     sg_sampler lit_sampler;
+    /* where a shadow map goes when nothing casts (never read: the shadow factor is 1) */
+    sg_image no_shadow;
+    sg_view no_shadow_view;
+    sg_sampler no_shadow_sampler;
     /* no base instance: the sprites as texels, read by index */
     sg_image data_image;
     sg_view data_view;
@@ -276,6 +281,9 @@ void sk_sprite_batch_deinit(void)
         sg_destroy_image(sk_sb.flat_normal);
         sg_destroy_image(sk_sb.black_cube);
         sg_destroy_sampler(sk_sb.lit_sampler);
+        sg_destroy_sampler(sk_sb.no_shadow_sampler);
+        sg_destroy_view(sk_sb.no_shadow_view);
+        sg_destroy_image(sk_sb.no_shadow);
     }
     free(sk_sb.data);
     free(sk_sb.instances);
@@ -676,6 +684,7 @@ static bool draw_custom(const sk_sprite_batch_t *b)
     const sk_shader_program_t *program;
     sk_sprite_custom_view_t view;
     sk_environment_binding_t environment = {0};
+    sk_shadow_binding_t custom_shadow = {0};
     sg_bindings bind = {0};
     sg_view white, black_cube;
     sg_sampler linear;
@@ -697,6 +706,9 @@ static bool draw_custom(const sk_sprite_batch_t *b)
     if (sk_environment_hooks.get_binding != NULL) {
         sk_environment_hooks.get_binding(env != NULL ? env->environment : 0, &environment);
     }
+    if (sk_shadow_hooks.get_binding != NULL) {
+        sk_shadow_hooks.get_binding(b->light_env, &custom_shadow);
+    }
     if (program->has_block[SK_SHADER_BLOCK_FRAME]) {
         /* the scene's lights and environment, as a model's shader gets them */
         sk_shader_frame_t frame;
@@ -709,6 +721,7 @@ static bool draw_custom(const sk_sprite_batch_t *b)
         }
         frame.camera_time[3] = time;
         frame.tint[0] = frame.tint[1] = frame.tint[2] = frame.tint[3] = 1.0f; /* each sprite's is in sk_color */
+        frame.shadow_params[0] = -1.0f; /* set below when a light in this batch casts */
         frame.output[2] = 1.0f;                                               /* exposure */
         if (env != NULL) {
             frame.output[1] = (float)env->tonemap;
@@ -745,6 +758,25 @@ static bool draw_custom(const sk_sprite_batch_t *b)
                     frame.sh[k][2] = environment.sh.c[k][2];
                 }
             }
+            if (custom_shadow.valid) { /* the casting light, as built-in shading gets it */
+                memcpy(frame.shadow_mat, custom_shadow.view_proj.m, sizeof(frame.shadow_mat));
+                for (int i = 0; i < light_count; i++) {
+                    if (lights[i] == custom_shadow.light) frame.shadow_params[0] = (float)i;
+                }
+                frame.shadow_params[1] = custom_shadow.texel;
+                frame.shadow_params[2] = custom_shadow.bias_constant;
+                frame.shadow_params[3] = custom_shadow.bias_slope;
+                frame.shadow_depth[0] = custom_shadow.depth_scale;
+                frame.shadow_depth[1] = custom_shadow.depth_offset;
+                frame.shadow_depth[2] = 0.0f;
+                frame.shadow_texel[0] = custom_shadow.texel_world;
+                frame.shadow_depth[3] = custom_shadow.strength;
+                frame.shadow_tint[0] = custom_shadow.tint[0];
+                frame.shadow_tint[1] = custom_shadow.tint[1];
+                frame.shadow_tint[2] = custom_shadow.tint[2];
+                frame.shadow_tint[3] = custom_shadow.bias_scale;
+                frame.shadow_map[0] = sg_query_features().origin_top_left ? 1.0f : 0.0f;
+            }
         }
         sg_apply_uniforms(SK_SHADER_BLOCK_FRAME, &SG_RANGE(frame));
     }
@@ -780,6 +812,13 @@ static bool draw_custom(const sk_sprite_batch_t *b)
     if (program->sprite_sampler_slot >= 0) bind.samplers[program->sprite_sampler_slot] = (sg_sampler){b->sampler};
     if (program->data_view_slot >= 0) bind.views[program->data_view_slot] = sk_sb.data_view;
     if (program->data_sampler_slot >= 0) bind.samplers[program->data_sampler_slot] = sk_sb.data_sampler;
+    if (program->shadow_view_slot >= 0) {
+        bind.views[program->shadow_view_slot] = custom_shadow.valid ? custom_shadow.map : sk_sb.no_shadow_view;
+    }
+    if (program->shadow_sampler_slot >= 0) {
+        bind.samplers[program->shadow_sampler_slot] =
+            custom_shadow.valid ? custom_shadow.sampler : sk_sb.no_shadow_sampler;
+    }
     if (program->env_view_slot >= 0) {
         bind.views[program->env_view_slot] = environment.cube.id != 0 ? environment.cube : black_cube;
     }
@@ -790,7 +829,9 @@ static bool draw_custom(const sk_sprite_batch_t *b)
     if (program->brdf_view_slot >= 0) {
         bind.views[program->brdf_view_slot] = environment.brdf_lut.id != 0 ? environment.brdf_lut : white;
     }
-    if (program->brdf_sampler_slot >= 0) {
+    /* the BRDF table shares the environment's sampler, so bind it only if it has one
+       of its own */
+    if (program->brdf_sampler_slot >= 0 && program->brdf_sampler_slot != program->env_sampler_slot) {
         bind.samplers[program->brdf_sampler_slot] = environment.lut_sampler.id != 0 ? environment.lut_sampler : linear;
     }
     sg_apply_bindings(&bind);
@@ -826,6 +867,14 @@ static void ensure_lit(void)
     sk_sb.black_cube_view = sg_make_view(&(sg_view_desc){.texture.image = sk_sb.black_cube});
     sk_sb.lit_sampler = sg_make_sampler(&(sg_sampler_desc){
         .min_filter = SG_FILTER_LINEAR, .mag_filter = SG_FILTER_LINEAR, .label = "sk-sprite-lit"});
+    sk_sb.no_shadow = sg_make_image(&(sg_image_desc){
+        .usage.depth_stencil_attachment = true, .width = 1, .height = 1,
+        .pixel_format = SG_PIXELFORMAT_DEPTH, .sample_count = 1, .label = "sk-sprite-no-shadow"});
+    sk_sb.no_shadow_view = sg_make_view(&(sg_view_desc){.texture.image = sk_sb.no_shadow});
+    sk_sb.no_shadow_sampler = sg_make_sampler(&(sg_sampler_desc){
+        .min_filter = SG_FILTER_LINEAR, .mag_filter = SG_FILTER_LINEAR,
+        .wrap_u = SG_WRAP_CLAMP_TO_EDGE, .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
+        .compare = SG_COMPAREFUNC_LESS_EQUAL, .label = "sk-sprite-no-shadow-smp"});
 }
 
 /* A batch of sprites with a built-in material: libsk's model shading, lit by the
@@ -844,6 +893,7 @@ static bool draw_lit(const sk_sprite_batch_t *b)
     sprite_fs_scene_t scene;
     sprite_fs_lights_t light_block;
     sk_environment_binding_t environment = {0};
+    sk_shadow_binding_t shadow = {0};
     sg_bindings bind = {0};
 
     if (material == NULL) return false; /* released while the batch waited */
@@ -868,6 +918,7 @@ static bool draw_lit(const sk_sprite_batch_t *b)
     params.u_pbr[2] = material->occlusion_strength;
     params.u_pbr[3] = lit ? 1.0f : 0.0f;
     params.u_material[0] = material->alpha_mode == SK_ALPHA_MASK ? material->alpha_cutoff : 0.0f;
+    params.u_material[2] = lit ? 1.0f : 0.0f; /* sprites receive shadows when they're lit */
     for (int t = 0; t < SK_MATERIAL_TEXTURE_COUNT; t++) { /* the material's texture transforms */
         float m[6];
         sk_material_uv_matrix(&material->textures[t], m);
@@ -879,6 +930,10 @@ static bool draw_lit(const sk_sprite_batch_t *b)
     scene.u_camera_pos[2] = cam->source.position.z;
     scene.u_tonemap[0] = env != NULL ? (float)env->tonemap : 0.0f;
     scene.u_tonemap[1] = env != NULL ? powf(2.0f, env->exposure) : 1.0f;
+    scene.u_shadow_params[0] = -1.0f; /* set below when a light in this batch casts */
+    if (sk_shadow_hooks.get_binding != NULL) {
+        sk_shadow_hooks.get_binding(b->light_env, &shadow);
+    }
     if (lit) {
         scene.u_ambient[0] = env->ambient.x;
         scene.u_ambient[1] = env->ambient.y;
@@ -896,6 +951,25 @@ static bool draw_lit(const sk_sprite_batch_t *b)
         }
         light_count = sk_light_select(env, b->bounds_min, b->bounds_max, lights, SK_MAX_DRAW_LIGHTS);
         params.u_material[1] = (float)light_count;
+        if (shadow.valid) {
+            memcpy(scene.u_shadow_mat, shadow.view_proj.m, sizeof(scene.u_shadow_mat));
+            for (int i = 0; i < light_count; i++) {
+                if (lights[i] == shadow.light) scene.u_shadow_params[0] = (float)i;
+            }
+            scene.u_shadow_params[1] = shadow.texel;
+            scene.u_shadow_params[2] = shadow.bias_constant;
+            scene.u_shadow_params[3] = shadow.bias_slope;
+            scene.u_shadow_depth[0] = shadow.depth_scale;
+            scene.u_shadow_depth[1] = shadow.depth_offset;
+            scene.u_shadow_depth[2] = 0.0f;
+            scene.u_shadow_texel[0] = shadow.texel_world;
+            scene.u_shadow_depth[3] = shadow.strength;
+            scene.u_shadow_tint[0] = shadow.tint[0];
+            scene.u_shadow_tint[1] = shadow.tint[1];
+            scene.u_shadow_tint[2] = shadow.tint[2];
+            scene.u_shadow_tint[3] = shadow.bias_scale;
+            scene.u_shadow_map[0] = sg_query_features().origin_top_left ? 1.0f : 0.0f;
+        }
         for (int i = 0; i < light_count; i++) {
             const sk_scene_light_t *light = &env->lights[lights[i]];
             light_block.u_light_pos_range[i][0] = light->position.x;
@@ -950,6 +1024,8 @@ static bool draw_lit(const sk_sprite_batch_t *b)
     bind.samplers[SMP_sprite_env_smp] =
         environment.cube_sampler.id != 0 ? environment.cube_sampler : sk_sb.lit_sampler;
     bind.views[VIEW_sprite_brdf_tex] = environment.brdf_lut.id != 0 ? environment.brdf_lut : sk_sb.white_view;
+    bind.views[VIEW_sprite_shadow_tex] = shadow.valid ? shadow.map : sk_sb.no_shadow_view;
+    bind.samplers[SMP_sprite_shadow_smp] = shadow.valid ? shadow.sampler : sk_sb.no_shadow_sampler;
     bind.samplers[SMP_sprite_brdf_smp] =
         environment.lut_sampler.id != 0 ? environment.lut_sampler : sk_sb.lit_sampler;
     sg_apply_bindings(&bind);

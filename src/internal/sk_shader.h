@@ -52,6 +52,7 @@ typedef struct {
     int data_view_slot, data_sampler_slot;     /* sprites read from a texture (sk_sprite_data) */
     int joint_view_slot, joint_sampler_slot;   /* skinned models' joints (sk_joint_tex) */
     int screen_view_slot, screen_sampler_slot; /* a screen effect's frame (sk_screen_tex) */
+    int shadow_view_slot, shadow_sampler_slot; /* the casting light's map (sk_shadow_tex) */
 } sk_shader_program_t;
 
 enum {
@@ -107,6 +108,12 @@ typedef struct {
     float light_spot[8][4];
     float env[4];
     float sh[9][4];
+    float shadow_mat[16];  /* world -> the casting light's clip space */
+    float shadow_params[4];
+    float shadow_depth[4];
+    float shadow_tint[4];
+    float shadow_map[4];   /* x 1 = the map is stored top-down */
+    float shadow_texel[4]; /* x one texel in world units */
 } sk_shader_frame_t;
 
 typedef struct {

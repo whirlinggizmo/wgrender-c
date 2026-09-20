@@ -52,6 +52,42 @@ bool sk_light_set_spot_cone(sk_handle_t light, float inner_angle, float outer_an
 bool sk_light_set_enabled(sk_handle_t light, bool enabled);        /* default: enabled */
 bool sk_light_is_enabled(sk_handle_t light);
 
+/* Shadows (docs/PLAN-shadows.md). A casting light draws what it can see into a depth
+ * map once a frame, and surfaces behind something are darkened. Off by default: a map
+ * costs a pass and its memory. Directional lights cast for now; spot and point lights
+ * are ignored (warned once). One casting light per scene: the first one found casts.
+ *
+ * Models say whether they take part (sk_model_set_casts_shadow /
+ * sk_model_set_receives_shadow); sprites with a material receive but don't cast. */
+bool sk_light_set_casts_shadows(sk_handle_t light, bool casts);
+bool sk_light_get_casts_shadows(sk_handle_t light);
+
+/* How far from the camera this light's shadows reach, in world units (default 50).
+ * The map covers that much, so less distance is a sharper shadow. */
+bool sk_light_set_shadow_distance(sk_handle_t light, float distance);
+
+/* Pixels each way of the light's shadow map: 256 to 4096, rounded down to a power of
+ * two (default 2048). Bigger is sharper and slower, and costs 2x the memory each step. */
+bool sk_light_set_shadow_map_size(sk_handle_t light, int size);
+
+/* How much of this light a shadow blocks (0..1, default 1 = all of it). Less leaves
+ * some of it through, for a softer look that doesn't depend on the scene's ambient. */
+bool sk_light_set_shadow_strength(sk_handle_t light, float strength);
+
+/* A colour mixed into what a shadow leaves behind (default black: nothing added).
+ * Shadows are really coloured by the ambient and environment light that still reaches
+ * them — this is the stylised knob for when you want a blue or warm shadow without
+ * changing how the rest of the scene is lit. The tint is scaled by how deep the
+ * shadow is, so a half-shadowed edge gets half of it. */
+bool sk_light_set_shadow_color(sk_handle_t light, sk_color_t color);
+
+/* Depth offsets that keep a surface from shadowing itself, measured in shadow-map
+ * texels (what the artifact is made of, so the same numbers hold at any map size or
+ * distance): `constant` always, `slope` scaled by how steeply the surface faces the
+ * light. Defaults (1, 4). Too little and lit surfaces get a striped "shadow acne"; too
+ * much and a shadow creeps away from what casts it, leaving a gap at its feet. */
+bool sk_light_set_shadow_bias(sk_handle_t light, float constant, float slope);
+
 #ifdef __cplusplus
 }
 #endif

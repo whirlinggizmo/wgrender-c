@@ -27,7 +27,21 @@ typedef struct {
     float inner_angle; /* radians, from the spot direction to where the falloff starts */
     float outer_angle; /* radians, to where the light reaches zero */
     bool enabled;
+    /* shadows (docs/PLAN-shadows.md) */
+    bool casts_shadows;
+    float shadow_distance;
+    int shadow_map_size;
+    float shadow_bias_constant, shadow_bias_slope;
+    float shadow_strength;
+    sk_color_t shadow_color;
 } sk_light_t;
+
+#define SK_SHADOW_DISTANCE_DEFAULT 50.0f
+#define SK_SHADOW_MAP_SIZE_DEFAULT 2048
+#define SK_SHADOW_MAP_SIZE_MIN 256
+#define SK_SHADOW_MAP_SIZE_MAX 4096
+#define SK_SHADOW_BIAS_CONSTANT_DEFAULT 1.0f /* shadow texels */
+#define SK_SHADOW_BIAS_SLOPE_DEFAULT 4.0f
 
 static sk_light_t *sk_lights; /* grown by the pool: don't hold a pointer across a create */
 static sk_handle_pool_t sk_light_pool;
@@ -97,6 +111,12 @@ sk_handle_t sk_light_create(sk_light_type_t type)
         .inner_angle = 30.0f * SK_DEG2RAD,
         .outer_angle = 45.0f * SK_DEG2RAD,
         .enabled = true,
+        .shadow_distance = SK_SHADOW_DISTANCE_DEFAULT,
+        .shadow_map_size = SK_SHADOW_MAP_SIZE_DEFAULT,
+        .shadow_bias_constant = SK_SHADOW_BIAS_CONSTANT_DEFAULT,
+        .shadow_bias_slope = SK_SHADOW_BIAS_SLOPE_DEFAULT,
+        .shadow_strength = 1.0f,
+        .shadow_color = SK_COLOR_BLACK,
     };
     return handle;
 }
@@ -226,7 +246,85 @@ bool sk_light_get_scene_light(sk_handle_t light, sk_scene_light_t *out)
         .range = light_ptr->range,
         .cos_inner = cosf(light_ptr->inner_angle),
         .cos_outer = cosf(light_ptr->outer_angle),
+        .casts_shadows = light_ptr->casts_shadows,
+        .shadow_distance = light_ptr->shadow_distance,
+        .shadow_map_size = light_ptr->shadow_map_size,
+        .shadow_bias_constant = light_ptr->shadow_bias_constant,
+        .shadow_bias_slope = light_ptr->shadow_bias_slope,
+        .shadow_strength = light_ptr->shadow_strength,
+        .shadow_tint = {sk_srgb_to_linear(sk_color_unpack(light_ptr->shadow_color).r),
+                        sk_srgb_to_linear(sk_color_unpack(light_ptr->shadow_color).g),
+                        sk_srgb_to_linear(sk_color_unpack(light_ptr->shadow_color).b)},
     };
+    return true;
+}
+
+/* A power of two in range: the map size the GPU actually gets. */
+static int shadow_map_size(int size)
+{
+    int rounded = SK_SHADOW_MAP_SIZE_MIN;
+    if (size > SK_SHADOW_MAP_SIZE_MAX) size = SK_SHADOW_MAP_SIZE_MAX;
+    while (rounded * 2 <= size) rounded *= 2;
+    return rounded;
+}
+
+bool sk_light_shadow_set_casts(sk_handle_t light, bool casts)
+{
+    sk_light_t *light_ptr = resolve(light);
+    if (light_ptr == NULL) return false;
+    if (casts && light_ptr->type != SK_LIGHT_DIRECTIONAL) {
+        log_warn("sk_light_set_casts_shadows: only directional lights cast shadows for now "
+                 "(docs/PLAN-shadows.md)");
+        return false;
+    }
+    light_ptr->casts_shadows = casts;
+    return true;
+}
+
+bool sk_light_shadow_casts(sk_handle_t light)
+{
+    const sk_light_t *light_ptr = resolve(light);
+    return light_ptr != NULL && light_ptr->casts_shadows;
+}
+
+bool sk_light_shadow_set_distance(sk_handle_t light, float distance)
+{
+    sk_light_t *light_ptr = resolve(light);
+    if (light_ptr == NULL || !(distance > 0.0f)) return false;
+    light_ptr->shadow_distance = distance;
+    return true;
+}
+
+bool sk_light_shadow_set_map_size(sk_handle_t light, int size)
+{
+    sk_light_t *light_ptr = resolve(light);
+    if (light_ptr == NULL || size < SK_SHADOW_MAP_SIZE_MIN) return false;
+    light_ptr->shadow_map_size = shadow_map_size(size);
+    return true;
+}
+
+bool sk_light_shadow_set_strength(sk_handle_t light, float strength)
+{
+    sk_light_t *light_ptr = resolve(light);
+    if (light_ptr == NULL || strength < 0.0f || strength > 1.0f) return false;
+    light_ptr->shadow_strength = strength;
+    return true;
+}
+
+bool sk_light_shadow_set_color(sk_handle_t light, sk_color_t color)
+{
+    sk_light_t *light_ptr = resolve(light);
+    if (light_ptr == NULL) return false;
+    light_ptr->shadow_color = color;
+    return true;
+}
+
+bool sk_light_shadow_set_bias(sk_handle_t light, float constant, float slope)
+{
+    sk_light_t *light_ptr = resolve(light);
+    if (light_ptr == NULL || constant < 0.0f || slope < 0.0f) return false;
+    light_ptr->shadow_bias_constant = constant;
+    light_ptr->shadow_bias_slope = slope;
     return true;
 }
 

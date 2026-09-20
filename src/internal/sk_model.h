@@ -30,6 +30,12 @@ void sk_model_list_gltf_dependencies(const unsigned char *data, int size, sk_ass
  * until the model is posed again. Exposed for tests. */
 int sk_model_get_joint_matrices(sk_handle_t model, const float **matrices);
 
+/* Shadows (src/sk_shadow.c). Whether any model queued for this lighting environment
+ * casts, and drawing those casters into the open depth pass from the light's point of
+ * view (`light_view_proj`: world -> the light's clip space). */
+bool sk_model_has_shadow_casters(int light_env);
+void sk_model_draw_shadow_casters(int light_env, const sk_mat4_t *light_view_proj);
+
 /* Picking helpers (pure; exposed for tests). */
 
 /* Linear blend skinning of one position, as the skinned vertex shader does:
