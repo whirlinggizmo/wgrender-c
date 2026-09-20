@@ -64,6 +64,21 @@
       location.search = "?ex=" + encodeURIComponent(sel.value);
     });
 
+    // What this build needs from the browser. Say so plainly: a missing WebGL2 is a
+    // blank canvas otherwise, and a threaded build without cross-origin isolation
+    // (a host that can't send COOP/COEP, such as GitHub Pages) can't start at all.
+    const missing = (() => {
+      if (!window.WebAssembly) return "WebAssembly";
+      const canvas = document.createElement("canvas");
+      if (!canvas.getContext("webgl2")) return "WebGL2";
+      return null;
+    })();
+    if (missing) {
+      statusEl.textContent = "this browser has no " + missing +
+        ", which this build needs — try an up-to-date Chrome, Firefox or Safari";
+      throw new Error("missing " + missing);
+    }
+
     // Emscripten module: bind the canvas and pipe logs to the console.
     var Module = {
       canvas: document.getElementById("canvas"),

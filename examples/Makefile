@@ -61,7 +61,7 @@ BUILD_DESKTOP := build/$(if $(filter 1,$(WINDOWS)),windows,desktop)
 SRCS          := $(wildcard *.c)
 BINS          := $(patsubst %.c,$(BUILD_DESKTOP)/%$(EXE),$(SRCS))
 
-.PHONY: all run clean wasm wasm-all websize serve serve-tls spritebench-web shadowbench-web loadbench-web webcheck webstart smoke headless print-ldlibs FORCE
+.PHONY: all run clean wasm wasm-all site websize serve serve-tls spritebench-web shadowbench-web loadbench-web webcheck webstart smoke headless print-ldlibs FORCE
 
 all: $(BINS)
 
@@ -188,6 +188,20 @@ spritebench-web shadowbench-web loadbench-web: %-web: $(BENCH_WEB)/%.js
 wasm:
 	@$(MAKE) --no-print-directory -j$(NPROC) $(BUILD_WEB)/$(WASM_EXAMPLE).js
 	$(wasm_deploy)
+
+# A self-contained site to hand a static host: the built examples plus the assets they
+# load, so nothing has to be mounted beside it (tools/serve.py does that locally). Not
+# the benchmarks under bench/ -- a local tool, and loadbench's models are downloaded.
+# Default WEB_THREADS=0, because a host that can't send COOP/COEP (GitHub Pages) can't
+# run a threaded build at all; pass WEB_THREADS=1 for a host that can.
+SITE ?= $(BUILD_WEB)/site
+site:
+	@$(MAKE) --no-print-directory wasm-all
+	@rm -rf $(SITE) && mkdir -p $(SITE)
+	@cd $(BUILD_WEB) && cp -r index.html examples.json *.js *.wasm $(abspath $(SITE))/
+	@mkdir -p $(SITE)/assets
+	@cd $(ROOT)/examples/assets && tar -c --exclude=bench . | tar -x -C $(abspath $(SITE))/assets
+	@echo "site: $(SITE) ($$(du -sh $(SITE) | cut -f1)) — any static host, at a domain root or under a path"
 
 wasm-all:
 	@$(MAKE) --no-print-directory -j$(NPROC) $(WEB_BUNDLES)
