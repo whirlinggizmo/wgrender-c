@@ -209,17 +209,25 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_shape2d_draw_rectangle(0, 0, (int)screen.x, 64, g.bar);
     wgr_text_draw("libwgrender loading   A: in the background   S: synchronously   U: unload", 12, 12, 12,
                  WGR_COLOR_RAYWHITE);
+    /* "in the background" means worker threads, and a web build only has them on a
+       cross-origin-isolated page. Without them the decode lands on this thread and the
+       graph below says so, so the example had better not claim otherwise. */
+    snprintf(line, sizeof(line), "%s  ·  decoding on %s", wgr_get_renderer(),
+             wgr_has_threads() ? "worker threads" : "the main thread (no threads in this build/host)");
+    wgr_text_draw(line, 12, 26, 12, wgr_has_threads() ? WGR_COLOR_LIGHTGRAY : WGR_COLOR_GOLD);
     if (g.group != 0) {
         const float progress = wgr_asset_get_progress(g.group);
-        snprintf(line, sizeof(line), "loading (%s)... %.0f%%", g.sync ? "synchronously" : "in the background",
+        snprintf(line, sizeof(line), "loading (%s)... %.0f%%",
+                 g.sync ? "synchronously" : (wgr_has_threads() ? "in the background" : "in the background, but on this thread"),
                  progress * 100.0f);
-        wgr_shape2d_draw_rectangle(12, 40, (int)(240 * progress), 12, g.graph_ok);
-        wgr_shape2d_draw_rectangle_lines(12, 40, 240, 12, g.line);
-        wgr_text_draw(line, 264, 40, 12, WGR_COLOR_LIGHTGRAY);
+        wgr_shape2d_draw_rectangle(12, 54, (int)(240 * progress), 12, g.graph_ok);
+        wgr_shape2d_draw_rectangle_lines(12, 54, 240, 12, g.line);
+        wgr_text_draw(line, 264, 54, 12, WGR_COLOR_LIGHTGRAY);
     } else if (g.loaded) {
         snprintf(line, sizeof(line), "loaded %d files %s in %.2f s; creating them took %.0f ms",
-                 FILES, g.sync ? "synchronously" : "in the background", g.load_seconds, g.create_ms);
-        wgr_text_draw(line, 12, 40, 12, WGR_COLOR_LIGHTGRAY);
+                 FILES, g.sync ? "synchronously" : (wgr_has_threads() ? "in the background" : "without threads"),
+                 g.load_seconds, g.create_ms);
+        wgr_text_draw(line, 12, 54, 12, WGR_COLOR_LIGHTGRAY);
     }
     draw_graph(12, (int)screen.y - 132, (int)screen.x - 24, 120);
     wgr_render_end();

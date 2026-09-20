@@ -2,6 +2,7 @@
  * virtual monitor the size of the framebuffer; no position, no fullscreen. */
 #include <string.h>
 
+#include "wgr.h"
 #include "wgr_logger.h"
 #include "wgr_window.h"
 #include "test.h"
@@ -42,4 +43,22 @@ void test_window_headless(void)
 
     CHECK(wgr_window_set_size((int)original.x, (int)original.y));
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
+}
+
+/* wgr_get_renderer / wgr_has_threads: what a program asks before claiming something
+ * about the host (examples/loading.c says which way it is decoding). */
+void test_runtime_capabilities(void)
+{
+    const char *renderer = wgr_get_renderer();
+    CHECK(renderer != NULL && *renderer != '\0');
+    /* the test build is headless, and says so rather than naming sokol's dummy backend */
+    CHECK(strcmp(renderer, "headless") == 0);
+
+    /* a bool, and on desktop threads are always there; the web build decides at
+       compile time (WEB_THREADS) and the host decides whether they can start */
+    const bool threads = wgr_has_threads();
+    CHECK(threads == true || threads == false);
+#ifndef __EMSCRIPTEN__
+    CHECK(threads); /* desktop has pthreads */
+#endif
 }

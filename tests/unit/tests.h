@@ -89,6 +89,7 @@ void test_parity_sound_pan(void);
 void test_parity_asset_host(void);
 
 void test_window_headless(void);
+void test_runtime_capabilities(void);
 void test_interaction(void);
 void test_shape2d(void);
 void test_shape2d_immediate(void);

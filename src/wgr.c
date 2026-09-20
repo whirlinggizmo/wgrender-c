@@ -8,6 +8,7 @@
 #  include <time.h>
 #endif
 
+#include "internal/wgr_thread_internal.h"
 #include "internal/exports_internal.h"
 #include "internal/wgr_frame_pace_internal.h"
 #include "internal/wgr_internal_internal.h"
@@ -413,6 +414,20 @@ bool wgr_is_initialized(void)
 }
 
 WGRI_KEEP
+const char *wgr_get_renderer(void)
+{
+#ifdef WGR_HEADLESS
+    return "headless";
+#else
+    return wgr_is_initialized() ? backend_name(sg_query_backend()) : "none";
+#endif
+}
+
+bool wgr_has_threads(void)
+{
+    return wgri_thread_available();
+}
+
 const char *wgr_get_platform(void)
 {
 #if defined(PLATFORM_WEB) || defined(__EMSCRIPTEN__)

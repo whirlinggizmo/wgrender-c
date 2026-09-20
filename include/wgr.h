@@ -97,6 +97,21 @@ void wgr_request_quit(void);
 bool wgr_is_initialized(void);
 const char *wgr_get_platform(void);
 
+/* Which renderer is running: "GL core", "GLES3/WebGL2", "WebGPU", "D3D11",
+ * "Metal (macOS)", or "headless". Display text — it names the backend libwgrender
+ * chose, which the API otherwise hides. "none" before wgr_run starts. */
+const char *wgr_get_renderer(void);
+
+/* What this build and host can do, so a program can say why something is missing
+ * instead of quietly behaving differently.
+ *
+ * Threads decode and upload assets off the main thread. A web build has them only if
+ * it was built with them (WEB_THREADS=1, the default) *and* the page is cross-origin
+ * isolated, which needs COOP/COEP headers from the host — a static host that can't
+ * send them (GitHub Pages) serves the WEB_THREADS=0 build instead, where loading
+ * blocks the frame it happens on. */
+bool wgr_has_threads(void);
+
 /* Frame rate (a power/heat cap; use a tick for simulation rate).
  * Frames are locked to the display's vsync by default. wgr_set_target_fps(fps)
  * caps the rate: fps <= 0 means no cap (vsync rate, or as fast as possible with

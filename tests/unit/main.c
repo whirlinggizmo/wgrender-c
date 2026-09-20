@@ -89,6 +89,7 @@ static const test_case_t TESTS[] = {
     {"parity_sound_pan", test_parity_sound_pan},
     {"parity_asset_host", test_parity_asset_host},
     {"window_headless", test_window_headless},
+    {"runtime_capabilities", test_runtime_capabilities},
     {"interaction", test_interaction},
     {"shape2d", test_shape2d},
     {"shape2d_immediate", test_shape2d_immediate},
