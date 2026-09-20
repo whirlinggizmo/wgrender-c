@@ -86,7 +86,11 @@ Keep this file short and rule-shaped. The authoritative design doc is
   (raw and gzip; brotli if installed), also summarized after `make wasm-all`.
 - Run `make verify` (lib + examples + `make check` + `make test` + `make smoke`,
   about 15 s) before calling a change done; run `make webcheck` (and
-  `BACKEND=webgpu`) too when touching rendering, assets or web code, and
+  `BACKEND=webgpu`) too when touching rendering, assets or web code. `make verify`
+  never links a web example, so **EM_JS changes are unverified until an example
+  links** — closure runs then, not when the library is built, and it is what catches
+  a typo in the JS body (`$0` is EM_ASM syntax; EM_JS takes named parameters). After
+  touching EM_JS run at least `make -C examples wasm WASM_EXAMPLE=hello`, and
   `make windows-test` and `make windows-smoke` (under Wine) when touching threads,
   files and paths, the platform layer (`wgr_platform.c`, `deps/sokol_utils`) or the
   build.

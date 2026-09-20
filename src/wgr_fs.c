@@ -67,7 +67,7 @@ EM_JS(void, wgr_fs_store_open, (const char *root_c, int epoch), {
             const store = Module.wgr_fs_db.transaction("files").objectStore("files");
             const got = store.get(epochKey);
             got.onsuccess = () => {
-                if (got.result === $0) {
+                if (got.result === epoch) {
                     listKeys();
                     return;
                 }
@@ -75,7 +75,7 @@ EM_JS(void, wgr_fs_store_open, (const char *root_c, int epoch), {
                 const tx = Module.wgr_fs_db.transaction("files", "readwrite");
                 const files = tx.objectStore("files");
                 files.clear();
-                files.put($0, epochKey);
+                files.put(epoch, epochKey);
                 tx.oncomplete = () => listKeys();
                 tx.onabort = () => done(2, tx.error);
             };
