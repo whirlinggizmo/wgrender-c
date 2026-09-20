@@ -252,7 +252,8 @@ static bool sk_model_joints_overflow_logged;
  * sorted to bring equal ones together; everything else keeps the order it came in. */
 static int sk_model_region = -1;
 static int sk_model_region_seq;
-static int sk_model_draw_calls; /* draws issued this frame, for tests and benchmarks */
+static int sk_model_draw_calls;        /* draws issued this frame, for tests and benchmarks */
+static int sk_model_shadow_draw_calls; /* the same, for the shadow maps' depth passes */
 static float *sk_model_instances;
 static int sk_model_instance_count, sk_model_instance_capacity;
 static sg_image sk_model_instance_image;
@@ -3136,6 +3137,11 @@ int sk_model_draw_call_count(void)
     return sk_model_draw_calls;
 }
 
+int sk_model_shadow_draw_call_count(void)
+{
+    return sk_model_shadow_draw_calls;
+}
+
 bool sk_model_has_shadow_receivers(int light_env)
 {
     for (int i = 0; i < sk_model_item_count; i++) {
@@ -3148,47 +3154,74 @@ bool sk_model_has_shadow_receivers(int light_env)
     return false;
 }
 
+/* What a caster contributes to a light's map, or nothing. Fills `prim` and `material`
+ * when this item is drawn into the map at all: it belongs to this lighting environment,
+ * it casts, it isn't see-through, its buffers are up, and the light's fit reaches it. */
+static bool depth_item(int index, int light_env, const sk_plane_t planes[6], const sk_primitive_t **prim_out,
+                       const sk_material_t **material_out)
+{
+    const sk_model_item_t *item = &sk_model_items[index];
+    const sk_model_draw_t *e = &sk_model_draws[item->draw];
+    sk_model_t *model_ptr;
+    sk_mesh_t *mesh_ptr;
+    if (e->light_env != light_env || item->blended || !caster_of(e, &model_ptr, &mesh_ptr) ||
+        item->prim >= mesh_ptr->prim_count) {
+        return false; /* see-through parts don't cast: a blob shadow would double up */
+    }
+    if (e->has_bounds && !sk_frustum_test_aabb(planes, e->wmin, e->wmax)) {
+        return false; /* outside what this light's map covers */
+    }
+    const sk_primitive_t *prim = &mesh_ptr->prims[item->prim];
+    if (prim->vbuf.id == SG_INVALID_ID) {
+        return false; /* not uploaded yet */
+    }
+    *prim_out = prim;
+    *material_out = prim_material(model_ptr, mesh_ptr, prim);
+    return true;
+}
+
+/* The depth pass sets less than the shading pass does, so it batches on less: the
+ * buffers it binds, the base color texture and cutoff it alpha-tests with, and the
+ * pipeline. Everything else about a caster is in its instance record. */
+static bool same_depth_group(const sk_primitive_t *a, const sk_material_t *am, const sk_primitive_t *b,
+                             const sk_material_t *bm)
+{
+    return a->vbuf.id == b->vbuf.id && a->ibuf.id == b->ibuf.id && a->index_count == b->index_count &&
+           a->skinned == b->skinned && am == bm;
+}
+
 void sk_model_draw_shadow_casters(int light_env, const sk_mat4_t *light_view_proj)
 {
     sg_pipeline current = {0};
     float cutoff[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     bool cutoff_applied = false;
     /* a light's map covers only what its fit reaches; a caster outside it draws
-       nothing but costs a draw call, so test each placement once and remember the
-       answer for the rest of its primitives */
+       nothing but costs a draw call, so test each placement against the fit */
     sk_plane_t light_planes[6];
-    int tested_draw = -1;
-    bool tested_in_map = false;
+    int i = 0;
 
     if (light_view_proj == NULL) {
         return;
     }
     sk_frustum_from_view_proj(*light_view_proj, light_planes);
-    for (int i = 0; i < sk_model_item_count; i++) {
-        const sk_model_item_t *item = &sk_model_items[i];
-        const sk_model_draw_t *e = &sk_model_draws[item->draw];
-        sk_model_t *model_ptr;
-        sk_mesh_t *mesh_ptr;
-        if (e->light_env != light_env || !caster_of(e, &model_ptr, &mesh_ptr) ||
-            item->prim >= mesh_ptr->prim_count) {
+    while (i < sk_model_item_count) {
+        const sk_primitive_t *prim = NULL;
+        const sk_material_t *material = NULL;
+        const sk_primitive_t *next_prim = NULL;
+        const sk_material_t *next_material = NULL;
+        int last;
+        if (!depth_item(i, light_env, light_planes, &prim, &material)) {
+            i++;
             continue;
         }
-        if (item->draw != tested_draw) {
-            tested_draw = item->draw;
-            tested_in_map = !e->has_bounds || sk_frustum_test_aabb(light_planes, e->wmin, e->wmax);
+        /* casters beside this one that draw the same thing: their records sit beside
+           its own, so the whole run is one draw into the map */
+        for (last = i; last + 1 < sk_model_item_count &&
+                       depth_item(last + 1, light_env, light_planes, &next_prim, &next_material) &&
+                       same_depth_group(prim, material, next_prim, next_material);
+             last++) {
         }
-        if (!tested_in_map) {
-            continue;
-        }
-        const sk_primitive_t *prim = &mesh_ptr->prims[item->prim];
-        const sk_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
         const bool skinned = prim->skinned;
-        if (item->blended) {
-            continue; /* see-through parts don't cast: a blob shadow would double up */
-        }
-        if (prim->vbuf.id == SG_INVALID_ID) {
-            continue; /* not uploaded yet */
-        }
         if (sk_depth_pips[skinned ? 1 : 0].id == SG_INVALID_ID) {
             sk_depth_pips[skinned ? 1 : 0] = depth_pipeline(skinned);
         }
@@ -3197,18 +3230,15 @@ void sk_model_draw_shadow_casters(int light_env, const sk_mat4_t *light_view_pro
             sg_apply_pipeline(current);
             cutoff_applied = false;
         }
-        /* the light's mvp for this placement */
-        const sk_mat4_t mvp = sk_mat4_mul(*light_view_proj, e->model_mat);
-        if (skinned) {
+        {   /* the light's camera, and where this draw's casters start */
             struct {
-                float mvp[16], skin_base[4];
+                float view_proj[16], instance_base[4];
             } vsp;
-            memcpy(vsp.mvp, mvp.m, sizeof(vsp.mvp));
-            vsp.skin_base[0] = (float)(e->joint_base >= 0 ? e->joint_base : 0);
-            vsp.skin_base[1] = vsp.skin_base[2] = vsp.skin_base[3] = 0.0f;
-            sg_apply_uniforms(UB_vs_depth_skin_params, &(sg_range){.ptr = &vsp, .size = sizeof(vsp)});
-        } else {
-            sg_apply_uniforms(UB_vs_depth_params, &(sg_range){.ptr = mvp.m, .size = sizeof(mvp.m)});
+            memcpy(vsp.view_proj, light_view_proj->m, sizeof(vsp.view_proj));
+            vsp.instance_base[0] = (float)i;
+            vsp.instance_base[1] = vsp.instance_base[2] = vsp.instance_base[3] = 0.0f;
+            sg_apply_uniforms(skinned ? UB_vs_depth_skin_params : UB_vs_depth_params,
+                              &(sg_range){.ptr = &vsp, .size = sizeof(vsp)});
         }
         const float want_cutoff = material->alpha_mode == SK_ALPHA_MASK ? material->alpha_cutoff : 0.0f;
         if (!cutoff_applied || want_cutoff != cutoff[0]) {
@@ -3220,12 +3250,16 @@ void sk_model_draw_shadow_casters(int light_env, const sk_mat4_t *light_view_pro
         bind.views[VIEW_base_color_tex] =
             texture_view(&material->textures[SK_MATERIAL_TEXTURE_BASE_COLOR], sk_model_white_view);
         bind.samplers[SMP_base_color_smp] = texture_sampler(&material->textures[SK_MATERIAL_TEXTURE_BASE_COLOR]);
+        bind.views[VIEW_instance_tex] = sk_model_instance_view;
+        bind.samplers[SMP_instance_smp] = sk_model_instance_sampler;
         if (skinned) {
             bind.views[VIEW_joint_tex] = sk_model_joint_view;
             bind.samplers[SMP_joint_smp] = sk_model_joint_sampler;
         }
         sg_apply_bindings(&bind);
-        sg_draw(0, prim->index_count, 1);
+        sg_draw(0, prim->index_count, last - i + 1);
+        sk_model_shadow_draw_calls++;
+        i = last + 1;
     }
 }
 
@@ -3409,7 +3443,7 @@ const float *sk_model_instance_records(int *count)
  * (sk_render: before any pass). */
 void sk_model_flush(void)
 {
-    sk_model_draw_calls = 0; /* the passes after this are the frame's draws */
+    sk_model_draw_calls = sk_model_shadow_draw_calls = 0; /* the passes after this are the frame's draws */
     upload_joints();
     sort_items(); /* equal items together, so a run of them is one draw */
     upload_instances();

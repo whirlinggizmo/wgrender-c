@@ -16,6 +16,11 @@
  *                      but where they stand, so they go up as one instanced draw
  *                      (docs/PLAN-instancing.md). Against "sun 1024", which is the
  *                      same scene with a material each, it is what batching is worth
+ *   wide, each         the sun's shadows reach the whole grid instead of 40 units, so
+ *                      every model is drawn into the map as well as to the screen,
+ *                      with a material each: nothing batches in either pass
+ *   wide, shared       the same, one mesh and one material: both passes batch, so it
+ *                      is what instancing is worth when everything casts
  *   look away          the sun casts, but the camera faces away from the grid. Every
  *                      model is behind it, so frustum culling (docs/PLAN-culling.md)
  *                      should submit almost nothing
@@ -54,14 +59,16 @@ typedef enum {
     CASE_TWO_LIGHTS,
     CASE_NO_RECEIVE,
     CASE_SHARED,
+    CASE_WIDE_EACH,
+    CASE_WIDE_SHARED,
     CASE_AWAY,
     CASE_AWAY_NO_CULL,
     CASES,
 } bench_case_t;
 
 static const char *CASE_NAMES[CASES] = {"off",        "sun 1024", "sun 2048",  "sun 4096",
-                                        "two 1024",   "no receive", "shared",    "look away",
-                                        "away, no cull"};
+                                        "two 1024",   "no receive", "shared",     "wide, each",
+                                        "wide, shared", "look away",  "away, no cull"};
 enum { COUNT_STEPS = 4 };
 static const int MODEL_COUNTS[COUNT_STEPS] = {100, 400, 1000, 4000};
 
@@ -116,7 +123,7 @@ static void setup(void)
 
     b.floor = place(sk_mesh_create_plane(side * spacing * 1.6f, side * spacing * 1.6f, 0), 0, 0, 0,
                     0.4f, 0.42f, 0.45f);
-    if (which == CASE_SHARED) { /* one mesh, one material, `count` placements */
+    if (which == CASE_SHARED || which == CASE_WIDE_SHARED) { /* one mesh, one material */
         const sk_handle_t mesh = sk_mesh_create_sphere(0.55f, 16, 32);
         const sk_handle_t material = sk_material_create(SK_MATERIAL_PBR);
         sk_material_set_vec4(material, "base_color", 0.6f, 0.5f, 0.4f, 1.0f);
@@ -133,7 +140,7 @@ static void setup(void)
         sk_mesh_release(mesh);
         sk_material_release(material);
     }
-    for (int i = 0; which != CASE_SHARED && i < count; i++) {
+    for (int i = 0; which != CASE_SHARED && which != CASE_WIDE_SHARED && i < count; i++) {
         const float x = ((float)(i % side) - (float)side * 0.5f) * spacing;
         const float z = ((float)(i / side) - (float)side * 0.5f) * spacing;
         const float hue = (float)i / (float)count;
@@ -146,6 +153,8 @@ static void setup(void)
 
     /* the light casts (or doesn't) for this case */
     sk_light_set_casts_shadows(b.sun, which != CASE_OFF);
+    /* "wide" reaches the whole grid, so nothing is culled out of the map */
+    sk_light_set_shadow_distance(b.sun, which == CASE_WIDE_EACH || which == CASE_WIDE_SHARED ? 400.0f : 40.0f);
     sk_light_set_casts_shadows(b.spot, which == CASE_TWO_LIGHTS);
     sk_scene_set_culling(b.scene, which != CASE_AWAY_NO_CULL);
     sk_light_set_shadow_map_size(b.sun, which == CASE_2048 ? 2048 : which == CASE_4096 ? 4096 : 1024);

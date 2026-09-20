@@ -61,6 +61,7 @@ static const test_case_t TESTS[] = {
     {"shadow_fit", test_shadow_fit},
     {"shadow_fit_spot", test_shadow_fit_spot},
     {"shadow_caster_cull", test_shadow_caster_cull},
+    {"shadow_instancing", test_shadow_instancing},
     {"shadow_casters", test_shadow_casters},
     {"model_draw_queue", test_model_draw_queue},
     {"cull_frustum", test_cull_frustum},

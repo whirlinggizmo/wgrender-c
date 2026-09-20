@@ -41,6 +41,7 @@ void sk_model_queue_counts(int *placements, int *primitives, int *placement_ceil
 /* How many draw calls the frame's items came to: equal ones submitted inside an
  * unordered region go up as one (docs/PLAN-instancing.md). Read after the passes. */
 int sk_model_draw_call_count(void);
+int sk_model_shadow_draw_call_count(void);
 
 /* A region of a frame where the models submitted may be drawn in any order, so equal
  * ones can be batched (sk_scene declares it; opaque parts only). */

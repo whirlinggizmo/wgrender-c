@@ -57,6 +57,7 @@ void test_shadow_state(void);
 void test_shadow_fit(void);
 void test_shadow_fit_spot(void);
 void test_shadow_caster_cull(void);
+void test_shadow_instancing(void);
 void test_shadow_casters(void);
 void test_model_draw_queue(void);
 void test_cull_frustum(void);

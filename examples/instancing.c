@@ -5,6 +5,8 @@
  * one mesh and one material and differs only in transform and tint, so it is one draw;
  * six gumshoes share the same asset and animate out of step, so their joints are
  * per instance; a few cubes are see-through, and those keep their back-to-front order.
+ * The sun casts, so the same batching happens again into its shadow map: 400 cubes and
+ * six walkers go into it as two draws, and every shadow lands under its own model.
  * Press SPACE to give every cube its own material instead, which is the same picture
  * drawn one cube at a time. */
 #include <math.h>
@@ -75,9 +77,23 @@ static void on_init(void *user)
     const sk_handle_t sun = sk_light_create(SK_LIGHT_DIRECTIONAL);
     sk_light_set_direction(sun, -0.5f, -1.0f, -0.4f);
     sk_light_set_intensity(sun, 3.0f);
+    sk_light_set_shadow_distance(sun, 60.0f);
+    sk_light_set_casts_shadows(sun, true); /* the depth pass batches the same way */
     sk_scene_add(g_scene, sun, 0);
     sk_scene_set_ambient(g_scene, sk_color_rgba(160, 180, 220, 255), 0.35f);
     sk_debug_enable_fps(12, 10, 16);
+
+    /* something for the shadows to land on */
+    const sk_handle_t floor_mesh = sk_mesh_create_plane(60.0f, 60.0f, 0);
+    const sk_handle_t floor_material = sk_material_create(SK_MATERIAL_PBR);
+    sk_material_set_vec4(floor_material, "base_color", 0.45f, 0.47f, 0.5f, 1.0f);
+    sk_material_set_float(floor_material, "roughness", 0.9f);
+    const sk_handle_t floor = sk_model_create(floor_mesh);
+    sk_model_set_material(floor, -1, floor_material);
+    sk_model_set_transform(floor, 0, -0.6f, 0, 0, 0, 0, 1, 1, 1);
+    sk_scene_add(g_scene, floor, 0);
+    sk_mesh_release(floor_mesh);
+    sk_material_release(floor_material);
 
     /* the field: one mesh, one material, a tint each */
     const sk_handle_t cube = sk_mesh_create_cube(0.6f, 0.6f, 0.6f);
@@ -95,7 +111,7 @@ static void on_init(void *user)
         g_glass[i] = sk_model_create(cube);
         sk_model_set_material(g_glass[i], -1, g_shared_material);
         sk_model_set_tint(g_glass[i], sk_color_rgba(255, 255, 255, 110));
-        sk_model_set_transform(g_glass[i], (float)i * 1.5f - 3.0f, 2.2f, 4.0f, 0, 0, 0, 2, 2, 2);
+        sk_model_set_transform(g_glass[i], (float)i * 2.0f - 4.0f, 5.2f, 5.0f, 0, 0, 0, 2, 2, 2);
         sk_scene_add(g_scene, g_glass[i], 0);
     }
     sk_mesh_release(cube);
@@ -123,12 +139,13 @@ static void frame(float dt, float fraction, void *user)
     (void)fraction;
     (void)user;
 
-    sk_camera3d_set_view(g_camera, sinf(t * 0.15f) * 18.0f, 9.0f, cosf(t * 0.15f) * 18.0f, 0, 1.0f, 0, 0, 1, 0);
+    sk_camera3d_set_view(g_camera, sinf(t * 0.15f) * 22.0f, 12.0f, cosf(t * 0.15f) * 22.0f, 0, 1.0f, 0, 0, 1, 0);
     for (int i = 0; i < FIELD_COUNT; i++) {
-        const float x = ((float)(i % FIELD_SIDE) - FIELD_SIDE * 0.5f + 0.5f) * 1.0f;
-        const float z = ((float)(i / FIELD_SIDE) - FIELD_SIDE * 0.5f + 0.5f) * 1.0f;
+        const float x = ((float)(i % FIELD_SIDE) - FIELD_SIDE * 0.5f + 0.5f) * 1.5f;
+        const float z = ((float)(i / FIELD_SIDE) - FIELD_SIDE * 0.5f + 0.5f) * 1.5f;
         const float wave = sinf(t * 1.5f + x * 0.6f + z * 0.4f);
-        sk_model_set_transform(g_cubes[i], x, 0.3f + wave * 0.3f, z, 0, t * 0.3f + (float)i, 0, 1, 1, 1);
+        /* well clear of the floor, so every cube throws its own shadow onto it */
+        sk_model_set_transform(g_cubes[i], x, 2.4f + wave * 0.5f, z, 0, t * 0.3f + (float)i, 0, 1, 1, 1);
     }
     for (int i = 0; i < WALKERS; i++) {
         /* the same walk, out of step: a shared mesh, but each its own pose */

@@ -396,6 +396,69 @@ void test_shadow_casters(void)
 /* The frame's draw queue grows with the scene instead of dropping work at a fixed
  * size: a thousand models used to be the ceiling, and everything past it silently
  * didn't draw. It still stops somewhere, far past anything playable. */
+/* The depth pass batches like the shading pass: casters that draw the same thing go
+ * into the map together (docs/PLAN-instancing.md, phase 3). */
+void test_shadow_instancing(void)
+{
+    begin();
+
+    const sk_handle_t scene = sk_scene_create();
+    const sk_handle_t camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(camera, 0, 4, 14, 0, 0, 0, 0, 1, 0);
+    sk_scene_set_active_camera(scene, camera);
+
+    const sk_handle_t sun = sk_light_create(SK_LIGHT_DIRECTIONAL);
+    sk_light_set_direction(sun, -0.4f, -1.0f, -0.3f);
+    sk_light_set_shadow_distance(sun, 60.0f);
+    CHECK(sk_light_set_casts_shadows(sun, true));
+    sk_scene_add(scene, sun, 0);
+
+    const sk_handle_t mesh = sk_mesh_create_cube(1.0f, 1.0f, 1.0f);
+    const sk_handle_t material = sk_material_create(SK_MATERIAL_PBR);
+    sk_handle_t models[6];
+    for (int i = 0; i < 6; i++) {
+        models[i] = sk_model_create(mesh);
+        sk_model_set_material(models[i], -1, material);
+        sk_model_set_transform(models[i], (float)i - 3.0f, 0.5f, 0, 0, 0, 0, 1, 1, 1);
+        sk_scene_add(scene, models[i], 0);
+    }
+    sk_mesh_release(mesh);
+    sk_material_release(material);
+
+    /* six casters, one mesh, one material: one draw into the map */
+    sk_render_begin();
+    sk_scene_draw(scene);
+    sk_render_end();
+    CHECK(sk_model_shadow_draw_call_count() == 1);
+    CHECK(sk_model_draw_call_count() == 1); /* and one into the screen */
+
+    /* one that doesn't cast leaves the others batched, and the map draws five */
+    CHECK(sk_model_set_casts_shadow(models[2], false));
+    sk_render_begin();
+    sk_scene_draw(scene);
+    sk_render_end();
+    CHECK(sk_model_shadow_draw_call_count() == 2); /* the run is cut where it sat */
+    CHECK(sk_model_draw_call_count() == 1);        /* it is still drawn on screen */
+    CHECK(sk_model_set_casts_shadow(models[2], true));
+
+    /* a different mesh splits the map's draws too */
+    const sk_handle_t sphere = sk_mesh_create_sphere(0.5f, 8, 8);
+    sk_model_set_mesh(models[4], sphere);
+    sk_model_set_material(models[4], -1, material);
+    sk_mesh_release(sphere);
+    sk_render_begin();
+    sk_scene_draw(scene);
+    sk_render_end();
+    CHECK(sk_model_shadow_draw_call_count() == 2);
+
+    for (int i = 0; i < 6; i++) {
+        sk_model_destroy(models[i]);
+    }
+    sk_light_destroy(sun);
+    sk_scene_destroy(scene);
+    end();
+}
+
 void test_model_draw_queue(void)
 {
     begin();

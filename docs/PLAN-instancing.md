@@ -1,6 +1,6 @@
 # Plan: Model instancing
 
-Status: **phases 1 and 2 built** (2026-09-21); phases 3–4 open. Decisions below are answered:
+Status: **phases 1–3 built** (2026-09-21); phase 4 open. Decisions below are answered:
 automatic grouping with no new API (an explicit instanced handle only if a measured case
 ever needs one), opaque models may be reordered, and custom shaders follow in phase 4 of
 the same release.
@@ -209,6 +209,41 @@ pixels) could not show.
   Chrome, 60 FPS) over `adb reverse`. All four pictures match the two desktop browsers:
   six walkers in six poses, the tinted field, the glass in order.
 
+## Phase 3 as built
+
+The depth pass now reads each caster's placement from the same records the shading pass
+does, so it batches the same way. The instance block moved out of `sk_model.glsl` into
+`src/shaders/sk_instance.glsl`, which both shaders `@include`; `vs_depth_params` became
+the light's view-projection and the draw's first record, and the joint base comes out of
+the record, exactly as on the shading side.
+
+It batches on less than the camera pass, because it sets less: the buffers it binds, the
+material it alpha-tests with, and the pipeline. Everything else about a caster is in its
+record. The items are already sorted by the camera pass's finer key, so casters that
+group there are adjacent here too; a run is cut wherever an item isn't drawn into this
+map — a non-caster, a see-through part, one outside the light's fit — which keeps every
+run's records contiguous.
+
+### Measured
+
+`shadowbench` gained "wide, each" and "wide, shared": the sun's shadows reach the whole
+grid instead of 40 units, so every model is drawn into the map as well as to the screen.
+That is the case this phase is for — with the default 40, culling has already taken most
+casters out of the map, which is why the existing rows don't move.
+
+At 4000 models, one run, both passes batching against neither:
+
+| 4000 models, everything casts | a material each | one shared material |
+|-------------------------------|----------------:|--------------------:|
+| submit                        |         6.38 ms |             0.60 ms |
+| frame                         |         8.01 ms |             3.20 ms |
+
+To separate this phase from phase 2, the same build with `same_depth_group` forced to
+false: "wide, shared" at 4000 measured 2.10 ms of submission and a 5.24 ms frame, against
+0.60 and 3.20 with it on. So the depth pass's own batching is worth about 1.5 ms there —
+roughly what the camera pass was worth, which stands to reason: it is the same 4000
+placements drawn a second time.
+
 ## Phasing
 
 1. The instance texture and the record; every stock model draw becomes an instanced draw
@@ -217,7 +252,7 @@ pixels) could not show.
 2. The group key, sorting a command's opaque items by it, and runs of equal keys drawn
    as one `sg_draw`. This is the phase the numbers come from. **Built.**
 3. The depth pass (shadows) instanced the same way — it is the same queue, and it is
-   already the second-largest consumer of it.
+   already the second-largest consumer of it. **Built.**
 4. Custom material shaders: the `sk.glsl` include block, format bump, repack.
 5. Later, if wanted: per-instance light sets, so grouping isn't constrained by light
    selection; transparent runs; a persistent instance buffer for placements that don't
@@ -234,7 +269,8 @@ pixels) could not show.
   4000-distinct-materials case, which cannot group at all.
 - A new bench case or example with many copies of one model (the forest), since that is
   what this is for.
-- Visual: `examples/instancing.c` — a batched field, skinned copies, see-through copies —
+- Visual: `examples/instancing.c` — a batched field, skinned copies, see-through copies,
+  and every cube's shadow under it from a single depth draw —
   on both browser backends; `model.c`, `lights.c`, `shadows.c`, `materials.c` unchanged;
   tints and per-model materials still right.
 - `make verify`, `make webcheck` (both backends), Wine.

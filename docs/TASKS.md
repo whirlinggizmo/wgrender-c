@@ -384,6 +384,14 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       matrices twice as well. Cheap (a record and a few matrices), and instancing
       groups each pass's parts across models regardless, but it is wasted work: found
       while reviewing instancing
+- [x] The shadow depth pass is instanced too (2026-09-21, docs/PLAN-instancing.md phase
+      3): casters read their placement and joint base from the same records the shading
+      pass does, so a run that agrees on mesh and material goes into the map as one
+      draw. The instance block is now src/shaders/sk_instance.glsl, included by both
+      shaders. shadowbench gained "wide, each" / "wide, shared", where the sun reaches
+      the whole grid so nothing is culled out of the map: at 4000 models, submission
+      6.38 -> 0.60 ms and the frame 8.01 -> 3.20. The depth pass's own share of that,
+      measured by forcing same_depth_group false in the same build, is about 1.5 ms
 - [ ] Lit particles: emitter particles are unlit — emitters have their own program
       (`particle` = vs_particle + the unlit `fs` in src/shaders/sk_sprite.glsl) and no
       material API, so the only lit "particles" today are sprite3d objects moved by the

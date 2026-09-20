@@ -5,43 +5,53 @@
  * cast. Static and skinned stages mirror sk_model.glsl's, minus everything shading
  * needs; the skinned one reads the same joint texture the model shader does.
  *
+ * Where each caster stands, and which joint matrices are its own, come from the frame's
+ * instance records (sk_instance.glsl), the same ones the shading pass reads — so a run
+ * of casters that agree on mesh and material is one draw here too.
+ *
  * Uniform blocks (std140, mirrored in src/sk_shadow.c):
- *   vs_depth_params      = light_mvp
- *   vs_depth_skin_params = light_mvp, skin_base (x: this model's first joint matrix)
+ *   vs_depth_params      = light_view_proj, instance_base (x: this draw's first record)
+ *   vs_depth_skin_params = the same
  *   fs_depth_params      = x alpha cutoff (0 = no alpha test)
  *
  * Regen: `make shaders`. */
 @ctype mat4 sk_mat4_t
+
+@include sk_instance.glsl
 
 @block depth_outputs
 out vec2 v_uv0;
 @end
 
 @vs vs_depth_static
+@include_block sk_instance_data
 layout(binding=0) uniform vs_depth_params {
-    mat4 light_mvp;
+    mat4 light_view_proj;
+    vec4 instance_base;
 };
 in vec3 position;
 in vec2 texcoord0;
 @include_block depth_outputs
 void main() {
-    gl_Position = light_mvp * vec4(position, 1.0);
+    int record = int(instance_base.x) + gl_InstanceIndex;
+    gl_Position = light_view_proj * (instance_model(record) * vec4(position, 1.0));
     v_uv0 = texcoord0;
 }
 @end
 
 @vs vs_depth_skinned
+@include_block sk_instance_data
 layout(binding=0) uniform vs_depth_skin_params {
-    mat4 light_mvp;
-    vec4 skin_base;
+    mat4 light_view_proj;
+    vec4 instance_base;
 };
 layout(binding=7) uniform texture2D joint_tex;
 layout(binding=7) uniform sampler joint_smp;
 @image_sample_type joint_tex unfilterable_float
 @sampler_type joint_smp nonfiltering
 
-mat4 joint_at(int index) {
-    int m = int(skin_base.x) + index;
+mat4 joint_at(int base, int index) {
+    int m = base + index;
     ivec2 t = ivec2((m % 256) * 4, m / 256);
     return mat4(texelFetch(sampler2D(joint_tex, joint_smp), t, 0),
                 texelFetch(sampler2D(joint_tex, joint_smp), t + ivec2(1, 0), 0),
@@ -54,11 +64,13 @@ in vec4 joints;
 in vec4 weights;
 @include_block depth_outputs
 void main() {
-    mat4 skin = weights.x * joint_at(int(joints.x))
-              + weights.y * joint_at(int(joints.y))
-              + weights.z * joint_at(int(joints.z))
-              + weights.w * joint_at(int(joints.w));
-    gl_Position = light_mvp * (skin * vec4(position, 1.0));
+    int record = int(instance_base.x) + gl_InstanceIndex;
+    int joint_base = int(instance_extra(record).x);
+    mat4 skin = weights.x * joint_at(joint_base, int(joints.x))
+              + weights.y * joint_at(joint_base, int(joints.y))
+              + weights.z * joint_at(joint_base, int(joints.z))
+              + weights.w * joint_at(joint_base, int(joints.w));
+    gl_Position = light_view_proj * (instance_model(record) * (skin * vec4(position, 1.0)));
     v_uv0 = texcoord0;
 }
 @end
