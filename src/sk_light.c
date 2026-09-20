@@ -56,6 +56,7 @@ void sk_light_init(void)
     sk_scene_hooks.scene_light = sk_light_get_scene_light;
     sk_scene_hooks.light_env_push = sk_light_env_push;
     sk_scene_hooks.light_env_set_current = sk_light_env_set_current;
+    sk_scene_hooks.light_env_get = sk_light_env_get;
     if (!sk_handle_pool_init(&sk_light_pool, SK_HANDLE_KIND_LIGHT, "light", (void **)&sk_lights,
                              sizeof(sk_light_t), LIGHTS_INITIAL, SK_HANDLE_POOL_MAX_SLOTS)) {
         log_error("light: out of memory");
@@ -68,6 +69,7 @@ void sk_light_deinit(void)
     sk_scene_hooks.scene_light = NULL;
     sk_scene_hooks.light_env_push = NULL;
     sk_scene_hooks.light_env_set_current = NULL;
+    sk_scene_hooks.light_env_get = NULL;
     sk_handle_pool_destroy(&sk_light_pool);
     sk_light_end_frame();
 }

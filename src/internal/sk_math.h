@@ -254,6 +254,62 @@ static inline sk_mat4_t sk_mat4_trs(vec3_t pos, vec3_t rot, vec3_t scale)
     return m;
 }
 
+/* A plane as ax + by + cz + d = 0, its normal pointing into the volume it bounds. */
+typedef struct {
+    float a, b, c, d;
+} sk_plane_t;
+
+/* The six planes of a view-projection (left, right, bottom, top, near, far), normals
+ * pointing inward, normalized so a plane test gives a real distance. Gribb-Hartmann:
+ * each plane is a sum or difference of two rows of the matrix. */
+static inline void sk_frustum_from_view_proj(sk_mat4_t vp, sk_plane_t out[6])
+{
+    const float *m = vp.m; /* column-major: m[col * 4 + row] */
+    for (int i = 0; i < 6; i++) {
+        const int row = i / 2;            /* x, y, then z */
+        const float sign = (i % 2) ? -1.0f : 1.0f; /* + then - */
+        out[i].a = m[3] + sign * m[row];
+        out[i].b = m[7] + sign * m[4 + row];
+        out[i].c = m[11] + sign * m[8 + row];
+        out[i].d = m[15] + sign * m[12 + row];
+        const float length = sqrtf(out[i].a * out[i].a + out[i].b * out[i].b + out[i].c * out[i].c);
+        if (length > 1e-12f) {
+            out[i].a /= length, out[i].b /= length, out[i].c /= length, out[i].d /= length;
+        }
+    }
+}
+
+/* Whether an axis-aligned box is worth drawing: false only when it is wholly outside
+ * one of the planes. Conservative — a box outside the frustum but inside every plane
+ * (a corner case, literally) passes and is drawn. */
+static inline bool sk_frustum_test_aabb(const sk_plane_t planes[6], vec3_t min, vec3_t max)
+{
+    for (int i = 0; i < 6; i++) {
+        /* the corner furthest along the plane's normal: if even that is behind the
+           plane, every corner is */
+        const float x = planes[i].a >= 0.0f ? max.x : min.x;
+        const float y = planes[i].b >= 0.0f ? max.y : min.y;
+        const float z = planes[i].c >= 0.0f ? max.z : min.z;
+        if (planes[i].a * x + planes[i].b * y + planes[i].c * z + planes[i].d < 0.0f) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* A box swept along `direction` for `distance`: where a shadow of it could fall. */
+static inline void sk_aabb_sweep(vec3_t min, vec3_t max, vec3_t direction, float distance, vec3_t *out_min,
+                                 vec3_t *out_max)
+{
+    const vec3_t to = {direction.x * distance, direction.y * distance, direction.z * distance};
+    out_min->x = min.x + (to.x < 0.0f ? to.x : 0.0f);
+    out_min->y = min.y + (to.y < 0.0f ? to.y : 0.0f);
+    out_min->z = min.z + (to.z < 0.0f ? to.z : 0.0f);
+    out_max->x = max.x + (to.x > 0.0f ? to.x : 0.0f);
+    out_max->y = max.y + (to.y > 0.0f ? to.y : 0.0f);
+    out_max->z = max.z + (to.z > 0.0f ? to.z : 0.0f);
+}
+
 /* sRGB transfer function (IEC 61966-2-1). Colors authored as 8-bit sRGB (color
  * handles, textures) are converted to linear for lighting, and back for output.
  * The model shader has matching GLSL versions. */

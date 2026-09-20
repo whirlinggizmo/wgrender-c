@@ -11,6 +11,7 @@
 #include "internal/sk_math.h"
 #include "internal/sk_scene.h"
 #include "internal/sk_pick.h"
+#include "sk_light.h" /* light types, for what a caster's shadow can reach */
 #include "internal/sk_render.h"
 #include "sk_camera3d.h"
 #include "sk_pick.h"
@@ -106,6 +107,7 @@ typedef struct {
     float background_blur;
     sk_tonemap_t tonemap;
     float exposure;
+    bool culling; /* skip members the camera can't see (and whose shadows can't reach it) */
 } sk_scene_t;
 
 static sk_scene_t *sk_scenes; /* grown by the pool: don't hold a pointer across a create */
@@ -242,6 +244,41 @@ void sk_scene_sort_transparent(sk_transparent_item_t *items, int count)
         to = swap;
     }
     /* an even number of passes: the sorted items are back in `items` */
+}
+
+static sk_drawable_bounds_fn sk_cull_bounds_registry[SK_DRAWABLE_KIND_COUNT];
+static sk_drawable_casts_shadow_fn sk_casts_shadow_registry[SK_DRAWABLE_KIND_COUNT];
+
+void sk_scene_register_cull_bounds(sk_handle_kind_t kind, sk_drawable_bounds_fn bounds)
+{
+    if ((int)kind >= 0 && (int)kind < SK_DRAWABLE_KIND_COUNT) {
+        sk_cull_bounds_registry[kind] = bounds;
+    }
+}
+
+/* The cheap bounds a kind offers for culling, else the ones it picks with. */
+static bool cull_bounds(sk_handle_t drawable, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model)
+{
+    const sk_handle_kind_t kind = sk_handle_get_kind(drawable);
+    if ((int)kind >= 0 && (int)kind < SK_DRAWABLE_KIND_COUNT && sk_cull_bounds_registry[kind] != NULL) {
+        return sk_cull_bounds_registry[kind](drawable, lmin, lmax, model);
+    }
+    return sk_drawable_bounds(drawable, lmin, lmax, model);
+}
+
+void sk_scene_register_casts_shadow(sk_handle_kind_t kind, sk_drawable_casts_shadow_fn casts)
+{
+    if ((int)kind >= 0 && (int)kind < SK_DRAWABLE_KIND_COUNT) {
+        sk_casts_shadow_registry[kind] = casts;
+    }
+}
+
+/* Whether this drawable throws a shadow (its kind may not do shadows at all). */
+static bool drawable_casts_shadow(sk_handle_t drawable)
+{
+    const sk_handle_kind_t kind = sk_handle_get_kind(drawable);
+    return (int)kind >= 0 && (int)kind < SK_DRAWABLE_KIND_COUNT && sk_casts_shadow_registry[kind] != NULL &&
+           sk_casts_shadow_registry[kind](drawable);
 }
 
 void sk_scene_register_bounds(sk_handle_kind_t kind, sk_drawable_bounds_fn bounds)
@@ -500,7 +537,7 @@ sk_handle_t sk_scene_create(void)
         return 0;
     }
     sk_handle_pool_resolve(&sk_scene_pool, handle, &index);
-    sk_scenes[index] = (sk_scene_t){.tonemap = SK_TONEMAP_NEUTRAL};
+    sk_scenes[index] = (sk_scene_t){.tonemap = SK_TONEMAP_NEUTRAL, .culling = true};
     return handle;
 }
 
@@ -778,6 +815,79 @@ static bool grow_transparent_items(void)
     return true;
 }
 
+/* What this scene draw can see: the camera's planes, and for each casting light the
+ * direction and reach of the shadows it throws, so a caster off screen that shadows
+ * something on screen is still drawn. Rebuilt per scene draw. */
+#define SK_CULL_PAD 0.15f /* bounds are a skinned model's rest pose: leave room to move */
+
+static struct {
+    bool on;                 /* the scene's switch, and a camera to build planes from */
+    sk_plane_t planes[6];
+    int shadow_count;
+    vec3_t shadow_dir[SK_MAX_SHADOW_LIGHTS];
+    float shadow_reach[SK_MAX_SHADOW_LIGHTS];
+} sk_cull;
+
+static void begin_culling(const sk_scene_t *scene_ptr, const sk_camera3d_t *cam, int light_env)
+{
+    const sk_light_env_t *env = NULL;
+    vec2_t size = sk_render_target_size();
+    const float aspect = size.y > 0.0f ? size.x / size.y : 1.0f;
+
+    sk_cull.on = scene_ptr->culling;
+    sk_cull.shadow_count = 0;
+    if (!sk_cull.on) {
+        return;
+    }
+    sk_frustum_from_view_proj(sk_mat4_mul(sk_camera3d_projection(cam, aspect), sk_camera3d_view(cam)),
+                              sk_cull.planes);
+    if (sk_scene_hooks.light_env_get != NULL && light_env >= 0) {
+        env = sk_scene_hooks.light_env_get(light_env);
+    }
+    for (int i = 0; env != NULL && i < env->shadow_count; i++) {
+        const sk_scene_light_t *light = &env->lights[env->shadow_lights[i]];
+        const float reach = light->type == SK_LIGHT_SPOT && light->range > 0.0f && light->range < light->shadow_distance
+                                ? light->range
+                                : light->shadow_distance;
+        sk_cull.shadow_dir[sk_cull.shadow_count] = light->direction;
+        sk_cull.shadow_reach[sk_cull.shadow_count++] = reach;
+    }
+}
+
+/* Whether this member is worth submitting: inside the view, or a caster whose shadow
+ * could fall inside it. Skinned bounds are the rest pose, so they are padded — better
+ * to draw a little too much than to cull a raised arm. */
+static bool visible(sk_handle_t drawable)
+{
+    vec3_t lmin, lmax, wmin, wmax;
+    sk_mat4_t model;
+
+    if (!sk_cull.on || !cull_bounds(drawable, &lmin, &lmax, &model)) {
+        return true; /* culling off, or nothing to test it with */
+    }
+    sk_pick_world_aabb(lmin, lmax, model, &wmin, &wmax);
+    {
+        const vec3_t pad = {(wmax.x - wmin.x) * SK_CULL_PAD, (wmax.y - wmin.y) * SK_CULL_PAD,
+                            (wmax.z - wmin.z) * SK_CULL_PAD};
+        wmin.x -= pad.x, wmin.y -= pad.y, wmin.z -= pad.z;
+        wmax.x += pad.x, wmax.y += pad.y, wmax.z += pad.z;
+    }
+    if (sk_frustum_test_aabb(sk_cull.planes, wmin, wmax)) {
+        return true;
+    }
+    if (sk_cull.shadow_count == 0 || !drawable_casts_shadow(drawable)) {
+        return false;
+    }
+    for (int i = 0; i < sk_cull.shadow_count; i++) { /* could its shadow reach the view? */
+        vec3_t smin, smax;
+        sk_aabb_sweep(wmin, wmax, sk_cull.shadow_dir[i], sk_cull.shadow_reach[i], &smin, &smax);
+        if (sk_frustum_test_aabb(sk_cull.planes, smin, smax)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void draw_layer(const sk_scene_entry_t *entries, int count, const sk_camera3d_t *cam)
 {
     int transparent_count = 0;
@@ -786,7 +896,7 @@ static void draw_layer(const sk_scene_entry_t *entries, int count, const sk_came
     begin_unordered();
     for (int i = 0; i < count; i++) {
         const sk_drawable_passes_t *passes = lookup_passes(entries[i].drawable);
-        if (passes != NULL && passes->draw_opaque != NULL) {
+        if (passes != NULL && passes->draw_opaque != NULL && visible(entries[i].drawable)) {
             passes->draw_opaque(entries[i].drawable);
         }
     }
@@ -796,7 +906,7 @@ static void draw_layer(const sk_scene_entry_t *entries, int count, const sk_came
         const sk_drawable_passes_t *passes = lookup_passes(entries[i].drawable);
         int first = transparent_count;
         int room, collected;
-        if (passes == NULL || passes->collect_transparent == NULL) {
+        if (passes == NULL || passes->collect_transparent == NULL || !visible(entries[i].drawable)) {
             continue;
         }
         /* a drawable that fills the room left may have had more: grow and collect it again */
@@ -865,8 +975,10 @@ void sk_scene_draw(sk_handle_t scene)
         return;
     }
 
+    int light_env = -1;
     if (sk_scene_hooks.light_env_push != NULL) { /* lights linked: what the models drawn here see */
-        sk_scene_hooks.light_env_set_current(push_lighting(scene_ptr));
+        light_env = push_lighting(scene_ptr);
+        sk_scene_hooks.light_env_set_current(light_env);
     }
     if (scene_ptr->background != 0 && sk_scene_hooks.environment_background != NULL) {
         const bool same = scene_ptr->background == scene_ptr->environment;
@@ -875,6 +987,7 @@ void sk_scene_draw(sk_handle_t scene)
                                          same ? scene_ptr->environment_rotation : 0.0f,
                                          (int)scene_ptr->tonemap, scene_ptr->exposure);
     }
+    begin_culling(scene_ptr, &cam, light_env);
     sk_render_begin_mode_3d();
     for (int start = 0; start < scene_ptr->count;) {
         int layer = scene_ptr->items[start].layer;
@@ -1153,6 +1266,22 @@ static bool contains(const sk_handle_t *list, int count, sk_handle_t handle)
 }
 
 SK_KEEP
+SK_KEEP
+bool sk_scene_set_culling(sk_handle_t scene, bool culling)
+{
+    sk_scene_t *scene_ptr = resolve(scene);
+    if (scene_ptr == NULL) return false;
+    scene_ptr->culling = culling;
+    return true;
+}
+
+SK_KEEP
+bool sk_scene_is_culling(sk_handle_t scene)
+{
+    const sk_scene_t *scene_ptr = resolve(scene);
+    return scene_ptr != NULL && scene_ptr->culling;
+}
+
 bool sk_scene_set_interactive(sk_handle_t scene, bool interactive)
 {
     sk_scene_t *scene_ptr = resolve(scene);

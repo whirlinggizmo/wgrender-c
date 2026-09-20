@@ -78,6 +78,14 @@ void sk_scene_draw(sk_handle_t scene);
  * (sk_input_is_pointer_captured). Changing interactive resets the scene's state.
  * Default: not interactive. */
 bool sk_scene_set_interactive(sk_handle_t scene, bool interactive);
+
+/* Skip members the camera can't see (on by default). A scene tests each member's
+ * bounds against the view before submitting it, which is far cheaper than drawing it;
+ * a caster whose shadow could still fall into view is kept. Turn it off to see
+ * everything submitted — when checking whether a drawable's bounds are right, say.
+ * Members without bounds (2D ones) are never culled. */
+bool sk_scene_set_culling(sk_handle_t scene, bool culling);
+bool sk_scene_is_culling(sk_handle_t scene);
 bool sk_scene_is_interactive(sk_handle_t scene);
 
 /* The topmost member under the pointer (enabled or not), or 0. */

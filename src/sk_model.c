@@ -145,6 +145,8 @@ typedef struct {
     bool visible;
     bool pickable;
     bool enabled;  /* false: hits block the pointer but don't react (scene interaction) */
+    sk_mat4_t world;      /* position/rotation/scale as a matrix, rebuilt when they change */
+    bool world_dirty;
     bool casts_shadow;    /* drawn into a casting light's depth map */
     bool receives_shadow; /* shadows darken it */
     sk_handle_t materials[SK_MAX_MATERIAL_SLOTS]; /* per-slot overrides (referenced); 0 = mesh's */
@@ -1747,6 +1749,7 @@ static sk_handle_t create_model(sk_handle_t mesh_handle)
     model.visible = true;
     model.pickable = true;
     model.enabled = true;
+    model.world_dirty = true;
     model.casts_shadow = true;
     model.receives_shadow = true;
     model.cur_anim = -1;
@@ -1840,6 +1843,7 @@ SK_KEEP bool sk_model_set_transform(sk_handle_t handle,
     model_ptr->position = (vec3_t){px, py, pz};
     model_ptr->rotation = (vec3_t){rx, ry, rz};
     model_ptr->scale = (vec3_t){sx, sy, sz};
+    model_ptr->world_dirty = true;
     return true;
 }
 
@@ -2081,6 +2085,41 @@ static bool update_posed_geometry(sk_model_t *model_ptr, sk_mesh_t *mesh_ptr)
     return true;
 }
 
+/* The model's transform as a matrix. Built once and kept: a frame asks for it to cull,
+ * again to draw, and again for bounds, and building it is four matrix multiplies. */
+static sk_mat4_t model_world(sk_model_t *model_ptr)
+{
+    if (model_ptr->world_dirty) {
+        model_ptr->world = sk_mat4_trs(model_ptr->position, model_ptr->rotation, model_ptr->scale);
+        model_ptr->world_dirty = false;
+    }
+    return model_ptr->world;
+}
+
+/* Bounds for culling: never re-skins to find them. An animated model's pose changes
+ * every frame, so asking for exact posed bounds here would re-skin every vertex of
+ * every model, every frame — the rest pose padded by the scene is what culling wants.
+ * Posed bounds are used only when a pick has already worked them out for this pose. */
+static bool model_cull_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model_mat)
+{
+    sk_model_t *model_ptr = resolve(handle);
+    sk_mesh_t *mesh_ptr = model_ptr != NULL ? resolve_mesh(model_ptr->mesh) : NULL;
+
+    if (model_ptr == NULL || mesh_ptr == NULL || !model_ptr->visible || mesh_ptr->prim_count == 0) {
+        return false;
+    }
+    if (mesh_ptr->has_skin && model_ptr->pose_version != 0 && model_ptr->posed_version == model_ptr->pose_version &&
+        model_ptr->posed_mesh == model_ptr->mesh) {
+        *lmin = model_ptr->posed_min;
+        *lmax = model_ptr->posed_max;
+    } else {
+        *lmin = mesh_ptr->lmin;
+        *lmax = mesh_ptr->lmax;
+    }
+    *model_mat = model_world(model_ptr);
+    return true;
+}
+
 static bool model_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4_t *model_mat)
 {
     sk_model_t *model_ptr = resolve(handle);
@@ -2095,7 +2134,7 @@ static bool model_bounds(sk_handle_t handle, vec3_t *lmin, vec3_t *lmax, sk_mat4
         *lmin = mesh_ptr->lmin;
         *lmax = mesh_ptr->lmax;
     }
-    *model_mat = sk_mat4_trs(model_ptr->position, model_ptr->rotation, model_ptr->scale);
+    *model_mat = model_world(model_ptr);
     return true;
 }
 
@@ -2316,7 +2355,7 @@ static int begin_draw(sk_handle_t handle, sk_model_t *model_ptr)
 
     target_size = sk_render_target_size(); /* the screen, or the render target being drawn into */
     aspect = target_size.y > 0.0f ? target_size.x / target_size.y : 1.0f;
-    model_mat = sk_mat4_trs(model_ptr->position, model_ptr->rotation, model_ptr->scale);
+    model_mat = model_world(model_ptr);
     view = sk_camera3d_view(&cam);
     proj = sk_camera3d_projection(&cam, aspect);
 
@@ -2455,7 +2494,7 @@ static int collect_transparent(sk_handle_t handle, const sk_camera3d_t *cam,
         return 0;
     }
     tint = model_tint(model_ptr);
-    model_mat = sk_mat4_trs(model_ptr->position, model_ptr->rotation, model_ptr->scale);
+    model_mat = model_world(model_ptr);
     for (int p = 0; p < mesh_ptr->prim_count && count < max_items; p++) {
         const sk_primitive_t *prim = &mesh_ptr->prims[p];
         if (!is_blended(tint, prim_material(model_ptr, mesh_ptr, prim))) {
@@ -3175,6 +3214,8 @@ void sk_model_init(void)
 
     sk_scene_register_passes(SK_HANDLE_KIND_MODEL, draw_opaque, collect_transparent, draw_transparent);
     sk_scene_register_bounds(SK_HANDLE_KIND_MODEL, model_bounds);
+    sk_scene_register_casts_shadow(SK_HANDLE_KIND_MODEL, sk_model_casts_shadow);
+    sk_scene_register_cull_bounds(SK_HANDLE_KIND_MODEL, model_cull_bounds);
     sk_scene_register_pick(SK_HANDLE_KIND_MODEL, model_pick);
     sk_scene_register_enabled(SK_HANDLE_KIND_MODEL, sk_model_is_enabled);
     sk_asset_register_dependencies(".gltf", sk_model_list_gltf_dependencies);

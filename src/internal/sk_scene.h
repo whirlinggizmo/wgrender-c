@@ -80,6 +80,12 @@ typedef bool (*sk_drawable_bounds_fn)(sk_handle_t handle,
                                       sk_mat4_t *model);
 
 void sk_scene_register_bounds(sk_handle_kind_t kind, sk_drawable_bounds_fn bounds);
+
+/* Bounds for culling, when a kind has a cheaper answer than its picking bounds: a
+ * model's picking bounds re-skin an animated mesh to be exact, which is far too much
+ * work to do for every member of every frame. A kind that registers none is culled
+ * with its picking bounds. */
+void sk_scene_register_cull_bounds(sk_handle_kind_t kind, sk_drawable_bounds_fn bounds);
 bool sk_drawable_bounds(sk_handle_t handle, vec3_t *local_min, vec3_t *local_max,
                         sk_mat4_t *model);
 
@@ -95,6 +101,12 @@ void sk_scene_register_pick(sk_handle_kind_t kind, sk_drawable_pick_fn pick);
  * kind that doesn't register one is always enabled. */
 typedef bool (*sk_drawable_enabled_fn)(sk_handle_t handle);
 void sk_scene_register_enabled(sk_handle_kind_t kind, sk_drawable_enabled_fn enabled);
+
+/* Whether a drawable of this kind throws shadows, so culling keeps the ones that cast
+ * into view from off screen. A kind that registers nothing never casts (sprites, shapes
+ * and text don't). */
+typedef bool (*sk_drawable_casts_shadow_fn)(sk_handle_t handle);
+void sk_scene_register_casts_shadow(sk_handle_kind_t kind, sk_drawable_casts_shadow_fn casts);
 bool sk_drawable_pick(sk_handle_t handle, vec3_t origin, vec3_t dir, sk_pick_result_t *out);
 
 /* What scenes reach through optional modules (internal/sk_module.h): set by each
@@ -107,6 +119,7 @@ typedef struct {
     bool (*scene_light)(sk_handle_t light, sk_scene_light_t *out); /* sk_light */
     int (*light_env_push)(const sk_light_env_t *env);
     void (*light_env_set_current)(int index);
+    const sk_light_env_t *(*light_env_get)(int index); /* culling asks it which lights cast */
     void (*sprites_begin_unordered)(void); /* sk_sprite_batch */
     void (*sprites_end_unordered)(void);
 } sk_scene_hooks_t;

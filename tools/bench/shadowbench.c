@@ -11,6 +11,12 @@
  *   no receive         the sun casts but nothing receives. libsk skips the pass when
  *                      no model receives and no lit sprite is in the scene, so this
  *                      should land on top of "off": it is the check that it does
+ *   look away          the sun casts, but the camera faces away from the grid. Every
+ *                      model is behind it, so frustum culling (docs/PLAN-culling.md)
+ *                      should submit almost nothing
+ *   away, no cull      the same, with the scene's culling switched off: what that
+ *                      frame cost before there was any. The gap between these two
+ *                      rows is what culling is worth
  *
  * at two model counts, to see what scales with casters and what doesn't. Nothing is
  * loaded from disk: the shapes are generated, so the numbers are the renderer's.
@@ -42,10 +48,13 @@ typedef enum {
     CASE_4096,
     CASE_TWO_LIGHTS,
     CASE_NO_RECEIVE,
+    CASE_AWAY,
+    CASE_AWAY_NO_CULL,
     CASES,
 } bench_case_t;
 
-static const char *CASE_NAMES[CASES] = {"off", "sun 1024", "sun 2048", "sun 4096", "two 1024", "no receive"};
+static const char *CASE_NAMES[CASES] = {"off",        "sun 1024", "sun 2048",  "sun 4096",
+                                        "two 1024",   "no receive", "look away", "away, no cull"};
 enum { COUNT_STEPS = 4 };
 static const int MODEL_COUNTS[COUNT_STEPS] = {100, 400, 1000, 4000};
 
@@ -61,6 +70,7 @@ static struct {
     sk_handle_t models[MAX_MODELS];
     sk_handle_t floor;
     int model_count;
+    bench_case_t which;
     int step;  /* case * COUNT_STEPS + count step */
     int frame;
     double last, frame_sum, cpu_sum, update_sum, scene_sum, submit_sum, worst, cpu_worst;
@@ -92,6 +102,7 @@ static void setup(void)
     const float spacing = 2.2f;
     result_t *r = &b.results[b.step];
 
+    b.which = which;
     b.model_count = count;
     r->models = count;
     r->name = CASE_NAMES[which];
@@ -112,6 +123,7 @@ static void setup(void)
     /* the light casts (or doesn't) for this case */
     sk_light_set_casts_shadows(b.sun, which != CASE_OFF);
     sk_light_set_casts_shadows(b.spot, which == CASE_TWO_LIGHTS);
+    sk_scene_set_culling(b.scene, which != CASE_AWAY_NO_CULL);
     sk_light_set_shadow_map_size(b.sun, which == CASE_2048 ? 2048 : which == CASE_4096 ? 4096 : 1024);
     sk_light_set_shadow_map_size(b.spot, 1024);
     for (int i = 0; i < count; i++) {
@@ -149,8 +161,13 @@ static void update(float dt)
     }
     /* the camera keeps moving, so the shadow fit re-snaps like it would in a game */
     const float radius = 6.0f + (float)b.model_count * 0.06f;
-    sk_camera3d_set_view(b.camera, radius * sinf(b.angle * 0.5f), radius * 0.45f, radius * cosf(b.angle * 0.5f),
-                         0, 0.8f, 0, 0, 1, 0);
+    const float x = radius * sinf(b.angle * 0.5f), z = radius * cosf(b.angle * 0.5f);
+    if (b.which == CASE_AWAY || b.which == CASE_AWAY_NO_CULL) {
+        /* outward from the grid: every model is behind the camera */
+        sk_camera3d_set_view(b.camera, x, radius * 0.45f, z, x * 2.0f, radius * 0.9f, z * 2.0f, 0, 1, 0);
+        return;
+    }
+    sk_camera3d_set_view(b.camera, x, radius * 0.45f, z, 0, 0.8f, 0, 0, 1, 0);
 }
 
 static void print_results(void)

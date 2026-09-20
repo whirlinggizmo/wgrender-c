@@ -340,18 +340,19 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       16384 / 131072, in the shape of sk_scene's transparent list, and the warning is
       kept for the ceiling (about 23 ms of submission, far past playable). Small
       programs stop carrying the room as well: ~448 KB of always-resident memory gone
-- [ ] Nothing is frustum culled: a scene submits every member every frame and lets the
-      GPU clip what is off screen. Measured with shadowbench: 4000 models cost 4.89 ms
-      with the camera pointed away from all of them, against 5.18 ms with every one on
-      screen — the same price for drawing nothing. A world bigger than its view pays
-      for all of it. The bounds are already at hand (`begin_draw` builds a world AABB
-      for light selection, `sk_pick_world_aabb`), so the test is six planes from the
-      view-projection against an AABB. Two things to get right: a skinned model's
-      bounds are its rest pose (see the light-selection note above), so they want
-      padding or the posed bounds; and the camera's frustum must not cull the shadow
-      pass — a model behind the camera can still cast into view, so that pass culls
-      against its own light's frustum instead, which is a win of its own since the map
-      only covers `shadow_distance`
+- [x] Frustum culling, phase 1 (2026-09-21, docs/PLAN-culling.md): a scene tests each
+      member's world bounds against the camera's six planes before submitting it, for
+      every 3D kind at once through the bounds registry it already keeps for picking.
+      A caster the camera can't see is kept when its box, swept along a casting light
+      for the reach of that light's map, still touches the view — so shadows from off
+      screen stay. Skinned bounds are the rest pose, so a member's box is padded 15%.
+      `sk_scene_set_culling` turns it off (default on) when you want to see everything
+      submitted. shadowbench gained "look away" / "away, no cull": 4000 models behind
+      the camera cost 6.78 ms a frame before and 0.50 ms now, of which 0.42 is the test
+      itself (~0.1 microseconds a member, against the 1.2 it saves); with everything in
+      view nothing got slower, because the world matrix a model built twice is now
+      cached. Still to do: the shadow pass redraws every caster in the environment
+      regardless of the light's own frustum (phase 2), and 2D members aren't tested
 - [ ] Models are one draw call each: 4000 lit models cost about 5 ms a frame on an
       RTX 4080 (shadowbench), and ~95% of that is CPU submission — roughly 1.2
       microseconds a model, whatever the model is. Sprites already avoid this (a run
