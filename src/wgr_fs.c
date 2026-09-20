@@ -28,7 +28,10 @@
  * can't suspend inside sokol's RAF-driven callbacks), so this is a polled barrier:
  * Module.wgr_fs_state is 0 pending / 1 ready / 2 no store (files still work in
  * MEMFS, nothing persists), surfaced via wgri_fs_is_ready(). */
-EM_JS(void, wgr_fs_store_open, (const char *root_c), {
+/* Bump to invalidate every cached file on the next visit (see the note inside). */
+#define WGR_FS_CACHE_EPOCH 2
+
+EM_JS(void, wgr_fs_store_open, (const char *root_c, int epoch), {
     const root = UTF8ToString(root_c);
     Module.wgr_fs_state = 0;
     Module.wgr_fs_keys = new Set();
@@ -46,12 +49,37 @@ EM_JS(void, wgr_fs_store_open, (const char *root_c), {
         open.onerror = () => done(2, open.error);
         open.onsuccess = () => {
             Module.wgr_fs_db = open.result;
-            const keys = Module.wgr_fs_db.transaction("files").objectStore("files").getAllKeys();
-            keys.onsuccess = () => {
-                for (const key of keys.result) Module.wgr_fs_keys.add(key);
-                done(1);
+            /* A cached file can be wrong in a way nothing notices: until 2026-09-20 a
+               compressing host's gzip bytes were stored under an asset's name, and a
+               font made of those is accepted by fontstash and then exhausts its scratch
+               buffer rather than failing. A file that fails loudly is re-fetched; this
+               is for the rest. Bump WGR_FS_CACHE_EPOCH to throw every cached file away
+               once, on the next visit, for everyone. */
+            const listKeys = () => {
+                const keys = Module.wgr_fs_db.transaction("files").objectStore("files").getAllKeys();
+                keys.onsuccess = () => {
+                    for (const key of keys.result) Module.wgr_fs_keys.add(key);
+                    done(1);
+                };
+                keys.onerror = () => done(2, keys.error);
             };
-            keys.onerror = () => done(2, keys.error);
+            const epochKey = "\u0000wgr_cache_epoch";
+            const store = Module.wgr_fs_db.transaction("files").objectStore("files");
+            const got = store.get(epochKey);
+            got.onsuccess = () => {
+                if (got.result === $0) {
+                    listKeys();
+                    return;
+                }
+                console.info("wgr_fs: cache from an older build, clearing it");
+                const tx = Module.wgr_fs_db.transaction("files", "readwrite");
+                const files = tx.objectStore("files");
+                files.clear();
+                files.put($0, epochKey);
+                tx.oncomplete = () => listKeys();
+                tx.onabort = () => done(2, tx.error);
+            };
+            got.onerror = () => listKeys(); /* can't tell: keep what is there */
             /* the cache as IDBFS kept it, restored whole at every start (before
                2026-09-20), under the mount point of the day: "/sk" until the library
                was renamed, and whatever this build mounts now */
@@ -208,7 +236,7 @@ void wgri_fs_init(const char *root_dir)
     snprintf(wgr_fs_root, sizeof(wgr_fs_root), "%s", root);
 #ifdef __EMSCRIPTEN__
     /* Open the cache (its list of files); wgri_fs_is_ready() reflects it. */
-    wgr_fs_store_open(wgr_fs_root);
+    wgr_fs_store_open(wgr_fs_root, WGR_FS_CACHE_EPOCH);
     log_info("wgr_fs: files in %s, kept in IndexedDB", wgr_fs_root);
 #else
     char *cwd = getcwd(NULL, 0);
