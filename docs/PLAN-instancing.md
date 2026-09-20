@@ -202,9 +202,12 @@ pixels) could not show.
 - **Found on the way, pre-existing:** a model with both an opaque and a see-through part
   gets two placements a frame (one per pass it appears in) and a skinned one uploads its
   joint matrices twice. Harmless, and cheap, but it is in TASKS.
-- Native GL was exercised by `make smoke` and the desktop build; a screen capture of the
-  real display came back black (capture-side), so the pixels were checked on the two
-  browser backends, which share the same sokol GL path.
+- **Native GL and a phone**, once the machine was awake. The desktop build (GL core,
+  RTX 4080, 122 FPS) captured through the COSMIC portal — `scrot` on the Xwayland root
+  returns black under Wayland, and desktop examples must be run from the repo root or the
+  asset base isn't found — and the WebGL2 and WebGPU builds on a Pixel 9 Pro XL (Mali,
+  Chrome, 60 FPS) over `adb reverse`. All four pictures match the two desktop browsers:
+  six walkers in six poses, the tinted field, the glass in order.
 
 ## Phasing
 
