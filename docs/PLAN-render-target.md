@@ -2,7 +2,8 @@
 
 Status: **implemented (2026-09-16).** Decisions 1–5 accepted as recommended. See
 `sk_texture_create_target`, `sk_render_begin_texture` and `examples/render_target.c`;
-"As built" below records details found during implementation.
+"As built" below records details found during implementation. **Screen effects
+(post-processing) followed on 2026-09-21**: see "Screen effects as built" at the end.
 
 ## Why
 
@@ -105,6 +106,45 @@ edges are as smooth as on screen. Targets have no mipmaps.
   texture (warned once), rather than skipping the draw.
 - Model placements are per pass, so a model drawn into several targets gets each
   target's aspect ratio. Up to 16 target passes per frame.
+
+## Screen effects as built (2026-09-21)
+
+Post-processing, the "later" in "Why" above. The frame draws into a render target and
+each effect redraws it, the last one onto the screen.
+
+- **An effect is a material**, so it needs no new resource kind and its parameters and
+  textures are set exactly as a surface material's are, any frame:
+  `sk_render_add_effect(material)`, `sk_render_clear_effects()`,
+  `sk_render_effect_count()`. Up to 8, applied in the order added, each holding a
+  reference. There is no "remove one": a program that toggles effects clears the chain
+  and adds what it wants (`examples/postprocess.c`), which keeps the order explicit.
+- **A shader says which it is.** A fragment shader that includes `sk_screen` instead of
+  `sk_surface` is a screen effect: `tools/shaderpack.py` then builds one program with a
+  full-screen-triangle vertex stage (no vertex buffer, no vertex hook) instead of the
+  four surface programs, and writes the kind into the file (`.skshader` format 5). Using
+  a screen material on a model or sprite is refused, and a surface material as an
+  effect, because the program simply isn't there.
+- **What a screen shader sees:** `sk_screen_uv` (0..1 from the top-left corner, the
+  same on every backend), `sk_screen_color()` and `sk_screen_color_at(uv)` (the frame,
+  decoded to linear), `sk_screen_size()` / `sk_screen_texel()`, `sk_time()`, and
+  `sk_output(color, alpha)`, which encodes sRGB and nothing else — no tint, alpha mode
+  or tone mapping, since an effect draws over the finished frame.
+- **The buffers are ordinary render targets** (`sk_texture_create_target`), so they
+  match the screen's format, depth and MSAA and every pipeline that draws the frame
+  works in them unchanged, including sokol_gl and text. Two are enough — effect i reads
+  one and writes the other — and the second is only made when effects follow each
+  other. They follow the framebuffer size and are rebuilt when it changes.
+- **The core doesn't know about materials.** The chain lives in its own optional module
+  (`src/sk_effect.c`), which registers `sk_render_hooks.effects_begin` (where the
+  screen's pass draws) and `effects_draw` (the chain, ending on the swapchain). A
+  program that never adds an effect doesn't link it (`make check`).
+- **GL's bottom-up targets** are handled as elsewhere: the shader gets a flag in its
+  frame block and flips v when it samples, so `sk_screen_uv` means the same thing on
+  GL, WebGL2 and WebGPU. Checked on all three.
+- **Not in this phase** (recorded in TASKS): HDR/float targets, so a chain can tone map
+  after bloom; keeping contents between frames; targets without depth or MSAA (an
+  effect chain allocates both today); the depth buffer as an input (fog, depth of
+  field); effects on a render target's pass rather than the screen.
 
 ## Verification
 

@@ -52,6 +52,7 @@ void test_material_api(void);
 void test_material_uv_matrix(void);
 void test_shader_custom_material(void);
 void test_shader_sprites(void);
+void test_shader_effects(void);
 
 void test_math_angles(void);
 void test_math_inverse(void);

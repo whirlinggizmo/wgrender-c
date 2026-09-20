@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "internal/sk_effect.h"
 #include "internal/sk_material.h"
 #include "internal/sk_internal.h"
 #include "internal/sk_platform.h"
@@ -236,6 +237,116 @@ void test_shader_sprites(void)
     sk_texture_deinit();
     sk_camera3d_deinit();
     sk_scene_deinit();
+    sk_render_deinit();
+    sg_shutdown();
+}
+
+/* Screen effects (sk_render_add_effect): a screen shader has one program and reads the
+ * frame as a texture; its material is refused on surfaces, and a surface material is
+ * refused as an effect. The chain runs at sk_render_end, ping-ponging between two
+ * render targets when effects follow each other. */
+void test_shader_effects(void)
+{
+    sg_setup(&(sg_desc){.environment = sk_platform_environment()});
+    stm_setup();
+    sk_render_init();
+    sk_texture_init();
+    sk_shader_init();
+    sk_material_init();
+    sk_sprite3d_init();
+    sk_sprite2d_init();
+    sk_effect_init();
+    sk_logger_set_level(SK_LOGGER_LEVEL_FATAL); /* refusals below log on purpose */
+
+    const sk_handle_t vignette = sk_shader_create(SHADERS "vignette.skshader");
+    const sk_handle_t scanlines = sk_shader_create(SHADERS "scanlines.skshader");
+    const sk_handle_t toon = sk_shader_create(SHADERS "toon.skshader");
+    const sk_shader_t *screen = sk_shader_get(vignette);
+    CHECK(screen != NULL);
+    if (screen == NULL) return;
+
+    /* a screen shader: its one program, reading the frame at libsk's texture slot 8 */
+    CHECK(screen->screen);
+    CHECK(!sk_shader_get(toon)->screen);
+    CHECK(screen->programs[SK_SHADER_PROGRAM_SCREEN].screen_view_slot == 8);
+    CHECK(screen->programs[SK_SHADER_PROGRAM_SCREEN].screen_sampler_slot == 8);
+    CHECK(screen->programs[SK_SHADER_PROGRAM_SCREEN].has_block[SK_SHADER_BLOCK_FRAME]);
+    CHECK(screen->programs[SK_SHADER_PROGRAM_SCREEN].has_block[SK_SHADER_BLOCK_FS_PARAMS]);
+    CHECK(screen->programs[SK_SHADER_PROGRAM_SCREEN].shader.id != SG_INVALID_ID);
+    CHECK(screen->programs[SK_SHADER_PROGRAM_STATIC].shader.id == SG_INVALID_ID); /* no surface programs */
+    CHECK(screen->param_count == 3 && screen->block_size[SK_SHADER_BLOCK_FS_PARAMS] == 32);
+
+    const sk_handle_t dark = sk_material_create_custom(vignette);
+    sk_shader_release(vignette); /* the material holds it from here */
+    const sk_handle_t crt = sk_material_create_custom(scanlines);
+    const sk_handle_t surface = sk_material_create_custom(toon);
+    const sk_handle_t pbr = sk_material_create(SK_MATERIAL_PBR);
+    CHECK(sk_material_is_screen(dark) && sk_material_is_screen(crt));
+    CHECK(!sk_material_is_screen(surface) && !sk_material_is_screen(pbr));
+    CHECK(sk_material_set_float(dark, "strength", 0.75f)); /* parameters like any material */
+    CHECK_NEAR(value_at(dark, "strength", 0), 0.75f, EPS);
+
+    /* the chain: added in order, counted, cleared */
+    CHECK(sk_render_effect_count() == 0);
+    CHECK(!sk_render_add_effect(surface)); /* a surface shader has no screen program */
+    CHECK(!sk_render_add_effect(pbr));     /* nor does a built-in material */
+    CHECK(!sk_render_add_effect(0));
+    CHECK(sk_render_effect_count() == 0);
+    CHECK(sk_render_add_effect(dark));
+    CHECK(sk_render_effect_count() == 1);
+
+    /* a screen material is refused where a surface is drawn */
+    const unsigned char pixel[4] = {255, 255, 255, 255};
+    const sk_handle_t texture = sk_texture_create_rgba(pixel, 1, 1);
+    const sk_handle_t sprite = sk_sprite3d_create(texture);
+    const sk_handle_t sprite2d = sk_sprite2d_create(texture);
+    CHECK(!sk_sprite3d_set_material(sprite, dark));
+    CHECK(!sk_sprite2d_set_material(sprite2d, dark));
+    CHECK(sk_sprite3d_get_material(sprite) == 0 && sk_sprite2d_get_material(sprite2d) == 0);
+
+    /* one effect: the frame draws into a target and the effect puts it on the screen */
+    sk_render_begin();
+    sk_render_clear_background(SK_COLOR_BLACK);
+    sk_render_end();
+    const sk_shader_t *after = sk_shader_get(vignette);
+    CHECK(after->screen_pipeline.id != SG_INVALID_ID); /* made on first use */
+
+    /* two effects: the first draws into the second's source */
+    CHECK(sk_render_add_effect(crt));
+    CHECK(sk_render_effect_count() == 2);
+    sk_render_begin();
+    sk_render_end();
+
+    /* the same material twice is a chain of two, not one */
+    sk_render_clear_effects();
+    CHECK(sk_render_effect_count() == 0);
+    CHECK(sk_render_add_effect(dark) && sk_render_add_effect(dark));
+    CHECK(sk_render_effect_count() == 2);
+    sk_render_begin();
+    sk_render_end();
+
+    /* the chain holds a reference to each material until it's cleared */
+    sk_material_release(dark);
+    CHECK(sk_material_get(dark) != NULL);
+    sk_render_clear_effects();
+    CHECK(sk_material_get(dark) == NULL);
+    CHECK(sk_shader_get(vignette) == NULL); /* and the material held the shader */
+
+    sk_sprite2d_destroy(sprite2d);
+    sk_sprite3d_destroy(sprite);
+    sk_texture_release(texture);
+    sk_material_release(crt);
+    sk_material_release(surface);
+    sk_material_release(pbr);
+    sk_shader_release(scanlines);
+    sk_shader_release(toon);
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+    sk_effect_deinit();
+    sk_sprite2d_deinit();
+    sk_sprite3d_deinit();
+    sk_material_deinit();
+    sk_shader_deinit();
+    sk_texture_deinit();
     sk_render_deinit();
     sg_shutdown();
 }

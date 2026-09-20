@@ -70,7 +70,30 @@
  *                         the scene's exposure and tone mapping (not on sprites), then
  *                         encodes sRGB. Call it once, at the end.
  * Lighting is linear and, like built-in materials, the framebuffer holds sRGB.
- * Names starting with sk_ are libsk's. */
+ * Names starting with sk_ are libsk's.
+ *
+ * SCREEN EFFECTS (sk_render_add_effect): a fragment shader that includes sk_screen
+ * instead of sk_surface is a screen effect — it redraws the finished frame, pixel by
+ * pixel, and has no surface, lighting or vertex hook. Its material can't be given to a
+ * model or a sprite, and a surface shader's can't be added as an effect.
+ *
+ *     @fs fs
+ *     @include_block sk_screen
+ *     layout(binding=2) uniform params { float strength; };
+ *     void main() {
+ *         vec2 d = sk_screen_uv - 0.5;
+ *         sk_output(sk_screen_color().rgb * (1.0 - dot(d, d) * strength), 1.0);
+ *     }
+ *     @end
+ *
+ * Parameters and textures work as above (block binding 2, textures 0-7). Inputs:
+ *   sk_screen_uv     vec2   this pixel, 0..1 from the top-left corner
+ *   sk_screen_color()       the frame here, linear rgba
+ *   sk_screen_color_at(uv)  the frame elsewhere (a blur, chromatic aberration)
+ *   sk_screen_size()  vec2  the frame in pixels, and sk_screen_texel() = 1 / that
+ *   sk_time(), sk_srgb_to_linear(c), sk_linear_to_srgb(c)
+ *   sk_output(color, alpha)  write the pixel (linear rgb, encoded to sRGB). No tint,
+ *                         alpha mode or tone mapping: an effect draws over the screen. */
 
 @block sk_color
 vec3 sk_srgb_to_linear(vec3 c) {
@@ -263,7 +286,48 @@ void main() {
 }
 @end
 
+/* Screen effects (sk_render_add_effect): one triangle covering the screen, drawn over
+ * the finished frame. No vertex buffer and no vertex hook: the fragment shader is the
+ * whole effect. */
+@block sk_vs_screen_main
+layout(location=0) out vec2 sk_screen_uv;
+void main() {
+    /* (0,0), (2,0), (0,2): a triangle whose middle is the screen */
+    vec2 c = vec2(float((gl_VertexIndex << 1) & 2), float(gl_VertexIndex & 2));
+    gl_Position = vec4(c * 2.0 - 1.0, 0.0, 1.0);
+    sk_screen_uv = vec2(c.x, 1.0 - c.y); /* top-left origin, whatever the backend */
+}
+@end
+
 /* --------------------------------------------------------------- fragment ---- */
+
+@block sk_screen
+@include_block sk_color
+layout(binding=1) uniform sk_screen_frame {
+    vec4 sk_screen_info; /* xy size in pixels, z seconds, w 1 when the frame is stored bottom-up */
+};
+layout(binding=8) uniform texture2D sk_screen_tex;
+layout(binding=8) uniform sampler sk_screen_smp;
+layout(location=0) in vec2 sk_screen_uv;
+out vec4 sk_frag_color;
+
+float sk_time() { return sk_screen_info.z; }
+vec2 sk_screen_size() { return sk_screen_info.xy; }
+vec2 sk_screen_texel() { return 1.0 / max(sk_screen_info.xy, vec2(1.0)); }
+
+/* The frame at `uv` (top-left origin), linear rgba. */
+vec4 sk_screen_color_at(vec2 uv) {
+    vec2 at = vec2(uv.x, sk_screen_info.w > 0.5 ? 1.0 - uv.y : uv.y);
+    vec4 c = texture(sampler2D(sk_screen_tex, sk_screen_smp), at);
+    return vec4(sk_srgb_to_linear(c.rgb), c.a);
+}
+
+vec4 sk_screen_color() { return sk_screen_color_at(sk_screen_uv); }
+
+void sk_output(vec3 color, float alpha) {
+    sk_frag_color = vec4(sk_linear_to_srgb(color), alpha);
+}
+@end
 
 @block sk_surface
 @include_block sk_color

@@ -8,8 +8,10 @@
 #include "sokol_gfx.h"
 
 /* A custom material shader (.skshader, written by tools/shaderpack.py): the running
- * backend's static and skinned programs, and its parameters and textures by name.
- * The model renderer draws materials that use one (src/sk_model.c). */
+ * backend's programs, and its parameters and textures by name. A surface shader has
+ * the model and sprite programs and draws through sk_model / sk_sprite_batch; a screen
+ * shader (its fragment shader includes sk_screen) has one program and redraws the
+ * finished frame through sk_effect. */
 
 #define SK_SHADER_MAX_PARAMS 32
 #define SK_SHADER_MAX_TEXTURES 8
@@ -49,6 +51,7 @@ typedef struct {
     int sprite_view_slot, sprite_sampler_slot; /* a sprite's texture (sk_sprite_tex) */
     int data_view_slot, data_sampler_slot;     /* sprites read from a texture (sk_sprite_data) */
     int joint_view_slot, joint_sampler_slot;   /* skinned models' joints (sk_joint_tex) */
+    int screen_view_slot, screen_sampler_slot; /* a screen effect's frame (sk_screen_tex) */
 } sk_shader_program_t;
 
 enum {
@@ -56,6 +59,7 @@ enum {
     SK_SHADER_PROGRAM_SKINNED,
     SK_SHADER_PROGRAM_SPRITE,        /* per-instance attributes */
     SK_SHADER_PROGRAM_SPRITE_PULLED, /* sprites read from a texture (no base instance: WebGL2) */
+    SK_SHADER_PROGRAM_SCREEN,        /* a screen effect: the only program a screen shader has */
     SK_SHADER_PROGRAM_COUNT,
 };
 #define SK_SHADER_SPRITE_PIPELINES 8 /* the sprite batch's pipeline kinds (src/sk_sprite_batch.c) */
@@ -64,6 +68,8 @@ typedef struct {
     sk_shader_program_t programs[SK_SHADER_PROGRAM_COUNT];
     sg_pipeline pipelines[2][2][2];  /* [skinned][blended][double_sided], made by sk_model on first use */
     sg_pipeline sprite_pipelines[SK_SHADER_SPRITE_PIPELINES]; /* made by the sprite batch on first use */
+    sg_pipeline screen_pipeline; /* screen effects: made by sk_effect on first use */
+    bool screen;                 /* a screen effect (sk_render_add_effect), not a surface shader */
     sk_shader_param_t params[SK_SHADER_MAX_PARAMS];
     int param_count;
     int block_size[SK_SHADER_BLOCK_COUNT]; /* FS_PARAMS / VS_PARAMS: bytes (std140, 16-byte multiple) */

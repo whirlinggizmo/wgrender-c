@@ -11,6 +11,9 @@ backend libsk runs on (GL 4.1, WebGL2, WebGPU) with sokol-shdc, and writes one
 .skshader file: each backend's sources, what sokol needs to know about them, and the
 parameters by name. Load it with sk_shader_create(path). Only needed to make the file,
 never at runtime; needs tools/sokol-shdc (see the Makefile's `shaders` target).
+
+A fragment shader that includes sk_screen instead of sk_surface is a screen effect
+(sk_render_add_effect): it gets one program, drawn over the finished frame.
 """
 import os
 import re
@@ -22,7 +25,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHDC = os.path.join(ROOT, "tools", "sokol-shdc")
 INTERFACE = os.path.join(ROOT, "shaders", "sk.glsl")
 SLANGS = ["glsl410", "glsl300es", "wgsl"]
-FORMAT_VERSION = 4
+FORMAT_VERSION = 5
 
 FS_PARAMS_BINDING = 2  # binding 0 is libsk's vertex block, 1 its sk_frame block
 VS_PARAMS_BINDING = 3
@@ -128,6 +131,10 @@ def main():
     if ("fs", "fs") not in user_sections:
         fail(f"{path}: needs a fragment shader `@fs fs` (see shaders/sk.glsl)")
     hook = "vertex" if ("block", "vertex") in user_sections else "sk_vertex_default"
+    # a fragment shader that includes sk_screen is a screen effect, not a surface
+    screen = re.search(r"@include_block\s+sk_screen\s*$", user_sections[("fs", "fs")], re.M) is not None
+    if screen and ("block", "vertex") in user_sections:
+        fail(f"{path}: a screen effect has no vertex hook (it draws over the finished frame)")
 
     fs_block, fs_params = params_block(user_sections[("fs", "fs")], FS_PARAMS_BINDING, "fragment")
     vs_block, vs_params = params_block(user_sections.get(("block", "vertex"), ""), VS_PARAMS_BINDING, "vertex")
@@ -139,9 +146,18 @@ def main():
     if len(set(names)) != len(names):
         fail("parameter names must differ between the vertex and fragment blocks")
 
-    programs = []
-    for kind in ("static", "skinned"):
-        programs.append(f"""
+    if screen:
+        generated = """
+@vs sk_vs_screen
+@include_block sk_vs_screen_main
+@end
+
+@program screen sk_vs_screen fs
+"""
+    else:
+        programs = []
+        for kind in ("static", "skinned"):
+            programs.append(f"""
 @vs sk_vs_{kind}
 @include_block sk_vs_{kind}_uniforms
 @include_block sk_vs_outputs
@@ -149,7 +165,7 @@ def main():
 @include_block sk_vs_{kind}_main
 @end
 """)
-    combined = interface + "\n" + user + "\n" + "".join(programs) + """
+        generated = "".join(programs) + """
 @vs sk_vs_sprite
 @include_block sk_vs_sprite_common
 @include_block sk_vs_sprite_main
@@ -165,6 +181,7 @@ def main():
 @program sprite sk_vs_sprite fs
 @program sprite_pulled sk_vs_sprite_pulled fs
 """
+    combined = interface + "\n" + user + "\n" + generated
     user_first_line = interface.count("\n") + 2  # the user's line 1 in the combined file
 
     with tempfile.TemporaryDirectory(prefix="shaderpack.") as work:
@@ -183,7 +200,7 @@ def main():
             sys.exit(message.strip() or "shaderpack: sokol-shdc failed")
         reflection = parse_yaml(open(os.path.join(work, "out_reflection.yaml"), encoding="utf-8").read())
 
-        lines = [f"skshader {FORMAT_VERSION}"]
+        lines = [f"skshader {FORMAT_VERSION}", f"kind {'screen' if screen else 'surface'}"]
         for name, kind, offset in fs_params:
             lines.append(f"param {name} {kind} fs {offset}")
         for name, kind, offset in vs_params:
@@ -213,8 +230,8 @@ def main():
             f.write(line.encode() + b"\n")
             if i in at:
                 f.write(at[i] + b"\n")
-    print(f"shaderpack: wrote {out} ({len(fs_params) + len(vs_params)} parameter(s), "
-          f"{len(textures or [])} texture(s))")
+    print(f"shaderpack: wrote {out} ({'screen effect' if screen else 'surface shader'}, "
+          f"{len(fs_params) + len(vs_params)} parameter(s), {len(textures or [])} texture(s))")
 
 
 def check_program(slang, program, fs_block, fs_params, vs_block, vs_params):

@@ -40,6 +40,21 @@ void sk_render_pop_clip(void);
 bool sk_render_begin_texture(sk_handle_t texture);
 void sk_render_end_texture(void);
 
+/* Screen effects (post-processing): the frame is drawn into a texture instead of the
+ * screen, and each effect redraws it, in the order added, the last one onto the screen
+ * — a vignette, color grading, scanlines. An effect is a custom material whose shader
+ * is a screen effect (its fragment shader includes sk_screen; see shaders/sk.glsl and
+ * tools/shaderpack.py); a surface material is refused, as is a screen material on a
+ * model or sprite. The material's parameters can be changed any frame
+ * (sk_material_set_float), so an effect can fade in and out.
+ *
+ * Effects apply to the screen, not to render targets: to post-process a target, draw
+ * it with a material of your own. Up to 8. The chain holds a reference to each
+ * material; sk_render_clear_effects drops them. Call outside sk_render_begin/end. */
+bool sk_render_add_effect(sk_handle_t material);
+void sk_render_clear_effects(void);
+int  sk_render_effect_count(void);
+
 #ifdef __cplusplus
 }
 #endif

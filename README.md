@@ -249,6 +249,11 @@ reference/librl the raylib library this evolves from (read-only reference)
   `sk_sprite2d_set_material`; `sk_sprite_color()` is the sprite's texture and tint),
   with the same lights and environment a model shader gets.
   See `docs/PLAN-materials.md` and `examples/shaders.c`.
+- Screen effects (post-processing): a shader that includes `sk_screen` instead of
+  `sk_surface` redraws the finished frame — `sk_render_add_effect(material)` puts it in
+  a chain (up to 8, in order; the frame goes into a texture and the last effect draws
+  onto the screen). Its parameters are the material's, so an effect can change every
+  frame. See `docs/PLAN-render-target.md` and `examples/postprocess.c`.
 
 ## Not yet ported from librl
 

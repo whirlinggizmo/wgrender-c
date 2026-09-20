@@ -59,8 +59,8 @@ sk_handle_t sk_texture_create_rgba(const unsigned char *rgba, int width, int hei
  * fully opaque for textures created from pixels. */
 bool sk_texture_get_alpha_mask(sk_handle_t handle, const unsigned char **alpha, int *width, int *height);
 
-/* A render target's pass attachments and size. False when `handle` isn't a target
- * (sk_texture_create_target). */
+/* A render target's pass attachments and size (width and height may be NULL). False
+ * when `handle` isn't a target (sk_texture_create_target). */
 bool sk_texture_get_target(sk_handle_t handle, sg_attachments *attachments, int *width, int *height);
 
 /* True when the texture's rows are stored bottom-up: render targets on backends

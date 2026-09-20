@@ -618,12 +618,20 @@ void sk_render_end(void)
         sg_end_pass();
     }
     drawing_into(0);
-    sg_begin_pass(&(sg_pass){
-        .action = pass_action(0),
-        .swapchain = sk_platform_swapchain(),
-    });
+    /* with screen effects the frame draws into a texture, and the chain puts it on
+     * the screen (src/sk_effect.c) */
+    sg_attachments effects = {0};
+    const bool to_effects = sk_render_hooks.effects_begin != NULL && sk_render_hooks.effects_begin(&effects);
+    if (to_effects) {
+        sg_begin_pass(&(sg_pass){.action = pass_action(0), .attachments = effects, .label = "sk-screen-effects"});
+    } else {
+        sg_begin_pass(&(sg_pass){.action = pass_action(0), .swapchain = sk_platform_swapchain()});
+    }
     replay_pass(0);
     sg_end_pass();
+    if (to_effects) {
+        sk_render_hooks.effects_draw();
+    }
     sgl_err = sgl_error(); /* sg_commit clears it */
     sg_commit();
     grow_sgl_budgets(sgl_err);

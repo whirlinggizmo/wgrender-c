@@ -978,8 +978,8 @@ bool sk_texture_get_target(sk_handle_t handle, sg_attachments *attachments, int 
         .resolves[0] = texture_ptr->resolve_attachment,
         .depth_stencil = texture_ptr->depth_attachment,
     };
-    *width = texture_ptr->width;
-    *height = texture_ptr->height;
+    if (width != NULL) *width = texture_ptr->width;
+    if (height != NULL) *height = texture_ptr->height;
     return true;
 }
 

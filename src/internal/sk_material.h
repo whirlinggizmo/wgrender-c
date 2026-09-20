@@ -68,6 +68,10 @@ void sk_material_uv_matrix(const sk_material_texture_t *texture, float m[6]);
 /* Whether texture `name` uses its mipmaps (glTF samplers can turn them off). */
 bool sk_material_set_texture_mipmaps(sk_handle_t material, const char *name, bool mipmaps);
 
+/* A custom material whose shader is a screen effect (sk_render_add_effect): it has no
+ * program for models or sprites, so they refuse it. */
+bool sk_material_is_screen(sk_handle_t material);
+
 /* Reference counting (meshes and models hold references). */
 void sk_material_retain(sk_handle_t material);
 

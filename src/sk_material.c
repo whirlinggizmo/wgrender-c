@@ -209,6 +209,15 @@ const sk_material_t *sk_material_get(sk_handle_t material)
     return sk_handle_pool_resolve(&sk_material_pool, material, &index) ? &sk_materials[index] : NULL;
 }
 
+bool sk_material_is_screen(sk_handle_t material)
+{
+    const sk_material_t *material_ptr = sk_material_get(material);
+    const sk_shader_t *shader = material_ptr != NULL && material_ptr->shader != 0 && sk_shader_hooks.get != NULL
+                                    ? sk_shader_hooks.get(material_ptr->shader)
+                                    : NULL;
+    return shader != NULL && shader->screen;
+}
+
 void sk_material_retain(sk_handle_t material)
 {
     sk_material_t *material_ptr = resolve(material);

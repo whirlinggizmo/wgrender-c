@@ -56,6 +56,7 @@ static const test_case_t TESTS[] = {
     {"material_uv_matrix", test_material_uv_matrix},
     {"shader_custom_material", test_shader_custom_material},
     {"shader_sprites", test_shader_sprites},
+    {"shader_effects", test_shader_effects},
     {"math_angles", test_math_angles},
     {"math_inverse", test_math_inverse},
     {"math_trs", test_math_trs},

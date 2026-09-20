@@ -35,6 +35,11 @@ typedef struct {
     void (*draw_sprites)(int batch, bool follows); /* sk_sprite_batch: a sprite batch */
     bool (*texture_target)(sk_handle_t texture, sg_attachments *attachments, int *width, int *height);
     void (*texture_drawing_into)(sk_handle_t texture); /* sk_texture: the target being drawn */
+    /* sk_effect (screen effects): where the screen's own pass draws when there are any
+     * (false: straight to the swapchain), and the chain, which opens its own passes and
+     * ends with the swapchain. */
+    bool (*effects_begin)(sg_attachments *attachments);
+    void (*effects_draw)(void);
 } sk_render_hooks_t;
 extern sk_render_hooks_t sk_render_hooks;
 

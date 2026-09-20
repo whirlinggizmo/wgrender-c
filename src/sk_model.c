@@ -1841,6 +1841,11 @@ SK_KEEP bool sk_model_set_material(sk_handle_t handle, int slot, sk_handle_t mat
         log_warn("sk_model_set_material: invalid material handle (%u)", (unsigned int)material);
         return false;
     }
+    if (sk_material_is_screen(material)) {
+        log_warn("sk_model_set_material: that material's shader is a screen effect (sk_render_add_effect), "
+                 "not a surface shader");
+        return false;
+    }
     if (slot == -1) {
         for (int m = 0; m < SK_MAX_MATERIAL_SLOTS; m++) set_material_slot(model_ptr, m, material);
         return true;

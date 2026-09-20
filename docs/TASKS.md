@@ -364,9 +364,17 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
 - [x] Render to texture: `sk_texture_create_target`, `sk_render_begin/end_texture`,
       `sk_texture_set_sampling` ([PLAN-render-target.md](PLAN-render-target.md),
       `examples/render_target.c`)
-- [ ] Render targets later: keep contents between frames (no clear), per-target
-      formats (HDR/float) for post-processing, full-screen shader passes, reading
-      pixels back / screenshots
+- [x] Screen effects (2026-09-21): post-processing as full-screen shader passes —
+      `sk_render_add_effect` / `_clear_effects` / `_effect_count`, a chain of up to 8
+      custom materials whose shaders include `sk_screen` (one program, `sk_screen_color()`,
+      `sk_screen_uv`; `.skshader` format 5). The frame renders into a render target and
+      the chain ping-pongs between two of them onto the screen
+      ([PLAN-render-target.md](PLAN-render-target.md), `examples/postprocess.c`)
+- [ ] Render targets later: per-target formats (HDR/float) so effects can tone map
+      after bloom (WebGL2 needs EXT_color_buffer_float), keeping contents between
+      frames (no clear) for trails, targets without depth or MSAA (effect chains
+      allocate both today), reading pixels back / screenshots, and the depth buffer in
+      a screen effect (fog, depth of field)
 
 - [x] Generated meshes (2026-09-20): `sk_mesh_create_plane/cube/sphere/cylinder/cone/
       capsule/torus`, resources deduplicated by their parameters, with normals, texture

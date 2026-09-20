@@ -56,6 +56,10 @@ static bool assign_material(sk_handle_t *slot, sk_handle_t material, const char 
         log_warn("%s: 2D sprites take custom materials (sk_material_create_custom) or 0", who);
         return false;
     }
+    if (sk_material_is_screen(material)) {
+        log_warn("%s: that material's shader is a screen effect (sk_render_add_effect), not a surface shader", who);
+        return false;
+    }
     if (*slot != material) {
         sk_material_retain(material); /* no-op for 0 */
         sk_material_release(*slot);

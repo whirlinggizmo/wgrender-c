@@ -13,10 +13,11 @@
 
 /* Custom material shaders: .skshader files from tools/shaderpack.py (the format is
  * written there). Loading reads the file on a worker; finishing picks the running
- * backend's sources and makes the static and skinned programs. */
+ * backend's sources and makes its programs: a surface shader's four (models and
+ * sprites), or a screen effect's one. */
 
 #define SHADERS_INITIAL 8
-#define FORMAT_VERSION 4
+#define FORMAT_VERSION 5
 #define GLSL_NAME_MAX 128 /* texture-sampler pairs join two names: longer than the parameters' */
 
 static sk_shader_t *sk_shaders; /* grown by the pool: don't hold a pointer across a create */
@@ -225,6 +226,13 @@ static int param_size(sk_shader_param_type_t type)
     }
 }
 
+/* The programs a shader of this kind has: a screen effect's one, or a surface
+ * shader's four (models and sprites). */
+static bool wants_program(const sk_shader_t *shader, int program)
+{
+    return shader->screen ? program == SK_SHADER_PROGRAM_SCREEN : program != SK_SHADER_PROGRAM_SCREEN;
+}
+
 /* Read a .skshader: parameters and textures into `out`, and its programs for
  * `slang` into `programs`. False (with *error) when the file can't be used. */
 static bool parse(const unsigned char *bytes, size_t size, const char *slang, sk_shader_t *out,
@@ -264,6 +272,8 @@ static bool parse(const unsigned char *bytes, size_t size, const char *slang, sk
             const int end = (n + param_size(param->type) + 15) / 16 * 16;
             if (end > out->block_size[param->block]) out->block_size[param->block] = end;
             out->param_count++;
+        } else if (sscanf(line, "kind %63s", a) == 1 && (strcmp(a, "screen") == 0 || strcmp(a, "surface") == 0)) {
+            out->screen = strcmp(a, "screen") == 0;
         } else if (sscanf(line, "texture %63s", a) == 1) {
             if (out->texture_count >= SK_SHADER_MAX_TEXTURES || strlen(a) >= SK_SHADER_NAME_MAX) {
                 *error = "too many textures, or a name too long";
@@ -275,6 +285,7 @@ static bool parse(const unsigned char *bytes, size_t size, const char *slang, sk
                               : strcmp(a, "skinned") == 0       ? SK_SHADER_PROGRAM_SKINNED
                               : strcmp(a, "sprite") == 0        ? SK_SHADER_PROGRAM_SPRITE
                               : strcmp(a, "sprite_pulled") == 0 ? SK_SHADER_PROGRAM_SPRITE_PULLED
+                              : strcmp(a, "screen") == 0        ? SK_SHADER_PROGRAM_SCREEN
                                                                 : -1;
             current = which >= 0 && strcmp(b, slang) == 0 ? &programs[which] : NULL;
             if (current != NULL) current->found = true;
@@ -302,7 +313,8 @@ static bool parse(const unsigned char *bytes, size_t size, const char *slang, sk
         }
     }
     for (int i = 0; i < SK_SHADER_PROGRAM_COUNT; i++) {
-        if (!programs[i].found || programs[i].sources[0] == NULL || programs[i].sources[1] == NULL) {
+        if (wants_program(out, i) &&
+            (!programs[i].found || programs[i].sources[0] == NULL || programs[i].sources[1] == NULL)) {
             *error = "no program for this graphics backend";
             return false;
         }
@@ -330,6 +342,7 @@ static void destroy_gpu(sk_shader_t *shader)
     for (int p = 0; p < SK_SHADER_SPRITE_PIPELINES; p++) {
         if (shader->sprite_pipelines[p].id != SG_INVALID_ID) sg_destroy_pipeline(shader->sprite_pipelines[p]);
     }
+    if (shader->screen_pipeline.id != SG_INVALID_ID) sg_destroy_pipeline(shader->screen_pipeline);
     for (int s = 0; s < SK_SHADER_PROGRAM_COUNT; s++) {
         if (shader->programs[s].shader.id != SG_INVALID_ID) sg_destroy_shader(shader->programs[s].shader);
     }
@@ -398,12 +411,16 @@ static sk_loader_step_t finish_shader(void *data, const char *path, sk_handle_t 
     for (int i = 0; ok && i < SK_SHADER_PROGRAM_COUNT; i++) {
         program_desc_t *p = &programs[i];
         sk_shader_program_t *program = &shader.programs[i];
+        if (!wants_program(&shader, i)) {
+            continue;
+        }
         p->desc.vertex_func.source = p->sources[0];
         p->desc.vertex_func.entry = "main";
         p->desc.fragment_func.source = p->sources[1];
         p->desc.fragment_func.entry = "main";
         static const char *labels[SK_SHADER_PROGRAM_COUNT] = {"sk-custom-static", "sk-custom-skinned",
-                                                               "sk-custom-sprite", "sk-custom-sprite-pulled"};
+                                                               "sk-custom-sprite", "sk-custom-sprite-pulled",
+                                                               "sk-custom-screen"};
         p->desc.label = labels[i];
         memcpy(program->has_block, p->has_block, sizeof(program->has_block));
         for (int t = 0; t < SK_SHADER_MAX_TEXTURES; t++) {
@@ -411,14 +428,14 @@ static sk_loader_step_t finish_shader(void *data, const char *path, sk_handle_t 
             program->sampler_slot[t] = -1;
         }
         /* libsk's textures, by name: where each one's view and sampler go */
-        static const char *libsk_textures[5] = {"sk_env_tex", "sk_brdf_tex", "sk_sprite_tex", "sk_sprite_data",
-                                                "sk_joint_tex"};
-        int *view_slots[5] = {&program->env_view_slot, &program->brdf_view_slot, &program->sprite_view_slot,
-                              &program->data_view_slot, &program->joint_view_slot};
-        int *sampler_slots[5] = {&program->env_sampler_slot, &program->brdf_sampler_slot,
+        static const char *libsk_textures[6] = {"sk_env_tex", "sk_brdf_tex", "sk_sprite_tex", "sk_sprite_data",
+                                                "sk_joint_tex", "sk_screen_tex"};
+        int *view_slots[6] = {&program->env_view_slot, &program->brdf_view_slot, &program->sprite_view_slot,
+                              &program->data_view_slot, &program->joint_view_slot, &program->screen_view_slot};
+        int *sampler_slots[6] = {&program->env_sampler_slot, &program->brdf_sampler_slot,
                                  &program->sprite_sampler_slot, &program->data_sampler_slot,
-                                 &program->joint_sampler_slot};
-        for (int n = 0; n < 5; n++) {
+                                 &program->joint_sampler_slot, &program->screen_sampler_slot};
+        for (int n = 0; n < 6; n++) {
             *view_slots[n] = *sampler_slots[n] = -1;
             for (int v = 0; v < SG_MAX_VIEW_BINDSLOTS; v++) {
                 if (strcmp(p->view_names[v], libsk_textures[n]) != 0) continue;
