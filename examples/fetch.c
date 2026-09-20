@@ -19,8 +19,15 @@
  * fetcher writes that file. Downloads land in the cache directory and the next run
  * finds them there, which is the job the browser's cache does on web.
  *
- * Run `make serve` in another terminal first. Without it the example says so and falls
- * back to the local asset directory, so it still draws. */
+ * It downloads from the project's own assets on GitHub, over HTTPS, so there is nothing
+ * to start first — and nothing in libwgrender did the TLS. Point it somewhere else with
+ * WGRENDER_ASSET_HOST, e.g. the dev server the web build uses:
+ *
+ *     make serve
+ *     WGRENDER_ASSET_HOST=http://localhost:8000/assets ./examples/build/desktop/fetch
+ *
+ * Offline, or built headless for `make smoke` (a gate shouldn't need a network), it
+ * reads the local asset directory instead and says so. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,7 +37,7 @@
 
 #define TEXTURE_PATH "sprites/logo/wg-logo-white-alpha.png"
 #define CACHE_DIR "build/asset-cache"
-#define DEFAULT_HOST "http://localhost:8000/assets"
+#define DEFAULT_HOST "https://raw.githubusercontent.com/whirlinggizmo/wgrender-c/main/examples/assets"
 
 static wgr_handle_t g_sprite, g_camera;
 static char g_host[256];
@@ -86,7 +93,11 @@ static void on_init(void *user)
 #else
     const char *wanted = getenv("WGRENDER_ASSET_HOST");
     snprintf(g_host, sizeof g_host, "%s", wanted != NULL ? wanted : DEFAULT_HOST);
+#ifdef WGR_HEADLESS
+    g_remote = wanted != NULL && host_is_up(g_host); /* `make smoke` stays offline */
+#else
     g_remote = host_is_up(g_host);
+#endif
     if (g_remote) {
         wgr_asset_set_cache_dir(CACHE_DIR);
         wgr_asset_set_fetcher(fetch_with_curl, NULL);
@@ -117,8 +128,7 @@ static void frame(float dt, float fraction, void *user)
         snprintf(line, sizeof line, "downloaded %d file(s) into %s   (delete it and re-run: they come back)",
                  g_downloads, CACHE_DIR);
     } else {
-        snprintf(line, sizeof line, "nothing served at " DEFAULT_HOST " — run `make serve` to see the "
-                                    "download path; reading %s for now", EXAMPLE_ASSET_BASE);
+        snprintf(line, sizeof line, "no host reachable — reading %s locally instead", EXAMPLE_ASSET_BASE);
     }
     wgr_text_draw(line, 12, 86, 16, WGR_COLOR_LIGHTGRAY);
 #endif
