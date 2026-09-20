@@ -13,17 +13,21 @@
 #include "internal/sk_platform.h"
 #include "internal/sk_render.h"
 #include "internal/sk_scene.h"
+#include "internal/sk_shader.h"
 #include "internal/sk_texture.h"
 #include "sk_camera3d.h"
 #include "sk_color.h"
 #include "sk_light.h"
+#include "sk_material.h"
 #include "sk_model.h"
+#include "sk_shader.h"
 #include "sk_render.h"
 #include "sk_scene.h"
 #include "test.h"
 #include "tests.h"
 
 #include "sokol_gfx.h"
+#include "sokol_time.h"
 
 /* A camera at (0, 0, 10) looking at the origin, 60 degrees, square. */
 static sk_mat4_t test_view_proj(void)
@@ -141,7 +145,9 @@ void test_model_instancing(void)
     sk_light_init();
     sk_material_init();
     sk_environment_init();
+    sk_shader_init();
     sk_model_init();
+    stm_setup(); /* custom shaders read the time (sk_get_time), which sk_run starts */
 
     const sk_handle_t scene = sk_scene_create();
     const sk_handle_t camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
@@ -197,6 +203,22 @@ void test_model_instancing(void)
     sk_render_end();
     CHECK(sk_model_draw_call_count() == 1);
 
+    /* a custom material shader batches like the built-in one: it reads each placement
+       from the same records (docs/PLAN-instancing.md, phase 4) */
+    const sk_handle_t custom = sk_material_create_custom(sk_shader_create("../examples/assets/shaders/toon.skshader"));
+    CHECK(custom != 0);
+    for (int i = 0; i < 8; i++) {
+        sk_model_set_material(models[i], -1, custom);
+    }
+    sk_render_begin();
+    sk_scene_draw(scene);
+    sk_render_end();
+    CHECK(sk_model_draw_call_count() == 1);
+    for (int i = 0; i < 8; i++) { /* back to the built-in one */
+        sk_model_set_material(models[i], -1, material);
+    }
+    sk_material_release(custom);
+
     /* skinned models sharing a mesh group as well: each instance's record says where
        its own joint matrices are, so two walkers out of step are still one draw per
        primitive of the mesh */
@@ -245,6 +267,7 @@ void test_model_instancing(void)
     }
     sk_scene_destroy(scene);
     sk_model_deinit();
+    sk_shader_deinit();
     sk_environment_deinit();
     sk_material_deinit();
     sk_light_deinit();

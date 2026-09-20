@@ -1,4 +1,4 @@
-skshader 7
+skshader 8
 kind screen
 param lines float fs 0
 param darkness float fs 4

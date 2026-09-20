@@ -734,7 +734,7 @@ static bool draw_custom(const sk_sprite_batch_t *b)
             frame.camera_time[2] = cam->source.position.z;
         }
         frame.camera_time[3] = time;
-        frame.tint[0] = frame.tint[1] = frame.tint[2] = frame.tint[3] = 1.0f; /* each sprite's is in sk_color */
+        /* a sprite's tint is in sk_color, and its vertex stage writes sk_tint white */
         frame.output[2] = 1.0f;                                               /* exposure */
         if (env != NULL) {
             frame.output[1] = (float)env->tonemap;

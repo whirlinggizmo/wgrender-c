@@ -392,6 +392,15 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       the whole grid so nothing is culled out of the map: at 4000 models, submission
       6.38 -> 0.60 ms and the frame 8.01 -> 3.20. The depth pass's own share of that,
       measured by forcing same_depth_group false in the same build, is about 1.5 ms
+- [x] Custom material shaders instance too (2026-09-21, docs/PLAN-instancing.md phase
+      4): shaders/sk.glsl grew an sk_vs_instance block, so a custom shader's model
+      stages read the placement from the same records; the instance and joint textures
+      share the one nonfiltering sampler, since sampler slots stop at 11. The tint
+      became a varying rather than folding into sk_color: sk_output() applies sk_tint,
+      and a shader that ignores sk_color would otherwise have silently lost it. Sprites
+      write white there, where their tint has always been in sk_color. .skshader format
+      7 -> 8, the six example shaders repacked; older packs are refused, not drawn
+      wrongly. A custom material no longer blocks batching
 - [ ] Lit particles: emitter particles are unlit — emitters have their own program
       (`particle` = vs_particle + the unlit `fs` in src/shaders/sk_sprite.glsl) and no
       material API, so the only lit "particles" today are sprite3d objects moved by the

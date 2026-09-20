@@ -43,6 +43,9 @@
  *                         region (uv0), and 0..1 across the quad whatever the region (uv1)
  *   sk_color       vec4   vertex color, linear (white when the mesh has none); a
  *                         sprite's: its tint, linear
+ *   sk_tint        vec4   this placement's tint, linear rgba (white on sprites, whose
+ *                         tint is in sk_color). It comes from the instance record, so
+ *                         models that differ only by tint still share one draw
  * and functions:
  *   sk_time()             seconds since the program started
  *   sk_camera_position()  world space
@@ -132,6 +135,7 @@ layout(location=3) out vec2 sk_uv0;
 layout(location=4) out vec2 sk_uv1;
 layout(location=5) out vec4 sk_color;
 layout(location=6) out float sk_sprite_alpha; /* sprites: their alpha mode (0 for models) */
+layout(location=7) out vec4 sk_tint;          /* this placement's tint, linear rgba */
 /* locations match libsk's vertex buffers */
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 normal;
@@ -141,12 +145,40 @@ layout(location=4) in vec4 tangent;
 layout(location=5) in vec4 color0;
 @end
 
+@block sk_vs_instance
+/* The frame's per-placement records (src/sk_model.c, docs/PLAN-instancing.md): where
+ * this instance stands, how its normals turn, its tint, and which joint matrices are
+ * its own. The draw says where its first record is; gl_InstanceIndex counts from
+ * there, so models that agree on everything else go up as one draw. */
+layout(binding=14) uniform texture2D sk_instance_tex;
+layout(binding=11) uniform sampler sk_data_smp; /* nonfiltering; the joints share it */
+@image_sample_type sk_instance_tex unfilterable_float
+@sampler_type sk_data_smp nonfiltering
+
+vec4 sk_instance_texel(int record, int texel) {
+    return texelFetch(sampler2D(sk_instance_tex, sk_data_smp),
+                      ivec2((record % 128) * 8 + texel, record / 128), 0);
+}
+mat4 sk_instance_model(int r) {
+    vec4 r0 = sk_instance_texel(r, 0), r1 = sk_instance_texel(r, 1), r2 = sk_instance_texel(r, 2);
+    return mat4(vec4(r0.x, r1.x, r2.x, 0.0),
+                vec4(r0.y, r1.y, r2.y, 0.0),
+                vec4(r0.z, r1.z, r2.z, 0.0),
+                vec4(r0.w, r1.w, r2.w, 1.0));
+}
+mat3 sk_instance_normal_mat(int r) {
+    vec4 n0 = sk_instance_texel(r, 3), n1 = sk_instance_texel(r, 4), n2 = sk_instance_texel(r, 5);
+    return mat3(vec3(n0.x, n1.x, n2.x), vec3(n0.y, n1.y, n2.y), vec3(n0.z, n1.z, n2.z));
+}
+vec4 sk_instance_tint(int r) { return sk_instance_texel(r, 6); }
+int sk_instance_joint_base(int r) { return int(sk_instance_texel(r, 7).x); }
+@end
+
 @block sk_vs_static_uniforms
+@include_block sk_vs_instance
 layout(binding=0) uniform sk_object {
-    mat4 sk_mvp;
-    mat4 sk_model;
-    mat4 sk_normal_mat; /* inverse transpose of sk_model */
-    vec4 sk_object_time; /* x seconds */
+    mat4 sk_view_proj;
+    vec4 sk_object_time; /* x seconds, y this draw's first instance record */
 };
 float sk_time() { return sk_object_time.x; }
 @end
@@ -155,41 +187,44 @@ float sk_time() { return sk_object_time.x; }
 void main() {
     vec3 p = position;
     vec3 n = normal;
+    int record = int(sk_object_time.y) + gl_InstanceIndex;
+    mat4 model = sk_instance_model(record);
     sk_vertex(p, n);
-    gl_Position = sk_mvp * vec4(p, 1.0);
-    sk_world_pos = (sk_model * vec4(p, 1.0)).xyz;
-    sk_normal = mat3(sk_normal_mat) * n;
-    sk_tangent = vec4(mat3(sk_model) * tangent.xyz, tangent.w);
+    vec4 world = model * vec4(p, 1.0);
+    gl_Position = sk_view_proj * world;
+    sk_world_pos = world.xyz;
+    sk_normal = sk_instance_normal_mat(record) * n;
+    sk_tangent = vec4(mat3(model) * tangent.xyz, tangent.w);
     sk_uv0 = texcoord0;
     sk_uv1 = texcoord1;
     sk_color = color0;
+    sk_tint = sk_instance_tint(record);
     sk_sprite_alpha = 0.0;
 }
 @end
 
 @block sk_vs_skinned_uniforms
+@include_block sk_vs_instance
 layout(binding=0) uniform sk_skinned_object {
-    mat4 sk_mvp;
-    mat4 sk_model;
-    mat4 sk_normal_mat;
-    vec4 sk_object_time; /* x seconds, y this model's first joint matrix */
+    mat4 sk_view_proj;
+    vec4 sk_object_time; /* x seconds, y this draw's first instance record */
 };
-/* the frame's joint matrices, 4 texels each, 256 a row (src/sk_model.c) */
+/* the frame's joint matrices, 4 texels each, 256 a row (src/sk_model.c); which ones are
+   this instance's is in its record. Sampler slots stop at 11, so the two data textures
+   share one: both are nearest, clamped, and never filtered. */
 layout(binding=12) uniform texture2D sk_joint_tex;
-layout(binding=11) uniform sampler sk_joint_smp; /* sampler slots stop at 11; sprite data's, which no skinned program uses */
 @image_sample_type sk_joint_tex unfilterable_float
-@sampler_type sk_joint_smp nonfiltering
 layout(location=6) in vec4 joints;
 layout(location=7) in vec4 weights;
 float sk_time() { return sk_object_time.x; }
 
-mat4 sk_joint_at(int index) {
-    int m = int(sk_object_time.y) + index;
+mat4 sk_joint_at(int base, int index) {
+    int m = base + index;
     ivec2 t = ivec2((m % 256) * 4, m / 256);
-    return mat4(texelFetch(sampler2D(sk_joint_tex, sk_joint_smp), t, 0),
-                texelFetch(sampler2D(sk_joint_tex, sk_joint_smp), t + ivec2(1, 0), 0),
-                texelFetch(sampler2D(sk_joint_tex, sk_joint_smp), t + ivec2(2, 0), 0),
-                texelFetch(sampler2D(sk_joint_tex, sk_joint_smp), t + ivec2(3, 0), 0));
+    return mat4(texelFetch(sampler2D(sk_joint_tex, sk_data_smp), t, 0),
+                texelFetch(sampler2D(sk_joint_tex, sk_data_smp), t + ivec2(1, 0), 0),
+                texelFetch(sampler2D(sk_joint_tex, sk_data_smp), t + ivec2(2, 0), 0),
+                texelFetch(sampler2D(sk_joint_tex, sk_data_smp), t + ivec2(3, 0), 0));
 }
 @end
 
@@ -197,19 +232,24 @@ mat4 sk_joint_at(int index) {
 void main() {
     vec3 p = position;
     vec3 n = normal;
+    int record = int(sk_object_time.y) + gl_InstanceIndex;
+    int joint_base = sk_instance_joint_base(record);
+    mat4 model = sk_instance_model(record);
     sk_vertex(p, n);
-    mat4 skin = weights.x * sk_joint_at(int(joints.x))
-              + weights.y * sk_joint_at(int(joints.y))
-              + weights.z * sk_joint_at(int(joints.z))
-              + weights.w * sk_joint_at(int(joints.w));
+    mat4 skin = weights.x * sk_joint_at(joint_base, int(joints.x))
+              + weights.y * sk_joint_at(joint_base, int(joints.y))
+              + weights.z * sk_joint_at(joint_base, int(joints.z))
+              + weights.w * sk_joint_at(joint_base, int(joints.w));
     vec4 sp = skin * vec4(p, 1.0);
-    gl_Position = sk_mvp * sp;
-    sk_world_pos = (sk_model * sp).xyz;
-    sk_normal = mat3(sk_normal_mat) * (mat3(skin) * n);
-    sk_tangent = vec4(mat3(sk_model) * (mat3(skin) * tangent.xyz), tangent.w);
+    vec4 world = model * sp;
+    gl_Position = sk_view_proj * world;
+    sk_world_pos = world.xyz;
+    sk_normal = sk_instance_normal_mat(record) * (mat3(skin) * n);
+    sk_tangent = vec4(mat3(model) * (mat3(skin) * tangent.xyz), tangent.w);
     sk_uv0 = texcoord0;
     sk_uv1 = texcoord1;
     sk_color = color0;
+    sk_tint = sk_instance_tint(record);
     sk_sprite_alpha = 0.0;
 }
 @end
@@ -233,6 +273,7 @@ layout(location=3) out vec2 sk_uv0;
 layout(location=4) out vec2 sk_uv1;
 layout(location=5) out vec4 sk_color;
 layout(location=6) out float sk_sprite_alpha;
+layout(location=7) out vec4 sk_tint;
 float sk_time() { return sk_sprite_time.x; }
 
 /* corner: -0.5..0.5 each way (y up). pos: where the pivot goes, w facing. size: world
@@ -257,6 +298,7 @@ void sk_place(vec2 corner, vec4 pos, vec4 size, vec4 source, vec3 right_axis, ve
     sk_uv0 = vec2(mix(source.x, source.z, corner.x + 0.5), mix(source.y, source.w, 0.5 - corner.y));
     sk_uv1 = vec2(corner.x + 0.5, 0.5 - corner.y);
     sk_color = vec4(sk_srgb_to_linear(tint.rgb), tint.a);
+    sk_tint = vec4(1.0); /* a sprite's tint is in sk_color; sk_output has none of its own */
     sk_sprite_alpha = up_axis.w;
 }
 @end
@@ -340,7 +382,6 @@ void sk_output(vec3 color, float alpha) {
 @include_block sk_color
 layout(binding=1) uniform sk_frame {
     vec4 sk_camera_time;    /* xyz camera position, w seconds */
-    vec4 sk_tint;           /* the model's tint, linear rgba */
     vec4 sk_ambient_count;  /* rgb ambient (linear), w number of lights */
     vec4 sk_output_params;  /* x alpha cutoff (0 none), y tone mapping (0 none, 1 neutral, 2 ACES), z exposure scale */
     vec4 sk_light_pos_range[8];  /* xyz position, w range (0 unlimited) */
@@ -371,6 +412,7 @@ layout(location=3) in vec2 sk_uv0;
 layout(location=4) in vec2 sk_uv1;
 layout(location=5) in vec4 sk_color;
 layout(location=6) in float sk_sprite_alpha;
+layout(location=7) in vec4 sk_tint; /* the placement's tint, linear rgba */
 layout(binding=10) uniform texture2D sk_sprite_tex;
 layout(binding=10) uniform sampler sk_sprite_smp;
 out vec4 sk_frag_color;

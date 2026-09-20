@@ -51,6 +51,7 @@ typedef struct {
     int sprite_view_slot, sprite_sampler_slot; /* a sprite's texture (sk_sprite_tex) */
     int data_view_slot, data_sampler_slot;     /* sprites read from a texture (sk_sprite_data) */
     int joint_view_slot, joint_sampler_slot;   /* skinned models' joints (sk_joint_tex) */
+    int instance_view_slot, instance_sampler_slot; /* the frame's placements (sk_instance_tex) */
     int screen_view_slot, screen_sampler_slot; /* a screen effect's frame (sk_screen_tex) */
     int shadow_view_slot, shadow_sampler_slot; /* the casting light's map (sk_shadow_tex) */
 } sk_shader_program_t;
@@ -99,7 +100,6 @@ int sk_shader_find_texture(const sk_shader_t *shader, const char *name);
 /* The per-draw block every custom shader reads (sk_frame in shaders/sk.glsl), std140. */
 typedef struct {
     float camera_time[4];   /* xyz camera position, w seconds */
-    float tint[4];          /* linear rgba */
     float ambient_count[4]; /* rgb ambient, w number of lights */
     float output[4];        /* x alpha cutoff, y tone mapping, z exposure scale */
     float light_pos_range[8][4];

@@ -2692,15 +2692,13 @@ static sg_sampler texture_sampler(const sk_material_texture_t *texture)
 /* Uniform blocks of custom shaders (shaders/sk.glsl), std140; sk_frame is
  * sk_shader_frame_t (internal/sk_shader.h). */
 typedef struct {
-    float mvp[16], model[16], normal_mat[16], time[4];
+    float view_proj[16], time_base[4]; /* x seconds, y this draw's first instance record */
 } custom_object_t;
-typedef struct {
-    float mvp[16], model[16], normal_mat[16], time_base[4]; /* x seconds, y its first joint matrix */
-} custom_skinned_object_t;
 
 /* A primitive whose material has a custom shader (sk_shader.h). */
 static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, const sk_primitive_t *prim,
-                        const sk_material_t *material, bool blended, sg_pipeline *cur_pip)
+                        const sk_material_t *material, bool blended, sg_pipeline *cur_pip, int instance_base,
+                        int instances)
 {
     sk_shader_t *shader = sk_shader_hooks.get != NULL ? sk_shader_hooks.get(material->shader) : NULL;
     const int s = prim->skinned ? 1 : 0, b = blended ? 1 : 0, d = material->double_sided ? 1 : 0;
@@ -2725,17 +2723,9 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
         *cur_pip = shader->pipelines[s][b][d];
     }
 
-    if (prim->skinned) {
-        custom_skinned_object_t object = {.time_base = {time, (float)(e->joint_base > 0 ? e->joint_base : 0)}};
-        memcpy(object.mvp, e->mvp.m, sizeof(object.mvp));
-        memcpy(object.model, e->model_mat.m, sizeof(object.model));
-        memcpy(object.normal_mat, e->normal_mat.m, sizeof(object.normal_mat));
-        sg_apply_uniforms(SK_SHADER_BLOCK_OBJECT, &(sg_range){.ptr = &object, .size = sizeof(object)});
-    } else {
-        custom_object_t object = {.time = {time}};
-        memcpy(object.mvp, e->mvp.m, sizeof(object.mvp));
-        memcpy(object.model, e->model_mat.m, sizeof(object.model));
-        memcpy(object.normal_mat, e->normal_mat.m, sizeof(object.normal_mat));
+    {   /* the camera, and where this draw's placements start; the rest is per record */
+        custom_object_t object = {.time_base = {time, (float)instance_base}};
+        memcpy(object.view_proj, e->view_proj.m, sizeof(object.view_proj));
         sg_apply_uniforms(SK_SHADER_BLOCK_OBJECT, &(sg_range){.ptr = &object, .size = sizeof(object)});
     }
 
@@ -2746,10 +2736,7 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
         frame.camera_time[1] = e->camera_pos.y;
         frame.camera_time[2] = e->camera_pos.z;
         frame.camera_time[3] = time;
-        frame.tint[0] = sk_srgb_to_linear(e->tint.r); /* tint is an sRGB color; alpha is linear */
-        frame.tint[1] = sk_srgb_to_linear(e->tint.g);
-        frame.tint[2] = sk_srgb_to_linear(e->tint.b);
-        frame.tint[3] = e->tint.a;
+        /* the tint isn't here: it comes per placement, out of the instance record */
         frame.output[0] = material->alpha_mode == SK_ALPHA_MASK ? material->alpha_cutoff : 0.0f;
         frame.output[1] = env != NULL ? (float)env->tonemap : 0.0f;
         frame.output[2] = env != NULL ? powf(2.0f, env->exposure) : 1.0f;
@@ -2832,6 +2819,12 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
         bind.views[program->joint_view_slot] = sk_model_joint_view;
         if (program->joint_sampler_slot >= 0) bind.samplers[program->joint_sampler_slot] = sk_model_joint_sampler;
     }
+    if (program->instance_view_slot >= 0) { /* where each placement of this draw stands */
+        bind.views[program->instance_view_slot] = sk_model_instance_view;
+        if (program->instance_sampler_slot >= 0) {
+            bind.samplers[program->instance_sampler_slot] = sk_model_instance_sampler;
+        }
+    }
     if (program->sprite_view_slot >= 0) { /* sk_sprite_color(): white on models, so it's the vertex color */
         sg_view white, black_cube;
         sg_sampler linear;
@@ -2840,7 +2833,7 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
         if (program->sprite_sampler_slot >= 0) bind.samplers[program->sprite_sampler_slot] = linear;
     }
     sg_apply_bindings(&bind);
-    sg_draw(0, prim->index_count, 1);
+    sg_draw(0, prim->index_count, instances);
 }
 
 /* What an item must agree on to share a draw with the one before it: everything the
@@ -2890,7 +2883,7 @@ static bool item_key(const sk_model_item_t *item, group_key_t *key)
 /* Whether two items can go up as one draw. */
 static bool same_group(const group_key_t *a, const group_key_t *b)
 {
-    if (a->material == NULL || a->custom || b->custom || a->material != b->material) {
+    if (a->material == NULL || a->material != b->material) {
         return false;
     }
     if (a->vbuf != b->vbuf || a->ibuf != b->ibuf || a->pass != b->pass || a->light_env != b->light_env ||
@@ -2915,8 +2908,8 @@ static unsigned long long key_hash(const group_key_t *k, int item)
     unsigned long long h = 1469598103934665603ULL;
     const unsigned char *bytes;
     size_t size;
-    if (k->material == NULL || k->custom) {
-        return (unsigned long long)item; /* never groups: keep it where the sort found it */
+    if (k->material == NULL) {
+        return (unsigned long long)item; /* nothing to draw: keep it where the sort found it */
     }
     for (bytes = (const unsigned char *)&k->material, size = 0; size < sizeof(k->material); size++) {
         h = (h ^ bytes[size]) * 1099511628211ULL;
@@ -3003,7 +2996,7 @@ static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr
 {
     const sk_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
     if (material->shader != 0) {
-        draw_custom(e, model_ptr, prim, material, blended, cur_pip);
+        draw_custom(e, model_ptr, prim, material, blended, cur_pip, instance_base, instances);
         return;
     }
     const sk_material_texture_t *textures = material->textures;

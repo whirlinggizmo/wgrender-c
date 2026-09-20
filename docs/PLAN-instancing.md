@@ -1,6 +1,7 @@
 # Plan: Model instancing
 
-Status: **phases 1–3 built** (2026-09-21); phase 4 open. Decisions below are answered:
+Status: **built** (2026-09-21), phases 1–4. Phase 5 (per-instance light sets,
+transparent runs, a persistent buffer) is open and not obviously needed yet. Decisions below are answered:
 automatic grouping with no new API (an explicit instanced handle only if a measured case
 ever needs one), opaque models may be reordered, and custom shaders follow in phase 4 of
 the same release.
@@ -244,6 +245,32 @@ false: "wide, shared" at 4000 measured 2.10 ms of submission and a 5.24 ms frame
 roughly what the camera pass was worth, which stands to reason: it is the same 4000
 placements drawn a second time.
 
+## Phase 4 as built
+
+Custom material shaders read their placement the same way. `shaders/sk.glsl` gained an
+`sk_vs_instance` block — the same record layout, at view slot 14 — and the two model
+vertex stages use it: `sk_object` is now the camera's view-projection plus the draw's
+first record, and the joint base comes out of the record, so `sk_skinned_object` is the
+same block. Sampler slots stop at 11, so the instance texture and the joint texture
+share one nonfiltering sampler; both are nearest and clamped, and sokol pairs one
+sampler with as many textures as it likes.
+
+The tint needed care. On the stock path it folds into `v_color`, because the fragment
+stage multiplies by it anyway — but a custom shader's `sk_output()` applies `sk_tint`
+from the frame block, and a shader that ignores `sk_color` would have silently lost its
+tint. So `sk_tint` became a **varying** instead: the model stages write it from the
+record, sprites write white (their tint has always been in `sk_color`), and every
+existing shader behaves exactly as it did. `sk_frame` loses the field, which is part of
+why the format moves.
+
+`.skshader` format 7 → 8; `make example-shaders` repacks the six in
+`examples/assets/shaders/`. An older pack is refused with a clear message rather than
+drawn wrongly, as it was for format 7.
+
+With that, `same_group` no longer excludes custom materials: two placements sharing a
+custom material share its shader and its parameters, which is all a custom draw sets
+besides the record.
+
 ## Phasing
 
 1. The instance texture and the record; every stock model draw becomes an instanced draw
@@ -253,8 +280,8 @@ placements drawn a second time.
    as one `sg_draw`. This is the phase the numbers come from. **Built.**
 3. The depth pass (shadows) instanced the same way — it is the same queue, and it is
    already the second-largest consumer of it. **Built.**
-4. Custom material shaders: the `sk.glsl` include block, format bump, repack.
-5. Later, if wanted: per-instance light sets, so grouping isn't constrained by light
+4. Custom material shaders: the `sk.glsl` include block, format bump, repack. **Built.**
+5. Open: per-instance light sets, so grouping isn't constrained by light
    selection; transparent runs; a persistent instance buffer for placements that don't
    move.
 
