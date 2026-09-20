@@ -6,6 +6,10 @@
 #   2. A local/param holding a raw instance pointer resolved from a handle
 #      (`<type> *NAME = ... resolve...(`) must be named <noun>_ptr, so the
 #      pointer path stays visually distinct from the handle path.
+#   3. No wgr_ name is declared in both include/ and src/internal/. Public and
+#      internal share one namespace, so a name means one thing either way; the
+#      compiler catches a clash between two functions, but a function-like macro
+#      in a public header would shadow an internal function silently.
 #
 # Exit non-zero on any violation. Run from anywhere: tools/check_naming.sh
 set -u
@@ -46,6 +50,24 @@ if [ -n "$api" ]; then
     status=1
 else
     echo "ok: public API is handle-only (no byte buffers / *_from_memory)"
+fi
+
+# (4) one namespace: a wgr_ name belongs to include/ or to src/internal/, not both
+names_in() {
+    # function declarations and function-like macros, by name. Comments go first:
+    # internal headers name public functions in prose all the time.
+    perl -0777 -ne 's{/\*.*?\*/}{ }gs; s{//[^\n]*}{}g; print' "$1"/*.h 2>/dev/null |
+        grep -oE '(^|[^a-z0-9_])wgr_[a-z0-9_]+[[:space:]]*\(' |
+        grep -oE 'wgr_[a-z0-9_]+' | sort -u
+}
+both=$(comm -12 <(names_in include) <(names_in src/internal))
+if [ -n "$both" ]; then
+    echo "FAIL: these wgr_ names are declared in both include/ and src/internal/:"
+    echo "$both" | sed 's/^/  /'
+    echo "  (one namespace: rename one of them, or promote it to include/ and drop the internal one)"
+    status=1
+else
+    echo "ok: no wgr_ name is declared both publicly and internally"
 fi
 
 if [ "$status" -eq 0 ]; then
