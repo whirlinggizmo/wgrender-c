@@ -169,6 +169,25 @@ the sync `wgr_*_create(path)`. Bytes never cross into user code.
 
 ## Naming
 
+Each level has its own rule; `lib` belongs to exactly one of them.
+
+- **Project:** `wgrender` — repo `wgrender-c`, in the whirlinggizmo org. In prose,
+  "libwgrender" where it needs distinguishing from the `wg-renderer` app, plain
+  "wgrender" otherwise.
+- **Artifact:** `libwgrender.a` (every target directory). This is the *only* place
+  `lib` appears, and it isn't a choice: `-lwgrender` resolves to `libwgrender.a`. A
+  future MSVC/DLL target would be `wgrender.dll` + `wgrender.lib` (MinGW keeps
+  `libwgrender.a` / `libwgrender.dll.a`, since it uses ld).
+- **Macros and build flags:** `WGR_` (`WGR_HEADLESS`, `WGR_MODULE`), as for symbols.
+- **Tooling environment variables:** `WGRENDER_` (`WGRENDER_WEB_PROFILE`). They aren't
+  library symbols, and three letters collide too easily in a process environment. A
+  variable naming another project takes *that* project's name (`LIBRL_DIR`, because
+  librl is what librl is called).
+- **Sibling repos:** libraries are `wg<name>-<lang>` (`wgutils-c`, `wgrender-c`,
+  bindings `wgrender-hx`) with prefixes `wg` + the name's first letter (`wgu_`,
+  `wgr_`); products and apps are `wg-<name>` (`wg-renderer`). Don't share one `wg_`
+  prefix across libraries: several own a logger, event and fs, which would collide at
+  link time. librl stays under robknopf as the maintenance-only predecessor.
 - **Prefix:** all library symbols are `wgr_`.
 - **Public API** (`include/*.h`): subsystem-first `wgr_<section>_<action>`.
 - **Cross-`.c` internals** (one `src/*.c` calling another's symbol): `wgr_<subsystem>_…`,
