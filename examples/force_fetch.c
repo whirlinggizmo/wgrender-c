@@ -15,10 +15,11 @@
 
 #define MUSIC_PATH "music/ethernight_club.mp3"
 #define INVALID_MUSIC_PATH "music/ethernight_club_invalid.mp3" /* intentionally invalid to demonstrate force_fetch */
-/* explicit source URL, used verbatim. Root-relative so it works on whatever host
- * and port serves the page (make serve, make webcheck); an absolute
- * https://cdn.example/... URL is passed through the same way. */
-#define MUSIC_FORCE_FETCH_PATH "/assets/music/ethernight_club.mp3"
+/* explicit source URL, used verbatim. Relative to the page, so it works on whatever
+ * host serves the site and at whatever depth -- "/assets/..." would be the server root,
+ * which is wrong wherever the site isn't at one (GitHub Pages serves a project under
+ * /<repo>/). An absolute https://cdn.example/... URL is passed through the same way. */
+#define MUSIC_FORCE_FETCH_PATH "assets/music/ethernight_club.mp3"
 
 static wgr_color_t g_bg;
 static wgr_handle_t g_music;
