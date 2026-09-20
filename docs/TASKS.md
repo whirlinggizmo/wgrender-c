@@ -54,6 +54,14 @@ tick the box in the same commit.
 - [ ] Gate on parity: add `make parity` to `make check` once librl is no longer needed
       locally, or run `--strict` in CI once todos reach zero
 
+- [ ] API reference docs, generated from the public headers. Doxygen is the one
+      everyone knows and it looks its age; the modern options are Doxygen + Breathe +
+      Sphinx (heavy), Doxygen + doxygen-awesome-css (one stylesheet, keeps the
+      pipeline), or a small generator of our own over `include/*.h`, which is tempting
+      because the surface is 468 functions of one shape and the comments are already
+      the documentation. Wanted once the API has settled; the wgr_/wgri_ split now
+      makes "what is public" a mechanical question a generator can answer
+
 ## Found by porting librl's c-simple (`examples/simple.c`)
 
 - [x] Bug: models ignore glTF `alphaMode` (BLEND/MASK). gumshoe's `blobShadow`
@@ -616,10 +624,12 @@ Not supported yet:
       stays internal (one `create` is one reference). `create` stays `create` for
       both layers on purpose: the noun says whether it takes a path or a handle, and
       generators like `wgr_mesh_create_cube` load nothing
-- [ ] Naming, part 2: the `wgr_` prefix names the sokol implementation rather than the
-      API. Only worth changing if the "C API as a contract" exploration goes ahead —
-      then do it in the same sweep as any other rename, before bindings depend on the
-      names
+- [x] Naming, part 2 (2026-09-20): done, and for a better reason than the one written
+      here — sk_ was never sokol's (sokol is sg_/sapp_/sgl_/saudio_/sfetch_/stm_), it
+      was just libsk's own prefix. It named the library, and the library was renamed:
+      libsk -> libwgrender, repo robknopf/libsk -> whirlinggizmo/wgrender-c, symbols
+      sk_ -> wgr_ with internals wgri_, .skshader -> .wgrshader. Done before any
+      binding existed to depend on the names, which was the point of the deadline
 - [x] Fonts are resources like the rest (2026-09-17): refcounted and deduped by
       path; text objects and the default font hold references; a released font's
       fontstash data is kept by path and reused (fontstash can't remove fonts).
