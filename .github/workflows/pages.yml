@@ -1,0 +1,58 @@
+# Publish the examples to GitHub Pages: https://whirlinggizmo.github.io/wgrender-c/
+#
+# WEB_THREADS=0, because Pages sends no COOP/COEP headers and a threaded build needs
+# cross-origin isolation to get SharedArrayBuffer. Nothing requires threads (every
+# example passes `make webcheck WEB_THREADS=0`); asset decoding just runs on the main
+# thread, which examples/loading.c says out loud rather than claiming otherwise.
+#
+# WebGL2 only: it runs everywhere, and it is what CI's browser check gates on, so the
+# published site is the one that was tested.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "**/*.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; let a running one finish rather than publishing a half-site.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build the site
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
+        with:
+          path: emsdk-cache
+          key: emsdk-5.0.7-${{ runner.os }}
+      - uses: mymindstorm/setup-emsdk@v16
+        with:
+          version: 5.0.7
+          actions-cache-folder: emsdk-cache
+      - name: Build every example and assemble the site
+        run: make -C examples site BACKEND=webgl2 WEB_THREADS=0
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: examples/build/webgl2-nothreads/site
+
+  deploy:
+    name: deploy
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
