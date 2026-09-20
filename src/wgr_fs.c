@@ -15,14 +15,14 @@
 
 /* Local storage. Desktop: stdio relative to the working dir (root defaults to ""
  * so paths resolve as-is). Web: files are read and written in MEMFS under `root`
- * (default "/sk"), and kept between visits in an IndexedDB store, one record per
+ * (default "/wgr"), and kept between visits in an IndexedDB store, one record per
  * file: init reads only the store's list of paths, a cached file is read into
  * MEMFS when it's needed (wgr_fs_cache_read_begin), and a write stores the file.
  * No network here — acquisition/fetch lives in wgr_asset. */
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
-#define WGR_FS_DEFAULT_ROOT "/sk"
+#define WGR_FS_DEFAULT_ROOT "/wgr"
 
 /* Open the store and read its keys (full MEMFS paths). We can't await it (JSPI
  * can't suspend inside sokol's RAF-driven callbacks), so this is a polled barrier:
@@ -52,8 +52,11 @@ EM_JS(void, wgr_fs_store_open, (const char *root_c), {
                 done(1);
             };
             keys.onerror = () => done(2, keys.error);
-            /* the cache as IDBFS kept it, restored whole at every start (before 2026-09-20) */
+            /* the cache as IDBFS kept it, restored whole at every start (before
+               2026-09-20), under the mount point of the day: "/sk" until the library
+               was renamed, and whatever this build mounts now */
             try { indexedDB.deleteDatabase(root); } catch (e) {}
+            try { indexedDB.deleteDatabase("/sk"); } catch (e) {}
         };
     } catch (e) {
         done(2, e);

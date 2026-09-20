@@ -46,9 +46,9 @@ list_api() {
 }
 
 rl_api=$(list_api "$LIBRL_DIR" rl)
-wgr_api=$(list_api . sk)
+wgr_api=$(list_api . wgr)
 
-has_sk() { grep -qxF "$1" <<<"$wgr_api"; }
+has_wgr() { grep -qxF "$1" <<<"$wgr_api"; }
 has_rl() { grep -qxF "$1" <<<"$rl_api"; }
 
 status=0
@@ -74,16 +74,16 @@ unmapped=""; missing=""; todo_list=""
 
 while read -r rl; do
     [ -z "$rl" ] && continue
-    sk="wgr_${rl#rl_}"
+    wgr="wgr_${rl#rl_}"
     kind="${entry_status[$rl]:-}"
     if [ -z "$kind" ]; then
-        if has_sk "$sk"; then auto=$((auto + 1)); else unmapped+="  $rl"$'\n'; fi
+        if has_wgr "$wgr"; then auto=$((auto + 1)); else unmapped+="  $rl"$'\n'; fi
         continue
     fi
     case "$kind" in
         ported)
             target="${entry_arg[$rl]%% *}"
-            if [ -z "$target" ] || ! has_sk "$target"; then
+            if [ -z "$target" ] || ! has_wgr "$target"; then
                 missing+="  $rl -> ${target:-<none>}"$'\n'
             else
                 ported=$((ported + 1))

@@ -25,7 +25,7 @@ void test_asset_join_relative(void)
     check_join("models/box/box.gltf", "../../../wood.png", NULL);   /* above the asset root */
     check_join("models/box/box.gltf", "my%20wood%2Epng", "models/box/my wood.png"); /* %XX decoded */
     check_join("box.gltf", "box.bin", "box.bin");                   /* no directory */
-    check_join("/sk/models/box.gltf", "box.bin", "/sk/models/box.bin"); /* leading / kept */
+    check_join("/wgr/models/box.gltf", "box.bin", "/wgr/models/box.bin"); /* leading / kept */
     check_join("models//box.gltf", "a.bin", "models/a.bin");        /* empty segments dropped */
 
     char small[8];
