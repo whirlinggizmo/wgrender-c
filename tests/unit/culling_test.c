@@ -15,6 +15,7 @@
 #include "internal/sk_scene.h"
 #include "internal/sk_texture.h"
 #include "sk_camera3d.h"
+#include "sk_color.h"
 #include "sk_light.h"
 #include "sk_model.h"
 #include "sk_render.h"
@@ -67,6 +68,65 @@ void test_cull_frustum(void)
     CHECK_NEAR(smax.y, 2.0f, 1e-5f);  /* and not up at all */
     CHECK_NEAR(smin.x, -1.0f, 1e-5f);
     CHECK_NEAR(smax.x, 1.0f, 1e-5f);
+}
+
+/* Every model draw reads its matrices and tint out of the frame's instance records
+ * (docs/PLAN-instancing.md), so what goes into one is what gets drawn. */
+void test_model_instance_record(void)
+{
+    sg_setup(&(sg_desc){.environment = sk_platform_environment()});
+    sk_render_init();
+    sk_camera3d_init();
+    sk_texture_init();
+    sk_light_init();
+    sk_material_init();
+    sk_environment_init();
+    sk_model_init();
+
+    const sk_handle_t camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(camera, 0, 0, 10, 0, 0, 0, 0, 1, 0);
+    sk_camera3d_set_active(camera);
+
+    const sk_handle_t mesh = sk_mesh_create_cube(1.0f, 1.0f, 1.0f);
+    const sk_handle_t model = sk_model_create(mesh);
+    sk_mesh_release(mesh);
+    sk_model_set_transform(model, 3.0f, 4.0f, 5.0f, 0, 0, 0, 1, 1, 1);
+    sk_model_set_tint(model, sk_color_rgba(255, 128, 0, 128));
+
+    int count = 0;
+    sk_render_begin();
+    sk_model_draw(model);
+    sk_model_flush();
+    const float *records = sk_model_instance_records(&count);
+    CHECK(count == 1 && records != NULL);
+    if (records != NULL && count == 1) {
+        /* the model matrix goes up as three rows, so the translation is each row's w */
+        CHECK_NEAR(records[3], 3.0f, 1e-5f);
+        CHECK_NEAR(records[7], 4.0f, 1e-5f);
+        CHECK_NEAR(records[11], 5.0f, 1e-5f);
+        /* no rotation or scale: the rest is the identity */
+        CHECK_NEAR(records[0], 1.0f, 1e-5f);
+        CHECK_NEAR(records[5], 1.0f, 1e-5f);
+        CHECK_NEAR(records[10], 1.0f, 1e-5f);
+        /* the tint is linear by the time it is a record; its alpha already was */
+        CHECK_NEAR(records[24], 1.0f, 1e-4f);
+        CHECK_NEAR(records[25], sk_srgb_to_linear(128.0f / 255.0f), 1e-4f);
+        CHECK_NEAR(records[26], 0.0f, 1e-4f);
+        CHECK_NEAR(records[27], 128.0f / 255.0f, 1e-3f);
+        CHECK(records[28] == 0.0f); /* not skinned: no joints of its own */
+    }
+    sk_render_end();
+
+    sk_model_destroy(model);
+    sk_camera3d_destroy(camera);
+    sk_model_deinit();
+    sk_environment_deinit();
+    sk_material_deinit();
+    sk_light_deinit();
+    sk_texture_deinit();
+    sk_camera3d_deinit();
+    sk_render_deinit();
+    sg_shutdown();
 }
 
 /* How many model placements a scene draw queued. */

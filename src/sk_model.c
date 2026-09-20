@@ -171,6 +171,7 @@ typedef struct {
 typedef struct {
     sk_handle_t model;
     int pass;             /* render pass it was queued in (sk_render_current_pass) */
+    sk_mat4_t view_proj;  /* the camera; the placement itself is in the instance record */
     sk_mat4_t mvp;
     sk_mat4_t model_mat;
     sk_mat4_t model_view; /* for view-space depth when sorting transparent parts */
@@ -235,6 +236,24 @@ static sg_view sk_model_joint_view;
 static sg_sampler sk_model_joint_sampler;
 static int sk_model_joint_rows;
 static bool sk_model_joints_overflow_logged;
+
+/* What changes from one placement to the next — its matrices and tint — for the whole
+ * frame, in one texture written before the passes, the same trick as the joints above.
+ * A draw says where its first record is and the hardware counts from there, so any
+ * number of placements that agree on everything else go up as one draw
+ * (docs/PLAN-instancing.md). Eight texels a record: three rows of the model matrix,
+ * three of its inverse transpose, the tint, and room for the skin base. */
+#define INSTANCE_TEXELS 8
+#define INSTANCES_PER_ROW 128
+#define INSTANCE_TEXTURE_WIDTH (INSTANCES_PER_ROW * INSTANCE_TEXELS)
+#define INSTANCE_FLOATS (INSTANCE_TEXELS * 4)
+static float *sk_model_instances;
+static int sk_model_instance_count, sk_model_instance_capacity;
+static sg_image sk_model_instance_image;
+static sg_view sk_model_instance_view;
+static sg_sampler sk_model_instance_sampler;
+static int sk_model_instance_rows;
+static bool sk_model_instances_overflow_logged;
 
 static sk_model_draw_t *sk_model_draws;
 static int sk_model_draw_count, sk_model_draw_capacity;
@@ -2365,7 +2384,8 @@ static int begin_draw(sk_handle_t handle, sk_model_t *model_ptr)
     e = &sk_model_draws[sk_model_draw_count];
     e->model = handle;
     e->pass = sk_render_current_pass();
-    e->mvp = sk_mat4_mul(sk_mat4_mul(proj, view), model_mat);
+    e->view_proj = sk_mat4_mul(proj, view);
+    e->mvp = sk_mat4_mul(e->view_proj, model_mat);
     e->model_mat = model_mat;
     e->model_view = sk_mat4_mul(view, model_mat);
     e->normal_mat = sk_mat4_transpose(sk_mat4_inverse(model_mat));
@@ -2555,11 +2575,12 @@ static void apply_fs(const sk_model_draw_t *e, const sk_material_t *material, co
     memset(&fsp, 0, sizeof(fsp));
     memset(&scene, 0, sizeof(scene));
     memset(&lights, 0, sizeof(lights));
-    /* tint is an sRGB color like any color handle; alpha is linear */
-    fsp.u_base_color[0] = sk_srgb_to_linear(e->tint.r) * material->base_color[0];
-    fsp.u_base_color[1] = sk_srgb_to_linear(e->tint.g) * material->base_color[1];
-    fsp.u_base_color[2] = sk_srgb_to_linear(e->tint.b) * material->base_color[2];
-    fsp.u_base_color[3] = e->tint.a * material->base_color[3];
+    /* the placement's tint isn't here: it rides the vertex color, out of the instance
+       record, so this block holds nothing that changes from placement to placement */
+    fsp.u_base_color[0] = material->base_color[0];
+    fsp.u_base_color[1] = material->base_color[1];
+    fsp.u_base_color[2] = material->base_color[2];
+    fsp.u_base_color[3] = material->base_color[3];
     fsp.u_emissive[0] = material->emissive[0];
     fsp.u_emissive[1] = material->emissive[1];
     fsp.u_emissive[2] = material->emissive[2];
@@ -2815,7 +2836,8 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
 }
 
 static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr, const sk_mesh_t *mesh_ptr,
-                           const sk_primitive_t *prim, bool blended, sg_pipeline *cur_pip)
+                           const sk_primitive_t *prim, bool blended, sg_pipeline *cur_pip, int instance_base,
+                           int instances)
 {
     const sk_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
     if (material->shader != 0) {
@@ -2838,20 +2860,13 @@ static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr
         reset_fs_blocks(); /* a new pipeline needs its uniforms again */
     }
 
-    if (prim->skinned) {
-        vs_skin_params_t vsp;
-        memcpy(vsp.mvp, e->mvp.m, sizeof(vsp.mvp));
-        memcpy(vsp.model, e->model_mat.m, sizeof(vsp.model));
-        memcpy(vsp.normal_mat, e->normal_mat.m, sizeof(vsp.normal_mat));
-        vsp.skin_base[0] = (float)(e->joint_base > 0 ? e->joint_base : 0);
-        vsp.skin_base[1] = vsp.skin_base[2] = vsp.skin_base[3] = 0.0f;
-        sg_apply_uniforms(UB_vs_skin_params, &(sg_range){.ptr = &vsp, .size = sizeof(vsp)});
-    } else {
+    {   /* the camera, and where this draw's placements start in the instance texture */
         vs_params_t vsp;
-        memcpy(vsp.mvp, e->mvp.m, sizeof(vsp.mvp));
-        memcpy(vsp.model, e->model_mat.m, sizeof(vsp.model));
-        memcpy(vsp.normal_mat, e->normal_mat.m, sizeof(vsp.normal_mat));
-        sg_apply_uniforms(UB_vs_params, &(sg_range){.ptr = &vsp, .size = sizeof(vsp)});
+        memcpy(vsp.view_proj, e->view_proj.m, sizeof(vsp.view_proj));
+        vsp.instance_base[0] = (float)instance_base;
+        vsp.instance_base[1] = vsp.instance_base[2] = vsp.instance_base[3] = 0.0f;
+        sg_apply_uniforms(prim->skinned ? UB_vs_skin_params : UB_vs_params,
+                          &(sg_range){.ptr = &vsp, .size = sizeof(vsp)});
     }
 
     sg_apply_bindings(&(sg_bindings){
@@ -2870,6 +2885,8 @@ static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr
         .samplers[SMP_emissive_smp] = texture_sampler(&textures[SK_MATERIAL_TEXTURE_EMISSIVE]),
         .views[VIEW_joint_tex] = sk_model_joint_view,
         .samplers[SMP_joint_smp] = sk_model_joint_sampler,
+        .views[VIEW_instance_tex] = sk_model_instance_view,
+        .samplers[SMP_instance_smp] = sk_model_instance_sampler,
         .views[VIEW_env_tex] = environment.cube,
         .views[VIEW_brdf_tex] = environment.brdf_lut,
         .samplers[SMP_env_smp] = environment.cube_sampler,
@@ -2878,7 +2895,7 @@ static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr
         .samplers[SMP_shadow_smp] = shadow.valid ? shadow.sampler : sk_model_shadow_fallback_sampler,
     });
     apply_fs(e, material, &environment, &shadow, model_ptr->receives_shadow);
-    sg_draw(0, prim->index_count, 1);
+    sg_draw(0, prim->index_count, instances);
 }
 
 /* ------------------------------------------------------------- shadows ---- */
@@ -3060,50 +3077,66 @@ void sk_model_draw_items(int first, int count)
         if (mesh_ptr == NULL || item->prim >= mesh_ptr->prim_count) {
             continue; /* destroyed or re-meshed after it was queued */
         }
-        draw_primitive(e, model_ptr, mesh_ptr, &mesh_ptr->prims[item->prim], item->blended, &cur_pip);
+        draw_primitive(e, model_ptr, mesh_ptr, &mesh_ptr->prims[item->prim], item->blended, &cur_pip, item->draw, 1);
     }
 }
 
-/* The frame's joint matrices, into the joint texture (sk_render: before any pass). */
-void sk_model_flush(void)
+/* Grow a float data texture to hold `rows` rows, keeping what it can. Both of the
+ * frame's data textures (joints, instances) are RGBA32F and written whole. */
+static bool ensure_data_texture(sg_image *image, sg_view *view, int *have_rows, int width, int rows,
+                                const char *label)
+{
+    int height = *have_rows > 0 ? *have_rows : 4;
+    const int max_rows = sg_query_limits().max_image_size_2d;
+    if (rows <= *have_rows) {
+        return true;
+    }
+    while (height < rows) height *= 2;
+    if (height > max_rows) height = max_rows;
+    sg_destroy_view(*view);
+    sg_destroy_image(*image);
+    *image = sg_make_image(&(sg_image_desc){
+        .width = width,
+        .height = height,
+        .pixel_format = SG_PIXELFORMAT_RGBA32F,
+        .usage = {.write_transient = true},
+        .label = label,
+    });
+    *view = sg_make_view(&(sg_view_desc){.texture.image = *image});
+    *have_rows = height;
+    return rows <= height;
+}
+
+/* The nearest-neighbour sampler both data textures read with. */
+static sg_sampler data_sampler(sg_sampler *cache, const char *label)
+{
+    if (cache->id == SG_INVALID_ID) {
+        *cache = sg_make_sampler(&(sg_sampler_desc){
+            .min_filter = SG_FILTER_NEAREST,
+            .mag_filter = SG_FILTER_NEAREST,
+            .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
+            .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
+            .label = label,
+        });
+    }
+    return *cache;
+}
+
+static void upload_joints(void)
 {
     const int rows = (sk_model_joint_count + JOINT_MATRICES_PER_ROW - 1) / JOINT_MATRICES_PER_ROW;
     if (sk_model_joint_count == 0) {
         return;
     }
-    if (rows > sk_model_joint_rows) {
-        int height = sk_model_joint_rows > 0 ? sk_model_joint_rows : 4;
-        const int max_rows = sg_query_limits().max_image_size_2d;
-        while (height < rows) height *= 2;
-        if (height > max_rows) height = max_rows;
-        sg_destroy_view(sk_model_joint_view);
-        sg_destroy_image(sk_model_joint_image);
-        sk_model_joint_image = sg_make_image(&(sg_image_desc){
-            .width = JOINT_TEXTURE_WIDTH,
-            .height = height,
-            .pixel_format = SG_PIXELFORMAT_RGBA32F,
-            .usage = {.write_transient = true},
-            .label = "sk-model-joints",
-        });
-        sk_model_joint_view = sg_make_view(&(sg_view_desc){.texture.image = sk_model_joint_image});
-        sk_model_joint_rows = height;
-    }
-    if (rows > sk_model_joint_rows) { /* more than the GPU's largest texture holds */
-        if (!sk_model_joints_overflow_logged) {
+    if (!ensure_data_texture(&sk_model_joint_image, &sk_model_joint_view, &sk_model_joint_rows,
+                             JOINT_TEXTURE_WIDTH, rows, "sk-model-joints")) {
+        if (!sk_model_joints_overflow_logged) { /* more than the GPU's largest texture holds */
             log_error("model: %d joint matrices in a frame, more than the joint texture holds", sk_model_joint_count);
             sk_model_joints_overflow_logged = true;
         }
         return;
     }
-    if (sk_model_joint_sampler.id == SG_INVALID_ID) {
-        sk_model_joint_sampler = sg_make_sampler(&(sg_sampler_desc){
-            .min_filter = SG_FILTER_NEAREST,
-            .mag_filter = SG_FILTER_NEAREST,
-            .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
-            .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
-            .label = "sk-model-joints",
-        });
-    }
+    sk_model_joint_sampler = data_sampler(&sk_model_joint_sampler, "sk-model-joints");
     /* whole rows: the last one's unused matrices go up as they are */
     sg_write_image_transient(&(sg_write_image_desc){
         .src = {.data = {.ptr = sk_model_joints,
@@ -3115,11 +3148,87 @@ void sk_model_flush(void)
     });
 }
 
+/* One placement's record. The matrices go up as rows, which is what the shader reads
+ * and what lets the model matrix cost three texels instead of four. */
+static void write_instance(float *r, const sk_model_draw_t *e)
+{
+    for (int row = 0; row < 3; row++) {
+        for (int col = 0; col < 4; col++) {
+            r[row * 4 + col] = e->model_mat.m[col * 4 + row];
+            r[12 + row * 4 + col] = e->normal_mat.m[col * 4 + row];
+        }
+    }
+    /* a tint is an sRGB color like any color handle; its alpha is already linear */
+    r[24] = sk_srgb_to_linear(e->tint.r);
+    r[25] = sk_srgb_to_linear(e->tint.g);
+    r[26] = sk_srgb_to_linear(e->tint.b);
+    r[27] = e->tint.a;
+    r[28] = (float)(e->joint_base > 0 ? e->joint_base : 0);
+    r[29] = r[30] = r[31] = 0.0f;
+}
+
+static void upload_instances(void)
+{
+    const int rows = (sk_model_draw_count + INSTANCES_PER_ROW - 1) / INSTANCES_PER_ROW;
+    if (sk_model_draw_count == 0) {
+        return;
+    }
+    /* whole rows, because the upload sends whole rows: the tail goes up unwritten */
+    const int wanted = rows * INSTANCES_PER_ROW;
+    if (wanted > sk_model_instance_capacity) {
+        float *grown = realloc(sk_model_instances, sizeof(float) * INSTANCE_FLOATS * (size_t)wanted);
+        if (grown == NULL) {
+            return;
+        }
+        sk_model_instances = grown;
+        sk_model_instance_capacity = wanted;
+    }
+    for (int i = 0; i < sk_model_draw_count; i++) {
+        write_instance(&sk_model_instances[(size_t)i * INSTANCE_FLOATS], &sk_model_draws[i]);
+    }
+    sk_model_instance_count = sk_model_draw_count;
+    if (!ensure_data_texture(&sk_model_instance_image, &sk_model_instance_view, &sk_model_instance_rows,
+                             INSTANCE_TEXTURE_WIDTH, rows, "sk-model-instances")) {
+        if (!sk_model_instances_overflow_logged) {
+            log_error("model: %d placements in a frame, more than the instance texture holds",
+                      sk_model_draw_count);
+            sk_model_instances_overflow_logged = true;
+        }
+        return;
+    }
+    sk_model_instance_sampler = data_sampler(&sk_model_instance_sampler, "sk-model-instances");
+    sg_write_image_transient(&(sg_write_image_desc){
+        .src = {.data = {.ptr = sk_model_instances,
+                         .size = sizeof(float) * INSTANCE_FLOATS * (size_t)rows * INSTANCES_PER_ROW},
+                .bytes_per_row = (int)sizeof(float) * 4 * INSTANCE_TEXTURE_WIDTH,
+                .bytes_per_slice = (int)sizeof(float) * 4 * INSTANCE_TEXTURE_WIDTH * rows},
+        .dst = {.image = sk_model_instance_image},
+        .size = {.width = INSTANCE_TEXTURE_WIDTH, .height = rows, .num_slices = 1},
+    });
+}
+
+const float *sk_model_instance_records(int *count)
+{
+    if (count != NULL) {
+        *count = sk_model_instance_count;
+    }
+    return sk_model_instances;
+}
+
+/* The frame's per-placement data, into the textures the vertex shaders read
+ * (sk_render: before any pass). */
+void sk_model_flush(void)
+{
+    upload_joints();
+    upload_instances();
+}
+
 void sk_model_end_frame(void)
 {
     sk_model_draw_count = 0;
     sk_model_item_count = 0;
     sk_model_joint_count = 0;
+    sk_model_instance_count = 0;
 }
 
 static void free_mesh_cpu(sk_mesh_t *mesh)
@@ -3287,6 +3396,15 @@ void sk_model_deinit(void)
     sk_model_joint_sampler = (sg_sampler){0};
     sk_model_joint_view = (sg_view){0};
     sk_model_joint_image = (sg_image){0};
+    free(sk_model_instances);
+    sk_model_instances = NULL;
+    sk_model_instance_count = sk_model_instance_capacity = sk_model_instance_rows = 0;
+    sg_destroy_sampler(sk_model_instance_sampler);
+    sg_destroy_view(sk_model_instance_view);
+    sg_destroy_image(sk_model_instance_image);
+    sk_model_instance_sampler = (sg_sampler){0};
+    sk_model_instance_view = (sg_view){0};
+    sk_model_instance_image = (sg_image){0};
     sg_destroy_view(sk_model_white_view);
     sg_destroy_view(sk_model_flat_normal_view);
     sg_destroy_image(sk_model_flat_normal_img);

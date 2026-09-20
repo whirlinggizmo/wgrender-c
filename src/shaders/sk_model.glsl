@@ -42,11 +42,42 @@
  * specular, Schlick Fresnel).
  */
 
+@block sk_instance_data
+/* Per-instance data for the frame (src/sk_model.c): one record a placement, eight
+ * texels, 128 records a row. The draw says where its first record is and the hardware
+ * counts from there, so one draw can place any number of models. Uniforms per model
+ * cost too much to do it the other way: see the note on the joint texture. */
+layout(binding=9) uniform texture2D instance_tex;
+layout(binding=9) uniform sampler instance_smp;
+@image_sample_type instance_tex unfilterable_float
+@sampler_type instance_smp nonfiltering
+
+vec4 instance_texel(int record, int texel) {
+    return texelFetch(sampler2D(instance_tex, instance_smp),
+                      ivec2((record % 128) * 8 + texel, record / 128), 0);
+}
+/* rows 0..2 of the model matrix; its last column is always (0, 0, 0, 1) */
+mat4 instance_model(int r) {
+    vec4 r0 = instance_texel(r, 0), r1 = instance_texel(r, 1), r2 = instance_texel(r, 2);
+    return mat4(vec4(r0.x, r1.x, r2.x, 0.0),
+                vec4(r0.y, r1.y, r2.y, 0.0),
+                vec4(r0.z, r1.z, r2.z, 0.0),
+                vec4(r0.w, r1.w, r2.w, 1.0));
+}
+/* rows 3..5: the inverse transpose, for normals */
+mat3 instance_normal(int r) {
+    vec4 n0 = instance_texel(r, 3), n1 = instance_texel(r, 4), n2 = instance_texel(r, 5);
+    return mat3(vec3(n0.x, n1.x, n2.x), vec3(n0.y, n1.y, n2.y), vec3(n0.z, n1.z, n2.z));
+}
+vec4 instance_tint(int r) { return instance_texel(r, 6); } /* linear, alpha as it is */
+vec4 instance_extra(int r) { return instance_texel(r, 7); } /* x: first joint matrix */
+@end
+
 @vs vs_static
+@include_block sk_instance_data
 layout(binding=0) uniform vs_params {
-    mat4 mvp;
-    mat4 model;
-    mat4 normal_mat; /* inverse transpose of model */
+    mat4 view_proj;
+    vec4 instance_base; /* x: this draw's first record */
 };
 in vec3 position;
 in vec3 normal;
@@ -62,31 +93,33 @@ out vec4 v_color;
 out vec3 v_world_pos;
 out float v_alpha_mode; /* sprites use it (sk_pbr.glsl); models don't */
 void main() {
+    int record = int(instance_base.x) + gl_InstanceIndex;
+    mat4 model = instance_model(record);
+    vec4 world = model * vec4(position, 1.0);
     v_alpha_mode = 0.0;
-    gl_Position = mvp * vec4(position, 1.0);
-    v_normal = mat3(normal_mat) * normal;
+    gl_Position = view_proj * world;
+    v_normal = instance_normal(record) * normal;
     v_tangent = vec4(mat3(model) * tangent.xyz, tangent.w);
     v_uv0 = texcoord0;
     v_uv1 = texcoord1;
-    v_color = color0;
-    v_world_pos = (model * vec4(position, 1.0)).xyz;
+    v_color = color0 * instance_tint(record); /* the placement's tint, already linear */
+    v_world_pos = world.xyz;
 }
 @end
 
 @vs vs_skinned
+@include_block sk_instance_data
 layout(binding=0) uniform vs_skin_params {
-    mat4 mvp;
-    mat4 model;
-    mat4 normal_mat;
-    vec4 skin_base; /* x: this model's first joint matrix */
+    mat4 view_proj;
+    vec4 instance_base;
 };
 layout(binding=7) uniform texture2D joint_tex;
 layout(binding=7) uniform sampler joint_smp;
 @image_sample_type joint_tex unfilterable_float
 @sampler_type joint_smp nonfiltering
 
-mat4 joint_at(int index) {
-    int m = int(skin_base.x) + index;
+mat4 joint_at(int base, int index) {
+    int m = base + index;
     ivec2 t = ivec2((m % 256) * 4, m / 256);
     return mat4(texelFetch(sampler2D(joint_tex, joint_smp), t, 0),
                 texelFetch(sampler2D(joint_tex, joint_smp), t + ivec2(1, 0), 0),
@@ -109,20 +142,24 @@ out vec4 v_color;
 out vec3 v_world_pos;
 out float v_alpha_mode;
 void main() {
-    v_alpha_mode = 0.0;
-    mat4 skin = weights.x * joint_at(int(joints.x))
-              + weights.y * joint_at(int(joints.y))
-              + weights.z * joint_at(int(joints.z))
-              + weights.w * joint_at(int(joints.w));
+    int record = int(instance_base.x) + gl_InstanceIndex;
+    int joint_base = int(instance_extra(record).x);
+    mat4 model = instance_model(record);
+    mat4 skin = weights.x * joint_at(joint_base, int(joints.x))
+              + weights.y * joint_at(joint_base, int(joints.y))
+              + weights.z * joint_at(joint_base, int(joints.z))
+              + weights.w * joint_at(joint_base, int(joints.w));
     vec4 sp = skin * vec4(position, 1.0);
-    gl_Position = mvp * sp;
+    vec4 world = model * sp;
+    v_alpha_mode = 0.0;
+    gl_Position = view_proj * world;
     /* joints are rigid transforms (plus uniform scale), so mat3(skin) keeps normals perpendicular */
-    v_normal = mat3(normal_mat) * (mat3(skin) * normal);
+    v_normal = instance_normal(record) * (mat3(skin) * normal);
     v_tangent = vec4(mat3(model) * (mat3(skin) * tangent.xyz), tangent.w);
     v_uv0 = texcoord0;
     v_uv1 = texcoord1;
-    v_color = color0;
-    v_world_pos = (model * sp).xyz;
+    v_color = color0 * instance_tint(record);
+    v_world_pos = world.xyz;
 }
 @end
 

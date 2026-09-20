@@ -38,6 +38,10 @@ int sk_model_get_joint_matrices(sk_handle_t model, const float **matrices);
  * For tests. */
 void sk_model_queue_counts(int *placements, int *primitives, int *placement_ceiling);
 
+/* The frame's per-placement records, after a flush: 32 floats each, laid out as
+ * docs/PLAN-instancing.md describes. For tests. */
+const float *sk_model_instance_records(int *count);
+
 bool sk_model_has_shadow_casters(int light_env);
 bool sk_model_has_shadow_receivers(int light_env);
 void sk_model_draw_shadow_casters(int light_env, const sk_mat4_t *light_view_proj);
