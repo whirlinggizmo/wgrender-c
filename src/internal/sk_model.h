@@ -38,6 +38,15 @@ int sk_model_get_joint_matrices(sk_handle_t model, const float **matrices);
  * For tests. */
 void sk_model_queue_counts(int *placements, int *primitives, int *placement_ceiling);
 
+/* How many draw calls the frame's items came to: equal ones submitted inside an
+ * unordered region go up as one (docs/PLAN-instancing.md). Read after the passes. */
+int sk_model_draw_call_count(void);
+
+/* A region of a frame where the models submitted may be drawn in any order, so equal
+ * ones can be batched (sk_scene declares it; opaque parts only). */
+void sk_model_begin_unordered(void);
+void sk_model_end_unordered(void);
+
 /* The frame's per-placement records, after a flush: 32 floats each, laid out as
  * docs/PLAN-instancing.md describes. For tests. */
 const float *sk_model_instance_records(int *count);

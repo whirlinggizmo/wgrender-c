@@ -129,6 +129,89 @@ void test_model_instance_record(void)
     sg_shutdown();
 }
 
+/* Models that agree on everything but their placement go up as one draw
+ * (docs/PLAN-instancing.md, phase 2). */
+void test_model_instancing(void)
+{
+    sg_setup(&(sg_desc){.environment = sk_platform_environment()});
+    sk_render_init();
+    sk_scene_init();
+    sk_camera3d_init();
+    sk_texture_init();
+    sk_light_init();
+    sk_material_init();
+    sk_environment_init();
+    sk_model_init();
+
+    const sk_handle_t scene = sk_scene_create();
+    const sk_handle_t camera = sk_camera3d_create(SK_CAMERA3D_PERSPECTIVE);
+    sk_camera3d_set_view(camera, 0, 2, 20, 0, 0, 0, 0, 1, 0);
+    sk_scene_set_active_camera(scene, camera);
+
+    const sk_handle_t mesh = sk_mesh_create_cube(1.0f, 1.0f, 1.0f);
+    const sk_handle_t material = sk_material_create(SK_MATERIAL_PBR);
+    sk_handle_t models[8];
+    for (int i = 0; i < 8; i++) {
+        models[i] = sk_model_create(mesh);
+        sk_model_set_material(models[i], -1, material);
+        sk_model_set_transform(models[i], (float)i - 4.0f, 0, 0, 0, 0, 0, 1, 1, 1);
+        sk_scene_add(scene, models[i], 0);
+    }
+    sk_mesh_release(mesh);
+    sk_material_release(material);
+
+    /* one mesh, one material, eight placements: one draw */
+    sk_render_begin();
+    sk_scene_draw(scene);
+    sk_render_end();
+    CHECK(sk_model_draw_call_count() == 1);
+
+    /* a different material splits it in two, wherever the models sit in the scene */
+    const sk_handle_t other = sk_material_create(SK_MATERIAL_PBR);
+    sk_model_set_material(models[3], -1, other);
+    sk_render_begin();
+    sk_scene_draw(scene);
+    sk_render_end();
+    CHECK(sk_model_draw_call_count() == 2);
+    sk_model_set_material(models[3], -1, material);
+    sk_material_release(other);
+
+    /* so does a different mesh */
+    const sk_handle_t sphere = sk_mesh_create_sphere(0.5f, 8, 8);
+    sk_model_set_mesh(models[5], sphere);
+    sk_model_set_material(models[5], -1, material);
+    sk_mesh_release(sphere);
+    sk_render_begin();
+    sk_scene_draw(scene);
+    sk_render_end();
+    CHECK(sk_model_draw_call_count() == 2);
+
+    /* and a tint does not: that is what the instance record is for */
+    sk_model_set_mesh(models[5], mesh);
+    sk_model_set_material(models[5], -1, material);
+    for (int i = 0; i < 8; i++) {
+        sk_model_set_tint(models[i], sk_color_rgba(255, i * 30, 0, 255));
+    }
+    sk_render_begin();
+    sk_scene_draw(scene);
+    sk_render_end();
+    CHECK(sk_model_draw_call_count() == 1);
+
+    for (int i = 0; i < 8; i++) {
+        sk_model_destroy(models[i]);
+    }
+    sk_scene_destroy(scene);
+    sk_model_deinit();
+    sk_environment_deinit();
+    sk_material_deinit();
+    sk_light_deinit();
+    sk_texture_deinit();
+    sk_camera3d_deinit();
+    sk_scene_deinit();
+    sk_render_deinit();
+    sg_shutdown();
+}
+
 /* How many model placements a scene draw queued. */
 static int queued(sk_handle_t scene)
 {

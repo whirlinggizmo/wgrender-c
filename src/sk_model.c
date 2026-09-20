@@ -191,6 +191,7 @@ typedef struct {
 typedef struct {
     int draw;     /* index into sk_model_draws */
     int prim;     /* index into the mesh's primitives */
+    int region;   /* unordered region it was submitted in, -1 = keep its place */
     bool blended; /* use the blended pipeline */
 } sk_model_item_t;
 
@@ -247,6 +248,11 @@ static bool sk_model_joints_overflow_logged;
 #define INSTANCES_PER_ROW 128
 #define INSTANCE_TEXTURE_WIDTH (INSTANCES_PER_ROW * INSTANCE_TEXELS)
 #define INSTANCE_FLOATS (INSTANCE_TEXELS * 4)
+/* Items submitted inside one unordered region may be drawn in any order, so they are
+ * sorted to bring equal ones together; everything else keeps the order it came in. */
+static int sk_model_region = -1;
+static int sk_model_region_seq;
+static int sk_model_draw_calls; /* draws issued this frame, for tests and benchmarks */
 static float *sk_model_instances;
 static int sk_model_instance_count, sk_model_instance_capacity;
 static sg_image sk_model_instance_image;
@@ -2439,6 +2445,7 @@ static bool push_item(int draw, int prim, bool blended)
     sk_model_items[sk_model_item_count++] = (sk_model_item_t){
         .draw = draw,
         .prim = prim,
+        .region = blended ? -1 : sk_model_region, /* see-through parts keep their order */
         .blended = blended,
     };
     return true;
@@ -2835,6 +2842,156 @@ static void draw_custom(const sk_model_draw_t *e, const sk_model_t *model_ptr, c
     sg_draw(0, prim->index_count, 1);
 }
 
+/* What an item must agree on to share a draw with the one before it: everything the
+ * draw sets outside the instance record. Resolved once here, compared exactly at draw
+ * time and hashed for the sort. A material with a custom shader never groups: that path
+ * has its own uniforms per placement. */
+typedef struct {
+    const void *material; /* resolved material, or NULL when the item can't be drawn */
+    unsigned vbuf, ibuf;
+    int pass, light_env, light_count, lights[SK_MAX_DRAW_LIGHTS];
+    bool skinned, blended, double_sided, receives_shadow, custom;
+    const sk_mat4_t *view_proj;
+    vec3_t camera_pos;
+} group_key_t;
+
+static bool item_key(const sk_model_item_t *item, group_key_t *key)
+{
+    const sk_model_draw_t *e = &sk_model_draws[item->draw];
+    sk_model_t *model_ptr = resolve(e->model);
+    sk_mesh_t *mesh_ptr = model_ptr != NULL ? resolve_mesh(model_ptr->mesh) : NULL;
+    if (mesh_ptr == NULL || item->prim >= mesh_ptr->prim_count) {
+        memset(key, 0, sizeof(*key));
+        return false;
+    }
+    const sk_primitive_t *prim = &mesh_ptr->prims[item->prim];
+    const sk_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
+    memset(key, 0, sizeof(*key));
+    key->material = material;
+    key->vbuf = prim->vbuf.id;
+    key->ibuf = prim->ibuf.id;
+    key->pass = e->pass;
+    key->light_env = e->light_env;
+    key->light_count = e->light_count;
+    for (int i = 0; i < e->light_count && i < SK_MAX_DRAW_LIGHTS; i++) {
+        key->lights[i] = e->lights[i];
+    }
+    key->skinned = prim->skinned;
+    key->blended = item->blended;
+    key->double_sided = material->double_sided;
+    key->receives_shadow = model_ptr->receives_shadow;
+    key->custom = material->shader != 0;
+    key->view_proj = &e->view_proj;
+    key->camera_pos = e->camera_pos;
+    return true;
+}
+
+/* Whether two items can go up as one draw. */
+static bool same_group(const group_key_t *a, const group_key_t *b)
+{
+    if (a->material == NULL || a->custom || b->custom || a->material != b->material) {
+        return false;
+    }
+    if (a->vbuf != b->vbuf || a->ibuf != b->ibuf || a->pass != b->pass || a->light_env != b->light_env ||
+        a->skinned != b->skinned || a->blended != b->blended || a->double_sided != b->double_sided ||
+        a->receives_shadow != b->receives_shadow || a->light_count != b->light_count) {
+        return false;
+    }
+    for (int i = 0; i < a->light_count; i++) {
+        if (a->lights[i] != b->lights[i]) {
+            return false;
+        }
+    }
+    /* the camera is per placement, and a program may change it inside a pass */
+    return memcmp(&a->camera_pos, &b->camera_pos, sizeof(a->camera_pos)) == 0 &&
+           memcmp(a->view_proj->m, b->view_proj->m, sizeof(a->view_proj->m)) == 0;
+}
+
+/* A hash of everything same_group() compares, so sorting by it brings groupable items
+ * together. A collision only splits a group, it never merges two that differ. */
+static unsigned long long key_hash(const group_key_t *k, int item)
+{
+    unsigned long long h = 1469598103934665603ULL;
+    const unsigned char *bytes;
+    size_t size;
+    if (k->material == NULL || k->custom) {
+        return (unsigned long long)item; /* never groups: keep it where the sort found it */
+    }
+    for (bytes = (const unsigned char *)&k->material, size = 0; size < sizeof(k->material); size++) {
+        h = (h ^ bytes[size]) * 1099511628211ULL;
+    }
+    unsigned rest[6 + SK_MAX_DRAW_LIGHTS] = {k->vbuf,      k->ibuf,
+                                             (unsigned)k->pass, (unsigned)k->light_env,
+                                             (unsigned)k->light_count,
+                                             (unsigned)((k->skinned ? 1 : 0) | (k->blended ? 2 : 0) |
+                                                        (k->double_sided ? 4 : 0) |
+                                                        (k->receives_shadow ? 8 : 0))};
+    for (int i = 0; i < k->light_count && i < SK_MAX_DRAW_LIGHTS; i++) {
+        rest[6 + i] = (unsigned)k->lights[i];
+    }
+    bytes = (const unsigned char *)rest;
+    for (size = 0; size < sizeof(rest); size++) {
+        h = (h ^ bytes[size]) * 1099511628211ULL;
+    }
+    return h;
+}
+
+typedef struct {
+    unsigned long long hash;
+    int item;
+} sort_entry_t;
+
+static int compare_entries(const void *a, const void *b)
+{
+    const sort_entry_t *x = (const sort_entry_t *)a, *y = (const sort_entry_t *)b;
+    if (x->hash != y->hash) {
+        return x->hash < y->hash ? -1 : 1;
+    }
+    return x->item < y->item ? -1 : (x->item > y->item ? 1 : 0); /* stable */
+}
+
+static sort_entry_t *sk_model_sort_entries;
+static sk_model_item_t *sk_model_sorted;
+static int sk_model_sort_capacity;
+
+/* Bring equal items together inside each unordered region, so a run of them can go up
+ * as one instanced draw. Items outside a region (see-through parts, anything drawn
+ * without a scene) keep the order they were submitted in. */
+static void sort_items(void)
+{
+    int start = 0;
+    if (sk_model_item_count > sk_model_sort_capacity) {
+        sort_entry_t *entries = realloc(sk_model_sort_entries, sizeof(*entries) * (size_t)sk_model_item_count);
+        sk_model_item_t *sorted = realloc(sk_model_sorted, sizeof(*sorted) * (size_t)sk_model_item_count);
+        if (entries != NULL) sk_model_sort_entries = entries;
+        if (sorted != NULL) sk_model_sorted = sorted;
+        if (entries == NULL || sorted == NULL) {
+            return; /* out of memory: draw them in the order they came in */
+        }
+        sk_model_sort_capacity = sk_model_item_count;
+    }
+    while (start < sk_model_item_count) {
+        const int region = sk_model_items[start].region;
+        int end = start + 1;
+        while (end < sk_model_item_count && sk_model_items[end].region == region) {
+            end++;
+        }
+        if (region >= 0 && end - start > 1) {
+            for (int i = start; i < end; i++) {
+                group_key_t key;
+                item_key(&sk_model_items[i], &key);
+                sk_model_sort_entries[i - start] = (sort_entry_t){.hash = key_hash(&key, i), .item = i};
+            }
+            qsort(sk_model_sort_entries, (size_t)(end - start), sizeof(*sk_model_sort_entries), compare_entries);
+            for (int i = 0; i < end - start; i++) {
+                sk_model_sorted[i] = sk_model_items[sk_model_sort_entries[i].item];
+            }
+            memcpy(&sk_model_items[start], sk_model_sorted, sizeof(*sk_model_items) * (size_t)(end - start));
+        }
+        start = end;
+    }
+}
+
 static void draw_primitive(const sk_model_draw_t *e, const sk_model_t *model_ptr, const sk_mesh_t *mesh_ptr,
                            const sk_primitive_t *prim, bool blended, sg_pipeline *cur_pip, int instance_base,
                            int instances)
@@ -2970,6 +3127,11 @@ void sk_model_queue_counts(int *placements, int *primitives, int *placement_ceil
     if (placement_ceiling != NULL) *placement_ceiling = MAX_MODEL_DRAWS;
 }
 
+int sk_model_draw_call_count(void)
+{
+    return sk_model_draw_calls;
+}
+
 bool sk_model_has_shadow_receivers(int light_env)
 {
     for (int i = 0; i < sk_model_item_count; i++) {
@@ -3066,18 +3228,32 @@ void sk_model_draw_shadow_casters(int light_env, const sk_mat4_t *light_view_pro
 void sk_model_draw_items(int first, int count)
 {
     sg_pipeline cur_pip = {0}; /* sokol_gl may have changed the pipeline since last time */
+    const int end = first + count < sk_model_item_count ? first + count : sk_model_item_count;
+    int i = first;
 
     reset_fs_blocks();
 
-    for (int i = first; i < first + count && i < sk_model_item_count; i++) {
+    while (i < end) {
         const sk_model_item_t *item = &sk_model_items[i];
         sk_model_draw_t *e = &sk_model_draws[item->draw];
         sk_model_t *model_ptr = resolve(e->model);
         sk_mesh_t *mesh_ptr = model_ptr ? resolve_mesh(model_ptr->mesh) : NULL;
+        group_key_t key, next;
+        int last = i;
         if (mesh_ptr == NULL || item->prim >= mesh_ptr->prim_count) {
+            i++;
             continue; /* destroyed or re-meshed after it was queued */
         }
-        draw_primitive(e, model_ptr, mesh_ptr, &mesh_ptr->prims[item->prim], item->blended, &cur_pip, item->draw, 1);
+        /* how many of the items after this one go up with it: their records sit beside
+           it in the instance texture, so one draw places them all */
+        item_key(item, &key);
+        while (last + 1 < end && item_key(&sk_model_items[last + 1], &next) && same_group(&key, &next)) {
+            last++;
+        }
+        draw_primitive(e, model_ptr, mesh_ptr, &mesh_ptr->prims[item->prim], item->blended, &cur_pip, i,
+                       last - i + 1);
+        sk_model_draw_calls++;
+        i = last + 1;
     }
 }
 
@@ -3169,8 +3345,8 @@ static void write_instance(float *r, const sk_model_draw_t *e)
 
 static void upload_instances(void)
 {
-    const int rows = (sk_model_draw_count + INSTANCES_PER_ROW - 1) / INSTANCES_PER_ROW;
-    if (sk_model_draw_count == 0) {
+    const int rows = (sk_model_item_count + INSTANCES_PER_ROW - 1) / INSTANCES_PER_ROW;
+    if (sk_model_item_count == 0) {
         return;
     }
     /* whole rows, because the upload sends whole rows: the tail goes up unwritten */
@@ -3183,15 +3359,15 @@ static void upload_instances(void)
         sk_model_instances = grown;
         sk_model_instance_capacity = wanted;
     }
-    for (int i = 0; i < sk_model_draw_count; i++) {
-        write_instance(&sk_model_instances[(size_t)i * INSTANCE_FLOATS], &sk_model_draws[i]);
+    for (int i = 0; i < sk_model_item_count; i++) {
+        write_instance(&sk_model_instances[(size_t)i * INSTANCE_FLOATS], &sk_model_draws[sk_model_items[i].draw]);
     }
-    sk_model_instance_count = sk_model_draw_count;
+    sk_model_instance_count = sk_model_item_count;
     if (!ensure_data_texture(&sk_model_instance_image, &sk_model_instance_view, &sk_model_instance_rows,
                              INSTANCE_TEXTURE_WIDTH, rows, "sk-model-instances")) {
         if (!sk_model_instances_overflow_logged) {
             log_error("model: %d placements in a frame, more than the instance texture holds",
-                      sk_model_draw_count);
+                      sk_model_item_count);
             sk_model_instances_overflow_logged = true;
         }
         return;
@@ -3207,6 +3383,16 @@ static void upload_instances(void)
     });
 }
 
+void sk_model_begin_unordered(void)
+{
+    sk_model_region = ++sk_model_region_seq;
+}
+
+void sk_model_end_unordered(void)
+{
+    sk_model_region = -1;
+}
+
 const float *sk_model_instance_records(int *count)
 {
     if (count != NULL) {
@@ -3219,7 +3405,9 @@ const float *sk_model_instance_records(int *count)
  * (sk_render: before any pass). */
 void sk_model_flush(void)
 {
+    sk_model_draw_calls = 0; /* the passes after this are the frame's draws */
     upload_joints();
+    sort_items(); /* equal items together, so a run of them is one draw */
     upload_instances();
 }
 
@@ -3311,6 +3499,8 @@ void sk_model_list_gltf_dependencies(const unsigned char *data, int size, sk_ass
 void sk_model_init(void)
 {
     sk_render_hooks.draw_models = sk_model_draw_items;
+    sk_scene_hooks.models_begin_unordered = sk_model_begin_unordered;
+    sk_scene_hooks.models_end_unordered = sk_model_end_unordered;
     static const unsigned char white[4] = {255, 255, 255, 255};
     static const unsigned char flat_normal[4] = {128, 128, 255, 255};
 
@@ -3373,6 +3563,9 @@ void sk_model_deinit(void)
         sk_depth_pips[i] = (sg_pipeline){0};
     }
     sk_render_hooks.draw_models = NULL;
+    sk_scene_hooks.models_begin_unordered = NULL;
+    sk_scene_hooks.models_end_unordered = NULL;
+    sk_model_region = -1;
     for (uint16_t i = 1; i < sk_model_pool.capacity; i++) {
         if (sk_model_pool.occupied[i]) {
             sk_handle_t h = sk_handle_pool_handle_from_index(&sk_model_pool, i);
@@ -3396,6 +3589,11 @@ void sk_model_deinit(void)
     sk_model_joint_sampler = (sg_sampler){0};
     sk_model_joint_view = (sg_view){0};
     sk_model_joint_image = (sg_image){0};
+    free(sk_model_sort_entries);
+    free(sk_model_sorted);
+    sk_model_sort_entries = NULL;
+    sk_model_sorted = NULL;
+    sk_model_sort_capacity = 0;
     free(sk_model_instances);
     sk_model_instances = NULL;
     sk_model_instance_count = sk_model_instance_capacity = sk_model_instance_rows = 0;

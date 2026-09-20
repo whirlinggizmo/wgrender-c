@@ -1,6 +1,6 @@
 # Plan: Model instancing
 
-Status: **phase 1 built** (2026-09-21); phases 2–4 open. Decisions below are answered:
+Status: **phases 1 and 2 built** (2026-09-21); phases 3–4 open. Decisions below are answered:
 automatic grouping with no new API (an explicit instanced handle only if a measured case
 ever needs one), opaque models may be reordered, and custom shaders follow in phase 4 of
 the same release.
@@ -140,13 +140,48 @@ over five runs, a casting sun 5.15, two lights 5.33 — the per-placement unifor
 a wash. Phase 1 is not meant to be faster; it is meant to put the data where phase 2 can
 draw thousands of placements from one call.
 
+## Phase 2 as built
+
+An item remembers which *unordered region* it was submitted in — `sk_scene` already
+declares those around the opaque part of a layer, for sprites, and now tells `sk_model`
+too through two scene hooks. Inside one region the items may be drawn in any order, so
+`sk_model_flush` sorts each region by a hash of everything a draw has to set outside the
+instance record: material, primitive buffers, pipeline (skinned / blended / double
+sided), pass, lighting environment, the selected light set, whether the model receives
+shadows, and the camera. See-through parts are marked region −1 and never move, so the
+back-to-front order stands.
+
+Records are written per item in that sorted order, so a run of equal items occupies
+consecutive records. `sk_model_draw_items` then walks the run, comparing each item to
+the first *exactly* (the hash only decides the sort; a collision costs a split, never a
+wrong batch), and issues one `sg_draw` with that many instances. A material with a
+custom shader never joins a run — that path has its own uniforms per placement until
+phase 4.
+
+### Measured
+
+`make shadowbench DESKTOP=1` gained a "shared" case: one mesh, one material, N
+placements — a forest. Against "sun 1024", the same scene with a material per model,
+both from the same run, at 4000 models:
+
+| 4000 models   | a material each | one shared material |
+|---------------|----------------:|--------------------:|
+| submit        |         4.71 ms |             0.60 ms |
+| CPU total     |         5.89 ms |             1.76 ms |
+| frame         |         6.12 ms |             3.20 ms |
+
+Submission is what collapsed: 4000 draws became a handful. A scene where every model
+has its own material cannot batch and measures exactly as it did. The scene walk itself
+— 1.15 ms for 4000 members, culling included — is now the largest CPU cost in the frame,
+and the frame is GPU-bound again.
+
 ## Phasing
 
 1. The instance texture and the record; every stock model draw becomes an instanced draw
    of one; `fs_params` loses the tint. No grouping yet — this phase must not be slower,
    and proves the record is right. **Built.**
 2. The group key, sorting a command's opaque items by it, and runs of equal keys drawn
-   as one `sg_draw`. This is the phase the numbers come from.
+   as one `sg_draw`. This is the phase the numbers come from. **Built.**
 3. The depth pass (shadows) instanced the same way — it is the same queue, and it is
    already the second-largest consumer of it.
 4. Custom material shaders: the `sk.glsl` include block, format bump, repack.

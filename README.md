@@ -234,6 +234,11 @@ reference/librl the raylib library this evolves from (read-only reference)
   far its shadows reach, the map size, the depth bias (in texels), how much light a
   shadow takes away and what colour it leaves. Per model: whether it casts, and
   whether it receives. See `docs/PLAN-shadows.md` and `examples/shadows.c`.
+- Model instancing: models that agree on everything but where they stand — the same
+  mesh and material, a forest or a crowd — are drawn together, however they were added
+  to the scene. Nothing to ask for: what differs per model (its transform, its tint)
+  travels in a per-frame data texture, and libsk batches what it can. 4000 such models
+  cost 0.6 ms to submit instead of 4.7. See `docs/PLAN-instancing.md`.
 - Frustum culling: a scene skips members the camera can't see, testing their bounds
   against the view before anything is submitted — 4000 models behind the camera cost
   0.5 ms a frame instead of 6.8. A caster whose shadow could still fall into view is

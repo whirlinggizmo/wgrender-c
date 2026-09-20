@@ -122,6 +122,8 @@ typedef struct {
     const sk_light_env_t *(*light_env_get)(int index); /* culling asks it which lights cast */
     void (*sprites_begin_unordered)(void); /* sk_sprite_batch */
     void (*sprites_end_unordered)(void);
+    void (*models_begin_unordered)(void); /* sk_model: what it may reorder to batch */
+    void (*models_end_unordered)(void);
 } sk_scene_hooks_t;
 extern sk_scene_hooks_t sk_scene_hooks;
 

@@ -36,11 +36,13 @@ static void release_environment(sk_handle_t environment)
 static void begin_unordered(void)
 {
     if (sk_scene_hooks.sprites_begin_unordered != NULL) sk_scene_hooks.sprites_begin_unordered();
+    if (sk_scene_hooks.models_begin_unordered != NULL) sk_scene_hooks.models_begin_unordered();
 }
 
 static void end_unordered(void)
 {
     if (sk_scene_hooks.sprites_end_unordered != NULL) sk_scene_hooks.sprites_end_unordered();
+    if (sk_scene_hooks.models_end_unordered != NULL) sk_scene_hooks.models_end_unordered();
 }
 
 #define SCENES_INITIAL 8 /* slots to start with; the pool doubles as needed */

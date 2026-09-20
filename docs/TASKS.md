@@ -364,19 +364,20 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       ~0.1 — read as the gap to the "off" row in the same run, because a row carries
       about +/-0.3 ms of run-to-run noise (the "off" row alone measured 4.96 to 5.57
       over five runs). At 100 models, where the fit covers everything, nothing moves
-- [ ] Models are one draw call each: 4000 lit models cost about 5 ms a frame on an
-      RTX 4080 (shadowbench), and ~95% of that is CPU submission — roughly 1.2
-      microseconds a model, whatever the model is. Sprites already avoid this (a run
-      sharing texture, material, camera and clip is one instanced draw); models have no
-      equivalent, so a forest of identical trees pays per tree. Sharing the mesh barely
-      helps: 4000 models built from three shared meshes cost 4.53 ms against 5.18 ms
-      with a mesh each (1.13 vs 1.30 microseconds a model), because sokol's bindings
-      cache skips re-binding the same buffers but the uniform uploads and the draw call
-      itself are per model regardless. So instancing's win is collapsing N draws into
-      one, not avoiding buffer churn. It would be the same shape as the sprite batch:
-      collect per-instance transforms into a buffer, one draw per group. The queue growing (above)
-      raised the ceiling on how many can be queued; this is the ceiling on how many are
-      worth queuing
+- [x] Models are instanced (2026-09-21, docs/PLAN-instancing.md): models that agree on
+      everything but where they stand go up as one draw. What differs per placement --
+      the matrices and the tint -- moved into a per-frame data texture, eight texels a
+      placement, the same trick the joint matrices use; the tint left fs_params for the
+      vertex color, which is the same arithmetic in a different place and leaves nothing
+      per placement in the material block. Inside an unordered region (what sk_scene
+      already declares for sprites) the items are sorted by what a draw has to set, and
+      a run of equal ones becomes one sg_draw. shadowbench gained a "shared" case -- one
+      mesh, one material, N placements, the forest -- against "sun 1024", the same scene
+      with a material each: at 4000 models, submission 4.71 -> 0.60 ms, CPU 5.89 -> 1.76,
+      frame 6.12 -> 3.20, both rows from one run. A scene where every model has its own
+      material cannot batch and is unchanged. Still per draw: custom material shaders
+      (phase 4) and the shadow pass (phase 3); the scene walk itself, 1.15 ms at 4000
+      members, is now the largest CPU cost left
 - [ ] Lit particles: emitter particles are unlit — emitters have their own program
       (`particle` = vs_particle + the unlit `fs` in src/shaders/sk_sprite.glsl) and no
       material API, so the only lit "particles" today are sprite3d objects moved by the

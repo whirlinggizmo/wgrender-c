@@ -11,6 +11,11 @@
  *   no receive         the sun casts but nothing receives. libsk skips the pass when
  *                      no model receives and no lit sprite is in the scene, so this
  *                      should land on top of "off": it is the check that it does
+ *   shared             every model is the same mesh with the same material, which is
+ *                      what a forest or a crowd looks like: they agree on everything
+ *                      but where they stand, so they go up as one instanced draw
+ *                      (docs/PLAN-instancing.md). Against "sun 1024", which is the
+ *                      same scene with a material each, it is what batching is worth
  *   look away          the sun casts, but the camera faces away from the grid. Every
  *                      model is behind it, so frustum culling (docs/PLAN-culling.md)
  *                      should submit almost nothing
@@ -48,13 +53,15 @@ typedef enum {
     CASE_4096,
     CASE_TWO_LIGHTS,
     CASE_NO_RECEIVE,
+    CASE_SHARED,
     CASE_AWAY,
     CASE_AWAY_NO_CULL,
     CASES,
 } bench_case_t;
 
 static const char *CASE_NAMES[CASES] = {"off",        "sun 1024", "sun 2048",  "sun 4096",
-                                        "two 1024",   "no receive", "look away", "away, no cull"};
+                                        "two 1024",   "no receive", "shared",    "look away",
+                                        "away, no cull"};
 enum { COUNT_STEPS = 4 };
 static const int MODEL_COUNTS[COUNT_STEPS] = {100, 400, 1000, 4000};
 
@@ -109,7 +116,24 @@ static void setup(void)
 
     b.floor = place(sk_mesh_create_plane(side * spacing * 1.6f, side * spacing * 1.6f, 0), 0, 0, 0,
                     0.4f, 0.42f, 0.45f);
-    for (int i = 0; i < count; i++) {
+    if (which == CASE_SHARED) { /* one mesh, one material, `count` placements */
+        const sk_handle_t mesh = sk_mesh_create_sphere(0.55f, 16, 32);
+        const sk_handle_t material = sk_material_create(SK_MATERIAL_PBR);
+        sk_material_set_vec4(material, "base_color", 0.6f, 0.5f, 0.4f, 1.0f);
+        sk_material_set_float(material, "metallic", 0.0f);
+        sk_material_set_float(material, "roughness", 0.55f);
+        for (int i = 0; i < count; i++) {
+            const float x = ((float)(i % side) - (float)side * 0.5f) * spacing;
+            const float z = ((float)(i / side) - (float)side * 0.5f) * spacing;
+            b.models[i] = sk_model_create(mesh);
+            sk_model_set_material(b.models[i], -1, material);
+            sk_model_set_transform(b.models[i], x, 0.8f, z, 0, 0, 0, 1, 1, 1);
+            sk_scene_add(b.scene, b.models[i], 0);
+        }
+        sk_mesh_release(mesh);
+        sk_material_release(material);
+    }
+    for (int i = 0; which != CASE_SHARED && i < count; i++) {
         const float x = ((float)(i % side) - (float)side * 0.5f) * spacing;
         const float z = ((float)(i / side) - (float)side * 0.5f) * spacing;
         const float hue = (float)i / (float)count;

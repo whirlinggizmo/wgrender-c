@@ -62,6 +62,7 @@ void test_model_draw_queue(void);
 void test_cull_frustum(void);
 void test_cull_scene(void);
 void test_model_instance_record(void);
+void test_model_instancing(void);
 void test_animation_sampling(void);
 void test_sprite_pick_alpha(void);
 void test_text2d_state(void);
