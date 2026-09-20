@@ -328,28 +328,27 @@ felt awkward, and the libsk design. Update `tools/parity.map` with the outcome.
       (tools/bench/shadowbench.c, also a web page). RTX 4080, vsync off, frame ms (and
       the CPU ms in it) at 100 / 400 / 1000 models: none 0.25/0.62/1.41; sun at 1024
       0.42/0.82/1.94, at 2048 0.33/0.90/1.95, at 4096 0.38/1.03/2.06; sun + spot
-      0.40/1.11/2.21; nothing receiving 0.22/0.60/1.36 (the pass is skipped). The CPU cost barely moves with
+      0.45/1.11/2.36; nothing receiving 0.30/0.79/1.60 (the pass is skipped), and at
+      4000 models none 5.18, sun 6.99, two lights 8.57. The CPU cost barely moves with
       the map's size, so that axis is GPU fill (16x the pixels: ~+0.05 / +0.12 ms),
-      while the extra pass over the casters is CPU (+0.15 at 400, +0.40 at 1000).
-      Receiving costs ~0.02. Which dominates is a property of the scene
-- [ ] Models past 1024 a frame are dropped (`MAX_MODEL_DRAWS` in src/sk_model.c, with
-      `MAX_MODEL_ITEMS` 8192 primitives; sprites and particles are unaffected — the
-      sprite batch's arrays grow and emitters have their own path): the queue is a
-      fixed array, it warns once and
-      the rest of the frame's models silently don't draw. Found while benchmarking —
-      asking for 1600 and 4096 models measured the same 1024. A scene with more than a
-      thousand objects is not unusual, so the queue should grow like the render command
-      list does (realloc up to a ceiling), or say why it shouldn't. Lighting is about
-      1.4 microseconds a mesh, so 4096 would be ~5-6 ms of submission before shadows
-- [ ] Shadows later (phase 3): cascades for large scenes, point lights (six maps), and
-      sprites as casters; skip a light's pass when nothing it sees has moved — the
-      measurement above says that is where the time is
-- [x] Materials, phase 3b (2026-09-21): lit 3D sprites — built-in PBR/unlit materials
-      on `sk_sprite3d`, shaded with libsk's model PBR (normal, metallic-roughness,
-      occlusion and emissive maps; the sprite's texture is the base color, its tint the
-      vertex color), and the scene's lights and environment chosen once per batch from
-      its bounds; custom sprite shaders now get the same lights and environment in
-      `sk_frame` ([PLAN-materials.md](PLAN-materials.md), `examples/lights.c`)
+      while the extra pass over the casters is CPU and scales with them. Receiving
+      costs ~0.02. Which dominates is a property of the scene
+- [x] The model draw queue grows (2026-09-21): it was two fixed arrays, 1024
+      placements and 8192 primitives, and a frame past either lost the rest of its
+      models after one warning — found while benchmarking, where asking for 1600 and
+      4096 models both measured the same 1024. They now double from 64 / 256 up to
+      16384 / 131072, in the shape of sk_scene's transparent list, and the warning is
+      kept for the ceiling (about 23 ms of submission, far past playable). Small
+      programs stop carrying the room as well: ~448 KB of always-resident memory gone
+- [ ] Models are one draw call each: 4000 lit models cost about 5 ms a frame on an
+      RTX 4080 (shadowbench), and ~95% of that is CPU submission — roughly 1.2
+      microseconds a model, whatever the model is. Sprites already avoid this (a run
+      sharing texture, material, camera and clip is one instanced draw); models have no
+      equivalent, so a forest of identical trees pays per tree. Instancing models that
+      share a mesh and material would be the same shape as the sprite batch: collect
+      per-instance transforms into a buffer, one draw per group. The queue growing (above)
+      raised the ceiling on how many can be queued; this is the ceiling on how many are
+      worth queuing
 - [ ] Lit particles: emitter particles are unlit — emitters have their own program
       (`particle` = vs_particle + the unlit `fs` in src/shaders/sk_sprite.glsl) and no
       material API, so the only lit "particles" today are sprite3d objects moved by the

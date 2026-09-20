@@ -57,6 +57,7 @@ void test_shadow_state(void);
 void test_shadow_fit(void);
 void test_shadow_fit_spot(void);
 void test_shadow_casters(void);
+void test_model_draw_queue(void);
 void test_animation_sampling(void);
 void test_sprite_pick_alpha(void);
 void test_text2d_state(void);

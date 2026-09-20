@@ -358,3 +358,52 @@ void test_shadow_casters(void)
     sk_scene_destroy(scene);
     end();
 }
+
+/* The frame's draw queue grows with the scene instead of dropping work at a fixed
+ * size: a thousand models used to be the ceiling, and everything past it silently
+ * didn't draw. It still stops somewhere, far past anything playable. */
+void test_model_draw_queue(void)
+{
+    begin();
+
+    const sk_handle_t mesh = sk_mesh_create_cube(1.0f, 1.0f, 1.0f);
+    /* two models drawn alternately: each call is its own placement, where the same
+       model twice in a row would share one */
+    const sk_handle_t a = sk_model_create(mesh);
+    const sk_handle_t bb = sk_model_create(mesh);
+    sk_mesh_release(mesh);
+    int placements = 0, primitives = 0, ceiling = 0;
+
+    /* past where the queue used to stop, everything is still queued */
+    sk_render_begin();
+    for (int i = 0; i < 2000; i++) {
+        sk_model_draw(i % 2 == 0 ? a : bb);
+    }
+    sk_model_queue_counts(&placements, &primitives, &ceiling);
+    CHECK(ceiling > 2000);
+    CHECK(placements == 2000);
+    CHECK(primitives == 2000); /* a cube is one primitive */
+    sk_render_end();
+
+    /* it starts over each frame */
+    sk_render_begin();
+    sk_model_queue_counts(&placements, &primitives, NULL);
+    CHECK(placements == 0 && primitives == 0);
+    sk_render_end();
+
+    /* and it does stop: past the ceiling the rest of the frame isn't drawn, with a
+       warning rather than a crash or a silently wrong queue */
+    sk_logger_set_level(SK_LOGGER_LEVEL_FATAL); /* the warning is the point */
+    sk_render_begin();
+    for (int i = 0; i < ceiling + 500; i++) {
+        sk_model_draw(i % 2 == 0 ? a : bb);
+    }
+    sk_model_queue_counts(&placements, &primitives, NULL);
+    CHECK(placements == ceiling);
+    sk_render_end();
+    sk_logger_set_level(SK_LOGGER_LEVEL_INFO);
+
+    sk_model_destroy(bb);
+    sk_model_destroy(a);
+    end();
+}

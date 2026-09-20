@@ -33,7 +33,7 @@
 
 #define WARMUP_FRAMES 20
 #define MEASURE_FRAMES 100
-#define MAX_MODELS 1024
+#define MAX_MODELS 4000
 
 typedef enum {
     CASE_OFF,
@@ -46,10 +46,8 @@ typedef enum {
 } bench_case_t;
 
 static const char *CASE_NAMES[CASES] = {"off", "sun 1024", "sun 2048", "sun 4096", "two 1024", "no receive"};
-enum { COUNT_STEPS = 3 };
-/* 1024 is libsk's ceiling: model placements past MAX_MODEL_DRAWS are dropped for the
- * frame (src/sk_model.c warns once), so asking for more measures the same 1024 */
-static const int MODEL_COUNTS[COUNT_STEPS] = {100, 400, 1000};
+enum { COUNT_STEPS = 4 };
+static const int MODEL_COUNTS[COUNT_STEPS] = {100, 400, 1000, 4000};
 
 typedef struct {
     int models;

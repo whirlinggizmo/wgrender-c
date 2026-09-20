@@ -252,14 +252,17 @@ before there was a way to see what the map held.
   half of them turning, the camera moving so the fit re-snaps. Frame ms, and the CPU
   ms inside it (one run; runs vary by about 0.05 ms):
 
-  | case             |  100 | cpu  |  400 | cpu  | 1000 | cpu  |
-  |------------------|-----:|-----:|-----:|-----:|-----:|-----:|
-  | no shadows       | 0.25 | 0.15 | 0.62 | 0.47 | 1.41 | 1.20 |
-  | sun, 1024        | 0.42 | 0.26 | 0.82 | 0.62 | 1.94 | 1.60 |
-  | sun, 2048        | 0.33 | 0.18 | 0.90 | 0.66 | 1.95 | 1.63 |
-  | sun, 4096        | 0.38 | 0.18 | 1.03 | 0.65 | 2.06 | 1.60 |
-  | sun + spot, 1024 | 0.40 | 0.23 | 1.11 | 0.88 | 2.21 | 2.04 |
-  | sun, no receive  | 0.22 | 0.13 | 0.60 | 0.47 | 1.36 | 1.15 |
+  | case             |  100 |  400 | 1000 | 4000 |
+  |------------------|-----:|-----:|-----:|-----:|
+  | no shadows       | 0.23 | 0.82 | 1.34 | 5.18 |
+  | sun, 1024        | 0.32 | 0.90 | 1.99 | 6.99 |
+  | sun, 2048        | 0.33 | 0.90 | 1.90 | 6.44 |
+  | sun, 4096        | 0.38 | 1.01 | 2.06 | 6.59 |
+  | sun + spot, 1024 | 0.45 | 1.11 | 2.36 | 8.57 |
+  | sun, no receive  | 0.30 | 0.79 | 1.60 | 5.02 |
+
+  Nearly all of that is CPU: at 4000 models the "no shadows" frame is 5.18 ms with
+  4.93 of it on the CPU, almost all in submission.
 
   Read the two columns against each other. **The CPU number barely moves across 1024,
   2048 and 4096** — the pass draws the same casters whatever the map's size — so what
@@ -274,10 +277,11 @@ before there was a way to see what the map held.
   phase 3 work — skip a light's pass when nothing it sees has moved — and say cascades
   should be budgeted as passes *and* pixels.
 
-  The model counts stop at 1000 because libsk drops model placements past 1024 a frame
-  (`MAX_MODEL_DRAWS`): asking for more measures the same 1024. Lighting alone is about
-  1.4 microseconds a mesh here, so a scene that could draw 4096 would spend roughly
-  5-6 ms before shadows.
+  An earlier run of this benchmark stopped at 1000 models, because libsk dropped model
+  placements past 1024 a frame: asking for 1600 and 4096 measured the same 1024 twice,
+  which showed up as two rows with identical submission times. The queue grows now, so
+  4000 is a real 4000 — about 1.2 microseconds a mesh to light, and a shadow pass adds
+  roughly half that again.
 
 - Checked on desktop GL, WebGL2 and WebGPU: every caster throws a shadow, the no-cast
   sphere throws none, the no-receive sphere stays lit, shadows touch their casters.

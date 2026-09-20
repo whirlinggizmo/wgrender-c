@@ -33,6 +33,11 @@ int sk_model_get_joint_matrices(sk_handle_t model, const float **matrices);
 /* Shadows (src/sk_shadow.c). Whether any model queued for this lighting environment
  * casts, and drawing those casters into the open depth pass from the light's point of
  * view (`light_view_proj`: world -> the light's clip space). */
+/* Placements and primitives queued for the frame so far. The queue grows as a scene
+ * needs it and stops at a ceiling; past that a frame's remaining models aren't drawn.
+ * For tests. */
+void sk_model_queue_counts(int *placements, int *primitives, int *placement_ceiling);
+
 bool sk_model_has_shadow_casters(int light_env);
 bool sk_model_has_shadow_receivers(int light_env);
 void sk_model_draw_shadow_casters(int light_env, const sk_mat4_t *light_view_proj);

@@ -40,8 +40,15 @@
 
 #define MODELS_INITIAL 32 /* slots to start with; the pool doubles as needed */
 #define MESHES_INITIAL 32 /* slots to start with; the pool doubles as needed */
-#define MAX_MODEL_DRAWS 1024 /* model placements queued per frame */
-#define MAX_MODEL_ITEMS 8192 /* primitives queued per frame */
+/* The frame's draw queue grows as a scene needs it, from small — a program drawing a
+ * handful of models shouldn't carry room for thousands — and stops at a ceiling that
+ * is far past playable: at roughly 1.4 microseconds to submit a mesh, 16384 placements
+ * is about 23 ms of CPU before anything is drawn. Past it, the rest of the frame's
+ * models are dropped with one warning, as everything past 1024 used to be. */
+#define MODEL_DRAWS_INITIAL 64
+#define MODEL_ITEMS_INITIAL 256
+#define MAX_MODEL_DRAWS 16384   /* model placements queued per frame */
+#define MAX_MODEL_ITEMS 131072  /* primitives queued per frame */
 #define SK_MAX_JOINTS 128
 #define MAX_BLEND_PRIMS 1024 /* transparent primitives sorted per immediate draw */
 #define SK_MAX_MATERIAL_SLOTS 32 /* material slots a model can override */
@@ -224,10 +231,10 @@ static sg_sampler sk_model_joint_sampler;
 static int sk_model_joint_rows;
 static bool sk_model_joints_overflow_logged;
 
-static sk_model_draw_t sk_model_draws[MAX_MODEL_DRAWS];
-static int sk_model_draw_count;
-static sk_model_item_t sk_model_items[MAX_MODEL_ITEMS];
-static int sk_model_item_count;
+static sk_model_draw_t *sk_model_draws;
+static int sk_model_draw_count, sk_model_draw_capacity;
+static sk_model_item_t *sk_model_items;
+static int sk_model_item_count, sk_model_item_capacity;
 static sk_blend_prim_t sk_blend_prims[MAX_BLEND_PRIMS];
 static bool sk_model_queue_full_logged;
 
@@ -2248,10 +2255,36 @@ static vec3_t prim_center(const sk_primitive_t *prim)
 static void log_queue_full(void)
 {
     if (!sk_model_queue_full_logged) {
-        log_warn("model: draw queue full (%d placements / %d primitives per frame)",
+        log_warn("model: draw queue full (%d placements / %d primitives per frame); "
+                 "the rest of this frame's models aren't drawn",
                  MAX_MODEL_DRAWS, MAX_MODEL_ITEMS);
         sk_model_queue_full_logged = true;
     }
+}
+
+/* Room for one more in a queue that doubles up to `max`. The queue is addressed by
+ * index everywhere, so growing it doesn't invalidate anything a caller holds. */
+static bool reserve_queue(void **items, int *capacity, int count, size_t item_size, int initial, int max)
+{
+    if (count < *capacity) {
+        return true;
+    }
+    if (*capacity >= max) {
+        log_queue_full();
+        return false;
+    }
+    int grown = *capacity > 0 ? *capacity * 2 : initial;
+    if (grown > max) {
+        grown = max;
+    }
+    void *moved = realloc(*items, item_size * (size_t)grown);
+    if (moved == NULL) {
+        log_queue_full(); /* out of memory is the same story to a caller: it won't draw */
+        return false;
+    }
+    *items = moved;
+    *capacity = grown;
+    return true;
 }
 
 /* Capture the model's matrices and tint for this frame. Consecutive submissions
@@ -2273,8 +2306,8 @@ static int begin_draw(sk_handle_t handle, sk_model_t *model_ptr)
         sk_model_draws[sk_model_draw_count - 1].pass == sk_render_current_pass()) {
         return sk_model_draw_count - 1;
     }
-    if (sk_model_draw_count >= MAX_MODEL_DRAWS) {
-        log_queue_full();
+    if (!reserve_queue((void **)&sk_model_draws, &sk_model_draw_capacity, sk_model_draw_count,
+                       sizeof(*sk_model_draws), MODEL_DRAWS_INITIAL, MAX_MODEL_DRAWS)) {
         return -1;
     }
     if (!sk_camera3d_get_active_data(&cam)) {
@@ -2334,8 +2367,8 @@ static int begin_draw(sk_handle_t handle, sk_model_t *model_ptr)
 
 static bool push_item(int draw, int prim, bool blended)
 {
-    if (sk_model_item_count >= MAX_MODEL_ITEMS) {
-        log_queue_full();
+    if (!reserve_queue((void **)&sk_model_items, &sk_model_item_capacity, sk_model_item_count,
+                       sizeof(*sk_model_items), MODEL_ITEMS_INITIAL, MAX_MODEL_ITEMS)) {
         return false;
     }
     sk_model_items[sk_model_item_count++] = (sk_model_item_t){
@@ -2868,6 +2901,13 @@ bool sk_model_has_shadow_casters(int light_env)
 
 /* Whether anything queued for this environment is darkened by shadows at all. A map
  * nothing samples is a pass for nothing, so the shadow module asks before drawing it. */
+void sk_model_queue_counts(int *placements, int *primitives, int *placement_ceiling)
+{
+    if (placements != NULL) *placements = sk_model_draw_count;
+    if (primitives != NULL) *primitives = sk_model_item_count;
+    if (placement_ceiling != NULL) *placement_ceiling = MAX_MODEL_DRAWS;
+}
+
 bool sk_model_has_shadow_receivers(int light_env)
 {
     for (int i = 0; i < sk_model_item_count; i++) {
@@ -3145,6 +3185,13 @@ void sk_model_init(void)
 
 void sk_model_deinit(void)
 {
+    free(sk_model_draws);
+    free(sk_model_items);
+    sk_model_draws = NULL;
+    sk_model_items = NULL;
+    sk_model_draw_capacity = sk_model_item_capacity = 0;
+    sk_model_draw_count = sk_model_item_count = 0;
+    sk_model_queue_full_logged = false;
     sg_destroy_sampler(sk_model_shadow_fallback_sampler);
     sg_destroy_view(sk_model_shadow_fallback_view);
     sg_destroy_image(sk_model_shadow_fallback_img);
