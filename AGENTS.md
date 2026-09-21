@@ -119,6 +119,29 @@ Keep this file short and rule-shaped. The authoritative design doc is
   networking beyond asset downloads (WebSockets, HTTP APIs, multiplayer) are separate
   modules/repos built on the public API; don't add them here.
 
+## Docs: which one is true
+
+- **`include/*.h` is the contract.** A header comment says what the code does *now*,
+  and changes in the same commit the behavior does. It is the one place never allowed
+  to lag.
+- **`docs/PLAN-*.md` is a proposal plus its own history.** The `Status:` line at the
+  top is current; everything under it -- "Proposed design", the API sketch, "Phase N as
+  built" -- records what was thought or shipped at the time and is *not* rewritten when
+  later work supersedes it. A stale-looking line inside "Phase 1 as built" is accurate
+  as history: update the Status line, don't edit the record.
+- **`docs/TASKS.md` is a checklist; a ticked box is history** -- its text describes what
+  was true when it was ticked, not necessarily now.
+- So: for current behavior read the header and the code. Read a plan for *why*, and for
+  what was already tried. When a header and a plan disagree, check the code and fix the
+  header -- that disagreement is the bug, not the plan.
+- **Sweep the headers when a phase lands.** Whatever a plan's `Status:` line gains,
+  re-read that subsystem's header in the same commit: a limit that grew, a case that
+  used to be refused, a "for now" that stopped being true. `include/` is 34 files and
+  ~2500 lines, so a full sweep is an afternoon's reading at worst -- worth doing
+  whenever several phases have landed since the last one. The shadow comment that
+  claimed one directional caster when four lights and spots already worked is what
+  this rule is for.
+
 ## Resource / Object model
 
 libwgrender layers everything loadable as **Asset → Resource → Object** (full detail in
