@@ -42,8 +42,12 @@ vec3_t wgr_emitter3d_get_position(wgr_handle_t emitter);
 
 /* Emission: a steady rate (particles per second; 0 for bursts only), and bursts of
  * `count` at once. set_emitting(false) stops the steady rate; the particles alive
- * finish their lives. At most `max` are alive at once (default 1024): new ones
- * replace the oldest. Life: each particle's, seconds, between min and max. */
+ * finish their lives. At most `max` are alive at once (default 1024, capped at
+ * 65536): new ones replace the oldest. Life: each particle's, seconds, between min
+ * and max.
+ *
+ * Particles are unlit: the texture times the particle's color, with no material and
+ * no scene lighting (a lit effect wants sprite3d objects with a material). */
 bool wgr_emitter3d_set_rate(wgr_handle_t emitter, float per_second);
 bool wgr_emitter3d_burst(wgr_handle_t emitter, int count);
 bool wgr_emitter3d_set_emitting(wgr_handle_t emitter, bool emitting);

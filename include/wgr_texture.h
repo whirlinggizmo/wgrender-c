@@ -32,6 +32,11 @@ wgr_handle_t wgr_texture_get_default(void);
  * resources loaded after the call. */
 wgr_handle_t wgr_texture_get_placeholder(void);
 bool        wgr_texture_set_placeholder(wgr_handle_t texture);
+/* A path ending .ktx names a texture compressed for GPUs (tools/compress_textures.sh):
+ * name.bc7.ktx, name.astc.ktx or name.etc2.ktx is loaded, whichever this GPU can
+ * sample first, and name.png when none of them can. On the web only the chosen one
+ * downloads. Name the plain "name.ktx"; naming a variant outright loads that one,
+ * with no fallback. */
 wgr_handle_t wgr_texture_create(const char *path);
 
 /* A texture you can draw into (a render target): width x height pixels, cleared

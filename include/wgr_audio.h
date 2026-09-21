@@ -8,8 +8,8 @@ extern "C" {
 #include "wgr_types.h"
 
 /* Audio resource (kind AUDIO): decoded PCM loaded from a source asset (path),
- * reference-counted and deduplicated. Sound and Music objects reference an Audio
- * by handle. See docs/ARCHITECTURE.md. */
+ * reference-counted and deduplicated. Sound objects reference an Audio by handle
+ * (looping music is a Sound too). See docs/ARCHITECTURE.md. */
 
 wgr_handle_t wgr_audio_create(const char *path);
 /* Drop this handle's reference to the resource. Resources are shared and

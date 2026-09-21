@@ -23,7 +23,8 @@ extern "C" {
  *   Colors from color handles and color textures (base color, emissive) are sRGB
  *   and converted to linear; numeric color values (vec3/vec4) are already linear,
  *   like glTF factors. Metallic-roughness, normal and occlusion textures are
- *   linear data. Textures use texture coordinate set 0.
+ *   linear data. Textures use texture coordinate set 0 unless <t>_texcoord says
+ *   otherwise (below).
  *
  * Parameters are set by name. Setters return false for an unknown name or a
  * value of the wrong kind.

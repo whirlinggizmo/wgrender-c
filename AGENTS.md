@@ -167,11 +167,11 @@ enforced by `tools/check_naming.sh` (run by `make check`), not just convention.
 Creation follows one pattern, no exceptions:
 
 - **Resource** ← created from a **path** (or a generator): `wgr_texture_create(path)`,
-  `wgr_mesh_create(path)`, `wgr_audio_create(path)`, `wgr_font_create(path, size)`,
+  `wgr_mesh_create(path)`, `wgr_audio_create(path)`, `wgr_font_create(path)`,
   `wgr_mesh_create_cube(...)`.
 - **Object** ← created from a **resource handle**, never a path:
   `wgr_sprite3d_create(texture)`, `wgr_model_create(mesh)`, `wgr_sound_create(audio)`,
-  `wgr_text2d_create(font, size)`.
+  `wgr_text2d_create(font)`.
 - Bare `_create` for both — the **noun** says which (resource noun → path, object
   noun → handle). **No** `_create_from_memory` and **no** "create object from
   file" shortcut; loading bytes and turning them into a resource is internal.

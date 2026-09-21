@@ -25,8 +25,8 @@ extern "C" {
  * Files are also loaded before the callback fires, so creating the resource in the
  * callback is cheap: decoding runs on worker threads, and GPU uploads run on the
  * main thread within a per-frame budget (wgr_asset_set_upload_budget). The extension
- * names the resource: .png/.jpg/.jpeg a texture, .gltf/.glb a mesh, .hdr an
- * environment, .wav/.ogg/.mp3 audio. A resource the callback doesn't create is
+ * names the resource: .png/.jpg/.jpeg a texture, .ktx a compressed texture
+ * (wgr_texture.h), .gltf/.glb a mesh, .hdr an environment, .wav/.ogg/.mp3 audio. A resource the callback doesn't create is
  * freed after it returns; pass WGR_ASSET_FILE_ONLY for a file used any other way
  * (a PNG for wgr_environment_create, say). A file that can't be loaded fires the
  * failure callback. */
