@@ -458,12 +458,36 @@ felt awkward, and the libwgrender design. Update `tools/parity.map` with the out
       retry. Patched for now -- fontstash rejecting a file evicts it -- but registering a
       loader would fix the class rather than the case, and moves reading a big font off
       the main thread
-- [ ] Web performance on a low-end phone (Adreno 610, WEB_THREADS=0 build, measured
-      2026-09-20): 60 FPS for most examples; instancing 13, shadows 13, postprocess 21,
-      meshes 26, materials 30, shaders 31, environment 41. Instancing draws 400 cubes,
-      six skinned walkers and a casting sun, so 13 is not absurd, but it is the first
-      real data about where the floor is. Worth a pass with `make webstart` and the
-      spritebench/shadowbench numbers from a phone before optimising anything
+- [ ] Web performance on a low-end phone (Adreno 610, WEB_THREADS=0 build). Frame
+      rates measured 2026-09-20: 60 FPS for most examples; instancing 13, shadows 13,
+      postprocess 21, meshes 26, materials 30, shaders 31, environment 41. The
+      measurement pass that entry asked for is done (2026-09-21, same phone, served
+      over `adb reverse`), and it says the floor is CPU submit, not the GPU:
+      - `make webstart`: startup is a flat ~400 ms of JS+wasm fetch and compile that
+        caching barely moves (warm and hot land within noise of cold -- the wasm is
+        105-286 KB gzipped and it is not the download), then ~150 ms to the first
+        frame. What separates the examples is `ready`, the first frame with nothing
+        pending: loading 4.0 s, environment 4.0 s, shaders 2.9 s, instancing 1.5 s,
+        shadows 1.4 s, and everything else under 1.1 s. So startup work is asset and
+        shader work, not load time
+      - `make shadowbench-web`: one casting light costs ~16-20 ms of CPU at any model
+        count (100 models: 1.9 ms off, 18.2 ms with a sun), and the shadow map's size
+        is free within noise -- 1024, 2048 and 4096 all land at 18-24 ms. Two lights
+        add ~9 ms. Most of it is on the *receiving* side, not the caster pass: with
+        nothing receiving, 5.7 ms instead of 18.2, and the difference is all submit
+        (3.8 vs 16.5), i.e. the pipeline and binding changes a receiving draw needs
+      - the two levers are both about draw count. Instancing (`shared`) at 4000 models:
+        44.7 ms against 75.0 ms per-model, and 44.9 vs 113.2 in the wide case. Frustum
+        culling at 4000: 11.0 ms facing away with it on, 67.7 ms with it off
+      - `make spritebench-web`: emitters are about ten times cheaper than sprite
+        objects for the same particle count -- 16000 particles is 2.0 ms through an
+        emitter and 23.9 ms as sprite3d objects moved by the CPU, nearly all of it
+        scene-build time. The one cliff is texture switching: "field, 4 textures" at
+        16000 spends 17.2 ms in submit where the atlas version spends 0.8
+      So: optimise draw submission (fewer pipeline changes on shadow receivers, wider
+      instancing, batching across textures), not fill rate or map sizes. Worth
+      re-measuring `ready` for loading/environment/shaders before anything else, since
+      seconds there dwarf the frame costs
 - [ ] Lit particles: emitter particles are unlit — emitters have their own program
       (`particle` = vs_particle + the unlit `fs` in src/shaders/wgr_sprite.glsl) and no
       material API, so the only lit "particles" today are sprite3d objects moved by the
