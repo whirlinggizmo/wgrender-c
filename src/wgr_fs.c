@@ -4,9 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#if !defined(_WIN32)
 #include <unistd.h>
+#endif
 #if defined(_WIN32)
-#include <direct.h> /* _mkdir: Windows' mkdir takes no mode */
+#include <direct.h> /* _mkdir: Windows' mkdir takes no mode; _getcwd for getcwd */
 #define mkdir(path, mode) _mkdir(path)
 #endif
 
@@ -239,7 +241,11 @@ void wgri_fs_init(const char *root_dir)
     wgr_fs_store_open(wgr_fs_root, WGR_FS_CACHE_EPOCH);
     log_info("wgr_fs: files in %s, kept in IndexedDB", wgr_fs_root);
 #else
+#if defined(_WIN32)
+    char *cwd = _getcwd(NULL, 0); /* same NULL, 0 -> malloc contract as POSIX */
+#else
     char *cwd = getcwd(NULL, 0);
+#endif
     log_info("wgr_fs: using stdio relative to working dir (absolute path=%s/%s)", cwd != NULL ? cwd : "?", wgr_fs_root);
     free(cwd);
 #endif

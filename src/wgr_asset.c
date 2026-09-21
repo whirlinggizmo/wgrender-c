@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#if defined(_MSC_VER) && !defined(S_ISDIR)
+#define S_ISDIR(mode) (((mode) & _S_IFMT) == _S_IFDIR) /* MSVC has stat(), not S_IS* */
+#endif
 
 #include "internal/exports_internal.h"
 #include "internal/wgr_asset_internal.h"

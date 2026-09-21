@@ -49,7 +49,7 @@ const wgri_module_t *wgri_module_list(void);
 #define WGRI_MODULE(module)                                                            \
     static void wgri_register_##module(void) { wgri_module_register(&module); }          \
     __declspec(allocate(".CRT$XCU")) void (*wgri_register_##module##_ptr)(void) = \
-        wgri_register_##module
+        wgri_register_##module;
 #else
 #define WGRI_MODULE(module)                                                      \
     __attribute__((constructor)) static void wgri_register_##module(void)        \
