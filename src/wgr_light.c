@@ -261,7 +261,8 @@ bool wgri_light_get_scene_light(wgr_handle_t light, wgri_scene_light_t *out)
     return true;
 }
 
-/* A power of two in range: the map size the GPU actually gets. */
+/* A power of two in range: the map size the GPU actually gets. Clamps both ways --
+ * below WGR_SHADOW_MAP_SIZE_MIN rounds up to it. */
 static int shadow_map_size(int size)
 {
     int rounded = WGR_SHADOW_MAP_SIZE_MIN;
@@ -300,7 +301,7 @@ bool wgri_light_shadow_set_distance(wgr_handle_t light, float distance)
 bool wgri_light_shadow_set_map_size(wgr_handle_t light, int size)
 {
     wgr_light_t *light_ptr = resolve(light);
-    if (light_ptr == NULL || size < WGR_SHADOW_MAP_SIZE_MIN) return false;
+    if (light_ptr == NULL || size < 1) return false; /* a size, so <= 0 means nothing; in range it's a fidelity, so clamp */
     light_ptr->shadow_map_size = shadow_map_size(size);
     return true;
 }

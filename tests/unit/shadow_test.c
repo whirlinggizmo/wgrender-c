@@ -84,7 +84,10 @@ void test_shadow_state(void)
     CHECK(!wgr_light_set_shadow_distance(sun, 0.0f));
     CHECK(!wgr_light_set_shadow_distance(sun, -5.0f));
     CHECK(wgr_light_set_shadow_map_size(sun, 1024));
-    CHECK(!wgr_light_set_shadow_map_size(sun, 64)); /* below the smallest map */
+    CHECK(wgr_light_set_shadow_map_size(sun, 64));   /* a fidelity: clamped up to 256, not refused */
+    CHECK(wgr_light_set_shadow_map_size(sun, 9000)); /* and down to 4096 */
+    CHECK(!wgr_light_set_shadow_map_size(sun, 0));   /* a size of nothing means nothing */
+    CHECK(!wgr_light_set_shadow_map_size(sun, -256));
     CHECK(wgr_light_set_shadow_bias(sun, 2.0f, 6.0f)); /* in shadow texels */
     CHECK(!wgr_light_set_shadow_bias(sun, -2.0f, 6.0f));
     CHECK(!wgr_light_set_shadow_bias(sun, 2.0f, -6.0f));
