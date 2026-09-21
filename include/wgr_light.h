@@ -54,8 +54,10 @@ bool wgr_light_is_enabled(wgr_handle_t light);
 
 /* Shadows (docs/PLAN-shadows.md). A casting light draws what it can see into a depth
  * map once a frame, and surfaces behind something are darkened. Off by default: a map
- * costs a pass and its memory. Directional lights cast for now; spot and point lights
- * are ignored (warned once). One casting light per scene: the first one found casts.
+ * costs a pass and its memory. Directional and spot lights cast; a point light is
+ * ignored (warned once) — it would need six maps, one each way. Up to four lights cast
+ * at once, in the order the scene finds them; past that a light lights the scene
+ * without shadowing it.
  *
  * Models say whether they take part (wgr_model_set_casts_shadow /
  * wgr_model_set_receives_shadow); sprites with a material receive but don't cast. */
