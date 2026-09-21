@@ -42,8 +42,8 @@ typedef enum {
 /* Flags for wgr_asset_ensure_async (bitmask). */
 enum {
     WGR_ASSET_NONE        = 0,
-    WGR_ASSET_FORCE_FETCH = 1 << 0, /* re-download even if cached; no-op where no
-                                      network fetch exists (desktop today) */
+    WGR_ASSET_FORCE_FETCH = 1 << 0, /* re-download even if cached; no-op where nothing
+                                      can download (desktop without a fetcher) */
     WGR_ASSET_FILE_ONLY   = 1 << 1, /* only make the file local; don't load it as the
                                       resource its extension names (see below) */
 };
@@ -71,7 +71,9 @@ bool wgr_asset_set_cache_dir(const char *dir);
  * WinHTTP and NSURLSession all hand you anyway. The directories above `dest_path`
  * already exist.
  *
- * Without a fetcher, a miss on desktop fails as it always has. */
+ * Without a fetcher, a miss on desktop fails as it always has. With one, a miss
+ * downloads whenever there is a source: the host if it's a URL, or whatever the task
+ * was told to use (a fetch_url, or a "://" redirect target). */
 typedef void (*wgr_asset_fetch_fn)(wgr_handle_t request, const char *url,
                                    const char *dest_path, void *user_data);
 bool wgr_asset_set_fetcher(wgr_asset_fetch_fn fn, void *user_data);
@@ -96,7 +98,9 @@ void wgr_asset_clear_cache(void);
  *             download location when fetched.
  *   fetch_url optional per-call override of the download SOURCE only — a URL /
  *             mirror / signed link, used verbatim; bytes are still cached and
- *             resolved under `path`. NULL = use the default host + path.
+ *             resolved under `path`. NULL = use the default host + path. On desktop
+ *             it needs a fetcher, but not a URL host: a task told where to download
+ *             from downloads from there.
  *   flags     bitmask of WGR_ASSET_* (e.g. WGR_ASSET_FORCE_FETCH).
  *
  * Returns a task handle (kind ASSET_TASK) to attach callbacks to, or 0. */
@@ -133,8 +137,9 @@ float wgr_asset_get_progress(wgr_handle_t task);
  *       textures/rock.png loads mods/hd/textures/rock.png if it exists, else
  *       textures/rock.png
  *   wgr_asset_add_redirect("models/", "https://cdn.example.com/game/models/");
- *       a target with "://" is where the file downloads from (web; desktop builds
- *       don't download yet): it's still cached and loaded as models/...
+ *       a target with "://" is where the file downloads from -- the browser on the
+ *       web, your fetcher on desktop (wgr_asset_set_fetcher): it's still cached and
+ *       loaded as models/...
  *
  * Rules stack: every path rule matching a file is tried, the one added last first,
  * then the file's own path, so later rules sit on top (a mod over a mod, fr-CA over

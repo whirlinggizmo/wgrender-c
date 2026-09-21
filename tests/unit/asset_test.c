@@ -130,6 +130,41 @@ void test_asset_fetch_hook(void)
     for (int i = 0; i < 8; i++) wgri_asset_tick();
     CHECK(fetch_calls == 2); /* it went back to the fetcher rather than the cache */
 
+    /* A per-call fetch_url is the download source, used verbatim -- the web path has
+       always honoured it (start_fetch); desktop built host + path regardless, so a
+       mirror or a signed link was silently ignored here. */
+    fetch_calls = 0;
+    CHECK(wgr_asset_evict("textures/rock.png"));
+    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", "https://mirror.example.net/signed/rock.png?sig=1",
+                                              WGR_ASSET_FILE_ONLY),
+                       on_ready, on_failed, NULL);
+    for (int i = 0; i < 8; i++) wgri_asset_tick();
+    CHECK(fetch_calls == 1);
+    CHECK(strcmp(fetched_url, "https://mirror.example.net/signed/rock.png?sig=1") == 0);
+    CHECK(wgri_fs_exists("textures/rock.png")); /* cached under the logical path, not the URL */
+
+    /* and it doesn't need a URL host: a task told where to download from downloads */
+    wgr_asset_set_host("build/test-asset-cache");
+    fetch_calls = 0;
+    CHECK(wgr_asset_evict("textures/rock.png"));
+    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", "https://mirror.example.net/rock.png",
+                                              WGR_ASSET_FILE_ONLY),
+                       on_ready, on_failed, NULL);
+    for (int i = 0; i < 8; i++) wgri_asset_tick();
+    CHECK(fetch_calls == 1 && strcmp(fetched_url, "https://mirror.example.net/rock.png") == 0);
+
+    /* a "://" redirect target is a download source too, on desktop as on the web */
+    wgr_asset_set_host("https://assets.example.com/game");
+    wgr_asset_add_redirect("textures/", "https://cdn.example.com/hd/textures/");
+    fetch_calls = 0;
+    CHECK(wgr_asset_evict("textures/rock.png"));
+    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_FILE_ONLY), on_ready, on_failed,
+                       NULL);
+    for (int i = 0; i < 8; i++) wgri_asset_tick();
+    CHECK(fetch_calls == 1);
+    CHECK(strcmp(fetched_url, "https://cdn.example.com/hd/textures/rock.png") == 0);
+    wgr_asset_clear_redirects();
+
     wgr_asset_clear_cache(); /* desktop keeps the files; the web store is emptied */
 
     wgr_asset_set_fetcher(NULL, NULL);

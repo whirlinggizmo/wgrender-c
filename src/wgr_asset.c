@@ -415,12 +415,6 @@ bool wgr_asset_add_redirect(const char *prefix, const char *target)
     snprintf(wgr_asset_redirects[wgr_asset_redirect_count].prefix, sizeof(wgr_asset_redirects[0].prefix), "%s", prefix);
     snprintf(wgr_asset_redirects[wgr_asset_redirect_count].target, sizeof(wgr_asset_redirects[0].target), "%s", target);
     wgr_asset_redirects[wgr_asset_redirect_count].url = strstr(target, "://") != NULL;
-#ifndef __EMSCRIPTEN__
-    if (wgr_asset_redirects[wgr_asset_redirect_count].url) {
-        log_warn("wgr_asset_add_redirect: %s -> %s: desktop builds don't download yet; applies on the web", prefix,
-                 target);
-    }
-#endif
     wgr_asset_redirect_count++;
     return true;
 }
@@ -566,10 +560,11 @@ bool wgr_asset_ping_host(const char *host, int timeout_ms, wgr_asset_ping_fn on_
     wgr_asset_pings[slot].id = wgr_asset_ping_begin(url, timeout_ms);
     wgr_asset_pings[slot].result = PING_PENDING;
 #else
-    /* desktop: the host is a local directory (no downloads yet) */
+    /* desktop: a local directory is there or it isn't. A URL would need a request of
+     * its own, which the fetcher hook (files, not round trips) can't make. */
     struct stat st;
     if (strstr(host, "://") != NULL) {
-        log_warn("wgr_asset_ping_host: %s: desktop builds don't download yet", host);
+        log_warn("wgr_asset_ping_host: %s: no host ping on desktop; set a fetcher and time an ensure", host);
         wgr_asset_pings[slot].result = -1.0f;
     } else {
         wgr_asset_pings[slot].result = stat(host[0] != '\0' ? host : ".", &st) == 0 && S_ISDIR(st.st_mode) ? 0.0f : -1.0f;
@@ -1519,8 +1514,10 @@ void wgri_asset_tick(void)
         start_fetch(i); /* miss (or forced): download, cache, resolve on later ticks */
 #else
         /* Desktop: a hit resolves from the jailed local fs. A miss asks the app's
-         * fetcher, if the host is a URL and one is set; it answers on a later tick
-         * (wgr_asset_fetch_done). Without a fetcher a miss fails, as it always has. */
+         * fetcher, if one is set and there is somewhere to download from -- a URL host,
+         * or a source this task was given outright (a per-call fetch_url, or a URL
+         * redirect). It answers on a later tick (wgr_asset_fetch_done). Without a
+         * fetcher a miss fails, as it always has. */
         {
             const bool have = wgri_fs_exists(task->path);
             const bool forced = (task->flags & WGR_ASSET_FORCE_FETCH) != 0;
@@ -1528,9 +1525,15 @@ void wgri_asset_tick(void)
                 resolved(i, true);
                 continue;
             }
-            if (wgr_asset_fetcher != NULL && wgr_asset_host_is_url) {
-                char url[1024], dest[1024];
-                snprintf(url, sizeof(url), "%s/%s", wgr_asset_host, task->path);
+            if (wgr_asset_fetcher != NULL && (wgr_asset_host_is_url || task->fetch_url[0] != '\0')) {
+                char joined[1024], dest[1024];
+                const char *url; /* per-call override wins, as on the web (start_fetch) */
+                if (task->fetch_url[0] != '\0') {
+                    url = task->fetch_url;
+                } else {
+                    snprintf(joined, sizeof(joined), "%s/%s", wgr_asset_host, task->path);
+                    url = joined;
+                }
                 wgri_fs_resolve(task->path, dest, sizeof(dest));
                 wgri_fs_make_parents(task->path); /* the fetcher only has to write */
                 task->state = TASK_FETCHING;
