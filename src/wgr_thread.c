@@ -110,6 +110,10 @@ int wgri_thread_cpu_count(void)
 #  else
     const int count = 1;
 #  endif
+#elif defined(_WIN32)
+    SYSTEM_INFO info;
+    GetSystemInfo(&info);
+    const long count = (long)info.dwNumberOfProcessors;
 #else
     const long count = sysconf(_SC_NPROCESSORS_ONLN);
 #endif

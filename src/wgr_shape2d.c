@@ -8,6 +8,7 @@
 #include "wgr_color.h"
 #include "internal/wgr_handle_pool_internal.h"
 #include "internal/wgr_internal_internal.h"
+#include "internal/wgr_math_internal.h"
 #include "internal/wgr_pick_internal.h"
 #include "internal/wgr_scene_internal.h"
 #include "internal/wgr_shape2d_internal.h"

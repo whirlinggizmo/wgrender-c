@@ -6,6 +6,7 @@
 #include "internal/exports_internal.h"
 #include "internal/wgr_internal_internal.h"
 
+#include "internal/wgr_math_internal.h"
 #include "internal/wgr_platform_internal.h"
 #include "sokol_app.h" /* event types only */
 

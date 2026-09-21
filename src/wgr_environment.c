@@ -11,6 +11,7 @@
 #include "internal/wgr_environment_internal.h"
 #include "internal/wgr_handle_pool_internal.h"
 #include "internal/wgr_loader_internal.h"
+#include "internal/wgr_math_internal.h"
 #include "internal/wgr_render_internal.h"
 #include "wgr_logger.h"
 

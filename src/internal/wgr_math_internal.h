@@ -5,6 +5,9 @@
 
 #include "wgr_types.h"
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846 /* POSIX, not C: MSVC only defines it behind _USE_MATH_DEFINES */
+#endif
 #define WGRI_DEG2RAD 0.01745329251994329577f /* degrees -> radians (pi / 180) */
 #define WGRI_RAD2DEG 57.2957795130823208768f /* radians -> degrees (180 / pi) */
 
