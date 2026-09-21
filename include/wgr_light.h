@@ -70,7 +70,8 @@ bool wgr_light_get_casts_shadows(wgr_handle_t light);
 bool wgr_light_set_shadow_distance(wgr_handle_t light, float distance);
 
 /* Pixels each way of the light's shadow map: 256 to 4096, rounded down to a power of
- * two (default 2048). Bigger is sharper and slower, and costs 2x the memory each step.
+ * two and clamped to that range (default 2048). Bigger is sharper and slower, and costs
+ * 2x the memory each step.
  * The casting lights in a scene share one map, so they all get the largest size any of
  * them asked for: keep them the same unless you mean it. */
 bool wgr_light_set_shadow_map_size(wgr_handle_t light, int size);

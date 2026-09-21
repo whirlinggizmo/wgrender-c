@@ -104,7 +104,7 @@ const char *wgr_input_get_gamepad_name(int pad); /* "" when none */
 int wgr_input_get_gamepad_button(int pad, wgr_gamepad_button_t button); /* WGR_BUTTON_* */
 float wgr_input_get_gamepad_axis(int pad, wgr_gamepad_axis_t axis);
 /* Sticks: how far from the middle counts as the middle (0 .. 0.9; default 0.15).
- * Past it, values rescale to reach 1 at the edge. */
+ * Past it, values rescale to reach 1 at the edge. False outside that range. */
 bool wgr_input_set_gamepad_deadzone(float radius);
 
 /* Whether game controls (camera drags, 3D selection, hotkeys) should leave the pointer

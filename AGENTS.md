@@ -134,6 +134,13 @@ Keep this file short and rule-shaped. The authoritative design doc is
 - So: for current behavior read the header and the code. Read a plan for *why*, and for
   what was already tried. When a header and a plan disagree, check the code and fix the
   header -- that disagreement is the bug, not the plan.
+- **Say clamp or refuse, and mean it.** Clamp when every value in range is the same
+  request at a different fidelity (a corner radius, a segment count, a map size);
+  refuse -- return false -- when the value would change what the program asked for or
+  has no meaning (an emitter's particle cap, a zero extent, an unknown parameter). A
+  setter's comment uses the word that matches the code, and "false for ..." names
+  every refusal: a binding decides method-or-property from that sentence, so "capped"
+  on a setter that refuses changes someone else's API.
 - **Sweep the headers when a phase lands.** Whatever a plan's `Status:` line gains,
   re-read that subsystem's header in the same commit: a limit that grew, a case that
   used to be refused, a "for now" that stopped being true. `include/` is 34 files and
