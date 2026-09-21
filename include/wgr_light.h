@@ -69,8 +69,8 @@ bool wgr_light_get_casts_shadows(wgr_handle_t light);
  * shadow; a spot light covers its cone out to this or its range, whichever is nearer. */
 bool wgr_light_set_shadow_distance(wgr_handle_t light, float distance);
 
-/* Pixels each way of the light's shadow map: 256 to 4096, rounded down to a power of
- * two and clamped to that range (default 2048). Bigger is sharper and slower, and costs
+/* Pixels each way of the light's shadow map, rounded down to a power of two (default
+ * 2048): false below 256, clamped above 4096. Bigger is sharper and slower, and costs
  * 2x the memory each step.
  * The casting lights in a scene share one map, so they all get the largest size any of
  * them asked for: keep them the same unless you mean it. */
