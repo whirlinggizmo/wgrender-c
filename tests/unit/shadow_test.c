@@ -95,8 +95,8 @@ void test_shadow_state(void)
     /* how much light a shadow takes away, and what it leaves behind */
     CHECK(wgr_light_set_shadow_strength(sun, 0.5f));
     CHECK(wgr_light_set_shadow_strength(sun, 0.0f) && wgr_light_set_shadow_strength(sun, 1.0f));
-    CHECK(!wgr_light_set_shadow_strength(sun, -0.1f));
-    CHECK(!wgr_light_set_shadow_strength(sun, 1.5f));
+    CHECK(wgr_light_set_shadow_strength(sun, -0.1f)); /* a fraction: clamped, not refused */
+    CHECK(wgr_light_set_shadow_strength(sun, 1.5f));
     CHECK(wgr_light_set_shadow_color(sun, wgr_color_rgba(30, 60, 100, 255)));
     CHECK(wgr_light_set_shadow_color(sun, WGR_COLOR_BLACK));
 

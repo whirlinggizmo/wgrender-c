@@ -202,7 +202,11 @@ int wgri_platform_current_monitor(void) { return sapp_current_display(); }
 
 bool wgri_platform_set_monitor(int monitor)
 {
-    if (monitor < 0 || monitor >= sapp_num_displays() || !can_move()) return false;
+    if (monitor < 0 || monitor >= sapp_num_displays()) {
+        log_warn("wgr_window_set_monitor: %d: monitors are 0 .. %d", monitor, sapp_num_displays() - 1);
+        return false;
+    }
+    if (!can_move()) return false;
     sapp_set_display(monitor);
     return true;
 }
@@ -269,7 +273,10 @@ bool wgri_platform_is_headless(void) { return true; }
  * size; resizing works, the rest has nothing to act on. */
 bool wgri_platform_set_window_size(int width, int height)
 {
-    if (width <= 0 || height <= 0) return false;
+    if (width <= 0 || height <= 0) {
+        log_warn("wgr_window_set_size: %d x %d: both have to be more than 0", width, height);
+        return false;
+    }
     wgr_headless.desc.width = width;
     wgr_headless.desc.height = height;
     return true;

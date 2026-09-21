@@ -76,8 +76,9 @@ bool wgr_light_set_shadow_distance(wgr_handle_t light, float distance);
  * them asked for: keep them the same unless you mean it. */
 bool wgr_light_set_shadow_map_size(wgr_handle_t light, int size);
 
-/* How much of this light a shadow blocks (0..1, default 1 = all of it). Less leaves
- * some of it through, for a softer look that doesn't depend on the scene's ambient. */
+/* How much of this light a shadow blocks (0..1, clamped; default 1 = all of it). Less
+ * leaves some of it through, for a softer look that doesn't depend on the scene's
+ * ambient. */
 bool wgr_light_set_shadow_strength(wgr_handle_t light, float strength);
 
 /* A colour mixed into what a shadow leaves behind (default black: nothing added).

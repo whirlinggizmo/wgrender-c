@@ -609,7 +609,9 @@ WGRI_KEEP
 bool wgr_sprite2d_set_alpha_mode(wgr_handle_t sprite, wgr_alpha_mode_t mode, float cutoff)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
-    if (sprite_ptr == NULL || mode < WGR_ALPHA_OPAQUE || mode > WGR_ALPHA_ADD) {
+    if (sprite_ptr == NULL) return false;
+    if (mode < WGR_ALPHA_OPAQUE || mode > WGR_ALPHA_ADD) {
+        log_warn("wgr_sprite2d_set_alpha_mode: %d is not a wgr_alpha_mode_t", (int)mode);
         return false;
     }
     sprite_ptr->alpha_mode = mode;

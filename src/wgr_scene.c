@@ -606,6 +606,7 @@ bool wgr_scene_set_layer(wgr_handle_t scene, wgr_handle_t drawable, int layer)
     }
     idx = find_entry(scene_ptr, drawable);
     if (idx < 0) {
+        log_warn("wgr_scene_set_layer: %u is not in the scene", (unsigned int)drawable);
         return false;
     }
     scene_ptr->items[idx].layer = layer;
@@ -623,6 +624,7 @@ bool wgr_scene_remove(wgr_handle_t scene, wgr_handle_t drawable)
     }
     idx = find_entry(scene_ptr, drawable);
     if (idx < 0) {
+        log_warn("wgr_scene_remove: %u is not in the scene", (unsigned int)drawable);
         return false;
     }
     remove_entry(scene_ptr, idx); /* the rest keep their order */
@@ -727,7 +729,9 @@ WGRI_KEEP
 bool wgr_scene_set_environment(wgr_handle_t scene, wgr_handle_t environment, float intensity, float rotation)
 {
     wgr_scene_t *scene_ptr = resolve(scene);
-    if (scene_ptr == NULL || (environment != 0 && wgr_handle_get_kind(environment) != WGR_HANDLE_KIND_ENVIRONMENT)) {
+    if (scene_ptr == NULL) return false;
+    if (environment != 0 && wgr_handle_get_kind(environment) != WGR_HANDLE_KIND_ENVIRONMENT) {
+        log_warn("wgr_scene: %u is not an environment", (unsigned int)environment);
         return false;
     }
     retain_environment(environment); /* no-op for 0 */
@@ -742,7 +746,9 @@ WGRI_KEEP
 bool wgr_scene_set_background(wgr_handle_t scene, wgr_handle_t environment, float blur)
 {
     wgr_scene_t *scene_ptr = resolve(scene);
-    if (scene_ptr == NULL || (environment != 0 && wgr_handle_get_kind(environment) != WGR_HANDLE_KIND_ENVIRONMENT)) {
+    if (scene_ptr == NULL) return false;
+    if (environment != 0 && wgr_handle_get_kind(environment) != WGR_HANDLE_KIND_ENVIRONMENT) {
+        log_warn("wgr_scene: %u is not an environment", (unsigned int)environment);
         return false;
     }
     retain_environment(environment);
@@ -756,7 +762,9 @@ WGRI_KEEP
 bool wgr_scene_set_tonemap(wgr_handle_t scene, wgr_tonemap_t tonemap, float exposure)
 {
     wgr_scene_t *scene_ptr = resolve(scene);
-    if (scene_ptr == NULL || tonemap < WGR_TONEMAP_NONE || tonemap > WGR_TONEMAP_ACES) {
+    if (scene_ptr == NULL) return false;
+    if (tonemap < WGR_TONEMAP_NONE || tonemap > WGR_TONEMAP_ACES) {
+        log_warn("wgr_scene_set_tonemap: %d is not a wgr_tonemap_t", (int)tonemap);
         return false;
     }
     scene_ptr->tonemap = tonemap;

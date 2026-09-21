@@ -190,7 +190,11 @@ WGRI_KEEP
 bool wgr_sprite3d_set_extent(wgr_handle_t handle, float width, float height)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
-    if (sprite_ptr == NULL || width <= 0.0f || height <= 0.0f) return false;
+    if (sprite_ptr == NULL) return false;
+    if (width <= 0.0f || height <= 0.0f) {
+        log_warn("wgr_sprite3d_set_extent: %g x %g: both have to be more than 0", width, height);
+        return false;
+    }
     sprite_ptr->width = width;
     sprite_ptr->height = height;
     return true;
@@ -222,7 +226,11 @@ WGRI_KEEP
 bool wgr_sprite3d_set_facing(wgr_handle_t handle, wgr_sprite3d_facing_t facing)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
-    if (sprite_ptr == NULL || facing < WGR_SPRITE3D_FACING_CAMERA || facing > WGR_SPRITE3D_FACING_FREE) return false;
+    if (sprite_ptr == NULL) return false;
+    if (facing < WGR_SPRITE3D_FACING_CAMERA || facing > WGR_SPRITE3D_FACING_FREE) {
+        log_warn("wgr_sprite3d_set_facing: %d is not a wgr_sprite3d_facing_t", (int)facing);
+        return false;
+    }
     sprite_ptr->facing = facing;
     return true;
 }
@@ -393,7 +401,9 @@ WGRI_KEEP
 bool wgr_sprite3d_set_alpha_mode(wgr_handle_t handle, wgr_alpha_mode_t mode, float cutoff)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
-    if (sprite_ptr == NULL || mode < WGR_ALPHA_OPAQUE || mode > WGR_ALPHA_ADD) {
+    if (sprite_ptr == NULL) return false;
+    if (mode < WGR_ALPHA_OPAQUE || mode > WGR_ALPHA_ADD) {
+        log_warn("wgr_sprite3d_set_alpha_mode: %d is not a wgr_alpha_mode_t", (int)mode);
         return false;
     }
     sprite_ptr->alpha_mode = mode;

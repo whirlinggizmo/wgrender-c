@@ -230,6 +230,7 @@ bool wgr_asset_fetch_done(wgr_handle_t request, bool ok)
 bool wgr_asset_set_cache_dir(const char *dir)
 {
     if (dir == NULL || *dir == '\0') {
+        log_warn("wgr_asset_set_cache_dir: a directory is needed");
         return false;
     }
     snprintf(wgr_asset_cache_dir, sizeof(wgr_asset_cache_dir), "%s", dir);

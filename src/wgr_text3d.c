@@ -383,7 +383,11 @@ WGRI_KEEP
 bool wgr_text3d_set_size(wgr_handle_t handle, float size)
 {
     wgr_text3d_t *text_ptr = resolve(handle);
-    if (text_ptr == NULL || size <= 0.0f) return false;
+    if (text_ptr == NULL) return false;
+    if (size <= 0.0f) {
+        log_warn("wgr_text3d_set_size: %g: the size has to be more than 0", size);
+        return false;
+    }
     text_ptr->size = size;
     return true;
 }
@@ -426,7 +430,11 @@ WGRI_KEEP
 bool wgr_text3d_set_facing(wgr_handle_t handle, wgr_sprite3d_facing_t facing)
 {
     wgr_text3d_t *text_ptr = resolve(handle);
-    if (text_ptr == NULL || facing < WGR_SPRITE3D_FACING_CAMERA || facing > WGR_SPRITE3D_FACING_FREE) return false;
+    if (text_ptr == NULL) return false;
+    if (facing < WGR_SPRITE3D_FACING_CAMERA || facing > WGR_SPRITE3D_FACING_FREE) {
+        log_warn("wgr_text3d_set_facing: %d is not a wgr_sprite3d_facing_t", (int)facing);
+        return false;
+    }
     text_ptr->facing = facing;
     return true;
 }

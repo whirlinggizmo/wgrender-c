@@ -90,8 +90,9 @@ WGRI_KEEP
 bool wgr_camera3d_set_projection(wgr_handle_t camera, wgr_camera3d_projection_t projection)
 {
     wgri_camera3d_t *camera_ptr = lookup(camera);
-    if (camera_ptr == NULL ||
-        (projection != WGR_CAMERA3D_PERSPECTIVE && projection != WGR_CAMERA3D_ORTHOGRAPHIC)) {
+    if (camera_ptr == NULL) return false;
+    if (projection != WGR_CAMERA3D_PERSPECTIVE && projection != WGR_CAMERA3D_ORTHOGRAPHIC) {
+        log_warn("wgr_camera3d_set_projection: %d is not PERSPECTIVE or ORTHOGRAPHIC", (int)projection);
         return false;
     }
     camera_ptr->projection = projection;
@@ -110,7 +111,9 @@ WGRI_KEEP
 bool wgr_camera3d_set_fov(wgr_handle_t camera, float fov)
 {
     wgri_camera3d_t *camera_ptr = lookup(camera);
-    if (camera_ptr == NULL || !(fov > 0.0f && fov < 3.14159f)) {
+    if (camera_ptr == NULL) return false;
+    if (!(fov > 0.0f && fov < 3.14159f)) {
+        log_warn("wgr_camera3d_set_fov: %g: the field of view is radians, more than 0 and less than pi", fov);
         return false;
     }
     camera_ptr->fov = fov;
@@ -129,7 +132,9 @@ WGRI_KEEP
 bool wgr_camera3d_set_ortho_height(wgr_handle_t camera, float height)
 {
     wgri_camera3d_t *camera_ptr = lookup(camera);
-    if (camera_ptr == NULL || !(height > 0.0f)) {
+    if (camera_ptr == NULL) return false;
+    if (!(height > 0.0f)) {
+        log_warn("wgr_camera3d_set_ortho_height: %g: the height has to be more than 0", height);
         return false;
     }
     camera_ptr->ortho_height = height;

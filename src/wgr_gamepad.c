@@ -557,7 +557,10 @@ WGRI_KEEP float wgr_input_get_gamepad_axis(int pad, wgr_gamepad_axis_t axis)
 
 WGRI_KEEP bool wgr_input_set_gamepad_deadzone(float radius)
 {
-    if (!(radius >= 0.0f && radius <= 0.9f)) return false;
+    if (!(radius >= 0.0f && radius <= 0.9f)) {
+        log_warn("wgr_input_set_gamepad_deadzone: %g: the dead zone is 0 .. 0.9", radius);
+        return false;
+    }
     wgr_gp.deadzone = radius;
     return true;
 }

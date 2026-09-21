@@ -170,8 +170,10 @@ bool wgr_light_set_direction(wgr_handle_t light, float x, float y, float z)
 {
     wgr_light_t *light_ptr = resolve(light);
     vec3_t direction = wgri_v3_norm((vec3_t){x, y, z});
-    if (light_ptr == NULL || (direction.x == 0.0f && direction.y == 0.0f && direction.z == 0.0f)) {
-        return false; /* a zero vector has no direction */
+    if (light_ptr == NULL) return false;
+    if (direction.x == 0.0f && direction.y == 0.0f && direction.z == 0.0f) {
+        log_warn("wgr_light_set_direction: a zero vector has no direction");
+        return false;
     }
     light_ptr->direction = direction;
     return true;
@@ -293,7 +295,11 @@ bool wgri_light_shadow_casts(wgr_handle_t light)
 bool wgri_light_shadow_set_distance(wgr_handle_t light, float distance)
 {
     wgr_light_t *light_ptr = resolve(light);
-    if (light_ptr == NULL || !(distance > 0.0f)) return false;
+    if (light_ptr == NULL) return false;
+    if (!(distance > 0.0f)) {
+        log_warn("wgr_light_set_shadow_distance: %g: the distance has to be more than 0", distance);
+        return false;
+    }
     light_ptr->shadow_distance = distance;
     return true;
 }
@@ -301,7 +307,11 @@ bool wgri_light_shadow_set_distance(wgr_handle_t light, float distance)
 bool wgri_light_shadow_set_map_size(wgr_handle_t light, int size)
 {
     wgr_light_t *light_ptr = resolve(light);
-    if (light_ptr == NULL || size < 1) return false; /* a size, so <= 0 means nothing; in range it's a fidelity, so clamp */
+    if (light_ptr == NULL) return false;
+    if (size < 1) { /* a size, so <= 0 means nothing; in range it's a fidelity, so clamp */
+        log_warn("wgr_light_set_shadow_map_size: %d: a map has at least 1 pixel (256 after clamping)", size);
+        return false;
+    }
     light_ptr->shadow_map_size = shadow_map_size(size);
     return true;
 }
@@ -309,8 +319,8 @@ bool wgri_light_shadow_set_map_size(wgr_handle_t light, int size)
 bool wgri_light_shadow_set_strength(wgr_handle_t light, float strength)
 {
     wgr_light_t *light_ptr = resolve(light);
-    if (light_ptr == NULL || strength < 0.0f || strength > 1.0f) return false;
-    light_ptr->shadow_strength = strength;
+    if (light_ptr == NULL) return false;
+    light_ptr->shadow_strength = strength < 0.0f ? 0.0f : strength > 1.0f ? 1.0f : strength; /* a fraction: clamp */
     return true;
 }
 
@@ -325,7 +335,11 @@ bool wgri_light_shadow_set_color(wgr_handle_t light, wgr_color_t color)
 bool wgri_light_shadow_set_bias(wgr_handle_t light, float constant, float slope)
 {
     wgr_light_t *light_ptr = resolve(light);
-    if (light_ptr == NULL || constant < 0.0f || slope < 0.0f) return false;
+    if (light_ptr == NULL) return false;
+    if (constant < 0.0f || slope < 0.0f) {
+        log_warn("wgr_light_set_shadow_bias: %g, %g: a bias can't be negative", constant, slope);
+        return false;
+    }
     light_ptr->shadow_bias_constant = constant;
     light_ptr->shadow_bias_slope = slope;
     return true;
