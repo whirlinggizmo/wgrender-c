@@ -171,6 +171,23 @@ the sync `wgr_*_create(path)`. Bytes never cross into user code.
   callback or a hook (`wgri_render_hooks`, `wgri_scene_hooks`) instead. `make check`
   enforces it (`tools/check_modules.sh`). Details: ARCHITECTURE.md §7b.
 
+## Shaders
+
+- Authored once in `src/shaders/*.glsl`; `make shaders` regenerates the committed
+  `*.glsl.h` for every backend. Read the **generated** `glsl300es`, not just what you
+  wrote: shdc flattens a uniform block to one `uniform vec4 name[N]`, and GLES drivers
+  are strictest about how that array is indexed.
+- **Index a flattened uniform array at a constant, unconditionally.** Adreno's compiler
+  clamps a dynamic index only when it can bound it: a divided index (`arr[i / 4]`) and a
+  *branch* around the read both defeat it, and a ternary is a branch once shdc is done
+  with it. It fails the link with `cannot compute gv size for oob` -- a driver assertion,
+  not a limit -- and the draw silently produces nothing. Read every candidate and select
+  arithmetically (`mix(lo, hi, step(...))`). An affine `arr[i + k]` and a dynamic vector
+  component (`v[i % 4]`) are both fine. `src/shaders/wgr_sprite.glsl`'s `curve_key` is
+  the worked example.
+- A shader that only *some* GPUs reject won't show up in `make verify`, `make webcheck`
+  or CI. Link-check on a real low-end device when you touch one.
+
 ## Naming
 
 Family-wide rules (repo names, prefixes, where `lib` goes, ownership, vendoring) live

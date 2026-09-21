@@ -122,10 +122,23 @@ out vec2 uv;
 out vec4 color;
 out float alpha_mode;
 
-/* key i of a curve packed 4 to a vec4 */
-float size_time(int i) { vec4 q = size_times[i / 4]; return q[i % 4]; }
-float size_value(int i) { vec4 q = size_values[i / 4]; return q[i % 4]; }
-float color_time(int i) { vec4 q = color_times[i / 4]; return q[i % 4]; }
+/* Key i (0..7) of a curve packed 4 keys to a vec4, two vec4s to a curve.
+
+   Both halves are read every time and one is chosen arithmetically. The obvious
+   `curve[i / 4]`, and the ternary that replaced it, both break Adreno's GLES compiler
+   (a 610 on a 2020 driver, and likely its relatives): shdc flattens the block to one
+   `uniform vec4 particle_params[33]`, and the driver wants to clamp a dynamic index
+   into it. It manages that only when the index is a constant it can see — a divided
+   index it can't bound, and a *branch* around the read hides the index from it just as
+   well. Either way the link fails with `cannot compute gv size for oob` and the emitter
+   silently draws nothing. A plain `params[i + 17]` is fine, and so is the dynamic
+   component `q[i % 4]`; it is the array index alone that has to be constant and
+   unconditional. `mix`/`step` keeps it that way through shdc — check the generated
+   glsl300es stays branch-free if you touch this. */
+float curve_key(vec4 lo, vec4 hi, int i) { vec4 q = mix(lo, hi, step(3.5, float(i))); return q[i % 4]; }
+float size_time(int i) { return curve_key(size_times[0], size_times[1], i); }
+float size_value(int i) { return curve_key(size_values[0], size_values[1], i); }
+float color_time(int i) { return curve_key(color_times[0], color_times[1], i); }
 
 /* A curve at t: its first key's value before it, its last's after, and between two keys
    the line between them. */

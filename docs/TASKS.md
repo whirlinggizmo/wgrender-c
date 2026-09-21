@@ -437,14 +437,21 @@ felt awkward, and the libwgrender design. Update `tools/parity.map` with the out
       dropped both as "wgr_fs is internal" -- true of the filesystem, wrong about the
       capability, which is the failure mode "parity is functional, not 1:1" warns about.
       The map now points them at the asset-level functions
-- [ ] Bug (device): the emitter's shader doesn't link on Adreno 610 (moto g power 2021,
-      GLES 3.2 V@0502.0, driver dated 2020-12-29). The driver's own compiler gives up:
-      `Assertion failed: GVI && "cannot compute gv size for oob (no global info)"`, so
-      sokol reports GL_SHADER_LINKING_FAILED and `particles` simulates (2001 fountain,
-      518 sparks, 60 FPS) while drawing nothing. A driver assertion rather than a limit
-      we exceed, so the fix is to find which construct in src/shaders trips it --
-      dynamic indexing of a global array is the usual suspect -- and write it another
-      way. Everything else on that phone renders
+- [x] Bug (device): the emitter's shader didn't link on Adreno 610 (2026-09-20; moto g
+      power 2021, GLES 3.2 V@0502.0, driver dated 2020-12-29). The driver's own compiler
+      gave up -- `Assertion failed: GVI && "cannot compute gv size for oob (no global
+      info)"` -- so sokol reported GL_SHADER_LINKING_FAILED and `particles` simulated
+      (2001 fountain, 518 sparks, 60 FPS) while drawing nothing. Bisected on the device
+      by linking variants of the generated glsl300es in a bare WebGL2 page: the one
+      construct that trips it is the *array* index in `size_times[i / 4]`, where shdc
+      has flattened the block to `uniform vec4 particle_params[33]`. The driver clamps a
+      dynamic index into that array only when it can see the index is constant; a
+      divided index it can't bound, and -- the part that cost a second round -- a branch
+      around the read hides it just as well, so the obvious `i < 4 ? a : b` fails too
+      (shdc turns a ternary into if/else + phi). Both halves are now read unconditionally
+      and selected with `mix`/`step`, which shdc keeps branch-free. `params[i + 17]` and
+      the dynamic component `q[i % 4]` were never the problem. All ten glsl300es programs
+      link on that phone and `particles` draws at 60 FPS
 - [ ] Fonts want a .ttf/.otf loader (docs/TASKS.md above has the same follow-up):
       without one, a font is ensured as a plain file and `wgr_font_create` runs outside
       the asset layer, so a bad cached copy could not be healed by the asset layer's own
