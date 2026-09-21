@@ -223,6 +223,23 @@ bool wgr_light_is_enabled(wgr_handle_t light)
     return light_ptr != NULL && light_ptr->enabled;
 }
 
+/* Getters return what the setters stored, so a clamp is something a caller can see. */
+#define LIGHT_GETTER(ret, name, field, none)                    \
+    WGRI_KEEP ret wgr_light_get_##name(wgr_handle_t light)      \
+    {                                                            \
+        const wgr_light_t *light_ptr = resolve(light);           \
+        return light_ptr != NULL ? light_ptr->field : (none);    \
+    }
+LIGHT_GETTER(wgr_light_type_t, type, type, WGR_LIGHT_DIRECTIONAL)
+LIGHT_GETTER(wgr_color_t, color, color, 0)
+LIGHT_GETTER(float, intensity, intensity, 0.0f)
+LIGHT_GETTER(vec3_t, position, position, ((vec3_t){0, 0, 0}))
+LIGHT_GETTER(vec3_t, direction, direction, ((vec3_t){0, 0, 0}))
+LIGHT_GETTER(float, range, range, 0.0f)
+LIGHT_GETTER(float, spot_inner_angle, inner_angle, 0.0f)
+LIGHT_GETTER(float, spot_outer_angle, outer_angle, 0.0f)
+#undef LIGHT_GETTER
+
 /* -------------------------------------------------------------- internal ---- */
 
 bool wgri_light_get_scene_light(wgr_handle_t light, wgri_scene_light_t *out)
@@ -331,6 +348,20 @@ bool wgri_light_shadow_set_color(wgr_handle_t light, wgr_color_t color)
     light_ptr->shadow_color = color;
     return true;
 }
+
+#define SHADOW_GETTER(ret, name, field)                                 \
+    ret wgri_light_shadow_get_##name(wgr_handle_t light)                \
+    {                                                                    \
+        const wgr_light_t *light_ptr = resolve(light);                   \
+        return light_ptr != NULL ? light_ptr->field : (ret)0;            \
+    }
+SHADOW_GETTER(float, distance, shadow_distance)
+SHADOW_GETTER(int, map_size, shadow_map_size)
+SHADOW_GETTER(float, strength, shadow_strength)
+SHADOW_GETTER(wgr_color_t, color, shadow_color)
+SHADOW_GETTER(float, bias_constant, shadow_bias_constant)
+SHADOW_GETTER(float, bias_slope, shadow_bias_slope)
+#undef SHADOW_GETTER
 
 bool wgri_light_shadow_set_bias(wgr_handle_t light, float constant, float slope)
 {

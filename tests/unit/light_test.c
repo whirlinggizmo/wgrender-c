@@ -128,6 +128,18 @@ void test_light_api(void)
     CHECK(wgri_light_get_scene_light(light, &data));
     CHECK_NEAR(data.cos_outer, 0.0f, EPS);
 
+    /* getters return what was stored, clamps included, so a caller can see them */
+    CHECK(wgr_light_get_type(light) == WGR_LIGHT_SPOT);
+    CHECK_NEAR(wgr_light_get_intensity(light), 2.0f, EPS);
+    CHECK_NEAR(wgr_light_get_direction(light).x, 0.6f, EPS); /* (3, 0, 4) normalized */
+    CHECK_NEAR(wgr_light_get_direction(light).z, 0.8f, EPS);
+    CHECK_NEAR(wgr_light_get_range(light), 0.0f, EPS);       /* -5 became unlimited */
+    CHECK_NEAR(wgr_light_get_spot_outer_angle(light), 3.14159265f / 2.0f, EPS); /* 3 clamped */
+    CHECK_NEAR(wgr_light_get_spot_inner_angle(light), 0.0f, EPS);
+    CHECK(wgr_light_set_position(light, 1, 2, 3) && wgr_light_get_position(light).y == 2.0f);
+    CHECK(wgr_light_set_color(light, WGR_COLOR_RED) && wgr_light_get_color(light) == WGR_COLOR_RED);
+    CHECK(wgr_light_get_intensity(0) == 0.0f && wgr_light_get_color(0) == 0 && wgr_light_get_position(0).x == 0.0f);
+
     /* disabled and destroyed lights don't reach scenes */
     CHECK(wgr_light_set_enabled(light, false));
     CHECK(!wgri_light_get_scene_light(light, &data));

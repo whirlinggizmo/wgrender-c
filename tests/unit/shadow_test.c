@@ -97,6 +97,16 @@ void test_shadow_state(void)
     CHECK(wgr_light_set_shadow_strength(sun, 0.0f) && wgr_light_set_shadow_strength(sun, 1.0f));
     CHECK(wgr_light_set_shadow_strength(sun, -0.1f)); /* a fraction: clamped, not refused */
     CHECK(wgr_light_set_shadow_strength(sun, 1.5f));
+    /* the getters are how a caller learns what a clamp did */
+    CHECK_NEAR(wgr_light_get_shadow_strength(sun), 1.0f, 1e-6f);
+    CHECK(wgr_light_set_shadow_map_size(sun, 64) && wgr_light_get_shadow_map_size(sun) == 256);
+    CHECK(wgr_light_set_shadow_map_size(sun, 9000) && wgr_light_get_shadow_map_size(sun) == 4096);
+    CHECK(wgr_light_set_shadow_map_size(sun, 1500) && wgr_light_get_shadow_map_size(sun) == 1024);
+    CHECK(wgr_light_set_shadow_distance(sun, 12.0f) && wgr_light_get_shadow_distance(sun) == 12.0f);
+    CHECK(wgr_light_set_shadow_bias(sun, 2.0f, 6.0f) && wgr_light_get_shadow_bias_constant(sun) == 2.0f &&
+          wgr_light_get_shadow_bias_slope(sun) == 6.0f);
+    CHECK(wgr_light_set_shadow_color(sun, WGR_COLOR_BLUE) && wgr_light_get_shadow_color(sun) == WGR_COLOR_BLUE);
+    CHECK(wgr_light_get_shadow_map_size(0) == 0 && wgr_light_get_shadow_strength(0) == 0.0f);
     CHECK(wgr_light_set_shadow_color(sun, wgr_color_rgba(30, 60, 100, 255)));
     CHECK(wgr_light_set_shadow_color(sun, WGR_COLOR_BLACK));
 

@@ -418,6 +418,13 @@ bool wgr_light_set_shadow_map_size(wgr_handle_t light, int size)
     return wgri_light_shadow_set_map_size(light, size);
 }
 
+float       wgr_light_get_shadow_distance(wgr_handle_t light) { return wgri_light_shadow_get_distance(light); }
+int         wgr_light_get_shadow_map_size(wgr_handle_t light) { return wgri_light_shadow_get_map_size(light); }
+float       wgr_light_get_shadow_strength(wgr_handle_t light) { return wgri_light_shadow_get_strength(light); }
+wgr_color_t wgr_light_get_shadow_color(wgr_handle_t light) { return wgri_light_shadow_get_color(light); }
+float       wgr_light_get_shadow_bias_constant(wgr_handle_t light) { return wgri_light_shadow_get_bias_constant(light); }
+float       wgr_light_get_shadow_bias_slope(wgr_handle_t light) { return wgri_light_shadow_get_bias_slope(light); }
+
 WGRI_KEEP
 bool wgr_light_set_shadow_bias(wgr_handle_t light, float constant, float slope)
 {

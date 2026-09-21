@@ -52,6 +52,17 @@ bool wgr_light_set_spot_cone(wgr_handle_t light, float inner_angle, float outer_
 bool wgr_light_set_enabled(wgr_handle_t light, bool enabled);        /* default: enabled */
 bool wgr_light_is_enabled(wgr_handle_t light);
 
+/* What was set, as the light holds it: a direction normalized, a range or intensity
+ * below 0 as 0, cone angles clamped (radians). 0 or (0, 0, 0) for an invalid handle. */
+wgr_light_type_t wgr_light_get_type(wgr_handle_t light);
+wgr_color_t wgr_light_get_color(wgr_handle_t light);
+float   wgr_light_get_intensity(wgr_handle_t light);
+vec3_t  wgr_light_get_position(wgr_handle_t light);
+vec3_t  wgr_light_get_direction(wgr_handle_t light);
+float   wgr_light_get_range(wgr_handle_t light);
+float   wgr_light_get_spot_inner_angle(wgr_handle_t light);
+float   wgr_light_get_spot_outer_angle(wgr_handle_t light);
+
 /* Shadows (docs/PLAN-shadows.md). A casting light draws what it can see into a depth
  * map once a frame, and surfaces behind something are darkened. Off by default: a map
  * costs a pass and its memory. Directional and spot lights cast; a point light is
@@ -94,6 +105,16 @@ bool wgr_light_set_shadow_color(wgr_handle_t light, wgr_color_t color);
  * light. Defaults (1, 4). Too little and lit surfaces get a striped "shadow acne"; too
  * much and a shadow creeps away from what casts it, leaving a gap at its feet. */
 bool wgr_light_set_shadow_bias(wgr_handle_t light, float constant, float slope);
+
+/* The shadow settings as held: the map size is the power of two the GPU gets (what
+ * set_shadow_map_size clamped and rounded to), strength is clamped. 0 for an invalid
+ * handle. */
+float       wgr_light_get_shadow_distance(wgr_handle_t light);
+int         wgr_light_get_shadow_map_size(wgr_handle_t light);
+float       wgr_light_get_shadow_strength(wgr_handle_t light);
+wgr_color_t wgr_light_get_shadow_color(wgr_handle_t light);
+float       wgr_light_get_shadow_bias_constant(wgr_handle_t light);
+float       wgr_light_get_shadow_bias_slope(wgr_handle_t light);
 
 #ifdef __cplusplus
 }
