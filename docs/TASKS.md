@@ -488,11 +488,11 @@ felt awkward, and the libwgrender design. Update `tools/parity.map` with the out
       instancing, batching across textures), not fill rate or map sizes. Worth
       re-measuring `ready` for loading/environment/shaders before anything else, since
       seconds there dwarf the frame costs
-- [ ] Light getters: wgr_light.h has one getter (casts_shadows) against thirteen
-      setters. The Haxe binding (2026-09-21) pointed out that makes a clamp
-      unobservable -- set_shadow_map_size(64) says true and nothing outside can learn
-      it became 256. Add wgr_light_get_* pairs for every setter, the shape the rest of
-      the API uses
+- [x] Light getters (2026-09-21): wgr_light.h had one getter (casts_shadows) against
+      thirteen setters, which the Haxe binding pointed out makes a clamp unobservable
+      -- set_shadow_map_size(64) said true and nothing outside could learn it became
+      256. A getter per setter value now, plus get_type; the shadow ones go through
+      wgr_shadow.c like their setters
 - [ ] Lit particles: emitter particles are unlit — emitters have their own program
       (`particle` = vs_particle + the unlit `fs` in src/shaders/wgr_sprite.glsl) and no
       material API, so the only lit "particles" today are sprite3d objects moved by the
