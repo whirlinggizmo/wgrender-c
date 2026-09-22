@@ -261,7 +261,7 @@ static bool parse(const unsigned char *bytes, size_t size, const char *slang, wg
                 *error = "too many parameters, or a name too long";
                 return false;
             }
-            snprintf(param->name, sizeof(param->name), "%s", a);
+            memcpy(param->name, a, strlen(a) + 1);
             param->type = param_type(b, &ok);
             param->block = strcmp(c, "vs") == 0 ? WGRI_SHADER_BLOCK_VS_PARAMS : WGRI_SHADER_BLOCK_FS_PARAMS;
             param->offset = n;
@@ -279,7 +279,7 @@ static bool parse(const unsigned char *bytes, size_t size, const char *slang, wg
                 *error = "too many textures, or a name too long";
                 return false;
             }
-            snprintf(out->textures[out->texture_count++], WGRI_SHADER_NAME_MAX, "%s", a);
+            memcpy(out->textures[out->texture_count++], a, strlen(a) + 1);
         } else if (sscanf(line, "program %63s %63s", a, b) == 2) {
             const int which = strcmp(a, "static") == 0          ? WGRI_SHADER_PROGRAM_STATIC
                               : strcmp(a, "skinned") == 0       ? WGRI_SHADER_PROGRAM_SKINNED
