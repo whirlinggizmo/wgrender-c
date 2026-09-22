@@ -2,9 +2,12 @@
  *
  * Each file is ensured local (async), then wgr_audio_create(path) makes a shared
  * Audio resource: the 6 MB music is streamed (decoded while playing), the small
- * click is decoded up front. Sound objects play them. Mixing runs on the audio
- * device's thread, so music keeps playing through a slow frame: press S to stall
- * one frame for 300 ms. Press SPACE to play the click, M to toggle music. */
+ * click is decoded up front. Sound objects play them. On desktop mixing runs on the
+ * audio device's thread, so music keeps playing through a slow frame: press S to
+ * stall one frame for 300 ms and hear it not care. On the web it stutters instead:
+ * sokol_audio's WebAudio callback (a ScriptProcessorNode) runs on the main thread,
+ * the one the stall blocks, and its ~46 ms buffer runs dry. Press SPACE to play the
+ * click, M to toggle music. */
 #include <stddef.h>
 
 #include "wgr.h"

@@ -493,6 +493,14 @@ felt awkward, and the libwgrender design. Update `tools/parity.map` with the out
       -- set_shadow_map_size(64) said true and nothing outside could learn it became
       256. A getter per setter value now, plus get_type; the shadow ones go through
       wgr_shadow.c like their setters
+- [ ] Web audio stutters through a slow frame (2026-09-21, seen in `audio` with the S
+      stall; desktop plays through). sokol_audio's Emscripten backend feeds WebAudio from
+      a ScriptProcessorNode callback on the main thread, so a frame that blocks for
+      longer than the ~46 ms device buffer starves it, threads or no threads. The fix is
+      an AudioWorklet backend (the callback on the audio rendering thread, fed from a
+      SharedArrayBuffer ring), which sokol's own comment calls out as the eventual
+      replacement; it would live in the sokol fork. Until then a game that stalls the
+      main thread (a big synchronous load) will hear it on the web
 - [ ] Lit particles: emitter particles are unlit — emitters have their own program
       (`particle` = vs_particle + the unlit `fs` in src/shaders/wgr_sprite.glsl) and no
       material API, so the only lit "particles" today are sprite3d objects moved by the
