@@ -238,6 +238,16 @@ What they come to here:
   site reads as what it is without looking anything up, and `make check` can enforce
   it, which it can't when one prefix covers both.
 - **Public API** (`include/*.h`): subsystem-first `wgr_<section>_<action>`.
+- **Predicates say which kind of question they answer.** `is_<state>` is what it is
+  right now (`wgr_window_is_fullscreen`, `wgr_light_is_enabled`); `has_<noun>` is that
+  a feature exists here at all (`wgr_has_threads`, `wgr_window_has_fullscreen`);
+  `can_<verb>` is that an action is possible (`can_move` in `wgr_platform.c`). The noun
+  vs verb is what picks the last two: "has fullscreen" reads, "can fullscreen" doesn't,
+  and "can move window" reads where "has move" doesn't. All three return `bool`, take
+  no state with them, and become a read-only property in a binding -- which is why the
+  verb is worth getting right, the same reason clamp-or-refuse is. `tools/check_naming.sh`
+  doesn't enforce verbs (it checks types, `_ptr` and the prefix per surface), so this
+  is convention.
 - **Cross-`.c` internals** (one `src/*.c` calling another's symbol): `wgri_<subsystem>_…`,
   declared **only** in `src/internal/*_internal.h` — promoting one to `include/` is a
   rename to `wgr_`, which is the point: the contract changed. The file suffix keeps
