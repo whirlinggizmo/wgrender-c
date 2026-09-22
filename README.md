@@ -16,28 +16,16 @@ a threaded build needs; nothing needs threads, but asset decoding runs on the ma
 thread there, which `loading` reports rather than hides. Locally, `make serve` sends
 those headers, so the same examples load on worker threads.
 
-## Direction: wgrender is the primary library
+## Where it comes from
 
-As of 2026-09-16, **wgrender is where new work happens**; librl is in maintenance mode.
-
-- **Why:** the roadmap (materials and shaders, batched 2D, particles, render
-  targets, GPU residency) needs direct control of the GPU pipeline, which sokol
-  gives and raylib hides behind rlgl. sokol's callback loop and WebGL2/WebGPU
-  backends make the web a first-class target instead of a JSPI special case. The
-  handle-only API (enforced by `make check`) keeps language bindings cheap.
-- **Cost:** wgrender is an engine we build, not one we wrap. Loaders, audio formats,
-  gamepad mappings, gestures, collision helpers and platform quirks that raylib
-  covers must be written or pulled in (preferably as single-header libraries).
-- **Parity is reached (2026-09-21).** It meant functional parity, not a 1:1 API:
-  anything you could build with librl is buildable with wgrender, each feature
-  designed fresh from what librl taught us rather than copied. `tools/parity.map`
-  accounts for every librl function -- 65 have a wgrender equivalent, 82 were dropped
-  on purpose (a design that turned out wrong, or a capability another design covers),
-  none are open -- and the reasoning per item is in the **librl parity** section of
-  [docs/ROADMAP.md](docs/ROADMAP.md). `make parity` reprints the report; it is a
-  record, not a check, since neither side of it changes now.
-- **librl's role:** archived. Its repo takes fixes only; `reference/librl` here is the
-  read-only copy the map was written against.
+wgrender evolved from librl, a raylib-backed library, and reached functional parity
+with it on 2026-09-21 -- everything librl could do, designed fresh rather than copied.
+The move was for direct control of the GPU pipeline (materials, batching, particles,
+render targets, residency), which sokol gives and raylib hides behind rlgl, and for a
+web target that is a first-class build rather than a JSPI special case. The price is an
+engine we build rather than wrap: loaders, audio formats, gamepad mappings and platform
+quirks are written here or pulled in as single-header libraries. What librl taught us,
+and what was left out on purpose, is in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Build (Linux)
 
@@ -212,7 +200,6 @@ tests/unit/     unit tests (`make test`; link the headless library, no display o
 tools/          build and check scripts, benchmarks (tools/bench), the web dev server
 mk/             make fragments shared by the Makefiles (web flags, the host OS name)
 docs/           ARCHITECTURE.md, ROADMAP.md, TASKS.md and one PLAN-*.md per feature
-reference/librl the raylib library this evolves from (read-only reference)
 ```
 
 ## Rendering notes

@@ -18,7 +18,6 @@
 #   make test       build and run unit tests        (-> tests/Makefile)
 #   make verify     build + check + test + smoke: run before calling a change done
 #   make deps       install system build deps (ALSA/GL/X11 dev packages)
-#   make parity     librl -> libwgrender API parity report (LIBRL_DIR=/path/to/librl)
 #   make HEADLESS=1 headless lib (build/linux-headless/libwgrender.a): no window, GPU or audio
 #   make windows    Windows lib and examples, cross-compiled with MinGW (build/windows,
 #                   examples/build/windows/*.exe); WINDOWS=1 on any target (with
@@ -100,7 +99,7 @@ LIB     := $(BUILD)/libwgrender.a
 SRCS    := $(wildcard src/*.c)
 OBJS    := $(patsubst src/%.c,$(BUILD)/obj/%.o,$(SRCS))
 
-.PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check parity loadbench spritebench shadowbench brdf-lut example-shaders \
+.PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check loadbench spritebench shadowbench brdf-lut example-shaders \
         web print-web-flags windows windows-test windows-smoke FORCE
 
 all: $(LIB)
@@ -300,14 +299,6 @@ check:
 	@tools/check_no_backend_leak.sh
 	@tools/check_naming.sh
 	@tools/check_modules.sh
-
-# librl -> libwgrender API parity: every librl function is matched, mapped as ported /
-# dropped / todo in tools/parity.map, or the report fails. PARITY_FLAGS=--strict
-# also fails on remaining todos. Needs a librl checkout: LIBRL_DIR, else ../librl or a
-# librl beside the directory holding this repo.
-LIBRL_DIR ?=
-parity:
-	@LIBRL_DIR=$(LIBRL_DIR) tools/parity.sh $(PARITY_FLAGS)
 
 clean:
 	rm -rf build

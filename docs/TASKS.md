@@ -1,8 +1,7 @@
 # libwgrender Tasks
 
 Working checklist. Order and reasoning live in [ROADMAP.md](ROADMAP.md); this file
-is what's done and what's next. Per-function librl parity is tracked in
-`tools/parity.map` (run `make parity`), not duplicated here.
+is what's done and what's next.
 
 Workflow: pick the top unchecked item, outline a plan (AGENTS.md), implement with
 tests, keep `make verify` passing, and tick the box in the same commit.

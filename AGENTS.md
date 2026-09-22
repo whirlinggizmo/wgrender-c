@@ -28,9 +28,6 @@ Keep this file short and rule-shaped. The authoritative design doc is
 - `make smoke` — every example built headless (`make HEADLESS=1`) and run for 180
   frames; fails on crashes, timeouts or error logs. Needs no display. Add or update tests alongside code changes; new tests go in
   `tests/unit/tests.h` and the table in `tests/unit/main.c`.
-- `make parity` — the librl → wgrender parity report, a record rather than a check now
-  that parity is reached (`tools/parity.map`; uses `reference/librl` unless `LIBRL_DIR`
-  or a checkout beside the repo says otherwise).
 - `make windows` — the library and examples cross-compiled for Windows with MinGW
   (`build/windows`, `examples/build/windows/*.exe`; `WINDOWS=1` on any target).
   `make windows-test` / `make windows-smoke` run the unit tests and the headless
@@ -111,13 +108,6 @@ Keep this file short and rule-shaped. The authoritative design doc is
   changing public API or observable behavior (above), but recommend the correct
   option.
 - Read-only tasks (questions, reviews) need no approval.
-- **libwgrender is the primary library; librl is maintenance-only** (see "Direction" in
-  README.md). New features go into libwgrender. Treat librl as a behavior reference and
-  parity baseline, not a place to add features.
-- **Parity is functional, not 1:1.** Before porting a librl feature, check what it
-  does and what went wrong with its design, then propose the libwgrender design (it may
-  be fewer, different, or merged functions). Don't mirror librl signatures by
-  default. Record the outcome in `tools/parity.map`.
 - **Keep the core a plain C library.** Scripting hosts, language bindings and
   networking beyond asset downloads (WebSockets, HTTP APIs, multiplayer) are separate
   modules/repos built on the public API; don't add them here.
@@ -240,8 +230,8 @@ What they come to here:
   are used.
 - **Tooling environment variables:** `WGRENDER_` (`WGRENDER_WEB_PROFILE`). They aren't
   library symbols, and three letters collide too easily in a process environment. A
-  variable naming another project takes *that* project's name (`LIBRL_DIR`, because
-  librl is what librl is called).
+  variable naming another project takes *that* project's name (`SOKOL_DIR` for a sokol checkout, because
+  sokol is what sokol is called).
 - **Sibling repos:** `wgutils-c` and friends follow the same pattern — see CONVENTIONS.md
   before naming anything new.
 - **Prefix says which surface it is:** `wgr_` is public, `wgri_` is internal. A call

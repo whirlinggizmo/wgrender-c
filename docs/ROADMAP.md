@@ -45,81 +45,31 @@ that lean on them. Items with a design doc link there.
    (rides the 2D batch path + materials from 1–2). High visual payoff; doing it
    right is what finally justifies a real batched renderer over sokol_gl immediate.
 
-## librl parity
+## What librl taught us
 
-Capabilities librl (`rl_*`) has that libwgrender doesn't yet, in suggested order. The
-goal is **functional parity, not a 1:1 API**: each item starts with a short design
-review (what librl did, what we learned from it, what libwgrender should do), and the
-result may be fewer, different or merged functions. Everything must fit the
-handle-only public API (see AGENTS.md). libwgrender is the primary library (see
-"Direction" in the README), so port what future work needs first; items above may
-jump ahead of these.
+wgrender reached functional parity with librl on 2026-09-21: everything librl could do,
+each feature designed fresh from what librl's version got wrong rather than copied.
+The parity tooling is gone with the port; this is what it left behind.
 
-Tracking: `tools/parity.map` (`make parity`) accounts for every librl function;
-[TASKS.md](TASKS.md) is the checklist.
+Applied: the scratch buffer (value returns instead), synchronous asset fetch (needed
+JSPI on the web; one async model through the managed task queue, no sync twins),
+`*_create_from_file` shortcuts (blurred resource vs object; objects come from handles),
+separate Music and Sound (one Sound with a loop flag), a poll-driven loop (sokol
+callbacks), a public filesystem API (internal `wgr_fs`), and networking mixed into
+asset loading (wgrender's networking is assets only -- downloads inside `ensure`,
+redirects, host ping; anything else lives outside the library, see Future).
 
-Lessons from librl already applied: the scratch buffer (value returns instead),
-synchronous asset fetch (needed JSPI on the web), `*_create_from_file` shortcuts
-(blurred resource vs object), separate Music and Sound (one Sound with a loop
-flag), a poll-driven loop (sokol callbacks), and a public filesystem API (internal
-`wgr_fs`).
+Structural: **subsystems that can't be left out** -- librl linked everything into every
+build, and so did wgrender until `WGRI_MODULE` (ARCHITECTURE.md §7b): a program now links
+only the subsystems it uses, and `make websize` keeps that honest. **Scripting and
+bindings mixed into the core** -- librl carried script hosts, hot-reload plumbing and
+four bindings; here the core stays a plain C library and each binding is its own repo
+on the handle-only API (see the README's Bindings section).
 
-Lessons from librl not yet addressed (design for these; don't repeat them):
-
-- **Networking and async vs sync got convoluted.** librl grew sync and async
-  variants side by side, with fetching mixed into asset loading. For libwgrender: one
-  async model (callbacks through the managed task queue, no sync twins). Decided
-  (2026-09-20): libwgrender's networking is **assets** only: downloads inside `ensure`,
-  asset redirects, host ping. WebSockets and general networking live **outside
-  libwgrender** (see Future).
-- **No way to leave out subsystems to shrink the wasm build.** libwgrender has the same
-  problem today: `src/wgr.c` calls every subsystem's init/tick/deinit directly, and
-  the web build compiles every `src/*.c` into each bundle, so audio, models
-  (cgltf), fonts (fontstash) and friends are always linked. Needs a build-time way
-  to exclude modules (e.g. `WGR_WITH_AUDIO=0`) plus lifecycle registration instead
-  of hard-coded calls, and a size report per example to keep it honest.
-- **Scripting and language bindings got mixed into the core.** librl carried
-  script hosts, hot-reload plumbing (`rt_boot` / `rt_tick` hosts, reload counters)
-  and four bindings in its own repo. For libwgrender: the core stays a plain C library;
-  scripting is a separate module/repo on top of the public API, and each language
-  bridge (Haxe, Nim, Lua, JS, and maybe Beef) is its own module/repo. The
-  handle-only API is what makes that cheap; core changes shouldn't need binding
-  changes in the same repo.
-
-1. ~~**`sprite2d` + screen-space texture draw**~~ — done. See
-   [PLAN-sprite2d.md](PLAN-sprite2d.md).
-2. **`text3d`** — world-space text object (font/size/content/transform/color,
-   facing, visible, pickable, bounds) plus a one-shot draw. Mirrors `text2d` +
-   `sprite3d` facing.
-3. **Remaining 3D shapes** — `rectangle_3d`, `circle_3d`, `line_strip_3d` (immediate
-   and retained). `line_strip_3d` takes a point array in librl, so it needs a
-   handle-only shape (e.g. a builder: `add_point`).
-4. **Per-object picking** — `pick_model` / `pick_sprite3d` / `pick_shape` /
-   `pick_text3d` alongside `wgr_scene_pick`; `set_pickable` / `is_pickable` on
-   model, sprite3d, sprite2d, text2d, text3d (only shape has it today); pick stats
-   (broadphase/narrowphase counters) under `wgr_debug`.
-5. ~~**Lighting controls**~~ — done, redesigned as light objects (directional,
-   point, spot) with per-scene lights and ambient. See
-   [PLAN-lighting.md](PLAN-lighting.md).
-6. **Window / monitor** — `set_size`, `set_position`, monitor count / current /
-   set / width / height / position. Check what sokol_app exposes per platform;
-   some may be desktop-only no-ops on web.
-7. **Small leftovers** — `wgr_sound_set_pan`, `wgr_model_get_animation_frame_count`,
-   FPS / `text_draw_fps` with a custom font, `texture_draw_ground`,
-   `wgr_asset_ensure_many` (batch ensure). Maybe `*_is_valid` handle checks.
-
-Not a code gap, but part of parity: **gamepad and touch input** (librl only
-exposed these through scratch), **language bindings** (librl has Haxe, JS, Lua
-and Nim; each becomes its own module/repo outside libwgrender, and Beef is a candidate),
-**scripting** (also its own module/repo), and a **test suite** (librl has unit, smoke, regression,
-headless and bindings tests; pairs with the headless renderer below).
-
-**Left out on purpose** (not gaps): the scratch buffer and `_to_scratch`
-functions (value returns instead), public `fs_*` (internal; see
-[PLAN-wgr_fs.md](PLAN-wgr_fs.md)), `music_*` (a looping Sound), `*_create_from_file`
-(objects come from handles), `window_open` / `input_poll_events` /
-`init_values_async` (sokol owns the loop; see `wgr_run`), and
-`model_set_asset` / `load_asset` (Mesh resource + `wgr_model_set_mesh`).
+Left out on purpose, not gaps: the scratch buffer and `_to_scratch` functions, public
+`fs_*` ([PLAN-wgr_fs.md](PLAN-wgr_fs.md)), `music_*`, `*_create_from_file`,
+`window_open` / `input_poll_events` / `init_values_async` (sokol owns the loop; see
+`wgr_run`), and `model_set_asset` / `load_asset` (Mesh resource + `wgr_model_set_mesh`).
 
 ## Supporting / cross-cutting (slot in when an item above needs it)
 
@@ -167,33 +117,17 @@ functions (value returns instead), public `fs_*` (internal; see
   device) and `make smoke`. Unit tests link the headless library, so they need no
   GL/X11/ALSA. CI runs `make test`, `make smoke` and the WebGL2 webcheck. Next, when needed:
   benchmarks / asset-validation tools on the headless build.
-- **Test suite (features + librl parity)** — build it in layers, cheapest first:
-  1. **API parity report** (`make parity`): diff librl's public `rl_*` symbols
-     against `wgr_*` using a checked-in map file that marks each librl function as
-     *ported* (with its new name), *dropped on purpose* (with the reason), or
-     *todo*. Unknown symbols fail, so new librl API can't be missed. Starts as a
-     report, then gates once parity is reached. No GPU needed.
-  2. **Unit tests** (plain C, no window): handle pool, `wgr_fs` / asset
-     bookkeeping, scene layers and ordering, ray-vs-cube/sphere/sprite math
-     (including alpha test), animation sampling, text2d state. Follow librl's
-     `tests/unit` layout so the two suites look alike.
-  3. **Shared behavior tests** (the real parity check): each scenario (build a
-     scene, pick at pixel X, measure text, count animation frames, sample a joint)
-     is written once against a small adapter header with one version for librl
-     and one for libwgrender, then run on both and compared with tolerances. Anything
-     that depends on rasterization (e.g. text metrics from raylib vs fontstash)
-     gets a loose tolerance or is marked as expected to differ.
-  4. **Smoke tests**: both halves exist. Desktop: `make smoke` (headless build,
-     every example for 180 frames, exit 0 and no error logs). Web: `make webcheck`
-     (`tools/webcheck.mjs`, every example in a Chromium-based browser over the
-     DevTools protocol, no npm dependencies). Move to Playwright if Firefox/WebKit
-     (Safari) coverage becomes important.
-  5. **Image comparison** (later, optional): render fixed scenes to offscreen
-     targets and compare with a per-pixel tolerance. Needs render-to-texture;
-     prone to flakiness across GPUs, so keep it out of the default `make test`.
-
-## Dev ergonomics / nice-to-have
-
+- **Test suite** — built, in layers: **unit tests** (`make test`, plain C against the
+  headless library: handle pool, `wgr_fs` and asset bookkeeping, scene order and picking
+  math, animation sampling, object state, shadows, culling, instancing; also under
+  the sanitizers, `SANITIZE=thread|address|undefined`); **smoke** (`make smoke`, every
+  example headless for 180 frames, and `make windows-smoke` the same under Wine);
+  **web** (`make webcheck`, every example in a Chromium-based browser over the DevTools
+  protocol, WebGL2 and WebGPU). The parity layers that were planned here -- an API
+  report and scenarios run against both librl and wgrender -- were retired once parity
+  was reached (see "What librl taught us"). Still optional: **image comparison**,
+  rendering fixed scenes to render targets (which exist now) and comparing with a
+  per-pixel tolerance; worth it the first time a rendering regression gets past smoke.
 - **Hot reload (reload-on-change)** — watch source assets and re-`ensure`; we
   already have `wgr_fs` + `ensure`, so this is mostly a watcher. Big dev-loop win.
 - **Audio streaming** — ARCHITECTURE.md treats streamed-vs-decoded as an Audio

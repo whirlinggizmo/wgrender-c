@@ -1,4 +1,5 @@
-/* Functions added for librl parity (docs/PLAN-parity.md), on sokol's dummy backend. */
+/* Object state across subsystems -- text3d, sprite3d, model, sound, asset host -- on
+ * sokol's dummy backend. */
 #include <math.h>
 #include <string.h>
 
@@ -63,7 +64,7 @@ static void teardown(void)
     sg_shutdown();
 }
 
-void test_parity_text3d(void)
+void test_text3d_state(void)
 {
     setup();
     wgr_handle_t camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
@@ -118,7 +119,7 @@ void test_parity_text3d(void)
     teardown();
 }
 
-void test_parity_sprite3d(void)
+void test_sprite3d_state(void)
 {
     setup();
     wgr_handle_t camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
@@ -136,7 +137,7 @@ void test_parity_sprite3d(void)
     CHECK(wgr_sprite3d_set_pickable(sprite, false) && !wgr_sprite3d_is_pickable(sprite));
     CHECK(!wgr_pick_object(sprite, camera, 0.5f, 0.5f).hit);
     wgr_sprite3d_set_pickable(sprite, true);
-    /* FREE facing follows the rotation (see test_parity_text3d) */
+    /* FREE facing follows the rotation (see test_text3d_state) */
     wgr_sprite3d_set_transform(sprite, 0.3f, 0, 0, 0, 1.2f, 0, 1, 1, 1);
     CHECK(wgr_pick_object(sprite, camera, 0.5f, 0.5f).hit); /* facing the camera: half width 0.5 */
     CHECK(wgr_sprite3d_set_facing(sprite, WGR_SPRITE3D_FACING_FREE));
@@ -145,7 +146,7 @@ void test_parity_sprite3d(void)
     teardown();
 }
 
-void test_parity_model(void)
+void test_model_state(void)
 {
     setup();
     wgr_handle_t camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
@@ -181,7 +182,7 @@ void test_parity_model(void)
     teardown();
 }
 
-void test_parity_sound_pan(void)
+void test_sound_pan(void)
 {
     float buffer[64 * 2];
 
@@ -220,7 +221,7 @@ void test_parity_sound_pan(void)
     wgri_audio_deinit();
 }
 
-void test_parity_asset_host(void)
+void test_asset_host(void)
 {
     wgr_asset_set_host("https://example.com/assets///");
     CHECK(strcmp(wgr_asset_get_host(), "https://example.com/assets") == 0);

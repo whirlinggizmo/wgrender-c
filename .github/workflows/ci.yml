@@ -1,5 +1,5 @@
-# libwgrender CI: the same checks as a local "done" (see AGENTS.md), minus `make parity`
-# (needs a librl checkout) and WebGPU (needs a GPU).
+# wgrender CI: the same checks as a local "done" (see AGENTS.md), minus WebGPU (needs a
+# GPU).
 #
 # - desktop: every push and pull request (skipped for docs-only changes), daily,
 #   and on demand. Nothing waits on it; it catches clean-checkout problems (files

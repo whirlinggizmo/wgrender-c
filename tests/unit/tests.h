@@ -82,11 +82,11 @@ void test_model_skin_position(void);
 void test_model_sample_alpha(void);
 void test_model_generate_tangents(void);
 
-void test_parity_text3d(void);
-void test_parity_sprite3d(void);
-void test_parity_model(void);
-void test_parity_sound_pan(void);
-void test_parity_asset_host(void);
+void test_text3d_state(void);
+void test_sprite3d_state(void);
+void test_model_state(void);
+void test_sound_pan(void);
+void test_asset_host(void);
 
 void test_window_headless(void);
 void test_runtime_capabilities(void);
