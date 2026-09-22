@@ -8,8 +8,14 @@ tests, keep `make verify` passing, and tick the box in the same commit.
 
 ## Bugs and measurements
 
-- [ ] Bug (platform): vsync doesn't hold on NVIDIA (RTX 4080 laptop, driver 580) +
-      COSMIC/XWayland with sokol's GL backend. Swaps block only every other frame:
+- [ ] Bug (platform, XWayland): vsync doesn't hold under COSMIC/XWayland on NVIDIA
+      (RTX 4080 laptop, driver 580) with sokol's GL backend. Not the driver: on the same
+      machine, GPU and driver under XFCE on X11 (2026-09-21, a 300-frame probe with vsync
+      on) frames land every 16.7 ms -- 60.3 fps on a 59.93 Hz display, 294 of 299
+      intervals within 14-19 ms, one long/short alternation. So it is the compositor's
+      presentation path accepting a swap without waiting for the vblank, which is also
+      why a raw GLX program showed it. Real for anyone on a Wayland desktop; as observed
+      there, swaps blocked only every other frame:
       ~120 frames/s on a 59.88 Hz display, intervals alternating ~16.7 ms and <4 ms,
       half the frames never shown. Not a libwgrender/sokol timing bug: a raw GLX program
       (no sokol) reproduces it with GLX_SWAP_INTERVAL=1 confirmed, the interval set
