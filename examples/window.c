@@ -73,7 +73,9 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
     wgr_render_begin();
     wgr_render_clear_background(g.bg);
-    wgr_text_draw("libwgrender window   arrows: move   =/-: size   F: fullscreen   M: next monitor   H: hide", 12, y, 16,
+    wgr_text_draw(wgr_window_has_fullscreen() /* ask before offering the key */
+                      ? "libwgrender window   arrows: move   =/-: size   F: fullscreen   M: next monitor   H: hide"
+                      : "libwgrender window   arrows: move   =/-: size   (no fullscreen here)   M: next monitor   H: hide", 12, y, 16,
                  WGR_COLOR_RAYWHITE);
     y += 32;
     snprintf(line, sizeof(line), "window: %.0f x %.0f at (%.0f, %.0f)   fullscreen: %s   focused: %s", size.x, size.y,

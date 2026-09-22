@@ -75,6 +75,7 @@ bool wgr_window_request_fullscreen(bool fullscreen)
     return wgri_platform_set_fullscreen(fullscreen) || unsupported(&logged, "wgr_window_request_fullscreen");
 }
 
+WGRI_KEEP bool wgr_window_has_fullscreen(void) { return wgri_platform_has_fullscreen(); }
 WGRI_KEEP bool wgr_window_is_fullscreen(void) { return wgri_platform_is_fullscreen(); }
 WGRI_KEEP bool wgr_window_set_visible(bool visible) { return wgri_platform_set_window_visible(visible); }
 WGRI_KEEP bool wgr_window_is_visible(void) { return wgri_platform_is_window_visible(); }

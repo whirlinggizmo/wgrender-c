@@ -96,6 +96,7 @@ bool wgri_platform_is_window_transparent(void) { return wgr_platform_transparent
 
 bool wgri_platform_set_fullscreen(bool fullscreen)
 {
+    if (!wgri_platform_has_fullscreen()) return false;
     if (sapp_is_fullscreen() != fullscreen) {
         if (fullscreen) sapp_set_window_resizable(true);
         sapp_toggle_fullscreen(); /* on web, only takes effect during a user gesture */
@@ -121,6 +122,10 @@ EM_JS(int, canvas_set_size, (int width, int height), {
 EM_JS(int, screen_width, (void), { return window.screen.width | 0; });
 EM_JS(int, screen_height, (void), { return window.screen.height | 0; });
 EM_JS(int, document_has_focus, (void), { return document.hasFocus() ? 1 : 0; });
+/* False in an iframe without allowfullscreen, or under a permissions policy: the one
+ * case a request would silently do nothing that can be known before asking. */
+EM_JS(int, document_fullscreen_enabled, (void), { return document.fullscreenEnabled ? 1 : 0; });
+bool wgri_platform_has_fullscreen(void) { return document_fullscreen_enabled() != 0; }
 
 EM_JS(void, performance_mark, (const char *name), { performance.mark(UTF8ToString(name)); });
 
@@ -146,6 +151,7 @@ bool wgri_platform_monitor_rect(int monitor, int *x, int *y, int *width, int *he
 
 #else
 void wgri_platform_mark(const char *name) { (void)name; }
+bool wgri_platform_has_fullscreen(void) { return true; }
 
 /* Desktop, through deps/sokol_utils. Window and monitor sizes are in the OS's
  * pixels, except on macOS where they're already points (logical). */
@@ -283,6 +289,7 @@ bool wgri_platform_set_window_size(int width, int height)
 }
 bool wgri_platform_set_window_position(int x, int y) { (void)x; (void)y; return false; }
 bool wgri_platform_get_window_position(int *x, int *y) { *x = 0; *y = 0; return false; }
+bool wgri_platform_has_fullscreen(void) { return false; }
 bool wgri_platform_set_fullscreen(bool fullscreen) { (void)fullscreen; return false; }
 bool wgri_platform_is_fullscreen(void) { return false; }
 void wgri_platform_set_window_style(bool resizable, bool decorated) { (void)resizable, (void)decorated; }

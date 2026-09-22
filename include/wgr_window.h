@@ -58,13 +58,18 @@ bool   wgr_window_set_size(int width, int height);
  * through XWayland, and the compositor places windows). There they return false. */
 bool   wgr_window_set_position(int x, int y);
 vec2_t wgr_window_get_position(void); /* (0, 0) where there's no position */
-/* Ask to go fullscreen; the answer is wgr_window_is_fullscreen, not the return.
- * False only where the platform has no fullscreen at all (headless), so a true means
- * the request was made, not that it was granted: on web it only takes effect during a
- * user gesture and arrives a frame or more later as a fullscreenchange, and even on
- * the desktop the toggle has not happened yet when this returns. Named request_ for
- * that reason -- wgr_input_set_pointer_captured has the same shape and returns void,
- * but "this platform has none" is worth being able to ask. */
+/* Whether this platform can go fullscreen at all: true on the desktop, false headless,
+ * and on the web what the browser says (document.fullscreenEnabled: false in an iframe
+ * without allowfullscreen, or under a permissions policy). Ask this to hide the button.
+ * It doesn't cover the web's other condition, a user gesture, which only the request
+ * meets. */
+bool   wgr_window_has_fullscreen(void);
+/* Ask to go fullscreen; the answer is wgr_window_is_fullscreen, not the return. False
+ * for what has_fullscreen says (nothing to request); true means the request was made,
+ * not that it was granted: on the web it only takes effect during a user gesture and
+ * arrives a frame or more later as a fullscreenchange, and even on the desktop the
+ * toggle has not happened yet when this returns. Named request_ for that reason --
+ * wgr_input_set_pointer_captured has the same shape and returns void. */
 bool   wgr_window_request_fullscreen(bool fullscreen);
 bool   wgr_window_is_fullscreen(void);
 /* Show or hide the window (WGR_WINDOW_FLAG_WINDOW_HIDDEN starts it hidden); it keeps

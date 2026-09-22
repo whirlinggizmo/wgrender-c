@@ -20,6 +20,7 @@ void test_window_headless(void)
 
     CHECK(!wgr_window_set_position(10, 20));
     CHECK(wgr_window_get_position().x == 0.0f && wgr_window_get_position().y == 0.0f);
+    CHECK(!wgr_window_has_fullscreen()); /* headless: nothing to ask for */
     CHECK(!wgr_window_request_fullscreen(true));
     CHECK(!wgr_window_is_fullscreen());
     CHECK(wgr_window_is_focused());

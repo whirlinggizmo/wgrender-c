@@ -49,6 +49,7 @@ void wgri_platform_mark(const char *name);
 bool wgri_platform_set_window_size(int width, int height);
 bool wgri_platform_set_window_position(int x, int y);
 bool wgri_platform_get_window_position(int *x, int *y);
+bool wgri_platform_has_fullscreen(void); /* the platform can at all; web: document.fullscreenEnabled */
 bool wgri_platform_set_fullscreen(bool fullscreen);
 bool wgri_platform_is_fullscreen(void);
 /* The window's style (desktop): resizable by the user, decorated (title bar and
