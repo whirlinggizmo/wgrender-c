@@ -1,10 +1,11 @@
-# libwgrender
+# wgrender
 
 A small game/graphics runtime built on [sokol](https://github.com/floooh/sokol),
 evolving the ideas from `librl` (the raylib-backed `rl_*` library) rather than
-porting it 1:1. Public symbols use the `wgr_` prefix.
+porting it 1:1. Public symbols use the `wgr_` prefix; the library it builds is
+`libwgrender.a`.
 
-Still early, but past the first vertical slice: desktop GL and web (WebGL2 /
+Still early, but past the first vertical slice: Linux and Windows (GL) and web (WebGL2 /
 WebGPU) builds, 2D shapes and text, TTF fonts, textures, 3D sprites, glTF
 models with GPU skinning, a scene graph with picking, audio, and async assets.
 
@@ -15,26 +16,26 @@ a threaded build needs; nothing needs threads, but asset decoding runs on the ma
 thread there, which `loading` reports rather than hides. Locally, `make serve` sends
 those headers, so the same examples load on worker threads.
 
-## Direction: libwgrender is the primary library
+## Direction: wgrender is the primary library
 
-As of 2026-09-16, **libwgrender is where new work happens**; librl is in maintenance mode.
+As of 2026-09-16, **wgrender is where new work happens**; librl is in maintenance mode.
 
 - **Why:** the roadmap (materials and shaders, batched 2D, particles, render
   targets, GPU residency) needs direct control of the GPU pipeline, which sokol
   gives and raylib hides behind rlgl. sokol's callback loop and WebGL2/WebGPU
   backends make the web a first-class target instead of a JSPI special case. The
   handle-only API (enforced by `make check`) keeps language bindings cheap.
-- **Cost:** libwgrender is an engine we build, not one we wrap. Loaders, audio formats,
+- **Cost:** wgrender is an engine we build, not one we wrap. Loaders, audio formats,
   gamepad mappings, gestures, collision helpers and platform quirks that raylib
   covers must be written or pulled in (preferably as single-header libraries).
 - **librl's role:** fixes only when needed; a reference for behavior and the
   baseline for parity tests. Archive it once parity is reached.
 - **Parity means functional parity, not a 1:1 API.** Anything you could build with
-  librl should be buildable with libwgrender, but each feature gets a fresh design using
+  librl should be buildable with wgrender, but each feature gets a fresh design using
   what librl taught us, rather than a copy of its functions. Port what future work
   needs first; roadmap items may come before some parity items.
 
-## Build (desktop, Linux GL)
+## Build (Linux)
 
 sokol links against the system's audio, GL and X11 libraries, so their dev
 packages must be installed (the build checks and names any that are missing):
@@ -77,7 +78,7 @@ make webstart                      # startup times per example: cold, warm and h
 `make webcheck` (`tools/webcheck.mjs`) needs Node >= 22 and a Chromium-based
 browser (Brave, Chrome or Chromium; override with `WEBCHECK_BROWSER`). It checks
 four examples at a time, each in its own browser context, waits until each has
-finished loading its assets, and fails an example on console errors, libwgrender
+finished loading its assets, and fails an example on console errors, wgrender
 `[ERROR]`/`[FATAL]` logs, exceptions, sokol panics, a wrong/missing backend, or
 assets still loading after 20 s. It saves a screenshot of each to
 `examples/build/<backend>/webcheck/`. WebGL2
@@ -108,7 +109,7 @@ a host should send:
 `tools/serve.py --cache --gzip` serves as above. `make webstart`
 (`tools/webstart.mjs`) opens each example three times in a fresh browser profile
 (cold, warm, and hot: Chrome's compiled-code cache), locally and on emulated 4G, and
-times the download, compile, libwgrender's init, the first frame and the end of asset
+times the download, compile, wgrender's init, the first frame and the end of asset
 loading from `wgr:*` performance marks. `--devtools` and `--url` measure another
 device's browser, such as a phone through `adb forward`.
 
@@ -148,7 +149,7 @@ detail — code to the `WGR_KEY_*` names; a backend swap would remap in
 ## The loop model
 
 sokol_app owns the frame loop (on the web the browser drives it with
-requestAnimationFrame), so libwgrender is callback-driven. Two callbacks, for two rates:
+requestAnimationFrame), so wgrender is callback-driven. Two callbacks, for two rates:
 
 - **tick** (`wgr_set_tick(fn, user, hz)`): simulation at a fixed rate. Runs 0..N
   times before each frame with the same `dt` every time. Physics and gameplay go
@@ -197,12 +198,16 @@ compiled with `SOKOL_NO_ENTRY` so sokol does not generate its own entry point.
 
 ```
 include/        public wgr_*.h headers
-shaders/wgr.glsl what custom material shaders get from libwgrender (tools/shaderpack.py)
+shaders/wgr.glsl what custom material shaders get from wgrender (tools/shaderpack.py)
 src/            implementation (one TU per subsystem)
 src/internal/   shared, non-public declarations (handle pool, lifecycle hooks)
 src/wgr_sokol_impl.c   single TU that compiles the sokol headers (SOKOL_IMPL)
 deps/sokol/     vendored sokol headers
 examples/       example programs
+tests/unit/     unit tests (`make test`; link the headless library, no display or GPU)
+tools/          build and check scripts, benchmarks (tools/bench), the web dev server
+mk/             make fragments shared by the Makefiles (web flags, the host OS name)
+docs/           ARCHITECTURE.md, ROADMAP.md, TASKS.md and one PLAN-*.md per feature
 reference/librl the raylib library this evolves from (read-only reference)
 ```
 
@@ -244,17 +249,17 @@ reference/librl the raylib library this evolves from (read-only reference)
 - Model instancing: models that agree on everything but where they stand — the same
   mesh and material, a forest or a crowd — are drawn together, however they were added
   to the scene. Nothing to ask for: what differs per model (its transform, its tint)
-  travels in a per-frame data texture, and libwgrender batches what it can. 4000 such models
+  travels in a per-frame data texture, and wgrender batches what it can. 4000 such models
   cost 0.6 ms to submit instead of 4.7; the shadow pass and custom material shaders
   batch them the same way.
   See `docs/PLAN-instancing.md` and `examples/instancing.c`.
 - Assets come from the same place on both platforms: give `wgr_asset_set_host` a URL
   and a logical path resolves against it everywhere. The browser downloads and caches
-  it on web; on desktop libwgrender asks the program's fetcher
+  it on web; on desktop wgrender asks the program's fetcher
   (`wgr_asset_set_fetcher`) to write the file, then caches it in a directory, so the
   library carries no HTTP client and no TLS. See `examples/fetch.c`, which wires one up
   with `curl` in twenty lines and downloads this repo's own assets over HTTPS — none of
-  the TLS being libwgrender's.
+  the TLS being wgrender's.
 - Assets survive a host that compresses: a web download is one plain GET, decoded by
   the browser, so a host that gzips a `.glb` or `.ttf` (GitHub Pages does) can't hand
   the loader a gzip stream. A cached file that won't load is dropped and fetched once
@@ -270,7 +275,7 @@ reference/librl the raylib library this evolves from (read-only reference)
   built-in font (an ASCII subset of JetBrains Mono embedded in the library,
   `src/fonts/wgr_default_font.h`); `wgr_font_create` loads others (`wgr_text_draw_ex`,
   `text2d`, `text3d`).
-- Compressed textures: load `name.ktx` and libwgrender picks the file the GPU can sample,
+- Compressed textures: load `name.ktx` and wgrender picks the file the GPU can sample,
   `name.bc7.ktx` (desktops), `name.astc.ktx` (phones), `name.etc2.ktx` (older phones)
   or `name.png`; on the web only that file downloads. Make them with
   `tools/compress_textures.sh name.png`. A quarter of the GPU memory, and no decoding
@@ -294,9 +299,11 @@ reference/librl the raylib library this evolves from (read-only reference)
   onto the screen). Its parameters are the material's, so an effect can change every
   frame. See `docs/PLAN-render-target.md` and `examples/postprocess.c`.
 
-## Not yet ported from librl
+## librl parity
 
-Main gaps: `text3d`, the remaining 3D shapes, per-object picking,
-window/monitor control, language bindings and tests. See the
-**librl parity** section of [docs/ROADMAP.md](docs/ROADMAP.md) for the full list,
-the suggested order, and what was left out on purpose.
+Reached. `tools/parity.map` accounts for every librl function: 65 have a wgrender
+equivalent, 82 were dropped on purpose (a design that turned out wrong, or a capability
+another design covers), and none are left to decide. `make parity` checks the map
+against both trees. Language bindings were never this repo's to port: they are their
+own module on the public API (the Haxe one is `wgrender-hx`). The reasoning per item is
+in the **librl parity** section of [docs/ROADMAP.md](docs/ROADMAP.md).
