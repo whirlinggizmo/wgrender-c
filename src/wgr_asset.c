@@ -1564,6 +1564,25 @@ int wgri_asset_pending_count(void)
     return count;
 }
 
+/* One warning per task not finished yet, saying where it is stuck: the stage a
+ * count can't tell apart. webcheck calls it when an example is still loading at its
+ * deadline, so a slow runner's failure names the file and the stage. */
+WGRI_KEEP
+void wgri_asset_pending_log(void)
+{
+    static const char *const STAGE[] = {
+        [TASK_NEW] = "queued", [TASK_FETCHING] = "downloading", [TASK_WAITING] = "waiting on dependencies",
+        [TASK_PREPARING] = "decoding on a worker", [TASK_FINISHING] = "creating the resource on the main thread",
+    };
+    for (uint16_t i = 1; i < wgr_asset_pool.capacity; i++) {
+        const wgr_asset_task_t *task = &wgr_asset_tasks[i];
+        if (!wgr_asset_pool.occupied[i]) continue;
+        log_warn("wgr_asset: pending: %s (%s%s%s)", task->path, STAGE[task->state],
+                 task->state == TASK_FETCHING ? (task->fetch_result == FETCH_PENDING ? ", in flight" : ", answered") : "",
+                 task->finish_started ? ", part done" : "");
+    }
+}
+
 void wgri_asset_deinit(void)
 {
     wgr_asset_job_t job;

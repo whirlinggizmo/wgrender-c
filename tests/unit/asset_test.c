@@ -66,6 +66,14 @@ static void test_fetcher(wgr_handle_t request, const char *url, const char *dest
     wgr_asset_fetch_done(request, f != NULL && *(const bool *)user);
 }
 
+/* A fetcher that never answers, to hold a task in flight. */
+static wgr_handle_t silent_request;
+static void silent_fetcher(wgr_handle_t request, const char *url, const char *dest_path, void *user)
+{
+    (void)url; (void)dest_path; (void)user;
+    silent_request = request;
+}
+
 static int ready_count, failed_count;
 static void on_ready(const char *path, void *user) { (void)path; (void)user; ready_count++; }
 static void on_failed(const char *path, void *user) { (void)path; (void)user; failed_count++; }
@@ -166,6 +174,20 @@ void test_asset_fetch_hook(void)
     wgr_asset_clear_redirects();
 
     wgr_asset_clear_cache(); /* desktop keeps the files; the web store is emptied */
+
+    /* the pending report names a task and its stage; here: one download in flight */
+    CHECK(wgri_asset_pending_count() == 0);
+    wgr_asset_set_fetcher(silent_fetcher, NULL);
+    CHECK(wgr_asset_evict("textures/rock.png"));
+    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_FILE_ONLY), on_ready, on_failed,
+                       NULL);
+    wgri_asset_tick();
+    CHECK(wgri_asset_pending_count() == 1);
+    wgri_asset_pending_log(); /* logs "textures/rock.png (downloading, in flight)"; must not touch the task */
+    CHECK(wgri_asset_pending_count() == 1);
+    wgr_asset_fetch_done(silent_request, false); /* let it fail so deinit has nothing in flight */
+    for (int i = 0; i < 4; i++) wgri_asset_tick();
+    CHECK(wgri_asset_pending_count() == 0);
 
     wgr_asset_set_fetcher(NULL, NULL);
     wgr_asset_set_host("");

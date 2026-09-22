@@ -84,7 +84,9 @@ jobs:
           version: 5.0.7
           actions-cache-folder: emsdk-cache
       - name: Build and check in headless Chrome
-        run: make -C examples webcheck BACKEND=webgl2
+        # Two vCPUs: two examples at a time (each spins up decode workers of its own),
+        # and twice the deadline. Four at a time starved a model's decode past 20 s.
+        run: make -C examples webcheck BACKEND=webgl2 WEBCHECK_FLAGS="--jobs=2 --settle=40000"
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v7

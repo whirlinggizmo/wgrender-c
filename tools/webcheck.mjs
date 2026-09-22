@@ -157,6 +157,12 @@ async function checkExample(browser, debugBase, baseUrl, example, opts) {
             await sleep(100);
         }
         result.pending = pending;
+        if (pending > 0) { /* out of time: have libwgrender say which files, and where they are stuck */
+            await session.send("Runtime.evaluate", {
+                expression: "typeof Module !== 'undefined' && Module._wgri_asset_pending_log && Module._wgri_asset_pending_log()",
+            }).catch(() => {});
+            await sleep(300); /* the warnings arrive as console events */
+        }
         const shot = await session.send("Page.captureScreenshot", { format: "png" });
         result.screenshot = join(opts.out, `${example}.png`);
         writeFileSync(result.screenshot, Buffer.from(shot.data, "base64"));
@@ -219,7 +225,12 @@ async function main() {
                     problems.push("never logged its backend (did not start?); last console output:");
                     for (const line of r.console.slice(-6)) problems.push(`  | ${line}`);
                 }
-                else if (r.pending !== 0) problems.push(`still loading after ${opts.settle} ms (${r.pending} asset task(s) pending)`);
+                else if (r.pending < 0) problems.push(`never reported its asset queue in ${opts.settle} ms (the runtime was still starting)`);
+                else if (r.pending !== 0) {
+                    problems.push(`still loading after ${opts.settle} ms (${r.pending} asset task(s) pending):`);
+                    const stuck = r.console.filter((line) => line.includes("wgr_asset: pending:"));
+                    for (const line of (stuck.length ? stuck : r.console.slice(-6))) problems.push(`  | ${line}`);
+                }
                 else if (!r.backendOk) problems.push(`started on a different backend than '${opts.backend}' (stale build?)`);
                 if (problems.length) failed++;
                 const start = r.startMs !== undefined ? ` (started after ${(r.startMs / 1000).toFixed(1)} s)` : "";
