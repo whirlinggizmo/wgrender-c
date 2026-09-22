@@ -48,16 +48,18 @@ tests, keep `make verify` passing, and tick the box in the same commit.
 - [x] Desktop headless smoke: `make smoke` runs every example headless for 180
       frames and fails on a non-zero exit, a timeout, or error-level logs
       (tools/smoke.sh). Needs no display, so it works with monitors asleep
-- [ ] Shared behavior tests: scenarios run against librl and libwgrender via an adapter
-      header, compared with tolerances
+- [x] Shared behavior tests: won't (2026-09-21). The idea was scenarios run against
+      librl and wgrender through an adapter header, compared with tolerances, to prove
+      parity. Parity is reached and librl is frozen, so the comparison would only ever
+      say what it says today; wgrender's own behavior is pinned by its unit tests and
+      the smoke run of every example
 - [x] Gate on parity: won't (2026-09-21). Parity is reached (0 todo) and librl is
       frozen, so none of the report's three checks can fire for a reason that matters:
       unmapped and stale need librl to change, and "ported target missing" is a removed
       public function, which the examples and unit tests already catch. The map stays as
       the record of what was dropped and why; `make parity` prints it, and
       tools/parity.sh now falls back to reference/librl so that works from a bare
-      checkout. The shared-behavior-tests item above is retired by the same logic if
-      Rob agrees
+      checkout.
 
 - [ ] API reference docs, generated from the public headers. Doxygen is the one
       everyone knows and it looks its age; the modern options are Doxygen + Breathe +
