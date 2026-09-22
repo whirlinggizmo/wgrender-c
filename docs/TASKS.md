@@ -1,4 +1,4 @@
-# libwgrender Tasks
+# wgrender Tasks
 
 Working checklist. Order and reasoning live in [ROADMAP.md](ROADMAP.md); this file
 is what's done and what's next.
