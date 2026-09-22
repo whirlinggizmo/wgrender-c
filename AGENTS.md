@@ -132,8 +132,10 @@ Keep this file short and rule-shaped. The authoritative design doc is
   refuse -- return false -- when the value would change what the program asked for or
   has no meaning (an emitter's particle cap, a zero extent, an unknown parameter). A
   setter's comment uses the word that matches the code, and "false for ..." names
-  every refusal: a binding decides method-or-property from that sentence, so "capped"
-  on a setter that refuses changes someone else's API.
+  every refusal. That sentence is a binding's only account of what the `bool` means:
+  wgrender-hx went to flat statics partly because a property setter structurally
+  cannot return it, so the refusal now always reaches the caller and the word had
+  better be true. "Capped" on a setter that refuses is a wrong promise downstream.
 - **Sweep the headers when a phase lands.** Whatever a plan's `Status:` line gains,
   re-read that subsystem's header in the same commit: a limit that grew, a case that
   used to be refused, a "for now" that stopped being true. `include/` is 34 files and
@@ -244,10 +246,11 @@ What they come to here:
   `can_<verb>` is that an action is possible (`can_move` in `wgr_platform.c`). The noun
   vs verb is what picks the last two: "has fullscreen" reads, "can fullscreen" doesn't,
   and "can move window" reads where "has move" doesn't. All three return `bool`, take
-  no state with them, and become a read-only property in a binding -- which is why the
-  verb is worth getting right, the same reason clamp-or-refuse is. `tools/check_naming.sh`
-  doesn't enforce verbs (it checks types, `_ptr` and the prefix per surface), so this
-  is convention.
+  no state with them, and a binding carries the name straight through -- wgrender-hx
+  mirrors C names mechanically, so `wgr_window_is_fullscreen` is `Window.isFullscreen`.
+  The verb is the name in every language, not a hint someone translates, which is why
+  it is worth getting right. `tools/check_naming.sh` doesn't enforce verbs (it checks
+  types, `_ptr` and the prefix per surface), so this is convention.
 - **Cross-`.c` internals** (one `src/*.c` calling another's symbol): `wgri_<subsystem>_…`,
   declared **only** in `src/internal/*_internal.h` — promoting one to `include/` is a
   rename to `wgr_`, which is the point: the contract changed. The file suffix keeps
