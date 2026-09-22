@@ -40,7 +40,7 @@ position; X11 (XRandR), Win32 and macOS each have one, so it's a small addition.
 bool   wgr_window_set_size(int width, int height);
 bool   wgr_window_set_position(int x, int y);      /* top-left, desktop coordinates */
 vec2_t wgr_window_get_position(void);               /* now real; (0, 0) on web */
-bool   wgr_window_set_fullscreen(bool fullscreen);
+bool   wgr_window_request_fullscreen(bool fullscreen);
 bool   wgr_window_is_fullscreen(void);
 bool   wgr_window_is_focused(void);
 

@@ -69,10 +69,10 @@ vec2_t wgr_window_get_position(void)
 }
 
 WGRI_KEEP
-bool wgr_window_set_fullscreen(bool fullscreen)
+bool wgr_window_request_fullscreen(bool fullscreen)
 {
     static bool logged;
-    return wgri_platform_set_fullscreen(fullscreen) || unsupported(&logged, "wgr_window_set_fullscreen");
+    return wgri_platform_set_fullscreen(fullscreen) || unsupported(&logged, "wgr_window_request_fullscreen");
 }
 
 WGRI_KEEP bool wgr_window_is_fullscreen(void) { return wgri_platform_is_fullscreen(); }
