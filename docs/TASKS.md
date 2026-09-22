@@ -5,8 +5,7 @@ is what's done and what's next. Per-function librl parity is tracked in
 `tools/parity.map` (run `make parity`), not duplicated here.
 
 Workflow: pick the top unchecked item, outline a plan (AGENTS.md), implement with
-tests, keep `make`, `make examples`, `make check` and `make parity` passing, and
-tick the box in the same commit.
+tests, keep `make verify` passing, and tick the box in the same commit.
 
 ## Infrastructure
 
@@ -51,8 +50,14 @@ tick the box in the same commit.
       (tools/smoke.sh). Needs no display, so it works with monitors asleep
 - [ ] Shared behavior tests: scenarios run against librl and libwgrender via an adapter
       header, compared with tolerances
-- [ ] Gate on parity: add `make parity` to `make check` once librl is no longer needed
-      locally, or run `--strict` in CI once todos reach zero
+- [x] Gate on parity: won't (2026-09-21). Parity is reached (0 todo) and librl is
+      frozen, so none of the report's three checks can fire for a reason that matters:
+      unmapped and stale need librl to change, and "ported target missing" is a removed
+      public function, which the examples and unit tests already catch. The map stays as
+      the record of what was dropped and why; `make parity` prints it, and
+      tools/parity.sh now falls back to reference/librl so that works from a bare
+      checkout. The shared-behavior-tests item above is retired by the same logic if
+      Rob agrees
 
 - [ ] API reference docs, generated from the public headers. Doxygen is the one
       everyone knows and it looks its age; the modern options are Doxygen + Breathe +

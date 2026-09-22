@@ -28,7 +28,9 @@ Keep this file short and rule-shaped. The authoritative design doc is
 - `make smoke` — every example built headless (`make HEADLESS=1`) and run for 180
   frames; fails on crashes, timeouts or error logs. Needs no display. Add or update tests alongside code changes; new tests go in
   `tests/unit/tests.h` and the table in `tests/unit/main.c`.
-- `make parity` — librl → libwgrender parity report (needs `../librl`).
+- `make parity` — the librl → wgrender parity report, a record rather than a check now
+  that parity is reached (`tools/parity.map`; uses `reference/librl` unless `LIBRL_DIR`
+  or a checkout beside the repo says otherwise).
 - `make windows` — the library and examples cross-compiled for Windows with MinGW
   (`build/windows`, `examples/build/windows/*.exe`; `WINDOWS=1` on any target).
   `make windows-test` / `make windows-smoke` run the unit tests and the headless

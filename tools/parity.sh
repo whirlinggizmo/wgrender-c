@@ -25,11 +25,12 @@ strict=0
 
 MAP=tools/parity.map
 
-# Where librl is checked out. LIBRL_DIR wins; otherwise look beside this repo, then
-# beside the directory holding it (repos are often grouped by owner, and these two
-# libraries don't have to live under the same one).
+# Where librl is. LIBRL_DIR wins; otherwise a checkout beside this repo, then beside
+# the directory holding it (repos are often grouped by owner), then the read-only copy
+# in reference/librl -- the one the map was written against, so a bare checkout can
+# print the report.
 if [ -z "${LIBRL_DIR:-}" ]; then
-    for candidate in ../librl ../../*/librl; do
+    for candidate in ../librl ../../*/librl reference/librl; do
         if [ -d "$candidate/include" ]; then
             LIBRL_DIR="$candidate"
             break

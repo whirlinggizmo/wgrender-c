@@ -28,12 +28,16 @@ As of 2026-09-16, **wgrender is where new work happens**; librl is in maintenanc
 - **Cost:** wgrender is an engine we build, not one we wrap. Loaders, audio formats,
   gamepad mappings, gestures, collision helpers and platform quirks that raylib
   covers must be written or pulled in (preferably as single-header libraries).
-- **librl's role:** fixes only when needed; a reference for behavior and the
-  baseline for parity tests. Archive it once parity is reached.
-- **Parity means functional parity, not a 1:1 API.** Anything you could build with
-  librl should be buildable with wgrender, but each feature gets a fresh design using
-  what librl taught us, rather than a copy of its functions. Port what future work
-  needs first; roadmap items may come before some parity items.
+- **Parity is reached (2026-09-21).** It meant functional parity, not a 1:1 API:
+  anything you could build with librl is buildable with wgrender, each feature
+  designed fresh from what librl taught us rather than copied. `tools/parity.map`
+  accounts for every librl function -- 65 have a wgrender equivalent, 82 were dropped
+  on purpose (a design that turned out wrong, or a capability another design covers),
+  none are open -- and the reasoning per item is in the **librl parity** section of
+  [docs/ROADMAP.md](docs/ROADMAP.md). `make parity` reprints the report; it is a
+  record, not a check, since neither side of it changes now.
+- **librl's role:** archived. Its repo takes fixes only; `reference/librl` here is the
+  read-only copy the map was written against.
 
 ## Build (Linux)
 
@@ -299,11 +303,14 @@ reference/librl the raylib library this evolves from (read-only reference)
   onto the screen). Its parameters are the material's, so an effect can change every
   frame. See `docs/PLAN-render-target.md` and `examples/postprocess.c`.
 
-## librl parity
+## Bindings
 
-Reached. `tools/parity.map` accounts for every librl function: 65 have a wgrender
-equivalent, 82 were dropped on purpose (a design that turned out wrong, or a capability
-another design covers), and none are left to decide. `make parity` checks the map
-against both trees. Language bindings were never this repo's to port: they are their
-own module on the public API (the Haxe one is `wgrender-hx`). The reasoning per item is
-in the **librl parity** section of [docs/ROADMAP.md](docs/ROADMAP.md).
+wgrender stays a plain C library; a binding is its own repo on the public API. The
+handle-only surface (every parameter a handle, a number, an enum or a `const char *`;
+`make check` enforces it) is what keeps one cheap to write and to keep in step.
+
+| Language | Repo | State |
+|---|---|---|
+| Haxe | [wgrender-hx](https://github.com/whirlinggizmo/wgrender-hx) | in development: hxcpp (desktop) and JS (web) targets, generated from the headers |
+| Nim | -- | future |
+| Beef | -- | future |
