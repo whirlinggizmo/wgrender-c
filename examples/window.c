@@ -56,7 +56,10 @@ static void frame(float dt, float tick_fraction, void *user_data)
     if (kb.keys[WGR_KEY_MINUS] == WGR_BUTTON_PRESSED) {
         report("shrink", wgr_window_set_size((int)(size.x / 1.1f), (int)(size.y / 1.1f)));
     }
-    if (kb.keys[WGR_KEY_F] == WGR_BUTTON_PRESSED) report("fullscreen", wgr_window_request_fullscreen(!wgr_window_is_fullscreen()));
+    if (kb.keys[WGR_KEY_F] == WGR_BUTTON_PRESSED) { /* a request: is_fullscreen answers on a later frame */
+        const bool can = wgr_window_request_fullscreen(!wgr_window_is_fullscreen());
+        snprintf(g.status, sizeof(g.status), "fullscreen: %s", can ? "requested" : "not supported here");
+    }
     if (kb.keys[WGR_KEY_H] == WGR_BUTTON_PRESSED && wgr_window_set_visible(false)) {
         g.hidden_for = 2.0f;
         report("hide for 2 s", true);
