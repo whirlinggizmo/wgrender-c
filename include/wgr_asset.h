@@ -161,7 +161,8 @@ void wgr_asset_clear_redirects(void);
  * (<= 0: 5000). `host` NULL pings the current one (wgr_asset_set_host). On the web
  * it's a HEAD request to the host (any response counts, even a 404; another origin
  * needs no CORS headers). On desktop the host is a local directory: 0 if it exists,
- * negative if not (or a URL: desktop builds don't download yet). False when
+ * negative if not (or a URL: no host ping on desktop, whose fetcher hands files, not
+ * round trips). False when
  * `on_done` is NULL or 8 pings are already waiting. */
 typedef void (*wgr_asset_ping_fn)(const char *host, float milliseconds, void *user_data);
 bool wgr_asset_ping_host(const char *host, int timeout_ms, wgr_asset_ping_fn on_done, void *user_data);
