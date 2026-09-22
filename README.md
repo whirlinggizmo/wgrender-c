@@ -48,14 +48,14 @@ make deps       # install them via apt / dnf / pacman (uses sudo)
 Then:
 
 ```sh
-make            # build build/desktop/libwgrender.a
-make examples   # build examples/build/desktop/*
+make            # build build/linux/libwgrender.a (build/macos on a Mac)
+make examples   # build examples/build/linux/*
 make run        # build + run the hello example
 make check      # enforce the "no backend leakage" invariant
 make test       # unit tests (tests/unit/; links the headless library)
 make smoke      # run every example headless (no window, GPU or audio) for ~3 s, in parallel
 make verify     # build + check + test + smoke (a few seconds): run before calling a change done
-make HEADLESS=1 # build build/headless/libwgrender.a: sokol dummy GPU backend, no window or audio
+make HEADLESS=1 # build build/linux-headless/libwgrender.a: sokol dummy GPU backend, no window or audio
                 # headless apps run frames at 60/s until wgr_request_quit(), or for
                 # WGR_HEADLESS_FRAMES frames when that environment variable is set
 make clean

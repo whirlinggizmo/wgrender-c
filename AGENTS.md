@@ -6,8 +6,9 @@ Keep this file short and rule-shaped. The authoritative design doc is
 
 ## Build & verify
 
-- `make` — build the static library (`build/desktop/libwgrender.a`). Build outputs live
-  in one directory per target: libraries in `build/{desktop,headless,webgl2,webgpu}`
+- `make` — build the static library (`build/linux/libwgrender.a`; `build/macos` on a Mac).
+  Build outputs live in one directory per target, named for the OS or backend they are
+  for: libraries in `build/{linux,linux-headless,windows,windows-headless,webgl2,webgpu}`
   (`<backend>-nothreads` for `WEB_THREADS=0`), programs and web sites in
   `examples/build/<target>`.
 - `make web [BACKEND=webgpu] [WEB_THREADS=0] [WEB_DEBUG=1]` — the web library
@@ -19,7 +20,7 @@ Keep this file short and rule-shaped. The authoritative design doc is
 - `make examples` — build everything in `examples/`.
 - `make check` — guardrails; currently enforces that `include/` and `examples/`
   stay **backend-free** (no sokol/GL leakage into the public surface).
-- `make test` — unit tests (`tests/unit/`, link against `build/headless/libwgrender.a`, no
+- `make test` — unit tests (`tests/unit/`, link against `build/linux-headless/libwgrender.a`, no
   stubs, no display or GPU).
 - `make test SANITIZE=thread` (or `address`, `undefined`) — the unit tests with the
   library built in under a sanitizer. Run `thread` when touching audio or other

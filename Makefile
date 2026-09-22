@@ -5,7 +5,7 @@
 # `$(MAKE) -C examples`, and the examples build depends back on this lib.
 #
 # Targets:
-#   make            build static lib (build/desktop/libwgrender.a)
+#   make            build static lib (build/linux/libwgrender.a; build/macos on a Mac)
 #   make examples   build example programs        (-> examples/Makefile)
 #   make run        build + run the hello example  (-> examples/Makefile)
 #   make wasm[-all] build the web examples         (-> examples/Makefile)
@@ -19,7 +19,7 @@
 #   make verify     build + check + test + smoke: run before calling a change done
 #   make deps       install system build deps (ALSA/GL/X11 dev packages)
 #   make parity     librl -> libwgrender API parity report (LIBRL_DIR=/path/to/librl)
-#   make HEADLESS=1 headless lib (build/headless/libwgrender.a): no window, GPU or audio
+#   make HEADLESS=1 headless lib (build/linux-headless/libwgrender.a): no window, GPU or audio
 #   make windows    Windows lib and examples, cross-compiled with MinGW (build/windows,
 #                   examples/build/windows/*.exe); WINDOWS=1 on any target (with
 #                   HEADLESS=1: build/windows-headless). Tests and smoke run under Wine
@@ -31,11 +31,11 @@
 #
 # Build outputs live in one directory per target: build/{desktop,headless,webgl2,
 # webgpu,<backend>-nothreads} (library objects + libwgrender.a) and
-# examples/build/{desktop,headless,webgl2,webgpu,...} (programs, web sites).
+# examples/build/{linux,linux-headless,webgl2,webgpu,...} (programs, web sites; macos on a Mac).
 #   make smoke      run every example headless for a few seconds (-> examples)
 #   make clean
 
-UNAME_S := $(shell uname -s)
+include mk/host.mk # HOST_OS: linux / macos, the native target's name
 
 CC      ?= cc
 AR      ?= ar
@@ -80,10 +80,10 @@ else ifeq ($(WINDOWS),1)
   TARGET := windows$(if $(filter 1,$(HEADLESS)),-headless)
   DEPS_CHECK :=
 else ifeq ($(HEADLESS),1)
-  TARGET := headless
+  TARGET := $(HOST_OS)-headless
   DEPS_CHECK :=
 else
-  TARGET := desktop
+  TARGET := $(HOST_OS)
   DEPS_CHECK := deps-check
 endif
 # BENCH_DEFS: extra -D flags for benchmark builds (tools/bench), e.g. larger
@@ -209,14 +209,14 @@ ifeq ($(KTX),1)
 endif
 ifeq ($(DESKTOP),1)
 	@$(MAKE) --no-print-directory -j$(NPROC) all
-	@$(CC) $(STD) -O2 -Iinclude tools/bench/loadbench.c build/desktop/libwgrender.a \
-	    $$($(MAKE) --no-print-directory -s -C examples print-ldlibs) -o build/desktop/loadbench
-	@WGR_LOADBENCH_KTX=$(KTX) build/desktop/loadbench 2>/dev/null
+	@$(CC) $(STD) -O2 -Iinclude tools/bench/loadbench.c build/$(HOST_OS)/libwgrender.a \
+	    $$($(MAKE) --no-print-directory -s -C examples print-ldlibs) -o build/$(HOST_OS)/loadbench
+	@WGR_LOADBENCH_KTX=$(KTX) build/$(HOST_OS)/loadbench 2>/dev/null
 else
 	@$(MAKE) --no-print-directory -j$(NPROC) all HEADLESS=1
-	@$(CC) $(STD) -O2 -Iinclude tools/bench/loadbench.c build/headless/libwgrender.a -ldl -lm -lpthread \
-	    -o build/headless/loadbench
-	@build/headless/loadbench 2>/dev/null
+	@$(CC) $(STD) -O2 -Iinclude tools/bench/loadbench.c build/$(HOST_OS)-headless/libwgrender.a -ldl -lm -lpthread \
+	    -o build/$(HOST_OS)-headless/loadbench
+	@build/$(HOST_OS)-headless/loadbench 2>/dev/null
 endif
 
 # --- generated data -----------------------------------------------------------
@@ -224,9 +224,9 @@ endif
 # src/data/wgr_brdf_lut.h by the library's own function (tools/gen_brdf_lut.c).
 brdf-lut:
 	@$(MAKE) --no-print-directory -j$(NPROC) all HEADLESS=1
-	@$(CC) $(STD) -O2 -Iinclude -Isrc -isystem deps/sokol tools/gen_brdf_lut.c build/headless/libwgrender.a \
-	    -ldl -lm -lpthread -o build/headless/gen_brdf_lut
-	@build/headless/gen_brdf_lut src/data/wgr_brdf_lut.h
+	@$(CC) $(STD) -O2 -Iinclude -Isrc -isystem deps/sokol tools/gen_brdf_lut.c build/$(HOST_OS)-headless/libwgrender.a \
+	    -ldl -lm -lpthread -o build/$(HOST_OS)-headless/gen_brdf_lut
+	@build/$(HOST_OS)-headless/gen_brdf_lut src/data/wgr_brdf_lut.h
 
 # --- sprite benchmark (tools/bench) ------------------------------------------
 # Sprite-heavy scenes (a grid, a perspective field with mixed facings, 3D and 2D
@@ -238,14 +238,14 @@ spritebench:
 ifeq ($(DESKTOP),1)
 	@$(MAKE) --no-print-directory -j$(NPROC) all
 	@libs="$$($(MAKE) --no-print-directory -s -C examples print-ldlibs)"; \
-	$(CC) $(STD) -O2 -DSOKOL_GLCORE $(SPRITEBENCH_INCS) tools/bench/spritebench.c build/desktop/libwgrender.a \
-	    $$libs -lm -o build/desktop/spritebench
-	@build/desktop/spritebench 2>/dev/null
+	$(CC) $(STD) -O2 -DSOKOL_GLCORE $(SPRITEBENCH_INCS) tools/bench/spritebench.c build/$(HOST_OS)/libwgrender.a \
+	    $$libs -lm -o build/$(HOST_OS)/spritebench
+	@build/$(HOST_OS)/spritebench 2>/dev/null
 else
 	@$(MAKE) --no-print-directory -j$(NPROC) all HEADLESS=1
 	@$(CC) $(STD) -O2 -DWGR_HEADLESS -DSOKOL_DUMMY_BACKEND $(SPRITEBENCH_INCS) tools/bench/spritebench.c \
-	    build/headless/libwgrender.a -ldl -lm -lpthread -o build/headless/spritebench
-	@build/headless/spritebench 2>/dev/null
+	    build/$(HOST_OS)-headless/libwgrender.a -ldl -lm -lpthread -o build/$(HOST_OS)-headless/spritebench
+	@build/$(HOST_OS)-headless/spritebench 2>/dev/null
 endif
 
 # --- shadow benchmark (tools/bench) ------------------------------------------
@@ -257,14 +257,14 @@ shadowbench:
 ifeq ($(DESKTOP),1)
 	@$(MAKE) --no-print-directory -j$(NPROC) all
 	@libs="$$($(MAKE) --no-print-directory -s -C examples print-ldlibs)"; \
-	$(CC) $(STD) -O2 -DSOKOL_GLCORE $(SPRITEBENCH_INCS) tools/bench/shadowbench.c build/desktop/libwgrender.a \
-	    $$libs -lm -o build/desktop/shadowbench
-	@build/desktop/shadowbench 2>/dev/null
+	$(CC) $(STD) -O2 -DSOKOL_GLCORE $(SPRITEBENCH_INCS) tools/bench/shadowbench.c build/$(HOST_OS)/libwgrender.a \
+	    $$libs -lm -o build/$(HOST_OS)/shadowbench
+	@build/$(HOST_OS)/shadowbench 2>/dev/null
 else
 	@$(MAKE) --no-print-directory -j$(NPROC) all HEADLESS=1
 	@$(CC) $(STD) -O2 -DWGR_HEADLESS -DSOKOL_DUMMY_BACKEND $(SPRITEBENCH_INCS) tools/bench/shadowbench.c \
-	    build/headless/libwgrender.a -ldl -lm -lpthread -o build/headless/shadowbench
-	@build/headless/shadowbench 2>/dev/null
+	    build/$(HOST_OS)-headless/libwgrender.a -ldl -lm -lpthread -o build/$(HOST_OS)-headless/shadowbench
+	@build/$(HOST_OS)-headless/shadowbench 2>/dev/null
 endif
 
 # --- shaders (sokol-shdc) ---------------------------------------------------

@@ -7,7 +7,7 @@
 #   make clean
 #
 # Unit tests (tests/unit/) call library internals directly and link against
-# build/headless/libwgrender.a, with no stubs. They don't open a window or touch the GPU.
+# build/<host>-headless/libwgrender.a, with no stubs. They don't open a window or touch the GPU.
 
 ROOT := ..
 
@@ -21,7 +21,8 @@ CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
 # Unit tests link the headless library: no window, GPU, audio device, or
 # GL/X11/ALSA libraries needed (runs in CI and with no display).
-LIB     := $(ROOT)/build/headless/libwgrender.a
+include $(ROOT)/mk/host.mk # HOST_OS: linux / macos
+LIB     := $(ROOT)/build/$(HOST_OS)-headless/libwgrender.a
 LDLIBS_PLATFORM := -ldl -lm -lpthread
 LIB_FLAGS :=
 EXE       :=

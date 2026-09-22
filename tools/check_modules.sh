@@ -10,7 +10,8 @@
 set -u
 cd "$(dirname "$0")/.." || exit 2
 
-lib=build/headless/libwgrender.a
+case "$(uname -s)" in Linux) host=linux ;; Darwin) host=macos ;; *) host=$(uname -s | tr A-Z a-z) ;; esac
+lib=build/$host-headless/libwgrender.a
 if [ ! -f "$lib" ]; then
     make --no-print-directory -s all HEADLESS=1 >/dev/null || exit 2
 fi

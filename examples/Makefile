@@ -4,7 +4,7 @@
 # current (libwgrender.a is a real prerequisite of every example), so building here
 # always links against an up-to-date lib.
 #
-#   make                       build all desktop examples (build/desktop/)
+#   make                       build all desktop examples (build/linux/; build/macos on a Mac)
 #   make run                   build + run hello
 #   make wasm                  WebGL2 (SOKOL_GLES3), example=hello
 #   make wasm BACKEND=webgpu   WebGPU (SOKOL_WGPU, emdawnwebgpu port)
@@ -16,7 +16,7 @@
 #   make webcheck              build all for web, load each in a browser, fail on errors
 #   make webcheck BACKEND=webgpu (on a virtual X display when Xvfb is installed)
 #
-# Outputs, one directory per target: build/desktop, build/headless, and the web
+# Outputs, one directory per target: build/linux, build/linux-headless (macos on a Mac), and the web
 # sites build/webgl2, build/webgpu and build/<backend>-nothreads (each with obj/
 # and webcheck/ screenshots). The libraries are in the root build/ directory.
 #   make clean
@@ -36,7 +36,8 @@ INCS    += -isystem $(ROOT)/deps/sokol -isystem $(ROOT)/deps/sokol_utils -isyste
            -isystem $(ROOT)/deps/cgltf -isystem $(ROOT)/deps/clay
 CFLAGS  := $(STD) $(WARN) $(OPT) $(DEFS) $(INCS)
 
-LIB     := $(ROOT)/build/desktop/libwgrender.a
+include $(ROOT)/mk/host.mk # HOST_OS: linux / macos
+LIB     := $(ROOT)/build/$(HOST_OS)/libwgrender.a
 # WINDOWS=1: the same examples cross-compiled with MinGW as .exe files (build/windows;
 # the root Makefile's `make windows`). The smoke run goes through Wine.
 WINDOWS ?= 0
@@ -57,7 +58,7 @@ else ifeq ($(UNAME_S),Darwin)
                      -framework AudioToolbox
 endif
 
-BUILD_DESKTOP := build/$(if $(filter 1,$(WINDOWS)),windows,desktop)
+BUILD_DESKTOP := build/$(if $(filter 1,$(WINDOWS)),windows,$(HOST_OS))
 SRCS          := $(wildcard *.c)
 BINS          := $(patsubst %.c,$(BUILD_DESKTOP)/%$(EXE),$(SRCS))
 
@@ -84,9 +85,9 @@ print-ldlibs:
 	@echo $(LDLIBS_PLATFORM)
 
 # --- headless (no window, GPU or audio device) -------------------------------
-# Same example sources linked against build/headless/libwgrender.a; runs anywhere, e.g.
+# Same example sources linked against build/<host>-headless/libwgrender.a; runs anywhere, e.g.
 # CI or with the displays asleep. tools/smoke.sh runs each for SMOKE_FRAMES frames.
-BUILD_HEADLESS  := build/$(if $(filter 1,$(WINDOWS)),windows-headless,headless)
+BUILD_HEADLESS  := build/$(if $(filter 1,$(WINDOWS)),windows-headless,$(HOST_OS)-headless)
 HEADLESS_LIB    := $(ROOT)/$(BUILD_HEADLESS)/libwgrender.a
 HEADLESS_BINS   := $(patsubst %.c,$(BUILD_HEADLESS)/%$(EXE),$(SRCS))
 LDLIBS_HEADLESS := $(if $(filter 1,$(WINDOWS)),-static,-ldl -lm -lpthread)
