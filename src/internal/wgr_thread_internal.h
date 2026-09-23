@@ -9,8 +9,8 @@
 
 #if defined(_WIN32)
 typedef struct { void *handle; } wgri_thread_t;
-typedef struct { void *opaque[5]; } wgri_mutex_t;   /* CRITICAL_SECTION-sized, see wgr_thread.c */
-typedef struct { void *opaque; } wgri_cond_t;       /* CONDITION_VARIABLE */
+typedef struct { void *opaque; } wgri_mutex_t; /* SRWLOCK */
+typedef struct { void *opaque; } wgri_cond_t;  /* CONDITION_VARIABLE */
 #else
 #include <pthread.h>
 typedef struct { pthread_t handle; } wgri_thread_t;

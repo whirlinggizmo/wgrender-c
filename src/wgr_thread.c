@@ -20,7 +20,9 @@ typedef struct {
 
 #if defined(_WIN32)
 
-_Static_assert(sizeof(CRITICAL_SECTION) <= sizeof(wgri_mutex_t), "wgri_mutex_t too small");
+/* An SRWLOCK, not a CRITICAL_SECTION: one pointer at every width, and not recursive,
+ * like the default pthread mutex the other platforms use. */
+_Static_assert(sizeof(SRWLOCK) <= sizeof(wgri_mutex_t), "wgri_mutex_t too small");
 _Static_assert(sizeof(CONDITION_VARIABLE) <= sizeof(wgri_cond_t), "wgri_cond_t too small");
 
 static DWORD WINAPI run(LPVOID param)
@@ -61,16 +63,16 @@ void wgri_thread_join(wgri_thread_t *thread)
 
 void wgri_thread_detach(wgri_thread_t *thread) { CloseHandle((HANDLE)thread->handle); }
 
-void wgri_mutex_init(wgri_mutex_t *mutex) { InitializeCriticalSection((CRITICAL_SECTION *)mutex); }
-void wgri_mutex_destroy(wgri_mutex_t *mutex) { DeleteCriticalSection((CRITICAL_SECTION *)mutex); }
-void wgri_mutex_lock(wgri_mutex_t *mutex) { EnterCriticalSection((CRITICAL_SECTION *)mutex); }
-void wgri_mutex_unlock(wgri_mutex_t *mutex) { LeaveCriticalSection((CRITICAL_SECTION *)mutex); }
+void wgri_mutex_init(wgri_mutex_t *mutex) { InitializeSRWLock((SRWLOCK *)mutex); }
+void wgri_mutex_destroy(wgri_mutex_t *mutex) { (void)mutex; }
+void wgri_mutex_lock(wgri_mutex_t *mutex) { AcquireSRWLockExclusive((SRWLOCK *)mutex); }
+void wgri_mutex_unlock(wgri_mutex_t *mutex) { ReleaseSRWLockExclusive((SRWLOCK *)mutex); }
 
 void wgri_cond_init(wgri_cond_t *cond) { InitializeConditionVariable((CONDITION_VARIABLE *)cond); }
 void wgri_cond_destroy(wgri_cond_t *cond) { (void)cond; }
 void wgri_cond_wait(wgri_cond_t *cond, wgri_mutex_t *mutex)
 {
-    SleepConditionVariableCS((CONDITION_VARIABLE *)cond, (CRITICAL_SECTION *)mutex, INFINITE);
+    SleepConditionVariableSRW((CONDITION_VARIABLE *)cond, (SRWLOCK *)mutex, INFINITE, 0);
 }
 void wgri_cond_broadcast(wgri_cond_t *cond) { WakeAllConditionVariable((CONDITION_VARIABLE *)cond); }
 
