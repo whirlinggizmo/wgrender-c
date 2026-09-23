@@ -9,7 +9,7 @@
     "emcc": "5.0.7"
   },
   "wgrender": {
-    "commit": "9b8fae3",
+    "commit": "76a3807",
     "dirty": false,
     "source": "self"
   },
@@ -59,26 +59,26 @@
       },
       "frame": {
         "label": "c",
-        "frames": 481,
+        "frames": 480,
         "median": 16.66,
         "p95": 16.67,
         "overCap": 0,
-        "scriptMs": 0.478,
-        "taskMs": 0.778,
+        "scriptMs": 0.499,
+        "taskMs": 0.796,
         "scriptRuns": [
-          0.455,
-          0.478,
-          0.481
+          0.47,
+          0.499,
+          0.506
         ]
       },
       "gc": {
         "label": "c",
-        "frames": 607,
+        "frames": 608,
         "uncapped": false,
-        "allocBytesPerFrame": 1578,
-        "allocMBPerMinute": 5.4,
-        "collections": 2,
-        "freedMB": 0.72,
+        "allocBytesPerFrame": 782,
+        "allocMBPerMinute": 2.7,
+        "collections": 1,
+        "freedMB": 0.26,
         "heapStartMB": 8.6,
         "heapEndMB": 8.8,
         "frameMs": {
@@ -113,7 +113,186 @@
           }
         },
         "bufferFull": false
-      }
+      },
+      "stress": [
+        {
+          "n": 1000,
+          "frame": {
+            "label": "c-1000",
+            "frames": 479,
+            "median": 16.66,
+            "p95": 16.67,
+            "overCap": 0,
+            "scriptMs": 0.461,
+            "taskMs": 0.55,
+            "scriptRuns": [
+              0.43,
+              0.461,
+              0.536
+            ]
+          },
+          "gc": {
+            "label": "c-1000",
+            "frames": 607,
+            "uncapped": false,
+            "allocBytesPerFrame": 414,
+            "allocMBPerMinute": 1.4,
+            "collections": 0,
+            "freedMB": 0,
+            "heapStartMB": 1.9,
+            "heapEndMB": 2.2,
+            "frameMs": {
+              "median": 16.66,
+              "p99": 16.67,
+              "max": 16.67
+            },
+            "gcFrameMs": null,
+            "loadMs": 8,
+            "lateFrames": {
+              "over20": 0,
+              "over33": 0,
+              "pct": 0
+            },
+            "gc": {
+              "totalMs": 0.4,
+              "pctOfWall": 0,
+              "minor": {
+                "count": 1,
+                "medianMs": 0.37,
+                "maxMs": 0.37,
+                "totalMs": 0.4
+              },
+              "major": {
+                "count": 0,
+                "medianMs": null,
+                "maxMs": null,
+                "totalMs": 0
+              }
+            },
+            "bufferFull": false
+          }
+        },
+        {
+          "n": 5000,
+          "frame": {
+            "label": "c-5000",
+            "frames": 481,
+            "median": 16.66,
+            "p95": 16.67,
+            "overCap": 0,
+            "scriptMs": 1.402,
+            "taskMs": 1.488,
+            "scriptRuns": [
+              1.38,
+              1.402,
+              1.414
+            ]
+          },
+          "gc": {
+            "label": "c-5000",
+            "frames": 607,
+            "uncapped": false,
+            "allocBytesPerFrame": 407,
+            "allocMBPerMinute": 1.4,
+            "collections": 1,
+            "freedMB": 0.44,
+            "heapStartMB": 2.3,
+            "heapEndMB": 2.1,
+            "frameMs": {
+              "median": 16.66,
+              "p99": 16.67,
+              "max": 16.67
+            },
+            "gcFrameMs": {
+              "median": 16.66,
+              "max": 16.66
+            },
+            "loadMs": 8,
+            "lateFrames": {
+              "over20": 0,
+              "over33": 0,
+              "pct": 0
+            },
+            "gc": {
+              "totalMs": 0.4,
+              "pctOfWall": 0,
+              "minor": {
+                "count": 1,
+                "medianMs": 0.44,
+                "maxMs": 0.44,
+                "totalMs": 0.4
+              },
+              "major": {
+                "count": 0,
+                "medianMs": null,
+                "maxMs": null,
+                "totalMs": 0
+              }
+            },
+            "bufferFull": false
+          }
+        },
+        {
+          "n": 10000,
+          "frame": {
+            "label": "c-10000",
+            "frames": 479,
+            "median": 16.66,
+            "p95": 16.67,
+            "overCap": 0,
+            "scriptMs": 2.638,
+            "taskMs": 2.725,
+            "scriptRuns": [
+              2.604,
+              2.638,
+              2.686
+            ]
+          },
+          "gc": {
+            "label": "c-10000",
+            "frames": 607,
+            "uncapped": false,
+            "allocBytesPerFrame": 409,
+            "allocMBPerMinute": 1.4,
+            "collections": 1,
+            "freedMB": 0.45,
+            "heapStartMB": 2.4,
+            "heapEndMB": 2.1,
+            "frameMs": {
+              "median": 16.66,
+              "p99": 16.67,
+              "max": 16.67
+            },
+            "gcFrameMs": {
+              "median": 16.66,
+              "max": 16.66
+            },
+            "loadMs": 8,
+            "lateFrames": {
+              "over20": 0,
+              "over33": 0,
+              "pct": 0
+            },
+            "gc": {
+              "totalMs": 0.4,
+              "pctOfWall": 0,
+              "minor": {
+                "count": 1,
+                "medianMs": 0.39,
+                "maxMs": 0.39,
+                "totalMs": 0.4
+              },
+              "major": {
+                "count": 0,
+                "medianMs": null,
+                "maxMs": null,
+                "totalMs": 0
+              }
+            },
+            "bufferFull": false
+          }
+        }
+      ]
     }
   ],
   "callbench": {
@@ -123,27 +302,27 @@
     "shapes": {
       "tint": {
         "c": "wgr_model_set_tint",
-        "jsNs": 2.61,
-        "wasmNs": 1.19,
-        "boundaryNs": 1.42
+        "jsNs": 2.7,
+        "wasmNs": 1.23,
+        "boundaryNs": 1.48
       },
       "transform": {
         "c": "wgr_model_set_transform",
-        "jsNs": 5.3,
-        "wasmNs": 2.17,
-        "boundaryNs": 3.13
+        "jsNs": 5.43,
+        "wasmNs": 2.21,
+        "boundaryNs": 3.22
       },
       "struct": {
         "c": "wgr_input_get_mouse_state",
-        "jsNs": 9.33,
-        "wasmNs": 2.68,
-        "boundaryNs": 6.65
+        "jsNs": 9.8,
+        "wasmNs": 2.73,
+        "boundaryNs": 7.08
       },
       "string": {
         "c": "wgr_text_measure",
-        "jsNs": 31.59,
-        "wasmNs": 3.19,
-        "boundaryNs": 28.39
+        "jsNs": 33.87,
+        "wasmNs": 3.31,
+        "boundaryNs": 30.56
       }
     }
   }
