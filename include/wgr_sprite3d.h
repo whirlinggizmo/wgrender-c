@@ -24,6 +24,11 @@ bool wgr_sprite3d_set_transform(wgr_handle_t handle,
                                float position_x, float position_y, float position_z,
                                float rotation_x, float rotation_y, float rotation_z, /* radians */
                                float scale_x, float scale_y, float scale_z);
+/* One part of the transform, leaving the others as they are; the getters read them back
+ * (0, 0, 0 for a handle that isn't one). */
+bool   wgr_sprite3d_set_position(wgr_handle_t handle, float x, float y, float z);
+bool   wgr_sprite3d_set_rotation(wgr_handle_t handle, float x, float y, float z); /* radians */
+bool   wgr_sprite3d_set_scale(wgr_handle_t handle, float x, float y, float z);
 /* World size of the quad before scale: set_size is the square shorthand for
  * set_extent(size, size). Default 1x1; a width or height <= 0 is refused. */
 bool wgr_sprite3d_set_size(wgr_handle_t handle, float size);

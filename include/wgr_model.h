@@ -76,6 +76,14 @@ bool wgr_model_set_transform(wgr_handle_t handle,
                             float position_x, float position_y, float position_z,
                             float rotation_x, float rotation_y, float rotation_z, /* radians */
                             float scale_x, float scale_y, float scale_z);
+/* One part of the transform, leaving the others as they are; the getters read them back
+ * (0, 0, 0 for a handle that isn't one). */
+bool   wgr_model_set_position(wgr_handle_t handle, float x, float y, float z);
+bool   wgr_model_set_rotation(wgr_handle_t handle, float x, float y, float z); /* radians */
+bool   wgr_model_set_scale(wgr_handle_t handle, float x, float y, float z);
+vec3_t wgr_model_get_position(wgr_handle_t handle);
+vec3_t wgr_model_get_rotation(wgr_handle_t handle); /* radians */
+vec3_t wgr_model_get_scale(wgr_handle_t handle);
 bool wgr_model_set_tint(wgr_handle_t handle, wgr_color_t color);
 /* Draw this model's material slot `slot` (a mesh material slot, 0..31) with
  * `material` instead of the mesh's; -1 sets every slot. 0 restores the mesh's

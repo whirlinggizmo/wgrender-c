@@ -25,6 +25,7 @@ wgr_handle_t wgr_text2d_create(wgr_handle_t font); /* font may be 0 (attach late
 bool wgr_text2d_set_font(wgr_handle_t handle, wgr_handle_t font);
 bool wgr_text2d_set_text(wgr_handle_t handle, const char *text); /* copied */
 bool wgr_text2d_set_position(wgr_handle_t handle, float x, float y);
+vec2_t wgr_text2d_get_position(wgr_handle_t handle); /* (0, 0) for a handle that isn't one */
 bool wgr_text2d_set_size(wgr_handle_t handle, float size);
 bool wgr_text2d_set_color(wgr_handle_t handle, wgr_color_t color);
 bool wgr_text2d_set_visible(wgr_handle_t handle, bool visible);

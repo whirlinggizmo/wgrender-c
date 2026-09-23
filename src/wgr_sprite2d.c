@@ -453,6 +453,21 @@ bool wgr_sprite2d_set_source(wgr_handle_t sprite, float x, float y, float width,
 }
 
 WGRI_KEEP
+bool wgr_sprite2d_set_transform(wgr_handle_t sprite, float x, float y, float rotation, float scale_x, float scale_y)
+{
+    wgr_sprite2d_t *sprite_ptr = resolve(sprite);
+    if (sprite_ptr == NULL) {
+        return false;
+    }
+    sprite_ptr->x = x;
+    sprite_ptr->y = y;
+    sprite_ptr->rotation = rotation;
+    sprite_ptr->scale_x = scale_x;
+    sprite_ptr->scale_y = scale_y;
+    return true;
+}
+
+WGRI_KEEP
 bool wgr_sprite2d_set_position(wgr_handle_t sprite, float x, float y)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
@@ -485,6 +500,27 @@ bool wgr_sprite2d_set_scale(wgr_handle_t sprite, float x, float y)
     sprite_ptr->scale_x = x;
     sprite_ptr->scale_y = y;
     return true;
+}
+
+WGRI_KEEP
+vec2_t wgr_sprite2d_get_position(wgr_handle_t sprite)
+{
+    const wgr_sprite2d_t *sprite_ptr = resolve(sprite);
+    return sprite_ptr != NULL ? (vec2_t){sprite_ptr->x, sprite_ptr->y} : (vec2_t){0, 0};
+}
+
+WGRI_KEEP
+float wgr_sprite2d_get_rotation(wgr_handle_t sprite)
+{
+    const wgr_sprite2d_t *sprite_ptr = resolve(sprite);
+    return sprite_ptr != NULL ? sprite_ptr->rotation : 0.0f;
+}
+
+WGRI_KEEP
+vec2_t wgr_sprite2d_get_scale(wgr_handle_t sprite)
+{
+    const wgr_sprite2d_t *sprite_ptr = resolve(sprite);
+    return sprite_ptr != NULL ? (vec2_t){sprite_ptr->scale_x, sprite_ptr->scale_y} : (vec2_t){0, 0};
 }
 
 WGRI_KEEP

@@ -29,9 +29,17 @@ bool wgr_sprite2d_set_texture(wgr_handle_t sprite, wgr_handle_t texture);
  * Default: the whole texture. width or height <= 0 resets to the whole texture. */
 bool wgr_sprite2d_set_source(wgr_handle_t sprite, float x, float y, float width, float height);
 
-bool wgr_sprite2d_set_position(wgr_handle_t sprite, float x, float y);  /* where the pivot goes */
-bool wgr_sprite2d_set_rotation(wgr_handle_t sprite, float angle);       /* radians, around the pivot */
-bool wgr_sprite2d_set_scale(wgr_handle_t sprite, float x, float y);     /* multiplies size; negative flips */
+/* Position, rotation (radians, around the pivot) and scale, in one call. */
+bool wgr_sprite2d_set_transform(wgr_handle_t sprite, float x, float y, float rotation,
+                               float scale_x, float scale_y);
+/* One part of the transform, leaving the others as they are; the getters read them back
+ * (0 for a handle that isn't one). */
+bool   wgr_sprite2d_set_position(wgr_handle_t sprite, float x, float y);  /* where the pivot goes */
+bool   wgr_sprite2d_set_rotation(wgr_handle_t sprite, float angle);       /* radians, around the pivot */
+bool   wgr_sprite2d_set_scale(wgr_handle_t sprite, float x, float y);     /* multiplies size; negative flips */
+vec2_t wgr_sprite2d_get_position(wgr_handle_t sprite);
+float  wgr_sprite2d_get_rotation(wgr_handle_t sprite);
+vec2_t wgr_sprite2d_get_scale(wgr_handle_t sprite);
 
 /* On-screen size in logical pixels before scale. width or height <= 0 means the
  * source region's size (the default). */

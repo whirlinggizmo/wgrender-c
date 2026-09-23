@@ -1876,6 +1876,51 @@ WGRI_KEEP bool wgr_model_set_transform(wgr_handle_t handle,
     return true;
 }
 
+WGRI_KEEP bool wgr_model_set_position(wgr_handle_t handle, float x, float y, float z)
+{
+    wgr_model_t *model_ptr = resolve(handle);
+    if (model_ptr == NULL) return false;
+    model_ptr->position = (vec3_t){x, y, z};
+    model_ptr->world_dirty = true;
+    return true;
+}
+
+WGRI_KEEP bool wgr_model_set_rotation(wgr_handle_t handle, float x, float y, float z)
+{
+    wgr_model_t *model_ptr = resolve(handle);
+    if (model_ptr == NULL) return false;
+    model_ptr->rotation = (vec3_t){x, y, z};
+    model_ptr->world_dirty = true;
+    return true;
+}
+
+WGRI_KEEP bool wgr_model_set_scale(wgr_handle_t handle, float x, float y, float z)
+{
+    wgr_model_t *model_ptr = resolve(handle);
+    if (model_ptr == NULL) return false;
+    model_ptr->scale = (vec3_t){x, y, z};
+    model_ptr->world_dirty = true;
+    return true;
+}
+
+WGRI_KEEP vec3_t wgr_model_get_position(wgr_handle_t handle)
+{
+    const wgr_model_t *model_ptr = resolve(handle);
+    return model_ptr != NULL ? model_ptr->position : (vec3_t){0, 0, 0};
+}
+
+WGRI_KEEP vec3_t wgr_model_get_rotation(wgr_handle_t handle)
+{
+    const wgr_model_t *model_ptr = resolve(handle);
+    return model_ptr != NULL ? model_ptr->rotation : (vec3_t){0, 0, 0};
+}
+
+WGRI_KEEP vec3_t wgr_model_get_scale(wgr_handle_t handle)
+{
+    const wgr_model_t *model_ptr = resolve(handle);
+    return model_ptr != NULL ? model_ptr->scale : (vec3_t){0, 0, 0};
+}
+
 WGRI_KEEP bool wgr_model_set_tint(wgr_handle_t handle, wgr_color_t color)
 {
     wgr_model_t *model_ptr = resolve(handle);

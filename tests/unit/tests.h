@@ -92,6 +92,7 @@ void test_window_headless(void);
 void test_runtime_capabilities(void);
 void test_interaction(void);
 void test_shape2d(void);
+void test_transforms(void);
 void test_shape2d_immediate(void);
 void test_text_default_font(void);
 void test_text_slices_and_dpi(void);

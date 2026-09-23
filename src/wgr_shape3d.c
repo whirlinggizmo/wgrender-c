@@ -420,6 +420,54 @@ bool wgr_shape3d_set_transform(wgr_handle_t shape,
 }
 
 WGRI_KEEP
+bool wgr_shape3d_set_position(wgr_handle_t handle, float x, float y, float z)
+{
+    wgr_shape3d_t *shape_ptr = resolve(handle);
+    if (shape_ptr == NULL) return false;
+    shape_ptr->position = (vec3_t){x, y, z};
+    return true;
+}
+
+WGRI_KEEP
+bool wgr_shape3d_set_rotation(wgr_handle_t handle, float x, float y, float z)
+{
+    wgr_shape3d_t *shape_ptr = resolve(handle);
+    if (shape_ptr == NULL) return false;
+    shape_ptr->rotation = (vec3_t){x, y, z};
+    return true;
+}
+
+WGRI_KEEP
+bool wgr_shape3d_set_scale(wgr_handle_t handle, float x, float y, float z)
+{
+    wgr_shape3d_t *shape_ptr = resolve(handle);
+    if (shape_ptr == NULL) return false;
+    shape_ptr->scale = (vec3_t){x, y, z};
+    return true;
+}
+
+WGRI_KEEP
+vec3_t wgr_shape3d_get_position(wgr_handle_t handle)
+{
+    const wgr_shape3d_t *shape_ptr = resolve(handle);
+    return shape_ptr != NULL ? shape_ptr->position : (vec3_t){0, 0, 0};
+}
+
+WGRI_KEEP
+vec3_t wgr_shape3d_get_rotation(wgr_handle_t handle)
+{
+    const wgr_shape3d_t *shape_ptr = resolve(handle);
+    return shape_ptr != NULL ? shape_ptr->rotation : (vec3_t){0, 0, 0};
+}
+
+WGRI_KEEP
+vec3_t wgr_shape3d_get_scale(wgr_handle_t handle)
+{
+    const wgr_shape3d_t *shape_ptr = resolve(handle);
+    return shape_ptr != NULL ? shape_ptr->scale : (vec3_t){0, 0, 0};
+}
+
+WGRI_KEEP
 bool wgr_shape3d_set_color(wgr_handle_t shape, wgr_color_t color)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);

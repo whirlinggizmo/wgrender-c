@@ -92,6 +92,7 @@ static const test_case_t TESTS[] = {
     {"runtime_capabilities", test_runtime_capabilities},
     {"interaction", test_interaction},
     {"shape2d", test_shape2d},
+    {"transforms", test_transforms},
     {"shape2d_immediate", test_shape2d_immediate},
     {"nine_slice", test_nine_slice},
     {"text2d_layout", test_text2d_layout},

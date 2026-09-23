@@ -260,6 +260,15 @@ What they come to here:
   The verb is the name in every language, not a hint someone translates, which is why
   it is worth getting right. `tools/check_naming.sh` doesn't enforce verbs (it checks
   types, `_ptr` and the prefix per surface), so this is convention.
+- **Every kind with a transform has the same calls for it.** For each part it has
+  (position, rotation, scale): `set_<part>`, which leaves the other parts as they are,
+  and `get_<part>`; with more than one part, also `set_transform` for them all in one
+  call, the cheapest per-frame path for a binding that crosses a boundary per call. 3D
+  parts are three floats in and a `vec3_t` out (rotation in radians); 2D ones are a
+  position and scale of two floats and a `vec2_t`, and one angle. A getter reads 0 for a
+  handle that isn't one. So a caller moving something never has to know, or keep, the
+  parts it isn't changing. `tests/unit/transform_test.c` checks every kind; a new kind
+  with a transform goes there too.
 - **Cross-`.c` internals** (one `src/*.c` calling another's symbol): `wgri_<subsystem>_…`,
   declared **only** in `src/internal/*_internal.h` — promoting one to `include/` is a
   rename to `wgr_`, which is the point: the contract changed. The file suffix keeps

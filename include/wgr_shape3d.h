@@ -52,6 +52,14 @@ bool wgr_shape3d_set_transform(wgr_handle_t shape,
                               float position_x, float position_y, float position_z,
                               float rotation_x, float rotation_y, float rotation_z, /* radians */
                               float scale_x, float scale_y, float scale_z);
+/* One part of the transform, leaving the others as they are; the getters read them back
+ * (0, 0, 0 for a handle that isn't one). */
+bool   wgr_shape3d_set_position(wgr_handle_t handle, float x, float y, float z);
+bool   wgr_shape3d_set_rotation(wgr_handle_t handle, float x, float y, float z); /* radians */
+bool   wgr_shape3d_set_scale(wgr_handle_t handle, float x, float y, float z);
+vec3_t wgr_shape3d_get_position(wgr_handle_t handle);
+vec3_t wgr_shape3d_get_rotation(wgr_handle_t handle); /* radians */
+vec3_t wgr_shape3d_get_scale(wgr_handle_t handle);
 bool wgr_shape3d_set_color(wgr_handle_t shape, wgr_color_t color);
 bool wgr_shape3d_set_visible(wgr_handle_t shape, bool visible);
 bool wgr_shape3d_is_visible(wgr_handle_t shape);

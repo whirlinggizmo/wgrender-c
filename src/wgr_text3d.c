@@ -427,6 +427,38 @@ bool wgr_text3d_set_transform(wgr_handle_t handle, float x, float y, float z, fl
 }
 
 WGRI_KEEP
+bool wgr_text3d_set_position(wgr_handle_t handle, float x, float y, float z)
+{
+    wgr_text3d_t *text_ptr = resolve(handle);
+    if (text_ptr == NULL) return false;
+    text_ptr->position = (vec3_t){x, y, z};
+    return true;
+}
+
+WGRI_KEEP
+bool wgr_text3d_set_rotation(wgr_handle_t handle, float x, float y, float z)
+{
+    wgr_text3d_t *text_ptr = resolve(handle);
+    if (text_ptr == NULL) return false;
+    text_ptr->rotation = (vec3_t){x, y, z};
+    return true;
+}
+
+WGRI_KEEP
+vec3_t wgr_text3d_get_position(wgr_handle_t handle)
+{
+    const wgr_text3d_t *text_ptr = resolve(handle);
+    return text_ptr != NULL ? text_ptr->position : (vec3_t){0, 0, 0};
+}
+
+WGRI_KEEP
+vec3_t wgr_text3d_get_rotation(wgr_handle_t handle)
+{
+    const wgr_text3d_t *text_ptr = resolve(handle);
+    return text_ptr != NULL ? text_ptr->rotation : (vec3_t){0, 0, 0};
+}
+
+WGRI_KEEP
 bool wgr_text3d_set_facing(wgr_handle_t handle, wgr_sprite3d_facing_t facing)
 {
     wgr_text3d_t *text_ptr = resolve(handle);

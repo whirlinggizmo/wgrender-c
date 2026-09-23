@@ -256,6 +256,62 @@ bool wgr_shape2d_set_transform(wgr_handle_t shape, float x, float y, float rotat
 }
 
 WGRI_KEEP
+bool wgr_shape2d_set_position(wgr_handle_t shape, float x, float y)
+{
+    wgr_shape2d_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL) {
+        return false;
+    }
+    shape_ptr->x = x;
+    shape_ptr->y = y;
+    return true;
+}
+
+WGRI_KEEP
+bool wgr_shape2d_set_rotation(wgr_handle_t shape, float angle)
+{
+    wgr_shape2d_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL) {
+        return false;
+    }
+    shape_ptr->rotation = angle;
+    return true;
+}
+
+WGRI_KEEP
+bool wgr_shape2d_set_scale(wgr_handle_t shape, float x, float y)
+{
+    wgr_shape2d_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL) {
+        return false;
+    }
+    shape_ptr->scale_x = x;
+    shape_ptr->scale_y = y;
+    return true;
+}
+
+WGRI_KEEP
+vec2_t wgr_shape2d_get_position(wgr_handle_t shape)
+{
+    const wgr_shape2d_t *shape_ptr = resolve(shape);
+    return shape_ptr != NULL ? (vec2_t){shape_ptr->x, shape_ptr->y} : (vec2_t){0, 0};
+}
+
+WGRI_KEEP
+float wgr_shape2d_get_rotation(wgr_handle_t shape)
+{
+    const wgr_shape2d_t *shape_ptr = resolve(shape);
+    return shape_ptr != NULL ? shape_ptr->rotation : 0.0f;
+}
+
+WGRI_KEEP
+vec2_t wgr_shape2d_get_scale(wgr_handle_t shape)
+{
+    const wgr_shape2d_t *shape_ptr = resolve(shape);
+    return shape_ptr != NULL ? (vec2_t){shape_ptr->scale_x, shape_ptr->scale_y} : (vec2_t){0, 0};
+}
+
+WGRI_KEEP
 bool wgr_shape2d_set_pivot(wgr_handle_t shape, float x, float y)
 {
     wgr_shape2d_t *shape_ptr = resolve(shape);

@@ -177,6 +177,13 @@ bool wgr_text2d_set_position(wgr_handle_t handle, float x, float y)
 }
 
 WGRI_KEEP
+vec2_t wgr_text2d_get_position(wgr_handle_t handle)
+{
+    const wgr_text2d_t *text_ptr = resolve(handle);
+    return text_ptr != NULL ? (vec2_t){text_ptr->x, text_ptr->y} : (vec2_t){0, 0};
+}
+
+WGRI_KEEP
 bool wgr_text2d_set_size(wgr_handle_t handle, float size)
 {
     wgr_text2d_t *text_ptr = resolve(handle);

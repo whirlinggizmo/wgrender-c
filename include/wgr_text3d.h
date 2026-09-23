@@ -41,6 +41,12 @@ bool        wgr_text3d_set_align(wgr_handle_t text, wgr_text_align_t horizontal,
 bool        wgr_text3d_set_max_width(wgr_handle_t text, float width);
 bool        wgr_text3d_set_transform(wgr_handle_t text, float x, float y, float z,
                                     float rotation_x, float rotation_y, float rotation_z); /* radians */
+/* One part of the transform, leaving the other as it is; the getters read them back
+ * (0, 0, 0 for a handle that isn't one). A 3D text's size stands in for a scale. */
+bool        wgr_text3d_set_position(wgr_handle_t text, float x, float y, float z);
+bool        wgr_text3d_set_rotation(wgr_handle_t text, float x, float y, float z); /* radians */
+vec3_t      wgr_text3d_get_position(wgr_handle_t text);
+vec3_t      wgr_text3d_get_rotation(wgr_handle_t text); /* radians */
 bool        wgr_text3d_set_facing(wgr_handle_t text, wgr_sprite3d_facing_t facing);
 bool        wgr_text3d_set_color(wgr_handle_t text, wgr_color_t color);
 bool        wgr_text3d_set_visible(wgr_handle_t text, bool visible);

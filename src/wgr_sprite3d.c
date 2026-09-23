@@ -181,6 +181,33 @@ bool wgr_sprite3d_set_transform(wgr_handle_t handle,
 }
 
 WGRI_KEEP
+bool wgr_sprite3d_set_position(wgr_handle_t handle, float x, float y, float z)
+{
+    wgr_sprite3d_t *sprite_ptr = resolve(handle);
+    if (sprite_ptr == NULL) return false;
+    sprite_ptr->position = (vec3_t){x, y, z};
+    return true;
+}
+
+WGRI_KEEP
+bool wgr_sprite3d_set_rotation(wgr_handle_t handle, float x, float y, float z)
+{
+    wgr_sprite3d_t *sprite_ptr = resolve(handle);
+    if (sprite_ptr == NULL) return false;
+    sprite_ptr->rotation = (vec3_t){x, y, z};
+    return true;
+}
+
+WGRI_KEEP
+bool wgr_sprite3d_set_scale(wgr_handle_t handle, float x, float y, float z)
+{
+    wgr_sprite3d_t *sprite_ptr = resolve(handle);
+    if (sprite_ptr == NULL) return false;
+    sprite_ptr->scale = (vec3_t){x, y, z};
+    return true;
+}
+
+WGRI_KEEP
 bool wgr_sprite3d_set_size(wgr_handle_t handle, float size)
 {
     return wgr_sprite3d_set_extent(handle, size, size);

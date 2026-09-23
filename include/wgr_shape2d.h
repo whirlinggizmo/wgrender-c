@@ -56,6 +56,14 @@ bool wgr_shape2d_set_line(wgr_handle_t shape, float x0, float y0, float x1, floa
 /* Position, rotation (radians, around the pivot) and scale. */
 bool wgr_shape2d_set_transform(wgr_handle_t shape, float x, float y, float rotation,
                               float scale_x, float scale_y);
+/* One part of the transform, leaving the others as they are; the getters read them back
+ * (0 for a handle that isn't one). */
+bool   wgr_shape2d_set_position(wgr_handle_t shape, float x, float y);  /* where the pivot goes */
+bool   wgr_shape2d_set_rotation(wgr_handle_t shape, float angle);       /* radians, around the pivot */
+bool   wgr_shape2d_set_scale(wgr_handle_t shape, float x, float y);     /* multiplies size; negative flips */
+vec2_t wgr_shape2d_get_position(wgr_handle_t shape);
+float  wgr_shape2d_get_rotation(wgr_handle_t shape);
+vec2_t wgr_shape2d_get_scale(wgr_handle_t shape);
 
 /* The point the position refers to and rotation and scale turn around, as a
  * fraction of the shape's bounds: (0, 0) their top-left, (1, 1) their
