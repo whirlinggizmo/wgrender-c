@@ -10,9 +10,9 @@ to matter at tens of thousands of calls a frame, and strings are where to look f
 
 **The pages differ.** C, Nim, Beef and hxcpp are served in wgrender's example shell,
 an 8.6 KB page with an example picker and a console that also fetches `examples.json`;
-the Haxe guest's is `wgr.macros.WebHost`'s, under 1 KB with its `boot.js`. Both are
-counted, in the page column, because both are downloaded; a program shipped in a page
-of its own would carry that page's size instead.
+the Haxe guest's is `wgr.macros.WebHost`'s 930-byte page (its 466-byte `boot.js` is in
+the JS column). Both are counted because both are downloaded; a program shipped in a
+page of its own would carry that page's size instead.
 
 **A collector inside the wasm is not measured here.** gcbench reads V8's heap, so a
 runtime with its own GC in linear memory (hxcpp) shows a clean GC column whether or not

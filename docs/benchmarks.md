@@ -11,10 +11,10 @@ Everything a first visit downloads before the first frame, assets aside: the was
 | Configuration | wasm | JS | page | total raw | total gzip | total brotli | vs C (brotli) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | C | 692,291 | 65,166 | 10,648 | 768,105 | 320,495 | 261,627 | 1.00x |
-| Haxe -> JS guest * | 691,753 | 89,312 | 0 | 781,065 | 320,429 | 263,266 | 1.01x |
-| Nim -> C * | 716,210 | 65,516 | 0 | 781,726 | 325,992 | 265,540 | 1.01x |
-| Beef * | 848,729 | 67,053 | 0 | 915,782 | 393,749 | 319,202 | 1.22x |
-| Haxe -> hxcpp * | 1,702,949 | 70,224 | 0 | 1,773,173 | 490,870 | 383,653 | 1.47x |
+| Haxe -> JS guest | 691,753 | 89,778 | 930 | 782,461 | 321,252 | 263,872 | 1.01x |
+| Nim -> C | 716,210 | 65,516 | 8,623 | 790,349 | 329,615 | 268,758 | 1.03x |
+| Beef | 848,729 | 67,053 | 8,623 | 924,405 | 397,372 | 322,131 | 1.23x |
+| Haxe -> hxcpp | 1,702,949 | 70,224 | 8,623 | 1,781,796 | 494,493 | 386,584 | 1.48x |
 
 ## Frame cost
 
@@ -22,11 +22,11 @@ Chrome's own CPU accounting over 8 s of steady state (`tools/bench/bench.mjs`), 
 
 | Configuration | script (ms/frame) | task (ms/frame) | script, all runs |
 | --- | ---: | ---: | --- |
-| Haxe -> JS guest * | 0.48 | 0.76 | 0.47, 0.48, 0.55 |
-| Beef * | 0.49 | 0.80 | 0.46, 0.49, 0.50 |
-| Haxe -> hxcpp * | 0.50 | 0.77 | 0.48, 0.50, 0.52 |
 | C | 0.50 | 0.82 | 0.48, 0.50, 0.52 |
-| Nim -> C * | 0.51 | 0.81 | 0.51, 0.51, 0.52 |
+| Nim -> C | 0.52 | 0.82 | 0.46, 0.52, 0.53 |
+| Beef | 0.52 | 0.82 | 0.51, 0.52, 0.54 |
+| Haxe -> JS guest | 0.54 | 0.84 | 0.48, 0.54, 0.56 |
+| Haxe -> hxcpp | 0.55 | 0.88 | 0.54, 0.55, 0.56 |
 
 ## JS heap and GC
 
@@ -34,11 +34,11 @@ V8's traced collections over 10 s at 60 fps (`tools/bench/gcbench.mjs`). Only th
 
 | Configuration | alloc (B/frame) | alloc (MB/min) | collections traced | late frames |
 | --- | ---: | ---: | --- | ---: |
-| Haxe -> JS guest * | 4,501 | 15.5 | 1 minor, 2.1 ms | 0 |
-| Beef * | 1,502 | 5.2 | none | 0 |
-| Haxe -> hxcpp * | 1,366 | 4.7 | none | 0 |
-| Nim -> C * | 1,153 | 4 | none | 0 |
+| Haxe -> JS guest | 3,025 | 10.4 | 1 minor, 1.4 ms | 0 |
+| Beef | 1,343 | 4.6 | none | 0 |
+| Haxe -> hxcpp | 1,099 | 3.8 | none | 0 |
 | C | 667 | 2.3 | none | 0 |
+| Nim -> C | 331 | 1.1 | none | 0 |
 
 ## Calls from a JS guest
 
@@ -55,13 +55,7 @@ wgr calls per frame, counted at the host's exports (`tools/bench/callcount.mjs`)
 
 | Configuration | calls/frame | most called |
 | --- | ---: | --- |
-| Haxe -> JS guest * | 16 | `wgr_text_draw_ex` 5, `wgr_input_get_mouse_state` 1, `wgr_model_animate` 1, `wgr_render_begin` 1 |
-
-\* Not comparable as-is:
-
-- wgrender-hx (2026-09-23): wgrender 4d68abd, baseline cb1bc58
-- wgrender-nim (2026-09-23): wgrender 4d68abd, baseline cb1bc58
-- wgrender-beef (2026-09-23): wgrender 4d68abd, baseline cb1bc58
+| Haxe -> JS guest | 16 | `wgr_text_draw_ex` 5, `wgr_input_get_mouse_state` 1, `wgr_model_animate` 1, `wgr_render_begin` 1 |
 
 ## Notes
 
@@ -77,9 +71,9 @@ to matter at tens of thousands of calls a frame, and strings are where to look f
 
 **The pages differ.** C, Nim, Beef and hxcpp are served in wgrender's example shell,
 an 8.6 KB page with an example picker and a console that also fetches `examples.json`;
-the Haxe guest's is `wgr.macros.WebHost`'s, under 1 KB with its `boot.js`. Both are
-counted, in the page column, because both are downloaded; a program shipped in a page
-of its own would carry that page's size instead.
+the Haxe guest's is `wgr.macros.WebHost`'s 930-byte page (its 466-byte `boot.js` is in
+the JS column). Both are counted because both are downloaded; a program shipped in a
+page of its own would carry that page's size instead.
 
 **A collector inside the wasm is not measured here.** gcbench reads V8's heap, so a
 runtime with its own GC in linear memory (hxcpp) shows a clean GC column whether or not
@@ -105,6 +99,6 @@ of 0.240 against about 0.18.
 | Project | measured | against wgrender | toolchains |
 | --- | --- | --- | --- |
 | wgrender-c | 2026-09-23 | `cb1bc58` (self) | Emscripten 5.0.7 |
-| wgrender-hx | 2026-09-23 | `4d68abd` (sibling checkout) | Haxe 4.3.6, hxcpp 4.3.2 git |
-| wgrender-nim | 2026-09-23 | `4d68abd` (submodule) | Nim 2.2.12 |
-| wgrender-beef | 2026-09-23 | `4d68abd` (submodule) | BeefBuild 0.43.6 |
+| wgrender-hx | 2026-09-23 | `cb1bc58` (sibling checkout) | Haxe 4.3.6, hxcpp 4.3.2 git |
+| wgrender-nim | 2026-09-23 | `cb1bc58` (sibling checkout) | Nim 2.2.12 |
+| wgrender-beef | 2026-09-23 | `cb1bc58` (submodule) | BeefBuild 0.43.6 |
