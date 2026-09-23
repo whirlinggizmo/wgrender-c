@@ -223,6 +223,12 @@ def load_results(path):
 
 # --- docs/benchmarks.md ------------------------------------------------------
 
+def read_notes(root):
+    """A project's bench/notes.md, the hand-written part of its docs/benchmarks.md."""
+    path = pathlib.Path(root) / 'bench/notes.md'
+    return path.read_text() if path.is_file() else None
+
+
 def _n(v):
     return f'{v:,}'
 
@@ -240,10 +246,13 @@ def _gc_pauses(g):
     return ', '.join(parts) or 'none'
 
 
-def render_doc(title, lead, results, baseline, generator):
+def render_doc(title, lead, results, baseline, generator, notes=None):
     """docs/benchmarks.md from a list of results files. `baseline` is wgrender's own
     results; its C configuration is the 1.00x every size is set against, and a result
-    taken on another machine or against another wgrender is flagged, not dropped."""
+    taken on another machine or against another wgrender is flagged, not dropped.
+    `notes` is hand-written markdown (a project's bench/notes.md, see read_notes),
+    placed under its own heading: what the tables mean and what they leave out, which
+    a regenerated file would otherwise lose."""
     base_env, base_wgr = baseline['environment'], baseline['wgrender']
     base_c = next(c for c in baseline['configurations'] if c['id'] == 'c')
     rows = []  # (configuration, flags)
@@ -329,6 +338,9 @@ def render_doc(title, lead, results, baseline, generator):
         out += ['', '\\* Not comparable as-is:', '']
         for r, flags in flagged.values():
             out.append(f"- {r['project']} ({r['environment']['date']}): {'; '.join(flags)}")
+
+    if notes:
+        out += ['', '## Notes', '', notes.strip()]
 
     out += ['', '## Sources', '',
             '| Project | measured | against wgrender | toolchains |', '| --- | --- | --- | --- |']

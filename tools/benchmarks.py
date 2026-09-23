@@ -7,7 +7,9 @@
                                  files already there
 
 Run by hand, not in CI: it drives a browser for about a minute. Commit
-bench/results.json and docs/benchmarks.md afterwards.
+bench/results.json and docs/benchmarks.md afterwards. bench/notes.md is the
+hand-written part of the page (what the numbers mean, what is not measured); edit
+it, then --doc.
 
 A binding measures itself with its own tools/benchmarks.py, which uses this
 repository's tools/bench/ (measure.py) and writes the binding's bench/results.json.
@@ -58,7 +60,7 @@ def write_doc(baseline):
     if missing:
         lead += ' Not collected, no results found beside this checkout: ' + ', '.join(missing) + '.'
     DOC.write_text(measure.render_doc('wgrender benchmarks', lead, results, baseline,
-                                      'tools/benchmarks.py'))
+                                      'tools/benchmarks.py', measure.read_notes(ROOT)))
     print(f'wrote {DOC}')
 
 
