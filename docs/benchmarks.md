@@ -13,7 +13,7 @@ Everything a first visit downloads before the first frame, assets aside: the was
 | C | 692,291 | 65,166 | 10,648 | 768,105 | 320,495 | 261,627 | 1.00x |
 | Haxe -> JS guest | 691,753 | 89,778 | 930 | 782,461 | 321,252 | 263,872 | 1.01x |
 | Nim -> C | 716,210 | 65,516 | 8,623 | 790,349 | 329,615 | 268,758 | 1.03x |
-| Beef | 848,729 | 67,053 | 8,623 | 924,405 | 397,372 | 322,131 | 1.23x |
+| Beef | 716,580 | 66,925 | 8,623 | 792,128 | 331,485 | 271,340 | 1.04x |
 | Haxe -> hxcpp | 1,702,949 | 70,224 | 8,623 | 1,781,796 | 494,493 | 386,584 | 1.48x |
 
 ## Frame cost
@@ -24,9 +24,9 @@ Chrome's own CPU accounting over 8 s of steady state (`tools/bench/bench.mjs`), 
 | --- | ---: | ---: | --- |
 | C | 0.48 | 0.78 | 0.46, 0.48, 0.48 |
 | Nim -> C | 0.49 | 0.79 | 0.47, 0.49, 0.50 |
-| Beef | 0.49 | 0.80 | 0.47, 0.49, 0.54 |
 | Haxe -> JS guest | 0.53 | 0.81 | 0.52, 0.53, 0.53 |
 | Haxe -> hxcpp | 0.53 | 0.82 | 0.51, 0.53, 0.53 |
+| Beef | 0.53 | 0.84 | 0.49, 0.53, 0.54 |
 
 ## JS heap and GC
 
@@ -37,7 +37,7 @@ V8's traced collections over 10 s at 60 fps (`tools/bench/gcbench.mjs`). Only th
 | Haxe -> JS guest | JS | 3,474 | 11.9 | 1 minor, 1.7 ms | 0 |
 | C | wasm | 1,578 | 5.4 | none | 0 |
 | Nim -> C | wasm | 1,156 | 4 | none | 0 |
-| Beef | wasm | 752 | 2.6 | none | 0 |
+| Beef | wasm | 983 | 3.4 | none | 0 |
 | Haxe -> hxcpp | wasm | 655 | 2.2 | none | 0 |
 
 Code running in the wasm allocates nothing on the JS heap itself, so those rows (655 to 1,578 B/frame here) are the page's own noise: Emscripten's glue, the page and the measuring. Their order means nothing.
