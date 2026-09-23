@@ -176,15 +176,19 @@ def environment():
     }
 
 
-# What a benchmark run writes into wgrender itself. A commit that only touches these
-# is not a different wgrender: without this, committing the baseline's results would
-# make every binding pinned to that commit read as measured against another one.
-NOT_WGRENDER = [':(exclude)bench', ':(exclude)docs']
+# What cannot change a number: what a benchmark run writes into wgrender itself, the
+# prose, and the script that only runs the others in order. A commit that only touches
+# these is not a different wgrender; without this, committing the baseline's results,
+# or a README line, would make every binding pinned before it read as measured
+# against another one.
+NOT_WGRENDER = [':(exclude)bench', ':(exclude)docs', ':(exclude,glob)**/*.md',
+                ':(exclude)tools/benchmarks.py']
 
 
 def wgrender_info(wgr_dir, source):
     """The wgrender a project was built against: the last commit that changed anything
-    but bench/ and docs/, and whether there were uncommitted changes outside them.
+    that can change a number (NOT_WGRENDER), and whether there were uncommitted changes
+    to any of it.
     `source` says where it came from: 'self', 'submodule', 'WGRENDER_DIR', ..."""
     git = ['git', '-C', str(wgr_dir)]
     commit = _first_line(git + ['log', '-1', '--format=%h', '--', '.'] + NOT_WGRENDER)
