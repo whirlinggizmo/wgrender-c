@@ -6,7 +6,8 @@ what it carries: a scalar call is a couple of ns, a returned struct pays for bui
 new object from the heap, and a string pays for copying it in as UTF-8, which is the
 dearest by far. So the boundary is worth watching in a call-heavy frame, tens of
 thousands of calls, and in string-heavy code (text) first; `simple`'s count above is
-nowhere near that.
+nowhere near that, and the stress scene, at one call per entity plus 49 text lines, is
+where it can show.
 
 **The pages differ.** C, Nim, Beef and hxcpp are served in wgrender's example shell, a
 page with an example picker and a console that also fetches `examples.json`; the Haxe
@@ -24,11 +25,8 @@ of 0.240 against about 0.18.
 
 **Not measured yet:**
 
-- a call-heavy scene: thousands of transforms or text draws a frame, where the rates
-  above would show
 - callbench in the browser, not only Node, and in Firefox, whose JS -> wasm path is a
   different engine
 - hxcpp's collector on a wgrender scene, traced from inside the wasm
-- gcbench with `--load`, which takes the vsync slack away so a pause that would cost a
-  frame shows as a late one
+- the stress scene in Beef and hxcpp (it has C, Nim and the Haxe guest)
 - Windows, and the WebGPU backend: every number here is Linux and webgl2

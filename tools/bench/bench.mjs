@@ -1,7 +1,7 @@
 // Frame time for a built example, in a headless browser.
 //
 //   node bench.mjs --site=DIR [--label=NAME] [--warmup=MS] [--sample=MS]
-//                   [--url=PATH] [--probe=FILE]
+//                   [--url=PATH] [--probe=FILE] [--display=headless|xvfb]
 //
 // --url picks a page within the site, for wgrender's own example shell, which
 // serves every example from one index and selects with ?ex=NAME.
@@ -36,6 +36,9 @@ const warmup = Number(arg("warmup", 4000));
 const sample = Number(arg("sample", 8000));
 const probe = arg("probe", "wgrender-host.js");
 const url = arg("url", "/");
+// headless renders with SwiftShader (software); xvfb, a virtual X display with ANGLE on
+// Vulkan, uses the real GPU, so a scene that is heavy to draw is not bound by rasterizing
+const display = arg("display", "headless");
 
 const run = new RunProcesses(label);
 try {
@@ -43,7 +46,7 @@ try {
     run.spawn("python3", [join(W, "tools/serve.py"), String(port), site]);
     await waitFor(`http://127.0.0.1:${port}/${probe}`, "serve.py");
     const { debugBase, browser } = await launchBrowser(run, findBrowser(process.env.WEBCHECK_BROWSER),
-                                                       { display: "headless", backend: "webgl2" });
+                                                       { display, backend: "webgl2" });
     const { targetId } = await browser.send("Target.createTarget", { url: "about:blank" });
     const page = await openSession(`ws://${new URL(debugBase).host}/devtools/page/${targetId}`);
     await page.send("Runtime.enable");

@@ -1,7 +1,7 @@
 // Allocation and GC for a built example, in a headless browser.
 //
 //   node gcbench.mjs --site=DIR [--label=NAME] [--warmup=MS] [--sample=MS]
-//                    [--url=PATH] [--probe=FILE] [--uncapped] [--load=MS]
+//                    [--url=PATH] [--probe=FILE] [--uncapped] [--load=MS] [--display=headless|xvfb]
 //
 // --load burns that many milliseconds of arithmetic in the page's own rAF callback,
 // every frame, allocating nothing. It stands in for the game logic this scene does
@@ -52,6 +52,9 @@ const warmup = Number(arg("warmup", 4000));
 const sample = Number(arg("sample", 10000));
 const probe = arg("probe", "wgrender-host.js");
 const url = arg("url", "/");
+// headless renders with SwiftShader (software); xvfb, a virtual X display with ANGLE on
+// Vulkan, uses the real GPU, so a scene that is heavy to draw is not bound by rasterizing
+const display = arg("display", "headless");
 const uncapped = process.argv.includes("--uncapped");
 const load = Number(arg("load", 0));
 
@@ -61,7 +64,7 @@ try {
     run.spawn("python3", [join(W, "tools/serve.py"), String(port), site]);
     await waitFor(`http://127.0.0.1:${port}/${probe}`, "serve.py");
     const { debugBase, browser } = await launchBrowser(run, findBrowser(process.env.WEBCHECK_BROWSER),
-        { display: "headless", backend: "webgl2", extraArgs: ["--enable-precise-memory-info",
+        { display, backend: "webgl2", extraArgs: ["--enable-precise-memory-info",
             ...(uncapped ? ["--disable-gpu-vsync", "--disable-frame-rate-limit"] : [])] });
     const { targetId } = await browser.send("Target.createTarget", { url: "about:blank" });
     const page = await openSession(`ws://${new URL(debugBase).host}/devtools/page/${targetId}`);

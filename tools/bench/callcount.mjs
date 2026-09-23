@@ -1,7 +1,7 @@
 // wgrender calls per frame made by a JS guest, in a headless browser.
 //
 //   node callcount.mjs --site=DIR [--label=NAME] [--warmup=MS] [--sample=MS]
-//                      [--url=PATH] [--probe=FILE] [--guest=NAME]
+//                      [--url=PATH] [--probe=FILE] [--guest=NAME] [--display=headless|xvfb]
 //
 // Only a guest that runs as JavaScript crosses into the wasm to call wgrender, so
 // only it has calls to count; a C, Nim or hxcpp program calls wgrender inside the
@@ -28,6 +28,9 @@ const warmup = Number(arg("warmup", 4000));
 const sample = Number(arg("sample", 8000));
 const probe = arg("probe", "wgrender-host.js");
 const url = arg("url", "/");
+// headless renders with SwiftShader (software); xvfb, a virtual X display with ANGLE on
+// Vulkan, uses the real GPU, so a scene that is heavy to draw is not bound by rasterizing
+const display = arg("display", "headless");
 const guest = arg("guest", "WgrGuest");
 
 const hook = `(() => {
@@ -60,7 +63,7 @@ try {
     run.spawn("python3", [join(W, "tools/serve.py"), String(port), site]);
     await waitFor(`http://127.0.0.1:${port}/${probe}`, "serve.py");
     const { debugBase, browser } = await launchBrowser(run, findBrowser(process.env.WEBCHECK_BROWSER),
-                                                       { display: "headless", backend: "webgl2" });
+                                                       { display, backend: "webgl2" });
     const { targetId } = await browser.send("Target.createTarget", { url: "about:blank" });
     const page = await openSession(`ws://${new URL(debugBase).host}/devtools/page/${targetId}`);
     await page.send("Runtime.enable");

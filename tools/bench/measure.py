@@ -20,7 +20,9 @@ guest, ...). Its entry in results.json:
                kind: wasm, js, or page (the HTML and anything else it fetches)
      "frame":  bench.mjs's output       (script and task ms per frame)
      "gc":     gcbench.mjs's output     (JS heap allocation and V8 collections)
-     "calls":  callcount.mjs's output   (JS guests only: wgr calls per frame)}
+     "calls":  callcount.mjs's output   (JS guests only: wgr calls per frame)
+     "stress": [{"n", "frame", "gc"}]   the stress scene (tools/bench/stress.c) at each
+                                        entity count, where the configuration has it}
 
 Numbers are only comparable when taken on the same machine against the same
 wgrender, so every results.json records both, and render_doc flags a row that
@@ -98,30 +100,53 @@ def _node(script, args):
     return json.loads(out[-1])
 
 
-def _page_args(site, label, url, probe):
-    return [f'--site={site}', f'--label={label}', f'--url={url}', f'--probe={probe}']
+def _page_args(site, label, url, probe, display='headless'):
+    return [f'--site={site}', f'--label={label}', f'--url={url}', f'--probe={probe}', f'--display={display}']
 
 
 FRAME_RUNS = 3
 
 
-def frame(site, label, url='/', probe='wgrender-host.js'):
+def frame(site, label, url='/', probe='wgrender-host.js', display='headless'):
     """bench.mjs: script and task time per frame, from Chrome's CPU accounting. The run
     with the median script time of FRAME_RUNS: one run alone moves by a tenth of a
     millisecond, which is more than the differences being measured."""
-    runs = [_node('bench.mjs', _page_args(site, label, url, probe)) for _ in range(FRAME_RUNS)]
+    runs = [_node('bench.mjs', _page_args(site, label, url, probe, display)) for _ in range(FRAME_RUNS)]
     runs.sort(key=lambda r: r['scriptMs'])
     return dict(runs[len(runs) // 2], scriptRuns=[r['scriptMs'] for r in runs])
 
 
-def gc(site, label, url='/', probe='wgrender-host.js'):
-    """gcbench.mjs: JS heap allocation per frame and the collections V8 traced."""
-    return _node('gcbench.mjs', _page_args(site, label, url, probe))
+def gc(site, label, url='/', probe='wgrender-host.js', display='headless', load=0):
+    """gcbench.mjs: JS heap allocation per frame and the collections V8 traced. `load`
+    burns that many ms in each frame first, taking the slack a pause would hide in."""
+    return _node('gcbench.mjs', _page_args(site, label, url, probe, display) + [f'--load={load}'])
 
 
 def calls(site, label, url='/', probe='wgrender-host.js', guest='WgrGuest'):
     """callcount.mjs: wgr calls per frame, for a guest that runs as JS."""
     return _node('callcount.mjs', _page_args(site, label, url, probe) + [f'--guest={guest}'])
+
+
+# The stress scene (tools/bench/stress.c) at these entity counts. It draws thousands of
+# blended sprites, which headless Chrome rasterizes in software (SwiftShader) slowly
+# enough to bound the frame, hiding the language cost being measured, so it runs on the
+# real GPU: a virtual X display (Xvfb) with ANGLE on Vulkan. The GC runs burn
+# STRESS_LOAD_MS a frame on top, so a pause of a few ms is a late frame, not slack.
+STRESS_COUNTS = (1000, 5000, 10000)
+STRESS_DISPLAY = 'xvfb'
+STRESS_LOAD_MS = 8
+
+
+def stress(site, label, url, probe='wgrender-host.js'):
+    """The stress scene at each of STRESS_COUNTS. `url` has an {n} for the count."""
+    if not shutil.which('Xvfb'):
+        sys.exit('measure: the stress scene needs Xvfb and a GPU (see STRESS_DISPLAY)')
+    rows = []
+    for n in STRESS_COUNTS:
+        page = {'url': url.format(n=n), 'probe': probe, 'display': STRESS_DISPLAY}
+        rows.append({'n': n, 'frame': frame(site, f'{label}-{n}', **page),
+                     'gc': gc(site, f'{label}-{n}', load=STRESS_LOAD_MS, **page)})
+    return rows
 
 
 def callbench():
@@ -332,6 +357,35 @@ def render_doc(title, lead, results, baseline, generator, notes=None):
         out += ['', f'Code running in the wasm allocates nothing on the JS heap itself, so those rows '
                     f'({_n(min(floor))} to {_n(max(floor))} B/frame here) are the page\'s own noise: '
                     'Emscripten\'s glue, the page and the measuring. Their order means nothing.']
+
+    stressed = [(r, c, flags) for r, c, flags in rows if c.get('stress')]
+    if stressed:
+        counts = sorted({s['n'] for _, c, _ in stressed for s in c['stress']})
+        out += ['', '## Stress', '',
+                'Game logic at scale (`tools/bench/stress.c`, ported line for line): N entities '
+                'moved every frame, one wgr call each, about N/240 of them replaced a frame '
+                '(objects destroyed and created; in Nim and Haxe, allocated and freed or '
+                'collected), and 49 lines of formatted text. On the real GPU (Xvfb, ANGLE on '
+                'Vulkan): headless Chrome rasterizes this many sprites in software, slowly '
+                'enough to bound the frame.', '',
+                'Script time per frame, the median of three runs:', '',
+                '| Configuration | ' + ' | '.join(f'n = {_n(k)}' for k in counts) + ' |',
+                '| --- |' + ' ---: |' * len(counts)]
+        for r, c, flags in stressed:
+            by = {s['n']: s for s in c['stress']}
+            out.append(f"| {c['label']}{mark(flags)} | "
+                       + ' | '.join(f"{_ms(by[k]['frame']['scriptMs'])}" if k in by else '' for k in counts) + ' |')
+        load = next(s['gc'].get('loadMs', 0) for _, c, _ in stressed for s in c['stress'])
+        out += ['', f'With {load:g} ms of other work burned in every frame, so a pause has little '
+                    'slack to hide in: JS heap allocation, the collections V8 traced, and frames '
+                    'over 20 ms (`tools/bench/gcbench.mjs`, 10 s).', '',
+                '| Configuration | n | alloc (MB/min) | collections traced | worst frame (ms) | late frames |',
+                '| --- | ---: | ---: | --- | ---: | ---: |']
+        for r, c, flags in stressed:
+            for s_ in sorted(c['stress'], key=lambda s_: s_['n']):
+                g_ = s_['gc']
+                out.append(f"| {c['label']}{mark(flags)} | {_n(s_['n'])} | {g_['allocMBPerMinute']} | "
+                           f"{_gc_pauses(g_)} | {_ms(g_['frameMs']['max'])} | {g_['lateFrames']['over20']} |")
 
     bench = baseline.get('callbench')
     if bench:

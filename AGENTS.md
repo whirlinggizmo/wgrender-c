@@ -77,7 +77,9 @@ Keep this file short and rule-shaped. The authoritative design doc is
   sibling binding's own `bench/results.json`; `--doc` only regenerates the page, `--all`
   also runs each sibling binding's own `tools/benchmarks.py` in between. The
   harness is `tools/bench/` (`measure.py`, which bindings import, plus `bench.mjs`,
-  `gcbench.mjs`, `callcount.mjs`, `callbench/`). By hand, not CI; commit both files.
+  `gcbench.mjs`, `callcount.mjs`, `callbench/`, and `stress.c`, the scene the bindings
+  port: `make stress-web`, `/bench/?ex=stress&n=5000`). The stress runs need Xvfb and a
+  GPU. By hand, not CI; commit both files.
 - `tools/compress_textures.sh [--linear] name.png...` — compressed texture files beside
   each PNG (`name.bc7.ktx`, `.astc.ktx`, `.etc2.ktx`), loaded as `name.ktx`
   (docs/PLAN-textures.md); builds a pinned Basis Universal encoder into `build/tools`

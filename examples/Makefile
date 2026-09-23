@@ -62,7 +62,7 @@ BUILD_DESKTOP := build/$(if $(filter 1,$(WINDOWS)),windows,$(HOST_OS))
 SRCS          := $(wildcard *.c)
 BINS          := $(patsubst %.c,$(BUILD_DESKTOP)/%$(EXE),$(SRCS))
 
-.PHONY: all run clean wasm wasm-all site websize serve serve-tls spritebench-web shadowbench-web loadbench-web webcheck webstart smoke headless print-ldlibs FORCE
+.PHONY: all run clean wasm wasm-all site websize serve serve-tls spritebench-web shadowbench-web loadbench-web stress-web webcheck webstart smoke headless print-ldlibs FORCE
 
 all: $(BINS)
 
@@ -179,7 +179,7 @@ $(BENCH_WEB)/%.js: $(WEB_OBJ_DIR)/bench/%.o $(WEB_LIB) $(WEB_LINK_STAMP)
 	@echo "  wasm[$(WEB_DIR)]: $*"
 	@$(EMCC) $< $(WEB_LIB) $(WASM_LINK) -o $@
 
-spritebench-web shadowbench-web loadbench-web: %-web: $(BENCH_WEB)/%.js
+spritebench-web shadowbench-web loadbench-web stress-web: %-web: $(BENCH_WEB)/%.js
 	@cp $(WEB_SHELL) $(BENCH_WEB)/index.html
 	@ls $(BENCH_WEB)/*.js | sed 's#.*/\(.*\)\.js$$#"\1"#' | paste -sd, | sed 's/.*/[&]/' > $(BENCH_WEB)/examples.json
 	@echo "built $(BENCH_WEB): serve the site, then open /bench/?ex=$* (results in the console)"

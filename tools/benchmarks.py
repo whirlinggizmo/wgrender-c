@@ -44,7 +44,9 @@ EXAMPLE = 'simple'
 
 
 def measure_c():
-    measure.run(['make', 'wasm', '-j8'] + [f'{k}={v}' for k, v in measure.WEB_VARS.items()], cwd=ROOT)
+    web_vars = [f'{k}={v}' for k, v in measure.WEB_VARS.items()]
+    measure.run(['make', 'wasm', '-j8'] + web_vars, cwd=ROOT)
+    measure.run(['make', 'stress-web'] + web_vars, cwd=ROOT)
     site = ROOT / 'examples/build/webgl2-nothreads'
     page = {'url': f'/?ex={EXAMPLE}', 'probe': f'{EXAMPLE}.js'}
     c = {
@@ -55,6 +57,7 @@ def measure_c():
                                 site / 'index.html', site / 'examples.json']),
         'frame': measure.frame(site, 'c', **page),
         'gc': measure.gc(site, 'c', **page),
+        'stress': measure.stress(site / 'bench', 'c', '/?ex=stress&n={n}', 'stress.js'),
     }
     return measure.write_results(RESULTS, 'wgrender-c', measure.wgrender_info(ROOT, 'self'), [c],
                                  {'callbench': measure.callbench()})
