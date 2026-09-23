@@ -69,7 +69,7 @@ static void on_model_ready(const char *path, void *user)
     wgr_model_set_animation(g.model, 1);
     wgr_model_set_animation_speed(g.model, 1.0f);
     wgr_model_set_animation_loop(g.model, true);
-    wgr_model_set_transform(g.model, 0, 0, 0, 0, 0, 0, 1, 1, 1);
+    wgr_model_set_position(g.model, 0, 0, 0);
     wgr_model_set_tint(g.model, WGR_COLOR_RAYWHITE);
     wgr_scene_add(g.scene, g.model, 0);
 }
@@ -81,7 +81,7 @@ static void on_sprite_ready(const char *path, void *user)
     g.sprite = wgr_sprite3d_create(texture);
     wgr_texture_release(texture); /* the sprite holds its own reference */
     wgr_sprite3d_set_facing(g.sprite, WGR_SPRITE3D_FACING_FREE); /* librl's default: oriented by its rotation */
-    wgr_sprite3d_set_transform(g.sprite, 0, SPRITE_Y_OFFSET, 0, 0, 0, 0, 1, 1, 1);
+    wgr_sprite3d_set_position(g.sprite, 0, SPRITE_Y_OFFSET, 0);
     wgr_sprite3d_set_tint(g.sprite, WGR_COLOR_RAYWHITE);
     wgr_scene_add(g.scene, g.sprite, 0);
 }
@@ -157,7 +157,7 @@ static void update(float dt)
     }
     if (g.sprite != 0) {
         float y = sinf(g.elapsed * BOB_SPEED) * BOB_HEIGHT + SPRITE_Y_OFFSET;
-        wgr_sprite3d_set_transform(g.sprite, 0, y, 0, 0, 0, 0, 1, 1, 1);
+        wgr_sprite3d_set_position(g.sprite, 0, y, 0);
     }
 }
 
