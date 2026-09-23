@@ -1,0 +1,133 @@
+{
+  "schema": 1,
+  "project": "wgrender-c",
+  "environment": {
+    "date": "2026-09-23",
+    "machine": "13th Gen Intel(R) Core(TM) i9-13900HX, Linux",
+    "browser": "Brave Browser 153.1.95.104",
+    "node": "v22.16.0",
+    "emcc": "5.0.7"
+  },
+  "wgrender": {
+    "commit": "4d68abd",
+    "dirty": false,
+    "source": "self"
+  },
+  "configurations": [
+    {
+      "id": "c",
+      "label": "C",
+      "project": "wgrender-c",
+      "example": "simple",
+      "toolchain": "Emscripten 5.0.7",
+      "sizes": {
+        "files": [
+          {
+            "name": "simple.wasm",
+            "kind": "wasm",
+            "raw": 692291,
+            "gzip": 292579,
+            "brotli": 237174
+          },
+          {
+            "name": "simple.js",
+            "kind": "js",
+            "raw": 65166,
+            "gzip": 23244,
+            "brotli": 20682
+          }
+        ],
+        "total": {
+          "raw": 757457,
+          "gzip": 315823,
+          "brotli": 257856
+        }
+      },
+      "frame": {
+        "label": "c",
+        "frames": 481,
+        "median": 16.66,
+        "p95": 16.67,
+        "overCap": 0,
+        "scriptMs": 0.512,
+        "taskMs": 0.824,
+        "scriptRuns": [
+          0.507,
+          0.512,
+          0.52
+        ]
+      },
+      "gc": {
+        "label": "c",
+        "frames": 606,
+        "uncapped": false,
+        "allocBytesPerFrame": 322,
+        "allocMBPerMinute": 1.1,
+        "collections": 0,
+        "freedMB": 0,
+        "heapStartMB": 8.6,
+        "heapEndMB": 8.8,
+        "frameMs": {
+          "median": 16.66,
+          "p99": 16.67,
+          "max": 16.67
+        },
+        "gcFrameMs": null,
+        "loadMs": 0,
+        "lateFrames": {
+          "over20": 0,
+          "over33": 0,
+          "pct": 0
+        },
+        "gc": {
+          "totalMs": 0,
+          "pctOfWall": 0,
+          "minor": {
+            "count": 0,
+            "medianMs": null,
+            "maxMs": null,
+            "totalMs": 0
+          },
+          "major": {
+            "count": 0,
+            "medianMs": null,
+            "maxMs": null,
+            "totalMs": 0
+          }
+        },
+        "bufferFull": false
+      }
+    }
+  ],
+  "callbench": {
+    "engine": "node v22.16.0",
+    "calls": 5000000,
+    "reps": 7,
+    "shapes": {
+      "tint": {
+        "c": "wgr_model_set_tint",
+        "jsNs": 2.64,
+        "wasmNs": 1.21,
+        "boundaryNs": 1.43
+      },
+      "transform": {
+        "c": "wgr_model_set_transform",
+        "jsNs": 5.35,
+        "wasmNs": 2.2,
+        "boundaryNs": 3.15
+      },
+      "struct": {
+        "c": "wgr_input_get_mouse_state",
+        "jsNs": 9.18,
+        "wasmNs": 2.68,
+        "boundaryNs": 6.5
+      },
+      "string": {
+        "c": "wgr_text_measure",
+        "jsNs": 31.02,
+        "wasmNs": 3.12,
+        "boundaryNs": 27.9
+      }
+    }
+  }
+}
