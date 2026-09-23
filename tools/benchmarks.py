@@ -45,7 +45,8 @@ EXAMPLE = 'simple'
 
 def measure_c():
     web_vars = [f'{k}={v}' for k, v in measure.WEB_VARS.items()]
-    measure.run(['make', 'wasm', '-j8'] + web_vars, cwd=ROOT)
+    # make wasm builds one example, WASM_EXAMPLE, which is hello unless named
+    measure.run(['make', 'wasm', f'WASM_EXAMPLE={EXAMPLE}'] + web_vars, cwd=ROOT)
     measure.run(['make', 'stress-web'] + web_vars, cwd=ROOT)
     site = ROOT / 'examples/build/webgl2-nothreads'
     page = {'url': f'/?ex={EXAMPLE}', 'probe': f'{EXAMPLE}.js'}
