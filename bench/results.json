@@ -9,7 +9,7 @@
     "emcc": "5.0.7"
   },
   "wgrender": {
-    "commit": "cb1bc58",
+    "commit": "9b8fae3",
     "dirty": false,
     "source": "self"
   },
@@ -59,26 +59,26 @@
       },
       "frame": {
         "label": "c",
-        "frames": 480,
+        "frames": 481,
         "median": 16.66,
         "p95": 16.67,
         "overCap": 0,
-        "scriptMs": 0.503,
-        "taskMs": 0.821,
+        "scriptMs": 0.478,
+        "taskMs": 0.778,
         "scriptRuns": [
+          0.455,
           0.478,
-          0.503,
-          0.516
+          0.481
         ]
       },
       "gc": {
         "label": "c",
-        "frames": 606,
+        "frames": 607,
         "uncapped": false,
-        "allocBytesPerFrame": 667,
-        "allocMBPerMinute": 2.3,
-        "collections": 1,
-        "freedMB": 0.19,
+        "allocBytesPerFrame": 1578,
+        "allocMBPerMinute": 5.4,
+        "collections": 2,
+        "freedMB": 0.72,
         "heapStartMB": 8.6,
         "heapEndMB": 8.8,
         "frameMs": {
@@ -87,8 +87,8 @@
           "max": 16.67
         },
         "gcFrameMs": {
-          "median": 16.67,
-          "max": 16.67
+          "median": 16.66,
+          "max": 16.66
         },
         "loadMs": 0,
         "lateFrames": {
@@ -123,27 +123,27 @@
     "shapes": {
       "tint": {
         "c": "wgr_model_set_tint",
-        "jsNs": 2.66,
-        "wasmNs": 1.22,
-        "boundaryNs": 1.45
+        "jsNs": 2.61,
+        "wasmNs": 1.19,
+        "boundaryNs": 1.42
       },
       "transform": {
         "c": "wgr_model_set_transform",
-        "jsNs": 5.36,
-        "wasmNs": 2.19,
-        "boundaryNs": 3.17
+        "jsNs": 5.3,
+        "wasmNs": 2.17,
+        "boundaryNs": 3.13
       },
       "struct": {
         "c": "wgr_input_get_mouse_state",
-        "jsNs": 9.56,
-        "wasmNs": 2.7,
-        "boundaryNs": 6.86
+        "jsNs": 9.33,
+        "wasmNs": 2.68,
+        "boundaryNs": 6.65
       },
       "string": {
         "c": "wgr_text_measure",
-        "jsNs": 33.08,
-        "wasmNs": 2.99,
-        "boundaryNs": 30.09
+        "jsNs": 31.59,
+        "wasmNs": 3.19,
+        "boundaryNs": 28.39
       }
     }
   }
