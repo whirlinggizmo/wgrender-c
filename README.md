@@ -65,6 +65,7 @@ make serve                         # http://localhost:8000/ (assets mounted at /
 make webcheck                      # build all, load each in a browser, fail on errors
 make webcheck BACKEND=webgpu       # same for WebGPU (opens visible browser windows)
 make webstart                      # startup times per example: cold, warm and hot visits
+tools/benchmarks.py                # C against every binding -> docs/benchmarks.md
 ```
 
 `make webcheck` (`tools/webcheck.mjs`) needs Node >= 22 and a Chromium-based
