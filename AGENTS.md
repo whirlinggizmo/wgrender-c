@@ -71,10 +71,11 @@ Keep this file short and rule-shaped. The authoritative design doc is
   (`tools/webstart.mjs`): cold, warm and hot visits, locally and on emulated 4G,
   from libwgrender's `wgr:*` performance marks; `WEBSTART_FLAGS="--devtools=PORT --url=URL"`
   measures a phone. Run it when touching init, the page shell or web build flags.
-- `tools/benchmarks.py [--doc]` — the C `simple` against every binding
+- `tools/benchmarks.py [--doc | --all]` — the C `simple` against every binding
   (docs/benchmarks.md): download size, frame cost, JS heap and GC, and what a call from a
   JS guest costs. Measures the C baseline into `bench/results.json` and collects each
-  sibling binding's own `bench/results.json`; `--doc` only regenerates the page. The
+  sibling binding's own `bench/results.json`; `--doc` only regenerates the page, `--all`
+  also runs each sibling binding's own `tools/benchmarks.py` in between. The
   harness is `tools/bench/` (`measure.py`, which bindings import, plus `bench.mjs`,
   `gcbench.mjs`, `callcount.mjs`, `callbench/`). By hand, not CI; commit both files.
 - `tools/compress_textures.sh [--linear] name.png...` — compressed texture files beside
