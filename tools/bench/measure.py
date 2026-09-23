@@ -307,38 +307,58 @@ def render_doc(title, lead, results, baseline, generator, notes=None):
         spread = ', '.join(_ms(v) for v in f.get('scriptRuns', [f['scriptMs']]))
         out.append(f"| {c['label']}{mark(flags)} | {_ms(f['scriptMs'])} | {_ms(f['taskMs'])} | {spread} |")
 
+    # A configuration whose game code runs as JS is the one with calls counted at the
+    # host's exports; the rest run inside the wasm and allocate nothing on the JS heap
+    # themselves, so their readings are the page's noise floor, not a ranking.
+    in_js = [x for x in rows if x[1].get('calls')]
+    in_wasm = [x for x in rows if not x[1].get('calls')]
     out += ['', '## JS heap and GC', '',
             'V8\'s traced collections over 10 s at 60 fps (`tools/bench/gcbench.mjs`). Only the '
-            'JS heap: a configuration that runs inside the wasm allocates nothing there itself, '
-            'so its reading is the page\'s noise floor, and a collector inside the wasm (hxcpp\'s) '
-            'is not visible here at all.', '',
-            '| Configuration | alloc (B/frame) | alloc (MB/min) | collections traced | late frames |',
-            '| --- | ---: | ---: | --- | ---: |']
-    for r, c, flags in sorted(rows, key=lambda x: -x[1]['gc']['allocBytesPerFrame']):
-        g = c['gc']
-        out.append(f"| {c['label']}{mark(flags)} | {_n(g['allocBytesPerFrame'])} | "
-                   f"{g['allocMBPerMinute']} | {_gc_pauses(g)} | {g['lateFrames']['over20']} |")
+            'JS heap: a collector inside the wasm (hxcpp\'s) is not visible here at all.', '',
+            '| Configuration | game code runs in | alloc (B/frame) | alloc (MB/min) | collections traced | late frames |',
+            '| --- | --- | ---: | ---: | --- | ---: |']
+    for group, where in ((sorted(in_js, key=lambda x: -x[1]['gc']['allocBytesPerFrame']), 'JS'),
+                         (sorted(in_wasm, key=lambda x: x[1]['sizes']['total']['brotli']), 'wasm')):
+        for r, c, flags in group:
+            g = c['gc']
+            out.append(f"| {c['label']}{mark(flags)} | {where} | {_n(g['allocBytesPerFrame'])} | "
+                       f"{g['allocMBPerMinute']} | {_gc_pauses(g)} | {g['lateFrames']['over20']} |")
+    if in_wasm:
+        floor = [x[1]['gc']['allocBytesPerFrame'] for x in in_wasm]
+        out += ['', f'Code running in the wasm allocates nothing on the JS heap itself, so those rows '
+                    f'({_n(min(floor))} to {_n(max(floor))} B/frame here) are the page\'s own noise: '
+                    'Emscripten\'s glue, the page and the measuring. Their order means nothing.']
 
     bench = baseline.get('callbench')
     if bench:
+        shapes = bench['shapes']
         out += ['', '## Calls from a JS guest', '',
                 'What a call from JS into wgrender\'s wasm costs, against the same call made '
                 f'inside the wasm (`tools/bench/callbench`, {bench["engine"]}, median of '
                 f'{bench["reps"]} runs of {_n(bench["calls"])} calls). The JS side marshals as '
                 'a JS guest binding does: struct results read into a new object, strings copied '
                 'in with stringToUTF8.', '',
-                '| Shape | like | JS -> wasm (ns) | inside wasm (ns) | boundary (ns) |',
-                '| --- | --- | ---: | ---: | ---: |']
-        for name, s in bench['shapes'].items():
-            out.append(f"| {name} | `{s['c']}` | {s['jsNs']:.2f} | {s['wasmNs']:.2f} | {s['boundaryNs']:.2f} |")
-        guests = [(c, flags) for r, c, flags in rows if c.get('calls')]
-        if guests:
-            out += ['', 'wgr calls per frame, counted at the host\'s exports (`tools/bench/callcount.mjs`):', '',
-                    '| Configuration | calls/frame | most called |', '| --- | ---: | --- |']
-            for c, flags in guests:
-                top = sorted(c['calls']['perFrame'].items(), key=lambda kv: -kv[1])[:4]
-                most = ', '.join(f'`{k}` {v:g}' for k, v in top)
-                out.append(f"| {c['label']}{mark(flags)} | {c['calls']['callsPerFrame']:g} | {most} |")
+                '| Shape | like | JS -> wasm (ns) | inside wasm (ns) | boundary (ns) | calls per ms of JS |',
+                '| --- | --- | ---: | ---: | ---: | ---: |']
+        for name, sh in shapes.items():
+            out.append(f"| {name} | `{sh['c']}` | {sh['jsNs']:.2f} | {sh['wasmNs']:.2f} | "
+                       f"{sh['boundaryNs']:.2f} | {_n(int(round(1e6 / sh['jsNs'], -3)))} |")
+        if in_js:
+            worst = max(sh['jsNs'] for sh in shapes.values())
+            names = sorted({k for _, c, _ in in_js for k in c['calls']['perFrame']})
+            out += ['', 'wgr calls per frame, counted at the host\'s exports '
+                        '(`tools/bench/callcount.mjs`):', '',
+                    '| Call | ' + ' | '.join(c['label'] + mark(f) for _, c, f in in_js) + ' |',
+                    '| --- |' + ' ---: |' * len(in_js)]
+            for k in sorted(names, key=lambda k: (-max(c['calls']['perFrame'].get(k, 0) for _, c, _ in in_js), k)):
+                out.append(f'| `{k}` | ' + ' | '.join(f"{c['calls']['perFrame'].get(k, 0):g}"
+                                                     for _, c, _ in in_js) + ' |')
+            out.append('| **total** | ' + ' | '.join(f"**{c['calls']['callsPerFrame']:g}**" for _, c, _ in in_js) + ' |')
+            for _, c, _ in in_js:
+                n = c['calls']['callsPerFrame']
+                out += ['', f"{c['label']}: {n:g} calls a frame cost at most {n * worst / 1000:.2f} µs "
+                            f"even if every one were the dearest shape above ({worst:.0f} ns), against "
+                            "a 16.7 ms frame."]
 
     flagged = {id(r): (r, flags) for r, c, flags in rows if flags}
     if flagged:

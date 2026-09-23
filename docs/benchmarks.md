@@ -30,50 +30,66 @@ Chrome's own CPU accounting over 8 s of steady state (`tools/bench/bench.mjs`), 
 
 ## JS heap and GC
 
-V8's traced collections over 10 s at 60 fps (`tools/bench/gcbench.mjs`). Only the JS heap: a configuration that runs inside the wasm allocates nothing there itself, so its reading is the page's noise floor, and a collector inside the wasm (hxcpp's) is not visible here at all.
+V8's traced collections over 10 s at 60 fps (`tools/bench/gcbench.mjs`). Only the JS heap: a collector inside the wasm (hxcpp's) is not visible here at all.
 
-| Configuration | alloc (B/frame) | alloc (MB/min) | collections traced | late frames |
-| --- | ---: | ---: | --- | ---: |
-| Haxe -> JS guest | 3,025 | 10.4 | 1 minor, 1.4 ms | 0 |
-| Beef | 1,343 | 4.6 | none | 0 |
-| Haxe -> hxcpp | 1,099 | 3.8 | none | 0 |
-| C | 667 | 2.3 | none | 0 |
-| Nim -> C | 331 | 1.1 | none | 0 |
+| Configuration | game code runs in | alloc (B/frame) | alloc (MB/min) | collections traced | late frames |
+| --- | --- | ---: | ---: | --- | ---: |
+| Haxe -> JS guest | JS | 3,025 | 10.4 | 1 minor, 1.4 ms | 0 |
+| C | wasm | 667 | 2.3 | none | 0 |
+| Nim -> C | wasm | 331 | 1.1 | none | 0 |
+| Beef | wasm | 1,343 | 4.6 | none | 0 |
+| Haxe -> hxcpp | wasm | 1,099 | 3.8 | none | 0 |
+
+Code running in the wasm allocates nothing on the JS heap itself, so those rows (331 to 1,343 B/frame here) are the page's own noise: Emscripten's glue, the page and the measuring. Their order means nothing.
 
 ## Calls from a JS guest
 
 What a call from JS into wgrender's wasm costs, against the same call made inside the wasm (`tools/bench/callbench`, node v22.16.0, median of 7 runs of 5,000,000 calls). The JS side marshals as a JS guest binding does: struct results read into a new object, strings copied in with stringToUTF8.
 
-| Shape | like | JS -> wasm (ns) | inside wasm (ns) | boundary (ns) |
-| --- | --- | ---: | ---: | ---: |
-| tint | `wgr_model_set_tint` | 2.66 | 1.22 | 1.45 |
-| transform | `wgr_model_set_transform` | 5.36 | 2.19 | 3.17 |
-| struct | `wgr_input_get_mouse_state` | 9.56 | 2.70 | 6.86 |
-| string | `wgr_text_measure` | 33.08 | 2.99 | 30.09 |
+| Shape | like | JS -> wasm (ns) | inside wasm (ns) | boundary (ns) | calls per ms of JS |
+| --- | --- | ---: | ---: | ---: | ---: |
+| tint | `wgr_model_set_tint` | 2.66 | 1.22 | 1.45 | 376,000 |
+| transform | `wgr_model_set_transform` | 5.36 | 2.19 | 3.17 | 187,000 |
+| struct | `wgr_input_get_mouse_state` | 9.56 | 2.70 | 6.86 | 105,000 |
+| string | `wgr_text_measure` | 33.08 | 2.99 | 30.09 | 30,000 |
 
 wgr calls per frame, counted at the host's exports (`tools/bench/callcount.mjs`):
 
-| Configuration | calls/frame | most called |
-| --- | ---: | --- |
-| Haxe -> JS guest | 16 | `wgr_text_draw_ex` 5, `wgr_input_get_mouse_state` 1, `wgr_model_animate` 1, `wgr_render_begin` 1 |
+| Call | Haxe -> JS guest |
+| --- | ---: |
+| `wgr_text_draw_ex` | 5 |
+| `wgr_input_get_mouse_state` | 1 |
+| `wgr_model_animate` | 1 |
+| `wgr_render_begin` | 1 |
+| `wgr_render_clear_background` | 1 |
+| `wgr_render_end` | 1 |
+| `wgr_scene_draw` | 1 |
+| `wgr_scene_pick` | 1 |
+| `wgr_sprite3d_set_transform` | 1 |
+| `wgr_text_draw_fps_ex` | 1 |
+| `wgr_text_measure_ex` | 1 |
+| `wgr_window_get_screen_size` | 1 |
+| **total** | **16** |
+
+Haxe -> JS guest: 16 calls a frame cost at most 0.53 µs even if every one were the dearest shape above (33 ns), against a 16.7 ms frame.
 
 ## Notes
 
 Hand-written, from bench/notes.md; the tables above are generated.
 
-**What a JS guest's calls cost a frame.** Multiply the call rates by the count. `simple`
-makes 16 wgr calls a frame from its Haxe guest: six carry a string (five
-`wgr_text_draw_ex`, one `wgr_text_measure_ex`), four return a struct (mouse state,
-screen size, pick, the measure), and the rest are scalar. At the boundary rates above
-that is about 0.2 µs a frame, against a 16.7 ms budget. For scale, 1 ms of script buys
-roughly 380k scalar calls, 110k struct returns or 32k string calls, so the boundary starts
-to matter at tens of thousands of calls a frame, and strings are where to look first.
+**Reading the call costs.** Only a guest running as JS crosses the boundary per call;
+code compiled into the wasm calls wgrender directly. What a crossing adds depends on
+what it carries: a scalar call is a couple of ns, a returned struct pays for building a
+new object from the heap, and a string pays for copying it in as UTF-8, which is the
+dearest by far. So the boundary is worth watching in a call-heavy frame, tens of
+thousands of calls, and in string-heavy code (text) first; `simple`'s count above is
+nowhere near that.
 
-**The pages differ.** C, Nim, Beef and hxcpp are served in wgrender's example shell,
-an 8.6 KB page with an example picker and a console that also fetches `examples.json`;
-the Haxe guest's is `wgr.macros.WebHost`'s 930-byte page (its 466-byte `boot.js` is in
-the JS column). Both are counted because both are downloaded; a program shipped in a
-page of its own would carry that page's size instead.
+**The pages differ.** C, Nim, Beef and hxcpp are served in wgrender's example shell, a
+page with an example picker and a console that also fetches `examples.json`; the Haxe
+guest's is `wgr.macros.WebHost`'s minimal page (its `boot.js` counts in the JS column).
+Both are counted because both are downloaded; a program shipped in a page of its own
+would carry that page's size instead.
 
 **A collector inside the wasm is not measured here.** gcbench reads V8's heap, so a
 runtime with its own GC in linear memory (hxcpp) shows a clean GC column whether or not

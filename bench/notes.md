@@ -1,18 +1,18 @@
 Hand-written, from bench/notes.md; the tables above are generated.
 
-**What a JS guest's calls cost a frame.** Multiply the call rates by the count. `simple`
-makes 16 wgr calls a frame from its Haxe guest: six carry a string (five
-`wgr_text_draw_ex`, one `wgr_text_measure_ex`), four return a struct (mouse state,
-screen size, pick, the measure), and the rest are scalar. At the boundary rates above
-that is about 0.2 µs a frame, against a 16.7 ms budget. For scale, 1 ms of script buys
-roughly 380k scalar calls, 110k struct returns or 32k string calls, so the boundary starts
-to matter at tens of thousands of calls a frame, and strings are where to look first.
+**Reading the call costs.** Only a guest running as JS crosses the boundary per call;
+code compiled into the wasm calls wgrender directly. What a crossing adds depends on
+what it carries: a scalar call is a couple of ns, a returned struct pays for building a
+new object from the heap, and a string pays for copying it in as UTF-8, which is the
+dearest by far. So the boundary is worth watching in a call-heavy frame, tens of
+thousands of calls, and in string-heavy code (text) first; `simple`'s count above is
+nowhere near that.
 
-**The pages differ.** C, Nim, Beef and hxcpp are served in wgrender's example shell,
-an 8.6 KB page with an example picker and a console that also fetches `examples.json`;
-the Haxe guest's is `wgr.macros.WebHost`'s 930-byte page (its 466-byte `boot.js` is in
-the JS column). Both are counted because both are downloaded; a program shipped in a
-page of its own would carry that page's size instead.
+**The pages differ.** C, Nim, Beef and hxcpp are served in wgrender's example shell, a
+page with an example picker and a console that also fetches `examples.json`; the Haxe
+guest's is `wgr.macros.WebHost`'s minimal page (its `boot.js` counts in the JS column).
+Both are counted because both are downloaded; a program shipped in a page of its own
+would carry that page's size instead.
 
 **A collector inside the wasm is not measured here.** gcbench reads V8's heap, so a
 runtime with its own GC in linear memory (hxcpp) shows a clean GC column whether or not
