@@ -17,6 +17,7 @@ guest, ...). Its entry in results.json:
 
     {"id", "label", "project", "example", "toolchain",
      "sizes":  {"files": [{"name", "kind", "raw", "gzip", "brotli"}], "total": {...}},
+               kind: wasm, js, or page (the HTML and anything else it fetches)
      "frame":  bench.mjs's output       (script and task ms per frame)
      "gc":     gcbench.mjs's output     (JS heap allocation and V8 collections)
      "calls":  callcount.mjs's output   (JS guests only: wgr calls per frame)}
@@ -71,16 +72,20 @@ def _brotli(data):
                               check=True).stdout)
 
 
+KINDS = {'.wasm': 'wasm', '.js': 'js', '.mjs': 'js'}
+
+
 def sizes(files):
     """Raw, gzip -9 and brotli q11 of each file, and their sums: each file compressed
-    on its own, the way a browser fetches them."""
+    on its own, the way a browser fetches them. Pass everything the page loads before
+    the first frame, the page itself included, so the total is the first visit."""
     rows = []
     for path in files:
         path = pathlib.Path(path)
         if not path.is_file():
             sys.exit(f'measure: {path} is not built')
         data = path.read_bytes()
-        rows.append({'name': path.name, 'kind': 'wasm' if path.suffix == '.wasm' else 'js',
+        rows.append({'name': path.name, 'kind': KINDS.get(path.suffix, 'page'),
                      'raw': len(data), 'gzip': len(gzip.compress(data, 9)), 'brotli': _brotli(data)})
     total = {k: sum(r[k] for r in rows) for k in ('raw', 'gzip', 'brotli')}
     return {'files': rows, 'total': total}
@@ -276,17 +281,19 @@ def render_doc(title, lead, results, baseline, generator, notes=None):
            f'against wgrender `{base_wgr["commit"]}`.', '', lead, '']
 
     out += ['## Download size', '',
-            'Each file compressed on its own, as a browser fetches it, and summed. '
-            f'`{base_c["example"]}` in every configuration, webgl2, no threads, release.', '',
-            '| Configuration | wasm | JS | total raw | total gzip | total brotli | vs C (brotli) |',
-            '| --- | ---: | ---: | ---: | ---: | ---: | ---: |']
+            'Everything a first visit downloads before the first frame, assets aside: the '
+            'wasm, every JS file and the page. Each file compressed on its own, as a browser '
+            f'fetches it, and summed. `{base_c["example"]}` in every configuration, webgl2, '
+            'no threads, release. wasm, JS and page are raw bytes.', '',
+            '| Configuration | wasm | JS | page | total raw | total gzip | total brotli | vs C (brotli) |',
+            '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |']
     cb = base_c['sizes']['total']['brotli']
     for r, c, flags in sorted(rows, key=lambda x: x[1]['sizes']['total']['brotli']):
         s = c['sizes']
-        wasm = sum(f['raw'] for f in s['files'] if f['kind'] == 'wasm')
-        js = sum(f['raw'] for f in s['files'] if f['kind'] == 'js')
+        raw = {k: sum(f['raw'] for f in s['files'] if f['kind'] == k) for k in ('wasm', 'js', 'page')}
         t = s['total']
-        out.append(f"| {c['label']}{mark(flags)} | {_n(wasm)} | {_n(js)} | {_n(t['raw'])} | "
+        out.append(f"| {c['label']}{mark(flags)} | {_n(raw['wasm'])} | {_n(raw['js'])} | "
+                   f"{_n(raw['page'])} | {_n(t['raw'])} | "
                    f"{_n(t['gzip'])} | {_n(t['brotli'])} | {t['brotli'] / cb:.2f}x |")
 
     out += ['', '## Frame cost', '',

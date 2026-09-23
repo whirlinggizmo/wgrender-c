@@ -8,6 +8,12 @@ that is about 0.2 µs a frame, against a 16.7 ms budget. For scale, 1 ms of scri
 roughly 380k scalar calls, 110k struct returns or 32k string calls, so the boundary starts
 to matter at tens of thousands of calls a frame, and strings are where to look first.
 
+**The pages differ.** C, Nim, Beef and hxcpp are served in wgrender's example shell,
+an 8.6 KB page with an example picker and a console that also fetches `examples.json`;
+the Haxe guest's is `wgr.macros.WebHost`'s, under 1 KB with its `boot.js`. Both are
+counted, in the page column, because both are downloaded; a program shipped in a page
+of its own would carry that page's size instead.
+
 **A collector inside the wasm is not measured here.** gcbench reads V8's heap, so a
 runtime with its own GC in linear memory (hxcpp) shows a clean GC column whether or not
 it pauses. The only measurement of one so far is the entity-churn experiment

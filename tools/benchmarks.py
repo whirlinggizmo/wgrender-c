@@ -38,7 +38,9 @@ def measure_c():
     c = {
         'id': 'c', 'label': 'C', 'project': 'wgrender-c', 'example': EXAMPLE,
         'toolchain': f'Emscripten {measure.environment()["emcc"]}',
-        'sizes': measure.sizes([site / f'{EXAMPLE}.wasm', site / f'{EXAMPLE}.js']),
+        # the page is wgrender's example shell, which fetches examples.json for its picker
+        'sizes': measure.sizes([site / f'{EXAMPLE}.wasm', site / f'{EXAMPLE}.js',
+                                site / 'index.html', site / 'examples.json']),
         'frame': measure.frame(site, 'c', **page),
         'gc': measure.gc(site, 'c', **page),
     }
