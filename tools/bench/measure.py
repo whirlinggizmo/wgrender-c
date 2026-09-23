@@ -364,7 +364,7 @@ def render_doc(title, lead, results, baseline, generator, notes=None):
         out += ['', '## Stress', '',
                 'Game logic at scale (`tools/bench/stress.c`, ported line for line): N entities '
                 'moved every frame, one wgr call each, about N/240 of them replaced a frame '
-                '(objects destroyed and created; in Nim and Haxe, allocated and freed or '
+                '(objects destroyed and created; in Nim, Beef and Haxe, allocated and freed or '
                 'collected), and 49 lines of formatted text. On the real GPU (Xvfb, ANGLE on '
                 'Vulkan): headless Chrome rasterizes this many sprites in software, slowly '
                 'enough to bound the frame.', '',

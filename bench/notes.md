@@ -21,12 +21,13 @@ it pauses. The only measurement of one so far is the entity-churn experiment
 (`~/projects/beef/wasmtest/churn`: 10,000 entities with heap strings and growing
 inventories, Chrome 153, on librl rather than wgrender): hxcpp had the fastest median
 tick, 0.055 ms, but a worst of 1.055 ms against 0.34 ms for Beef and Nim ARC, and a p99
-of 0.240 against about 0.18.
+of 0.240 against about 0.18. The stress scene now runs hxcpp on a wgrender scene too: its
+collections column still shows only V8's, but a pause of hxcpp's own is in the worst
+frame and the late frames, with 8 ms of the frame already spent.
 
 **Not measured yet:**
 
 - callbench in the browser, not only Node, and in Firefox, whose JS -> wasm path is a
   different engine
 - hxcpp's collector on a wgrender scene, traced from inside the wasm
-- the stress scene in Beef and hxcpp (it has C, Nim and the Haxe guest)
 - Windows, and the WebGPU backend: every number here is Linux and webgl2
