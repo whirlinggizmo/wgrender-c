@@ -9,7 +9,7 @@
     "emcc": "5.0.7"
   },
   "wgrender": {
-    "commit": "cc8a9f9",
+    "commit": "ae7a096",
     "dirty": false,
     "source": "self"
   },
@@ -59,26 +59,26 @@
       },
       "frame": {
         "label": "c",
-        "frames": 480,
+        "frames": 481,
         "median": 16.66,
         "p95": 16.67,
         "overCap": 0,
-        "scriptMs": 0.49,
-        "taskMs": 0.779,
+        "scriptMs": 0.496,
+        "taskMs": 0.794,
         "scriptRuns": [
-          0.46,
-          0.49,
-          0.503
+          0.442,
+          0.496,
+          0.523
         ]
       },
       "gc": {
         "label": "c",
-        "frames": 608,
+        "frames": 607,
         "uncapped": false,
-        "allocBytesPerFrame": 327,
-        "allocMBPerMinute": 1.1,
-        "collections": 0,
-        "freedMB": 0,
+        "allocBytesPerFrame": 1617,
+        "allocMBPerMinute": 5.6,
+        "collections": 1,
+        "freedMB": 0.75,
         "heapStartMB": 8.6,
         "heapEndMB": 8.8,
         "frameMs": {
@@ -86,7 +86,10 @@
           "p99": 16.67,
           "max": 16.67
         },
-        "gcFrameMs": null,
+        "gcFrameMs": {
+          "median": 16.66,
+          "max": 16.66
+        },
         "loadMs": 0,
         "lateFrames": {
           "over20": 0,
@@ -120,33 +123,30 @@
             "median": 16.66,
             "p95": 16.67,
             "overCap": 0,
-            "scriptMs": 0.463,
-            "taskMs": 0.554,
+            "scriptMs": 0.43,
+            "taskMs": 0.514,
             "scriptRuns": [
-              0.408,
-              0.463,
-              0.486
+              0.409,
+              0.43,
+              0.436
             ]
           },
           "gc": {
             "label": "c-1000",
             "frames": 608,
             "uncapped": false,
-            "allocBytesPerFrame": 413,
+            "allocBytesPerFrame": 414,
             "allocMBPerMinute": 1.4,
-            "collections": 1,
-            "freedMB": 0.43,
-            "heapStartMB": 2.3,
-            "heapEndMB": 2.1,
+            "collections": 0,
+            "freedMB": 0,
+            "heapStartMB": 1.9,
+            "heapEndMB": 2.2,
             "frameMs": {
               "median": 16.66,
               "p99": 16.67,
               "max": 16.67
             },
-            "gcFrameMs": {
-              "median": 16.66,
-              "max": 16.66
-            },
+            "gcFrameMs": null,
             "loadMs": 8,
             "lateFrames": {
               "over20": 0,
@@ -158,8 +158,8 @@
               "pctOfWall": 0,
               "minor": {
                 "count": 1,
-                "medianMs": 0.41,
-                "maxMs": 0.41,
+                "medianMs": 0.4,
+                "maxMs": 0.4,
                 "totalMs": 0.4
               },
               "major": {
@@ -180,19 +180,19 @@
             "median": 16.66,
             "p95": 16.67,
             "overCap": 0,
-            "scriptMs": 1.386,
-            "taskMs": 1.47,
+            "scriptMs": 1.399,
+            "taskMs": 1.484,
             "scriptRuns": [
-              1.373,
-              1.386,
-              1.399
+              1.377,
+              1.399,
+              1.415
             ]
           },
           "gc": {
             "label": "c-5000",
-            "frames": 606,
+            "frames": 608,
             "uncapped": false,
-            "allocBytesPerFrame": 412,
+            "allocBytesPerFrame": 413,
             "allocMBPerMinute": 1.4,
             "collections": 1,
             "freedMB": 0.43,
@@ -236,47 +236,47 @@
           "n": 10000,
           "frame": {
             "label": "c-10000",
-            "frames": 480,
+            "frames": 481,
             "median": 16.66,
             "p95": 16.67,
             "overCap": 0,
-            "scriptMs": 2.794,
-            "taskMs": 2.885,
+            "scriptMs": 2.645,
+            "taskMs": 2.736,
             "scriptRuns": [
-              2.664,
-              2.794,
-              2.834
+              2.588,
+              2.645,
+              2.68
             ]
           },
           "gc": {
             "label": "c-10000",
-            "frames": 607,
+            "frames": 606,
             "uncapped": false,
-            "allocBytesPerFrame": 414,
+            "allocBytesPerFrame": 415,
             "allocMBPerMinute": 1.4,
             "collections": 0,
             "freedMB": 0,
             "heapStartMB": 1.9,
-            "heapEndMB": 2.1,
+            "heapEndMB": 2.2,
             "frameMs": {
               "median": 16.66,
               "p99": 16.67,
-              "max": 33.33
+              "max": 16.67
             },
             "gcFrameMs": null,
             "loadMs": 8,
             "lateFrames": {
-              "over20": 1,
-              "over33": 1,
-              "pct": 0.16
+              "over20": 0,
+              "over33": 0,
+              "pct": 0
             },
             "gc": {
               "totalMs": 0.4,
               "pctOfWall": 0,
               "minor": {
                 "count": 1,
-                "medianMs": 0.39,
-                "maxMs": 0.39,
+                "medianMs": 0.43,
+                "maxMs": 0.43,
                 "totalMs": 0.4
               },
               "major": {
@@ -299,27 +299,27 @@
     "shapes": {
       "tint": {
         "c": "wgr_model_set_tint",
-        "jsNs": 2.66,
-        "wasmNs": 1.22,
-        "boundaryNs": 1.45
+        "jsNs": 2.67,
+        "wasmNs": 1.23,
+        "boundaryNs": 1.44
       },
       "transform": {
         "c": "wgr_model_set_transform",
-        "jsNs": 5.37,
-        "wasmNs": 2.2,
-        "boundaryNs": 3.16
+        "jsNs": 5.6,
+        "wasmNs": 2.21,
+        "boundaryNs": 3.39
       },
       "struct": {
         "c": "wgr_input_get_mouse_state",
-        "jsNs": 9.95,
-        "wasmNs": 2.75,
-        "boundaryNs": 7.2
+        "jsNs": 9.46,
+        "wasmNs": 2.73,
+        "boundaryNs": 6.73
       },
       "string": {
         "c": "wgr_text_measure",
-        "jsNs": 32.72,
-        "wasmNs": 3.31,
-        "boundaryNs": 29.41
+        "jsNs": 31.88,
+        "wasmNs": 3.11,
+        "boundaryNs": 28.77
       }
     }
   }
