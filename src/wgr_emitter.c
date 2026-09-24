@@ -519,7 +519,7 @@ static bool pick_2d(wgr_handle_t handle, float x, float y, wgr_pick_result_t *ou
 /* ------------------------------------------------------------ lifecycle ---- */
 
 /* The shader, pipelines and quad, made with the first emitter rather than at startup:
- * a program without particles doesn't compile them (tools/webstart.mjs). */
+ * a program without particles doesn't compile them (tools/webstart.py). */
 static void ensure_gpu(void)
 {
     static const float corners[12] = {-0.5f, 0.5f, 0.5f, 0.5f, 0.5f, -0.5f, -0.5f, 0.5f, 0.5f, -0.5f, -0.5f, -0.5f};

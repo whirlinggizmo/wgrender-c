@@ -432,3 +432,23 @@ def launch_browser(run, browser_path, display, profile=None, window_size='1024,9
             output = ''
         raise RuntimeError(f'{e}; its last output:\n{output or "(nothing)"}') from e
     return debug_base, open_session(version['webSocketDebuggerUrl'])
+
+
+def distinct_colours(session, png_base64, cap=64):
+    """How many distinct colours a screenshot (Page.captureScreenshot's base64 PNG) has,
+    stopping at cap: a cheap "did it draw anything?". The page decodes it, on an
+    offscreen canvas of its own, never the example's (a canvas with a 2D or WebGL
+    context can't be used for WebGPU)."""
+    expression = f"""(async () => {{
+        const image = await createImageBitmap(await (await fetch("data:image/png;base64,{png_base64}")).blob());
+        const canvas = new OffscreenCanvas(image.width, image.height);
+        const context = canvas.getContext("2d");
+        context.drawImage(image, 0, 0);
+        const pixels = context.getImageData(0, 0, image.width, image.height).data;
+        const seen = new Set();
+        for (let i = 0; i < pixels.length && seen.size < {cap}; i += 4)
+            seen.add((pixels[i] << 16) | (pixels[i + 1] << 8) | pixels[i + 2]);
+        return seen.size;
+    }})()"""
+    return session.send('Runtime.evaluate', {'expression': expression, 'awaitPromise': True,
+                                             'returnByValue': True}, 30)['result']['value']

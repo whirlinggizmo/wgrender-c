@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Run a web tool on Emscripten's Node.
+"""Run a web tool that is still JS (the benchmark harness) on Emscripten's Node.
 
-    tools/node.py tools/webstart.mjs ...
+    tools/node.py tools/bench/bench.mjs ...
 
 The web tools need Node 22 or newer, which emsdk brings: a web build needs emsdk, so the
 tools that check one run on its Node rather than on whatever `node` is on PATH (missing,

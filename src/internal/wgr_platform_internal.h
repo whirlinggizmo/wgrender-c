@@ -41,7 +41,7 @@ double wgri_platform_frame_duration(void); /* last frame's raw duration, seconds
 void wgri_platform_set_title(const char *title);
 
 /* A named point in startup, for measuring it (web: performance.mark, which DevTools and
- * tools/webstart.mjs read; elsewhere nothing). */
+ * tools/webstart.py read; elsewhere nothing). */
 void wgri_platform_mark(const char *name);
 
 /* Window and monitors (docs/PLAN-window.md). Sizes in logical pixels, positions in

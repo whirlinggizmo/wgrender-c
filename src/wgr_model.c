@@ -1458,7 +1458,7 @@ static void discard_mesh(void *data)
 
 /* The model shaders and pipelines, made when the first mesh reaches the GPU (or a
  * model is drawn) rather than at startup: a program without models doesn't compile
- * them (tools/webstart.mjs measures startup). */
+ * them (tools/webstart.py measures startup). */
 static bool wgr_model_pipelines_ready;
 
 /* A pipeline drawing model primitives with `shader` (built-in or custom: the vertex

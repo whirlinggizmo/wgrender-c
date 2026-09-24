@@ -80,7 +80,7 @@ cmake --preset web-webgl2 && cmake --build --preset web-webgl2   # every example
 python3 tools/serve.py 8000 build/web-webgl2   # http://localhost:8000/ (assets mounted at /assets/)
 python3 tools/webcheck.py                     # load each in a browser, fail on errors
 python3 tools/webcheck.py --backend=webgpu    # the same for WebGPU (web-webgpu)
-python3 tools/node.py tools/webstart.mjs      # startup times per example: cold, warm and hot visits
+python3 tools/webstart.py                     # startup times per example: cold, warm and hot visits
 python3 tools/verify.py --web                  # all of the above web builds, checked
 tools/benchmarks.py --all                      # C and every sibling binding -> docs/benchmarks.md
 ```
@@ -124,7 +124,7 @@ a host should send:
 
 `tools/site.py` copies a build and the assets it loads into `<build>/site/`, ready for
 any static host. `tools/serve.py` sends no-store by default (every reload gets the
-latest build); `--cache --gzip` serves as above. `tools/webstart.mjs` opens each
+latest build); `--cache --gzip` serves as above. `tools/webstart.py` opens each
 example three times in a fresh browser profile
 (cold, warm, and hot: Chrome's compiled-code cache), locally and on emulated 4G, and
 times the download, compile, wgrender's init, the first frame and the end of asset

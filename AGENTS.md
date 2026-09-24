@@ -76,7 +76,7 @@ make and no shell script: everything below works the same on Windows, Linux and 
   README "Startup and hosting").
 - `tools/site.py [build/web-...]` — a self-contained copy of a web build, assets
   included, for a static host (the Pages workflow publishes `web-webgl2-nothreads`'s).
-- `python3 tools/node.py tools/webstart.mjs [--backend=webgpu] [--threads=0]` — startup times per web
+- `python3 tools/webstart.py [--backend=webgpu] [--threads=0]` — startup times per web
   example: cold, warm and hot visits, locally and on emulated 4G, from libwgrender's
   `wgr:*` performance marks; `--devtools=PORT --url=URL` measures a phone. Run it when
   touching init, the page shell or web build flags.

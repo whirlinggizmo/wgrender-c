@@ -15,7 +15,7 @@ builds need one for SharedArrayBuffer. localhost is secure without it.
 
 By default nothing is cached (no-store: a reload always gets the latest build).
 --cache and --gzip serve the way a host should, for measuring startup
-(tools/webstart.mjs): --cache lets the browser keep versioned files (name?v=<hash>,
+(tools/webstart.py): --cache lets the browser keep versioned files (name?v=<hash>,
 as the page loads code: tools/webdeploy.py) for good (immutable, a year) and
 revalidate the rest every visit (no-cache, answered 304 while unchanged); --gzip
 compresses the page, JS, wasm and JSON (not Range requests: assets stream through

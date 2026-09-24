@@ -1,4 +1,4 @@
-// Shared by the web tools still in JS (webstart.mjs, the benchmark harness): finding and launching a
+// Shared by the web tools still in JS (the benchmark harness: bench, gcbench, callcount): finding and launching a
 // Chromium-based browser (headless, on a virtual X display, or on the screen), a
 // minimal DevTools-protocol session, and a record of every process a run starts so
 // all of it is stopped, whatever happens to the run.

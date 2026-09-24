@@ -245,7 +245,7 @@ static void make_pipelines(sg_shader shader, sg_pipeline out[PIPELINE_COUNT])
 }
 
 /* The shader, pipelines and quad, made with the first sprite drawn rather than at
- * startup: a program without sprites doesn't compile them (tools/webstart.mjs). */
+ * startup: a program without sprites doesn't compile them (tools/webstart.py). */
 static void ensure_gpu(void)
 {
     /* two triangles: the quad's corners, x right, y up */

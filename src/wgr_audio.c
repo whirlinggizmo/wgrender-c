@@ -629,7 +629,7 @@ static void stream_callback(float *buffer, int num_frames, int num_channels)
 
 /* The audio device starts with the first audio resource, not at startup: a program
  * without sound doesn't open one (on the web, making the AudioContext was ~30 ms of a
- * first visit's startup: tools/webstart.mjs). Main thread; not under the lock, which
+ * first visit's startup: tools/webstart.py). Main thread; not under the lock, which
  * the device's callback takes. */
 static bool wgr_audio_device_tried;
 
