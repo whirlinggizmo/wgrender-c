@@ -15,7 +15,7 @@ guest's is `wgr.macros.WebHost`'s minimal page (its `boot.js` counts in the JS c
 Both are counted because both are downloaded; a program shipped in a page of its own
 would carry that page's size instead.
 
-**A collector inside the wasm is not measured here.** the GC measurement reads V8's heap, so a
+**A collector inside the wasm is not measured here.** The GC measurement reads V8's heap, so a
 runtime with its own GC in linear memory (hxcpp) shows a clean GC column whether or not
 it pauses. The only measurement of one so far is the entity-churn experiment
 (`~/projects/beef/wasmtest/churn`: 10,000 entities with heap strings and growing

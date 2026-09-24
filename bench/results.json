@@ -2,14 +2,13 @@
   "schema": 1,
   "project": "wgrender-c",
   "environment": {
-    "date": "2026-09-23",
+    "date": "2026-09-24",
     "machine": "13th Gen Intel(R) Core(TM) i9-13900HX, Linux",
     "browser": "Brave Browser 153.1.95.104",
-    "node": "v22.16.0",
     "emcc": "5.0.7"
   },
   "wgrender": {
-    "commit": "ae7a096",
+    "commit": "399ede3",
     "dirty": false,
     "source": "self"
   },
@@ -25,23 +24,23 @@
           {
             "name": "simple.wasm",
             "kind": "wasm",
-            "raw": 695675,
-            "gzip": 293310,
-            "brotli": 237389
+            "raw": 695714,
+            "gzip": 293621,
+            "brotli": 237935
           },
           {
             "name": "simple.js",
             "kind": "js",
-            "raw": 65953,
-            "gzip": 23379,
-            "brotli": 20796
+            "raw": 65959,
+            "gzip": 23382,
+            "brotli": 20832
           },
           {
             "name": "index.html",
             "kind": "page",
-            "raw": 10328,
-            "gzip": 4474,
-            "brotli": 3601
+            "raw": 10352,
+            "gzip": 4484,
+            "brotli": 3614
           },
           {
             "name": "examples.json",
@@ -52,33 +51,33 @@
           }
         ],
         "total": {
-          "raw": 772276,
-          "gzip": 321360,
-          "brotli": 261955
+          "raw": 772345,
+          "gzip": 321684,
+          "brotli": 262550
         }
       },
       "frame": {
         "label": "c",
-        "frames": 481,
+        "frames": 479,
         "median": 16.66,
         "p95": 16.67,
-        "overCap": 0,
-        "scriptMs": 0.496,
-        "taskMs": 0.794,
+        "overCap": 0.0,
+        "scriptMs": 0.489,
+        "taskMs": 0.776,
         "scriptRuns": [
-          0.442,
-          0.496,
-          0.523
+          0.45,
+          0.489,
+          0.519
         ]
       },
       "gc": {
         "label": "c",
-        "frames": 607,
+        "frames": 605,
         "uncapped": false,
-        "allocBytesPerFrame": 1617,
-        "allocMBPerMinute": 5.6,
+        "allocBytesPerFrame": 771,
+        "allocMBPerMinute": 2.6,
         "collections": 1,
-        "freedMB": 0.75,
+        "freedMB": 0.26,
         "heapStartMB": 8.6,
         "heapEndMB": 8.8,
         "frameMs": {
@@ -87,18 +86,18 @@
           "max": 16.67
         },
         "gcFrameMs": {
-          "median": 16.66,
-          "max": 16.66
+          "median": 16.67,
+          "max": 16.67
         },
         "loadMs": 0,
         "lateFrames": {
           "over20": 0,
           "over33": 0,
-          "pct": 0
+          "pct": 0.0
         },
         "gc": {
-          "totalMs": 0,
-          "pctOfWall": 0,
+          "totalMs": 0.0,
+          "pctOfWall": 0.0,
           "minor": {
             "count": 0,
             "medianMs": null,
@@ -119,26 +118,26 @@
           "n": 1000,
           "frame": {
             "label": "c-1000",
-            "frames": 480,
+            "frames": 479,
             "median": 16.66,
             "p95": 16.67,
-            "overCap": 0,
-            "scriptMs": 0.43,
-            "taskMs": 0.514,
+            "overCap": 0.0,
+            "scriptMs": 0.426,
+            "taskMs": 0.506,
             "scriptRuns": [
-              0.409,
-              0.43,
-              0.436
+              0.423,
+              0.426,
+              0.525
             ]
           },
           "gc": {
             "label": "c-1000",
-            "frames": 608,
+            "frames": 606,
             "uncapped": false,
-            "allocBytesPerFrame": 414,
+            "allocBytesPerFrame": 413,
             "allocMBPerMinute": 1.4,
             "collections": 0,
-            "freedMB": 0,
+            "freedMB": 0.0,
             "heapStartMB": 1.9,
             "heapEndMB": 2.2,
             "frameMs": {
@@ -151,15 +150,15 @@
             "lateFrames": {
               "over20": 0,
               "over33": 0,
-              "pct": 0
+              "pct": 0.0
             },
             "gc": {
               "totalMs": 0.4,
-              "pctOfWall": 0,
+              "pctOfWall": 0.0,
               "minor": {
                 "count": 1,
-                "medianMs": 0.4,
-                "maxMs": 0.4,
+                "medianMs": 0.44,
+                "maxMs": 0.44,
                 "totalMs": 0.4
               },
               "major": {
@@ -179,48 +178,48 @@
             "frames": 479,
             "median": 16.66,
             "p95": 16.67,
-            "overCap": 0,
-            "scriptMs": 1.399,
-            "taskMs": 1.484,
+            "overCap": 0.0,
+            "scriptMs": 1.4,
+            "taskMs": 1.482,
             "scriptRuns": [
-              1.377,
-              1.399,
-              1.415
+              1.372,
+              1.4,
+              1.613
             ]
           },
           "gc": {
             "label": "c-5000",
-            "frames": 608,
+            "frames": 606,
             "uncapped": false,
-            "allocBytesPerFrame": 413,
+            "allocBytesPerFrame": 414,
             "allocMBPerMinute": 1.4,
             "collections": 1,
-            "freedMB": 0.43,
+            "freedMB": 0.42,
             "heapStartMB": 2.3,
-            "heapEndMB": 2.1,
+            "heapEndMB": 2.2,
             "frameMs": {
               "median": 16.66,
               "p99": 16.67,
               "max": 16.67
             },
             "gcFrameMs": {
-              "median": 16.67,
-              "max": 16.67
+              "median": 16.66,
+              "max": 16.66
             },
             "loadMs": 8,
             "lateFrames": {
               "over20": 0,
               "over33": 0,
-              "pct": 0
+              "pct": 0.0
             },
             "gc": {
-              "totalMs": 0.5,
-              "pctOfWall": 0.01,
+              "totalMs": 0.4,
+              "pctOfWall": 0.0,
               "minor": {
                 "count": 1,
-                "medianMs": 0.47,
-                "maxMs": 0.47,
-                "totalMs": 0.5
+                "medianMs": 0.37,
+                "maxMs": 0.37,
+                "totalMs": 0.4
               },
               "major": {
                 "count": 0,
@@ -236,48 +235,51 @@
           "n": 10000,
           "frame": {
             "label": "c-10000",
-            "frames": 481,
+            "frames": 479,
             "median": 16.66,
             "p95": 16.67,
-            "overCap": 0,
-            "scriptMs": 2.645,
-            "taskMs": 2.736,
+            "overCap": 0.0,
+            "scriptMs": 2.662,
+            "taskMs": 2.753,
             "scriptRuns": [
-              2.588,
-              2.645,
-              2.68
+              2.641,
+              2.662,
+              2.691
             ]
           },
           "gc": {
             "label": "c-10000",
             "frames": 606,
             "uncapped": false,
-            "allocBytesPerFrame": 415,
+            "allocBytesPerFrame": 414,
             "allocMBPerMinute": 1.4,
-            "collections": 0,
-            "freedMB": 0,
-            "heapStartMB": 1.9,
-            "heapEndMB": 2.2,
+            "collections": 1,
+            "freedMB": 0.43,
+            "heapStartMB": 2.3,
+            "heapEndMB": 2.1,
             "frameMs": {
               "median": 16.66,
               "p99": 16.67,
               "max": 16.67
             },
-            "gcFrameMs": null,
+            "gcFrameMs": {
+              "median": 16.66,
+              "max": 16.66
+            },
             "loadMs": 8,
             "lateFrames": {
               "over20": 0,
               "over33": 0,
-              "pct": 0
+              "pct": 0.0
             },
             "gc": {
-              "totalMs": 0.4,
-              "pctOfWall": 0,
+              "totalMs": 0.5,
+              "pctOfWall": 0.01,
               "minor": {
                 "count": 1,
-                "medianMs": 0.43,
-                "maxMs": 0.43,
-                "totalMs": 0.4
+                "medianMs": 0.5,
+                "maxMs": 0.5,
+                "totalMs": 0.5
               },
               "major": {
                 "count": 0,
@@ -293,34 +295,34 @@
     }
   ],
   "callbench": {
-    "engine": "node v22.16.0",
     "calls": 5000000,
     "reps": 7,
     "shapes": {
       "tint": {
         "c": "wgr_model_set_tint",
-        "jsNs": 2.67,
-        "wasmNs": 1.23,
-        "boundaryNs": 1.44
+        "jsNs": 3.25,
+        "wasmNs": 0.45,
+        "boundaryNs": 2.8
       },
       "transform": {
         "c": "wgr_model_set_transform",
-        "jsNs": 5.6,
-        "wasmNs": 2.21,
-        "boundaryNs": 3.39
+        "jsNs": 5.82,
+        "wasmNs": 0.45,
+        "boundaryNs": 5.37
       },
       "struct": {
         "c": "wgr_input_get_mouse_state",
-        "jsNs": 9.46,
-        "wasmNs": 2.73,
-        "boundaryNs": 6.73
+        "jsNs": 12.63,
+        "wasmNs": 1.43,
+        "boundaryNs": 11.21
       },
       "string": {
         "c": "wgr_text_measure",
-        "jsNs": 31.88,
-        "wasmNs": 3.11,
-        "boundaryNs": 28.77
+        "jsNs": 26.61,
+        "wasmNs": 2.49,
+        "boundaryNs": 24.12
       }
-    }
+    },
+    "engine": "Chrome/153.0.8010.53"
   }
 }
