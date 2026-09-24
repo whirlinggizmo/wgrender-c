@@ -1,0 +1,63 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": { "WGR_EXAMPLES": "ON" }
+    },
+    {
+      "name": "desktop",
+      "displayName": "Desktop: the library and examples, with a window, GPU and audio",
+      "inherits": "base"
+    },
+    {
+      "name": "debug",
+      "displayName": "Desktop, debug",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "headless",
+      "displayName": "Headless: unit tests, guardrails and a smoke run of every example",
+      "inherits": "base",
+      "cacheVariables": { "WGR_HEADLESS": "ON", "WGR_TESTS": "ON" }
+    },
+    {
+      "name": "tsan",
+      "displayName": "Headless under ThreadSanitizer",
+      "inherits": "headless",
+      "cacheVariables": { "WGR_SANITIZE": "thread", "WGR_EXAMPLES": "OFF" }
+    },
+    {
+      "name": "asan",
+      "displayName": "Headless under AddressSanitizer",
+      "inherits": "headless",
+      "cacheVariables": { "WGR_SANITIZE": "address", "WGR_EXAMPLES": "OFF" }
+    },
+    {
+      "name": "ubsan",
+      "displayName": "Headless under UndefinedBehaviorSanitizer",
+      "inherits": "headless",
+      "cacheVariables": { "WGR_SANITIZE": "undefined", "WGR_EXAMPLES": "OFF" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "desktop", "configurePreset": "desktop" },
+    { "name": "debug", "configurePreset": "debug" },
+    { "name": "headless", "configurePreset": "headless" },
+    { "name": "tsan", "configurePreset": "tsan" },
+    { "name": "asan", "configurePreset": "asan" },
+    { "name": "ubsan", "configurePreset": "ubsan" }
+  ],
+  "testPresets": [
+    { "name": "base", "hidden": true, "output": { "outputOnFailure": true }, "execution": { "jobs": 16 } },
+    { "name": "headless", "inherits": "base", "configurePreset": "headless" },
+    { "name": "tsan", "inherits": "base", "configurePreset": "tsan" },
+    { "name": "asan", "inherits": "base", "configurePreset": "asan" },
+    { "name": "ubsan", "inherits": "base", "configurePreset": "ubsan" }
+  ]
+}
