@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Web smoke check for the libwgrender examples (`make webcheck`).
+// Web smoke check for the libwgrender examples (tools/verify.py --web runs it).
 //
-// Serves examples/build/<backend> with tools/serve.py, loads each built example in a
+// Serves build/web-<backend> with tools/serve.py, loads each built example in a
 // Chromium-based browser (Brave, Chrome, Chromium) through the DevTools
 // protocol, and fails an example if it logs a console error or a libwgrender
 // [ERROR]/[FATAL] line, throws, hits a sokol panic, never reports starting on the
@@ -13,7 +13,7 @@
 //   node tools/webcheck.mjs [options] [example ...]     (default: all built examples)
 //
 //   --backend=webgl2|webgpu  backend to check (default webgl2); the site is
-//                       examples/build/<backend>
+//                       build/web-<backend> (the CMake preset of that name)
 //   --headed            show the browser window on the real screen. Otherwise WebGL2
 //                       runs headless, and WebGPU (which gets no working GPU device
 //                       headless) runs on a private virtual X display (Xvfb, ANGLE on
@@ -26,7 +26,7 @@
 //   --quiet=MS          (default 1500)
 //   --jobs=N            examples checked at once (default 4). Each example has its own
 //                       browser context (own storage; its own window when headed)
-//   --out=DIR           screenshot directory (default examples/build/<backend>/webcheck)
+//   --out=DIR           screenshot directory (default build/web-<backend>/webcheck)
 //   --browser=PATH      browser executable (or WEBCHECK_BROWSER; default: first
 //                       found of brave-browser-stable, google-chrome-stable,
 //                       google-chrome, chromium, chromium-browser)
@@ -40,7 +40,7 @@
 // Note: never call canvas.getContext() from here. A canvas that already has a
 // WebGL context can't be used for WebGPU, which breaks the example under test.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { findBrowser, findXvfb, freePort, launchBrowser, openSession, ROOT, RunProcesses, sleep, waitFor } from "./weblib.mjs";
 
@@ -69,7 +69,7 @@ function parseArgs(argv) {
     if (!(opts.backend in BACKEND_LOG)) throw new Error(`--backend must be webgl2 or webgpu, got '${opts.backend}'`);
     /* where the browser shows its windows: "headless", "xvfb" or "screen" */
     opts.display = opts.headed ? "screen" : opts.backend === "webgpu" ? (findXvfb() ? "xvfb" : "screen") : "headless";
-    opts.site = join(ROOT, "examples", "build", opts.threads ? opts.backend : `${opts.backend}-nothreads`);
+    opts.site = join(ROOT, "build", `web-${opts.backend}${opts.threads ? "" : "-nothreads"}`);
     if (!(opts.jobs >= 1)) opts.jobs = 4;
     opts.out ??= join(opts.site, "webcheck");
     return opts;
@@ -181,7 +181,7 @@ async function main() {
     const opts = parseArgs(process.argv.slice(2));
     const manifest = join(opts.site, "examples.json");
     if (!existsSync(manifest)) {
-        throw new Error(`no web build at ${opts.site} (run 'make wasm-all BACKEND=${opts.backend}' first)`);
+        throw new Error(`no web build at ${opts.site} (build it first: cmake --preset ${basename(opts.site)} && cmake --build --preset ${basename(opts.site)})`);
     }
     const built = JSON.parse(readFileSync(manifest, "utf8"));
     const examples = opts.examples.length ? opts.examples : built;

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Web startup: how long each example takes to start, the first time and after.
 //
-//   node tools/webstart.mjs [options] [example ...]     (or: make webstart)
+//   node tools/webstart.mjs [options] [example ...]     (after building the web preset)
 //
 // Each example is opened three times in a fresh browser profile, served the way a
 // typical host serves it (tools/serve.py --cache --gzip: files kept and revalidated,
@@ -25,7 +25,7 @@
 // (the wgr:* points are performance marks libwgrender makes in web builds).
 //
 // Options:
-//   --backend=webgl2|webgpu   (default webgl2); the site is examples/build/<backend>
+//   --backend=webgl2|webgpu   (default webgl2); the site is build/web-<backend>
 //   --threads=0               the -nothreads build
 //   --net=none|4g|both        network: the local machine as is, emulated 4G (9 Mbit/s
 //                             down, 150 ms round trips), or both (default both)
@@ -109,7 +109,7 @@ function parseArgs(argv) {
     if (opts.headless && opts.backend === "webgpu") throw new Error("--headless has no WebGPU");
     if ((opts.devtools === null) !== (opts.url === null)) throw new Error("--devtools and --url go together");
     opts.display = opts.devtools !== null ? "remote" : opts.headless ? "headless" : findXvfb() ? "xvfb" : "screen";
-    opts.site = join(ROOT, "examples", "build", opts.threads ? opts.backend : `${opts.backend}-nothreads`);
+    opts.site = join(ROOT, "build", `web-${opts.backend}${opts.threads ? "" : "-nothreads"}`);
     return opts;
 }
 

@@ -75,6 +75,50 @@
       "displayName": "Windows headless, cross-built with MinGW-w64 and tested under Wine",
       "inherits": "headless",
       "toolchainFile": "${sourceDir}/cmake/mingw-w64.cmake"
+    },
+    {
+      "name": "web-base",
+      "hidden": true,
+      "inherits": "base",
+      "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake"
+    },
+    {
+      "name": "web-webgl2",
+      "displayName": "Web, WebGL2, threaded (serve with COOP/COEP: tools/serve.py)",
+      "inherits": "web-base"
+    },
+    {
+      "name": "web-webgl2-nothreads",
+      "displayName": "Web, WebGL2, no threads (any static host)",
+      "inherits": "web-base",
+      "cacheVariables": {
+        "WGR_WEB_THREADS": "OFF"
+      }
+    },
+    {
+      "name": "web-webgpu",
+      "displayName": "Web, WebGPU, threaded",
+      "inherits": "web-base",
+      "cacheVariables": {
+        "WGR_WEB_BACKEND": "webgpu"
+      }
+    },
+    {
+      "name": "web-webgpu-nothreads",
+      "displayName": "Web, WebGPU, no threads",
+      "inherits": "web-base",
+      "cacheVariables": {
+        "WGR_WEB_BACKEND": "webgpu",
+        "WGR_WEB_THREADS": "OFF"
+      }
+    },
+    {
+      "name": "web-webgl2-debug",
+      "displayName": "Web, WebGL2, threaded, debug: no optimization, assertions",
+      "inherits": "web-base",
+      "cacheVariables": {
+        "WGR_WEB_DEBUG": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -109,6 +153,26 @@
     {
       "name": "windows-headless",
       "configurePreset": "windows-headless"
+    },
+    {
+      "name": "web-webgl2",
+      "configurePreset": "web-webgl2"
+    },
+    {
+      "name": "web-webgl2-nothreads",
+      "configurePreset": "web-webgl2-nothreads"
+    },
+    {
+      "name": "web-webgpu",
+      "configurePreset": "web-webgpu"
+    },
+    {
+      "name": "web-webgpu-nothreads",
+      "configurePreset": "web-webgpu-nothreads"
+    },
+    {
+      "name": "web-webgl2-debug",
+      "configurePreset": "web-webgl2-debug"
     }
   ],
   "testPresets": [

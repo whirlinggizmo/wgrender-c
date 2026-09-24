@@ -76,7 +76,9 @@ wgr_manifest_list(WGR_OPT opt)
 function(wgr_c_target target)
   set_target_properties(${target} PROPERTIES C_STANDARD 11 C_EXTENSIONS ON)
   if(NOT MSVC)
-    target_compile_options(${target} PRIVATE ${WGR_WARN})
+    # __FILE__ (the log's source locations) relative to the repository, as make's and
+    # buildweb's relative paths had it: shorter strings, and no build machine's paths
+    target_compile_options(${target} PRIVATE ${WGR_WARN} "-fmacro-prefix-map=${WGR_ROOT}/=")
   endif()
   if(WGR_SANITIZE)
     target_compile_options(${target} PRIVATE -fsanitize=${WGR_SANITIZE} -fno-omit-frame-pointer -O1 -g)
@@ -105,7 +107,16 @@ if(EMSCRIPTEN)
   endif()
   wgr_manifest_list(WGR_CFLAGS web ${WGR_TARGET} cflags)
   wgr_manifest_list(WGR_PROGRAM_CFLAGS web ${WGR_TARGET} program_cflags)
-  wgr_manifest_list(WGR_LDFLAGS web ${WGR_TARGET} ldflags)
+  wgr_manifest_list(ldflags web ${WGR_TARGET} ldflags)
+  # CMake de-duplicates options, so a flag's separate value (--closure 1) goes with it
+  set(WGR_LDFLAGS)
+  foreach(flag IN LISTS ldflags)
+    if(NOT flag MATCHES "^-" AND WGR_LDFLAGS)
+      list(POP_BACK WGR_LDFLAGS previous)
+      set(flag "SHELL:${previous} ${flag}")
+    endif()
+    list(APPEND WGR_LDFLAGS "${flag}")
+  endforeach()
   target_compile_options(wgrender PRIVATE ${WGR_CFLAGS})
   target_compile_options(wgrender INTERFACE ${WGR_PROGRAM_CFLAGS})
   target_link_options(wgrender INTERFACE ${WGR_LDFLAGS})
@@ -158,8 +169,22 @@ if(WGR_EXAMPLES)
     target_include_directories(${name} PRIVATE ${WGR_INCLUDE})
     target_include_directories(${name} SYSTEM PRIVATE ${WGR_SYSTEM_INCLUDE} "${WGR_ROOT}/deps/clay")
     target_link_libraries(${name} PRIVATE wgrender)
+    if(EMSCRIPTEN)
+      target_compile_options(${name} PRIVATE ${WGR_CFLAGS}) # as the library: NDEBUG, backend
+    endif()
     list(APPEND WGR_EXAMPLE_TARGETS ${name})
   endforeach()
+
+  # On the web, the build directory is the site: <example>.js and .wasm, and the page
+  # and examples.json that tools/webdeploy.py writes once they're linked. Serve it with
+  # tools/serve.py; tools/site.py makes a copy to hand a static host.
+  if(EMSCRIPTEN AND Python3_FOUND)
+    add_custom_target(webdeploy ALL
+      COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/webdeploy.py" "${CMAKE_CURRENT_BINARY_DIR}"
+              "${WGR_ROOT}/examples/web/index.html"
+      DEPENDS ${WGR_EXAMPLE_TARGETS} "${WGR_ROOT}/examples/web/index.html"
+      COMMENT "webdeploy: index.html and examples.json")
+  endif()
 endif()
 
 if(WGR_TESTS)
