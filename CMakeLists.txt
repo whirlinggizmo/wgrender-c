@@ -120,6 +120,15 @@ else()
   if(WGR_HEADLESS)
     string(APPEND WGR_TARGET "-headless")
   endif()
+  if(WGR_TARGET STREQUAL "linux" AND Python3_FOUND)
+    # the system's GL, X11 and ALSA dev packages: stop here, with the command that
+    # installs them, rather than at the link
+    execute_process(COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/deps.py" check
+                    RESULT_VARIABLE deps_missing)
+    if(deps_missing)
+      message(FATAL_ERROR "wgrender: missing system build dependencies (above)")
+    endif()
+  endif()
   wgr_manifest_list(WGR_DEFINES desktop ${WGR_TARGET} defines)
   wgr_manifest_list(WGR_LIBS desktop ${WGR_TARGET} libs)
   wgr_manifest_list(WGR_FRAMEWORKS desktop ${WGR_TARGET} frameworks)
@@ -165,21 +174,26 @@ if(WGR_TESTS)
   target_include_directories(unit_tests SYSTEM PRIVATE ${WGR_SYSTEM_INCLUDE})
   target_compile_definitions(unit_tests PRIVATE ${WGR_DEFINES})
   target_link_libraries(unit_tests PRIVATE wgrender)
-  # ThreadSanitizer needs ASLR off on Linux, which is what setarch -R does
-  set(unit_command $<TARGET_FILE:unit_tests>)
+  if(MINGW)
+    target_link_libraries(unit_tests PRIVATE pthread) # the tests' threads and clocks: winpthreads
+  endif()
+  # The target's name, not its file, so that ctest runs it under the emulator (Wine) in
+  # a cross build. ThreadSanitizer needs ASLR off on Linux, which is what setarch -R does.
+  set(unit_command unit_tests)
   if(WGR_SANITIZE STREQUAL "thread" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(unit_command setarch ${CMAKE_SYSTEM_PROCESSOR} -R $<TARGET_FILE:unit_tests>)
   endif()
   # tests/: the tests load assets as ../examples/assets
   add_test(NAME unit COMMAND ${unit_command} WORKING_DIRECTORY "${WGR_ROOT}/tests")
 
-  if(Python3_FOUND)
-    add_test(NAME check COMMAND Python3::Interpreter "${WGR_ROOT}/tools/check.py"
+  if(Python3_FOUND AND NOT CMAKE_CROSSCOMPILING) # the modules check reads the library with the host's nm
+    add_test(NAME check COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/check.py"
                                 --lib $<TARGET_FILE:wgrender>)
   endif()
 
   # Every example, headless for 180 frames (3 s at the paced 60 fps): fails on a bad
-  # exit, a timeout, or an error in its log (tools/smoke.py)
+  # exit, a timeout, or an error in its log (tools/smoke.py). Python by its path, not
+  # the imported Python3::Interpreter, which a cross build would run under the emulator.
   if(WGR_EXAMPLES AND Python3_FOUND)
     set(runner_arg)
     if(WGR_RUNNER)
@@ -188,7 +202,7 @@ if(WGR_TESTS)
     endif()
     foreach(name IN LISTS WGR_EXAMPLE_TARGETS)
       add_test(NAME smoke.${name}
-               COMMAND Python3::Interpreter "${WGR_ROOT}/tools/smoke.py" --frames 180
+               COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/smoke.py" --frames 180
                        ${runner_arg} $<TARGET_FILE:${name}>
                WORKING_DIRECTORY "${WGR_ROOT}")
     endforeach()
