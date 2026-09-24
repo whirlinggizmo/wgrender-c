@@ -269,9 +269,6 @@ if(WGR_TESTS)
   target_include_directories(unit_tests SYSTEM PRIVATE ${WGR_SYSTEM_INCLUDE})
   target_compile_definitions(unit_tests PRIVATE ${WGR_DEFINES})
   target_link_libraries(unit_tests PRIVATE wgrender)
-  if(MINGW)
-    target_link_libraries(unit_tests PRIVATE pthread) # the tests' threads and clocks: winpthreads
-  endif()
   # The target's name, not its file, so that ctest runs it under the emulator (Wine) in
   # a cross build. ThreadSanitizer needs ASLR off on Linux, which is what setarch -R does.
   set(unit_command unit_tests)

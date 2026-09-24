@@ -1,0 +1,4 @@
+# A .wgrshader is length-prefixed (`source fs 1726` counts bytes), so its line endings
+# must stay as tools/shaderpack.py wrote them: a CRLF checkout (core.autocrlf on
+# Windows) changes the lengths and no shader loads.
+*.wgrshader -text

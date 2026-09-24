@@ -1,4 +1,3 @@
-#include <time.h>
 /* UI essentials (docs/PLAN-2d.md step 3): nine-slice geometry, text2d wrapping and
  * alignment, and per-layer clip rectangles (which also mask picking). */
 #include <string.h>
@@ -30,6 +29,7 @@
 #include "wgr_texture.h"
 #include "wgr_window.h"
 #include "test.h"
+#include "test_os.h"
 #include "tests.h"
 
 #include "sokol_gfx.h"
@@ -485,13 +485,6 @@ void test_sprite_pools_grow(void)
     sg_shutdown();
 }
 
-static double now_seconds(void)
-{
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
-}
-
 /* Sprites and sokol_gl shapes alternating thousands of times in one frame: each switch
  * is a render command, far past the list's first size, and every sprite still draws. */
 void test_sprites_interleaved(void)
@@ -509,17 +502,17 @@ void test_sprites_interleaved(void)
     const wgr_handle_t sprite = wgr_sprite3d_create(wgr_texture_get_default());
     wgr_render_begin_frame();
     wgr_render_begin_mode_3d();
-    const double start = now_seconds();
+    const double start = test_now_seconds();
     for (int i = 0; i < SWITCHES; i++) {
         wgr_sprite3d_draw(sprite);
         wgr_shape3d_draw_line(0, 0, 0, 1, 1, 1, WGR_COLOR_WHITE);
     }
     wgr_render_end_mode_3d();
     CHECK(wgri_render_command_count() >= 2 * SWITCHES); /* a sprite batch and a layer per switch */
-    const double recorded = now_seconds();
+    const double recorded = test_now_seconds();
     wgr_render_end_frame();
     fprintf(stderr, "    (%d switches: recorded in %.2f ms, replayed in %.2f ms)\n", SWITCHES,
-            (recorded - start) * 1000.0, (now_seconds() - recorded) * 1000.0);
+            (recorded - start) * 1000.0, (test_now_seconds() - recorded) * 1000.0);
 
     wgr_sprite3d_destroy(sprite);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);

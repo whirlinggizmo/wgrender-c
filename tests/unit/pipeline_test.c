@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <time.h>
 #if defined(_WIN32)
 #include <direct.h>
 #endif
@@ -31,6 +30,7 @@
 #include "wgr_model.h"
 #include "wgr_texture.h"
 #include "test.h"
+#include "test_os.h"
 #include "tests.h"
 
 #include "sokol_gfx.h"
@@ -210,8 +210,7 @@ static int run_until_done(void)
         wgri_asset_tick();
         if (wgri_asset_pending_count() == 0) return frame;
         if (wgri_asset_get_worker_count() > 0) {
-            struct timespec pause = {0, 1000000};
-            nanosleep(&pause, NULL);
+            test_sleep_ms(1);
         }
     }
     return -1;
@@ -395,8 +394,7 @@ void test_pipeline_group(void)
         const float progress = wgr_asset_get_progress(group);
         monotonic = monotonic && progress >= last && progress <= 1.0f;
         last = progress;
-        struct timespec pause = {0, 1000000};
-        nanosleep(&pause, NULL);
+        test_sleep_ms(1);
     }
     CHECK(monotonic);
     CHECK(group_ok == 1 && got.successes == 1 && got.failures == 0);

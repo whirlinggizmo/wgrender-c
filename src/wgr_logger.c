@@ -28,6 +28,8 @@ static const char *basename_of(const char *path)
         return "app";
     }
     slash = strrchr(path, '/');
+    const char *backslash = strrchr(path, '\\'); /* MSVC's __FILE__ is a Windows path */
+    if (backslash != NULL && (slash == NULL || backslash > slash)) slash = backslash;
     return slash != NULL ? slash + 1 : path;
 }
 

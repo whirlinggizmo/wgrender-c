@@ -63,7 +63,9 @@ void test_shader_custom_material(void)
     wgr_shader_release(toon);
 
     const wgri_shader_t *shader = wgri_shader_get(toon);
-    CHECK(shader != NULL && shader->param_count == 3 && shader->texture_count == 1);
+    CHECK(shader != NULL);
+    if (shader == NULL) return; /* the rest reads it */
+    CHECK(shader->param_count == 3 && shader->texture_count == 1);
     CHECK(strcmp(shader->textures[0], "base_tex") == 0);
     CHECK(shader->block_size[WGRI_SHADER_BLOCK_FS_PARAMS] == 32); /* vec4 color, float bands, float rim */
     CHECK(shader->programs[0].has_block[WGRI_SHADER_BLOCK_OBJECT] && shader->programs[1].has_block[WGRI_SHADER_BLOCK_OBJECT]);

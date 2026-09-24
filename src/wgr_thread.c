@@ -3,6 +3,12 @@
 #include <stdlib.h>
 
 #if defined(_WIN32)
+/* SRW locks and condition variables are Vista's; an older MinGW (Nim's gcc 11) targets
+ * XP unless told otherwise, and then declares neither. */
+#if !defined(_WIN32_WINNT) || _WIN32_WINNT < 0x0600
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#endif
 #include <windows.h>
 #elif defined(__EMSCRIPTEN__)
 #include <emscripten.h>

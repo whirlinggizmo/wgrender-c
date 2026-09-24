@@ -1,17 +1,17 @@
 #include <math.h>
-#include <pthread.h>
-#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
+#include "internal/wgr_math_internal.h"
 #include "internal/wgr_audio_internal.h"
 #include "internal/wgr_internal_internal.h"
+#include "internal/wgr_thread_internal.h"
 #include "wgr_audio.h"
 #include "wgr_logger.h"
 #include "wgr_sound.h"
 #include "test.h"
+#include "test_os.h"
 #include "tests.h"
 
 #define MUSIC_PATH "../examples/assets/music/ethernight_club.mp3" /* tests run from tests/ */
@@ -183,25 +183,32 @@ void test_audio_streaming(void)
 
 /* The device thread mixes while the game thread changes sounds and creates and
  * destroys Audio. Checks it doesn't crash or deadlock; run under ThreadSanitizer
- * (SANITIZE=thread) to check the locking. */
-static atomic_int mixer_running;
+ * (the tsan preset) to check the locking. */
+static wgri_mutex_t mixer_lock;
+static bool mixer_running;
 
-static void *mixer_thread(void *user)
+static bool mixer_should_run(void)
+{
+    wgri_mutex_lock(&mixer_lock);
+    const bool running = mixer_running;
+    wgri_mutex_unlock(&mixer_lock);
+    return running;
+}
+
+static void mixer_thread(void *user)
 {
     float buffer[512 * 2];
     int *blocks = (int *)user;
-    while (mixer_running) {
-        const struct timespec pause = {0, 1000000}; /* like a device: blocks arrive over time, not in a spin */
+    while (mixer_should_run()) {
         wgri_audio_mix(buffer, 512, 44100);
         (*blocks)++;
-        nanosleep(&pause, NULL);
+        test_sleep_ms(1); /* like a device: blocks arrive over time, not in a spin */
     }
-    return NULL;
 }
 
 void test_audio_threads(void)
 {
-    pthread_t thread;
+    wgri_thread_t thread;
     int blocks = 0;
 
     wgri_audio_init();
@@ -217,8 +224,9 @@ void test_audio_threads(void)
         wgr_sound_play(sounds[i]);
     }
 
-    mixer_running = 1;
-    CHECK(pthread_create(&thread, NULL, mixer_thread, &blocks) == 0);
+    wgri_mutex_init(&mixer_lock);
+    mixer_running = true;
+    CHECK(wgri_thread_create(&thread, mixer_thread, &blocks));
     for (int step = 0; step < 4000; step++) {
         wgr_handle_t s = sounds[step % 4];
         switch (step % 9) {
@@ -252,8 +260,11 @@ void test_audio_threads(void)
             default: break;
         }
     }
-    mixer_running = 0;
-    pthread_join(thread, NULL);
+    wgri_mutex_lock(&mixer_lock);
+    mixer_running = false;
+    wgri_mutex_unlock(&mixer_lock);
+    wgri_thread_join(&thread);
+    wgri_mutex_destroy(&mixer_lock);
     CHECK(blocks > 0);
 
     for (int i = 0; i < 4; i++) wgr_sound_destroy(sounds[i]);

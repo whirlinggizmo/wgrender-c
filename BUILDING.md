@@ -34,6 +34,12 @@ at 60/s until `wgr_request_quit()`, or for `WGR_HEADLESS_FRAMES` frames when tha
 environment variable is set. `debug`, `tsan`, `asan` and `ubsan` are the other desktop
 presets.
 
+On Windows, Visual Studio needs nothing more. From a command line, run the presets in a
+"x64 Native Tools Command Prompt" (or after `vcvars64.bat`), so MSVC is on `PATH`; with
+Ninja, CMake takes a `gcc` it finds on `PATH` (Nim's MinGW, say) over MSVC's `cl`, so set
+`CC=cl` to be sure. The sanitizer presets are gcc/clang's, so `verify.py` runs `desktop`
+and `headless` there.
+
 On Linux, sokol links the system's audio, GL and X11 libraries, so their dev packages
 must be installed; configuring checks and names any that are missing:
 

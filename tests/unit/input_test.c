@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include "internal/wgr_math_internal.h"
 #include "internal/wgr_internal_internal.h"
 #include "wgr_input.h"
 #include "sokol_app.h"
