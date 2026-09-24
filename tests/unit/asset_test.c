@@ -191,5 +191,6 @@ void test_asset_fetch_hook(void)
 
     wgr_asset_set_fetcher(NULL, NULL);
     wgr_asset_set_host("");
+    wgri_asset_deinit();
     wgri_fs_deinit();
 }
