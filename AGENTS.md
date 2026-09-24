@@ -16,7 +16,14 @@ Keep this file short and rule-shaped. The authoritative design doc is
   `-O3` unless `WEB_DEBUG=1` (no optimization, assertions, debug info). Web
   settings live in `mk/web.mk`, shared with the
   examples, which link it. `make print-web-flags` prints what a program needs to
-  compile and link against it.
+  compile and link against it. The library itself is built by `tools/buildweb.py`
+  (make runs it), from `mk/build.json`, so it builds the same with emcc and Python
+  alone: no make or shell, which is how a binding builds it on Windows.
+- `tools/gen_manifest.py [--check]` — `mk/build.json`: the build as data (sources, include
+  paths, and per desktop OS and web target the defines, flags and link libraries),
+  asked of the Makefiles (`make print-var-NAME`) and checked in, for tools that build
+  wgrender without make. `make check` fails when it is stale: after changing a source
+  list, flag or library in a Makefile or `mk/web.mk`, run it.
 - `make examples` — build everything in `examples/`.
 - `make check` — guardrails; currently enforces that `include/` and `examples/`
   stay **backend-free** (no sokol/GL leakage into the public surface).

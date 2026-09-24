@@ -1,0 +1,315 @@
+{
+  "schema": 1,
+  "generated_by": "tools/gen_manifest.py, from the Makefiles: do not edit",
+  "sources": [
+    "src/wgr.c",
+    "src/wgr_asset.c",
+    "src/wgr_audio.c",
+    "src/wgr_camera3d.c",
+    "src/wgr_cgltf_impl.c",
+    "src/wgr_color.c",
+    "src/wgr_debug.c",
+    "src/wgr_effect.c",
+    "src/wgr_emitter.c",
+    "src/wgr_environment.c",
+    "src/wgr_event.c",
+    "src/wgr_font.c",
+    "src/wgr_fontstash_impl.c",
+    "src/wgr_frame_pace.c",
+    "src/wgr_fs.c",
+    "src/wgr_gamepad.c",
+    "src/wgr_handle.c",
+    "src/wgr_handle_pool.c",
+    "src/wgr_input.c",
+    "src/wgr_ktx.c",
+    "src/wgr_light.c",
+    "src/wgr_logger.c",
+    "src/wgr_material.c",
+    "src/wgr_mesh_shapes.c",
+    "src/wgr_model.c",
+    "src/wgr_module.c",
+    "src/wgr_pick.c",
+    "src/wgr_platform.c",
+    "src/wgr_render.c",
+    "src/wgr_scene.c",
+    "src/wgr_shader.c",
+    "src/wgr_shadow.c",
+    "src/wgr_shape2d.c",
+    "src/wgr_shape3d.c",
+    "src/wgr_sokol_impl.c",
+    "src/wgr_sound.c",
+    "src/wgr_sprite2d.c",
+    "src/wgr_sprite3d.c",
+    "src/wgr_sprite_batch.c",
+    "src/wgr_text.c",
+    "src/wgr_text2d.c",
+    "src/wgr_text3d.c",
+    "src/wgr_texture.c",
+    "src/wgr_thread.c",
+    "src/wgr_tick_clock.c",
+    "src/wgr_version.c",
+    "src/wgr_window.c"
+  ],
+  "include": [
+    "include",
+    "src"
+  ],
+  "system_include": [
+    "deps/sokol",
+    "deps/sokol_utils",
+    "deps/stb",
+    "deps/fontstash",
+    "deps/dr",
+    "deps/cgltf"
+  ],
+  "std": "gnu11",
+  "opt": [
+    "-O2"
+  ],
+  "warn": [
+    "-Wall",
+    "-Wextra",
+    "-Wno-unused-parameter"
+  ],
+  "desktop": {
+    "linux": {
+      "defines": [
+        "SOKOL_GLCORE"
+      ],
+      "libs": [
+        "GL",
+        "X11",
+        "Xi",
+        "Xcursor",
+        "Xrandr",
+        "asound",
+        "dl",
+        "m",
+        "pthread"
+      ]
+    },
+    "linux-headless": {
+      "defines": [
+        "WGR_HEADLESS",
+        "SOKOL_DUMMY_BACKEND"
+      ],
+      "libs": [
+        "dl",
+        "m",
+        "pthread"
+      ]
+    },
+    "macos": {
+      "defines": [
+        "SOKOL_GLCORE"
+      ],
+      "libs": [],
+      "frameworks": [
+        "Cocoa",
+        "QuartzCore",
+        "OpenGL",
+        "AudioToolbox"
+      ]
+    },
+    "macos-headless": {
+      "defines": [
+        "WGR_HEADLESS",
+        "SOKOL_DUMMY_BACKEND"
+      ],
+      "libs": [
+        "dl",
+        "m",
+        "pthread"
+      ]
+    },
+    "windows": {
+      "defines": [
+        "SOKOL_GLCORE"
+      ],
+      "libs": [
+        "opengl32",
+        "gdi32",
+        "user32",
+        "kernel32",
+        "ole32",
+        "shell32",
+        "winmm"
+      ],
+      "static": true
+    },
+    "windows-headless": {
+      "defines": [
+        "WGR_HEADLESS",
+        "SOKOL_DUMMY_BACKEND"
+      ],
+      "libs": [],
+      "static": true
+    }
+  },
+  "web": {
+    "webgl2": {
+      "cflags": [
+        "-O2",
+        "-DSOKOL_GLES3",
+        "-DNDEBUG",
+        "-pthread"
+      ],
+      "program_cflags": [
+        "-pthread"
+      ],
+      "ldflags": [
+        "-O3",
+        "--closure",
+        "1",
+        "-sENVIRONMENT=web,worker",
+        "-sUSE_WEBGL2=1",
+        "-pthread",
+        "-sPTHREAD_POOL_SIZE=4",
+        "-sPTHREAD_POOL_DELAY_LOAD=1",
+        "-Wno-pthreads-mem-growth",
+        "-sALLOW_MEMORY_GROWTH=1",
+        "-sFORCE_FILESYSTEM"
+      ]
+    },
+    "webgl2-debug": {
+      "cflags": [
+        "-O0",
+        "-g",
+        "-DSOKOL_GLES3",
+        "-pthread"
+      ],
+      "program_cflags": [
+        "-pthread"
+      ],
+      "ldflags": [
+        "-O0",
+        "-g",
+        "-sASSERTIONS=1",
+        "-sUSE_WEBGL2=1",
+        "-pthread",
+        "-sPTHREAD_POOL_SIZE=4",
+        "-sPTHREAD_POOL_DELAY_LOAD=1",
+        "-Wno-pthreads-mem-growth",
+        "-sALLOW_MEMORY_GROWTH=1",
+        "-sFORCE_FILESYSTEM"
+      ]
+    },
+    "webgl2-nothreads": {
+      "cflags": [
+        "-O2",
+        "-DSOKOL_GLES3",
+        "-DNDEBUG"
+      ],
+      "program_cflags": [],
+      "ldflags": [
+        "-O3",
+        "--closure",
+        "1",
+        "-sENVIRONMENT=web,worker",
+        "-sUSE_WEBGL2=1",
+        "-sALLOW_MEMORY_GROWTH=1",
+        "-sFORCE_FILESYSTEM"
+      ]
+    },
+    "webgl2-nothreads-debug": {
+      "cflags": [
+        "-O0",
+        "-g",
+        "-DSOKOL_GLES3"
+      ],
+      "program_cflags": [],
+      "ldflags": [
+        "-O0",
+        "-g",
+        "-sASSERTIONS=1",
+        "-sUSE_WEBGL2=1",
+        "-sALLOW_MEMORY_GROWTH=1",
+        "-sFORCE_FILESYSTEM"
+      ]
+    },
+    "webgpu": {
+      "cflags": [
+        "-O2",
+        "-DSOKOL_WGPU",
+        "--use-port=emdawnwebgpu",
+        "-DNDEBUG",
+        "-pthread"
+      ],
+      "program_cflags": [
+        "-pthread"
+      ],
+      "ldflags": [
+        "-O3",
+        "--closure",
+        "1",
+        "-sENVIRONMENT=web,worker",
+        "--use-port=emdawnwebgpu",
+        "-pthread",
+        "-sPTHREAD_POOL_SIZE=4",
+        "-sPTHREAD_POOL_DELAY_LOAD=1",
+        "-Wno-pthreads-mem-growth",
+        "-sALLOW_MEMORY_GROWTH=1",
+        "-sFORCE_FILESYSTEM"
+      ]
+    },
+    "webgpu-debug": {
+      "cflags": [
+        "-O0",
+        "-g",
+        "-DSOKOL_WGPU",
+        "--use-port=emdawnwebgpu",
+        "-pthread"
+      ],
+      "program_cflags": [
+        "-pthread"
+      ],
+      "ldflags": [
+        "-O0",
+        "-g",
+        "-sASSERTIONS=1",
+        "--use-port=emdawnwebgpu",
+        "-pthread",
+        "-sPTHREAD_POOL_SIZE=4",
+        "-sPTHREAD_POOL_DELAY_LOAD=1",
+        "-Wno-pthreads-mem-growth",
+        "-sALLOW_MEMORY_GROWTH=1",
+        "-sFORCE_FILESYSTEM"
+      ]
+    },
+    "webgpu-nothreads": {
+      "cflags": [
+        "-O2",
+        "-DSOKOL_WGPU",
+        "--use-port=emdawnwebgpu",
+        "-DNDEBUG"
+      ],
+      "program_cflags": [],
+      "ldflags": [
+        "-O3",
+        "--closure",
+        "1",
+        "-sENVIRONMENT=web,worker",
+        "--use-port=emdawnwebgpu",
+        "-sALLOW_MEMORY_GROWTH=1",
+        "-sFORCE_FILESYSTEM"
+      ]
+    },
+    "webgpu-nothreads-debug": {
+      "cflags": [
+        "-O0",
+        "-g",
+        "-DSOKOL_WGPU",
+        "--use-port=emdawnwebgpu"
+      ],
+      "program_cflags": [],
+      "ldflags": [
+        "-O0",
+        "-g",
+        "-sASSERTIONS=1",
+        "--use-port=emdawnwebgpu",
+        "-sALLOW_MEMORY_GROWTH=1",
+        "-sFORCE_FILESYSTEM"
+      ]
+    }
+  }
+}

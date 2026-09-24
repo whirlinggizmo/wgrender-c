@@ -102,7 +102,14 @@ OBJS    := $(patsubst src/%.c,$(BUILD)/obj/%.o,$(SRCS))
 .PHONY: all examples run clean check test smoke verify wasm wasm-all serve webcheck shaders deps deps-check loadbench spritebench shadowbench brdf-lut example-shaders \
         web print-web-flags windows windows-test windows-smoke FORCE
 
+# The web library is built by tools/buildweb.py, from mk/build.json: the same build a
+# binding runs where there is no make (Windows), so there is one way it is built.
+ifeq ($(WEB),1)
+all:
+	@python3 tools/buildweb.py BACKEND=$(BACKEND) WEB_THREADS=$(WEB_THREADS) WEB_DEBUG=$(WEB_DEBUG)
+else
 all: $(LIB)
+endif
 
 $(BUILD)/obj:
 	mkdir -p $(BUILD)/obj
@@ -124,8 +131,9 @@ $(LIB): $(OBJS)
 	@echo "built $@"
 
 # --- web library (Emscripten) -----------------------------------------------
-# build/<backend>/libwgrender.a. A program compiles and links against it with matching
-# settings; `make print-web-flags` prints them (the public headers need no backend
+# build/<backend>/libwgrender.a, by tools/buildweb.py (all, above). A program compiles
+# and links against it with matching settings; `make print-web-flags` prints them, and
+# mk/build.json has them for a tool without make (the public headers need no backend
 # defines, but threads must match).
 web:
 	@$(MAKE) --no-print-directory -j$(NPROC) all WEB=1
@@ -139,6 +147,12 @@ print-web-flags-inner:
 	@echo "ldflags: $(WASM_LINK)"
 
 FORCE:
+
+# Any variable, as this Makefile computes it for the settings given (WEB=1, BACKEND=,
+# WINDOWS=1, ...): `make -s print-var-DEFS HEADLESS=1`. tools/gen_manifest.py reads the
+# build this way, so mk/build.json is the Makefile's own answer rather than a copy.
+print-var-%:
+	@echo '$($*)'
 
 # --- system dependencies -----------------------------------------------------
 # sokol needs the platform's ALSA/GL/X11 dev packages (not vendorable). Check up
@@ -299,6 +313,7 @@ check:
 	@tools/check_no_backend_leak.sh
 	@tools/check_naming.sh
 	@tools/check_modules.sh
+	@python3 tools/gen_manifest.py --check
 
 clean:
 	rm -rf build

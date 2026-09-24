@@ -84,6 +84,10 @@ run: $(BUILD_DESKTOP)/hello
 print-ldlibs:
 	@echo $(LDLIBS_PLATFORM)
 
+# Any variable, as for the root Makefile's print-var-% (tools/gen_manifest.py).
+print-var-%:
+	@echo '$($*)'
+
 # --- headless (no window, GPU or audio device) -------------------------------
 # Same example sources linked against build/<host>-headless/libwgrender.a; runs anywhere, e.g.
 # CI or with the displays asleep. tools/smoke.sh runs each for SMOKE_FRAMES frames.
