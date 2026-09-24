@@ -151,7 +151,7 @@ void main()
 }
 
 
-source fs 5061
+source fs 5063
 #version 410
 
 uniform vec4 wgr_frame[74];
@@ -259,7 +259,7 @@ vec3 wgr_tonemap_aces(inout vec3 color)
     return clamp((color * ((color * 2.5099999904632568359375) + vec3(0.02999999932944774627685546875))) / ((color * ((color * 2.4300000667572021484375) + vec3(0.589999973773956298828125))) + vec3(0.14000000059604644775390625)), vec3(0.0), vec3(1.0));
 }
 
-vec3 wgr_linear_to_srgb(inout vec3 c)
+vec3 wgri_linear_to_srgb(inout vec3 c)
 {
     c = clamp(c, vec3(0.0), vec3(1.0));
     return mix(c * 12.9200000762939453125, (pow(max(c, vec3(0.003130800090730190277099609375)), vec3(0.4166666567325592041015625)) * 1.05499994754791259765625) - vec3(0.054999999701976776123046875), step(vec3(0.003130800090730190277099609375), c));
@@ -295,7 +295,7 @@ void wgr_output(inout vec3 color, inout float alpha)
         }
     }
     vec3 param_2 = color;
-    vec3 _409 = wgr_linear_to_srgb(param_2);
+    vec3 _409 = wgri_linear_to_srgb(param_2);
     wgr_frag_color = vec4(_409, alpha);
 }
 
@@ -342,7 +342,7 @@ ub 2 fragment 32 params 2 0
 view 0 fragment noise_tex 2d float 0
 sampler 0 fragment noise_smp filtering 0
 pair 0 fragment 0 0 noise_tex_noise_smp
-source vs 2331
+source vs 2333
 #version 410
 
 uniform vec4 wgr_sprite_view[8];
@@ -362,7 +362,7 @@ layout(location = 4) in vec3 inst_right;
 layout(location = 5) in vec4 inst_up;
 layout(location = 6) in vec4 inst_color;
 
-vec3 wgr_srgb_to_linear(vec3 c)
+vec3 wgri_srgb_to_linear(vec3 c)
 {
     return mix(c * vec3(0.077399380505084991455078125), pow((max(c, vec3(0.040449999272823333740234375)) + vec3(0.054999999701976776123046875)) * vec3(0.947867333889007568359375), vec3(2.400000095367431640625)), step(vec3(0.040449999272823333740234375), c));
 }
@@ -392,7 +392,7 @@ void wgr_place(vec2 corner_1, vec4 pos, vec4 size, vec4 source, vec3 right_axis,
     wgr_uv0 = vec2(mix(source.x, source.z, corner_1.x + 0.5), mix(source.y, source.w, 0.5 - corner_1.y));
     wgr_uv1 = vec2(corner_1.x + 0.5, 0.5 - corner_1.y);
     vec3 param = tint.xyz;
-    wgr_color = vec4(wgr_srgb_to_linear(param), tint.w);
+    wgr_color = vec4(wgri_srgb_to_linear(param), tint.w);
     wgr_tint = vec4(1.0);
     wgr_sprite_alpha = up_axis.w;
 }
@@ -410,7 +410,7 @@ void main()
 }
 
 
-source fs 5061
+source fs 5063
 #version 410
 
 uniform vec4 wgr_frame[74];
@@ -518,7 +518,7 @@ vec3 wgr_tonemap_aces(inout vec3 color)
     return clamp((color * ((color * 2.5099999904632568359375) + vec3(0.02999999932944774627685546875))) / ((color * ((color * 2.4300000667572021484375) + vec3(0.589999973773956298828125))) + vec3(0.14000000059604644775390625)), vec3(0.0), vec3(1.0));
 }
 
-vec3 wgr_linear_to_srgb(inout vec3 c)
+vec3 wgri_linear_to_srgb(inout vec3 c)
 {
     c = clamp(c, vec3(0.0), vec3(1.0));
     return mix(c * 12.9200000762939453125, (pow(max(c, vec3(0.003130800090730190277099609375)), vec3(0.4166666567325592041015625)) * 1.05499994754791259765625) - vec3(0.054999999701976776123046875), step(vec3(0.003130800090730190277099609375), c));
@@ -554,7 +554,7 @@ void wgr_output(inout vec3 color, inout float alpha)
         }
     }
     vec3 param_2 = color;
-    vec3 _409 = wgr_linear_to_srgb(param_2);
+    vec3 _409 = wgri_linear_to_srgb(param_2);
     wgr_frag_color = vec4(_409, alpha);
 }
 
@@ -599,7 +599,7 @@ sampler 11 vertex wgr_sprite_data_smp nonfiltering 0
 sampler 0 fragment noise_smp filtering 0
 pair 0 vertex 11 11 wgr_sprite_data_wgr_sprite_data_smp
 pair 1 fragment 0 0 noise_tex_noise_smp
-source vs 2844
+source vs 2846
 #version 410
 
 uniform vec4 wgr_sprite_view[8];
@@ -621,7 +621,7 @@ vec4 wgr_sprite_texel(int sprite, int k)
     return texelFetch(wgr_sprite_data_wgr_sprite_data_smp, ivec2(((sprite % 256) * 6) + k, sprite / 256), 0);
 }
 
-vec3 wgr_srgb_to_linear(vec3 c)
+vec3 wgri_srgb_to_linear(vec3 c)
 {
     return mix(c * vec3(0.077399380505084991455078125), pow((max(c, vec3(0.040449999272823333740234375)) + vec3(0.054999999701976776123046875)) * vec3(0.947867333889007568359375), vec3(2.400000095367431640625)), step(vec3(0.040449999272823333740234375), c));
 }
@@ -651,7 +651,7 @@ void wgr_place(vec2 corner_1, vec4 pos, vec4 size, vec4 source, vec3 right_axis,
     wgr_uv0 = vec2(mix(source.x, source.z, corner_1.x + 0.5), mix(source.y, source.w, 0.5 - corner_1.y));
     wgr_uv1 = vec2(corner_1.x + 0.5, 0.5 - corner_1.y);
     vec3 param = tint.xyz;
-    wgr_color = vec4(wgr_srgb_to_linear(param), tint.w);
+    wgr_color = vec4(wgri_srgb_to_linear(param), tint.w);
     wgr_tint = vec4(1.0);
     wgr_sprite_alpha = up_axis.w;
 }
@@ -682,7 +682,7 @@ void main()
 }
 
 
-source fs 5061
+source fs 5063
 #version 410
 
 uniform vec4 wgr_frame[74];
@@ -790,7 +790,7 @@ vec3 wgr_tonemap_aces(inout vec3 color)
     return clamp((color * ((color * 2.5099999904632568359375) + vec3(0.02999999932944774627685546875))) / ((color * ((color * 2.4300000667572021484375) + vec3(0.589999973773956298828125))) + vec3(0.14000000059604644775390625)), vec3(0.0), vec3(1.0));
 }
 
-vec3 wgr_linear_to_srgb(inout vec3 c)
+vec3 wgri_linear_to_srgb(inout vec3 c)
 {
     c = clamp(c, vec3(0.0), vec3(1.0));
     return mix(c * 12.9200000762939453125, (pow(max(c, vec3(0.003130800090730190277099609375)), vec3(0.4166666567325592041015625)) * 1.05499994754791259765625) - vec3(0.054999999701976776123046875), step(vec3(0.003130800090730190277099609375), c));
@@ -826,7 +826,7 @@ void wgr_output(inout vec3 color, inout float alpha)
         }
     }
     vec3 param_2 = color;
-    vec3 _409 = wgr_linear_to_srgb(param_2);
+    vec3 _409 = wgri_linear_to_srgb(param_2);
     wgr_frag_color = vec4(_409, alpha);
 }
 
@@ -967,7 +967,7 @@ void main()
 }
 
 
-source fs 5061
+source fs 5063
 #version 410
 
 uniform vec4 wgr_frame[74];
@@ -1075,7 +1075,7 @@ vec3 wgr_tonemap_aces(inout vec3 color)
     return clamp((color * ((color * 2.5099999904632568359375) + vec3(0.02999999932944774627685546875))) / ((color * ((color * 2.4300000667572021484375) + vec3(0.589999973773956298828125))) + vec3(0.14000000059604644775390625)), vec3(0.0), vec3(1.0));
 }
 
-vec3 wgr_linear_to_srgb(inout vec3 c)
+vec3 wgri_linear_to_srgb(inout vec3 c)
 {
     c = clamp(c, vec3(0.0), vec3(1.0));
     return mix(c * 12.9200000762939453125, (pow(max(c, vec3(0.003130800090730190277099609375)), vec3(0.4166666567325592041015625)) * 1.05499994754791259765625) - vec3(0.054999999701976776123046875), step(vec3(0.003130800090730190277099609375), c));
@@ -1111,7 +1111,7 @@ void wgr_output(inout vec3 color, inout float alpha)
         }
     }
     vec3 param_2 = color;
-    vec3 _409 = wgr_linear_to_srgb(param_2);
+    vec3 _409 = wgri_linear_to_srgb(param_2);
     wgr_frag_color = vec4(_409, alpha);
 }
 
@@ -1291,7 +1291,7 @@ void main()
 }
 
 
-source fs 5278
+source fs 5280
 #version 300 es
 precision mediump float;
 precision highp int;
@@ -1401,7 +1401,7 @@ highp vec3 wgr_tonemap_aces(inout highp vec3 color)
     return clamp((color * ((color * 2.5099999904632568359375) + vec3(0.02999999932944774627685546875))) / ((color * ((color * 2.4300000667572021484375) + vec3(0.589999973773956298828125))) + vec3(0.14000000059604644775390625)), vec3(0.0), vec3(1.0));
 }
 
-highp vec3 wgr_linear_to_srgb(inout highp vec3 c)
+highp vec3 wgri_linear_to_srgb(inout highp vec3 c)
 {
     c = clamp(c, vec3(0.0), vec3(1.0));
     return mix(c * 12.9200000762939453125, (pow(max(c, vec3(0.003130800090730190277099609375)), vec3(0.4166666567325592041015625)) * 1.05499994754791259765625) - vec3(0.054999999701976776123046875), step(vec3(0.003130800090730190277099609375), c));
@@ -1437,7 +1437,7 @@ void wgr_output(inout highp vec3 color, inout highp float alpha)
         }
     }
     highp vec3 param_2 = color;
-    highp vec3 _409 = wgr_linear_to_srgb(param_2);
+    highp vec3 _409 = wgri_linear_to_srgb(param_2);
     wgr_frag_color = vec4(_409, alpha);
 }
 
@@ -1484,7 +1484,7 @@ ub 2 fragment 32 params 2 0
 view 0 fragment noise_tex 2d float 0
 sampler 0 fragment noise_smp filtering 0
 pair 0 fragment 0 0 noise_tex_noise_smp
-source vs 2166
+source vs 2168
 #version 300 es
 
 uniform vec4 wgr_sprite_view[8];
@@ -1504,7 +1504,7 @@ layout(location = 4) in vec3 inst_right;
 layout(location = 5) in vec4 inst_up;
 layout(location = 6) in vec4 inst_color;
 
-vec3 wgr_srgb_to_linear(vec3 c)
+vec3 wgri_srgb_to_linear(vec3 c)
 {
     return mix(c * vec3(0.077399380505084991455078125), pow((max(c, vec3(0.040449999272823333740234375)) + vec3(0.054999999701976776123046875)) * vec3(0.947867333889007568359375), vec3(2.400000095367431640625)), step(vec3(0.040449999272823333740234375), c));
 }
@@ -1534,7 +1534,7 @@ void wgr_place(vec2 corner_1, vec4 pos, vec4 size, vec4 source, vec3 right_axis,
     wgr_uv0 = vec2(mix(source.x, source.z, corner_1.x + 0.5), mix(source.y, source.w, 0.5 - corner_1.y));
     wgr_uv1 = vec2(corner_1.x + 0.5, 0.5 - corner_1.y);
     vec3 param = tint.xyz;
-    wgr_color = vec4(wgr_srgb_to_linear(param), tint.w);
+    wgr_color = vec4(wgri_srgb_to_linear(param), tint.w);
     wgr_tint = vec4(1.0);
     wgr_sprite_alpha = up_axis.w;
 }
@@ -1552,7 +1552,7 @@ void main()
 }
 
 
-source fs 5278
+source fs 5280
 #version 300 es
 precision mediump float;
 precision highp int;
@@ -1662,7 +1662,7 @@ highp vec3 wgr_tonemap_aces(inout highp vec3 color)
     return clamp((color * ((color * 2.5099999904632568359375) + vec3(0.02999999932944774627685546875))) / ((color * ((color * 2.4300000667572021484375) + vec3(0.589999973773956298828125))) + vec3(0.14000000059604644775390625)), vec3(0.0), vec3(1.0));
 }
 
-highp vec3 wgr_linear_to_srgb(inout highp vec3 c)
+highp vec3 wgri_linear_to_srgb(inout highp vec3 c)
 {
     c = clamp(c, vec3(0.0), vec3(1.0));
     return mix(c * 12.9200000762939453125, (pow(max(c, vec3(0.003130800090730190277099609375)), vec3(0.4166666567325592041015625)) * 1.05499994754791259765625) - vec3(0.054999999701976776123046875), step(vec3(0.003130800090730190277099609375), c));
@@ -1698,7 +1698,7 @@ void wgr_output(inout highp vec3 color, inout highp float alpha)
         }
     }
     highp vec3 param_2 = color;
-    highp vec3 _409 = wgr_linear_to_srgb(param_2);
+    highp vec3 _409 = wgri_linear_to_srgb(param_2);
     wgr_frag_color = vec4(_409, alpha);
 }
 
@@ -1743,7 +1743,7 @@ sampler 11 vertex wgr_sprite_data_smp nonfiltering 0
 sampler 0 fragment noise_smp filtering 0
 pair 0 vertex 11 11 wgr_sprite_data_wgr_sprite_data_smp
 pair 1 fragment 0 0 noise_tex_noise_smp
-source vs 2685
+source vs 2687
 #version 300 es
 
 uniform vec4 wgr_sprite_view[8];
@@ -1765,7 +1765,7 @@ vec4 wgr_sprite_texel(int sprite, int k)
     return texelFetch(wgr_sprite_data_wgr_sprite_data_smp, ivec2(((sprite % 256) * 6) + k, sprite / 256), 0);
 }
 
-vec3 wgr_srgb_to_linear(vec3 c)
+vec3 wgri_srgb_to_linear(vec3 c)
 {
     return mix(c * vec3(0.077399380505084991455078125), pow((max(c, vec3(0.040449999272823333740234375)) + vec3(0.054999999701976776123046875)) * vec3(0.947867333889007568359375), vec3(2.400000095367431640625)), step(vec3(0.040449999272823333740234375), c));
 }
@@ -1795,7 +1795,7 @@ void wgr_place(vec2 corner_1, vec4 pos, vec4 size, vec4 source, vec3 right_axis,
     wgr_uv0 = vec2(mix(source.x, source.z, corner_1.x + 0.5), mix(source.y, source.w, 0.5 - corner_1.y));
     wgr_uv1 = vec2(corner_1.x + 0.5, 0.5 - corner_1.y);
     vec3 param = tint.xyz;
-    wgr_color = vec4(wgr_srgb_to_linear(param), tint.w);
+    wgr_color = vec4(wgri_srgb_to_linear(param), tint.w);
     wgr_tint = vec4(1.0);
     wgr_sprite_alpha = up_axis.w;
 }
@@ -1826,7 +1826,7 @@ void main()
 }
 
 
-source fs 5278
+source fs 5280
 #version 300 es
 precision mediump float;
 precision highp int;
@@ -1936,7 +1936,7 @@ highp vec3 wgr_tonemap_aces(inout highp vec3 color)
     return clamp((color * ((color * 2.5099999904632568359375) + vec3(0.02999999932944774627685546875))) / ((color * ((color * 2.4300000667572021484375) + vec3(0.589999973773956298828125))) + vec3(0.14000000059604644775390625)), vec3(0.0), vec3(1.0));
 }
 
-highp vec3 wgr_linear_to_srgb(inout highp vec3 c)
+highp vec3 wgri_linear_to_srgb(inout highp vec3 c)
 {
     c = clamp(c, vec3(0.0), vec3(1.0));
     return mix(c * 12.9200000762939453125, (pow(max(c, vec3(0.003130800090730190277099609375)), vec3(0.4166666567325592041015625)) * 1.05499994754791259765625) - vec3(0.054999999701976776123046875), step(vec3(0.003130800090730190277099609375), c));
@@ -1972,7 +1972,7 @@ void wgr_output(inout highp vec3 color, inout highp float alpha)
         }
     }
     highp vec3 param_2 = color;
-    highp vec3 _409 = wgr_linear_to_srgb(param_2);
+    highp vec3 _409 = wgri_linear_to_srgb(param_2);
     wgr_frag_color = vec4(_409, alpha);
 }
 
@@ -2113,7 +2113,7 @@ void main()
 }
 
 
-source fs 5278
+source fs 5280
 #version 300 es
 precision mediump float;
 precision highp int;
@@ -2223,7 +2223,7 @@ highp vec3 wgr_tonemap_aces(inout highp vec3 color)
     return clamp((color * ((color * 2.5099999904632568359375) + vec3(0.02999999932944774627685546875))) / ((color * ((color * 2.4300000667572021484375) + vec3(0.589999973773956298828125))) + vec3(0.14000000059604644775390625)), vec3(0.0), vec3(1.0));
 }
 
-highp vec3 wgr_linear_to_srgb(inout highp vec3 c)
+highp vec3 wgri_linear_to_srgb(inout highp vec3 c)
 {
     c = clamp(c, vec3(0.0), vec3(1.0));
     return mix(c * 12.9200000762939453125, (pow(max(c, vec3(0.003130800090730190277099609375)), vec3(0.4166666567325592041015625)) * 1.05499994754791259765625) - vec3(0.054999999701976776123046875), step(vec3(0.003130800090730190277099609375), c));
@@ -2259,7 +2259,7 @@ void wgr_output(inout highp vec3 color, inout highp float alpha)
         }
     }
     highp vec3 param_2 = color;
-    highp vec3 _409 = wgr_linear_to_srgb(param_2);
+    highp vec3 _409 = wgri_linear_to_srgb(param_2);
     wgr_frag_color = vec4(_409, alpha);
 }
 
@@ -2552,7 +2552,7 @@ fn main(@location(0) position_2_param : vec3f, @location(1) normal_1_param : vec
   return main_out(gl_Position, wgr_world_pos, wgr_normal, wgr_tangent, wgr_uv0, wgr_uv1, wgr_color, wgr_tint, wgr_sprite_alpha);
 }
 
-source fs 8173
+source fs 8175
 diagnostic(off, derivative_uniformity);
 
 alias Arr = array<vec4f, 8u>;
@@ -2732,7 +2732,7 @@ fn wgr_tonemap_aces_vf3_(color_1 : ptr<function, vec3f>) -> vec3f {
 
 const x_56 = vec3f(0.00313080009073019028f);
 
-fn wgr_linear_to_srgb_vf3_(c : ptr<function, vec3f>) -> vec3f {
+fn wgri_linear_to_srgb_vf3_(c : ptr<function, vec3f>) -> vec3f {
   *(c) = clamp(*(c), vec3f(), x_46);
   let x_49 = *(c);
   let x_54 = *(c);
@@ -2768,7 +2768,7 @@ fn wgr_output_vf3_f1_(color_2 : ptr<function, vec3f>, alpha : ptr<function, f32>
     }
   }
   param_2 = *(color_2);
-  let x_409 = wgr_linear_to_srgb_vf3_(&(param_2));
+  let x_409 = wgri_linear_to_srgb_vf3_(&(param_2));
   wgr_frag_color = vec4f(x_409.x, x_409.y, x_409.z, *(alpha));
   return;
 }
@@ -2852,7 +2852,7 @@ ub 2 fragment 32 - 0 2
 view 0 fragment noise_tex 2d float 0
 sampler 0 fragment noise_smp filtering 32
 pair 0 fragment 0 0 -
-source vs 4157
+source vs 4159
 diagnostic(off, derivative_uniformity);
 
 struct wgr_sprite_view {
@@ -2904,7 +2904,7 @@ var<private> gl_Position : vec4f;
 
 const x_35 = vec3f(0.04044999927282333374f);
 
-fn wgr_srgb_to_linear_vf3_(c : ptr<function, vec3f>) -> vec3f {
+fn wgri_srgb_to_linear_vf3_(c : ptr<function, vec3f>) -> vec3f {
   let x_28 = *(c);
   let x_33 = *(c);
   let x_48 = *(c);
@@ -2936,7 +2936,7 @@ fn wgr_place_vf2_vf4_vf4_vf4_vf3_vf4_vf4_(corner : ptr<function, vec2f>, pos : p
   wgr_uv0 = vec2f(mix((*(source)).x, (*(source)).z, ((*(corner)).x + 0.5f)), mix((*(source)).y, (*(source)).w, (0.5f - (*(corner)).y)));
   wgr_uv1 = vec2f(((*(corner)).x + 0.5f), (0.5f - (*(corner)).y));
   param = (*(tint)).xyz;
-  let x_192 = wgr_srgb_to_linear_vf3_(&(param));
+  let x_192 = wgri_srgb_to_linear_vf3_(&(param));
   wgr_color = vec4f(x_192.x, x_192.y, x_192.z, (*(tint)).w);
   wgr_tint = vec4f(1.0f);
   wgr_sprite_alpha = (*(up_axis)).w;
@@ -2996,7 +2996,7 @@ fn main(@location(0) corner_1_param : vec2f, @location(1) inst_pos_param : vec4f
   return main_out(gl_Position, wgr_world_pos, wgr_normal, wgr_tangent, wgr_uv0, wgr_uv1, wgr_color, wgr_tint, wgr_sprite_alpha);
 }
 
-source fs 8173
+source fs 8175
 diagnostic(off, derivative_uniformity);
 
 alias Arr = array<vec4f, 8u>;
@@ -3176,7 +3176,7 @@ fn wgr_tonemap_aces_vf3_(color_1 : ptr<function, vec3f>) -> vec3f {
 
 const x_56 = vec3f(0.00313080009073019028f);
 
-fn wgr_linear_to_srgb_vf3_(c : ptr<function, vec3f>) -> vec3f {
+fn wgri_linear_to_srgb_vf3_(c : ptr<function, vec3f>) -> vec3f {
   *(c) = clamp(*(c), vec3f(), x_46);
   let x_49 = *(c);
   let x_54 = *(c);
@@ -3212,7 +3212,7 @@ fn wgr_output_vf3_f1_(color_2 : ptr<function, vec3f>, alpha : ptr<function, f32>
     }
   }
   param_2 = *(color_2);
-  let x_409 = wgr_linear_to_srgb_vf3_(&(param_2));
+  let x_409 = wgri_linear_to_srgb_vf3_(&(param_2));
   wgr_frag_color = vec4f(x_409.x, x_409.y, x_409.z, *(alpha));
   return;
 }
@@ -3294,7 +3294,7 @@ sampler 11 vertex wgr_sprite_data_smp nonfiltering 43
 sampler 0 fragment noise_smp filtering 32
 pair 0 vertex 11 11 -
 pair 1 fragment 0 0 -
-source vs 5095
+source vs 5097
 diagnostic(off, derivative_uniformity);
 
 struct wgr_sprite_view {
@@ -3352,7 +3352,7 @@ fn wgr_sprite_texel_i1_i1_(sprite : ptr<function, i32>, k : ptr<function, i32>) 
 
 const x_42 = vec3f(0.04044999927282333374f);
 
-fn wgr_srgb_to_linear_vf3_(c : ptr<function, vec3f>) -> vec3f {
+fn wgri_srgb_to_linear_vf3_(c : ptr<function, vec3f>) -> vec3f {
   let x_35 = *(c);
   let x_40 = *(c);
   let x_55 = *(c);
@@ -3384,7 +3384,7 @@ fn wgr_place_vf2_vf4_vf4_vf4_vf3_vf4_vf4_(corner : ptr<function, vec2f>, pos : p
   wgr_uv0 = vec2f(mix((*(source)).x, (*(source)).z, ((*(corner)).x + 0.5f)), mix((*(source)).y, (*(source)).w, (0.5f - (*(corner)).y)));
   wgr_uv1 = vec2f(((*(corner)).x + 0.5f), (0.5f - (*(corner)).y));
   param = (*(tint)).xyz;
-  let x_198 = wgr_srgb_to_linear_vf3_(&(param));
+  let x_198 = wgri_srgb_to_linear_vf3_(&(param));
   wgr_color = vec4f(x_198.x, x_198.y, x_198.z, (*(tint)).w);
   wgr_tint = vec4f(1.0f);
   wgr_sprite_alpha = (*(up_axis)).w;
@@ -3470,7 +3470,7 @@ fn main(@builtin(instance_index) gl_InstanceIndex_param : u32, @location(0) corn
   return main_out(gl_Position, wgr_world_pos, wgr_normal, wgr_tangent, wgr_uv0, wgr_uv1, wgr_color, wgr_tint, wgr_sprite_alpha);
 }
 
-source fs 8173
+source fs 8175
 diagnostic(off, derivative_uniformity);
 
 alias Arr = array<vec4f, 8u>;
@@ -3650,7 +3650,7 @@ fn wgr_tonemap_aces_vf3_(color_1 : ptr<function, vec3f>) -> vec3f {
 
 const x_56 = vec3f(0.00313080009073019028f);
 
-fn wgr_linear_to_srgb_vf3_(c : ptr<function, vec3f>) -> vec3f {
+fn wgri_linear_to_srgb_vf3_(c : ptr<function, vec3f>) -> vec3f {
   *(c) = clamp(*(c), vec3f(), x_46);
   let x_49 = *(c);
   let x_54 = *(c);
@@ -3686,7 +3686,7 @@ fn wgr_output_vf3_f1_(color_2 : ptr<function, vec3f>, alpha : ptr<function, f32>
     }
   }
   param_2 = *(color_2);
-  let x_409 = wgr_linear_to_srgb_vf3_(&(param_2));
+  let x_409 = wgri_linear_to_srgb_vf3_(&(param_2));
   wgr_frag_color = vec4f(x_409.x, x_409.y, x_409.z, *(alpha));
   return;
 }
@@ -3947,7 +3947,7 @@ fn main(@location(0) position_2_param : vec3f, @location(1) normal_1_param : vec
   return main_out(gl_Position, wgr_world_pos, wgr_normal, wgr_tangent, wgr_uv0, wgr_uv1, wgr_color, wgr_tint, wgr_sprite_alpha);
 }
 
-source fs 8173
+source fs 8175
 diagnostic(off, derivative_uniformity);
 
 alias Arr = array<vec4f, 8u>;
@@ -4127,7 +4127,7 @@ fn wgr_tonemap_aces_vf3_(color_1 : ptr<function, vec3f>) -> vec3f {
 
 const x_56 = vec3f(0.00313080009073019028f);
 
-fn wgr_linear_to_srgb_vf3_(c : ptr<function, vec3f>) -> vec3f {
+fn wgri_linear_to_srgb_vf3_(c : ptr<function, vec3f>) -> vec3f {
   *(c) = clamp(*(c), vec3f(), x_46);
   let x_49 = *(c);
   let x_54 = *(c);
@@ -4163,7 +4163,7 @@ fn wgr_output_vf3_f1_(color_2 : ptr<function, vec3f>, alpha : ptr<function, f32>
     }
   }
   param_2 = *(color_2);
-  let x_409 = wgr_linear_to_srgb_vf3_(&(param_2));
+  let x_409 = wgri_linear_to_srgb_vf3_(&(param_2));
   wgr_frag_color = vec4f(x_409.x, x_409.y, x_409.z, *(alpha));
   return;
 }
