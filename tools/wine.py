@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a Windows program under Wine: the windows-* presets' tests and smoke runs use it
+"""Run a Windows program under Wine: the windows-mingw* presets' tests and smoke runs use it
 (it is their CMAKE_CROSSCOMPILING_EMULATOR).
 
     tools/wine.py program.exe [args...]

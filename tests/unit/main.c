@@ -1,10 +1,12 @@
-/* libwgrender unit test runner (`ctest --preset headless`, the test `unit`).
+/* libwgrender unit test runner (`ctest --preset linux-headless`, the test `unit`).
  *
- *   tests/build/unit_tests            run every test
- *   tests/build/unit_tests pick_      run tests whose name starts with "pick_"
+ * From tests/, where the assets are ../examples/assets:
  *
- * Tests call library internals directly and link against build/headless/libwgrender.a. Nothing
- * here opens a window or touches the GPU. */
+ *   ../build/linux/headless/unit_tests          run every test
+ *   ../build/linux/headless/unit_tests pick_    run tests whose name starts with "pick_"
+ *
+ * Tests call library internals directly and link against the headless build's
+ * libwgrender.a. Nothing here opens a window or touches the GPU. */
 #include <stdio.h>
 #include <string.h>
 

@@ -1,11 +1,13 @@
 # wgrender's build: the library, its examples and its tests, on Windows (MSVC in
 # Visual Studio, or MinGW), Linux, macOS and the web (Emscripten).
 #
-#   cmake --preset desktop && cmake --build --preset desktop     (CMakePresets.json)
-#   ctest --preset headless                                      unit tests + smoke run
+#   cmake --preset linux-release && cmake --build --preset linux-release   (CMakePresets.json)
+#   ctest --preset linux-headless                                          unit tests + smoke run
 #
 # or open this folder in Visual Studio or VS Code, which read the presets. Everything a
-# build makes is under build/<preset>/. A program of your own:
+# build makes is under build/<platform>/<variant>/, from the preset <platform>-<variant>
+# (the wg* family's layout: linux/release, windows/msvc, web/webgl2-nothreads, ...). A
+# program of your own:
 #
 #   add_subdirectory(wgrender-c)
 #   target_link_libraries(my_game PRIVATE wgrender)

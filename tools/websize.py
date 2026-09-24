@@ -4,7 +4,7 @@ brotli when Python's brotli module or the brotli tool is installed), sorted by t
 
     tools/websize.py [BUILD] [--summary]
 
-BUILD is a web preset's build directory (default build/web-webgl2). Writes the table to
+BUILD is a web preset's build directory (default build/web/webgl2). Writes the table to
 BUILD/sizes.txt as well; --summary prints only hello, simple and model.
 """
 import argparse
@@ -36,7 +36,7 @@ def kb(n):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('build', nargs='?', default=str(ROOT / 'build' / 'web-webgl2'))
+    ap.add_argument('build', nargs='?', default=str(ROOT / 'build' / 'web' / 'webgl2'))
     ap.add_argument('--summary', action='store_true')
     args = ap.parse_args()
     site = Path(args.build)

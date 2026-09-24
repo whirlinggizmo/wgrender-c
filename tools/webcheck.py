@@ -3,7 +3,7 @@
 
     tools/webcheck.py [options] [example ...]     (default: all built examples)
 
-Serves build/web-<backend> with tools/serve.py, loads each built example in a
+Serves build/web/<backend>[-nothreads] with tools/serve.py, loads each built example in a
 Chromium-based browser (Brave, Chrome, Chromium, Edge) through the DevTools protocol,
 and fails an example if it logs a console error or a libwgrender [ERROR]/[FATAL] line,
 throws, hits a sokol panic, never reports starting on the expected backend, or is
@@ -11,7 +11,7 @@ still loading assets when its time runs out. A screenshot of every example is sa
 for a visual check. Standard library only (tools/weblib.py).
 
   --backend=webgl2|webgpu  backend to check (default webgl2); the site is
-                      build/web-<backend> (the CMake preset of that name)
+                      build/web/<backend> (the CMake preset web-<backend>)
   --threads=0         the -nothreads build
   --headed            show the browser window on the real screen. Otherwise WebGL2 runs
                       headless, and WebGPU (which gets no working GPU device headless)
@@ -25,7 +25,7 @@ for a visual check. Standard library only (tools/weblib.py).
   --quiet=MS          (default 1500)
   --jobs=N            examples checked at once (default 4). Each example has its own
                       browser context (own storage; its own window when headed)
-  --out=DIR           screenshot directory (default build/web-<backend>/webcheck)
+  --out=DIR           screenshot directory (default <site>/webcheck)
   --browser=PATH      browser executable (or WEBCHECK_BROWSER; default: the first of
                       Brave, Chrome, Chromium and Edge found on PATH or where they install)
   --verbose           print every console line and browser log entry an example
@@ -49,6 +49,7 @@ import urllib.parse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
+import builds  # noqa: E402
 from weblib import (PYTHON, ROOT, RunProcesses, find_browser, find_xvfb, free_port, launch_browser,
                     open_session, wait_for)
 
@@ -72,7 +73,7 @@ def parse_args():
     # where the browser shows its windows: headless, xvfb or screen
     opts.display = ('screen' if opts.headed else
                     ('xvfb' if find_xvfb() else 'screen') if opts.backend == 'webgpu' else 'headless')
-    opts.site = ROOT / 'build' / f'web-{opts.backend}{"" if opts.threads == "1" else "-nothreads"}'
+    opts.site = builds.directory(builds.web(opts.backend, opts.threads == '1'))
     opts.jobs = max(1, opts.jobs)
     opts.out = Path(opts.out) if opts.out else opts.site / 'webcheck'
     return opts
@@ -203,8 +204,8 @@ def main():
     opts = parse_args()
     manifest = opts.site / 'examples.json'
     if not manifest.exists():
-        sys.exit(f'webcheck: no web build at {opts.site} (build it first: cmake --preset {opts.site.name} '
-                 f'&& cmake --build --preset {opts.site.name})')
+        sys.exit(f'webcheck: no web build at {opts.site} (build it first: cmake --preset {builds.preset_of(opts.site)} '
+                 f'&& cmake --build --preset {builds.preset_of(opts.site)})')
     built = json.loads(manifest.read_text())
     examples = opts.examples or built
     missing = [e for e in examples if e not in built]

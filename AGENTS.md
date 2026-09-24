@@ -9,13 +9,23 @@ Keep this file short and rule-shaped. The authoritative design doc is
 The build is CMake (3.21+; Ninja, or Visual Studio on Windows) and Python 3. There is no
 make and no shell script: everything below works the same on Windows, Linux and macOS.
 
-- `CMakePresets.json` names every build; each builds into `build/<preset>/`:
-  `desktop`, `debug`, `headless` (unit tests, guardrails and smoke run), `tsan` /
-  `asan` / `ubsan`, `windows` / `windows-headless` (cross-built with MinGW on Linux or
-  macOS, tested under Wine), and the web: `web-webgl2`, `web-webgl2-nothreads`,
-  `web-webgpu`, `web-webgpu-nothreads`, `web-webgl2-debug` (Emscripten: `$EMSDK`, or
-  `emcc` on PATH). `cmake --preset P && cmake --build --preset P`, then
-  `ctest --preset P` where it has tests. Visual Studio and VS Code read the presets.
+- **Build directories are `build/<platform>/<variant>/`**, from the preset
+  `<platform>-<variant>`, with the library at the top (`libwgrender.a`; MSVC's
+  `wgrender.lib`). The platform is where the output runs (`linux`, `macos`, `windows`,
+  `web`), never the host, toolchain or backend; the variant is the rest, in the order
+  toolchain, backend, options, `debug`. This is the wg* family rule (CONVENTIONS.md,
+  "Build directories"): bindings find the library by it, so a new build gets a name
+  that follows it, and `tools/builds.py` is how the tools here spell a directory.
+- `CMakePresets.json` names every build. This machine's own, `linux-*` or `macos-*`:
+  `-release`, `-debug`, `-headless` (unit tests, guardrails and smoke run), `-tsan` /
+  `-asan` / `-ubsan`; on Windows `windows-msvc`, `-debug`, `-headless` (static CRT).
+  `windows-mingw` / `windows-mingw-headless` (cross-built with MinGW on Linux or macOS
+  and tested under Wine, or gcc on Windows), and the web: `web-webgl2`,
+  `web-webgl2-nothreads`, `web-webgpu`, `web-webgpu-nothreads`, `web-webgl2-debug`,
+  `web-webgl2-nothreads-debug` (Emscripten: `$EMSDK`, or `emcc` on PATH). A native
+  platform's presets show only on that host. `cmake --preset P && cmake --build
+  --preset P`, then `ctest --preset P` where it has tests. Visual Studio and VS Code
+  read the presets.
   A program of its own takes the library with `add_subdirectory` and
   `target_link_libraries(... wgrender)`.
 - `build.json` — the build as data: the sources, include paths, and per desktop OS and
@@ -24,21 +34,22 @@ make and no shell script: everything below works the same on Windows, Linux and 
   toolchains. Edit it by hand: a new `src/*.c` goes in `sources` (`tools/check.py` fails
   until it does).
 - `tools/buildweb.py [BACKEND=webgpu] [WEB_THREADS=0] [WEB_DEBUG=1]` — the web library
-  alone, from `build.json` with emcc and Python only (`build/<backend>[-nothreads][-debug]/libwgrender.a`):
+  alone, from `build.json` with emcc and Python only, into the same
+  `build/web/<backend>[-nothreads][-debug]/libwgrender.a` the preset of that name makes:
   how a binding builds it with nothing but emsdk. Web builds link at `-O3` unless
   debug (no optimization, assertions, debug info).
-- The `headless` preset's tests (`ctest --preset headless`): `unit` (`tests/unit/`,
+- The headless preset's tests (`ctest --preset linux-headless`): `unit` (`tests/unit/`,
   no stubs, no display or GPU; new tests go in `tests/unit/tests.h` and the table in
   `tests/unit/main.c`; add or update tests alongside code changes), `check`
   (`tools/check.py`: include/ and examples/ stay **backend-free**, the naming rules
   below, the module boundary, `build.json`'s sources), and `smoke.<example>`: every
   example run headless for 180 frames, failing on crashes, timeouts or error logs
   (`tools/smoke.py`). `tsan` (or `asan`, `ubsan`) runs the unit tests under a
-  sanitizer: run `tsan` when touching audio or other code shared with the mixer thread.
+  sanitizer: run `linux-tsan` when touching audio or other code shared with the mixer thread.
 - `tools/deps.py [check|install]` — the Linux desktop build's system packages (GL, X11,
   ALSA); a Linux desktop configure runs the check.
 - `tools/wine.py program.exe` — run a Windows build under Wine (wine64/wine, or Steam's
-  Proton); the `windows-headless` preset's tests go through it.
+  Proton); the `windows-mingw-headless` preset's tests go through it.
 - `tools/update_sokol.py [ref]` — update the vendored sokol headers from libwgrender's sokol
   fork (github.com/robknopf/sokol: upstream plus fixes libwgrender needs; sync the fork
   with floooh/sokol there first). Records the fork and upstream commits in
@@ -69,18 +80,18 @@ make and no shell script: everything below works the same on Windows, Linux and 
   else in a visible window). Web builds use threads by default, which need cross-origin
   isolation (`tools/serve.py` sends the headers); the `-nothreads` presets build
   without.
-- `python3 tools/serve.py [port] [build/web-...]` — the dev server (COOP/COEP headers,
+- `python3 tools/serve.py [port] [build/web/...]` — the dev server (COOP/COEP headers,
   `/assets/` mounted) on http://localhost:8000. `--tls CERT KEY` serves HTTPS for other
   devices on the LAN (a phone), which need a secure page for threaded builds.
   `--cache --gzip` serves as a real host should (versioned code cached for good; see
   README "Startup and hosting").
-- `tools/site.py [build/web-...]` — a self-contained copy of a web build, assets
+- `tools/site.py [build/web/...]` — a self-contained copy of a web build, assets
   included, for a static host (the Pages workflow publishes `web-webgl2-nothreads`'s).
 - `python3 tools/webstart.py [--backend=webgpu] [--threads=0]` — startup times per web
   example: cold, warm and hot visits, locally and on emulated 4G, from libwgrender's
   `wgr:*` performance marks; `--devtools=PORT --url=URL` measures a phone. Run it when
   touching init, the page shell or web build flags.
-- `tools/websize.py [build/web-...]` — wasm/JS sizes per web example (raw and gzip;
+- `tools/websize.py [build/web/...]` — wasm/JS sizes per web example (raw and gzip;
   brotli if installed).
 - `tools/benchmarks.py [--doc | --all]` — the C `simple` against every binding
   (docs/benchmarks.md): download size, frame cost, JS heap and GC, and what a call from a
@@ -103,11 +114,11 @@ make and no shell script: everything below works the same on Windows, Linux and 
   changing one of them or `shaders/wgr.glsl`. `tools/gen_shaders.py` (`gen-shaders`)
   regenerates `src/shaders/*.glsl.h`. Both fetch the pinned sokol-shdc into
   `build/tools` the first time.
-- `gen-brdf-lut` (a target of a desktop preset) — regenerate the baked BRDF table
+- `gen-brdf-lut` (a target of a Linux, macOS or Windows preset) — regenerate the baked BRDF table
   (`src/data/wgr_brdf_lut.h`) after changing `wgri_environment_brdf_lut` or its size (a
   unit test fails until you do).
-- Run `python3 tools/verify.py` (the `desktop`, `headless` and `tsan` presets, and
-  `windows` / `windows-headless` when MinGW and Wine are installed) before calling a
+- Run `python3 tools/verify.py` (this machine's release, headless and tsan presets, and
+  `windows-mingw` / `windows-mingw-headless` when MinGW and Wine are installed) before calling a
   change done; add `--web` (every example on `web-webgl2`, `-nothreads` and
   `web-webgpu`, loaded in the browser) when touching rendering, assets or web code.
   Without `--web` nothing links a web example, so **EM_JS changes are unverified until

@@ -35,6 +35,8 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools/bench'))
+sys.path.insert(0, str(ROOT / 'tools'))
+import builds  # noqa: E402
 import measure  # noqa: E402
 
 RESULTS = ROOT / 'bench/results.json'
@@ -50,7 +52,7 @@ def measure_c():
     measure.run(['cmake', '--preset', preset], cwd=ROOT)
     measure.run(['cmake', '--build', '--preset', preset], cwd=ROOT)
     measure.run(['cmake', '--build', '--preset', preset, '--target', 'stress'], cwd=ROOT)
-    site = ROOT / 'build' / preset
+    site = builds.directory(preset)
     page = {'url': f'/?ex={EXAMPLE}', 'probe': f'{EXAMPLE}.js'}
     c = {
         'id': 'c', 'label': 'C', 'project': 'wgrender-c', 'example': EXAMPLE,

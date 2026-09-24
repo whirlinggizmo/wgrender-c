@@ -10,27 +10,13 @@
       "name": "base",
       "hidden": true,
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "WGR_EXAMPLES": "ON"
       }
     },
     {
-      "name": "desktop",
-      "displayName": "Desktop: the library and examples, with a window, GPU and audio",
-      "inherits": "base"
-    },
-    {
-      "name": "debug",
-      "displayName": "Desktop, debug",
-      "inherits": "base",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
-    },
-    {
-      "name": "headless",
-      "displayName": "Headless: unit tests, guardrails and a smoke run of every example",
+      "name": "headless-base",
+      "hidden": true,
       "inherits": "base",
       "cacheVariables": {
         "WGR_HEADLESS": "ON",
@@ -38,42 +24,21 @@
       }
     },
     {
-      "name": "tsan",
-      "displayName": "Headless under ThreadSanitizer",
-      "inherits": "headless",
+      "name": "msvc-base",
+      "hidden": true,
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
       "cacheVariables": {
-        "WGR_SANITIZE": "thread",
-        "WGR_EXAMPLES": "OFF"
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded"
       }
     },
     {
-      "name": "asan",
-      "displayName": "Headless under AddressSanitizer",
-      "inherits": "headless",
-      "cacheVariables": {
-        "WGR_SANITIZE": "address",
-        "WGR_EXAMPLES": "OFF"
-      }
-    },
-    {
-      "name": "ubsan",
-      "displayName": "Headless under UndefinedBehaviorSanitizer",
-      "inherits": "headless",
-      "cacheVariables": {
-        "WGR_SANITIZE": "undefined",
-        "WGR_EXAMPLES": "OFF"
-      }
-    },
-    {
-      "name": "windows",
-      "displayName": "Windows, cross-built with MinGW-w64 (from Linux or macOS)",
-      "inherits": "base",
-      "toolchainFile": "${sourceDir}/cmake/mingw-w64.cmake"
-    },
-    {
-      "name": "windows-headless",
-      "displayName": "Windows headless, cross-built with MinGW-w64 and tested under Wine",
-      "inherits": "headless",
+      "name": "mingw-base",
+      "hidden": true,
       "toolchainFile": "${sourceDir}/cmake/mingw-w64.cmake"
     },
     {
@@ -85,30 +50,245 @@
       }
     },
     {
+      "name": "linux-release",
+      "displayName": "Linux: the library and examples, with a window, GPU and audio",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build/linux/release",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "linux-debug",
+      "displayName": "Linux, debug",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build/linux/debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "linux-headless",
+      "displayName": "Linux headless: unit tests, guardrails and a smoke run of every example",
+      "inherits": "headless-base",
+      "binaryDir": "${sourceDir}/build/linux/headless",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "linux-tsan",
+      "displayName": "Linux headless under ThreadSanitizer",
+      "inherits": "headless-base",
+      "binaryDir": "${sourceDir}/build/linux/tsan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "WGR_SANITIZE": "thread",
+        "WGR_EXAMPLES": "OFF"
+      }
+    },
+    {
+      "name": "linux-asan",
+      "displayName": "Linux headless under AddressSanitizer",
+      "inherits": "headless-base",
+      "binaryDir": "${sourceDir}/build/linux/asan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "WGR_SANITIZE": "address",
+        "WGR_EXAMPLES": "OFF"
+      }
+    },
+    {
+      "name": "linux-ubsan",
+      "displayName": "Linux headless under UndefinedBehaviorSanitizer",
+      "inherits": "headless-base",
+      "binaryDir": "${sourceDir}/build/linux/ubsan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "WGR_SANITIZE": "undefined",
+        "WGR_EXAMPLES": "OFF"
+      }
+    },
+    {
+      "name": "macos-release",
+      "displayName": "macOS: the library and examples, with a window, GPU and audio",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build/macos/release",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "macos-debug",
+      "displayName": "macOS, debug",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build/macos/debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "macos-headless",
+      "displayName": "macOS headless: unit tests, guardrails and a smoke run of every example",
+      "inherits": "headless-base",
+      "binaryDir": "${sourceDir}/build/macos/headless",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "macos-tsan",
+      "displayName": "macOS headless under ThreadSanitizer",
+      "inherits": "headless-base",
+      "binaryDir": "${sourceDir}/build/macos/tsan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "WGR_SANITIZE": "thread",
+        "WGR_EXAMPLES": "OFF"
+      }
+    },
+    {
+      "name": "macos-asan",
+      "displayName": "macOS headless under AddressSanitizer",
+      "inherits": "headless-base",
+      "binaryDir": "${sourceDir}/build/macos/asan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "WGR_SANITIZE": "address",
+        "WGR_EXAMPLES": "OFF"
+      }
+    },
+    {
+      "name": "macos-ubsan",
+      "displayName": "macOS headless under UndefinedBehaviorSanitizer",
+      "inherits": "headless-base",
+      "binaryDir": "${sourceDir}/build/macos/ubsan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "WGR_SANITIZE": "undefined",
+        "WGR_EXAMPLES": "OFF"
+      }
+    },
+    {
+      "name": "windows-msvc",
+      "displayName": "Windows, MSVC (static runtime)",
+      "inherits": [
+        "msvc-base",
+        "base"
+      ],
+      "binaryDir": "${sourceDir}/build/windows/msvc"
+    },
+    {
+      "name": "windows-msvc-debug",
+      "displayName": "Windows, MSVC, debug (static runtime)",
+      "inherits": [
+        "msvc-base",
+        "base"
+      ],
+      "binaryDir": "${sourceDir}/build/windows/msvc-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDebug"
+      }
+    },
+    {
+      "name": "windows-msvc-headless",
+      "displayName": "Windows headless, MSVC: unit tests, guardrails and a smoke run",
+      "inherits": [
+        "msvc-base",
+        "headless-base"
+      ],
+      "binaryDir": "${sourceDir}/build/windows/msvc-headless"
+    },
+    {
+      "name": "windows-mingw",
+      "displayName": "Windows, MinGW-w64 (cross-built from Linux or macOS, or gcc on Windows)",
+      "inherits": [
+        "mingw-base",
+        "base"
+      ],
+      "binaryDir": "${sourceDir}/build/windows/mingw"
+    },
+    {
+      "name": "windows-mingw-headless",
+      "displayName": "Windows headless, MinGW-w64 (under Wine when cross-built)",
+      "inherits": [
+        "mingw-base",
+        "headless-base"
+      ],
+      "binaryDir": "${sourceDir}/build/windows/mingw-headless"
+    },
+    {
       "name": "web-webgl2",
       "displayName": "Web, WebGL2, threaded (serve with COOP/COEP: tools/serve.py)",
-      "inherits": "web-base"
+      "inherits": "web-base",
+      "binaryDir": "${sourceDir}/build/web/webgl2"
     },
     {
       "name": "web-webgl2-nothreads",
       "displayName": "Web, WebGL2, no threads (any static host)",
       "inherits": "web-base",
+      "binaryDir": "${sourceDir}/build/web/webgl2-nothreads",
       "cacheVariables": {
         "WGR_WEB_THREADS": "OFF"
       }
     },
     {
       "name": "web-webgpu",
-      "displayName": "Web, WebGPU, threaded",
+      "displayName": "Web, WebGPU, threaded (serve with COOP/COEP: tools/serve.py)",
       "inherits": "web-base",
+      "binaryDir": "${sourceDir}/build/web/webgpu",
       "cacheVariables": {
         "WGR_WEB_BACKEND": "webgpu"
       }
     },
     {
       "name": "web-webgpu-nothreads",
-      "displayName": "Web, WebGPU, no threads",
+      "displayName": "Web, WebGPU, no threads (any static host)",
       "inherits": "web-base",
+      "binaryDir": "${sourceDir}/build/web/webgpu-nothreads",
       "cacheVariables": {
         "WGR_WEB_BACKEND": "webgpu",
         "WGR_WEB_THREADS": "OFF"
@@ -118,43 +298,165 @@
       "name": "web-webgl2-debug",
       "displayName": "Web, WebGL2, threaded, debug: no optimization, assertions",
       "inherits": "web-base",
+      "binaryDir": "${sourceDir}/build/web/webgl2-debug",
       "cacheVariables": {
+        "WGR_WEB_DEBUG": "ON"
+      }
+    },
+    {
+      "name": "web-webgl2-nothreads-debug",
+      "displayName": "Web, WebGL2, no threads, debug: no optimization, assertions",
+      "inherits": "web-base",
+      "binaryDir": "${sourceDir}/build/web/webgl2-nothreads-debug",
+      "cacheVariables": {
+        "WGR_WEB_THREADS": "OFF",
         "WGR_WEB_DEBUG": "ON"
       }
     }
   ],
   "buildPresets": [
     {
-      "name": "desktop",
-      "configurePreset": "desktop"
+      "name": "linux-release",
+      "configurePreset": "linux-release",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
     },
     {
-      "name": "debug",
-      "configurePreset": "debug"
+      "name": "linux-debug",
+      "configurePreset": "linux-debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
     },
     {
-      "name": "headless",
-      "configurePreset": "headless"
+      "name": "linux-headless",
+      "configurePreset": "linux-headless",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
     },
     {
-      "name": "tsan",
-      "configurePreset": "tsan"
+      "name": "linux-tsan",
+      "configurePreset": "linux-tsan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
     },
     {
-      "name": "asan",
-      "configurePreset": "asan"
+      "name": "linux-asan",
+      "configurePreset": "linux-asan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
     },
     {
-      "name": "ubsan",
-      "configurePreset": "ubsan"
+      "name": "linux-ubsan",
+      "configurePreset": "linux-ubsan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
     },
     {
-      "name": "windows",
-      "configurePreset": "windows"
+      "name": "macos-release",
+      "configurePreset": "macos-release",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
     },
     {
-      "name": "windows-headless",
-      "configurePreset": "windows-headless"
+      "name": "macos-debug",
+      "configurePreset": "macos-debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "macos-headless",
+      "configurePreset": "macos-headless",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "macos-tsan",
+      "configurePreset": "macos-tsan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "macos-asan",
+      "configurePreset": "macos-asan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "macos-ubsan",
+      "configurePreset": "macos-ubsan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "windows-msvc",
+      "configurePreset": "windows-msvc",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "windows-msvc-debug",
+      "configurePreset": "windows-msvc-debug",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "windows-msvc-headless",
+      "configurePreset": "windows-msvc-headless",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "windows-mingw",
+      "configurePreset": "windows-mingw"
+    },
+    {
+      "name": "windows-mingw-headless",
+      "configurePreset": "windows-mingw-headless"
     },
     {
       "name": "web-webgl2",
@@ -175,6 +477,10 @@
     {
       "name": "web-webgl2-debug",
       "configurePreset": "web-webgl2-debug"
+    },
+    {
+      "name": "web-webgl2-nothreads-debug",
+      "configurePreset": "web-webgl2-nothreads-debug"
     }
   ],
   "testPresets": [
@@ -189,29 +495,99 @@
       }
     },
     {
-      "name": "headless",
+      "name": "linux-headless",
       "inherits": "base",
-      "configurePreset": "headless"
+      "configurePreset": "linux-headless",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
     },
     {
-      "name": "tsan",
+      "name": "linux-tsan",
       "inherits": "base",
-      "configurePreset": "tsan"
+      "configurePreset": "linux-tsan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
     },
     {
-      "name": "asan",
+      "name": "linux-asan",
       "inherits": "base",
-      "configurePreset": "asan"
+      "configurePreset": "linux-asan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
     },
     {
-      "name": "ubsan",
+      "name": "linux-ubsan",
       "inherits": "base",
-      "configurePreset": "ubsan"
+      "configurePreset": "linux-ubsan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
     },
     {
-      "name": "windows-headless",
+      "name": "macos-headless",
       "inherits": "base",
-      "configurePreset": "windows-headless"
+      "configurePreset": "macos-headless",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "macos-tsan",
+      "inherits": "base",
+      "configurePreset": "macos-tsan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "macos-asan",
+      "inherits": "base",
+      "configurePreset": "macos-asan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "macos-ubsan",
+      "inherits": "base",
+      "configurePreset": "macos-ubsan",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "windows-msvc-headless",
+      "inherits": "base",
+      "configurePreset": "windows-msvc-headless",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "windows-mingw-headless",
+      "inherits": "base",
+      "configurePreset": "windows-mingw-headless"
     }
   ]
 }

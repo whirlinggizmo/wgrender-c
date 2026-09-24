@@ -4,10 +4,12 @@
     tools/buildweb.py [BACKEND=webgl2|webgpu] [WEB_THREADS=1|0] [WEB_DEBUG=0|1] [-j N]
 
 The settings also come from the environment, else default to a threaded WebGL2 release
-build. The result is build/<dir>/libwgrender.a, <dir> being webgl2, webgl2-nothreads,
-webgpu-debug, ... It reads how to compile from build.json, which is what lets a binding
-build wgrender for the web on a machine that has Emscripten and nothing else: emsdk
-brings the Python this runs on. (wgrender's own web builds are the CMake web presets.)
+build. The result is build/web/<variant>/libwgrender.a, <variant> being webgl2,
+webgl2-nothreads, webgpu-debug, ...: the same directory, and the same library, as the
+CMake web preset of that name (web-webgl2-nothreads, ...) makes. It reads how to compile
+from build.json, which is what lets a binding build wgrender for the web on a machine
+that has Emscripten and nothing else: emsdk brings the Python this runs on. Its objects
+go in the directory's buildweb/, apart from CMake's.
 
 Incremental: an object is rebuilt when it is missing, older than its
 source or than any header its .d file names, or when the flags changed.
@@ -39,7 +41,7 @@ def settings(args):
     return chosen
 
 
-def web_dir(s):
+def variant(s):
     return (s['BACKEND'] + ('' if s['WEB_THREADS'] == '1' else '-nothreads')
             + ('-debug' if s['WEB_DEBUG'] == '1' else ''))
 
@@ -100,10 +102,10 @@ def main():
         del args[i:i + 2]
     s = settings(args)
     manifest = json.loads((ROOT / 'build.json').read_text())
-    name = web_dir(s)
+    name = variant(s)
     target = manifest['web'][name]
-    build = ROOT / 'build' / name
-    obj_dir = build / 'obj'
+    build = ROOT / 'build' / 'web' / name
+    obj_dir = build / 'buildweb'
     obj_dir.mkdir(parents=True, exist_ok=True)
 
     emcc, emar = tool('emcc'), tool('emar')

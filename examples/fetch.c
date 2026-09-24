@@ -24,7 +24,7 @@
  * WGRENDER_ASSET_HOST, e.g. the dev server the web build uses:
  *
  *     python3 tools/serve.py
- *     WGRENDER_ASSET_HOST=http://localhost:8000/assets build/desktop/fetch
+ *     WGRENDER_ASSET_HOST=http://localhost:8000/assets build/linux/release/fetch
  *
  * Offline, or built headless for the smoke test (a gate shouldn't need a network), it
  * reads the local asset directory instead and says so. */

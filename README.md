@@ -30,12 +30,13 @@ and what was left out on purpose, is in [docs/ROADMAP.md](docs/ROADMAP.md).
 ## Build
 
 ```sh
-cmake --preset desktop && cmake --build --preset desktop   # library + every example
-build/desktop/simple                                        # run from this directory
+cmake --preset linux-release && cmake --build --preset linux-release   # library + every example
+build/linux/release/simple                                              # run from this directory
 ```
 
-CMake and Python 3, on Windows (Visual Studio opens this folder), Linux and macOS; the
-web builds (WebGL2, WebGPU) need Emscripten. Everything else — presets, tests, the web,
+That's Linux; a Mac's preset is `macos-release`, and Windows' `windows-msvc`. Each builds
+into `build/<platform>/<variant>/`. CMake and Python 3, on Windows (Visual Studio opens
+this folder), Linux and macOS; the web builds (WebGL2, WebGPU) need Emscripten. Everything else — presets, tests, the web,
 Windows from Linux, generated files, benchmarks — is in [BUILDING.md](BUILDING.md).
 
 ## Invariant: no backend leakage
@@ -112,9 +113,9 @@ src/internal/   shared, non-public declarations (handle pool, lifecycle hooks)
 src/wgr_sokol_impl.c   single TU that compiles the sokol headers (SOKOL_IMPL)
 deps/sokol/     vendored sokol headers
 examples/       example programs
-tests/unit/     unit tests (`ctest --preset headless`; no display or GPU)
+tests/unit/     unit tests (`ctest --preset linux-headless`; no display or GPU)
 tools/          build, check and generator scripts (Python), benchmarks (tools/bench), the web dev server
-cmake/          the MinGW toolchain file (the windows presets)
+cmake/          the MinGW toolchain file (the windows-mingw presets)
 build.json      the build as data: sources, and per target defines, flags and libraries
 docs/           ARCHITECTURE.md, ROADMAP.md, TASKS.md and one PLAN-*.md per feature
 ```

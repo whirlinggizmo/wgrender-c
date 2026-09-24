@@ -34,11 +34,11 @@ jobs:
           sudo apt-get update
           python3 tools/deps.py install
       - name: Build library and examples (GL)
-        run: python3 tools/verify.py --only desktop
+        run: python3 tools/verify.py --only linux-release
       - name: Unit tests, guardrails, and every example headless
-        run: python3 tools/verify.py --only headless
+        run: python3 tools/verify.py --only linux-headless
       - name: Unit tests under ThreadSanitizer
-        run: python3 tools/verify.py --only tsan
+        run: python3 tools/verify.py --only linux-tsan
 
   # An EM_JS body is carried through the library as text and only compiled when an
   # example *links* -- closure runs then. So the desktop job above and a library
@@ -86,5 +86,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: webcheck-screenshots
-          path: build/web-webgl2/webcheck
+          path: build/web/webgl2/webcheck
           if-no-files-found: ignore

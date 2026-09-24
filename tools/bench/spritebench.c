@@ -24,7 +24,7 @@
  *
  *   tools/bench/run.py spritebench             headless: CPU only
  *   tools/bench/run.py spritebench --desktop   desktop, vsync off: real GPU cost (opens a window)
- *   the spritebench target of a web preset     a page (build/web-<backend>/bench/); results
+ *   the spritebench target of a web preset     a page (build/web/<backend>/bench/); results
  *                               in the browser console; frames are paced by the display */
 #include <math.h>
 #include <stdint.h>

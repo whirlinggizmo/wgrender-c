@@ -5,7 +5,7 @@ that locally).
 
     tools/site.py [BUILD] [--out DIR]
 
-BUILD is a web preset's build directory (default build/web-webgl2-nothreads); the site
+BUILD is a web preset's build directory (default build/web/webgl2-nothreads); the site
 goes to BUILD/site unless --out says otherwise. Not the benchmarks (bench/ in the
 build, and examples/assets/bench): a local tool, and loadbench's models are downloaded.
 
@@ -17,7 +17,10 @@ import shutil
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
+import builds  # noqa: E402
+
+ROOT = builds.ROOT
 
 
 def size(path):
@@ -26,14 +29,14 @@ def size(path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('build', nargs='?', default=str(ROOT / 'build' / 'web-webgl2-nothreads'))
+    ap.add_argument('build', nargs='?', default=str(builds.directory('web-webgl2-nothreads')))
     ap.add_argument('--out')
     args = ap.parse_args()
     build = Path(args.build).resolve()
     out = Path(args.out).resolve() if args.out else build / 'site'
     if not (build / 'examples.json').exists():
-        sys.exit(f'site: no web build at {build} (cmake --preset {build.name} && '
-                 f'cmake --build --preset {build.name})')
+        sys.exit(f'site: no web build at {build} (cmake --preset {builds.preset_of(build)} && '
+                 f'cmake --build --preset {builds.preset_of(build)})')
 
     if out.exists():
         shutil.rmtree(out)

@@ -4,7 +4,7 @@
  * function the library would run (wgri_environment_brdf_lut), linked from the headless
  * library, written as half floats: an RG16F texture uploaded as is.
  *
- *   cmake --build --preset headless --target gen-brdf-lut   (builds this, and runs it)
+ *   cmake --build --preset linux-headless --target gen-brdf-lut   (builds this, and runs it)
  *
  * tests/unit/environment_test.c checks the table matches the function. */
 #include <stdio.h>

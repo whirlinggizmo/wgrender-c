@@ -25,7 +25,7 @@ and each is timed from navigation to:
 (the wgr:* points are performance marks libwgrender makes in web builds).
 
 Options:
-  --backend=webgl2|webgpu   (default webgl2); the site is build/web-<backend>
+  --backend=webgl2|webgpu   (default webgl2); the site is build/web/<backend>
   --threads=0               the -nothreads build
   --net=none|4g|both        network: the local machine as is, emulated 4G (9 Mbit/s
                             down, 150 ms round trips), or both (default both)
@@ -54,6 +54,7 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
+import builds  # noqa: E402
 from weblib import (PYTHON, ROOT, RunProcesses, find_browser, find_xvfb, free_port, launch_browser,  # noqa: E402
                     open_session, wait_for)
 
@@ -126,7 +127,7 @@ def parse_args():
     opts.tls = opts.tls.split(',') if opts.tls else None
     opts.display = ('remote' if opts.devtools is not None else 'headless' if opts.headless
                     else 'xvfb' if find_xvfb() else 'screen')
-    opts.site = ROOT / 'build' / f'web-{opts.backend}{"" if opts.threads == "1" else "-nothreads"}'
+    opts.site = builds.directory(builds.web(opts.backend, opts.threads == '1'))
     return opts
 
 

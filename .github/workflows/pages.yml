@@ -42,11 +42,11 @@ jobs:
       - name: Build every example and assemble the site
         run: |
           cmake --preset web-webgl2-nothreads && cmake --build --preset web-webgl2-nothreads
-          python3 tools/site.py build/web-webgl2-nothreads
+          python3 tools/site.py build/web/webgl2-nothreads
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: build/web-webgl2-nothreads/site
+          path: build/web/webgl2-nothreads/site
 
   deploy:
     name: deploy

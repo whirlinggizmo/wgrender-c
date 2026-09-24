@@ -26,29 +26,43 @@ toolchains; each has a BUILDING.md of its own.
 
 CMake (3.21 or newer) and Python 3, on Windows, Linux or macOS; Ninja, or Visual Studio
 on Windows (open this folder: it reads the presets). Every build is a preset in
-`CMakePresets.json` and builds into `build/<preset>/`:
+`CMakePresets.json`, named `<platform>-<variant>`, and builds into
+`build/<platform>/<variant>/`, where its library is `libwgrender.a` (MSVC's:
+`wgrender.lib`). The platform is where the build runs: `linux`, `macos`, `windows` or
+`web`. That's the layout every wg* project shares (whirlinggizmo/.github's
+CONVENTIONS.md, "Build directories"), so a binding finds a library by rule. On Linux:
 
 ```sh
-cmake --preset desktop && cmake --build --preset desktop     # library + every example
-build/desktop/simple            # from this directory: examples load examples/assets from here
-cmake --preset headless && cmake --build --preset headless   # no window, GPU or audio device
-ctest --preset headless         # unit tests, guardrails, and every example headless for ~3 s
-python3 tools/verify.py         # desktop, headless, ThreadSanitizer (and Windows, below):
+cmake --preset linux-release && cmake --build --preset linux-release   # library + every example
+build/linux/release/simple      # from this directory: examples load examples/assets from here
+cmake --preset linux-headless && cmake --build --preset linux-headless # no window, GPU or audio device
+ctest --preset linux-headless   # unit tests, guardrails, and every example headless for ~3 s
+python3 tools/verify.py         # release, headless, ThreadSanitizer (and Windows, below):
                                 # run before calling a change done
 ```
 
+On a Mac the same presets start `macos-`. Each machine lists only its own presets and
+the ones it can cross-build (`cmake --list-presets`):
+
+| Platform | Presets |
+| --- | --- |
+| Linux, macOS | `-release`, `-debug`, `-headless`, and `-tsan`, `-asan`, `-ubsan` (the unit tests under a sanitizer) |
+| Windows, MSVC | `windows-msvc`, `windows-msvc-debug`, `windows-msvc-headless` |
+| Windows, MinGW | `windows-mingw`, `windows-mingw-headless` |
+| Web | `web-webgl2`, `web-webgpu`, their `-nothreads` builds, `web-webgl2-debug`, `web-webgl2-nothreads-debug` |
+
 `headless` builds use sokol's dummy GPU backend and no window or audio: they run frames
 at 60/s until `wgr_request_quit()`, or for `WGR_HEADLESS_FRAMES` frames when that
-environment variable is set. `debug`, `tsan`, `asan` and `ubsan` are the other desktop
-presets.
+environment variable is set.
 
-On Windows, Visual Studio needs nothing more. From a command line, the presets use
-whichever compiler `PATH` offers first: a MinGW `gcc` works from any shell (including
-the one choosenim installs for Nim, whose `gcc` shim has no binutils beside it: the
-build asks gcc where its `ar` is), and MSVC needs an "x64 Native Tools Command Prompt"
-(or `vcvars64.bat`) first. With both on `PATH`, CMake takes `gcc` over `cl`, so set
-`CC=cl` to build with MSVC. The sanitizer presets are gcc/clang's, so `verify.py` runs `desktop`
-and `headless` there.
+On Windows, Visual Studio needs nothing more. From a command line, the `windows-msvc`
+presets need an "x64 Native Tools Command Prompt" (or `vcvars64.bat`) first; they build
+with the static C runtime (`/MT`, `/MTd` for debug), as every wg* library does, so the
+`.lib` links into Beef and other static-runtime programs as it is. The `windows-mingw`
+presets use the `gcc` on `PATH` from any shell, including the one choosenim installs
+for Nim, whose `gcc` shim has no binutils beside it (the build asks gcc where its `ar`
+is). There are no sanitizer presets on Windows, so `verify.py` runs `windows-msvc` and
+`windows-msvc-headless` there.
 
 On Linux, sokol links the system's audio, GL and X11 libraries, so their dev packages
 must be installed; configuring checks and names any that are missing:
@@ -78,8 +92,8 @@ web library from it with nothing but emsdk). Checked on Windows 11 with Visual S
 Needs Emscripten: `$EMSDK` set, or `emcc` on `PATH` (`source <emsdk>/emsdk_env.sh`).
 
 ```sh
-cmake --preset web-webgl2 && cmake --build --preset web-webgl2   # every example -> build/web-webgl2/
-python3 tools/serve.py 8000 build/web-webgl2   # http://localhost:8000/ (assets mounted at /assets/)
+cmake --preset web-webgl2 && cmake --build --preset web-webgl2   # every example -> build/web/webgl2/
+python3 tools/serve.py 8000 build/web/webgl2   # http://localhost:8000/ (assets mounted at /assets/)
 python3 tools/webcheck.py                     # load each in a browser, fail on errors
 python3 tools/webcheck.py --backend=webgpu    # the same for WebGPU (web-webgpu)
 python3 tools/webstart.py                     # startup times per example: cold, warm and hot visits
@@ -88,7 +102,9 @@ tools/benchmarks.py --all                      # C and every sibling binding -> 
 ```
 
 The web presets are `web-webgl2`, `web-webgpu`, their `-nothreads` builds, and
-`web-webgl2-debug`.
+`web-webgl2-debug` and `web-webgl2-nothreads-debug`. `tools/buildweb.py` builds only
+the library, for any of the eight combinations, into the same `build/web/<variant>/`
+directory as the preset of that name.
 
 `tools/webcheck.py` needs a Chromium-based browser: Brave, Chrome, Chromium or Edge,
 found on PATH or where they install (override with `WEBCHECK_BROWSER`), and nothing
@@ -98,18 +114,18 @@ four examples at a time, each in its own browser context, waits until each has
 finished loading its assets, and fails an example on console errors, wgrender
 `[ERROR]`/`[FATAL]` logs, exceptions, sokol panics, a wrong/missing backend, or
 assets still loading after 20 s. It saves a screenshot of each to
-`build/web-<backend>/webcheck/`. WebGL2
+`build/web/<backend>/webcheck/`. WebGL2
 runs headless; WebGPU needs a GPU adapter, which headless browsers lack, so it runs on
 a virtual X display when Xvfb is installed (Linux), else in a visible window. It catches
 crashes, errors and unfinished loads, not wrong-looking output, so glance at the
 screenshots. The browser and
-server it starts are always stopped, even if Node crashes or is killed (process
+server it starts are always stopped, even if the check crashes or is killed (process
 groups, or process trees on Windows, a sweep by the run's unique profile directory, and
 a watchdog, `tools/webwatch.py`).
 
 ### Startup and hosting
 
-A built site (`build/web-<backend>/`) loads each program as `name.js?v=<hash>`
+A built site (`build/web/<variant>/`) loads each program as `name.js?v=<hash>`
 and `name.wasm?v=<hash>`: `tools/webdeploy.py` writes every file's hash into
 `index.html`, so a file's URL changes when its content does. The page starts
 downloading the wasm alongside the JS, and it compiles as it streams. To start fast,
@@ -138,24 +154,24 @@ device's browser, such as a phone through `adb forward`.
 With MinGW-w64 (`sudo apt install mingw-w64`), Windows builds come from Linux:
 
 ```sh
-cmake --preset windows && cmake --build --preset windows    # build/windows/*.exe (OpenGL)
-cmake --preset windows-headless && cmake --build --preset windows-headless
-ctest --preset windows-headless   # unit tests and every example headless, under Wine
+cmake --preset windows-mingw && cmake --build --preset windows-mingw   # build/windows/mingw/*.exe (OpenGL)
+cmake --preset windows-mingw-headless && cmake --build --preset windows-mingw-headless
+ctest --preset windows-mingw-headless   # unit tests and every example headless, under Wine
 ```
 
 The tests go through `tools/wine.py`: `$WINE`, else `wine64` / `wine`
 on `PATH`, else the newest Proton in a Steam library (Library > Tools). Its prefix is
 `build/wine`. The `.exe` files are linked statically (no MinGW DLLs to ship).
-`tools/verify.py` builds `windows` when MinGW is installed, and tests
-`windows-headless` when there's a Wine, so Windows code keeps compiling. Wine runs the
+`tools/verify.py` builds `windows-mingw` when MinGW is installed, and tests
+`windows-mingw-headless` when there's a Wine, so Windows code keeps compiling. Wine runs the
 windowed examples too (OpenGL through the host's driver), but their windows, audio and
 gamepads on real Windows are only checked by hand.
 
 ## Before calling a change done
 
 ```sh
-python3 tools/verify.py         # desktop, headless (unit tests, guardrails, smoke), tsan,
-                                # and windows / windows-headless when MinGW and Wine are there
+python3 tools/verify.py         # release, headless (unit tests, guardrails, smoke), tsan,
+                                # and windows-mingw(-headless) when MinGW and Wine are there
 python3 tools/verify.py --web   # also every example on web-webgl2, -nothreads and web-webgpu,
                                 # loaded in the browser: for rendering, assets or web code
 ```
@@ -171,7 +187,7 @@ Committed, and rebuilt by hand when what they come from changes:
 | --- | --- | --- |
 | `src/shaders/*.glsl.h` | `src/shaders/*.glsl` | `python3 tools/gen_shaders.py` (target `gen-shaders`) |
 | `examples/assets/shaders/*.wgrshader` | `examples/shaders/*.glsl`, `shaders/wgr.glsl` | `python3 tools/gen_shaders.py --examples` (target `gen-example-shaders`) |
-| `src/data/wgr_brdf_lut.h` | `wgri_environment_brdf_lut` | target `gen-brdf-lut` of a desktop preset |
+| `src/data/wgr_brdf_lut.h` | `wgri_environment_brdf_lut` | target `gen-brdf-lut` of a Linux, macOS or Windows preset |
 
 sokol-shdc is fetched into `build/tools` the first time, at the version
 `deps/sokol/VERSION` pins. The vendored sokol and Clay are updated with

@@ -10,8 +10,8 @@
   shadowbench   what a casting light costs a frame: no shadows, one light at two map
                 sizes, two lights, one where nothing receives
 
-Headless by default (CPU work only; no GPU at all), with the headless preset;
---desktop uses the desktop preset, with real GPU work in a window (vsync off). --ktx
+Headless by default (CPU work only; no GPU at all), with this machine's headless preset
+(linux-headless, ...); --desktop uses its release preset (linux-release, ...), with real GPU work in a window (vsync off). --ktx
 has loadbench load the models' compressed textures (made the first time:
 tools/compress_textures.py --gltf).
 
@@ -25,6 +25,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'tools'))
+import builds  # noqa: E402
+
 BENCH = ROOT / 'examples' / 'assets' / 'bench'
 
 
@@ -40,7 +43,7 @@ def main():
     ap.add_argument('--desktop', action='store_true')
     ap.add_argument('--ktx', action='store_true')
     args = ap.parse_args()
-    preset = 'desktop' if args.desktop else 'headless'
+    preset = builds.native('release' if args.desktop else 'headless')
 
     env = dict(os.environ)
     if args.name == 'loadbench':
@@ -54,7 +57,7 @@ def main():
 
     run('cmake', '--preset', preset, stdout=subprocess.DEVNULL)
     run('cmake', '--build', '--preset', preset, '--target', args.name)
-    exe = ROOT / 'build' / preset / (args.name + ('.exe' if os.name == 'nt' else ''))
+    exe = builds.directory(preset) / (args.name + ('.exe' if os.name == 'nt' else ''))
     # the benchmarks report on stdout; wgrender's log goes to stderr
     sys.exit(subprocess.run([str(exe)], cwd=ROOT, env=env, stderr=subprocess.DEVNULL).returncode)
 
