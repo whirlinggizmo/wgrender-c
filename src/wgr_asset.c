@@ -318,14 +318,14 @@ EM_JS(void, wgri_asset_fetch_js, (int slot, const char *url_cstr), {
 
 /* Room for a download the browser has already decoded. In C so the JS side needs no
  * exported malloc, which the closure pass would have to be told about. */
-WGRI_KEEP
+WGRI_JS_CALLED
 unsigned char *wgri_asset_fetch_alloc(int size)
 {
     return (unsigned char *)malloc(size > 0 ? (size_t)size : 1);
 }
 
 /* The download finished: `data` is malloc'd for us (null when it failed). */
-WGRI_KEEP
+WGRI_JS_CALLED
 void wgri_asset_fetch_finished(int slot, unsigned char *data, int size)
 {
     wgr_asset_task_t *task = &wgr_asset_tasks[slot];
