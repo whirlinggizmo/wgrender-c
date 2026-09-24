@@ -1,4 +1,6 @@
-"""Where a build lives: build/<platform>/<variant>/, from the preset <platform>-<variant>.
+"""Where a build lives, from the preset <platform>-<variant>: what it makes in
+out/<platform>/<variant>/ (the library, the programs; a web build's site), its work
+(CMake's cache and objects) in build/<platform>/<variant>/.
 
 The layout is the wg* family's (CONVENTIONS.md, "Build directories"): the platform is
 where the output runs (linux, macos, windows, web), the variant everything else. The
@@ -26,13 +28,20 @@ def web(backend='webgl2', threads=True, debug=False):
     return f'web-{backend}' + ('' if threads else '-nothreads') + ('-debug' if debug else '')
 
 
-def directory(preset):
-    """A preset's build directory: web-webgl2-nothreads is build/web/webgl2-nothreads."""
+def out(preset):
+    """What a preset makes: web-webgl2-nothreads's is out/web/webgl2-nothreads."""
+    platform_name, variant = preset.split('-', 1)
+    return ROOT / 'out' / platform_name / variant
+
+
+def work(preset):
+    """A preset's work (CMake's cache, the objects), and the tools' own byproducts for
+    it (webcheck's screenshots, websize's table): build/web/webgl2-nothreads."""
     platform_name, variant = preset.split('-', 1)
     return ROOT / 'build' / platform_name / variant
 
 
 def preset_of(path):
-    """The preset that builds a directory: the inverse of directory()."""
+    """The preset that makes a directory, out/ or build/: the inverse of out() and work()."""
     path = Path(path).resolve()
     return f'{path.parent.name}-{path.name}'

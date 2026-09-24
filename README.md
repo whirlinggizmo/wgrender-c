@@ -31,11 +31,11 @@ and what was left out on purpose, is in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ```sh
 cmake --preset linux-release && cmake --build --preset linux-release   # library + every example
-build/linux/release/simple                                              # run from this directory
+out/linux/release/simple                                                # run from this directory
 ```
 
 That's Linux; a Mac's preset is `macos-release`, and Windows' `windows-msvc`. Each builds
-into `build/<platform>/<variant>/`. CMake and Python 3, on Windows (Visual Studio opens
+into `out/<platform>/<variant>/` (CMake's own work stays in `build/`). CMake and Python 3, on Windows (Visual Studio opens
 this folder), Linux and macOS; the web builds (WebGL2, WebGPU) need Emscripten. Everything else — presets, tests, the web,
 Windows from Linux, generated files, benchmarks — is in [BUILDING.md](BUILDING.md).
 

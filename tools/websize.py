@@ -4,8 +4,9 @@ brotli when Python's brotli module or the brotli tool is installed), sorted by t
 
     tools/websize.py [BUILD] [--summary]
 
-BUILD is a web preset's build directory (default build/web/webgl2). Writes the table to
-BUILD/sizes.txt as well; --summary prints only hello, simple and model.
+BUILD is what a web preset made (default out/web/webgl2). Writes the table to the
+preset's work directory as well (build/web/<variant>/sizes.txt, not in the site);
+--summary prints only hello, simple and model.
 """
 import argparse
 import gzip
@@ -28,6 +29,8 @@ def brotli_size(data):
     return len(subprocess.run([BROTLI_TOOL, '-q', '11', '-c'], input=data, capture_output=True).stdout)
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'tools'))
+import builds  # noqa: E402
 
 
 def kb(n):
@@ -36,7 +39,7 @@ def kb(n):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('build', nargs='?', default=str(ROOT / 'build' / 'web' / 'webgl2'))
+    ap.add_argument('build', nargs='?', default=str(builds.out('web-webgl2')))
     ap.add_argument('--summary', action='store_true')
     args = ap.parse_args()
     site = Path(args.build)
@@ -62,10 +65,12 @@ def main():
         lines.append(f'{name:<16}' + ''.join(f'{kb(c):>10}' for c in cols))
     if not brotli:
         lines.append('(install brotli, the tool or the Python module, for brotli sizes)')
-    (site / 'sizes.txt').write_text('\n'.join(lines) + '\n')
+    table = builds.work(builds.preset_of(site)) / 'sizes.txt'
+    table.parent.mkdir(parents=True, exist_ok=True)
+    table.write_text('\n'.join(lines) + '\n')
     if args.summary:
         lines = lines[1:2] + [l for l in lines[2:] if l.split()[0] in ('hello', 'simple', 'model')] \
-            + [f'(all examples: {site / "sizes.txt"})']
+            + [f'(all examples: {table})']
     print('\n'.join(lines))
 
 

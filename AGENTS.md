@@ -9,9 +9,10 @@ Keep this file short and rule-shaped. The authoritative design doc is
 The build is CMake (3.21+; Ninja, or Visual Studio on Windows) and Python 3. There is no
 make and no shell script: everything below works the same on Windows, Linux and macOS.
 
-- **Build directories are `build/<platform>/<variant>/`**, from the preset
+- **What a build makes is in `out/<platform>/<variant>/`**, from the preset
   `<platform>-<variant>`, with the library at the top (`libwgrender.a`; MSVC's
-  `wgrender.lib`). The platform is where the output runs (`linux`, `macos`, `windows`,
+  `wgrender.lib`), the programs beside it, and a web build's site; its work (CMake's
+  cache and objects, the tools' byproducts) is in `build/<platform>/<variant>/`. The platform is where the output runs (`linux`, `macos`, `windows`,
   `web`), never the host, toolchain or backend; the variant is the rest, in the order
   toolchain, backend, options, `debug`. This is the wg* family rule (CONVENTIONS.md,
   "Build directories"): bindings find the library by it, so a new build gets a name
@@ -35,7 +36,7 @@ make and no shell script: everything below works the same on Windows, Linux and 
   until it does).
 - `tools/buildweb.py [BACKEND=webgpu] [WEB_THREADS=0] [WEB_DEBUG=1]` — the web library
   alone, from `build.json` with emcc and Python only, into the same
-  `build/web/<backend>[-nothreads][-debug]/libwgrender.a` the preset of that name makes:
+  `out/web/<backend>[-nothreads][-debug]/libwgrender.a` the preset of that name makes:
   how a binding builds it with nothing but emsdk. Web builds link at `-O3` unless
   debug (no optimization, assertions, debug info).
 - The headless preset's tests (`ctest --preset linux-headless`): `unit` (`tests/unit/`,
@@ -80,18 +81,18 @@ make and no shell script: everything below works the same on Windows, Linux and 
   else in a visible window). Web builds use threads by default, which need cross-origin
   isolation (`tools/serve.py` sends the headers); the `-nothreads` presets build
   without.
-- `python3 tools/serve.py [port] [build/web/...]` — the dev server (COOP/COEP headers,
+- `python3 tools/serve.py [port] [out/web/...]` — the dev server (COOP/COEP headers,
   `/assets/` mounted) on http://localhost:8000. `--tls CERT KEY` serves HTTPS for other
   devices on the LAN (a phone), which need a secure page for threaded builds.
   `--cache --gzip` serves as a real host should (versioned code cached for good; see
   README "Startup and hosting").
-- `tools/site.py [build/web/...]` — a self-contained copy of a web build, assets
+- `tools/site.py [out/web/...]` — a self-contained copy of a web build, assets
   included, for a static host (the Pages workflow publishes `web-webgl2-nothreads`'s).
 - `python3 tools/webstart.py [--backend=webgpu] [--threads=0]` — startup times per web
   example: cold, warm and hot visits, locally and on emulated 4G, from libwgrender's
   `wgr:*` performance marks; `--devtools=PORT --url=URL` measures a phone. Run it when
   touching init, the page shell or web build flags.
-- `tools/websize.py [build/web/...]` — wasm/JS sizes per web example (raw and gzip;
+- `tools/websize.py [out/web/...]` — wasm/JS sizes per web example (raw and gzip;
   brotli if installed).
 - `tools/benchmarks.py [--doc | --all]` — the C `simple` against every binding
   (docs/benchmarks.md): download size, frame cost, JS heap and GC, and what a call from a

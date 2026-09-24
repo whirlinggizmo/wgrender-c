@@ -25,7 +25,7 @@ and each is timed from navigation to:
 (the wgr:* points are performance marks libwgrender makes in web builds).
 
 Options:
-  --backend=webgl2|webgpu   (default webgl2); the site is build/web/<backend>
+  --backend=webgl2|webgpu   (default webgl2); the site is out/web/<backend>
   --threads=0               the -nothreads build
   --net=none|4g|both        network: the local machine as is, emulated 4G (9 Mbit/s
                             down, 150 ms round trips), or both (default both)
@@ -127,7 +127,7 @@ def parse_args():
     opts.tls = opts.tls.split(',') if opts.tls else None
     opts.display = ('remote' if opts.devtools is not None else 'headless' if opts.headless
                     else 'xvfb' if find_xvfb() else 'screen')
-    opts.site = builds.directory(builds.web(opts.backend, opts.threads == '1'))
+    opts.site = builds.out(builds.web(opts.backend, opts.threads == '1'))
     return opts
 
 

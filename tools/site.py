@@ -5,9 +5,10 @@ that locally).
 
     tools/site.py [BUILD] [--out DIR]
 
-BUILD is a web preset's build directory (default build/web/webgl2-nothreads); the site
-goes to BUILD/site unless --out says otherwise. Not the benchmarks (bench/ in the
-build, and examples/assets/bench): a local tool, and loadbench's models are downloaded.
+BUILD is what a web preset made (default out/web/webgl2-nothreads); the copy goes to the
+preset's work directory, build/web/<variant>/site, unless --out says otherwise, so the
+build's own out/ stays just the build. Not the benchmarks (bench/ in the build, and
+examples/assets/bench): a local tool, and loadbench's models are downloaded.
 
 Use a -nothreads build for a host that can't send COOP/COEP headers (GitHub Pages): a
 threaded build doesn't start at all there.
@@ -29,11 +30,11 @@ def size(path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('build', nargs='?', default=str(builds.directory('web-webgl2-nothreads')))
+    ap.add_argument('build', nargs='?', default=str(builds.out('web-webgl2-nothreads')))
     ap.add_argument('--out')
     args = ap.parse_args()
     build = Path(args.build).resolve()
-    out = Path(args.out).resolve() if args.out else build / 'site'
+    out = Path(args.out).resolve() if args.out else builds.work(builds.preset_of(build)) / 'site'
     if not (build / 'examples.json').exists():
         sys.exit(f'site: no web build at {build} (cmake --preset {builds.preset_of(build)} && '
                  f'cmake --build --preset {builds.preset_of(build)})')

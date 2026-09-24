@@ -52,7 +52,7 @@ def measure_c():
     measure.run(['cmake', '--preset', preset], cwd=ROOT)
     measure.run(['cmake', '--build', '--preset', preset], cwd=ROOT)
     measure.run(['cmake', '--build', '--preset', preset, '--target', 'stress'], cwd=ROOT)
-    site = builds.directory(preset)
+    site = builds.out(preset)
     page = {'url': f'/?ex={EXAMPLE}', 'probe': f'{EXAMPLE}.js'}
     c = {
         'id': 'c', 'label': 'C', 'project': 'wgrender-c', 'example': EXAMPLE,

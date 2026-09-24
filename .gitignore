@@ -4,3 +4,4 @@ reference/
 .wgr_fs_probe
 examples/assets/bench/
 __pycache__/
+out/

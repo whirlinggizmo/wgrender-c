@@ -16,8 +16,9 @@ Chromium or Edge):
                     every example built for the web and loaded in the browser
                     (tools/webcheck.py)
 
-Each step is a CMake preset (CMakePresets.json), configured, built and tested in its
-build/<platform>/<variant>/ directory; --only takes preset names (linux-headless,
+Each step is a CMake preset (CMakePresets.json), configured, built and tested: its work
+in build/<platform>/<variant>/, what it makes in out/<platform>/<variant>/; --only takes
+preset names (linux-headless,
 web-webgl2, ...). Stops at the first step that fails.
 """
 import argparse

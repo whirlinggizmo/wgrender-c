@@ -3,7 +3,7 @@
 
     tools/webcheck.py [options] [example ...]     (default: all built examples)
 
-Serves build/web/<backend>[-nothreads] with tools/serve.py, loads each built example in a
+Serves out/web/<backend>[-nothreads] with tools/serve.py, loads each built example in a
 Chromium-based browser (Brave, Chrome, Chromium, Edge) through the DevTools protocol,
 and fails an example if it logs a console error or a libwgrender [ERROR]/[FATAL] line,
 throws, hits a sokol panic, never reports starting on the expected backend, or is
@@ -11,7 +11,7 @@ still loading assets when its time runs out. A screenshot of every example is sa
 for a visual check. Standard library only (tools/weblib.py).
 
   --backend=webgl2|webgpu  backend to check (default webgl2); the site is
-                      build/web/<backend> (the CMake preset web-<backend>)
+                      out/web/<backend> (what the CMake preset web-<backend> makes)
   --threads=0         the -nothreads build
   --headed            show the browser window on the real screen. Otherwise WebGL2 runs
                       headless, and WebGPU (which gets no working GPU device headless)
@@ -73,9 +73,10 @@ def parse_args():
     # where the browser shows its windows: headless, xvfb or screen
     opts.display = ('screen' if opts.headed else
                     ('xvfb' if find_xvfb() else 'screen') if opts.backend == 'webgpu' else 'headless')
-    opts.site = builds.directory(builds.web(opts.backend, opts.threads == '1'))
+    preset = builds.web(opts.backend, opts.threads == '1')
+    opts.site = builds.out(preset)
     opts.jobs = max(1, opts.jobs)
-    opts.out = Path(opts.out) if opts.out else opts.site / 'webcheck'
+    opts.out = Path(opts.out) if opts.out else builds.work(preset) / 'webcheck'  # not in the site
     return opts
 
 

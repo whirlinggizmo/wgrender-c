@@ -4,10 +4,11 @@
 #   cmake --preset linux-release && cmake --build --preset linux-release   (CMakePresets.json)
 #   ctest --preset linux-headless                                          unit tests + smoke run
 #
-# or open this folder in Visual Studio or VS Code, which read the presets. Everything a
-# build makes is under build/<platform>/<variant>/, from the preset <platform>-<variant>
-# (the wg* family's layout: linux/release, windows/msvc, web/webgl2-nothreads, ...). A
-# program of your own:
+# or open this folder in Visual Studio or VS Code, which read the presets. What a build
+# makes is in out/<platform>/<variant>/, from the preset <platform>-<variant> (the wg*
+# family's layout: linux/release, windows/msvc, web/webgl2-nothreads, ...): the library
+# at the top, the programs beside it, and for the web the site. CMake's own work (its
+# cache, the objects) is in build/<platform>/<variant>/. A program of your own:
 #
 #   add_subdirectory(wgrender-c)
 #   target_link_libraries(my_game PRIVATE wgrender)
@@ -97,6 +98,24 @@ set(WGR_SANITIZE "" CACHE STRING "thread, address or undefined: the library and 
 find_package(Python3 COMPONENTS Interpreter) # the smoke tests' runner
 
 set(WGR_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
+
+# What a build makes goes to out/<platform>/<variant>/, and its work stays in
+# build/<platform>/<variant>/ (CONVENTIONS.md, "Build directories"): the preset's build
+# directory with build/ for out/. Only for a build directory under wgrender's own build/;
+# a project that add_subdirectory()s wgrender keeps CMake's defaults. Every
+# configuration's too, or a multi-config generator (Visual Studio) adds Release/.
+file(RELATIVE_PATH WGR_BUILD_REL "${WGR_ROOT}/build" "${CMAKE_BINARY_DIR}")
+if(PROJECT_IS_TOP_LEVEL AND NOT IS_ABSOLUTE "${WGR_BUILD_REL}" AND NOT WGR_BUILD_REL MATCHES "^\\.\\.")
+  set(WGR_OUT "${WGR_ROOT}/out/${WGR_BUILD_REL}")
+else()
+  set(WGR_OUT "${CMAKE_BINARY_DIR}")
+endif()
+foreach(kind ARCHIVE LIBRARY RUNTIME)
+  set(CMAKE_${kind}_OUTPUT_DIRECTORY "${WGR_OUT}")
+  foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+    set(CMAKE_${kind}_OUTPUT_DIRECTORY_${config} "${WGR_OUT}")
+  endforeach()
+endforeach()
 wgr_manifest_list(WGR_SOURCES sources)
 list(TRANSFORM WGR_SOURCES PREPEND "${WGR_ROOT}/")
 wgr_manifest_list(WGR_INCLUDE include)
@@ -224,7 +243,7 @@ if(WGR_EXAMPLES)
   # tools/serve.py; tools/site.py makes a copy to hand a static host.
   if(EMSCRIPTEN AND Python3_FOUND)
     add_custom_target(webdeploy ALL
-      COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/webdeploy.py" "${CMAKE_CURRENT_BINARY_DIR}"
+      COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/webdeploy.py" "${WGR_OUT}"
               "${WGR_ROOT}/examples/web/index.html"
       DEPENDS ${WGR_EXAMPLE_TARGETS} "${WGR_ROOT}/examples/web/index.html"
       COMMENT "webdeploy: index.html and examples.json")
@@ -258,9 +277,9 @@ if(PROJECT_IS_TOP_LEVEL)
     wgr_program(${name} "${WGR_ROOT}/tools/bench/${name}.c")
     list(APPEND WGR_BENCH_TARGETS ${name})
     if(EMSCRIPTEN)
-      set_target_properties(${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bench")
+      set_target_properties(${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${WGR_OUT}/bench")
       add_custom_command(TARGET ${name} POST_BUILD
-        COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/webdeploy.py" "${CMAKE_CURRENT_BINARY_DIR}/bench"
+        COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/webdeploy.py" "${WGR_OUT}/bench"
                 "${WGR_ROOT}/examples/web/index.html")
     endif()
   endforeach()

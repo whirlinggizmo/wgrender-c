@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Finish a web build's site (build/web/<variant>/; the web presets run this): the page and the manifest.
+"""Finish a web build's site (out/web/<variant>/; the web presets run this): the page and the manifest.
 
     tools/webdeploy.py SITE SHELL
 

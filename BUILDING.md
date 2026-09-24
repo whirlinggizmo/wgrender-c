@@ -26,15 +26,16 @@ toolchains; each has a BUILDING.md of its own.
 
 CMake (3.21 or newer) and Python 3, on Windows, Linux or macOS; Ninja, or Visual Studio
 on Windows (open this folder: it reads the presets). Every build is a preset in
-`CMakePresets.json`, named `<platform>-<variant>`, and builds into
-`build/<platform>/<variant>/`, where its library is `libwgrender.a` (MSVC's:
-`wgrender.lib`). The platform is where the build runs: `linux`, `macos`, `windows` or
+`CMakePresets.json`, named `<platform>-<variant>`. What it makes goes to
+`out/<platform>/<variant>/`: the library at the top (`libwgrender.a`; MSVC's
+`wgrender.lib`), the programs beside it, and for the web the site. CMake's own work (its
+cache, the objects) stays in `build/<platform>/<variant>/`, so `out/` is only results. The platform is where the build runs: `linux`, `macos`, `windows` or
 `web`. That's the layout every wg* project shares (whirlinggizmo/.github's
 CONVENTIONS.md, "Build directories"), so a binding finds a library by rule. On Linux:
 
 ```sh
 cmake --preset linux-release && cmake --build --preset linux-release   # library + every example
-build/linux/release/simple      # from this directory: examples load examples/assets from here
+out/linux/release/simple        # from this directory: examples load examples/assets from here
 cmake --preset linux-headless && cmake --build --preset linux-headless # no window, GPU or audio device
 ctest --preset linux-headless   # unit tests, guardrails, and every example headless for ~3 s
 python3 tools/verify.py         # release, headless, ThreadSanitizer (and Windows, below):
@@ -92,8 +93,8 @@ web library from it with nothing but emsdk). Checked on Windows 11 with Visual S
 Needs Emscripten: `$EMSDK` set, or `emcc` on `PATH` (`source <emsdk>/emsdk_env.sh`).
 
 ```sh
-cmake --preset web-webgl2 && cmake --build --preset web-webgl2   # every example -> build/web/webgl2/
-python3 tools/serve.py 8000 build/web/webgl2   # http://localhost:8000/ (assets mounted at /assets/)
+cmake --preset web-webgl2 && cmake --build --preset web-webgl2   # every example -> out/web/webgl2/
+python3 tools/serve.py 8000 out/web/webgl2     # http://localhost:8000/ (assets mounted at /assets/)
 python3 tools/webcheck.py                     # load each in a browser, fail on errors
 python3 tools/webcheck.py --backend=webgpu    # the same for WebGPU (web-webgpu)
 python3 tools/webstart.py                     # startup times per example: cold, warm and hot visits
@@ -103,8 +104,8 @@ tools/benchmarks.py --all                      # C and every sibling binding -> 
 
 The web presets are `web-webgl2`, `web-webgpu`, their `-nothreads` builds, and
 `web-webgl2-debug` and `web-webgl2-nothreads-debug`. `tools/buildweb.py` builds only
-the library, for any of the eight combinations, into the same `build/web/<variant>/`
-directory as the preset of that name.
+the library, for any of the eight combinations, into the same `out/web/<variant>/`
+directory as the preset of that name (its objects in `build/web/<variant>/buildweb/`).
 
 `tools/webcheck.py` needs a Chromium-based browser: Brave, Chrome, Chromium or Edge,
 found on PATH or where they install (override with `WEBCHECK_BROWSER`), and nothing
@@ -114,7 +115,7 @@ four examples at a time, each in its own browser context, waits until each has
 finished loading its assets, and fails an example on console errors, wgrender
 `[ERROR]`/`[FATAL]` logs, exceptions, sokol panics, a wrong/missing backend, or
 assets still loading after 20 s. It saves a screenshot of each to
-`build/web/<backend>/webcheck/`. WebGL2
+`build/web/<backend>/webcheck/`, beside the build rather than in the site. WebGL2
 runs headless; WebGPU needs a GPU adapter, which headless browsers lack, so it runs on
 a virtual X display when Xvfb is installed (Linux), else in a visible window. It catches
 crashes, errors and unfinished loads, not wrong-looking output, so glance at the
@@ -125,7 +126,7 @@ a watchdog, `tools/webwatch.py`).
 
 ### Startup and hosting
 
-A built site (`build/web/<variant>/`) loads each program as `name.js?v=<hash>`
+A built site (`out/web/<variant>/`) loads each program as `name.js?v=<hash>`
 and `name.wasm?v=<hash>`: `tools/webdeploy.py` writes every file's hash into
 `index.html`, so a file's URL changes when its content does. The page starts
 downloading the wasm alongside the JS, and it compiles as it streams. To start fast,
@@ -154,7 +155,7 @@ device's browser, such as a phone through `adb forward`.
 With MinGW-w64 (`sudo apt install mingw-w64`), Windows builds come from Linux:
 
 ```sh
-cmake --preset windows-mingw && cmake --build --preset windows-mingw   # build/windows/mingw/*.exe (OpenGL)
+cmake --preset windows-mingw && cmake --build --preset windows-mingw   # out/windows/mingw/*.exe (OpenGL)
 cmake --preset windows-mingw-headless && cmake --build --preset windows-mingw-headless
 ctest --preset windows-mingw-headless   # unit tests and every example headless, under Wine
 ```

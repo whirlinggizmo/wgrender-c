@@ -57,7 +57,7 @@ def main():
 
     run('cmake', '--preset', preset, stdout=subprocess.DEVNULL)
     run('cmake', '--build', '--preset', preset, '--target', args.name)
-    exe = builds.directory(preset) / (args.name + ('.exe' if os.name == 'nt' else ''))
+    exe = builds.out(preset) / (args.name + ('.exe' if os.name == 'nt' else ''))
     # the benchmarks report on stdout; wgrender's log goes to stderr
     sys.exit(subprocess.run([str(exe)], cwd=ROOT, env=env, stderr=subprocess.DEVNULL).returncode)
 
