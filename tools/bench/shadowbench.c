@@ -37,7 +37,7 @@
  *
  *   tools/bench/run.py shadowbench             headless: CPU only, no GPU at all
  *   tools/bench/run.py shadowbench --desktop   desktop, vsync off: real GPU cost (opens a window)
- *   the shadowbench target of a web preset     a page (build/web/<backend>/bench/); results in the
+ *   the shadowbench target of a web preset     a page (out/web/<variant>/bench/); results in the
  *                               browser console; frames are paced by the display, so
  *                               read the CPU columns, or run it with the frame rate
  *                               uncapped in the browser's own profiler */

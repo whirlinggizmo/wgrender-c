@@ -6,8 +6,9 @@
 
 Which Wine: $WINE if set, else wine64 or wine on PATH, else the newest Proton in a
 Steam library (its files/bin/wine; Proton is Valve's Wine, installed from Steam's
-Library > Tools). The Wine prefix (its fake C: drive and registry) is build/wine unless
-WINEPREFIX says otherwise; it's made on first use, which takes a few seconds. Wine's
+Library > Tools). The Wine prefix (its fake C: drive and registry, shared by every build)
+is wine/ in the per-user cache (tools/hostcache.py: ~/.cache/wgrender/wine on Linux)
+unless WINEPREFIX says otherwise; it's made on first use, which takes a few seconds. Wine's
 own debug output is off unless WINEDEBUG is set. Exits with the program's exit code,
 or 127 when there's no Wine.
 """
@@ -17,6 +18,9 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
+from hostcache import cache_dir  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -51,7 +55,8 @@ def main():
               'or set WINE)', file=sys.stderr)
         sys.exit(127)
     env = dict(os.environ)
-    env.setdefault('WINEPREFIX', str(ROOT / 'build' / 'wine'))
+    if 'WINEPREFIX' not in env:
+        env['WINEPREFIX'] = str(cache_dir('wine'))
     env.setdefault('WINEDEBUG', '-all')
     Path(env['WINEPREFIX']).mkdir(parents=True, exist_ok=True)
     sys.exit(subprocess.run([wine, *sys.argv[1:]], env=env).returncode)

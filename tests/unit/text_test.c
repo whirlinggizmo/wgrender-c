@@ -21,7 +21,7 @@
 #include "fontstash.h"
 #include "sokol_gfx.h"
 
-#define FONT "../examples/assets/fonts/Komika/KOMIKAH_.ttf"
+#define FONT "examples/assets/fonts/Komika/KOMIKAH_.ttf"
 
 void test_text_default_font(void)
 {

@@ -1,6 +1,13 @@
 #ifndef WGR_TESTS_H
 #define WGR_TESTS_H
 
+/* Where the tests write their files: tests/ in the preset's work directory
+ * (build/<platform>/<variant>/tests), relative to the repo root, where they run. CMake
+ * passes it in; this is for a build that doesn't. */
+#ifndef WGR_TEST_DIR
+#define WGR_TEST_DIR "build/tests"
+#endif
+
 /* Every unit test; add new ones here and to the table in main.c. */
 
 void test_asset_join_relative(void);

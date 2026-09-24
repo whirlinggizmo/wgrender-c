@@ -16,7 +16,7 @@
 
 #include "sokol_gfx.h"
 
-#define FLAME "../examples/assets/textures/flame"
+#define FLAME "examples/assets/textures/flame"
 
 static unsigned char *read_all(const char *path, size_t *size)
 {
@@ -115,7 +115,7 @@ void test_ktx_load(void)
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL);
     wgri_texture_set_ktx_support(1); /* pretend BC7 works: the file loads, the GPU refuses it */
     CHECK(wgr_texture_create(FLAME ".ktx") == 0);
-    CHECK(wgr_texture_create("../examples/assets/textures/missing.ktx") == 0);
+    CHECK(wgr_texture_create("examples/assets/textures/missing.ktx") == 0);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
 
     /* no compressed format: rock.ktx loads rock.png */

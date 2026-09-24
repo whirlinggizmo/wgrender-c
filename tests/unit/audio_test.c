@@ -14,9 +14,9 @@
 #include "test_os.h"
 #include "tests.h"
 
-#define MUSIC_PATH "../examples/assets/music/ethernight_club.mp3" /* tests run from tests/ */
-#define CLICK_PATH "../examples/assets/sounds/click_004.ogg"
-#define WAV_PATH "build/audio_test_tone.wav"
+#define MUSIC_PATH "examples/assets/music/ethernight_club.mp3" /* tests run from the repo root */
+#define CLICK_PATH "examples/assets/sounds/click_004.ogg"
+#define WAV_PATH WGR_TEST_DIR "/audio_test_tone.wav"
 #define BLOCK 1024
 
 /* A 16-bit stereo WAV: a rising tone left, a falling tone right. */

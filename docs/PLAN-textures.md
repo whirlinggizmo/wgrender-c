@@ -31,7 +31,7 @@ KB of C to read the files, and no work at load but reading and uploading.
   `name.astc.ktx` (ASTC 4x4) and `name.etc2.ktx` (ETC2 RGBA) beside it: KTX 1 files,
   16 bytes a 4x4 block, with the full mipmap chain. It encodes with Basis Universal
   (UASTC level 2, then transcoded to each format), built the first time from a pinned
-  release (1.16.4) into `build/tools`: a tool for making assets, never linked in.
+  release (1.16.4) into the per-user cache (`tools/hostcache.py`): a tool for making assets, never linked in.
   `--linear` for data textures (normal maps, roughness).
 - **Names:** a program loads `name.ktx`, through `wgr_asset` or `wgr_texture_create`.
   The texture module maps it to the first variant the GPU can sample, in order BC7,

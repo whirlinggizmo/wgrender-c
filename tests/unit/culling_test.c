@@ -205,7 +205,7 @@ void test_model_instancing(void)
 
     /* a custom material shader batches like the built-in one: it reads each placement
        from the same records (docs/PLAN-instancing.md, phase 4) */
-    const wgr_handle_t custom = wgr_material_create_custom(wgr_shader_create("../examples/assets/shaders/toon.wgrshader"));
+    const wgr_handle_t custom = wgr_material_create_custom(wgr_shader_create("examples/assets/shaders/toon.wgrshader"));
     CHECK(custom != 0);
     for (int i = 0; i < 8; i++) {
         wgr_model_set_material(models[i], -1, custom);
@@ -222,7 +222,7 @@ void test_model_instancing(void)
     /* skinned models sharing a mesh group as well: each instance's record says where
        its own joint matrices are, so two walkers out of step are still one draw per
        primitive of the mesh */
-    const wgr_handle_t gumshoe = wgr_mesh_create("../examples/assets/models/gumshoe/gumshoe.glb");
+    const wgr_handle_t gumshoe = wgr_mesh_create("examples/assets/models/gumshoe/gumshoe.glb");
     const wgr_handle_t walker_a = wgr_model_create(gumshoe), walker_b = wgr_model_create(gumshoe);
     CHECK(gumshoe != 0 && walker_a != 0 && walker_b != 0);
     wgr_mesh_release(gumshoe);

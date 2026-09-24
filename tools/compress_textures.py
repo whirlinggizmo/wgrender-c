@@ -17,8 +17,8 @@ reads it.
 when compressing, and mipmaps averaged as they are.
 
 Encodes with Basis Universal (UASTC, level 2, then transcoded to each format), built the
-first time from a pinned release into build/tools (needs git, CMake and a C++
-compiler). Only needed to make the files, never at runtime.
+first time from a pinned release into the per-user cache (tools/hostcache.py:
+~/.cache/wgrender/tools on Linux; needs git, CMake and a C++ compiler). Only needed to make the files, never at runtime.
 """
 import os
 import shutil
@@ -27,9 +27,12 @@ import sys
 import tempfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
+from hostcache import cache_dir  # noqa: E402
+
 BASISU_TAG = '1.16.4'
 ROOT = Path(__file__).resolve().parents[1]
-TOOLS = ROOT / 'build' / 'tools'
+TOOLS = cache_dir('tools') / f'basisu-{BASISU_TAG}'
 # transcoder format numbers (basist::transcoder_texture_format) and our suffixes
 FORMATS = [(6, 'bc7', 'BC7_RGBA'), (10, 'astc', 'ASTC_RGBA'), (1, 'etc2', 'ETC2_RGBA')]
 
@@ -40,7 +43,7 @@ def basisu():
                          *(TOOLS / 'basisu-build').rglob(exe)) if p.is_file()]
     if found:
         return found[0]
-    print(f'compress_textures: building basisu {BASISU_TAG} (once) into build/tools', flush=True)
+    print(f'compress_textures: building basisu {BASISU_TAG} (once) into {TOOLS}', flush=True)
     TOOLS.mkdir(parents=True, exist_ok=True)
     src = TOOLS / 'basis_universal'
     if not src.is_dir():
@@ -58,7 +61,7 @@ def compress(tool, image, linear):
     if image.suffix.lower() not in ('.png', '.jpg', '.jpeg'):
         sys.exit(f'compress_textures: {image}: not a .png or .jpg')
     name = image.stem
-    with tempfile.TemporaryDirectory(dir=TOOLS) as work:
+    with tempfile.TemporaryDirectory() as work:
         work = Path(work)
         shutil.copyfile(image, work / image.name)
         flags = ['-linear', '-mip_linear'] if linear else []

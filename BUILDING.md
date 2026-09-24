@@ -115,7 +115,7 @@ four examples at a time, each in its own browser context, waits until each has
 finished loading its assets, and fails an example on console errors, wgrender
 `[ERROR]`/`[FATAL]` logs, exceptions, sokol panics, a wrong/missing backend, or
 assets still loading after 20 s. It saves a screenshot of each to
-`build/web/<backend>/webcheck/`, beside the build rather than in the site. WebGL2
+`build/web/<variant>/webcheck/`, beside the build rather than in the site. WebGL2
 runs headless; WebGPU needs a GPU adapter, which headless browsers lack, so it runs on
 a virtual X display when Xvfb is installed (Linux), else in a visible window. It catches
 crashes, errors and unfinished loads, not wrong-looking output, so glance at the
@@ -161,8 +161,9 @@ ctest --preset windows-mingw-headless   # unit tests and every example headless,
 ```
 
 The tests go through `tools/wine.py`: `$WINE`, else `wine64` / `wine`
-on `PATH`, else the newest Proton in a Steam library (Library > Tools). Its prefix is
-`build/wine`. The `.exe` files are linked statically (no MinGW DLLs to ship).
+on `PATH`, else the newest Proton in a Steam library (Library > Tools). Its prefix (a
+fake Windows install, shared by every build) is in the per-user cache,
+`~/.cache/wgrender/wine` (`tools/hostcache.py`; `WGR_CACHE_DIR` or `WINEPREFIX` move it). The `.exe` files are linked statically (no MinGW DLLs to ship).
 `tools/verify.py` builds `windows-mingw` when MinGW is installed, and tests
 `windows-mingw-headless` when there's a Wine, so Windows code keeps compiling. Wine runs the
 windowed examples too (OpenGL through the host's driver), but their windows, audio and
@@ -190,7 +191,7 @@ Committed, and rebuilt by hand when what they come from changes:
 | `examples/assets/shaders/*.wgrshader` | `examples/shaders/*.glsl`, `shaders/wgr.glsl` | `python3 tools/gen_shaders.py --examples` (target `gen-example-shaders`) |
 | `src/data/wgr_brdf_lut.h` | `wgri_environment_brdf_lut` | target `gen-brdf-lut` of a Linux, macOS or Windows preset |
 
-sokol-shdc is fetched into `build/tools` the first time, at the version
+sokol-shdc is fetched into the per-user cache (`tools/hostcache.py`) the first time, at the version
 `deps/sokol/VERSION` pins. The vendored sokol and Clay are updated with
 `tools/update_sokol.py` and `tools/update_clay.py`.
 

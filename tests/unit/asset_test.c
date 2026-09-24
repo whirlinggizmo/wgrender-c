@@ -86,16 +86,16 @@ void test_asset_fetch_hook(void)
     fetch_calls = ready_count = failed_count = 0;
 
     /* a local directory host behaves as it always has: no fetcher is consulted */
-    CHECK(wgr_asset_set_cache_dir("build/test-asset-cache"));
+    CHECK(wgr_asset_set_cache_dir(WGR_TEST_DIR "/asset-cache"));
     CHECK(wgr_asset_set_fetcher(test_fetcher, &succeed));
-    wgr_asset_set_host("build/test-asset-cache");
+    wgr_asset_set_host(WGR_TEST_DIR "/asset-cache");
     wgr_asset_add_task(wgr_asset_ensure_async("nothing/here.bin", NULL, WGR_ASSET_FILE_ONLY), on_ready, on_failed,
                        NULL);
     for (int i = 0; i < 8; i++) wgri_asset_tick();
     CHECK(fetch_calls == 0 && failed_count == 1);
 
     /* a URL host makes the same miss a download, and the callback gets a local path */
-    remove("build/test-asset-cache/textures/rock.png");
+    remove(WGR_TEST_DIR "/asset-cache/textures/rock.png");
     wgr_asset_set_host("https://assets.example.com/game");
     wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_FILE_ONLY), on_ready, on_failed,
                        NULL);
@@ -112,7 +112,7 @@ void test_asset_fetch_hook(void)
 
     /* a fetcher that reports failure fails the task rather than hanging it */
     succeed = false;
-    remove("build/test-asset-cache/textures/rock.png");
+    remove(WGR_TEST_DIR "/asset-cache/textures/rock.png");
     wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_FORCE_FETCH | WGR_ASSET_FILE_ONLY),
                        on_ready, on_failed, NULL);
     for (int i = 0; i < 8; i++) wgri_asset_tick();
@@ -152,7 +152,7 @@ void test_asset_fetch_hook(void)
     CHECK(wgri_fs_exists("textures/rock.png")); /* cached under the logical path, not the URL */
 
     /* and it doesn't need a URL host: a task told where to download from downloads */
-    wgr_asset_set_host("build/test-asset-cache");
+    wgr_asset_set_host(WGR_TEST_DIR "/asset-cache");
     fetch_calls = 0;
     CHECK(wgr_asset_evict("textures/rock.png"));
     wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", "https://mirror.example.net/rock.png",

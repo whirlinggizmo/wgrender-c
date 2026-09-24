@@ -7,7 +7,8 @@
 The library's shaders are compiled by sokol-shdc for GL core, WebGL2 and WebGPU, each
 behind #if defined(SOKOL_<backend>) (--ifdef) so a build only carries its own; include
 them through src/internal/wgr_shaders.h. sokol-shdc is downloaded the first time, for
-this OS, at the sokol-tools-bin commit deps/sokol/VERSION pins, into build/tools.
+this OS, at the sokol-tools-bin commit deps/sokol/VERSION pins, into the per-user
+cache (tools/hostcache.py: ~/.cache/wgrender/tools on Linux).
 
 The custom material shaders of examples/shaders.c are packed by tools/shaderpack.py;
 rebuild them after changing one, or shaders/wgr.glsl.
@@ -20,6 +21,9 @@ import subprocess
 import sys
 import urllib.request
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
+from hostcache import cache_dir  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 SHADERS = ['src/shaders/wgr_model.glsl', 'src/shaders/wgr_sprite.glsl', 'src/shaders/wgr_depth.glsl']
@@ -34,7 +38,7 @@ def shdc():
               'Darwin': 'osx_arm64' if machine == 'arm64' else 'osx',
               'Windows': 'win32'}[system]
     exe = 'sokol-shdc.exe' if system == 'Windows' else 'sokol-shdc'
-    path = ROOT / 'build' / 'tools' / f'sokol-shdc-{pin[:12]}' / exe
+    path = cache_dir('tools') / f'sokol-shdc-{pin[:12]}' / exe
     if not path.exists():
         url = f'https://raw.githubusercontent.com/floooh/sokol-tools-bin/{pin}/bin/{folder}/{exe}'
         print(f'gen_shaders: downloading {url}', flush=True)

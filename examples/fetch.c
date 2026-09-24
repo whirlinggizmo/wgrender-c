@@ -24,7 +24,7 @@
  * WGRENDER_ASSET_HOST, e.g. the dev server the web build uses:
  *
  *     python3 tools/serve.py
- *     WGRENDER_ASSET_HOST=http://localhost:8000/assets build/linux/release/fetch
+ *     WGRENDER_ASSET_HOST=http://localhost:8000/assets out/linux/release/fetch
  *
  * Offline, or built headless for the smoke test (a gate shouldn't need a network), it
  * reads the local asset directory instead and says so. */
@@ -36,7 +36,9 @@
 #include "wgr.h"
 
 #define TEXTURE_PATH "sprites/logo/wg-logo-white-alpha.png"
+#ifndef CACHE_DIR /* CMake's desktop build names one in its work directory, build/<platform>/<variant>/ */
 #define CACHE_DIR "build/asset-cache"
+#endif
 #define DEFAULT_HOST "https://raw.githubusercontent.com/whirlinggizmo/wgrender-c/main/examples/assets"
 
 static wgr_handle_t g_sprite;

@@ -101,7 +101,7 @@ static void teardown(void)
     sg_shutdown();
 }
 
-#define GUMSHOE "../examples/assets/models/gumshoe/gumshoe.glb"
+#define GUMSHOE "examples/assets/models/gumshoe/gumshoe.glb"
 
 /* Textures a mesh's materials use that loaded (not missing, not the placeholder). */
 static int loaded_textures(wgr_handle_t mesh)
@@ -132,7 +132,7 @@ void test_pipeline_mesh_textures(void)
 
 /* ------------------------------------------------------ async loading ---- */
 
-#define ASSETS "../examples/assets"
+#define ASSETS "examples/assets"
 #define TEXTURE "textures/blobshadow.png"
 
 static struct {
@@ -291,7 +291,7 @@ static bool make_dir(const char *dir)
 /* Files that can't be loaded fire the failure callback; FILE_ONLY skips loading. */
 void test_pipeline_failures(void)
 {
-    const char *dir = "build/pipeline_test";
+    const char *dir = WGR_TEST_DIR "/pipeline_test";
     char path[256];
     FILE *f;
 
@@ -477,7 +477,7 @@ void test_pipeline_many(void)
 
 /* A one-triangle model whose texture has the WGR_texture_ktx extension, written by the
  * test beside copies of the flame texture (tex.png and its .ktx variants). */
-#define KTX_DIR "build/ktx_model"
+#define KTX_DIR WGR_TEST_DIR "/ktx_model"
 static const char KTX_GLTF[] =
     "{\"asset\":{\"version\":\"2.0\"},\"extensionsUsed\":[\"WGR_texture_ktx\"],"
     "\"buffers\":[{\"byteLength\":60,\"uri\":\"data:application/octet-stream;base64,"
@@ -550,9 +550,9 @@ void test_pipeline_gltf_ktx(void)
     char from[256], to[256];
     FILE *f;
 
-    CHECK(make_dir("build") && make_dir(KTX_DIR));
+    CHECK(make_dir(WGR_TEST_DIR) && make_dir(KTX_DIR));
     for (int i = 0; i < 4; i++) {
-        snprintf(from, sizeof(from), "../examples/assets/textures/flame%s", variants[i]);
+        snprintf(from, sizeof(from), "examples/assets/textures/flame%s", variants[i]);
         snprintf(to, sizeof(to), KTX_DIR "/tex%s", variants[i]);
         CHECK(copy_file(from, to));
     }
@@ -593,8 +593,8 @@ void test_pipeline_gltf_ktx(void)
  * has no fallback. */
 void test_pipeline_ktx_fallback(void)
 {
-    CHECK(make_dir("build") && make_dir(KTX_DIR));
-    CHECK(copy_file("../examples/assets/textures/flame.png", KTX_DIR "/png_only.png"));
+    CHECK(make_dir(WGR_TEST_DIR) && make_dir(KTX_DIR));
+    CHECK(copy_file("examples/assets/textures/flame.png", KTX_DIR "/png_only.png"));
     remove(KTX_DIR "/png_only.bc7.ktx");
     start_assets(0, KTX_DIR);
     wgri_texture_set_ktx_support(1); /* BC7, which png_only doesn't have */
@@ -620,7 +620,7 @@ void test_pipeline_ktx_fallback(void)
 
 /* ------------------------------------------------------------ redirects ---- */
 
-#define REDIRECT_DIR "build/redirect"
+#define REDIRECT_DIR WGR_TEST_DIR "/redirect"
 
 static struct {
     int calls;
@@ -643,19 +643,19 @@ static void on_ping(const char *host, float milliseconds, void *user)
  * download rule leaves desktop loading alone. */
 void test_pipeline_redirects(void)
 {
-    static const char *dirs[] = {"build", REDIRECT_DIR, REDIRECT_DIR "/textures", REDIRECT_DIR "/models",
+    static const char *dirs[] = {WGR_TEST_DIR, REDIRECT_DIR, REDIRECT_DIR "/textures", REDIRECT_DIR "/models",
                                  REDIRECT_DIR "/mods", REDIRECT_DIR "/mods/base", REDIRECT_DIR "/mods/base/textures",
                                  REDIRECT_DIR "/mods/top", REDIRECT_DIR "/mods/top/textures",
                                  REDIRECT_DIR "/mods/top/models"};
     for (size_t i = 0; i < sizeof(dirs) / sizeof(dirs[0]); i++) CHECK(make_dir(dirs[i]));
     /* flame.png is 256x256, noise.png 128x128: the size says which file loaded */
-    CHECK(copy_file("../examples/assets/textures/flame.png", REDIRECT_DIR "/textures/only_base.png"));
-    CHECK(copy_file("../examples/assets/textures/flame.png", REDIRECT_DIR "/textures/both.png"));
-    CHECK(copy_file("../examples/assets/textures/noise.png", REDIRECT_DIR "/mods/base/textures/both.png"));
-    CHECK(copy_file("../examples/assets/textures/noise.png", REDIRECT_DIR "/mods/top/textures/top.png"));
-    CHECK(copy_file("../examples/assets/textures/flame.png", REDIRECT_DIR "/textures/top.png"));
-    CHECK(copy_file("../examples/assets/textures/flame.png", REDIRECT_DIR "/models/tex.png"));
-    CHECK(copy_file("../examples/assets/textures/noise.png", REDIRECT_DIR "/mods/top/models/tex.png"));
+    CHECK(copy_file("examples/assets/textures/flame.png", REDIRECT_DIR "/textures/only_base.png"));
+    CHECK(copy_file("examples/assets/textures/flame.png", REDIRECT_DIR "/textures/both.png"));
+    CHECK(copy_file("examples/assets/textures/noise.png", REDIRECT_DIR "/mods/base/textures/both.png"));
+    CHECK(copy_file("examples/assets/textures/noise.png", REDIRECT_DIR "/mods/top/textures/top.png"));
+    CHECK(copy_file("examples/assets/textures/flame.png", REDIRECT_DIR "/textures/top.png"));
+    CHECK(copy_file("examples/assets/textures/flame.png", REDIRECT_DIR "/models/tex.png"));
+    CHECK(copy_file("examples/assets/textures/noise.png", REDIRECT_DIR "/mods/top/models/tex.png"));
     FILE *f = fopen(REDIRECT_DIR "/models/m.gltf", "wb");
     CHECK(f != NULL);
     if (f == NULL) return;

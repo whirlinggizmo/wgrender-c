@@ -69,7 +69,7 @@ void test_text3d_state(void)
     setup();
     wgr_handle_t camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
     wgr_camera3d_set_view(camera, 0, 0, 10, 0, 0, 0, 0, 1, 0);
-    wgr_handle_t font = wgr_font_create("../examples/assets/fonts/JetBrainsMono/JetBrainsMono-Regular.ttf");
+    wgr_handle_t font = wgr_font_create("examples/assets/fonts/JetBrainsMono/JetBrainsMono-Regular.ttf");
     CHECK(font != 0);
 
     wgr_handle_t text = wgr_text3d_create(0);
@@ -158,7 +158,7 @@ void test_model_state(void)
     CHECK(wgr_model_set_animation(model, 3));
     CHECK(wgr_model_set_animation_time(model, 0.25f)); /* kept until the mesh arrives */
 
-    wgr_handle_t mesh = wgr_mesh_create("../examples/assets/models/gumshoe/gumshoe.glb");
+    wgr_handle_t mesh = wgr_mesh_create("examples/assets/models/gumshoe/gumshoe.glb");
     CHECK(mesh != 0);
     wgr_model_set_mesh(model, mesh);
     wgr_mesh_release(mesh);
@@ -188,7 +188,7 @@ void test_sound_pan(void)
 
     wgri_audio_init();
     wgri_sound_init();
-    wgr_handle_t audio = wgr_audio_create("../examples/assets/sounds/click_004.ogg");
+    wgr_handle_t audio = wgr_audio_create("examples/assets/sounds/click_004.ogg");
     wgr_handle_t sound = wgr_sound_create(audio);
     wgr_audio_release(audio);
     wgr_sound_set_loop(sound, true);

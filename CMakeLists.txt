@@ -235,6 +235,12 @@ if(WGR_EXAMPLES)
     if(EMSCRIPTEN)
       target_compile_options(${name} PRIVATE ${WGR_CFLAGS}) # as the library: NDEBUG, backend
     endif()
+    if(name STREQUAL "fetch" AND NOT EMSCRIPTEN)
+      # its download cache, in this preset's work directory, relative to where examples
+      # run (the repo root); on the web the browser caches
+      file(RELATIVE_PATH cache_dir "${WGR_ROOT}" "${CMAKE_BINARY_DIR}/asset-cache")
+      target_compile_definitions(${name} PRIVATE "CACHE_DIR=\"${cache_dir}\"")
+    endif()
     list(APPEND WGR_EXAMPLE_TARGETS ${name})
   endforeach()
 
@@ -321,8 +327,12 @@ if(WGR_TESTS)
   if(WGR_SANITIZE STREQUAL "thread" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(unit_command setarch ${CMAKE_SYSTEM_PROCESSOR} -R $<TARGET_FILE:unit_tests>)
   endif()
-  # tests/: the tests load assets as ../examples/assets
-  add_test(NAME unit COMMAND ${unit_command} WORKING_DIRECTORY "${WGR_ROOT}/tests")
+  # From the repo root, as the examples run: they load examples/assets, and write into
+  # tests/ in this work directory, named relative to the root (tests/unit/tests.h)
+  file(RELATIVE_PATH test_dir "${WGR_ROOT}" "${CMAKE_BINARY_DIR}/tests")
+  file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
+  target_compile_definitions(unit_tests PRIVATE "WGR_TEST_DIR=\"${test_dir}\"")
+  add_test(NAME unit COMMAND ${unit_command} WORKING_DIRECTORY "${WGR_ROOT}")
 
   if(Python3_FOUND AND NOT CMAKE_CROSSCOMPILING) # the modules check reads the library with the host's nm
     add_test(NAME check COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/check.py"

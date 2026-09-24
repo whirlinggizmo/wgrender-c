@@ -23,7 +23,7 @@
 
 #include "sokol_gfx.h"
 
-#define BLOB "../examples/assets/textures/blobshadow.png"
+#define BLOB "examples/assets/textures/blobshadow.png"
 #define SCREEN 101.0f /* logical pixels each way, so the middle is a whole pixel */
 
 /* The furthest the sprite can be picked along one screen axis from the middle: the

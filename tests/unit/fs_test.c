@@ -9,7 +9,7 @@
 #include "test.h"
 #include "tests.h"
 
-#define ROOT "../build/test-fs"
+#define ROOT WGR_TEST_DIR "/fs"
 
 static void remove_tree(void)
 {

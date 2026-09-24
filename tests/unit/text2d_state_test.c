@@ -24,7 +24,7 @@
 
 #include "sokol_gfx.h"
 
-#define FONT "../examples/assets/fonts/JetBrainsMono/JetBrainsMono-Regular.ttf"
+#define FONT "examples/assets/fonts/JetBrainsMono/JetBrainsMono-Regular.ttf"
 #define SCREEN 201.0f
 
 static void begin(void)

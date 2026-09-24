@@ -21,7 +21,7 @@
 
 #include "sokol_gfx.h"
 
-#define GUMSHOE "../examples/assets/models/gumshoe/gumshoe.glb"
+#define GUMSHOE "examples/assets/models/gumshoe/gumshoe.glb"
 #define MAX_FLOATS (128 * 16)
 
 /* The model's pose, copied so it survives the next posing. Returns the float count. */

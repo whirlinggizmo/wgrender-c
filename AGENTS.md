@@ -17,6 +17,9 @@ make and no shell script: everything below works the same on Windows, Linux and 
   toolchain, backend, options, `debug`. This is the wg* family rule (CONVENTIONS.md,
   "Build directories"): bindings find the library by it, so a new build gets a name
   that follows it, and `tools/builds.py` is how the tools here spell a directory.
+  `build/` holds nothing else: what a machine sets up once and every build shares (the
+  Wine prefix, sokol-shdc, basisu) is in the per-user cache, `tools/hostcache.py`
+  (`~/.cache/wgrender`; `WGR_CACHE_DIR` moves it).
 - `CMakePresets.json` names every build. This machine's own, `linux-*` or `macos-*`:
   `-release`, `-debug`, `-headless` (unit tests, guardrails and smoke run), `-tsan` /
   `-asan` / `-ubsan`; on Windows `windows-msvc`, `-debug`, `-headless` (static CRT).
@@ -105,8 +108,8 @@ make and no shell script: everything below works the same on Windows, Linux and 
   CI; commit both files.
 - `tools/compress_textures.py [--linear] name.png...` — compressed texture files beside
   each PNG (`name.bc7.ktx`, `.astc.ktx`, `.etc2.ktx`), loaded as `name.ktx`
-  (docs/PLAN-textures.md); builds a pinned Basis Universal encoder into `build/tools`
-  the first time. `--gltf model.gltf` does a model's textures and writes
+  (docs/PLAN-textures.md); builds a pinned Basis Universal encoder into the per-user
+  cache (`tools/hostcache.py`) the first time. `--gltf model.gltf` does a model's textures and writes
   `model.ktx.gltf`.
 - `tools/shaderpack.py name.glsl` — compile a custom material shader (written against
   `shaders/wgr.glsl`) into `name.wgrshader` for every backend. The generators, each a
@@ -114,7 +117,7 @@ make and no shell script: everything below works the same on Windows, Linux and 
   `examples/shaders/*.glsl` into the committed `examples/assets/shaders/`; run it after
   changing one of them or `shaders/wgr.glsl`. `tools/gen_shaders.py` (`gen-shaders`)
   regenerates `src/shaders/*.glsl.h`. Both fetch the pinned sokol-shdc into
-  `build/tools` the first time.
+  the per-user cache (`tools/hostcache.py`) the first time.
 - `gen-brdf-lut` (a target of a Linux, macOS or Windows preset) — regenerate the baked BRDF table
   (`src/data/wgr_brdf_lut.h`) after changing `wgri_environment_brdf_lut` or its size (a
   unit test fails until you do).

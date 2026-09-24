@@ -34,7 +34,7 @@
 #include "sokol_gfx.h"
 #include "sokol_time.h"
 
-#define SHADERS "../examples/assets/shaders/"
+#define SHADERS "examples/assets/shaders/"
 #define EPS 1e-5f
 
 static float value_at(wgr_handle_t material, const char *name, int component)
@@ -94,7 +94,7 @@ void test_shader_custom_material(void)
     CHECK(!wgr_material_set_float(material, "metallic", 0)); /* built-in names don't apply */
     CHECK(!wgr_material_set_float(material, "missing", 0));
 
-    const wgr_handle_t texture = wgr_texture_create("../examples/assets/textures/noise.png");
+    const wgr_handle_t texture = wgr_texture_create("examples/assets/textures/noise.png");
     CHECK(texture != 0);
     CHECK(wgr_material_set_texture(material, "base_tex", texture));
     CHECK(wgri_material_get(material)->textures[0].texture == texture);
@@ -132,16 +132,16 @@ void test_shader_custom_material(void)
     wgr_material_release(rippling);
 
     /* made by an older shaderpack: refused (wgr_frame changed), not drawn wrongly */
-    FILE *old = fopen("build/old.wgrshader", "wb");
+    FILE *old = fopen(WGR_TEST_DIR "/old.wgrshader", "wb");
     CHECK(old != NULL);
     if (old != NULL) {
         fputs("wgrshader 1\nend\n", old);
         fclose(old);
     }
-    CHECK(wgr_shader_create("build/old.wgrshader") == 0);
+    CHECK(wgr_shader_create(WGR_TEST_DIR "/old.wgrshader") == 0);
 
     /* not shaders */
-    CHECK(wgr_shader_create("../examples/assets/textures/noise.png") == 0);
+    CHECK(wgr_shader_create("examples/assets/textures/noise.png") == 0);
     CHECK(wgr_shader_create(SHADERS "missing.wgrshader") == 0);
     CHECK(wgr_material_create_custom(0) == 0);
 

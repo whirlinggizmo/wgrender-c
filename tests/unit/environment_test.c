@@ -244,12 +244,12 @@ void test_environment_api(void)
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL);
 
     if (!sg_query_pixelformat(SG_PIXELFORMAT_RGBA16F).filter) {
-        CHECK(wgr_environment_create("../examples/assets/environments/studio_small_09_1k.hdr") == 0);
+        CHECK(wgr_environment_create("examples/assets/environments/studio_small_09_1k.hdr") == 0);
     } else {
-        wgr_handle_t env = wgr_environment_create("../examples/assets/environments/studio_small_09_1k.hdr");
+        wgr_handle_t env = wgr_environment_create("examples/assets/environments/studio_small_09_1k.hdr");
         CHECK(env != 0);
         CHECK(wgr_handle_get_kind(env) == WGR_HANDLE_KIND_ENVIRONMENT);
-        CHECK(wgr_environment_create("../examples/assets/environments/studio_small_09_1k.hdr") == env); /* deduped */
+        CHECK(wgr_environment_create("examples/assets/environments/studio_small_09_1k.hdr") == env); /* deduped */
         wgr_environment_release(env);
         CHECK(wgr_environment_create("missing.hdr") == 0);
 
