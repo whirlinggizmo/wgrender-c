@@ -39,8 +39,10 @@
 #define CACHE_DIR "build/asset-cache"
 #define DEFAULT_HOST "https://raw.githubusercontent.com/whirlinggizmo/wgrender-c/main/examples/assets"
 
-static wgr_handle_t g_sprite, g_camera;
+static wgr_handle_t g_sprite;
 static char g_host[256];
+
+#ifndef __EMSCRIPTEN__ /* the browser downloads by itself */
 static bool g_remote;
 static int g_downloads;
 
@@ -64,6 +66,7 @@ static bool host_is_up(const char *host)
     snprintf(command, sizeof command, "curl -fsS -I --max-time 2 -o /dev/null \"%s/%s\"", host, TEXTURE_PATH);
     return system(command) == 0;
 }
+#endif
 
 static void on_loaded(const char *path, void *user)
 {
@@ -82,14 +85,13 @@ static void on_failed(const char *path, void *user)
 static void on_init(void *user)
 {
     (void)user;
-    g_camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
+    (void)wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
     g_sprite = wgr_sprite2d_create(0);
     wgr_sprite2d_set_position(g_sprite, 512, 380);
     wgr_debug_enable_fps(12, 10, 16);
 
 #ifdef __EMSCRIPTEN__
     snprintf(g_host, sizeof g_host, "%s", EXAMPLE_ASSET_BASE); /* the browser fetches */
-    g_remote = true;
 #else
     const char *wanted = getenv("WGRENDER_ASSET_HOST");
     snprintf(g_host, sizeof g_host, "%s", wanted != NULL ? wanted : DEFAULT_HOST);
