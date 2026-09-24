@@ -10,7 +10,7 @@ no shell script.
 | Web builds | and Emscripten (emsdk) |
 | Browser checks: `verify.py --web`, webcheck, webstart | and a Chromium-based browser: Brave, Chrome, Chromium or Edge |
 
-The browser checks run on Emscripten's own Node, so there is no Node to install.
+The browser checks (`tools/webcheck.py`) are Python too: there is no Node to install.
 
 - [Desktop](#desktop): Windows (MSVC or MinGW), Linux, macOS
 - [Web](#web-webgl2-and-webgpu): WebGL2 and WebGPU, with Emscripten
@@ -78,8 +78,8 @@ Needs Emscripten: `$EMSDK` set, or `emcc` on `PATH` (`source <emsdk>/emsdk_env.s
 ```sh
 cmake --preset web-webgl2 && cmake --build --preset web-webgl2   # every example -> build/web-webgl2/
 python3 tools/serve.py 8000 build/web-webgl2   # http://localhost:8000/ (assets mounted at /assets/)
-python3 tools/node.py tools/webcheck.mjs      # load each in a browser, fail on errors
-python3 tools/node.py tools/webcheck.mjs --backend=webgpu   # the same for WebGPU (web-webgpu)
+python3 tools/webcheck.py                     # load each in a browser, fail on errors
+python3 tools/webcheck.py --backend=webgpu    # the same for WebGPU (web-webgpu)
 python3 tools/node.py tools/webstart.mjs      # startup times per example: cold, warm and hot visits
 python3 tools/verify.py --web                  # all of the above web builds, checked
 tools/benchmarks.py --all                      # C and every sibling binding -> docs/benchmarks.md
@@ -88,9 +88,10 @@ tools/benchmarks.py --all                      # C and every sibling binding -> 
 The web presets are `web-webgl2`, `web-webgpu`, their `-nothreads` builds, and
 `web-webgl2-debug`.
 
-`tools/webcheck.mjs` needs a Chromium-based browser: Brave, Chrome, Chromium or Edge,
-found on PATH or where they install (override with `WEBCHECK_BROWSER`). It runs on
-Node 22 or newer, which `tools/node.py` and `verify.py` take from Emscripten. It checks
+`tools/webcheck.py` needs a Chromium-based browser: Brave, Chrome, Chromium or Edge,
+found on PATH or where they install (override with `WEBCHECK_BROWSER`), and nothing
+but Python's standard library: it drives the browser over the DevTools protocol
+itself (`tools/weblib.py`). It checks
 four examples at a time, each in its own browser context, waits until each has
 finished loading its assets, and fails an example on console errors, wgrender
 `[ERROR]`/`[FATAL]` logs, exceptions, sokol panics, a wrong/missing backend, or

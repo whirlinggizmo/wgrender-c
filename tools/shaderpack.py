@@ -21,7 +21,8 @@ import subprocess
 import sys
 import tempfile
 
-import gen_shaders
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # an embedded Python (Windows) doesn't add it
+import gen_shaders  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INTERFACE = os.path.join(ROOT, "shaders", "wgr.glsl")

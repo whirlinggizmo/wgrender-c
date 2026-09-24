@@ -63,10 +63,9 @@ make and no shell script: everything below works the same on Windows, Linux and 
 - The benchmarks are targets of the web presets too (`loadbench`, `shadowbench`,
   `spritebench`, `stress`; `benches` for all): pages of their own under `bench/` in the
   site, `/bench/?ex=spritebench` (results in the browser console).
-- `python3 tools/node.py tools/webcheck.mjs [--backend=webgpu] [--threads=0]` — the web
-  build's smoke test in a browser, on the matching web preset's site (needs a
-  Chromium-based browser: Brave, Chrome, Chromium or Edge; `tools/node.py` runs it on
-  Emscripten's Node, so no Node of its own is needed; WebGPU runs on a virtual X display when Xvfb is installed,
+- `python3 tools/webcheck.py [--backend=webgpu] [--threads=0]` — the web build's smoke
+  test in a browser, on the matching web preset's site (needs a Chromium-based
+  browser: Brave, Chrome, Chromium or Edge, and Python's standard library; WebGPU runs on a virtual X display when Xvfb is installed,
   else in a visible window). Web builds use threads by default, which need cross-origin
   isolation (`tools/serve.py` sends the headers); the `-nothreads` presets build
   without.

@@ -8,17 +8,16 @@
   tsan      the unit tests under ThreadSanitizer (Linux and macOS)
   windows           the Windows build cross-built with MinGW-w64, when it's installed
   windows-headless  its unit tests and smoke run under Wine, when there's a Wine too
-With --web, also (needs Emscripten, whose Node the browser check runs on, and a
-Chromium-based browser: Brave, Chrome, Chromium or Edge):
+With --web, also (needs Emscripten, and a Chromium-based browser: Brave, Chrome,
+Chromium or Edge):
   web-webgl2, web-webgl2-nothreads, web-webgpu
                     every example built for the web and loaded in the browser
-                    (tools/webcheck.mjs)
+                    (tools/webcheck.py)
 
 Each step is a CMake preset (CMakePresets.json), configured, built and tested under
 build/<preset>/. Stops at the first step that fails.
 """
 import argparse
-import os
 import platform
 import shutil
 import subprocess
@@ -64,14 +63,6 @@ def main():
     only = set(args.only.split(',')) if args.only else None
 
     web = args.web or (only is not None and any(s in WEB for s in only))
-    node = None
-    if web:
-        sys.path.insert(0, str(ROOT / 'tools'))
-        import emsdk
-        node = emsdk.node()
-        if node is None:
-            sys.exit('verify: the web steps need Emscripten (emsdk): no EMSDK, EM_CONFIG or emcc on PATH')
-        os.environ['WGR_PYTHON'] = sys.executable  # what the web tools start the server with
     for preset, test in steps(web):
         if only and preset not in only:
             continue
@@ -79,7 +70,7 @@ def main():
         start = time.monotonic()
         ok = (run('cmake', '--preset', preset) and run('cmake', '--build', '--preset', preset)
               and (not test or run('ctest', '--preset', preset))
-              and (preset not in WEB or run(node, 'tools/webcheck.mjs', *WEB[preset])))
+              and (preset not in WEB or run(sys.executable, 'tools/webcheck.py', *WEB[preset])))
         if not ok:
             sys.exit(f'verify: FAIL at {preset}')
         print(f'== {preset}: ok ({time.monotonic() - start:.0f}s)', flush=True)

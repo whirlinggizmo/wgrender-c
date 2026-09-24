@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Run a web tool on Emscripten's Node.
 
-    tools/node.py tools/webcheck.mjs [--backend=webgpu] [--threads=0] ...
     tools/node.py tools/webstart.mjs ...
 
 The web tools need Node 22 or newer, which emsdk brings: a web build needs emsdk, so the

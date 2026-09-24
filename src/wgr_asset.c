@@ -1553,7 +1553,7 @@ void wgri_asset_tick(void)
     load();
 }
 /* Tasks not finished yet (queued, downloading or waiting on dependencies).
- * Exported on web so tools/webcheck.mjs can tell when an example is done loading. */
+ * Exported on web so tools/webcheck.py can tell when an example is done loading. */
 WGRI_KEEP
 int wgri_asset_pending_count(void)
 {

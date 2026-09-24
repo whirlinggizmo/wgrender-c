@@ -122,7 +122,7 @@ Left out on purpose, not gaps: the scratch buffer and `_to_scratch` functions, p
   math, animation sampling, object state, shadows, culling, instancing; also under
   the sanitizers, the `tsan`, `asan` and `ubsan` presets); **smoke** (every example
   headless for 180 frames, and the same under Wine with `windows-headless`);
-  **web** (`tools/webcheck.mjs`, every example in a Chromium-based browser over the DevTools
+  **web** (`tools/webcheck.py`, every example in a Chromium-based browser over the DevTools
   protocol, WebGL2 and WebGPU). The parity layers that were planned here -- an API
   report and scenarios run against both librl and wgrender -- were retired once parity
   was reached (see "What librl taught us"). Still optional: **image comparison**,

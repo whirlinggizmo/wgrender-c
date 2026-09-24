@@ -80,7 +80,7 @@ jobs:
         # and twice the deadline. Four at a time starved a model's decode past 20 s.
         run: |
           cmake --preset web-webgl2 && cmake --build --preset web-webgl2
-          python3 tools/node.py tools/webcheck.mjs --backend=webgl2 --jobs=2 --settle=40000
+          python3 tools/webcheck.py --backend=webgl2 --jobs=2 --settle=40000
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v7
