@@ -47,6 +47,25 @@ endif()
 
 project(wgrender LANGUAGES C)
 
+# A gcc on PATH may come without its binutils beside it: choosenim's MinGW puts only a
+# gcc.exe shim in .nimble/bin. CMake then finds no ar and fails at the first archive;
+# the compiler knows where its own are, so ask it.
+if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+  foreach(tool ar ranlib)
+    string(TOUPPER "${tool}" var)
+    if(NOT CMAKE_${var} OR CMAKE_${var} MATCHES "NOTFOUND")
+      execute_process(COMMAND "${CMAKE_C_COMPILER}" -print-prog-name=${tool}
+                      OUTPUT_VARIABLE found OUTPUT_STRIP_TRAILING_WHITESPACE)
+      if(IS_ABSOLUTE "${found}" AND EXISTS "${found}")
+        # both: the compiler's generated settings define it as a normal variable too,
+        # which would hide the cache entry
+        set(CMAKE_${var} "${found}" CACHE FILEPATH "${tool}, from ${CMAKE_C_COMPILER}" FORCE)
+        set(CMAKE_${var} "${found}")
+      endif()
+    endif()
+  endforeach()
+endif()
+
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/build.json" WGR_MANIFEST)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS build.json)
 
@@ -96,6 +115,12 @@ function(wgr_c_target target)
     # __FILE__ (the log's source locations) relative to the repository, as make's and
     # buildweb's relative paths had it: shorter strings, and no build machine's paths
     target_compile_options(${target} PRIVATE ${WGR_WARN} "-fmacro-prefix-map=${WGR_ROOT}/=")
+  endif()
+  if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_LESS 12)
+    # False positives gcc 12 fixed: a field a designated initializer leaves out
+    # (.depth.load_action = ..., Clay's CLAY() declarations) counted as missing, and an
+    # array parameter (const float weights[4]) read as a region of 4 bytes
+    target_compile_options(${target} PRIVATE -Wno-missing-field-initializers -Wno-stringop-overread)
   endif()
   if(WGR_SANITIZE)
     target_compile_options(${target} PRIVATE -fsanitize=${WGR_SANITIZE} -fno-omit-frame-pointer -O1 -g)
