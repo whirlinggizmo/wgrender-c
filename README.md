@@ -123,6 +123,30 @@ on `PATH`, else the newest Proton in a Steam library (Library > Tools). Its pref
 compiling. Wine runs the windowed examples too (OpenGL through the host's driver),
 but their windows, audio and gamepads on real Windows are untested.
 
+## Build (Windows natively, or anywhere: CMake)
+
+`CMakeLists.txt` builds the library, and the examples with `-DWGR_EXAMPLES=ON`, with
+whatever compiler CMake finds: MSVC in Visual Studio (open this folder), MinGW, or
+gcc/clang elsewhere; under `emcmake`, the web library.
+
+```sh
+cmake -B build/cmake -DWGR_EXAMPLES=ON
+cmake --build build/cmake --config Release
+build/cmake/simple          # from this directory: examples load examples/assets from here
+```
+
+A program of your own takes the library, its public headers and the platform libraries
+it links (OpenGL, X11, ALSA, the Windows libraries, the macOS frameworks) with:
+
+```cmake
+add_subdirectory(wgrender-c)
+target_link_libraries(my_game PRIVATE wgrender)
+```
+
+It reads `mk/build.json` rather than listing anything, so it builds exactly what the
+Makefile does and can't drift from it. Checked on Windows 11 with Visual Studio 2026
+(MSVC 19.51): the library and all examples, no warnings, and the examples run.
+
 ## Invariant: no backend leakage
 
 sokol is an implementation detail. The public API (`include/*.h`) and example

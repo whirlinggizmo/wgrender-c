@@ -19,6 +19,10 @@ Keep this file short and rule-shaped. The authoritative design doc is
   compile and link against it. The library itself is built by `tools/buildweb.py`
   (make runs it), from `mk/build.json`, so it builds the same with emcc and Python
   alone: no make or shell, which is how a binding builds it on Windows.
+- `CMakeLists.txt` — the library (and the examples, `-DWGR_EXAMPLES=ON`) for CMake:
+  MSVC and Visual Studio on Windows, and anywhere else CMake runs. It reads
+  `mk/build.json` and lists nothing itself, so a source, flag or library changes in the
+  Makefile and reaches it through `tools/gen_manifest.py`.
 - `tools/gen_manifest.py [--check]` — `mk/build.json`: the build as data (sources, include
   paths, and per desktop OS and web target the defines, flags and link libraries),
   asked of the Makefiles (`make print-var-NAME`) and checked in, for tools that build
