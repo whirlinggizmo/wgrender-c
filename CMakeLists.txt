@@ -187,6 +187,59 @@ if(WGR_EXAMPLES)
   endif()
 endif()
 
+# The rest is for working on wgrender itself, so only when it's the top-level project.
+if(PROJECT_IS_TOP_LEVEL)
+  # A program of wgrender's own, compiled as the examples are, plus the backend defines
+  # for the ones that reach into sokol (spritebench)
+  function(wgr_program name)
+    add_executable(${name} EXCLUDE_FROM_ALL ${ARGN})
+    wgr_c_target(${name})
+    target_include_directories(${name} PRIVATE ${WGR_INCLUDE})
+    target_include_directories(${name} SYSTEM PRIVATE ${WGR_SYSTEM_INCLUDE})
+    target_link_libraries(${name} PRIVATE wgrender)
+    if(EMSCRIPTEN)
+      target_compile_options(${name} PRIVATE ${WGR_CFLAGS})
+    else()
+      target_compile_definitions(${name} PRIVATE ${WGR_DEFINES})
+    endif()
+  endfunction()
+
+  # The benchmarks (tools/bench; tools/bench/run.py builds and runs one). On the web
+  # they are pages of their own under bench/, out of the examples list and webcheck:
+  # serve the site, then open /bench/?ex=spritebench (results in the browser console).
+  # WGR_LOADBENCH_FLAGS picks what loadbench loads, e.g.
+  # "-DLOADBENCH_HELMET_ONLY;-DLOADBENCH_KTX=1".
+  set(WGR_LOADBENCH_FLAGS "" CACHE STRING "compile flags for loadbench")
+  foreach(name loadbench spritebench shadowbench stress)
+    wgr_program(${name} "${WGR_ROOT}/tools/bench/${name}.c")
+    list(APPEND WGR_BENCH_TARGETS ${name})
+    if(EMSCRIPTEN)
+      set_target_properties(${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bench")
+      add_custom_command(TARGET ${name} POST_BUILD
+        COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/webdeploy.py" "${CMAKE_CURRENT_BINARY_DIR}/bench"
+                "${WGR_ROOT}/examples/web/index.html")
+    endif()
+  endforeach()
+  target_compile_options(loadbench PRIVATE ${WGR_LOADBENCH_FLAGS})
+  add_custom_target(benches DEPENDS ${WGR_BENCH_TARGETS})
+
+  # Generated files, committed; rebuild them after changing what they come from.
+  #   gen-brdf-lut          src/data/wgr_brdf_lut.h, baked by the library's own function
+  #   gen-shaders           src/shaders/*.glsl.h (tools/gen_shaders.py: sokol-shdc)
+  #   gen-example-shaders   examples/assets/shaders/*.wgrshader (tools/shaderpack.py)
+  if(NOT EMSCRIPTEN AND NOT CMAKE_CROSSCOMPILING)
+    wgr_program(gen_brdf_lut "${WGR_ROOT}/tools/gen_brdf_lut.c")
+    add_custom_target(gen-brdf-lut COMMAND gen_brdf_lut "${WGR_ROOT}/src/data/wgr_brdf_lut.h"
+                      COMMENT "gen-brdf-lut: src/data/wgr_brdf_lut.h")
+  endif()
+  if(Python3_FOUND)
+    add_custom_target(gen-shaders COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/gen_shaders.py"
+                      WORKING_DIRECTORY "${WGR_ROOT}" USES_TERMINAL)
+    add_custom_target(gen-example-shaders COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/gen_shaders.py" --examples
+                      WORKING_DIRECTORY "${WGR_ROOT}" USES_TERMINAL)
+  endif()
+endif()
+
 if(WGR_TESTS)
   if(NOT WGR_HEADLESS)
     message(FATAL_ERROR "WGR_TESTS needs WGR_HEADLESS: the tests run with no window, GPU or audio")

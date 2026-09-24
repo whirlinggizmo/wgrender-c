@@ -10,7 +10,7 @@ and read from a texture where there's no base instance), compiles it for every
 backend libwgrender runs on (GL 4.1, WebGL2, WebGPU) with sokol-shdc, and writes one
 .wgrshader file: each backend's sources, what sokol needs to know about them, and the
 parameters by name. Load it with wgr_shader_create(path). Only needed to make the file,
-never at runtime; needs tools/sokol-shdc (see the Makefile's `shaders` target).
+never at runtime; sokol-shdc is downloaded the first time (tools/gen_shaders.py).
 
 A fragment shader that includes wgr_screen instead of wgr_surface is a screen effect
 (wgr_render_add_effect): it gets one program, drawn over the finished frame.
@@ -21,8 +21,9 @@ import subprocess
 import sys
 import tempfile
 
+import gen_shaders
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SHDC = os.path.join(ROOT, "tools", "sokol-shdc")
 INTERFACE = os.path.join(ROOT, "shaders", "wgr.glsl")
 SLANGS = ["glsl410", "glsl300es", "wgsl"]
 FORMAT_VERSION = 8
@@ -122,8 +123,7 @@ def main():
         sys.exit(__doc__)
     path = args[0]
     out = out or path[: -len(".glsl")] + ".wgrshader"
-    if not os.path.exists(SHDC):
-        fail("tools/sokol-shdc is missing (see the Makefile's `shaders` target for how to get it)")
+    shdc = str(gen_shaders.shdc())
 
     user = open(path, encoding="utf-8").read()
     interface = open(INTERFACE, encoding="utf-8").read()
@@ -188,7 +188,7 @@ def main():
         combined_path = os.path.join(work, os.path.basename(path))
         with open(combined_path, "w", encoding="utf-8") as f:
             f.write(combined)
-        result = subprocess.run([SHDC, "-i", combined_path, "-o", os.path.join(work, "out"), "-l", ":".join(SLANGS),
+        result = subprocess.run([shdc, "-i", combined_path, "-o", os.path.join(work, "out"), "-l", ":".join(SLANGS),
                                  "-f", "bare_yaml"], capture_output=True, text=True)
         if result.returncode != 0:
             def remap(m):

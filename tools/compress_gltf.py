@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Compress a glTF model's textures for GPUs (docs/PLAN-textures.md).
 
-    tools/compress_gltf.py model.gltf        (or tools/compress_textures.sh --gltf model.gltf)
+    tools/compress_gltf.py model.gltf        (or tools/compress_textures.py --gltf model.gltf)
 
-Compresses every image the model's textures use (tools/compress_textures.sh: name.bc7.ktx,
+Compresses every image the model's textures use (tools/compress_textures.py: name.bc7.ktx,
 name.astc.ktx and name.etc2.ktx beside each) and writes model.ktx.gltf beside the model:
 the same model, each texture given the WGR_texture_ktx extension pointing at its compressed
 image ("name.ktx"). libwgrender loads the variant the GPU can use, else the texture's own image;
@@ -22,7 +22,7 @@ import sys
 
 EXTENSION = "WGR_texture_ktx"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-COMPRESS = os.path.join(ROOT, "tools", "compress_textures.sh")
+COMPRESS = [sys.executable, os.path.join(ROOT, "tools", "compress_textures.py")]
 
 LINEAR_SLOTS = ("normalTexture", "occlusionTexture", "metallicRoughnessTexture")
 
@@ -73,7 +73,7 @@ def main():
             print(f"compress_gltf: image {index} ({uri or 'inside the file'}): not a separate PNG or JPEG, left as is")
             continue
         file = os.path.join(base, uri)
-        subprocess.run([COMPRESS] + (["--linear"] if kind == "linear" else []) + [file], check=True)
+        subprocess.run(COMPRESS + (["--linear"] if kind == "linear" else []) + [file], check=True)
         ktx_image[index] = len(images)
         images.append({"uri": stem + ".ktx", "name": images[index].get("name", os.path.basename(stem)) + " (KTX)"})
 
