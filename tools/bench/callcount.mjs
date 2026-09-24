@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 const arg = (n, d) => process.argv.find((a) => a.startsWith(`--${n}=`))?.split("=").slice(1).join("=") ?? d;
 // wgrender's root, two levels up: tools/serve.py and tools/weblib.mjs are its own
 const W = resolve(fileURLToPath(import.meta.url), "../../..");
-const { findBrowser, freePort, launchBrowser, openSession, RunProcesses, sleep, waitFor } =
+const { findBrowser, freePort, launchBrowser, openSession, PYTHON, RunProcesses, sleep, waitFor } =
     await import("../weblib.mjs");
 
 const site = resolve(arg("site", "out/web"));
@@ -60,7 +60,7 @@ const hook = `(() => {
 const run = new RunProcesses(label);
 try {
     const port = await freePort();
-    run.spawn("python3", [join(W, "tools/serve.py"), String(port), site]);
+    run.spawn(PYTHON, [join(W, "tools/serve.py"), String(port), site]);
     await waitFor(`http://127.0.0.1:${port}/${probe}`, "serve.py");
     const { debugBase, browser } = await launchBrowser(run, findBrowser(process.env.WEBCHECK_BROWSER),
                                                        { display, backend: "webgl2" });

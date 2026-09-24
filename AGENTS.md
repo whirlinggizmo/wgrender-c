@@ -63,9 +63,10 @@ make and no shell script: everything below works the same on Windows, Linux and 
 - The benchmarks are targets of the web presets too (`loadbench`, `shadowbench`,
   `spritebench`, `stress`; `benches` for all): pages of their own under `bench/` in the
   site, `/bench/?ex=spritebench` (results in the browser console).
-- `node tools/webcheck.mjs [--backend=webgpu] [--threads=0]` — the web build's smoke
-  test in a browser, on the matching web preset's site (needs Node >= 22 and a
-  Chromium-based browser; WebGPU runs on a virtual X display when Xvfb is installed,
+- `python3 tools/node.py tools/webcheck.mjs [--backend=webgpu] [--threads=0]` — the web
+  build's smoke test in a browser, on the matching web preset's site (needs a
+  Chromium-based browser: Brave, Chrome, Chromium or Edge; `tools/node.py` runs it on
+  Emscripten's Node, so no Node of its own is needed; WebGPU runs on a virtual X display when Xvfb is installed,
   else in a visible window). Web builds use threads by default, which need cross-origin
   isolation (`tools/serve.py` sends the headers); the `-nothreads` presets build
   without.
@@ -76,7 +77,7 @@ make and no shell script: everything below works the same on Windows, Linux and 
   README "Startup and hosting").
 - `tools/site.py [build/web-...]` — a self-contained copy of a web build, assets
   included, for a static host (the Pages workflow publishes `web-webgl2-nothreads`'s).
-- `node tools/webstart.mjs [--backend=webgpu] [--threads=0]` — startup times per web
+- `python3 tools/node.py tools/webstart.mjs [--backend=webgpu] [--threads=0]` — startup times per web
   example: cold, warm and hot visits, locally and on emulated 4G, from libwgrender's
   `wgr:*` performance marks; `--devtools=PORT --url=URL` measures a phone. Run it when
   touching init, the page shell or web build flags.

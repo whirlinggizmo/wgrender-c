@@ -40,6 +40,12 @@ import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 WGRENDER = HERE.parents[1]
+sys.path.insert(0, str(WGRENDER / 'tools'))
+import emsdk  # noqa: E402
+
+# Emscripten's Node, not PATH's: what the web builds measured here already need
+NODE = emsdk.node() or 'node'
+os.environ.setdefault('WGR_PYTHON', sys.executable)  # the Python the web tools serve with
 SCHEMA = 1
 
 # Every configuration is measured on this: webgl2 without threads is what a plain
@@ -96,7 +102,7 @@ def sizes(files):
 # --- the browser -------------------------------------------------------------
 
 def _node(script, args):
-    out = run(['node', HERE / script] + args, capture=True).strip().splitlines()
+    out = run([NODE, HERE / script] + args, capture=True).strip().splitlines()
     return json.loads(out[-1])
 
 
@@ -157,7 +163,7 @@ def callbench():
     run(['emcc', '-O2', src / 'shapes.c', src / 'loops.c', '-o', out / 'callbench.js',
          '-sMODULARIZE', '-sEXPORT_ES6', '-sENVIRONMENT=node',
          '-sEXPORTED_RUNTIME_METHODS=stackAlloc,stackSave,stackRestore,lengthBytesUTF8,stringToUTF8,HEAP32'])
-    return json.loads(run(['node', src / 'run.mjs', out / 'callbench.js'], capture=True).strip().splitlines()[-1])
+    return json.loads(run([NODE, src / 'run.mjs', out / 'callbench.js'], capture=True).strip().splitlines()[-1])
 
 
 # --- where and against what --------------------------------------------------
@@ -182,7 +188,7 @@ def _cpu():
 
 
 def _browser():
-    path = _first_line(['node', '-e',
+    path = _first_line([NODE, '-e',
                         'import("' + (HERE.parent / 'weblib.mjs').as_uri() + '").then('
                         '(m) => console.log(m.findBrowser(process.env.WEBCHECK_BROWSER)))'])
     return _first_line([path, '--version']) if path else None
@@ -196,7 +202,7 @@ def environment():
         'date': datetime.date.today().isoformat(),
         'machine': f'{_cpu()}, {platform.system()}',
         'browser': _browser(),
-        'node': _first_line(['node', '--version']),
+        'node': _first_line([NODE, '--version']),
         'emcc': emcc.split(')')[1].split()[0] if ')' in emcc else emcc,
     }
 

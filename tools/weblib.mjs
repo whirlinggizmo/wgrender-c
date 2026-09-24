@@ -6,20 +6,46 @@ import { execFileSync, spawn } from "node:child_process";
 import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const BROWSERS = ["brave-browser-stable", "google-chrome-stable", "google-chrome", "chromium", "chromium-browser"];
+const WINDOWS = process.platform === "win32";
+const BROWSERS = WINDOWS ? ["brave.exe", "chrome.exe", "msedge.exe"]
+    : ["brave-browser-stable", "google-chrome-stable", "google-chrome", "chromium", "chromium-browser",
+       "brave-browser", "microsoft-edge-stable", "microsoft-edge"];
+
+/* Where the browsers install themselves on Windows and macOS, which isn't on PATH:
+ * Brave, then Chrome, Chromium, then Edge (on every Windows 11). */
+function installedBrowsers() {
+    if (WINDOWS) {
+        const roots = [process.env.ProgramFiles, process.env["ProgramFiles(x86)"], process.env.LOCALAPPDATA].filter(Boolean);
+        const apps = ["BraveSoftware/Brave-Browser/Application/brave.exe", "Google/Chrome/Application/chrome.exe",
+                      "Chromium/Application/chrome.exe", "Microsoft/Edge/Application/msedge.exe"];
+        return apps.flatMap((app) => roots.map((root) => join(root, app)));
+    }
+    if (process.platform === "darwin") {
+        return ["Brave Browser", "Google Chrome", "Chromium", "Microsoft Edge"]
+            .map((app) => `/Applications/${app}.app/Contents/MacOS/${app}`);
+    }
+    return [];
+}
+
+/* The Python the tools run on: the one that started them (tools/verify.py, the benchmark
+ * harness), else python3 or, on Windows, python. */
+export const PYTHON = process.env.WGR_PYTHON || (WINDOWS ? "python" : "python3");
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export function findXvfb() {
-    try {
-        return execFileSync("sh", ["-c", "command -v Xvfb"], { encoding: "utf8" }).trim() || null;
-    } catch {
-        return null;
+function onPath(name) {
+    for (const dir of (process.env.PATH || "").split(delimiter)) {
+        if (dir && existsSync(join(dir, name))) return join(dir, name);
     }
+    return null;
+}
+
+export function findXvfb() {
+    return WINDOWS ? null : onPath("Xvfb");
 }
 
 // Start Xvfb on a free display number; resolves to ":<n>" once its socket exists.
@@ -39,11 +65,14 @@ export async function startXvfb(run) {
 export function findBrowser(explicit) {
     if (explicit) return explicit;
     for (const name of BROWSERS) {
-        for (const dir of (process.env.PATH || "").split(":")) {
-            if (dir && existsSync(join(dir, name))) return join(dir, name);
-        }
+        const found = onPath(name);
+        if (found) return found;
     }
-    throw new Error(`no Chromium-based browser found (tried ${BROWSERS.join(", ")}); set --browser or WEBCHECK_BROWSER`);
+    for (const path of installedBrowsers()) {
+        if (existsSync(path)) return path;
+    }
+    throw new Error(`no Chromium-based browser found (tried ${BROWSERS.join(", ")}, and where they install); ` +
+                    "set --browser or WEBCHECK_BROWSER");
 }
 
 export function freePort() {
@@ -114,43 +143,35 @@ export async function openSession(wsUrl) {
 //
 // Killing the spawned browser process isn't enough: Chromium-based browsers leave
 // helper processes (zygotes, renderers, crashpad) that outlive the launcher. So:
-//   - children start in their own process groups, and whole groups are stopped;
+//   - every child is stopped with its descendants: its process group, which it starts
+//     in, on Linux and macOS, and its process tree (taskkill /T) on Windows;
 //   - every run has a unique profile directory, and any process whose command line
 //     names it belongs to this run and is swept up afterwards;
-//   - a detached watchdog shell waits for this Node process to disappear (a crash,
-//     `kill -9`) and then does the same, so nothing leaks even if Node never gets
+//   - a detached watchdog (tools/webwatch.py) waits for this Node process to disappear
+//     (a crash, a kill) and then does the same, so nothing leaks even if Node never gets
 //     to run its cleanup. It is harmless when cleanup already ran.
 export class RunProcesses {
     constructor(name) {
         this.profile = mkdtempSync(join(tmpdir(), `libwgrender-${name}-`));
-        this.groups = [];
+        this.pids = [];
         this.stopped = false;
-        const watchdog = spawn("sh", ["-c", `
-            while kill -0 "$WGRENDER_WEB_NODE_PID" 2>/dev/null; do sleep 1; done
-            if [ -f "$WGRENDER_WEB_PROFILE.groups" ]; then
-                for g in $(cat "$WGRENDER_WEB_PROFILE.groups"); do kill -9 "-$g" 2>/dev/null; done  # no "--": dash rejects it
-            fi
-            ps -eo pid=,comm=,args= | awk -v m="$WGRENDER_WEB_PROFILE" '$2 != "sh" && $2 != "awk" && index($0, m) { print $1 }' |
-                xargs -r kill -KILL 2>/dev/null
-            rm -rf "$WGRENDER_WEB_PROFILE" "$WGRENDER_WEB_PROFILE.groups" "$WGRENDER_WEB_PROFILE.log"
-        `], {
-            detached: true,
-            stdio: "ignore",
-            env: { ...process.env, WGRENDER_WEB_NODE_PID: String(process.pid), WGRENDER_WEB_PROFILE: this.profile },
+        const watchdog = spawn(PYTHON, [join(ROOT, "tools", "webwatch.py"), String(process.pid), this.profile], {
+            detached: true, stdio: "ignore", windowsHide: true,
         });
+        watchdog.on("error", () => { /* no Python: the run's own cleanup still stops everything */ });
         watchdog.unref();
     }
 
-    // Start a child in its own process group and record the group for the watchdog.
-    // `log`: a file for its output (else it's discarded).
+    // Start a child (in its own process group, off Windows) and record it for the
+    // watchdog. `log`: a file for its output (else it's discarded).
     spawn(command, args, env = process.env, log = null) {
         const out = log ? openSync(log, "w") : "ignore";
-        const child = spawn(command, args, { stdio: ["ignore", out, out], detached: true, env });
+        const child = spawn(command, args, { stdio: ["ignore", out, out], detached: !WINDOWS, windowsHide: true, env });
         if (log) closeSync(out);
         child.unref();
         if (child.pid) {
-            this.groups.push(child.pid);
-            writeFileSync(`${this.profile}.groups`, this.groups.join(" "));
+            this.pids.push(child.pid);
+            writeFileSync(`${this.profile}.pids`, this.pids.join(" "));
         }
         return child;
     }
@@ -159,28 +180,40 @@ export class RunProcesses {
     strays() {
         let listing = "";
         try {
-            listing = execFileSync("ps", ["-eo", "pid=,args="], { encoding: "utf8" });
+            listing = WINDOWS
+                ? execFileSync("powershell", ["-NoProfile", "-Command",
+                    "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and " +
+                    `$_.CommandLine.Contains('${this.profile}') } | ForEach-Object { $_.ProcessId }`],
+                    { encoding: "utf8", windowsHide: true })
+                : execFileSync("ps", ["-eo", "pid=,args="], { encoding: "utf8" })
+                    .split("\n").filter((line) => line.includes(this.profile)).join("\n");
         } catch {
             return [];
         }
         return listing.split("\n")
-            .filter((line) => line.includes(this.profile))
             .map((line) => Number.parseInt(line.trim(), 10))
             .filter((pid) => Number.isInteger(pid) && pid !== process.pid);
     }
 
+    kill(pid, signal) {
+        if (WINDOWS) {
+            /* no signals on Windows: the tree, forcibly (a headless browser has no window
+             * to be asked to close) */
+            try { execFileSync("taskkill", ["/T", "/F", "/PID", String(pid)], { stdio: "ignore", windowsHide: true }); } catch { /* gone */ }
+            return;
+        }
+        try { process.kill(-pid, signal); } catch { /* not a group, or already gone */ }
+        try { process.kill(pid, signal); } catch { /* already gone */ }
+    }
+
     signalAll(signal) {
-        for (const group of this.groups) {
-            try { process.kill(-group, signal); } catch { /* already gone */ }
-        }
-        for (const pid of this.strays()) {
-            try { process.kill(pid, signal); } catch { /* already gone */ }
-        }
+        for (const pid of this.pids) this.kill(pid, signal);
+        for (const pid of this.strays()) this.kill(pid, signal);
     }
 
     removeFiles() {
-        rmSync(this.profile, { recursive: true, force: true });
-        rmSync(`${this.profile}.groups`, { force: true });
+        rmSync(this.profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        rmSync(`${this.profile}.pids`, { force: true });
         rmSync(`${this.profile}.log`, { force: true });
     }
 
@@ -188,6 +221,11 @@ export class RunProcesses {
     async stop() {
         if (this.stopped) return;
         this.stopped = true;
+        if (WINDOWS) { // taskkill /F is already the forceful kind
+            this.signalAll("SIGKILL");
+            this.removeFiles();
+            return;
+        }
         this.signalAll("SIGTERM");
         for (let i = 0; i < 20 && this.strays().length > 0; i++) {
             await sleep(100);
@@ -201,7 +239,7 @@ export class RunProcesses {
         if (this.stopped) return;
         this.stopped = true;
         this.signalAll("SIGKILL");
-        this.removeFiles();
+        try { this.removeFiles(); } catch { /* the watchdog removes them */ }
     }
 }
 

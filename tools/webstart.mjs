@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Web startup: how long each example takes to start, the first time and after.
 //
-//   node tools/webstart.mjs [options] [example ...]     (after building the web preset)
+//   python3 tools/node.py tools/webstart.mjs [options] [example ...]   (after building the web preset)
 //
 // Each example is opened three times in a fresh browser profile, served the way a
 // typical host serves it (tools/serve.py --cache --gzip: files kept and revalidated,
@@ -47,7 +47,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
 
-import { findBrowser, findXvfb, freePort, launchBrowser, openSession, ROOT, RunProcesses, sleep, waitFor }
+import { findBrowser, findXvfb, freePort, launchBrowser, openSession, PYTHON, ROOT, RunProcesses, sleep, waitFor }
     from "./weblib.mjs";
 
 const NETS = {
@@ -204,7 +204,7 @@ const kb = (file) => {
 };
 
 async function main() {
-    if (typeof WebSocket === "undefined") throw new Error(`Node ${process.version} has no built-in WebSocket; needs Node >= 22`);
+    if (typeof WebSocket === "undefined") throw new Error(`Node ${process.version} has no built-in WebSocket; needs Node >= 22: run it with python3 tools/node.py, on Emscripten's Node`);
     const opts = parseArgs(process.argv.slice(2));
     const manifest = join(opts.site, "examples.json");
     if (!existsSync(manifest)) throw new Error(`no web build at ${opts.site}`);
@@ -222,7 +222,7 @@ async function main() {
     const results = {};
     try {
         const sitePort = opts.url ? Number(new URL(opts.url).port) : await freePort();
-        run.spawn("python3", [join(ROOT, "tools", "serve.py"), String(sitePort), opts.site, "--cache", "--gzip",
+        run.spawn(PYTHON, [join(ROOT, "tools", "serve.py"), String(sitePort), opts.site, "--cache", "--gzip",
                               ...(opts.tls ? ["--tls", ...opts.tls] : [])]);
         const baseUrl = opts.url ?? `http://127.0.0.1:${sitePort}`;
         if (opts.tls) await waitForPort(sitePort); /* its certificate isn't for 127.0.0.1 */

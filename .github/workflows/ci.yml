@@ -67,9 +67,6 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
       - uses: actions/cache@v6
         with:
           path: emsdk-cache
@@ -83,7 +80,7 @@ jobs:
         # and twice the deadline. Four at a time starved a model's decode past 20 s.
         run: |
           cmake --preset web-webgl2 && cmake --build --preset web-webgl2
-          node tools/webcheck.mjs --backend=webgl2 --jobs=2 --settle=40000
+          python3 tools/node.py tools/webcheck.mjs --backend=webgl2 --jobs=2 --settle=40000
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v7

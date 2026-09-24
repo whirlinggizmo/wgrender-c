@@ -2,13 +2,16 @@
 // Web smoke check for the libwgrender examples (tools/verify.py --web runs it).
 //
 // Serves build/web-<backend> with tools/serve.py, loads each built example in a
-// Chromium-based browser (Brave, Chrome, Chromium) through the DevTools
+// Chromium-based browser (Brave, Chrome, Chromium, Edge) through the DevTools
 // protocol, and fails an example if it logs a console error or a libwgrender
 // [ERROR]/[FATAL] line, throws, hits a sokol panic, never reports starting on the
 // expected backend, or is still loading assets when its time runs out. A screenshot
 // of every example is saved for a visual check.
 //
-// No npm dependencies: needs Node >= 22 (built-in fetch and WebSocket).
+// No npm dependencies: needs Node >= 22 (built-in fetch and WebSocket), which
+// Emscripten brings; tools/node.py (and tools/verify.py --web) run it on that one.
+//
+//   python3 tools/node.py tools/webcheck.mjs [options] [example ...]
 //
 //   node tools/webcheck.mjs [options] [example ...]     (default: all built examples)
 //
@@ -27,9 +30,9 @@
 //   --jobs=N            examples checked at once (default 4). Each example has its own
 //                       browser context (own storage; its own window when headed)
 //   --out=DIR           screenshot directory (default build/web-<backend>/webcheck)
-//   --browser=PATH      browser executable (or WEBCHECK_BROWSER; default: first
-//                       found of brave-browser-stable, google-chrome-stable,
-//                       google-chrome, chromium, chromium-browser)
+//   --browser=PATH      browser executable (or WEBCHECK_BROWSER; default: the first
+//                       of Brave, Chrome, Chromium and Edge found on PATH or where
+//                       they install)
 //   --verbose           print every console line and browser log entry an example
 //                       produced (WebGPU validation messages arrive as log entries,
 //                       not console calls, so this is how to see them)
@@ -42,7 +45,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
-import { findBrowser, findXvfb, freePort, launchBrowser, openSession, ROOT, RunProcesses, sleep, waitFor } from "./weblib.mjs";
+import { findBrowser, findXvfb, freePort, launchBrowser, openSession, PYTHON, ROOT, RunProcesses, sleep, waitFor } from "./weblib.mjs";
 
 const BACKEND_LOG = { webgl2: "GLES3/WebGL2 backend", webgpu: "WebGPU backend" };
 
@@ -176,7 +179,7 @@ async function checkExample(browser, debugBase, baseUrl, example, opts) {
 
 async function main() {
     if (typeof WebSocket === "undefined") {
-        throw new Error(`Node ${process.version} has no built-in WebSocket; webcheck needs Node >= 22`);
+        throw new Error(`Node ${process.version} has no built-in WebSocket; webcheck needs Node >= 22: run it with python3 tools/node.py, on Emscripten's Node`);
     }
     const opts = parseArgs(process.argv.slice(2));
     const manifest = join(opts.site, "examples.json");
@@ -203,7 +206,7 @@ async function main() {
 
     try {
         const sitePort = await freePort();
-        run.spawn("python3", [join(ROOT, "tools", "serve.py"), String(sitePort), opts.site]);
+        run.spawn(PYTHON, [join(ROOT, "tools", "serve.py"), String(sitePort), opts.site]);
         const baseUrl = `http://127.0.0.1:${sitePort}`;
         await waitFor(`${baseUrl}/examples.json`, "tools/serve.py");
 

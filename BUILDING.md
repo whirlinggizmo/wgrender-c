@@ -4,6 +4,14 @@ CMake (3.21 or newer) and Python 3 build everything, on Windows, Linux and macOS
 library, the examples, the tests, the web builds and the tools. There is no make and
 no shell script.
 
+| To do | Needs |
+| --- | --- |
+| Desktop builds, the tests, `tools/verify.py` | CMake, a C compiler, Python 3 (on Linux, the GL/X11/ALSA dev packages) |
+| Web builds | and Emscripten (emsdk) |
+| Browser checks: `verify.py --web`, webcheck, webstart | and a Chromium-based browser: Brave, Chrome, Chromium or Edge |
+
+The browser checks run on Emscripten's own Node, so there is no Node to install.
+
 - [Desktop](#desktop): Windows (MSVC or MinGW), Linux, macOS
 - [Web](#web-webgl2-and-webgpu): WebGL2 and WebGPU, with Emscripten
 - [Windows from Linux](#windows-from-linux): MinGW, tested under Wine
@@ -70,9 +78,9 @@ Needs Emscripten: `$EMSDK` set, or `emcc` on `PATH` (`source <emsdk>/emsdk_env.s
 ```sh
 cmake --preset web-webgl2 && cmake --build --preset web-webgl2   # every example -> build/web-webgl2/
 python3 tools/serve.py 8000 build/web-webgl2   # http://localhost:8000/ (assets mounted at /assets/)
-node tools/webcheck.mjs                        # load each in a browser, fail on errors
-node tools/webcheck.mjs --backend=webgpu       # the same for WebGPU (web-webgpu)
-node tools/webstart.mjs                        # startup times per example: cold, warm and hot visits
+python3 tools/node.py tools/webcheck.mjs      # load each in a browser, fail on errors
+python3 tools/node.py tools/webcheck.mjs --backend=webgpu   # the same for WebGPU (web-webgpu)
+python3 tools/node.py tools/webstart.mjs      # startup times per example: cold, warm and hot visits
 python3 tools/verify.py --web                  # all of the above web builds, checked
 tools/benchmarks.py --all                      # C and every sibling binding -> docs/benchmarks.md
 ```
@@ -80,19 +88,21 @@ tools/benchmarks.py --all                      # C and every sibling binding -> 
 The web presets are `web-webgl2`, `web-webgpu`, their `-nothreads` builds, and
 `web-webgl2-debug`.
 
-`tools/webcheck.mjs` needs Node >= 22 and a Chromium-based
-browser (Brave, Chrome or Chromium; override with `WEBCHECK_BROWSER`). It checks
+`tools/webcheck.mjs` needs a Chromium-based browser: Brave, Chrome, Chromium or Edge,
+found on PATH or where they install (override with `WEBCHECK_BROWSER`). It runs on
+Node 22 or newer, which `tools/node.py` and `verify.py` take from Emscripten. It checks
 four examples at a time, each in its own browser context, waits until each has
 finished loading its assets, and fails an example on console errors, wgrender
 `[ERROR]`/`[FATAL]` logs, exceptions, sokol panics, a wrong/missing backend, or
 assets still loading after 20 s. It saves a screenshot of each to
 `build/web-<backend>/webcheck/`. WebGL2
 runs headless; WebGPU needs a GPU adapter, which headless browsers lack, so it runs on
-a virtual X display when Xvfb is installed, else in a visible window. It catches
+a virtual X display when Xvfb is installed (Linux), else in a visible window. It catches
 crashes, errors and unfinished loads, not wrong-looking output, so glance at the
 screenshots. The browser and
 server it starts are always stopped, even if Node crashes or is killed (process
-groups, a sweep by the run's unique profile directory, and a watchdog).
+groups, or process trees on Windows, a sweep by the run's unique profile directory, and
+a watchdog, `tools/webwatch.py`).
 
 ### Startup and hosting
 

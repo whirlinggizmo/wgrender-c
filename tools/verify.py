@@ -8,7 +8,8 @@
   tsan      the unit tests under ThreadSanitizer (Linux and macOS)
   windows           the Windows build cross-built with MinGW-w64, when it's installed
   windows-headless  its unit tests and smoke run under Wine, when there's a Wine too
-With --web, also (needs Emscripten, Node >= 22 and a Chromium-based browser):
+With --web, also (needs Emscripten, whose Node the browser check runs on, and a
+Chromium-based browser: Brave, Chrome, Chromium or Edge):
   web-webgl2, web-webgl2-nothreads, web-webgpu
                     every example built for the web and loaded in the browser
                     (tools/webcheck.mjs)
@@ -17,6 +18,7 @@ Each step is a CMake preset (CMakePresets.json), configured, built and tested un
 build/<preset>/. Stops at the first step that fails.
 """
 import argparse
+import os
 import platform
 import shutil
 import subprocess
@@ -61,8 +63,16 @@ def main():
     args = ap.parse_args()
     only = set(args.only.split(',')) if args.only else None
 
-    node = shutil.which('node') or 'node'
-    for preset, test in steps(args.web or (only is not None and any(s in WEB for s in only))):
+    web = args.web or (only is not None and any(s in WEB for s in only))
+    node = None
+    if web:
+        sys.path.insert(0, str(ROOT / 'tools'))
+        import emsdk
+        node = emsdk.node()
+        if node is None:
+            sys.exit('verify: the web steps need Emscripten (emsdk): no EMSDK, EM_CONFIG or emcc on PATH')
+        os.environ['WGR_PYTHON'] = sys.executable  # what the web tools start the server with
+    for preset, test in steps(web):
         if only and preset not in only:
             continue
         print(f'== {preset}', flush=True)
