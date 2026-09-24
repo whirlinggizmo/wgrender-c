@@ -1,6 +1,7 @@
 #include "internal/wgr_camera3d_internal.h"
 #include "internal/wgr_internal_internal.h"
 #include "internal/wgr_scene_internal.h"
+#include "wgr_logger.h"
 #include "wgr_scene.h"
 #include "test.h"
 #include "tests.h"
@@ -59,6 +60,8 @@ void test_scene_membership(void)
     wgri_camera3d_init();
     wgri_scene_init();
     const wgr_handle_t scene = wgr_scene_create();
+    /* a non-member warns, on purpose: ~68,000 lines here, which under Wine take 20 s */
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
     for (int step = 0; step < STEPS; step++) {
         seed = seed * 1664525u + 1013904223u;
         const int i = (int)((seed >> 8) % HANDLES), op = (int)((seed >> 20) % 5);
@@ -83,6 +86,7 @@ void test_scene_membership(void)
             }
         }
     }
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     CHECK(agree);
     wgr_scene_clear(scene);
     CHECK(!wgr_scene_set_layer(scene, (wgr_handle_t)1000u, 0));
