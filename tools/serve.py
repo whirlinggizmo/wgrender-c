@@ -73,6 +73,17 @@ class _LimitReader:
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
+    # The web's types, whatever this machine says: Python's mimetypes reads Windows'
+    # registry, where .js is often text/plain, and a browser refuses to run a module
+    # script served as that (a guest's boot.js), without a console message a page sees.
+    extensions_map = {
+        **http.server.SimpleHTTPRequestHandler.extensions_map,
+        ".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm",
+        ".json": "application/json", ".html": "text/html", ".css": "text/css",
+        ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml",
+        ".gltf": "model/gltf+json", ".glb": "model/gltf-binary", ".ttf": "font/ttf",
+    }
+
     def translate_path(self, path):
         path = urllib.parse.urlparse(path).path
         path = posixpath.normpath(urllib.parse.unquote(path))
