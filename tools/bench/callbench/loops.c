@@ -1,4 +1,4 @@
-// callbench: the same calls as run.mjs makes from JS, made from inside the wasm.
+// callbench: the same calls as bench.js makes from JS, made from inside the wasm.
 #include <emscripten.h>
 
 int cb_set_tint(int h, int color);

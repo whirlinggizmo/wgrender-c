@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """The web tools' watchdog: stops what a run started if the run itself can't.
 
-    tools/webwatch.py NODE_PID PROFILE
+    tools/webwatch.py TOOL_PID PROFILE
 
-tools/weblib.mjs starts one per run, detached. It waits for the Node process NODE_PID to
+tools/weblib.py starts one per run, detached. It waits for the process TOOL_PID (the tool) to
 exit, however it went (a crash, a kill), then kills every process the run recorded in
 PROFILE.pids (with its children) and every process whose command line names PROFILE, the
 run's browser profile directory, and removes the profile and its files. When the run
@@ -73,8 +73,8 @@ def kill_tree(pid):
 def main():
     if len(sys.argv) != 3:
         sys.exit(__doc__)
-    node_pid, profile = int(sys.argv[1]), Path(sys.argv[2])
-    wait_for_exit(node_pid)
+    tool_pid, profile = int(sys.argv[1]), Path(sys.argv[2])
+    wait_for_exit(tool_pid)
     pids_file = Path(f'{profile}.pids')
     if pids_file.exists():
         for pid in pids_file.read_text().split():

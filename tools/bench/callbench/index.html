@@ -1,0 +1,13 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>callbench</title>
+<!-- tools/bench/callbench: measure.py serves this beside the built callbench.js/.wasm
+     and reads globalThis.__callbench. ?calls=N&reps=N override the defaults. -->
+<script type="module">
+import create from "./callbench.js";
+import { measure } from "./bench.js";
+const q = new URLSearchParams(location.search);
+// a moment for the page to settle before the timing starts
+await new Promise((r) => setTimeout(r, 500));
+globalThis.__callbench = measure(await create(), Number(q.get("calls") || 5000000), Number(q.get("reps") || 7));
+</script>

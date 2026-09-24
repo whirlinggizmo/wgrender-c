@@ -87,8 +87,8 @@ make and no shell script: everything below works the same on Windows, Linux and 
   JS guest costs. Measures the C baseline into `bench/results.json` and collects each
   sibling binding's own `bench/results.json`; `--doc` only regenerates the page, `--all`
   also runs each sibling binding's own `tools/benchmarks.py` in between. The
-  harness is `tools/bench/` (`measure.py`, which bindings import, plus `bench.mjs`,
-  `gcbench.mjs`, `callcount.mjs`, `callbench/`, and `stress.c`, the scene the bindings
+  harness is `tools/bench/` (`measure.py`, which bindings import, plus `pagebench.py`:
+  frame cost, GC and call counts in the browser; `callbench/`, a page; and `stress.c`, the scene the bindings
   port: `/bench/?ex=stress&n=5000`). The stress runs need Xvfb and a GPU. By hand, not
   CI; commit both files.
 - `tools/compress_textures.py [--linear] name.png...` — compressed texture files beside

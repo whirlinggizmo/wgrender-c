@@ -18,9 +18,9 @@ guest, ...). Its entry in results.json:
     {"id", "label", "project", "example", "toolchain",
      "sizes":  {"files": [{"name", "kind", "raw", "gzip", "brotli"}], "total": {...}},
                kind: wasm, js, or page (the HTML and anything else it fetches)
-     "frame":  bench.mjs's output       (script and task ms per frame)
-     "gc":     gcbench.mjs's output     (JS heap allocation and V8 collections)
-     "calls":  callcount.mjs's output   (JS guests only: wgr calls per frame)
+     "frame":  pagebench.frame          (script and task ms per frame)
+     "gc":     pagebench.gc             (JS heap allocation and V8 collections)
+     "calls":  pagebench.calls          (JS guests only: wgr calls per frame)
      "stress": [{"n", "frame", "gc"}]   the stress scene (tools/bench/stress.c) at each
                                         entity count, where the configuration has it}
 
@@ -37,15 +37,15 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
 
 HERE = pathlib.Path(__file__).resolve().parent
 WGRENDER = HERE.parents[1]
 sys.path.insert(0, str(WGRENDER / 'tools'))
-import emsdk  # noqa: E402
+sys.path.insert(0, str(HERE))
+import pagebench  # noqa: E402
+import weblib  # noqa: E402
 
-# Emscripten's Node, not PATH's: what the web builds measured here already need
-NODE = emsdk.node() or 'node'
-os.environ.setdefault('WGR_PYTHON', sys.executable)  # the Python the web tools serve with
 SCHEMA = 1
 
 # Every configuration is measured on this: webgl2 without threads is what a plain
@@ -99,38 +99,37 @@ def sizes(files):
     return {'files': rows, 'total': total}
 
 
-# --- the browser -------------------------------------------------------------
+# --- the browser (tools/bench/pagebench.py) -----------------------------------
 
-def _node(script, args):
-    out = run([NODE, HERE / script] + args, capture=True).strip().splitlines()
-    return json.loads(out[-1])
-
-
-def _page_args(site, label, url, probe, display='headless'):
-    return [f'--site={site}', f'--label={label}', f'--url={url}', f'--probe={probe}', f'--display={display}']
+def _measured(what, *args, **kwargs):
+    print(f'  {what.__name__}: {kwargs.get("label") or args[1]}', flush=True)
+    try:
+        return what(*args, **kwargs)
+    except RuntimeError as e:
+        sys.exit(f'measure: {e}')
 
 
 FRAME_RUNS = 3
 
 
 def frame(site, label, url='/', probe='wgrender-host.js', display='headless'):
-    """bench.mjs: script and task time per frame, from Chrome's CPU accounting. The run
-    with the median script time of FRAME_RUNS: one run alone moves by a tenth of a
+    """pagebench.frame: script and task time per frame, from Chrome's CPU accounting. The
+    run with the median script time of FRAME_RUNS: one run alone moves by a tenth of a
     millisecond, which is more than the differences being measured."""
-    runs = [_node('bench.mjs', _page_args(site, label, url, probe, display)) for _ in range(FRAME_RUNS)]
+    runs = [_measured(pagebench.frame, site, label, url=url, probe=probe, display=display) for _ in range(FRAME_RUNS)]
     runs.sort(key=lambda r: r['scriptMs'])
     return dict(runs[len(runs) // 2], scriptRuns=[r['scriptMs'] for r in runs])
 
 
 def gc(site, label, url='/', probe='wgrender-host.js', display='headless', load=0):
-    """gcbench.mjs: JS heap allocation per frame and the collections V8 traced. `load`
+    """pagebench.gc: JS heap allocation per frame and the collections V8 traced. `load`
     burns that many ms in each frame first, taking the slack a pause would hide in."""
-    return _node('gcbench.mjs', _page_args(site, label, url, probe, display) + [f'--load={load}'])
+    return _measured(pagebench.gc, site, label, url=url, probe=probe, display=display, load=load)
 
 
 def calls(site, label, url='/', probe='wgrender-host.js', guest='WgrGuest'):
-    """callcount.mjs: wgr calls per frame, for a guest that runs as JS."""
-    return _node('callcount.mjs', _page_args(site, label, url, probe) + [f'--guest={guest}'])
+    """pagebench.calls: wgr calls per frame, for a guest that runs as JS."""
+    return _measured(pagebench.calls, site, label, url=url, probe=probe, guest=guest)
 
 
 # The stress scene (tools/bench/stress.c) at these entity counts. It draws thousands of
@@ -156,14 +155,26 @@ def stress(site, label, url, probe='wgrender-host.js'):
 
 
 def callbench():
-    """The per-call cost of JS -> wasm against the same call inside the wasm."""
+    """The per-call cost of JS -> wasm against the same call inside the wasm, in the
+    browser the rest is measured in (tools/bench/callbench: its page runs the loops)."""
     out = WGRENDER / 'build/callbench'
     out.mkdir(parents=True, exist_ok=True)
     src = HERE / 'callbench'
-    run(['emcc', '-O2', src / 'shapes.c', src / 'loops.c', '-o', out / 'callbench.js',
-         '-sMODULARIZE', '-sEXPORT_ES6', '-sENVIRONMENT=node',
+    run([shutil.which('emcc') or 'emcc', '-O2', src / 'shapes.c', src / 'loops.c', '-o', out / 'callbench.js',
+         '-sMODULARIZE', '-sEXPORT_ES6', '-sENVIRONMENT=web',
          '-sEXPORTED_RUNTIME_METHODS=stackAlloc,stackSave,stackRestore,lengthBytesUTF8,stringToUTF8,HEAP32'])
-    return json.loads(run([NODE, src / 'run.mjs', out / 'callbench.js'], capture=True).strip().splitlines()[-1])
+    for name in ('index.html', 'bench.js'):
+        shutil.copyfile(src / name, out / name)
+    with pagebench.page_on(out, 'callbench', probe='callbench.wasm') as (page, base):
+        engine = page.send('Browser.getVersion').get('product', 'browser')
+        page.send('Page.navigate', {'url': f'{base}/index.html'})
+        deadline = time.monotonic() + 300
+        while time.monotonic() < deadline:
+            result = pagebench.evaluate(page, 'globalThis.__callbench ? JSON.stringify(globalThis.__callbench) : null')
+            if result:
+                return dict(json.loads(result), engine=engine)
+            time.sleep(0.5)
+    sys.exit('measure: callbench did not finish in 300 s')
 
 
 # --- where and against what --------------------------------------------------
@@ -188,10 +199,11 @@ def _cpu():
 
 
 def _browser():
-    path = _first_line([NODE, '-e',
-                        'import("' + (HERE.parent / 'weblib.mjs').as_uri() + '").then('
-                        '(m) => console.log(m.findBrowser(process.env.WEBCHECK_BROWSER)))'])
-    return _first_line([path, '--version']) if path else None
+    try:
+        path = weblib.find_browser()
+    except RuntimeError:
+        return None
+    return _first_line([path, '--version'])
 
 
 def environment():
@@ -202,7 +214,6 @@ def environment():
         'date': datetime.date.today().isoformat(),
         'machine': f'{_cpu()}, {platform.system()}',
         'browser': _browser(),
-        'node': _first_line([NODE, '--version']),
         'emcc': emcc.split(')')[1].split()[0] if ')' in emcc else emcc,
     }
 
@@ -332,7 +343,7 @@ def render_doc(title, lead, results, baseline, generator, notes=None):
                    f"{_n(t['gzip'])} | {_n(t['brotli'])} | {t['brotli'] / cb:.2f}x |")
 
     out += ['', '## Frame cost', '',
-            'Chrome\'s own CPU accounting over 8 s of steady state (`tools/bench/bench.mjs`), '
+            'Chrome\'s own CPU accounting over 8 s of steady state (`tools/bench/pagebench.py`), '
             'the median of three runs: the frame interval is capped at the display rate and '
             'hides the work inside it.', '',
             '| Configuration | script (ms/frame) | task (ms/frame) | script, all runs |',
@@ -348,7 +359,7 @@ def render_doc(title, lead, results, baseline, generator, notes=None):
     in_js = [x for x in rows if x[1].get('calls')]
     in_wasm = [x for x in rows if not x[1].get('calls')]
     out += ['', '## JS heap and GC', '',
-            'V8\'s traced collections over 10 s at 60 fps (`tools/bench/gcbench.mjs`). Only the '
+            'V8\'s traced collections over 10 s at 60 fps (`tools/bench/pagebench.py`). Only the '
             'JS heap: a collector inside the wasm (hxcpp\'s) is not visible here at all.', '',
             '| Configuration | game code runs in | alloc (B/frame) | alloc (MB/min) | collections traced | late frames |',
             '| --- | --- | ---: | ---: | --- | ---: |']
@@ -384,7 +395,7 @@ def render_doc(title, lead, results, baseline, generator, notes=None):
         load = next(s['gc'].get('loadMs', 0) for _, c, _ in stressed for s in c['stress'])
         out += ['', f'With {load:g} ms of other work burned in every frame, so a pause has little '
                     'slack to hide in: JS heap allocation, the collections V8 traced, and frames '
-                    'over 20 ms (`tools/bench/gcbench.mjs`, 10 s).', '',
+                    'over 20 ms (`tools/bench/pagebench.py`, 10 s).', '',
                 '| Configuration | n | alloc (MB/min) | collections traced | worst frame (ms) | late frames |',
                 '| --- | ---: | ---: | --- | ---: | ---: |']
         for r, c, flags in stressed:
@@ -411,7 +422,7 @@ def render_doc(title, lead, results, baseline, generator, notes=None):
             worst = max(sh['jsNs'] for sh in shapes.values())
             names = sorted({k for _, c, _ in in_js for k in c['calls']['perFrame']})
             out += ['', 'wgr calls per frame, counted at the host\'s exports '
-                        '(`tools/bench/callcount.mjs`):', '',
+                        '(`tools/bench/pagebench.py`):', '',
                     '| Call | ' + ' | '.join(c['label'] + mark(f) for _, c, f in in_js) + ' |',
                     '| --- |' + ' ---: |' * len(in_js)]
             for k in sorted(names, key=lambda k: (-max(c['calls']['perFrame'].get(k, 0) for _, c, _ in in_js), k)):
