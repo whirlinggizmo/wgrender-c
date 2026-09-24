@@ -9,10 +9,10 @@ extern "C" {
 
 #include "wgr_types.h"
 
-void wgr_render_begin(void);
-void wgr_render_end(void);
+void wgr_render_begin_frame(void);
+void wgr_render_end_frame(void);
 void wgr_render_clear_background(wgr_color_t color);
-/* Screen space (logical pixels, top-left origin): what wgr_render_begin already
+/* Screen space (logical pixels, top-left origin): what wgr_render_begin_frame already
  * sets up, so this only matters after 3D mode. */
 void wgr_render_begin_mode_2d(void);
 void wgr_render_end_mode_2d(void);
@@ -25,13 +25,13 @@ void wgr_render_end_mode_3d(void);
  * inside the panel, and a scene's layer clips (wgr_scene_set_clip) intersect with a clip
  * pushed around wgr_scene_draw. A width or height of 0 clips everything away. Each
  * render pass starts unclipped, and every push should be popped within the frame
- * (unmatched ones are dropped at wgr_render_end, with a warning). Up to 32 deep. */
+ * (unmatched ones are dropped at wgr_render_end_frame, with a warning). Up to 32 deep. */
 void wgr_render_push_clip(float x, float y, float width, float height);
 void wgr_render_pop_clip(void);
 
 /* Draw into a render target texture (wgr_texture_create_target) instead of the
- * screen, until wgr_render_end_texture. Call between wgr_render_begin and
- * wgr_render_end; everything works inside (clear, 2D, 3D mode, scenes, models,
+ * screen, until wgr_render_end_texture. Call between wgr_render_begin_frame and
+ * wgr_render_end_frame; everything works inside (clear, 2D, 3D mode, scenes, models,
  * sprites, text). 2D coordinates are the target's pixels; 3D uses the active
  * camera with the target's aspect ratio. Targets are drawn before the screen, in
  * the order begun; a target drawn more than once in a frame keeps the earlier
@@ -50,7 +50,7 @@ void wgr_render_end_texture(void);
  *
  * Effects apply to the screen, not to render targets: to post-process a target, draw
  * it with a material of your own. Up to 8. The chain holds a reference to each
- * material; wgr_render_clear_effects drops them. Call outside wgr_render_begin/end. */
+ * material; wgr_render_clear_effects drops them. Call outside wgr_render_begin_frame/end_frame. */
 bool wgr_render_add_effect(wgr_handle_t material);
 void wgr_render_clear_effects(void);
 int  wgr_render_effect_count(void);

@@ -205,19 +205,19 @@ void test_shader_sprites(void)
 
     /* one texture, three materials (custom, built-in, none): three batches, however
        they interleave, drawn through the shader's sprite program and libwgrender's shading */
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     CHECK(wgri_sprite_batch_count() == 3);
     wgr_sprite2d_draw(sprite2d);
     CHECK(wgri_sprite_batch_count() == 4);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     /* 0 goes back to libwgrender's shader: one batch again */
     for (int i = 0; i < COUNT; i++) CHECK(wgr_sprite3d_set_material(sprites[i], 0));
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     CHECK(wgri_sprite_batch_count() == 1);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     /* the sprites held the material: it goes with the last of them */
     wgr_material_release(custom);
@@ -244,7 +244,7 @@ void test_shader_sprites(void)
 
 /* Screen effects (wgr_render_add_effect): a screen shader has one program and reads the
  * frame as a texture; its material is refused on surfaces, and a surface material is
- * refused as an effect. The chain runs at wgr_render_end, ping-ponging between two
+ * refused as an effect. The chain runs at wgr_render_end_frame, ping-ponging between two
  * render targets when effects follow each other. */
 void test_shader_effects(void)
 {
@@ -306,25 +306,25 @@ void test_shader_effects(void)
     CHECK(wgr_sprite3d_get_material(sprite) == 0 && wgr_sprite2d_get_material(sprite2d) == 0);
 
     /* one effect: the frame draws into a target and the effect puts it on the screen */
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(WGR_COLOR_BLACK);
-    wgr_render_end();
+    wgr_render_end_frame();
     const wgri_shader_t *after = wgri_shader_get(vignette);
     CHECK(after->screen_pipeline.id != SG_INVALID_ID); /* made on first use */
 
     /* two effects: the first draws into the second's source */
     CHECK(wgr_render_add_effect(crt));
     CHECK(wgr_render_effect_count() == 2);
-    wgr_render_begin();
-    wgr_render_end();
+    wgr_render_begin_frame();
+    wgr_render_end_frame();
 
     /* the same material twice is a chain of two, not one */
     wgr_render_clear_effects();
     CHECK(wgr_render_effect_count() == 0);
     CHECK(wgr_render_add_effect(dark) && wgr_render_add_effect(dark));
     CHECK(wgr_render_effect_count() == 2);
-    wgr_render_begin();
-    wgr_render_end();
+    wgr_render_begin_frame();
+    wgr_render_end_frame();
 
     /* the chain holds a reference to each material until it's cleared */
     wgr_material_release(dark);

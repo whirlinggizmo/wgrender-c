@@ -187,7 +187,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     if (g.orbit) g.angle += dt * 0.18f;
     wgr_camera3d_set_view(g.camera, 11.0f * sinf(g.angle), 5.0f, 11.0f * cosf(g.angle), 0, 1.2f, 0, 0, 1, 0);
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(wgr_color_rgba(120, 150, 200, 255));
     wgr_scene_draw(g.scene);
     wgr_text_draw("libwgrender shadows: a directional light casting into a depth map", 12, 36, 20, WGR_COLOR_RAYWHITE);
@@ -199,7 +199,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_text_draw(line, 12, 86, 16, WGR_COLOR_LIGHTGRAY);
     wgr_text_draw("UP/DOWN distance   [ ] bias   M map size   O camera   ESC quit", 12, 108, 16, WGR_COLOR_GRAY);
     wgr_text_draw("left ball casts nothing; right ball receives nothing", 12, 130, 16, WGR_COLOR_GRAY);
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void)

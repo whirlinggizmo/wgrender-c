@@ -31,7 +31,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     float cam_z = sinf(t * 0.4f) * r;
     wgr_camera3d_set_view(g_camera, cam_x, 9.0f, cam_z, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g_bg);
 
     /* ---- 3D ---- */
@@ -54,7 +54,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_text_draw("orbiting camera3d, depth-tested sokol_gl", 12, 70, 16,
                  WGR_COLOR_LIGHTGRAY);
 
-    wgr_render_end();
+    wgr_render_end_frame();
 
     wgr_keyboard_state_t kb = wgr_input_get_keyboard_state();
     if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) {

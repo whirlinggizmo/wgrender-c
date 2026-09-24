@@ -464,9 +464,9 @@ void test_sprite_pools_grow(void)
     CHECK(positions);
     CHECK(set2d);
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     for (int i = 0; i < COUNT; i++) {
         wgr_sprite3d_destroy(sprites3d[i]);
@@ -507,7 +507,7 @@ void test_sprites_interleaved(void)
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
 
     const wgr_handle_t sprite = wgr_sprite3d_create(wgr_texture_get_default());
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_begin_mode_3d();
     const double start = now_seconds();
     for (int i = 0; i < SWITCHES; i++) {
@@ -517,7 +517,7 @@ void test_sprites_interleaved(void)
     wgr_render_end_mode_3d();
     CHECK(wgri_render_command_count() >= 2 * SWITCHES); /* a sprite batch and a layer per switch */
     const double recorded = now_seconds();
-    wgr_render_end();
+    wgr_render_end_frame();
     fprintf(stderr, "    (%d switches: recorded in %.2f ms, replayed in %.2f ms)\n", SWITCHES,
             (recorded - start) * 1000.0, (now_seconds() - recorded) * 1000.0);
 
@@ -566,25 +566,25 @@ void test_sprite3d_alpha_modes(void)
     CHECK(!wgr_sprite3d_set_alpha_mode(0, WGR_ALPHA_MASK, 0.5f));
 
     /* blended: sorted back to front, the textures interleave */
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     CHECK(wgri_sprite_batch_count() > 100);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     /* masked: one batch per texture */
     for (int i = 0; i < COUNT; i++) CHECK(wgr_sprite3d_set_alpha_mode(sprites[i], WGR_ALPHA_MASK, 0.5f));
     CHECK(wgr_sprite3d_get_alpha_mode(sprites[7]) == WGR_ALPHA_MASK);
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     CHECK(wgri_sprite_batch_count() == TEXTURES);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     /* additive: one batch per texture too; opaque the same */
     for (int i = 0; i < COUNT; i++) wgr_sprite3d_set_alpha_mode(sprites[i], i < COUNT / 2 ? WGR_ALPHA_ADD : WGR_ALPHA_OPAQUE, 0);
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     CHECK(wgri_sprite_batch_count() == 2 * TEXTURES);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     for (int i = 0; i < COUNT; i++) wgr_sprite3d_destroy(sprites[i]);
     for (int t = 0; t < TEXTURES; t++) wgr_texture_release(textures[t]);
@@ -629,17 +629,17 @@ void test_sprite2d_batches(void)
     CHECK(wgr_sprite2d_set_nine_slice(sprites[3], 1, 1, 1, 1)); /* several quads, one sprite */
     CHECK(wgr_sprite2d_set_size(sprites[3], 60, 30));
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     CHECK(wgri_sprite_batch_count() == 1);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     /* alternating textures: in order, a batch each */
     for (int i = 0; i < COUNT; i++) wgr_sprite2d_set_texture(sprites[i], textures[i % 2]);
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     CHECK(wgri_sprite_batch_count() == COUNT);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     /* alpha modes */
     CHECK(wgr_sprite2d_get_alpha_mode(sprites[0]) == WGR_ALPHA_BLEND);
@@ -650,10 +650,10 @@ void test_sprite2d_batches(void)
         wgr_sprite2d_set_texture(sprites[i], textures[0]);
         wgr_sprite2d_set_alpha_mode(sprites[i], i < COUNT / 2 ? WGR_ALPHA_MASK : WGR_ALPHA_BLEND, 0.5f);
     }
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     CHECK(wgri_sprite_batch_count() == 2); /* the masked run, then the blended run */
-    wgr_render_end();
+    wgr_render_end_frame();
 
     for (int i = 0; i < COUNT; i++) wgr_sprite2d_destroy(sprites[i]);
     for (int t = 0; t < 2; t++) wgr_texture_release(textures[t]);

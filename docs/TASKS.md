@@ -339,7 +339,7 @@ tests, keep `make verify` passing, and tick the box in the same commit.
       13.8), 12.2 -> 7.1 in Chrome
 - [x] sprite2d on the instanced sprite path (2026-09-18, PLAN-sprites step 3), with
       `wgr_sprite2d_set_alpha_mode`; immediate `wgr_texture_draw*` stays on sokol_gl
-- [x] Render to texture: `wgr_texture_create_target`, `wgr_render_begin/end_texture`,
+- [x] Render to texture: `wgr_texture_create_target`, `wgr_render_begin_frame/end_texture`,
       `wgr_texture_set_sampling` ([PLAN-render-target.md](PLAN-render-target.md),
       `examples/render_target.c`)
 - [x] Screen effects (2026-09-21): post-processing as full-screen shader passes —

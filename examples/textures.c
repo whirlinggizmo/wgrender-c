@@ -77,7 +77,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     (void)tick_fraction;
     (void)user_data;
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(wgr_color_rgba(38, 42, 54, 255));
     wgr_text_draw("libwgrender + sokol — textures: PNG (left) and compressed (right)", 12, 36, 22, WGR_COLOR_RAYWHITE);
     for (int t = 0; t < TEXTURES; t++) {
@@ -97,7 +97,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
             }
         }
     }
-    wgr_render_end();
+    wgr_render_end_frame();
 
     if (wgr_input_get_key(WGR_KEY_ESCAPE) == WGR_BUTTON_PRESSED) {
         wgr_request_quit();

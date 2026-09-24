@@ -311,63 +311,63 @@ void test_shadow_casters(void)
     wgr_scene_add(scene, model, 0);
 
     /* nothing casts yet, so no environment asks for a map */
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     const wgri_light_env_t *env = wgri_light_env_get(0);
     CHECK(env != NULL && env->count == 2);
     CHECK(env->shadow_count == 0);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     /* with the second light casting, that's the one the scene points at */
     CHECK(wgr_light_set_casts_shadows(sun, true));
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     env = wgri_light_env_get(0);
     CHECK(env != NULL && env->shadow_count == 1 && env->shadow_lights[0] == 1);
     CHECK(env->lights[env->shadow_lights[0]].casts_shadows);
     CHECK(wgri_model_has_shadow_casters(0)); /* the cube is queued for it */
-    wgr_render_end();
+    wgr_render_end_frame();
 
     /* several casting lights each get a slot, in the order the scene found them */
     CHECK(wgr_light_set_casts_shadows(plain, true));
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     env = wgri_light_env_get(0);
     CHECK(env != NULL && env->shadow_count == 2);
     CHECK(env->shadow_lights[0] == 0 && env->shadow_lights[1] == 1);
-    wgr_render_end();
+    wgr_render_end_frame();
     CHECK(wgr_light_set_casts_shadows(plain, false));
 
     /* a map nothing samples is a pass for nothing: models say whether they receive,
        and the shadow module asks before drawing one */
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     CHECK(wgri_model_has_shadow_receivers(0));
-    wgr_render_end();
+    wgr_render_end_frame();
     CHECK(wgr_model_set_receives_shadow(model, false));
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     CHECK(wgri_model_has_shadow_casters(0));    /* it still casts */
     CHECK(!wgri_model_has_shadow_receivers(0)); /* but nothing is darkened by the map */
-    wgr_render_end();
+    wgr_render_end_frame();
     CHECK(wgr_model_set_receives_shadow(model, true));
     CHECK(!wgri_model_has_shadow_receivers(1)); /* nor in an environment with nothing in it */
 
     /* a model that doesn't cast isn't drawn into the map, and with no casters at all
        there's nothing to draw */
     CHECK(wgr_model_set_casts_shadow(model, false));
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     CHECK(!wgri_model_has_shadow_casters(0));
-    wgr_render_end();
+    wgr_render_end_frame();
     CHECK(wgr_model_set_casts_shadow(model, true));
 
     /* nor is a hidden one */
     CHECK(wgr_model_set_visible(model, false));
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     CHECK(!wgri_model_has_shadow_casters(0));
-    wgr_render_end();
+    wgr_render_end_frame();
     CHECK(wgr_model_set_visible(model, true));
 
     /* at most WGRI_MAX_SHADOW_LIGHTS cast at once; the rest light without shadows */
@@ -377,7 +377,7 @@ void test_shadow_casters(void)
         CHECK(wgr_light_set_casts_shadows(extra[i], true));
         wgr_scene_add(scene, extra[i], 0);
     }
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     env = wgri_light_env_get(0);
     CHECK(env != NULL && env->shadow_count == WGRI_MAX_SHADOW_LIGHTS);
@@ -385,19 +385,19 @@ void test_shadow_casters(void)
         CHECK(env->lights[env->shadow_lights[i]].casts_shadows);
         for (int j = 0; j < i; j++) CHECK(env->shadow_lights[i] != env->shadow_lights[j]);
     }
-    wgr_render_end();
+    wgr_render_end_frame();
     for (int i = 0; i < WGRI_MAX_SHADOW_LIGHTS + 2; i++) {
         wgr_scene_remove(scene, extra[i]);
         wgr_light_destroy(extra[i]);
     }
 
     /* a lighting environment nothing was queued for has no casters either */
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     CHECK(wgri_model_has_shadow_casters(0));
     CHECK(!wgri_model_has_shadow_casters(1));
     CHECK(!wgri_model_has_shadow_casters(-1));
-    wgr_render_end();
+    wgr_render_end_frame();
 
     wgr_model_destroy(model);
     wgr_light_destroy(sun);
@@ -439,17 +439,17 @@ void test_shadow_instancing(void)
     wgr_material_release(material);
 
     /* six casters, one mesh, one material: one draw into the map */
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
-    wgr_render_end();
+    wgr_render_end_frame();
     CHECK(wgri_model_shadow_draw_call_count() == 1);
     CHECK(wgri_model_draw_call_count() == 1); /* and one into the screen */
 
     /* one that doesn't cast leaves the others batched, and the map draws five */
     CHECK(wgr_model_set_casts_shadow(models[2], false));
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
-    wgr_render_end();
+    wgr_render_end_frame();
     CHECK(wgri_model_shadow_draw_call_count() == 2); /* the run is cut where it sat */
     CHECK(wgri_model_draw_call_count() == 1);        /* it is still drawn on screen */
     CHECK(wgr_model_set_casts_shadow(models[2], true));
@@ -459,9 +459,9 @@ void test_shadow_instancing(void)
     wgr_model_set_mesh(models[4], sphere);
     wgr_model_set_material(models[4], -1, material);
     wgr_mesh_release(sphere);
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
-    wgr_render_end();
+    wgr_render_end_frame();
     CHECK(wgri_model_shadow_draw_call_count() == 2);
 
     for (int i = 0; i < 6; i++) {
@@ -485,7 +485,7 @@ void test_model_draw_queue(void)
     int placements = 0, primitives = 0, ceiling = 0;
 
     /* past where the queue used to stop, everything is still queued */
-    wgr_render_begin();
+    wgr_render_begin_frame();
     for (int i = 0; i < 2000; i++) {
         wgr_model_draw(i % 2 == 0 ? a : bb);
     }
@@ -493,24 +493,24 @@ void test_model_draw_queue(void)
     CHECK(ceiling > 2000);
     CHECK(placements == 2000);
     CHECK(primitives == 2000); /* a cube is one primitive */
-    wgr_render_end();
+    wgr_render_end_frame();
 
     /* it starts over each frame */
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgri_model_queue_counts(&placements, &primitives, NULL);
     CHECK(placements == 0 && primitives == 0);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     /* and it does stop: past the ceiling the rest of the frame isn't drawn, with a
        warning rather than a crash or a silently wrong queue */
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL); /* the warning is the point */
-    wgr_render_begin();
+    wgr_render_begin_frame();
     for (int i = 0; i < ceiling + 500; i++) {
         wgr_model_draw(i % 2 == 0 ? a : bb);
     }
     wgri_model_queue_counts(&placements, &primitives, NULL);
     CHECK(placements == ceiling);
-    wgr_render_end();
+    wgr_render_end_frame();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
 
     wgr_model_destroy(bb);

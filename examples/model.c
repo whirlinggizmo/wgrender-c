@@ -85,7 +85,7 @@ static void frame(float dt, float tick_fraction, void *user_data) {
   }
   wgr_model_animate(g_model, dt); /* skeletal anim */
 
-  wgr_render_begin();
+  wgr_render_begin_frame();
   wgr_render_clear_background(g_bg);
 
   wgr_render_begin_mode_3d();
@@ -100,7 +100,7 @@ static void frame(float dt, float tick_fraction, void *user_data) {
                         : "loading model...",
                12, 68, 16, WGR_COLOR_LIGHTGRAY);
 
-  wgr_render_end();
+  wgr_render_end_frame();
 
   wgr_keyboard_state_t kb = wgr_input_get_keyboard_state();
   if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) {

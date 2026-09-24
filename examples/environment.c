@@ -178,7 +178,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
                          0, 1, 0);
     wgr_model_animate(g.gumshoe, dt);
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);
     wgr_scene_draw(g.scene);
     wgr_shape2d_draw_rectangle(0, 0, (int)wgr_window_get_screen_size().x, 60, g.bar);
@@ -188,7 +188,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
              ENVIRONMENT_NAMES[g.environment], g.blur < 3 ? (g.blur == 0 ? "sharp" : g.blur == 1 ? "soft" : "blurred") : "off",
              TONEMAP_NAMES[g.tonemap], g.exposure);
     wgr_text_draw(line, 12, 36, 16, WGR_COLOR_LIGHTGRAY);
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void)

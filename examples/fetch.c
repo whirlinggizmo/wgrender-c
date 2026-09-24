@@ -116,7 +116,7 @@ static void frame(float dt, float fraction, void *user)
     (void)fraction;
     (void)user;
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(wgr_color_rgba(28, 30, 38, 255));
     wgr_sprite2d_draw(g_sprite);
     wgr_text_draw("libwgrender fetch: the desktop build downloads what the browser downloads", 12, 36, 20,
@@ -132,7 +132,7 @@ static void frame(float dt, float fraction, void *user)
     }
     wgr_text_draw(line, 12, 86, 16, WGR_COLOR_LIGHTGRAY);
 #endif
-    wgr_render_end();
+    wgr_render_end_frame();
 
     const wgr_keyboard_state_t kb = wgr_input_get_keyboard_state();
     if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) {

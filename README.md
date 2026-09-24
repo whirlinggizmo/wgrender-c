@@ -163,10 +163,10 @@ static void tick(float dt, void *user_data) {
 
 static void frame(float dt, float tick_fraction, void *user_data) {
     float draw_x = prev_x + (x - prev_x) * tick_fraction;   // smooth at any frame rate
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(WGR_COLOR_RAYWHITE);
     wgr_shape2d_draw_rectangle((int)draw_x, 40, 200, 120, WGR_COLOR_SKYBLUE);
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void) {
@@ -205,13 +205,13 @@ docs/           ARCHITECTURE.md, ROADMAP.md, TASKS.md and one PLAN-*.md per feat
 
 ## Rendering notes
 
-- 2D primitives are recorded via `sokol_gl` between `wgr_render_begin()` and
-  `wgr_render_end()`; the swapchain pass (and the background clear) is opened in
-  `wgr_render_end()`, so `wgr_render_clear_background()` works in librl's
+- 2D primitives are recorded via `sokol_gl` between `wgr_render_begin_frame()` and
+  `wgr_render_end_frame()`; the swapchain pass (and the background clear) is opened in
+  `wgr_render_end_frame()`, so `wgr_render_clear_background()` works in librl's
   begin → clear → draw → end order even though sokol clears via the pass
   load-action.
 - Draw order follows call order. sokol_gl content is recorded into sokol_gl
-  layers and models into a queue; `wgr_render_end()` replays both in the order
+  layers and models into a queue; `wgr_render_end_frame()` replays both in the order
   they were submitted (see `src/internal/wgr_render.h`).
 - `wgr_scene_draw()` draws each layer in two passes: opaque parts (depth writes
   on), then transparent parts (blended or faded model primitives, sprites,

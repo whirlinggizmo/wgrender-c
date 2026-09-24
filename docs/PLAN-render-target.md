@@ -21,9 +21,9 @@ need an extension.
 
 ## Where we are
 
-- Everything draws to the screen. `wgr_render_begin/end` records a frame command
+- Everything draws to the screen. `wgr_render_begin_frame/end_frame` records a frame command
   list (sokol_gl layers + model draws, in call order) and replays it in one
-  swapchain pass at `wgr_render_end`.
+  swapchain pass at `wgr_render_end_frame`.
 - Every pipeline (sokol_gl 2D/3D, model pipelines, the fontstash text pipeline) is
   built for the screen's color format, depth format and MSAA sample count.
 - Aspect ratio and 2D coordinates come from the window size.
@@ -44,7 +44,7 @@ bool wgr_texture_set_sampling(wgr_handle_t texture, wgr_texture_wrap_t wrap_u,
                              wgr_texture_wrap_t wrap_v, wgr_texture_filter_t filter);
 
 /* include/wgr_render.h */
-/* Between wgr_render_begin and wgr_render_end: draw into `texture` (a target)
+/* Between wgr_render_begin_frame and wgr_render_end_frame: draw into `texture` (a target)
  * instead of the screen until wgr_render_end_texture. Everything works inside:
  * clear, 2D, 3D mode, scenes, models, sprites, text. */
 bool wgr_render_begin_texture(wgr_handle_t texture);
@@ -56,7 +56,7 @@ A render target is a texture resource (made by a generator, like
 
 ### Frame semantics
 
-- Drawing is still recorded during the frame and replayed at `wgr_render_end`: each
+- Drawing is still recorded during the frame and replayed at `wgr_render_end_frame`: each
   target's pass first, in the order they were begun, then the screen.
 - Inside a target: 2D coordinates are target pixels (top-left origin); 3D uses the
   active camera with the target's aspect ratio. `wgr_render_clear_background` sets

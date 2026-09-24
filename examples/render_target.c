@@ -146,7 +146,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_model_animate(g.gumshoe, dt);
     wgr_model_set_transform(g.globe, -2.2f, 1.2f, 0, 0, g.time * 0.8f, 0, 1.6f, 1.6f, 1.6f);
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
 
     /* 1. the label, first, so the views below use this frame's text */
     if (wgr_render_begin_texture(g.label)) {
@@ -180,7 +180,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     draw_panel(g.label, 700, 380, LABEL_W, LABEL_H, "label (text drawn into a texture)");
     wgr_text_draw("libwgrender render targets: wgr_texture_create_target + wgr_render_begin_texture", 12, 12, 16,
                  WGR_COLOR_RAYWHITE);
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void)

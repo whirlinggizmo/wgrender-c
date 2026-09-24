@@ -16,7 +16,7 @@
  * ------------------
  * sokol_gl content (shapes, sprites, 2D, fontstash text) is recorded into
  * sokol_gl layers; models are queued by wgr_model. Nothing reaches the GPU until
- * wgr_render_end(), which replays both in the order they were submitted:
+ * wgr_render_end_frame(), which replays both in the order they were submitted:
  *
  *   SGL layer 0, MODELS [0..3), SGL layer 1, MODELS [3..5), SGL layer 2, ...
  *

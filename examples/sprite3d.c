@@ -74,7 +74,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         wgr_sprite3d_set_transform(g_sprite, 0.0f, y, 0.0f, 0, 0, 0, 1, 1, 1);
     }
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g_bg);
 
     wgr_render_begin_mode_3d();
@@ -87,7 +87,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_text_draw(g_loaded ? "logo: ensure -> texture_create -> sprite" : "loading logo...",
                  12, 70, 16, WGR_COLOR_LIGHTGRAY);
 
-    wgr_render_end();
+    wgr_render_end_frame();
 
     wgr_keyboard_state_t kb = wgr_input_get_keyboard_state();
     if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) {

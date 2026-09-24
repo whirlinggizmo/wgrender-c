@@ -799,9 +799,9 @@ void test_pipeline_skinned_joints(void)
     }
     for (int frame = 0; frame < 3; frame++) { /* the joints go up once a frame */
         for (int i = 0; i < MODELS; i++) wgr_model_animate(models[i], 1.0f / 60.0f);
-        wgr_render_begin();
+        wgr_render_begin_frame();
         wgr_scene_draw(scene);
-        wgr_render_end();
+        wgr_render_end_frame();
     }
     for (int i = 0; i < MODELS; i++) wgr_model_destroy(models[i]);
     wgr_mesh_release(mesh);

@@ -238,7 +238,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_model_set_transform(g.dissolving, 0.0f, SPHERE_Y, 0, 0, g.time * 0.4f, 0, 1, 1, 1);
     wgr_model_animate(g.gumshoe, dt);
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);
     wgr_scene_draw(g.scene);
     const vec2_t screen = wgr_window_get_screen_size();
@@ -246,7 +246,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_sprite2d_draw(g.logo2d);
     wgr_text_draw("libwgrender custom shaders: toon, dissolve, water, sprite effects", 12, 12, 20, WGR_COLOR_RAYWHITE);
     wgr_text_draw("1 sun, 2 point light, ESC quit", 12, 40, 16, WGR_COLOR_LIGHTGRAY);
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void)

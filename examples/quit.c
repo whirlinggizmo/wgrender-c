@@ -60,7 +60,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         wgr_request_quit();
     }
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);
     wgr_text_draw("libwgrender quit   Q: quit now", 12, 12, 16, WGR_COLOR_RAYWHITE);
     if (g.quitting) {
@@ -69,7 +69,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         snprintf(line, sizeof(line), "loading, stalling and quitting in %.1f s", g.quit_at - wgr_get_time());
         wgr_text_draw(line, 12, 40, 16, WGR_COLOR_LIGHTGRAY);
     }
-    wgr_render_end();
+    wgr_render_end_frame();
 
     if (!g.quitting && wgr_get_time() >= g.quit_at) {
         g.quitting = true;

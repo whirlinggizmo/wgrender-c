@@ -19,8 +19,8 @@ typedef struct wgri_module {
     void (*end_tick)(void);    /* after each tick (clear tick input edges) */
     void (*update)(float dt);  /* once a frame, after the ticks, before the frame callback */
     void (*frame_done)(void);  /* after the frame callback (clear frame input edges) */
-    void (*flush)(void);      /* wgr_render_end: upload the frame's data, before any pass */
-    void (*end_frame)(void);  /* wgr_render_end: after the frame is submitted */
+    void (*flush)(void);      /* wgr_render_end_frame: upload the frame's data, before any pass */
+    void (*end_frame)(void);  /* wgr_render_end_frame: after the frame is submitted */
     struct wgri_module *next;
 } wgri_module_t;
 

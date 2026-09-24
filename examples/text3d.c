@@ -149,7 +149,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     }
     const wgr_pick_stats_t stats = wgr_pick_get_stats();
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);
     wgr_render_begin_mode_3d();
     wgr_shape3d_draw_grid(16, 1.0f, g.grey);
@@ -167,7 +167,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
              stats.broadphase_tests, stats.broadphase_rejects, stats.narrowphase_tests, stats.narrowphase_hits);
     wgr_text_draw_ex(g.font, line, 12, 56, 16, WGR_COLOR_LIGHTGRAY);
     wgr_text_draw_fps_ex(g.font, 12, 80, 16, WGR_COLOR_LIME);
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void)

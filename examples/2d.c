@@ -204,7 +204,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         }
     }
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);
     wgr_scene_draw(g.scene);
     wgr_render_begin_mode_2d(); /* back to screen space for the HUD */
@@ -214,7 +214,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
              (double)g.center_x, (double)g.center_y, g.loaded ? "" : "   (loading)");
     wgr_text_draw(line, 20, 46, 15, g.dim);
     wgr_text_draw("drag or arrows to scroll, wheel to zoom, click the coins", 20, 68, 15, g.dim);
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void)

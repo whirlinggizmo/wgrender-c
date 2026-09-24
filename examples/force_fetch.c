@@ -72,7 +72,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         g_music_on = !g_music_on;
     }
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g_bg);
 
     wgr_text_draw("libwgrender + sokol_audio + force_fetch", 24, 30, 28, WGR_COLOR_RAYWHITE);
@@ -84,7 +84,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
                  24, 150, 16, WGR_COLOR_LIGHTGRAY);
 
     wgr_text_draw_fps(24, 12);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) {
         wgr_request_quit();

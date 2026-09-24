@@ -199,7 +199,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     g.time += dt;
     wgr_model_animate(g.gumshoe, dt);
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);
     wgr_scene_draw(g.scene);
     wgr_render_begin_mode_3d();
@@ -230,7 +230,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         wgr_text_draw(line, 12, 54, 12, WGR_COLOR_LIGHTGRAY);
     }
     draw_graph(12, (int)screen.y - 132, (int)screen.x - 24, 120);
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void)

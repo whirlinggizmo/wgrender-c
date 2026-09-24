@@ -19,7 +19,7 @@
  *
  * For each it reports the sprites created, frame time (desktop), and CPU time in the
  * frame split into update (the benchmark's own calls: camera, particles), scene
- * (wgr_scene_draw: collect, sort, billboard, record) and submit (wgr_render_end: upload
+ * (wgr_scene_draw: collect, sort, billboard, record) and submit (wgr_render_end_frame: upload
  * and draw), plus sokol_gl's vertices and draw commands and any overflow.
  *
  *   make spritebench            headless: CPU only
@@ -409,15 +409,15 @@ static void frame(float dt, float fraction, void *user)
             setup();
             b.last = wgr_get_time();
         }
-        wgr_render_begin();
-        wgr_render_end();
+        wgr_render_begin_frame();
+        wgr_render_end_frame();
         return;
     }
 
     r = &b.results[b.step];
     update();
     updated = wgr_get_time();
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(WGR_COLOR_BLACK);
     wgr_scene_draw(b.scene);
     drawn = wgr_get_time();
@@ -430,7 +430,7 @@ static void frame(float dt, float fraction, void *user)
         r->commands_full = r->commands_full || err.commands_full;
         r->other_error = r->other_error || err.uniforms_full || err.stack_overflow || err.no_context;
     }
-    wgr_render_end();
+    wgr_render_end_frame();
     submitted = wgr_get_time();
 
     if (b.frame >= WARMUP_FRAMES) {

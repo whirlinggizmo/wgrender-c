@@ -167,17 +167,17 @@ void test_emitter_scene(void)
     wgr_emitter2d_burst(confetti, 50);
     CHECK(wgr_scene_add(scene, fire, 0) && wgr_scene_add(scene, smoke, 0) && wgr_scene_add(scene, confetti, 0));
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     const int before = wgri_render_command_count();
     wgr_scene_draw(scene);
     CHECK(wgri_render_command_count() >= before + 3); /* a draw each (and the layers between) */
-    wgr_render_end();
+    wgr_render_end_frame();
 
     wgr_emitter3d_destroy(fire);
     CHECK(!wgr_scene_set_layer(scene, fire, 1)); /* not a member any more */
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     wgr_emitter3d_destroy(smoke);
     wgr_emitter2d_destroy(confetti);

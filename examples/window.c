@@ -71,7 +71,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         report("monitor", wgr_window_set_monitor((wgr_window_get_monitor() + 1) % wgr_window_get_monitor_count()));
     }
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);
     wgr_text_draw(wgr_window_has_fullscreen() /* ask before offering the key */
                       ? "libwgrender window   arrows: move   =/-: size   F: fullscreen   M: next monitor   H: hide"
@@ -93,7 +93,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         wgr_text_draw(line, 12, y, 16, WGR_COLOR_LIGHTGRAY);
         y += 22;
     }
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void)

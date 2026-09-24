@@ -101,7 +101,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         }
     }
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(wgr_color_rgba(20, 22, 30, 255));
     wgr_text_draw("libwgrender + sokol — gamepads", 12, 36, 24, WGR_COLOR_RAYWHITE);
     snprintf(line, sizeof(line), "dead zone %.2f (SOUTH changes it)   web: press a pad button first",
@@ -110,7 +110,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     for (int pad = 0; pad < WGR_INPUT_MAX_GAMEPADS; pad++) {
         draw_pad(pad, 20.0f + (float)(pad % 2) * 320.0f, 110.0f + (float)(pad / 2) * 300.0f);
     }
-    wgr_render_end();
+    wgr_render_end_frame();
 
     if (wgr_input_get_key(WGR_KEY_ESCAPE) == WGR_BUTTON_PRESSED) {
         wgr_request_quit();

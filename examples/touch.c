@@ -125,7 +125,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         }
     }
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(wgr_color_rgba(22, 25, 33, 255));
     if (g.logo != 0) {
         wgr_sprite2d_set_position(g.logo, g.logo_x, g.logo_y);
@@ -163,7 +163,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_text_draw_ex(0, line, 16, 40, 18, WGR_COLOR_WHITE);
     wgr_text_draw_ex(0, "two fingers: pan, pinch, twist the logo; one finger drags the coin", 16, 64, 16,
                     wgr_color_rgba(150, 158, 175, 255));
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void)

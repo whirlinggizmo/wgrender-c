@@ -123,9 +123,9 @@ static void frame(float dt, float fraction, void *user)
     if (now - b.last > b.worst) b.worst = now - b.last;
     b.last = now;
     b.frames++;
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(b.scene);
-    wgr_render_end();
+    wgr_render_end_frame();
     if (b.showing > 0) { /* the frame that just ended drew them */
         const double took = now - b.last_show;
         if (SHOW_FRAMES - b.showing < 3) b.show_first[SHOW_FRAMES - b.showing] = took;

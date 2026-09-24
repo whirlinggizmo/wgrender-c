@@ -103,7 +103,7 @@ void test_render_clip_stack(void)
     CHECK(wgr_window_set_size(800, 600));
     const wgr_handle_t target = wgr_texture_create_target(64, 32);
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     CHECK(!wgri_render_get_clip(&x, &y, &w, &h)); /* nothing pushed: the whole screen */
     CHECK(x == 0 && y == 0 && w == 800 && h == 600);
 
@@ -144,10 +144,10 @@ void test_render_clip_stack(void)
     for (int i = 0; i < 39; i++) wgr_render_pop_clip();
     CHECK(wgri_render_get_clip(&x, &y, &w, &h) && x == 0);
 
-    wgr_render_end(); /* one push left open: dropped at the end of the frame */
-    wgr_render_begin();
+    wgr_render_end_frame(); /* one push left open: dropped at the end of the frame */
+    wgr_render_begin_frame();
     CHECK(!wgri_render_get_clip(&x, &y, &w, &h));
-    wgr_render_end();
+    wgr_render_end_frame();
 
     CHECK(wgr_window_set_size((int)screen.x, (int)screen.y));
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
@@ -167,7 +167,7 @@ void test_texture_draw_immediate(void)
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
     const wgr_handle_t texture = wgr_texture_create_target(64, 32);
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     int before = sgl_num_vertices();
     wgr_texture_draw_ex(texture, 16, 0, 16, 16, 10.5f, 10.5f, 40, 40, WGR_COLOR_WHITE);
     CHECK(sgl_num_vertices() - before == 6);
@@ -192,7 +192,7 @@ void test_texture_draw_immediate(void)
     before = sgl_num_vertices(); /* the old call still draws the whole texture */
     wgr_texture_draw(texture, 0, 0, 0, 0, WGR_COLOR_WHITE);
     CHECK(sgl_num_vertices() - before == 6);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgr_texture_release(texture);
@@ -231,33 +231,33 @@ void test_render_sgl_growth(void)
     wgri_render_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR); /* growing warns */
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     record(100, 10);
     CHECK(!sgl_error().any);
-    wgr_render_end();
+    wgr_render_end_frame();
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     record(VERTICES, 0);
     CHECK(sgl_error().vertices_full);
-    wgr_render_end();
-    wgr_render_begin();
+    wgr_render_end_frame();
+    wgr_render_begin_frame();
     record(VERTICES, 0);
     err = sgl_error();
     CHECK(!err.any);
     CHECK(sgl_num_vertices() >= VERTICES);
-    wgr_render_end();
+    wgr_render_end_frame();
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     record(0, COMMANDS);
     err = sgl_error();
     CHECK(err.commands_full || err.uniforms_full);
-    wgr_render_end();
-    wgr_render_begin();
+    wgr_render_end_frame();
+    wgr_render_begin_frame();
     record(0, COMMANDS);
     err = sgl_error();
     CHECK(!err.any);
     CHECK(sgl_num_commands() >= COMMANDS);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgri_render_deinit();

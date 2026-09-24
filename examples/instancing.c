@@ -152,7 +152,7 @@ static void frame(float dt, float fraction, void *user)
         wgr_model_set_animation_time(g_walkers[i], t + (float)i * 0.35f);
     }
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(wgr_color_rgba(28, 30, 38, 255));
     wgr_scene_draw(g_scene);
     wgr_text_draw("libwgrender instancing: models that share a mesh and a material go up as one draw", 12, 36, 20,
@@ -160,7 +160,7 @@ static void frame(float dt, float fraction, void *user)
     snprintf(line, sizeof line, "%d cubes, %s   SPACE toggles   ESC quit", FIELD_COUNT,
              g_own_materials ? "a material each (one draw each)" : "one material (one draw)");
     wgr_text_draw(line, 12, 64, 16, WGR_COLOR_LIGHTGRAY);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     const wgr_keyboard_state_t kb = wgr_input_get_keyboard_state();
     if (kb.keys[WGR_KEY_SPACE] == WGR_BUTTON_PRESSED) {

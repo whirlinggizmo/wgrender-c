@@ -156,14 +156,14 @@ void test_text_slices_and_dpi(void)
 
     /* inside a render target the target's own pixels count: scale 1 */
     const wgr_handle_t target = wgr_texture_create_target(64, 32);
-    wgr_render_begin();
+    wgr_render_begin_frame();
     CHECK_NEAR(wgri_render_pixel_scale(), 3.0, 1e-6);
     CHECK(wgr_render_begin_texture(target));
     CHECK_NEAR(wgri_render_pixel_scale(), 1.0, 1e-6);
     CHECK(wgr_text_measure_ex(0, "Hello, world", 16.0f).x == at1.x); /* the same as at 1x */
     wgr_render_end_texture();
     wgr_text_draw_n(0, "hello world", 5, 10.5f, 10.5f, 16.0f, WGR_COLOR_WHITE); /* draws without trouble */
-    wgr_render_end();
+    wgr_render_end_frame();
     wgri_platform_set_headless_dpi_scale(1.0f);
 
     /* the glyph atlas grows instead of dropping glyphs: capitals at 300 and 400 px
@@ -171,16 +171,16 @@ void test_text_slices_and_dpi(void)
     int width = 0, height = 0;
     fonsGetAtlasSize(wgri_font_context(), &width, &height);
     CHECK(width == 1024 && height == 1024);
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_text_draw_ex(0, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 0, 0, 300.0f, WGR_COLOR_WHITE);
     wgr_text_draw_ex(0, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 0, 0, 400.0f, WGR_COLOR_WHITE);
-    wgr_render_end();
+    wgr_render_end_frame();
     fonsGetAtlasSize(wgri_font_context(), &width, &height);
     CHECK(width * height > 1024 * 1024); /* grown once the frame was submitted, not during it */
-    wgr_render_begin();                   /* and the next frame draws from the bigger atlas */
+    wgr_render_begin_frame();                   /* and the next frame draws from the bigger atlas */
     wgr_text_draw_ex(0, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 0, 0, 300.0f, WGR_COLOR_WHITE);
     wgr_text_draw_ex(0, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 0, 0, 400.0f, WGR_COLOR_WHITE);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgr_texture_release(target);

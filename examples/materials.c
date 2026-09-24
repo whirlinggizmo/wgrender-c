@@ -194,7 +194,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     }
     wgr_model_animate(g.gumshoe, dt);
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);
     wgr_scene_draw(g.scene);
 
@@ -203,7 +203,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     snprintf(line, sizeof(line), "roughness 0 -> 1 (left to right)   rows: plastic, gold   [1] sun %s  [2] lamp %s",
              wgr_light_is_enabled(g.sun) ? "on" : "off", wgr_light_is_enabled(g.lamp) ? "on" : "off");
     wgr_text_draw(line, 12, 36, 16, WGR_COLOR_LIGHTGRAY);
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void)

@@ -232,7 +232,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_camera3d_set_view(g_camera, ORBIT_RADIUS * sinf(g_orbit_angle), 6.0f, ORBIT_RADIUS * cosf(g_orbit_angle), 0.0f,
                          3.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(wgr_color_rgba(14, 16, 24, 255));
 
     wgr_render_begin_mode_3d();
@@ -250,7 +250,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
              wgr_emitter3d_get_count(g_smoke), wgr_emitter2d_get_count(g_confetti));
     wgr_text_draw(line, 12, 94, 16, WGR_COLOR_LIGHTGRAY);
 
-    wgr_render_end();
+    wgr_render_end_frame();
 
     if (wgr_input_get_key(WGR_KEY_ESCAPE) == WGR_BUTTON_PRESSED) {
         wgr_request_quit();

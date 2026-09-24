@@ -49,7 +49,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     (void)user_data;
     vec2_t screen = wgr_window_get_screen_size();
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g_bg);
 
     /* centered title (Komika), measured */
@@ -84,7 +84,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     /* FPS in the default font */
     wgr_text_draw_fps(12, 12);
 
-    wgr_render_end();
+    wgr_render_end_frame();
 
     wgr_keyboard_state_t kb = wgr_input_get_keyboard_state();
     if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) {

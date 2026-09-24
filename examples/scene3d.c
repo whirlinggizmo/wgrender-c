@@ -104,7 +104,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         update_selection(pick.hit ? pick.handle : 0);
     }
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g_bg);
 
     wgr_render_begin_mode_3d();
@@ -123,7 +123,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     }
     wgr_text_draw(status, 12, 94, 16, WGR_COLOR_LIGHTGRAY);
 
-    wgr_render_end();
+    wgr_render_end_frame();
 
     if (wgr_input_get_key(WGR_KEY_ESCAPE) == WGR_BUTTON_PRESSED) {
         wgr_request_quit();

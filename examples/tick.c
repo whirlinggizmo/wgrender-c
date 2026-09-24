@@ -59,7 +59,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         wgr_request_quit();
     }
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);
 
     wgr_text_draw("libwgrender tick: 10 Hz simulation, rendered every frame", 20, 20, 20, WGR_COLOR_RAYWHITE);
@@ -76,7 +76,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_shape2d_draw_rectangle((int)smooth_x, 275, SQUARE, SQUARE, WGR_COLOR_SKYBLUE);
 
     wgr_text_draw_fps(20, SCREEN_HEIGHT - 30);
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 static void init(void *user_data)

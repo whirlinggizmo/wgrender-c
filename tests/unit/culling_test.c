@@ -98,7 +98,7 @@ void test_model_instance_record(void)
     wgr_model_set_tint(model, wgr_color_rgba(255, 128, 0, 128));
 
     int count = 0;
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_model_draw(model);
     wgri_model_flush();
     const float *records = wgri_model_instance_records(&count);
@@ -119,7 +119,7 @@ void test_model_instance_record(void)
         CHECK_NEAR(records[27], 128.0f / 255.0f, 1e-3f);
         CHECK(records[28] == 0.0f); /* not skinned: no joints of its own */
     }
-    wgr_render_end();
+    wgr_render_end_frame();
 
     wgr_model_destroy(model);
     wgr_camera3d_destroy(camera);
@@ -167,17 +167,17 @@ void test_model_instancing(void)
     wgr_material_release(material);
 
     /* one mesh, one material, eight placements: one draw */
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
-    wgr_render_end();
+    wgr_render_end_frame();
     CHECK(wgri_model_draw_call_count() == 1);
 
     /* a different material splits it in two, wherever the models sit in the scene */
     const wgr_handle_t other = wgr_material_create(WGR_MATERIAL_PBR);
     wgr_model_set_material(models[3], -1, other);
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
-    wgr_render_end();
+    wgr_render_end_frame();
     CHECK(wgri_model_draw_call_count() == 2);
     wgr_model_set_material(models[3], -1, material);
     wgr_material_release(other);
@@ -187,9 +187,9 @@ void test_model_instancing(void)
     wgr_model_set_mesh(models[5], sphere);
     wgr_model_set_material(models[5], -1, material);
     wgr_mesh_release(sphere);
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
-    wgr_render_end();
+    wgr_render_end_frame();
     CHECK(wgri_model_draw_call_count() == 2);
 
     /* and a tint does not: that is what the instance record is for */
@@ -198,9 +198,9 @@ void test_model_instancing(void)
     for (int i = 0; i < 8; i++) {
         wgr_model_set_tint(models[i], wgr_color_rgba(255, i * 30, 0, 255));
     }
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
-    wgr_render_end();
+    wgr_render_end_frame();
     CHECK(wgri_model_draw_call_count() == 1);
 
     /* a custom material shader batches like the built-in one: it reads each placement
@@ -210,9 +210,9 @@ void test_model_instancing(void)
     for (int i = 0; i < 8; i++) {
         wgr_model_set_material(models[i], -1, custom);
     }
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
-    wgr_render_end();
+    wgr_render_end_frame();
     CHECK(wgri_model_draw_call_count() == 1);
     for (int i = 0; i < 8; i++) { /* back to the built-in one */
         wgr_model_set_material(models[i], -1, material);
@@ -236,7 +236,7 @@ void test_model_instancing(void)
     {
         int placements = 0, primitives = 0, records = 0, distinct_bases = 0;
         float bases[8] = {0};
-        wgr_render_begin();
+        wgr_render_begin_frame();
         wgr_scene_draw(scene);
         wgri_model_queue_counts(&placements, &primitives, NULL);
         wgri_model_flush();
@@ -249,7 +249,7 @@ void test_model_instancing(void)
             for (int k = 0; k < distinct_bases; k++) seen |= bases[k] == base;
             if (!seen && distinct_bases < 8) bases[distinct_bases++] = base;
         }
-        wgr_render_end();
+        wgr_render_end_frame();
         /* the gumshoe is an opaque part and a see-through one, so each walker is two
            primitives (and two placements: one per pass it appears in) */
         const int walker_prims = (primitives - 8) / 2;
@@ -282,10 +282,10 @@ void test_model_instancing(void)
 static int queued(wgr_handle_t scene)
 {
     int placements = 0;
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_scene_draw(scene);
     wgri_model_queue_counts(&placements, NULL, NULL);
-    wgr_render_end();
+    wgr_render_end_frame();
     return placements;
 }
 

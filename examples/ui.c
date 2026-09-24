@@ -198,7 +198,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         place_camera();
     }
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);
     wgr_scene_draw(g.scene);
     /* the header is immediate drawing, next to the retained panel below it: the same
@@ -212,7 +212,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
              hovered == 0 ? "nothing" : hovered == g.gumshoe ? "gumshoe" : hovered == g.panel ? "the panel" : "UI",
              wgr_input_is_pointer_captured() ? "yes" : "no");
     wgr_text_draw(line, 28, 43, 15, g.theme.text_disabled);
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void)

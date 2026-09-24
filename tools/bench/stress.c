@@ -4,9 +4,10 @@
  * in each language: N entities updated every frame, each one wgr call, a steady churn
  * of entities dying and being replaced (objects created and destroyed, and in a managed
  * language, allocated and collected), and a screenful of formatted text. The bindings
- * port it line for line (wgrender-hx: examples/stress, a JS guest; wgrender-nim:
- * examples/stress), each written the way that language naturally would: C reuses array
- * slots, Nim makes a new ref object under ARC, Haxe a new class instance under the GC.
+ * port it line for line (wgrender-hx: examples/stress, as a JS guest and through hxcpp;
+ * wgrender-nim and wgrender-beef: examples/stress), each written the way that language
+ * naturally would: C reuses array slots, Nim makes a new ref object under ARC, Beef a
+ * new class instance it deletes itself, Haxe a new class instance under the GC.
  *
  * The spec, which the ports follow exactly so every language does the same work:
  *
@@ -185,11 +186,11 @@ static void frame(float dt, float tick_fraction, void *user_data)
             update(&g.entities[i]);
         }
     }
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g.background);
     wgr_scene_draw(g.scene);
     draw_text();
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 static int entity_count(int argc, char **argv)

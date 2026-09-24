@@ -156,7 +156,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         hover_name = "model";
     }
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);
     wgr_scene_draw(g.scene);
     wgr_texture_draw(g.logo, wgr_window_get_screen_size().x - 74, 10, 64, 64, WGR_COLOR_WHITE); /* one-off, no object */
@@ -164,7 +164,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_text_draw("libwgrender sprite2d: source rect, pivot, rotation, flip, picking", 12, 12, 16, WGR_COLOR_RAYWHITE);
     snprintf(line, sizeof(line), "mouse (%d, %d)  hover: %s  sheet frame %d", mouse.x, mouse.y, hover_name, g.frame);
     wgr_text_draw(line, 12, 36, 16, WGR_COLOR_LIGHTGRAY);
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void)

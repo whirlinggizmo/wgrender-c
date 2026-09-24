@@ -193,7 +193,7 @@ void test_shape2d_immediate(void)
     sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
     wgri_render_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
-    wgr_render_begin();
+    wgr_render_begin_frame();
     int before = sgl_num_vertices();
     wgr_shape2d_draw_rounded_rectangle(10.5f, 20.25f, 100, 50, 8, 8, 8, 8, WGR_COLOR_RED); /* fractional: floats */
     const int fan = sgl_num_vertices() - before;
@@ -215,7 +215,7 @@ void test_shape2d_immediate(void)
     before = sgl_num_vertices();
     wgr_shape2d_draw_rectangle(0.5f, 0.5f, 10.25f, 4.75f, WGR_COLOR_RED);
     CHECK(sgl_num_vertices() - before == 6); /* one quad */
-    wgr_render_end();
+    wgr_render_end_frame();
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgri_render_deinit();

@@ -68,8 +68,8 @@ static void drawing_into(wgr_handle_t texture)
  * sokol_gl records draw commands into internal buffers during the frame and
  * replays them inside a live sg pass. raylib clears at BeginDrawing(); sokol
  * clears via the pass load-action. To keep the librl-style
- * begin/clear/draw/end ordering, we record everything between wgr_render_begin()
- * and wgr_render_end(), then open the swapchain pass in wgr_render_end() (where
+ * begin/clear/draw/end ordering, we record everything between wgr_render_begin_frame()
+ * and wgr_render_end_frame(), then open the swapchain pass in wgr_render_end_frame() (where
  * the clear color is already known) and replay the frame's command list (sgl
  * layers, including text, and model draws, in call order; see internal/wgr_render.h).
  */
@@ -406,7 +406,7 @@ static void setup_2d_projection(void)
 }
 
 WGRI_KEEP
-void wgr_render_begin(void)
+void wgr_render_begin_frame(void)
 {
     setup_2d_projection();
 }
@@ -587,11 +587,11 @@ static void grow_sgl_budgets(sgl_error_t err)
     sgl_set_context(ctx);
 }
 
-void wgr_render_end(void)
+void wgr_render_end_frame(void)
 {
     sgl_error_t sgl_err;
     if (wgr_render_current_pass_index != 0) {
-        log_warn("wgr_render_end: still drawing into a texture (missing wgr_render_end_texture)");
+        log_warn("wgr_render_end_frame: still drawing into a texture (missing wgr_render_end_texture)");
         wgr_render_end_texture();
     }
     clip_end_frame();

@@ -490,7 +490,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         g.marker_count++;
     }
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(WGR_COLOR_BLACK);
     wgr_shape2d_draw_rectangle(ui_width, 0, GAME_WIDTH, screen.y, g.game_bg);
     for (int i = 0; i < g.marker_count; i++) {
@@ -503,7 +503,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_text_draw_ex(0, line, ui_width + 16, 56, 14, g.hint);
     wgr_text_draw_ex(0, "Tab: switch UI page", ui_width + 16, 76, 14, g.hint);
     render(commands);
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void)

@@ -12,7 +12,7 @@ extern "C" {
  * radians, positive turning clockwise on screen. The world's shapes are
  * wgr_shape3d, the same 2D/3D split as sprite2d/sprite3d and text2d/text3d.
  *
- * Immediate primitives draw between wgr_render_begin() and wgr_render_end(), in
+ * Immediate primitives draw between wgr_render_begin_frame() and wgr_render_end_frame(), in
  * call order. */
 void wgr_shape2d_draw_rectangle(float x, float y, float width, float height, wgr_color_t color);
 void wgr_shape2d_draw_rectangle_lines(float x, float y, float width, float height, wgr_color_t color);

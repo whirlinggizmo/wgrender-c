@@ -270,11 +270,11 @@ static void frame(float dt, float fraction, void *user)
 
     update(dt);
     updated = wgr_get_time();
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(wgr_color_rgba(120, 150, 200, 255));
     wgr_scene_draw(b.scene);
     drawn = wgr_get_time();
-    wgr_render_end(); /* the shadow passes happen in here, before the screen's */
+    wgr_render_end_frame(); /* the shadow passes happen in here, before the screen's */
     submitted = wgr_get_time();
 
     if (b.frame >= WARMUP_FRAMES) {

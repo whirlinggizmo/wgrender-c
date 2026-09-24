@@ -106,14 +106,14 @@ static void frame(float dt, float tick_fraction, void *user_data)
     if (g.orbit) g.angle += dt * 0.2f;
     wgr_camera3d_set_view(g.camera, 9.0f * sinf(g.angle), 3.5f, 9.0f * cosf(g.angle), 0, 0.4f, 0, 0, 1, 0);
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(wgr_color_rgba(20, 22, 28, 255));
     wgr_scene_draw(g.scene);
     wgr_text_draw("libwgrender generated meshes: plane, cube, sphere, cylinder, cone, capsule, torus", 12, 36, 20,
                  WGR_COLOR_RAYWHITE);
     wgr_text_draw(g.orbit ? "O: stop the camera   ESC: quit" : "O: turn the camera   ESC: quit", 12, 64, 16,
                  WGR_COLOR_LIGHTGRAY);
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void)

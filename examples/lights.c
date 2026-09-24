@@ -160,7 +160,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_shape3d_set_visible(g.lamp_marker, wgr_light_is_enabled(g.lamp));
     wgr_light_set_direction(g.spot, sinf(g.time * 0.8f) * 0.7f, -1.0f, -0.3f);
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);
     wgr_render_begin_mode_3d();
     wgr_shape3d_draw_grid(20, 1.0f, g.grid);
@@ -173,7 +173,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
              wgr_light_is_enabled(g.spot) ? "on " : "off");
     wgr_text_draw(line, 12, 40, 16, WGR_COLOR_LIGHTGRAY);
     wgr_text_draw_fps(12, 64);
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void)

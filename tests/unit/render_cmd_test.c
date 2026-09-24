@@ -1,5 +1,5 @@
 /* The frame command list (src/wgr_render.c): sokol_gl layers, model runs, sprite
- * batches and callbacks are recorded in call order and replayed at wgr_render_end. What
+ * batches and callbacks are recorded in call order and replayed at wgr_render_end_frame. What
  * matters for batching is what it merges — model runs that follow each other with
  * nothing drawn in between become one command, and a layer nothing was drawn into is
  * dropped rather than replayed — and what it must not merge: runs in different passes,
@@ -34,7 +34,7 @@ void test_render_command_merging(void)
     wgri_camera3d_init();
     wgri_texture_init();
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     const int start = wgri_render_command_count();
     CHECK(start >= 1); /* a layer is open, waiting for 2D drawing */
 
@@ -68,10 +68,10 @@ void test_render_command_merging(void)
     const int after_2d = wgri_render_command_count();
     wgri_render_submit_models(21, 1);
     CHECK(wgri_render_command_count() == after_2d + 2);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     /* a sprite batch is open only while its command is the last one recorded */
-    wgr_render_begin();
+    wgr_render_begin_frame();
     CHECK(!wgri_render_sprites_open(3));
     CHECK(wgri_render_submit_sprites(3));
     CHECK(wgri_render_sprites_open(3));
@@ -82,15 +82,15 @@ void test_render_command_merging(void)
     CHECK(wgri_render_sprites_open(3));
     wgri_render_submit_models(0, 1);
     CHECK(!wgri_render_sprites_open(3));
-    wgr_render_end();
+    wgr_render_end_frame();
 
     /* callbacks are recorded in order and run at replay, each exactly once */
     drawn = 0;
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgri_render_submit_callback(count_draw, 1);
     wgri_render_submit_callback(count_draw, 10);
     wgri_render_submit_callback(NULL, 100); /* nothing to run */
-    wgr_render_end();
+    wgr_render_end_frame();
     CHECK(drawn == 11);
 
     wgri_texture_deinit();
@@ -113,7 +113,7 @@ void test_render_command_passes(void)
     const wgr_handle_t target = wgr_texture_create_target(32, 32);
     CHECK(target != 0);
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgri_render_submit_models(0, 2);
     CHECK(wgri_render_current_pass() == 0);
 
@@ -133,7 +133,7 @@ void test_render_command_passes(void)
     const int back = wgri_render_command_count();
     wgri_render_submit_models(5, 1);
     CHECK(wgri_render_command_count() == back + 2);
-    wgr_render_end();
+    wgr_render_end_frame();
 
     wgr_texture_release(target);
     wgri_texture_deinit();

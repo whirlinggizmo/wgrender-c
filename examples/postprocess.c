@@ -193,7 +193,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     const float strength = g.breathing ? g.strength * (0.55f + 0.45f * sinf(g.time * 0.8f)) : g.strength;
     if (g.vignette != 0) wgr_material_set_float(g.vignette, "strength", strength);
 
-    wgr_render_begin();
+    wgr_render_begin_frame();
     wgr_render_clear_background(wgr_color_rgba(16, 18, 24, 255));
     wgr_scene_draw(g.scene);
     wgr_text_draw("libwgrender post-processing: screen effects over the finished frame", 12, 36, 20, WGR_COLOR_RAYWHITE);
@@ -203,7 +203,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     snprintf(line, sizeof(line), "UP/DOWN strength %.2f   SPACE %s   O camera   ESC quit", (double)g.strength,
              g.breathing ? "stop breathing" : "breathe");
     wgr_text_draw(line, 12, 86, 16, WGR_COLOR_GRAY);
-    wgr_render_end();
+    wgr_render_end_frame();
 }
 
 int main(void)
