@@ -6,82 +6,82 @@ Keep this file short and rule-shaped. The authoritative design doc is
 
 ## Build & verify
 
-- `make` — build the static library (`build/linux/libwgrender.a`; `build/macos` on a Mac).
-  Build outputs live in one directory per target, named for the OS or backend they are
-  for: libraries in `build/{linux,linux-headless,windows,windows-headless,webgl2,webgpu}`
-  (`<backend>-nothreads` for `WEB_THREADS=0`), programs and web sites in
-  `examples/build/<target>`.
-- `make web [BACKEND=webgpu] [WEB_THREADS=0] [WEB_DEBUG=1]` — the web library
-  (`build/<backend>/libwgrender.a`; `-nothreads`/`-debug` suffixes). Web builds link at
-  `-O3` unless `WEB_DEBUG=1` (no optimization, assertions, debug info). Web
-  settings live in `mk/web.mk`, shared with the
-  examples, which link it. `make print-web-flags` prints what a program needs to
-  compile and link against it. The library itself is built by `tools/buildweb.py`
-  (make runs it), from `mk/build.json`, so it builds the same with emcc and Python
-  alone: no make or shell, which is how a binding builds it on Windows.
-- `CMakeLists.txt` — the library (and the examples, `-DWGR_EXAMPLES=ON`) for CMake:
-  MSVC and Visual Studio on Windows, and anywhere else CMake runs. It reads
-  `mk/build.json` and lists nothing itself, so a source, flag or library changes in the
-  Makefile and reaches it through `tools/gen_manifest.py`.
-- `tools/gen_manifest.py [--check]` — `mk/build.json`: the build as data (sources, include
-  paths, and per desktop OS and web target the defines, flags and link libraries),
-  asked of the Makefiles (`make print-var-NAME`) and checked in, for tools that build
-  wgrender without make. `make check` fails when it is stale: after changing a source
-  list, flag or library in a Makefile or `mk/web.mk`, run it.
-- `make examples` — build everything in `examples/`.
-- `make check` — guardrails; currently enforces that `include/` and `examples/`
-  stay **backend-free** (no sokol/GL leakage into the public surface).
-- `make test` — unit tests (`tests/unit/`, link against `build/linux-headless/libwgrender.a`, no
-  stubs, no display or GPU).
-- `make test SANITIZE=thread` (or `address`, `undefined`) — the unit tests with the
-  library built in under a sanitizer. Run `thread` when touching audio or other
-  code shared with the mixer thread.
-- `make smoke` — every example built headless (`make HEADLESS=1`) and run for 180
-  frames; fails on crashes, timeouts or error logs. Needs no display. Add or update tests alongside code changes; new tests go in
-  `tests/unit/tests.h` and the table in `tests/unit/main.c`.
-- `make windows` — the library and examples cross-compiled for Windows with MinGW
-  (`build/windows`, `examples/build/windows/*.exe`; `WINDOWS=1` on any target).
-  `make windows-test` / `make windows-smoke` run the unit tests and the headless
-  examples under Wine (`tools/wine.sh`: wine64/wine, or Steam's Proton). `make verify`
-  builds `windows` when MinGW is installed.
-- `tools/update_sokol.sh [ref]` — update the vendored sokol headers from libwgrender's sokol
+The build is CMake (3.21+; Ninja, or Visual Studio on Windows) and Python 3. There is no
+make and no shell script: everything below works the same on Windows, Linux and macOS.
+
+- `CMakePresets.json` names every build; each builds into `build/<preset>/`:
+  `desktop`, `debug`, `headless` (unit tests, guardrails and smoke run), `tsan` /
+  `asan` / `ubsan`, `windows` / `windows-headless` (cross-built with MinGW on Linux or
+  macOS, tested under Wine), and the web: `web-webgl2`, `web-webgl2-nothreads`,
+  `web-webgpu`, `web-webgpu-nothreads`, `web-webgl2-debug` (Emscripten: `$EMSDK`, or
+  `emcc` on PATH). `cmake --preset P && cmake --build --preset P`, then
+  `ctest --preset P` where it has tests. Visual Studio and VS Code read the presets.
+  A program of its own takes the library with `add_subdirectory` and
+  `target_link_libraries(... wgrender)`.
+- `build.json` — the build as data: the sources, include paths, and per desktop OS and
+  web target the defines, flags and link libraries. `CMakeLists.txt` lists none of its
+  own, and the bindings read the same file to compile wgrender with their own
+  toolchains. Edit it by hand: a new `src/*.c` goes in `sources` (`tools/check.py` fails
+  until it does).
+- `tools/buildweb.py [BACKEND=webgpu] [WEB_THREADS=0] [WEB_DEBUG=1]` — the web library
+  alone, from `build.json` with emcc and Python only (`build/<backend>[-nothreads][-debug]/libwgrender.a`):
+  how a binding builds it with nothing but emsdk. Web builds link at `-O3` unless
+  debug (no optimization, assertions, debug info).
+- The `headless` preset's tests (`ctest --preset headless`): `unit` (`tests/unit/`,
+  no stubs, no display or GPU; new tests go in `tests/unit/tests.h` and the table in
+  `tests/unit/main.c`; add or update tests alongside code changes), `check`
+  (`tools/check.py`: include/ and examples/ stay **backend-free**, the naming rules
+  below, the module boundary, `build.json`'s sources), and `smoke.<example>`: every
+  example run headless for 180 frames, failing on crashes, timeouts or error logs
+  (`tools/smoke.py`). `tsan` (or `asan`, `ubsan`) runs the unit tests under a
+  sanitizer: run `tsan` when touching audio or other code shared with the mixer thread.
+- `tools/deps.py [check|install]` — the Linux desktop build's system packages (GL, X11,
+  ALSA); a Linux desktop configure runs the check.
+- `tools/wine.py program.exe` — run a Windows build under Wine (wine64/wine, or Steam's
+  Proton); the `windows-headless` preset's tests go through it.
+- `tools/update_sokol.py [ref]` — update the vendored sokol headers from libwgrender's sokol
   fork (github.com/robknopf/sokol: upstream plus fixes libwgrender needs; sync the fork
   with floooh/sokol there first). Records the fork and upstream commits in
   `deps/sokol/VERSION`.
-- `tools/update_clay.sh [ref]` — the same for Clay (used only by `examples/clay.c`),
+- `tools/update_clay.py [ref]` — the same for Clay (used only by `examples/clay.c`),
   from libwgrender's fork (github.com/robknopf/clay: upstream plus fixes, each on its own
   branch merged into the fork's `main`). Records both commits in `deps/clay/VERSION`.
-- `make loadbench [DESKTOP=1] [KTX=1]` — worst frame while loading large glTF models in
-  the background vs synchronously (downloads them on first use); `KTX=1` with their
-  textures compressed (made the first time; needs `DESKTOP=1`: headless samples no
-  compressed format).
-- `make shadowbench [DESKTOP=1]` — what a casting light costs a frame: the same scene
-  with no shadows, one light at three map sizes, two lights, one where nothing
+- `tools/bench/run.py loadbench [--desktop] [--ktx]` — worst frame while loading large
+  glTF models in the background vs synchronously (downloads them on first use); `--ktx`
+  with their textures compressed (made the first time; needs `--desktop`: headless
+  samples no compressed format).
+- `tools/bench/run.py shadowbench [--desktop]` — what a casting light costs a frame: the
+  same scene with no shadows, one light at three map sizes, two lights, one where nothing
   receives, one where every model shares a mesh and material (what instancing is worth),
   and two where the camera faces away from everything (with culling on and off, which is
-  what frustum culling is worth), at four model counts. Headless is CPU only (no GPU at all); `DESKTOP=1`
-  opens a window with vsync off for real frame times. `make shadowbench-web` builds it
-  as a page, `/bench/?ex=shadowbench`.
-- `make spritebench [DESKTOP=1]` — sprite-heavy scenes (a grid, a perspective field
-  with mixed facings, 3D and 2D particles as sprites and from emitters): frame time,
-  CPU split into update / scene / submit, sokol_gl vertex/command use.
-  `make spritebench-web` builds it as a page, `/bench/?ex=spritebench` (results in the
-  browser console).
-- `make webcheck [BACKEND=webgpu] [WEB_THREADS=0]` — web build smoke test in a
-  browser (needs Emscripten, Node >= 22, a Chromium-based browser; WebGPU runs on a
-  virtual X display when Xvfb is installed, else in a visible window). Web builds use
-  threads by default, which need cross-origin isolation (`tools/serve.py` sends the
-  headers); `WEB_THREADS=0` builds without.
-- `make serve [BACKEND=webgpu] [WEB_THREADS=0]` — the dev server (`tools/serve.py`:
-  COOP/COEP headers, `/assets/` mounted) on http://localhost:8000. `make serve-tls`
-  serves HTTPS on 8443 for other devices on the LAN (a phone), which need a secure page
-  for threaded builds; it takes `TLS_CERT` / `TLS_KEY` (a certificate they trust).
-  `serve.py --cache --gzip` serves as a real host should (versioned code cached for
-  good; see README "Startup and hosting").
-- `make webstart [BACKEND=webgpu] [WEB_THREADS=0]` — startup times per web example
-  (`tools/webstart.mjs`): cold, warm and hot visits, locally and on emulated 4G,
-  from libwgrender's `wgr:*` performance marks; `WEBSTART_FLAGS="--devtools=PORT --url=URL"`
-  measures a phone. Run it when touching init, the page shell or web build flags.
+  what frustum culling is worth), at four model counts. Headless is CPU only (no GPU at
+  all); `--desktop` opens a window with vsync off for real frame times.
+- `tools/bench/run.py spritebench [--desktop]` — sprite-heavy scenes (a grid, a
+  perspective field with mixed facings, 3D and 2D particles as sprites and from
+  emitters): frame time, CPU split into update / scene / submit, sokol_gl vertex/command
+  use.
+- The benchmarks are targets of the web presets too (`loadbench`, `shadowbench`,
+  `spritebench`, `stress`; `benches` for all): pages of their own under `bench/` in the
+  site, `/bench/?ex=spritebench` (results in the browser console).
+- `node tools/webcheck.mjs [--backend=webgpu] [--threads=0]` — the web build's smoke
+  test in a browser, on the matching web preset's site (needs Node >= 22 and a
+  Chromium-based browser; WebGPU runs on a virtual X display when Xvfb is installed,
+  else in a visible window). Web builds use threads by default, which need cross-origin
+  isolation (`tools/serve.py` sends the headers); the `-nothreads` presets build
+  without.
+- `python3 tools/serve.py [port] [build/web-...]` — the dev server (COOP/COEP headers,
+  `/assets/` mounted) on http://localhost:8000. `--tls CERT KEY` serves HTTPS for other
+  devices on the LAN (a phone), which need a secure page for threaded builds.
+  `--cache --gzip` serves as a real host should (versioned code cached for good; see
+  README "Startup and hosting").
+- `tools/site.py [build/web-...]` — a self-contained copy of a web build, assets
+  included, for a static host (the Pages workflow publishes `web-webgl2-nothreads`'s).
+- `node tools/webstart.mjs [--backend=webgpu] [--threads=0]` — startup times per web
+  example: cold, warm and hot visits, locally and on emulated 4G, from libwgrender's
+  `wgr:*` performance marks; `--devtools=PORT --url=URL` measures a phone. Run it when
+  touching init, the page shell or web build flags.
+- `tools/websize.py [build/web-...]` — wasm/JS sizes per web example (raw and gzip;
+  brotli if installed).
 - `tools/benchmarks.py [--doc | --all]` — the C `simple` against every binding
   (docs/benchmarks.md): download size, frame cost, JS heap and GC, and what a call from a
   JS guest costs. Measures the C baseline into `bench/results.json` and collects each
@@ -89,31 +89,33 @@ Keep this file short and rule-shaped. The authoritative design doc is
   also runs each sibling binding's own `tools/benchmarks.py` in between. The
   harness is `tools/bench/` (`measure.py`, which bindings import, plus `bench.mjs`,
   `gcbench.mjs`, `callcount.mjs`, `callbench/`, and `stress.c`, the scene the bindings
-  port: `make stress-web`, `/bench/?ex=stress&n=5000`). The stress runs need Xvfb and a
-  GPU. By hand, not CI; commit both files.
-- `tools/compress_textures.sh [--linear] name.png...` — compressed texture files beside
+  port: `/bench/?ex=stress&n=5000`). The stress runs need Xvfb and a GPU. By hand, not
+  CI; commit both files.
+- `tools/compress_textures.py [--linear] name.png...` — compressed texture files beside
   each PNG (`name.bc7.ktx`, `.astc.ktx`, `.etc2.ktx`), loaded as `name.ktx`
   (docs/PLAN-textures.md); builds a pinned Basis Universal encoder into `build/tools`
   the first time. `--gltf model.gltf` does a model's textures and writes
   `model.ktx.gltf`.
 - `tools/shaderpack.py name.glsl` — compile a custom material shader (written against
-  `shaders/wgr.glsl`) into `name.wgrshader` for every backend (needs `tools/sokol-shdc`).
-  `make example-shaders` repacks `examples/shaders/*.glsl` into the committed
-  `examples/assets/shaders/`; run it after changing one of them or `shaders/wgr.glsl`.
-- `make brdf-lut` — regenerate the baked BRDF table (`src/data/wgr_brdf_lut.h`) after
-  changing `wgri_environment_brdf_lut` or its size (a unit test fails until you do).
-- `make websize [BACKEND=webgpu] [WEB_THREADS=0]` — wasm/JS sizes per web example
-  (raw and gzip; brotli if installed), also summarized after `make wasm-all`.
-- Run `make verify` (lib + examples + `make check` + `make test` + `make smoke`,
-  about 15 s) before calling a change done; run `make webcheck` (and
-  `BACKEND=webgpu`) too when touching rendering, assets or web code. `make verify`
-  never links a web example, so **EM_JS changes are unverified until an example
-  links** — closure runs then, not when the library is built, and it is what catches
-  a typo in the JS body (`$0` is EM_ASM syntax; EM_JS takes named parameters). After
-  touching EM_JS run at least `make -C examples wasm WASM_EXAMPLE=hello`, and
-  `make windows-test` and `make windows-smoke` (under Wine) when touching threads,
-  files and paths, the platform layer (`wgr_platform.c`, `deps/sokol_utils`) or the
-  build.
+  `shaders/wgr.glsl`) into `name.wgrshader` for every backend. The generators, each a
+  CMake target too: `tools/gen_shaders.py --examples` (`gen-example-shaders`) repacks
+  `examples/shaders/*.glsl` into the committed `examples/assets/shaders/`; run it after
+  changing one of them or `shaders/wgr.glsl`. `tools/gen_shaders.py` (`gen-shaders`)
+  regenerates `src/shaders/*.glsl.h`. Both fetch the pinned sokol-shdc into
+  `build/tools` the first time.
+- `gen-brdf-lut` (a target of a desktop preset) — regenerate the baked BRDF table
+  (`src/data/wgr_brdf_lut.h`) after changing `wgri_environment_brdf_lut` or its size (a
+  unit test fails until you do).
+- Run `python3 tools/verify.py` (the `desktop`, `headless` and `tsan` presets, and
+  `windows` / `windows-headless` when MinGW and Wine are installed) before calling a
+  change done; add `--web` (every example on `web-webgl2`, `-nothreads` and
+  `web-webgpu`, loaded in the browser) when touching rendering, assets or web code.
+  Without `--web` nothing links a web example, so **EM_JS changes are unverified until
+  an example links** — closure runs then, not when the library is built, and it is what
+  catches a typo in the JS body (`$0` is EM_ASM syntax; EM_JS takes named parameters).
+  After touching EM_JS link at least one (`cmake --build --preset web-webgl2 --target
+  hello`). The Windows presets matter when touching threads, files and paths, the
+  platform layer (`wgr_platform.c`, `deps/sokol_utils`) or the build.
 
 ## Process
 
@@ -184,7 +186,7 @@ The public surface (`include/*.h`) is **language/bindings-agnostic**: every
 parameter and return value is a **handle (`wgr_handle_t`)**, an **integral / float
 / enum**, or a **`const char *`** (paths and text). **No other pointers in user
 code** — never `unsigned char *data` / `int size`, never struct pointers. This is
-enforced by `tools/check_naming.sh` (run by `make check`), not just convention.
+enforced by `tools/check.py` (the `check` test), not just convention.
 
 Creation follows one pattern, no exceptions:
 
@@ -213,12 +215,12 @@ the sync `wgr_*_create(path)`. Bytes never cross into user code.
 - Optional subsystems (textures, models, sprites, particles, audio, ...) register with
   `WGRI_MODULE` (`src/internal/wgr_module_internal.h`), so a program links only what it uses. The
   core (`wgr.c`, `wgr_render`, `wgr_scene`, ...) never calls them by name: add a module
-  callback or a hook (`wgri_render_hooks`, `wgri_scene_hooks`) instead. `make check`
-  enforces it (`tools/check_modules.sh`). Details: ARCHITECTURE.md §7b.
+  callback or a hook (`wgri_render_hooks`, `wgri_scene_hooks`) instead.
+  `tools/check.py` enforces it. Details: ARCHITECTURE.md §7b.
 
 ## Shaders
 
-- Authored once in `src/shaders/*.glsl`; `make shaders` regenerates the committed
+- Authored once in `src/shaders/*.glsl`; `tools/gen_shaders.py` regenerates the committed
   `*.glsl.h` for every backend. Read the **generated** `glsl300es`, not just what you
   wrote: shdc flattens a uniform block to one `uniform vec4 name[N]`, and GLES drivers
   are strictest about how that array is indexed.
@@ -230,7 +232,7 @@ the sync `wgr_*_create(path)`. Bytes never cross into user code.
   arithmetically (`mix(lo, hi, step(...))`). An affine `arr[i + k]` and a dynamic vector
   component (`v[i % 4]`) are both fine. `src/shaders/wgr_sprite.glsl`'s `curve_key` is
   the worked example.
-- A shader that only *some* GPUs reject won't show up in `make verify`, `make webcheck`
+- A shader that only *some* GPUs reject won't show up in `tools/verify.py --web`
   or CI. Link-check on a real low-end device when you touch one.
 
 ## Naming
@@ -257,7 +259,7 @@ What they come to here:
 - **Sibling repos:** `wgutils-c` and friends follow the same pattern — see CONVENTIONS.md
   before naming anything new.
 - **Prefix says which surface it is:** `wgr_` is public, `wgri_` is internal. A call
-  site reads as what it is without looking anything up, and `make check` can enforce
+  site reads as what it is without looking anything up, and `tools/check.py` can enforce
   it, which it can't when one prefix covers both.
 - **Public API** (`include/*.h`): subsystem-first `wgr_<section>_<action>`.
 - **Predicates say which kind of question they answer.** `is_<state>` is what it is
@@ -269,7 +271,7 @@ What they come to here:
   no state with them, and a binding carries the name straight through -- wgrender-hx
   mirrors C names mechanically, so `wgr_window_is_fullscreen` is `Window.isFullscreen`.
   The verb is the name in every language, not a hint someone translates, which is why
-  it is worth getting right. `tools/check_naming.sh` doesn't enforce verbs (it checks
+  it is worth getting right. `tools/check.py` doesn't enforce verbs (it checks
   types, `_ptr` and the prefix per surface), so this is convention.
 - **Every kind with a transform has the same calls for it.** For each part it has
   (position, rotation, scale): `set_<part>`, which leaves the other parts as they are,

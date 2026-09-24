@@ -1,4 +1,4 @@
-/* libwgrender unit test runner (`make test`).
+/* libwgrender unit test runner (`ctest --preset headless`, the test `unit`).
  *
  *   tests/build/unit_tests            run every test
  *   tests/build/unit_tests pick_      run tests whose name starts with "pick_"

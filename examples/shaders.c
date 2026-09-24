@@ -9,7 +9,7 @@
  *   - a logo sprite, in the world and in the screen's corner: one material outlines
  *     it and pulses a flash (its shader reads the sprite's own texture)
  * The shaders are the .glsl files in examples/shaders, compiled for every backend by
- * tools/shaderpack.py into .wgrshader files in examples/assets/shaders (make example-shaders).
+ * tools/shaderpack.py into .wgrshader files in examples/assets/shaders (tools/gen_shaders.py --examples).
  * They load through wgr_asset like any other file. A sun, a point light circling in front and
  * an environment (a sunset, not shown as the background) light the scene. Keys: 1 sun, 2 point light, ESC quit. */
 #include <math.h>

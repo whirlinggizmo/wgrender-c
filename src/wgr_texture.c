@@ -407,7 +407,7 @@ static const wgri_loader_t wgr_texture_loader = {
 
 /* ------------------------------------------------ compressed textures (KTX) ---- */
 
-/* textures/rock.ktx names a texture compressed for GPUs (tools/compress_textures.sh):
+/* textures/rock.ktx names a texture compressed for GPUs (tools/compress_textures.py):
  * rock.bc7.ktx (desktops), rock.astc.ktx (phones), rock.etc2.ktx (older phones), and
  * rock.png for anything else. The first this GPU can sample is the one loaded (and on
  * the web, the only one downloaded): the asset layer and wgr_texture_create both map

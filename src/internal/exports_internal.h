@@ -4,7 +4,7 @@
 /* WGRI_KEEP keeps a public function in a web build even when nothing in the program
  * calls it, and exports it. That is what a library archive wants: an object is only
  * linked when something references it. A program that compiles wgrender's sources in
- * directly (wgrender-nim does, from mk/build.json) links every object, so it defines
+ * directly (wgrender-nim does, from build.json) links every object, so it defines
  * WGRI_KEEP empty (-DWGRI_KEEP=) and lets the linker drop what it never calls. */
 #if defined(PLATFORM_WEB) || defined(__EMSCRIPTEN__)
     #include <emscripten.h>

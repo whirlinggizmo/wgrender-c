@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_by": "tools/gen_manifest.py, from the Makefiles: do not edit",
+  "about": "wgrender's build as data: CMakeLists.txt, tools/buildweb.py and the bindings read it. Edited by hand; tools/check.py checks sources against src/*.c. sources, include (-I) and system_include (-isystem: vendored headers) are relative to this file; std, opt and warn are the desktop builds' (gcc/clang spelling); desktop.<os>[-headless]: defines, libs by name (-l<name>, or <name>.lib for MSVC), macOS frameworks, and static (link the runtime statically with MinGW); web.<backend>[-nothreads][-debug]: emcc's cflags for the library, program_cflags a program compiled against it must match, and ldflags.",
   "sources": [
     "src/wgr.c",
     "src/wgr_asset.c",

@@ -196,7 +196,7 @@ void test_environment_brdf_lut(void)
 }
 
 /* The baked table (src/data/wgr_brdf_lut.h) is the function's: regenerate it with
- * `make brdf-lut` when the function or its size changes. */
+ * the gen-brdf-lut target when the function or its size changes. */
 static float float_from_half(uint16_t h)
 {
     const int exponent = (h >> 10) & 0x1F, mantissa = h & 0x3FF;

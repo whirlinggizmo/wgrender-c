@@ -3,14 +3,13 @@
 
     tools/buildweb.py [BACKEND=webgl2|webgpu] [WEB_THREADS=1|0] [WEB_DEBUG=0|1] [-j N]
 
-The same settings as `make web`, spelled the same way (they also come from the
-environment, then default as make's do), and the same result: build/<dir>/libwgrender.a,
-<dir> being webgl2, webgl2-nothreads, webgpu-debug, ... `make web` runs this. It reads
-how to compile from mk/build.json (tools/gen_manifest.py), which is what lets a binding
+The settings also come from the environment, else default to a threaded WebGL2 release
+build. The result is build/<dir>/libwgrender.a, <dir> being webgl2, webgl2-nothreads,
+webgpu-debug, ... It reads how to compile from build.json, which is what lets a binding
 build wgrender for the web on a machine that has Emscripten and nothing else: emsdk
-brings the Python this runs on.
+brings the Python this runs on. (wgrender's own web builds are the CMake web presets.)
 
-Incremental, as make is: an object is rebuilt when it is missing, older than its
+Incremental: an object is rebuilt when it is missing, older than its
 source or than any header its .d file names, or when the flags changed.
 """
 import json
@@ -26,7 +25,7 @@ DEFAULTS = {'BACKEND': 'webgl2', 'WEB_THREADS': '1', 'WEB_DEBUG': '0'}
 
 
 def settings(args):
-    """KEY=VALUE arguments, then the environment, then make's defaults."""
+    """KEY=VALUE arguments, then the environment, then the defaults."""
     given = dict(a.split('=', 1) for a in args if '=' in a)
     unknown = set(given) - set(DEFAULTS)
     if unknown:
@@ -54,7 +53,7 @@ def tool(name):
 
 
 def depends(d_file):
-    """The files a .d file says an object depends on (make's syntax: `obj: a b \\`)."""
+    """The files a .d file says an object depends on (`obj: a b \\`, make's syntax)."""
     try:
         text = d_file.read_text()
     except OSError:
@@ -100,7 +99,7 @@ def main():
         jobs = int(args[i + 1])
         del args[i:i + 2]
     s = settings(args)
-    manifest = json.loads((ROOT / 'mk/build.json').read_text())
+    manifest = json.loads((ROOT / 'build.json').read_text())
     name = web_dir(s)
     target = manifest['web'][name]
     build = ROOT / 'build' / name
@@ -111,7 +110,7 @@ def main():
     flags = [f"-std={manifest['std']}", *manifest['warn'], *target['cflags'],
              *[f'-I{d}' for d in manifest['include']],
              *[x for d in manifest['system_include'] for x in ('-isystem', d)]]
-    # flags changed: rebuild everything, as make's flags stamp does
+    # flags changed: rebuild everything
     stamp = obj_dir / 'flags.buildweb'
     line = ' '.join(flags)
     if not stamp.exists() or stamp.read_text() != line:

@@ -8,7 +8,7 @@
   naming    AGENTS.md § Naming: wgr_<noun>_t struct types; a pointer resolved from a
             handle is <noun>_ptr; the public API is handle-only; wgr_ is public and
             wgri_ internal
-  manifest  mk/build.json's sources are src/*.c, no more and no fewer
+  manifest  build.json's sources are src/*.c, no more and no fewer
   modules   the core never calls an optional subsystem by name (src/internal/
             wgri_module.h), read from the library's symbol table: needs --lib and nm,
             and is skipped without them. ctest's `check` passes the headless library.
@@ -106,12 +106,12 @@ def check_naming(r):
 
 
 def check_manifest(r):
-    listed = set(json.loads((ROOT / 'mk/build.json').read_text())['sources'])
+    listed = set(json.loads((ROOT / 'build.json').read_text())['sources'])
     present = {p.relative_to(ROOT).as_posix() for p in files('src/*.c')}
     r.result([f'{s}: not in src/' for s in sorted(listed - present)]
-             + [f'{s}: not in mk/build.json' for s in sorted(present - listed)],
-             "mk/build.json's sources are src/*.c",
-             "mk/build.json's sources don't match src/*.c:")
+             + [f'{s}: not in build.json' for s in sorted(present - listed)],
+             "build.json's sources are src/*.c",
+             "build.json's sources don't match src/*.c:")
 
 
 def check_modules(r, lib):

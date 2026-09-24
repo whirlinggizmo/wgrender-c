@@ -44,11 +44,13 @@ EXAMPLE = 'simple'
 
 
 def measure_c():
-    web_vars = [f'{k}={v}' for k, v in measure.WEB_VARS.items()]
-    # make wasm builds one example, WASM_EXAMPLE, which is hello unless named
-    measure.run(['make', 'wasm', f'WASM_EXAMPLE={EXAMPLE}'] + web_vars, cwd=ROOT)
-    measure.run(['make', 'stress-web'] + web_vars, cwd=ROOT)
-    site = ROOT / 'examples/build/webgl2-nothreads'
+    # the preset measure.WEB_VARS names: the site (every example, the page and its
+    # examples.json) and the stress page under bench/
+    preset = 'web-webgl2-nothreads'
+    measure.run(['cmake', '--preset', preset], cwd=ROOT)
+    measure.run(['cmake', '--build', '--preset', preset], cwd=ROOT)
+    measure.run(['cmake', '--build', '--preset', preset, '--target', 'stress'], cwd=ROOT)
+    site = ROOT / 'build' / preset
     page = {'url': f'/?ex={EXAMPLE}', 'probe': f'{EXAMPLE}.js'}
     c = {
         'id': 'c', 'label': 'C', 'project': 'wgrender-c', 'example': EXAMPLE,

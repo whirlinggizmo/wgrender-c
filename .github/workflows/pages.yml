@@ -2,7 +2,7 @@
 #
 # WEB_THREADS=0, because Pages sends no COOP/COEP headers and a threaded build needs
 # cross-origin isolation to get SharedArrayBuffer. Nothing requires threads (every
-# example passes `make webcheck WEB_THREADS=0`); asset decoding just runs on the main
+# example passes webcheck on the web-webgl2-nothreads preset); asset decoding just runs on the main
 # thread, which examples/loading.c says out loud rather than claiming otherwise.
 #
 # WebGL2 only: it runs everywhere, and it is what CI's browser check gates on, so the
@@ -40,11 +40,13 @@ jobs:
           version: 5.0.7
           actions-cache-folder: emsdk-cache
       - name: Build every example and assemble the site
-        run: make -C examples site BACKEND=webgl2 WEB_THREADS=0
+        run: |
+          cmake --preset web-webgl2-nothreads && cmake --build --preset web-webgl2-nothreads
+          python3 tools/site.py build/web-webgl2-nothreads
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: examples/build/webgl2-nothreads/site
+          path: build/web-webgl2-nothreads/site
 
   deploy:
     name: deploy

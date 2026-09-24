@@ -107,7 +107,7 @@ async function checkExample(browser, debugBase, baseUrl, example, opts) {
                     result.backendOk ||= text.includes(BACKEND_LOG[opts.backend]);
                 }
                 /* libwgrender logs go to the console as plain messages: fail on error-level
-                 * ones like tools/smoke.sh does ([ERROR], [FATAL]) */
+                 * ones like tools/smoke.py does ([ERROR], [FATAL]) */
                 if (msg.params.type === "error" || text.includes("[panic]") || /\[(ERROR|FATAL)/.test(text)) {
                     result.errors.push(text.trim().split("\n")[0]);
                 }

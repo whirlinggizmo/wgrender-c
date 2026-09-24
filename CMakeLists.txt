@@ -13,7 +13,7 @@
 # which brings wgrender's public headers and the platform libraries it needs (OpenGL,
 # X11, ALSA, the Windows and macOS frameworks) with it.
 #
-# What is built, and with what, is mk/build.json: the sources, and per target the
+# What is built, and with what, is build.json: the sources, and per target the
 # defines, flags and libraries. The bindings read the same file to build wgrender with
 # their own toolchains (wgrender-nim's build.nim, tools/buildweb.py), so this file
 # lists no source, flag or library of its own.
@@ -24,14 +24,31 @@
 #                  relative to the working directory)
 #   WGR_TESTS      tests/unit, and a smoke test per example (headless builds)
 #   WGR_SANITIZE   thread | address | undefined: the library and tests built with it
-# Under Emscripten (emcmake, or the web presets):
+# Under Emscripten (the web presets, or emcmake):
 #   WGR_WEB_BACKEND webgl2 | webgpu     WGR_WEB_THREADS ON | OFF     WGR_WEB_DEBUG OFF | ON
 
 cmake_minimum_required(VERSION 3.21) # string(JSON), and C_STANDARD 11 on MSVC
+
+# The web presets set WGR_WEB: Emscripten's toolchain, from $EMSDK or else the emcc on
+# PATH (as emsdk_env or an installed Emscripten puts it), so no preset names a path.
+if(WGR_WEB AND NOT CMAKE_TOOLCHAIN_FILE)
+  if(DEFINED ENV{EMSDK})
+    set(emscripten "$ENV{EMSDK}/upstream/emscripten")
+  else()
+    find_program(WGR_EMCC NAMES emcc emcc.bat)
+    if(NOT WGR_EMCC)
+      message(FATAL_ERROR "wgrender: a web preset needs Emscripten: no EMSDK, and no emcc on PATH")
+    endif()
+    file(REAL_PATH "${WGR_EMCC}" emcc)
+    get_filename_component(emscripten "${emcc}" DIRECTORY)
+  endif()
+  set(CMAKE_TOOLCHAIN_FILE "${emscripten}/cmake/Modules/Platform/Emscripten.cmake")
+endif()
+
 project(wgrender LANGUAGES C)
 
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/mk/build.json" WGR_MANIFEST)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS mk/build.json)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/build.json" WGR_MANIFEST)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS build.json)
 
 # A JSON array in the manifest, as a CMake list: wgr_manifest_list(out key [key ...])
 function(wgr_manifest_list out)

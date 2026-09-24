@@ -16,7 +16,7 @@ import shutil
 import subprocess
 import sys
 
-# the pkg-config modules sokol needs on Linux (mk/build.json's desktop linux libs)
+# the pkg-config modules sokol needs on Linux (build.json's desktop linux libs)
 MODULES = ['alsa', 'gl', 'x11', 'xi', 'xcursor', 'xrandr']
 
 PACKAGES = {

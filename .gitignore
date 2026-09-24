@@ -1,8 +1,6 @@
 build/
-examples/build/
 examples/**/cache/
 reference/
 .wgr_fs_probe
-tools/sokol-shdc
 examples/assets/bench/
 __pycache__/

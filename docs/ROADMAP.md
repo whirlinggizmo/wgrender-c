@@ -61,7 +61,7 @@ redirects, host ping; anything else lives outside the library, see Future).
 
 Structural: **subsystems that can't be left out** -- librl linked everything into every
 build, and so did wgrender until `WGRI_MODULE` (ARCHITECTURE.md §7b): a program now links
-only the subsystems it uses, and `make websize` keeps that honest. **Scripting and
+only the subsystems it uses, and `tools/websize.py` keeps that honest. **Scripting and
 bindings mixed into the core** -- librl carried script hosts, hot-reload plumbing and
 four bindings; here the core stays a plain C library and each binding is its own repo
 on the handle-only API (see the README's Bindings section).
@@ -112,17 +112,17 @@ Left out on purpose, not gaps: the scratch buffer and `_to_scratch` functions, p
 
 ## Infrastructure / testing
 
-- ~~**Null / headless renderer**~~ — done: `make HEADLESS=1` (sokol dummy GPU
+- ~~**Null / headless renderer**~~ — done: the `headless` preset (sokol dummy GPU
   backend, a headless run loop behind the internal `wgr_platform` layer, no audio
-  device) and `make smoke`. Unit tests link the headless library, so they need no
-  GL/X11/ALSA. CI runs `make test`, `make smoke` and the WebGL2 webcheck. Next, when needed:
+  device) and its smoke test of every example. Unit tests link the headless library, so they need no
+  GL/X11/ALSA. CI runs the unit and smoke tests and the WebGL2 webcheck. Next, when needed:
   benchmarks / asset-validation tools on the headless build.
-- **Test suite** — built, in layers: **unit tests** (`make test`, plain C against the
+- **Test suite** — built, in layers: **unit tests** (`ctest`, plain C against the
   headless library: handle pool, `wgr_fs` and asset bookkeeping, scene order and picking
   math, animation sampling, object state, shadows, culling, instancing; also under
-  the sanitizers, `SANITIZE=thread|address|undefined`); **smoke** (`make smoke`, every
-  example headless for 180 frames, and `make windows-smoke` the same under Wine);
-  **web** (`make webcheck`, every example in a Chromium-based browser over the DevTools
+  the sanitizers, the `tsan`, `asan` and `ubsan` presets); **smoke** (every example
+  headless for 180 frames, and the same under Wine with `windows-headless`);
+  **web** (`tools/webcheck.mjs`, every example in a Chromium-based browser over the DevTools
   protocol, WebGL2 and WebGPU). The parity layers that were planned here -- an API
   report and scenarios run against both librl and wgrender -- were retired once parity
   was reached (see "What librl taught us"). Still optional: **image comparison**,

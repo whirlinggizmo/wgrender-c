@@ -80,7 +80,9 @@
       "name": "web-base",
       "hidden": true,
       "inherits": "base",
-      "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake"
+      "cacheVariables": {
+        "WGR_WEB": "ON"
+      }
     },
     {
       "name": "web-webgl2",

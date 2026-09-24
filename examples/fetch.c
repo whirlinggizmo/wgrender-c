@@ -23,10 +23,10 @@
  * to start first — and nothing in libwgrender did the TLS. Point it somewhere else with
  * WGRENDER_ASSET_HOST, e.g. the dev server the web build uses:
  *
- *     make serve
- *     WGRENDER_ASSET_HOST=http://localhost:8000/assets ./examples/build/desktop/fetch
+ *     python3 tools/serve.py
+ *     WGRENDER_ASSET_HOST=http://localhost:8000/assets build/desktop/fetch
  *
- * Offline, or built headless for `make smoke` (a gate shouldn't need a network), it
+ * Offline, or built headless for the smoke test (a gate shouldn't need a network), it
  * reads the local asset directory instead and says so. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,7 +59,7 @@ static void fetch_with_curl(wgr_handle_t request, const char *url, const char *d
     wgr_asset_fetch_done(request, ok);
 }
 
-/* Is anything serving there? Keeps `make smoke` (and a forgetful human) honest. */
+/* Is anything serving there? Keeps the smoke test (and a forgetful human) honest. */
 static bool host_is_up(const char *host)
 {
     char command[512];
@@ -96,7 +96,7 @@ static void on_init(void *user)
     const char *wanted = getenv("WGRENDER_ASSET_HOST");
     snprintf(g_host, sizeof g_host, "%s", wanted != NULL ? wanted : DEFAULT_HOST);
 #ifdef WGR_HEADLESS
-    g_remote = wanted != NULL && host_is_up(g_host); /* `make smoke` stays offline */
+    g_remote = wanted != NULL && host_is_up(g_host); /* the smoke test stays offline */
 #else
     g_remote = host_is_up(g_host);
 #endif

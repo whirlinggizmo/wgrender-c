@@ -5,8 +5,8 @@
 #   and on demand. Nothing waits on it; it catches clean-checkout problems (files
 #   not committed, new system dependencies).
 # - web: daily and on demand (Actions -> ci -> Run workflow), since web breakage
-#   from a clean environment is rare and `make webcheck` runs locally when web code
-#   changes.
+#   from a clean environment is rare and `tools/verify.py --web` runs locally when
+#   web code changes.
 name: ci
 
 on:
@@ -32,22 +32,17 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          tools/deps.sh install
-          sudo apt-get install -y bc  # tools/smoke.sh timing
+          python3 tools/deps.py install
       - name: Build library and examples (GL)
-        run: make -j"$(nproc)" && make -j"$(nproc)" examples
-      - name: Guardrails
-        run: make check
-      - name: Unit tests
-        run: make test
+        run: python3 tools/verify.py --only desktop
+      - name: Unit tests, guardrails, and every example headless
+        run: python3 tools/verify.py --only headless
       - name: Unit tests under ThreadSanitizer
-        run: make test SANITIZE=thread
-      - name: Smoke test (every example headless)
-        run: make smoke
+        run: python3 tools/verify.py --only tsan
 
   # An EM_JS body is carried through the library as text and only compiled when an
-  # example *links* -- closure runs then. So the desktop job above, `make`, and
-  # `make verify` all pass on a web build that cannot link, and the first thing to
+  # example *links* -- closure runs then. So the desktop job above and a library
+  # build all pass on a web build that cannot link, and the first thing to
   # notice is the pages deploy (it happened: "$0 is undeclared", a commit that was
   # green here and red there). Linking one example on every push closes that.
   web-link:
@@ -64,7 +59,7 @@ jobs:
           version: 5.0.7
           actions-cache-folder: emsdk-cache
       - name: Link a web example (compiles every EM_JS body)
-        run: make -C examples wasm WASM_EXAMPLE=hello BACKEND=webgl2
+        run: cmake --preset web-webgl2 && cmake --build --preset web-webgl2 --target hello
 
   web:
     name: web (WebGL2 build + browser check)
@@ -86,11 +81,13 @@ jobs:
       - name: Build and check in headless Chrome
         # Two vCPUs: two examples at a time (each spins up decode workers of its own),
         # and twice the deadline. Four at a time starved a model's decode past 20 s.
-        run: make -C examples webcheck BACKEND=webgl2 WEBCHECK_FLAGS="--jobs=2 --settle=40000"
+        run: |
+          cmake --preset web-webgl2 && cmake --build --preset web-webgl2
+          node tools/webcheck.mjs --backend=webgl2 --jobs=2 --settle=40000
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: webcheck-screenshots
-          path: examples/build/webgl2/webcheck
+          path: build/web-webgl2/webcheck
           if-no-files-found: ignore

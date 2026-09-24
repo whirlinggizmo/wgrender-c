@@ -27,7 +27,7 @@
  * only there — a press on the UI, even one dragged into the strip, belongs to the UI.
  * Mouse wheel or drag scrolls. ESC quits.
  *
- * deps/clay comes from libwgrender's Clay fork (tools/update_clay.sh), which carries one
+ * deps/clay comes from libwgrender's Clay fork (tools/update_clay.py), which carries one
  * fix: scrolling goes to the innermost scroll area under the pointer, which nested
  * scroll areas need. */
 #include <math.h>

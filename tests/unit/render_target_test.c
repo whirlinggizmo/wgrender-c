@@ -25,7 +25,7 @@ static sg_view binding(wgr_handle_t texture)
 
 /* Render target bookkeeping on sokol's dummy backend (no GPU): creation, the
  * pass being recorded, sizes, nesting, and refusing to sample a target inside
- * its own pass. The replay itself runs in `make smoke` (examples/render_target.c). */
+ * its own pass. The replay itself runs in the smoke test (examples/render_target.c). */
 void test_render_targets(void)
 {
     sg_setup(&(sg_desc){.environment = wgri_platform_environment()});

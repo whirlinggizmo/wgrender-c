@@ -2,7 +2,7 @@
 #define WGRI_INTERNAL_SHADERS_H
 
 /* The generated shaders (src/shaders/wgr_model.glsl.h, wgr_sprite.glsl.h, wgr_depth.glsl.h;
- * `make shaders`). sokol-shdc
+ * tools/gen_shaders.py). sokol-shdc
  * wraps each backend's sources and descriptions in #if defined(SOKOL_<backend>), so a
  * build only carries its own backend's shaders.
  *

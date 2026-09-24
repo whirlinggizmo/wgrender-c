@@ -35,9 +35,9 @@
  * submitting draws, and where the frame moves while cpu doesn't it is the GPU. Frame
  * time only means anything where frames aren't paced by a display:
  *
- *   make shadowbench            headless: CPU only, no GPU at all
- *   make shadowbench DESKTOP=1  desktop, vsync off: real GPU cost (opens a window)
- *   make shadowbench-web        web page (build/<backend>/bench/); results in the
+ *   tools/bench/run.py shadowbench             headless: CPU only, no GPU at all
+ *   tools/bench/run.py shadowbench --desktop   desktop, vsync off: real GPU cost (opens a window)
+ *   the shadowbench target of a web preset     a page (build/web-<backend>/bench/); results in the
  *                               browser console; frames are paced by the display, so
  *                               read the CPU columns, or run it with the frame rate
  *                               uncapped in the browser's own profiler */

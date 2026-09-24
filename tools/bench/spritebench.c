@@ -22,10 +22,10 @@
  * (wgr_scene_draw: collect, sort, billboard, record) and submit (wgr_render_end_frame: upload
  * and draw), plus sokol_gl's vertices and draw commands and any overflow.
  *
- *   make spritebench            headless: CPU only
- *   make spritebench DESKTOP=1  desktop, vsync off: real GPU cost (opens a window)
- *   make spritebench-web        web page (build/<backend>/bench/); results in the
- *                               browser console; frames are paced by the display */
+ *   tools/bench/run.py spritebench             headless: CPU only
+ *   tools/bench/run.py spritebench --desktop   desktop, vsync off: real GPU cost (opens a window)
+ *   the spritebench target of a web preset     a page (build/web-<backend>/bench/); results
+ *                               in the browser console; frames are paced by the display */
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

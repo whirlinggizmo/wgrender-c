@@ -319,7 +319,7 @@ wrapped lines inside the block. Text uses alignment because it needs that second
 
 The public surface is **handle-only**: every parameter/return is a handle, an
 integral/float/enum, or a `const char *` (path/text). No raw pointers in user
-code — enforced by `tools/check_naming.sh`. See AGENTS.md § "Public API shape".
+code — enforced by `tools/check.py`. See AGENTS.md § "Public API shape".
 
 **One creation rule, no exceptions:** a *resource* is created from a path (or a
 generator); an *object* is created from a resource handle. Bare `_create` for
@@ -402,7 +402,7 @@ materials, environments, models (with glTF), sprites and their batcher, particle
   and the core does without (no lighting, no background).
 - Asset loaders register in the subsystem's init, at startup, so assets still
   decode in the background before the program asks for them.
-- `make check` (`tools/check_modules.sh`) fails when a core object references an
+- `tools/check.py` (the `check` test) fails when a core object references an
   optional one's symbols.
 
 Effect on the web (gzipped): `hello` 134 KB, a sprite program ~170 KB, a program

@@ -3,7 +3,7 @@
  * Each texture twice: loaded from its PNG (left), and as "name.ktx" (right), for which
  * libwgrender picks the file this GPU can use (name.bc7.ktx on desktops, name.astc.ktx on
  * phones, name.etc2.ktx on older phones, else name.png), made beforehand by
- * tools/compress_textures.sh. Under each: the file that was loaded, what it takes in
+ * tools/compress_textures.py. Under each: the file that was loaded, what it takes in
  * GPU memory (with mipmaps) and how long it took from asking to having it. */
 #include <stdio.h>
 #include <string.h>

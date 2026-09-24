@@ -11,10 +11,10 @@ models with GPU skinning, a scene graph with picking, audio, and async assets.
 
 **The examples run in a browser: https://whirlinggizmo.github.io/wgrender-c/** —
 every example, published from `main` by `.github/workflows/pages.yml`. It is the
-`WEB_THREADS=0` WebGL2 build, because GitHub Pages can't send the COOP/COEP headers
+`web-webgl2-nothreads` build, because GitHub Pages can't send the COOP/COEP headers
 a threaded build needs; nothing needs threads, but asset decoding runs on the main
-thread there, which `loading` reports rather than hides. Locally, `make serve` sends
-those headers, so the same examples load on worker threads.
+thread there, which `loading` reports rather than hides. Locally, `tools/serve.py`
+sends those headers, so the same examples load on worker threads.
 
 ## Where it comes from
 
@@ -27,125 +27,16 @@ engine we build rather than wrap: loaders, audio formats, gamepad mappings and p
 quirks are written here or pulled in as single-header libraries. What librl taught us,
 and what was left out on purpose, is in [docs/ROADMAP.md](docs/ROADMAP.md).
 
-## Build (Linux)
-
-sokol links against the system's audio, GL and X11 libraries, so their dev
-packages must be installed (the build checks and names any that are missing):
+## Build
 
 ```sh
-make deps       # install them via apt / dnf / pacman (uses sudo)
-# or manually, e.g. Debian/Ubuntu:
-#   sudo apt install libasound2-dev libgl-dev libx11-dev libxi-dev libxcursor-dev
+cmake --preset desktop && cmake --build --preset desktop   # library + every example
+build/desktop/simple                                        # run from this directory
 ```
 
-Then:
-
-```sh
-make            # build build/linux/libwgrender.a (build/macos on a Mac)
-make examples   # build examples/build/linux/*
-make run        # build + run the hello example
-make check      # enforce the "no backend leakage" invariant
-make test       # unit tests (tests/unit/; links the headless library)
-make smoke      # run every example headless (no window, GPU or audio) for ~3 s, in parallel
-make verify     # build + check + test + smoke (a few seconds): run before calling a change done
-make HEADLESS=1 # build build/linux-headless/libwgrender.a: sokol dummy GPU backend, no window or audio
-                # headless apps run frames at 60/s until wgr_request_quit(), or for
-                # WGR_HEADLESS_FRAMES frames when that environment variable is set
-make clean
-```
-
-## Build (web: WebGL2 / WebGPU)
-
-Needs Emscripten on `PATH` (`source <emsdk>/emsdk_env.sh`).
-
-```sh
-make wasm WASM_EXAMPLE=simple      # one example, WebGL2 (BACKEND=webgpu for WebGPU)
-make wasm-all                      # every example -> examples/build/webgl2/
-make serve                         # http://localhost:8000/ (assets mounted at /assets/)
-make webcheck                      # build all, load each in a browser, fail on errors
-make webcheck BACKEND=webgpu       # same for WebGPU (opens visible browser windows)
-make webstart                      # startup times per example: cold, warm and hot visits
-tools/benchmarks.py --all          # C and every sibling binding -> docs/benchmarks.md
-```
-
-`make webcheck` (`tools/webcheck.mjs`) needs Node >= 22 and a Chromium-based
-browser (Brave, Chrome or Chromium; override with `WEBCHECK_BROWSER`). It checks
-four examples at a time, each in its own browser context, waits until each has
-finished loading its assets, and fails an example on console errors, wgrender
-`[ERROR]`/`[FATAL]` logs, exceptions, sokol panics, a wrong/missing backend, or
-assets still loading after 20 s. It saves a screenshot of each to
-`examples/build/<backend>/webcheck/`. WebGL2
-runs headless; WebGPU needs a visible window because headless browsers have no
-GPU adapter. It catches crashes, errors and unfinished loads, not wrong-looking
-output, so glance at the screenshots. The browser and
-server it starts are always stopped, even if Node crashes or is killed (process
-groups, a sweep by the run's unique profile directory, and a watchdog).
-
-### Startup and hosting
-
-A built site (`examples/build/<backend>/`) loads each program as `name.js?v=<hash>`
-and `name.wasm?v=<hash>`: `tools/webdeploy.py` writes every file's hash into
-`index.html`, so a file's URL changes when its content does. The page starts
-downloading the wasm alongside the JS, and it compiles as it streams. To start fast,
-a host should send:
-
-- `Cross-Origin-Opener-Policy: same-origin` and
-  `Cross-Origin-Embedder-Policy: require-corp` (threaded builds; `WEB_THREADS=0`
-  builds don't need them)
-- `Content-Type: application/wasm` for `.wasm` (else it can't compile while streaming)
-- `Cache-Control: public, max-age=31536000, immutable` for versioned requests
-  (`?v=`), and `no-cache` for the page: a returning visit then revalidates only the
-  page and fetches no code (a CDN must keep the query string in its cache key)
-- gzip or brotli for `.js`, `.wasm` and `.html`
-
-`make serve` sends no-store (every reload gets the latest build);
-`tools/serve.py --cache --gzip` serves as above. `make webstart`
-(`tools/webstart.mjs`) opens each example three times in a fresh browser profile
-(cold, warm, and hot: Chrome's compiled-code cache), locally and on emulated 4G, and
-times the download, compile, wgrender's init, the first frame and the end of asset
-loading from `wgr:*` performance marks. `--devtools` and `--url` measure another
-device's browser, such as a phone through `adb forward`.
-
-## Build (Windows, cross-compiled)
-
-With MinGW-w64 (`sudo apt install mingw-w64`), Windows builds come from Linux:
-
-```sh
-make windows          # build/windows/libwgrender.a, examples/build/windows/*.exe (OpenGL)
-make windows-test     # unit tests, under Wine
-make windows-smoke    # every example headless, under Wine
-```
-
-The tests and smoke run go through `tools/wine.sh`: `$WINE`, else `wine64` / `wine`
-on `PATH`, else the newest Proton in a Steam library (Library > Tools). Its prefix is
-`build/wine`. The `.exe` files are linked statically (no MinGW DLLs to ship).
-`make verify` builds `windows` when MinGW is installed, so Windows code keeps
-compiling. Wine runs the windowed examples too (OpenGL through the host's driver),
-but their windows, audio and gamepads on real Windows are untested.
-
-## Build (Windows natively, or anywhere: CMake)
-
-`CMakeLists.txt` builds the library, and the examples with `-DWGR_EXAMPLES=ON`, with
-whatever compiler CMake finds: MSVC in Visual Studio (open this folder), MinGW, or
-gcc/clang elsewhere; under `emcmake`, the web library.
-
-```sh
-cmake -B build/cmake -DWGR_EXAMPLES=ON
-cmake --build build/cmake --config Release
-build/cmake/simple          # from this directory: examples load examples/assets from here
-```
-
-A program of your own takes the library, its public headers and the platform libraries
-it links (OpenGL, X11, ALSA, the Windows libraries, the macOS frameworks) with:
-
-```cmake
-add_subdirectory(wgrender-c)
-target_link_libraries(my_game PRIVATE wgrender)
-```
-
-It reads `mk/build.json` rather than listing anything, so it builds exactly what the
-Makefile does and can't drift from it. Checked on Windows 11 with Visual Studio 2026
-(MSVC 19.51): the library and all examples, no warnings, and the examples run.
+CMake and Python 3, on Windows (Visual Studio opens this folder), Linux and macOS; the
+web builds (WebGL2, WebGPU) need Emscripten. Everything else — presets, tests, the web,
+Windows from Linux, generated files, benchmarks — is in [BUILDING.md](BUILDING.md).
 
 ## Invariant: no backend leakage
 
@@ -153,9 +44,9 @@ sokol is an implementation detail. The public API (`include/*.h`) and example
 code (`examples/*.c`) must **not** depend on sokol: no sokol `#include`s and no
 sokol API identifiers (`sapp_`/`sgl_`/`sg_`/`sdtx_`/`saudio_`/`sfetch_`/
 `SOKOL_`/`SAPP_`). Consumers see only `wgr_*` / `WGR_*`. All sokol usage lives in
-`src/` and the vendored headers; all backend linkage lives in the Makefile.
+`src/` and the vendored headers; all backend linkage lives in `build.json`.
 
-`make check` (script: `tools/check_no_backend_leak.sh`) enforces this. The word
+`tools/check.py` (the `check` test) enforces this. The word
 "sokol" in a prose comment is fine — only API symbols are flagged.
 
 A note on key codes: `WGR_KEY_*` values currently mirror the GLFW/sokol layout
@@ -221,9 +112,10 @@ src/internal/   shared, non-public declarations (handle pool, lifecycle hooks)
 src/wgr_sokol_impl.c   single TU that compiles the sokol headers (SOKOL_IMPL)
 deps/sokol/     vendored sokol headers
 examples/       example programs
-tests/unit/     unit tests (`make test`; link the headless library, no display or GPU)
-tools/          build and check scripts, benchmarks (tools/bench), the web dev server
-mk/             make fragments shared by the Makefiles (web flags, the host OS name)
+tests/unit/     unit tests (`ctest --preset headless`; no display or GPU)
+tools/          build, check and generator scripts (Python), benchmarks (tools/bench), the web dev server
+cmake/          the MinGW toolchain file (the windows presets)
+build.json      the build as data: sources, and per target defines, flags and libraries
 docs/           ARCHITECTURE.md, ROADMAP.md, TASKS.md and one PLAN-*.md per feature
 ```
 
@@ -294,10 +186,10 @@ docs/           ARCHITECTURE.md, ROADMAP.md, TASKS.md and one PLAN-*.md per feat
 - Compressed textures: load `name.ktx` and wgrender picks the file the GPU can sample,
   `name.bc7.ktx` (desktops), `name.astc.ktx` (phones), `name.etc2.ktx` (older phones)
   or `name.png`; on the web only that file downloads. Make them with
-  `tools/compress_textures.sh name.png`. A quarter of the GPU memory, and no decoding
+  `tools/compress_textures.py name.png`. A quarter of the GPU memory, and no decoding
   or mipmap building at load (a 2K texture: ~1 ms instead of 60-200 ms); see
   `docs/PLAN-textures.md` and `examples/textures.c`. For a glTF model,
-  `tools/compress_textures.sh --gltf model.gltf` writes `model.ktx.gltf`, which loads
+  `tools/compress_textures.py --gltf model.gltf` writes `model.ktx.gltf`, which loads
   its textures the same way (and stays a valid glTF for other viewers).
 - Custom shaders: write a fragment shader (and optionally a vertex hook) against
   `shaders/wgr.glsl`, which gives it the surface, time, camera, the scene's lights and
@@ -319,10 +211,10 @@ docs/           ARCHITECTURE.md, ROADMAP.md, TASKS.md and one PLAN-*.md per feat
 
 wgrender stays a plain C library; a binding is its own repo on the public API. The
 handle-only surface (every parameter a handle, a number, an enum or a `const char *`;
-`make check` enforces it) is what keeps one cheap to write and to keep in step.
+`tools/check.py` enforces it) is what keeps one cheap to write and to keep in step.
 
 | Language | Repo | State |
 |---|---|---|
 | Haxe | [wgrender-hx](https://github.com/whirlinggizmo/wgrender-hx) | in development: hxcpp (desktop) and JS (web) targets, generated from the headers |
-| Nim | -- | future |
-| Beef | -- | future |
+| Nim | [wgrender-nim](https://github.com/whirlinggizmo/wgrender-nim) | in development: desktop and web, wgrender compiled in from `build.json` |
+| Beef | [wgrender-beef](https://github.com/whirlinggizmo/wgrender-beef) | early: desktop and web examples |

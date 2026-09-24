@@ -2,12 +2,12 @@
  * a running frame loop, first through the asset pipeline (background), then
  * synchronously (files only ensured, meshes created in one callback), and prints
  * the worst frame and total time of each, then the worst of the first frames that
- * draw the loaded models. Needs tools/bench/fetch_assets.sh.
+ * draw the loaded models. Needs tools/bench/fetch_assets.py (run.py runs it).
  *
- *   make loadbench            headless build: CPU work only (no GPU uploads)
- *   make loadbench DESKTOP=1  desktop build: real GL uploads (opens a window)
- *   make loadbench DESKTOP=1 KTX=1   the models with compressed textures
- *                             (tools/compress_textures.sh --gltf, made the first time;
+ *   tools/bench/run.py loadbench                   headless: CPU work only (no GPU uploads)
+ *   tools/bench/run.py loadbench --desktop         desktop: real GL uploads (opens a window)
+ *   tools/bench/run.py loadbench --desktop --ktx   the models with compressed textures
+ *                             (tools/compress_textures.py --gltf, made the first time;
  *                             WGR_LOADBENCH_KTX=1 loads name.ktx.gltf) */
 #include <stdint.h>
 #include <stdio.h>
@@ -150,7 +150,7 @@ static void frame(float dt, float fraction, void *user)
     }
     if (b.loading || b.phase == 2) return;
     if (b.failed) {
-        printf("loadbench: loading failed; run tools/bench/fetch_assets.sh first\n");
+        printf("loadbench: loading failed; run tools/bench/fetch_assets.py first\n");
         b.phase = 2;
         wgr_request_quit();
         return;

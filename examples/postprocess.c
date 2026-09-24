@@ -3,7 +3,7 @@
  * The frame is an ordinary lit scene (an animated gumshoe on a floor, generated shapes,
  * a circling point light). The effects are custom materials whose shaders are screen
  * effects (examples/shaders/vignette.glsl and scanlines.glsl, compiled by
- * tools/shaderpack.py; make example-shaders):
+ * tools/shaderpack.py; tools/gen_shaders.py --examples):
  *
  *   - the vignette darkens the corners and warms the middle
  *   - the scanlines darken alternating rows, shift red and blue apart and flicker

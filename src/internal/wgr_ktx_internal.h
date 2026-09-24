@@ -8,7 +8,7 @@
 
 /* KTX (version 1) files holding GPU-compressed textures (docs/PLAN-textures.md): BC7,
  * ASTC 4x4 or ETC2 RGBA, 16 bytes a 4x4 block, with their mipmaps; what
- * tools/compress_textures.sh writes. Parsing only points into the bytes. */
+ * tools/compress_textures.py writes. Parsing only points into the bytes. */
 typedef struct wgri_ktx_t {
     sg_pixel_format format;
     int width, height;

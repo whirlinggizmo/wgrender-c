@@ -1,5 +1,5 @@
 /* Compressed textures (docs/PLAN-textures.md): the KTX parser on real files written by
- * tools/compress_textures.sh and on broken ones, the variant each GPU gets, and loading
+ * tools/compress_textures.py and on broken ones, the variant each GPU gets, and loading
  * through wgr_texture_create as far as sokol's dummy backend allows (it samples no
  * compressed format). */
 #include <stdio.h>

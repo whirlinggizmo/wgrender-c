@@ -34,7 +34,8 @@
  *               (10, 34 + 18*i)
  *   camera      perspective, from (0, 14, 30) at (0, 3, 0); BOX = 10
  *
- *   make stress-web             web page (build/<backend>/bench/), /bench/?ex=stress&n=5000
+ *   the stress target of a web preset: a page (build/web-<backend>/bench/),
+ *   /bench/?ex=stress&n=5000
  */
 #include <math.h>
 #include <stdint.h>
