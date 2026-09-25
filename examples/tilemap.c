@@ -1,4 +1,4 @@
-/* libwgrender 2d example — a 2D world on an orthographic camera.
+/* libwgrender tilemap example — a scrolling 2D tile map on an orthographic camera.
  *
  * libwgrender has no camera2d: a scrolling, zooming 2D world is sprite3d objects in the
  * XY plane (WGR_SPRITE3D_FACING_FREE) under an orthographic camera3d, so it keeps
@@ -209,7 +209,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_scene_draw(g.scene);
     wgr_render_begin_mode_2d(); /* back to screen space for the HUD */
     wgr_shape2d_draw_rectangle(0, 0, (int)screen.x, 88, g.shade);
-    wgr_text_draw("libwgrender 2d: an orthographic camera over sprite3d tiles", 20, 20, 20, g.text);
+    wgr_text_draw("libwgrender tilemap: an orthographic camera over sprite3d tiles", 20, 20, 20, g.text);
     snprintf(line, sizeof(line), "coins: %d of 8   zoom: %.1f units   center: %.1f, %.1f%s", g.collected, (double)g.zoom,
              (double)g.center_x, (double)g.center_y, g.loaded ? "" : "   (loading)");
     wgr_text_draw(line, 20, 46, 15, g.dim);
@@ -221,7 +221,7 @@ int main(void)
 {
     /* no MSAA: tiles are blended quads that meet edge to edge, and multisampled
        edges let the background through as a hairline seam between them */
-    wgr_init_values(960, 600, "libwgrender 2d", WGR_WINDOW_FLAG_WINDOW_RESIZABLE);
+    wgr_init_values(960, 600, "libwgrender tilemap", WGR_WINDOW_FLAG_WINDOW_RESIZABLE);
     wgr_set_init(init, NULL);
     wgr_set_frame(frame, NULL);
     return wgr_run();

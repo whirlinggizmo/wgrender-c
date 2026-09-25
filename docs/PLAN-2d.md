@@ -2,7 +2,7 @@
 
 Status: **done** (2026-09-17). All four steps are implemented — see "As built" for
 what shipped and how it differs from the proposal. Examples: `ui` (HUD over a 3D
-model) and `2d` (a scrolling, zooming 2D world).
+model) and `tilemap` (then `2d`: a scrolling, zooming 2D world).
 
 ## What exists
 
@@ -158,7 +158,7 @@ void wgr_render_end_clip(void);
 6. **Order:** (1) enabled + pointer interaction + touch, (2) retained 2D shapes,
    (3) UI essentials, (4) sprite3d source/pivot/extent for 2D worlds. Examples: `ui`
    (HUD over the 3D gumshoe: panel, buttons with hover/press/disabled, a bar, wrapped
-   text, a clipped scrolling list, a clickable 3D model) and `2d` (a scrolling, zooming
+   text, a clipped scrolling list, a clickable 3D model) and `tilemap` (then `2d`: a scrolling, zooming
    2D world on an orthographic camera with sprite sheets and picking). Recommend: yes.
 
 ## As built
@@ -279,7 +279,7 @@ three mechanisms now line up, with each noun's default documented where it belon
   (0.5, 1) stands a sprite on the ground. Bounds grow by the pivot offset, so a moved
   quad still passes the broadphase.
 - `wgr_render_begin_mode_2d()` lost its unused camera parameter.
-- `examples/2d.c`: 24x16 ground tiles and props from one 64x48 sheet
+- `examples/tilemap.c`: 24x16 ground tiles and props from one 64x48 sheet
   (`tools/gen_tiles.py`, 705 bytes) under an orthographic camera3d, with drag/arrow
   scrolling, wheel zoom (the camera's ortho height), and coins that hover and collect
   through the scene's interaction state with alpha-tested picks. Checked in the browser

@@ -168,7 +168,7 @@ Each step is its own commit, measured on desktop, headless Chrome and the phone.
 - Batches are `RENDER_CMD_SPRITES` render commands: order with sokol_gl layers, model
   draws, passes and clips is unchanged. A batch records its camera, pass and scissor;
   consecutive batches only re-apply what differs.
-- Looks the same: webcheck screenshots of `2d`, `pick` and `ui` are pixel-identical to
+- Looks the same: webcheck screenshots of `tilemap` (then `2d`), `pick` and `ui` are pixel-identical to
   the sokol_gl path (the rest differ only where they animate), on WebGL2 and WebGPU.
 
 Measuring showed the per-sprite CPU work around the draw mattered as much as the
@@ -230,7 +230,7 @@ removes the interleaving.
 - Batches draw from a base instance where the backend can (GL 4.2+, WebGPU, Metal,
   D3D11): the instance buffer stays bound and consecutive batches only change the
   texture. WebGL2 can't, so it rebinds the instances per batch.
-- `examples/2d.c` uses it: opaque ground tiles, masked props. Its pixel art has no soft
+- `examples/tilemap.c` uses it: opaque ground tiles, masked props. Its pixel art has no soft
   edges, so it looks the same (pixel-identical screenshots) and needs no sorting.
 
 CPU ms per frame, 16,000 sprites, 4 textures interleaved (field):

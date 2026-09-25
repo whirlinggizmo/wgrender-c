@@ -78,7 +78,7 @@ cannot keep meaning white without stealing it.
 **Colors become explicit: pass `WGR_COLOR_WHITE`.** White is the identity for a tint,
 so the internal `tint != 0 ? tint : white` branches collapse instead of growing, and
 "no tint" and "white tint" stop being two spellings of one thing. `examples/ui.c` and
-`examples/2d.c` pass `0` for "no tint" through ternaries; they become
+`examples/tilemap.c` pass `0` for "no tint" through ternaries; they become
 `WGR_COLOR_WHITE`. This follows "correct over compatible" in AGENTS.md: no implicit
 fallback kept alive just to avoid touching callers.
 

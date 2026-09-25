@@ -474,7 +474,7 @@ VertexColorTest, TextureSettingsTest and BoxTextured on desktop, WebGL2, WebGPU)
 - [x] 2D / UI layer: `enabled` and pointer interaction per scene member, touch as a
       pointer, retained 2D shapes, nine-slice sprites, text alignment and wrapping,
       per-layer clipping, and sprite3d source/extent/pivot for 2D worlds on an
-      orthographic camera ([PLAN-2d.md](PLAN-2d.md), `examples/ui.c`, `examples/2d.c`)
+      orthographic camera ([PLAN-2d.md](PLAN-2d.md), `examples/ui.c`, `examples/tilemap.c`)
 - [x] UI through the public API ([PLAN-ui.md](PLAN-ui.md), 2026-09-18): float immediate
       2D, rounded rectangles and borders, source-rect and nine-slice images, a nesting
       clip stack, length-taking text, crisp high-DPI glyphs, a growing glyph atlas, UI
