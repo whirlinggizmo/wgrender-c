@@ -28,15 +28,17 @@
 enum { WORLD_W = 24, WORLD_H = 16, MAX_PROPS = 64 };
 enum { LAYER_GROUND = 0, LAYER_PROPS = 1 };
 
-/* cells of the sheet, in texture pixels: x, y, width, height */
-static const float GRASS[4] = {0, 0, 16, 16};
-static const float SAND[4] = {16, 0, 16, 16};
-static const float WATER[4] = {32, 0, 16, 16};
-static const float STONE[4] = {48, 0, 16, 16};
-static const float TREE[4] = {0, 16, 16, 32};
-static const float FLAG[4] = {16, 16, 16, 32};
-static const float COIN[4] = {32, 16, 16, 16};
-static const float ROCK[4] = {48, 16, 16, 16};
+/* cells of the sheet, in texture pixels: x, y, width, height (tools/gen_tiles.py; each
+ * cell has a gutter around it that repeats its edge, so sampling never reaches a
+ * neighbour) */
+static const float GRASS[4] = {2, 2, 16, 16};
+static const float SAND[4] = {22, 2, 16, 16};
+static const float WATER[4] = {42, 2, 16, 16};
+static const float STONE[4] = {62, 2, 16, 16};
+static const float TREE[4] = {2, 22, 16, 32};
+static const float FLAG[4] = {22, 22, 16, 32};
+static const float COIN[4] = {42, 22, 16, 16};
+static const float ROCK[4] = {62, 22, 16, 16};
 
 static struct {
     wgr_handle_t scene, camera, texture;

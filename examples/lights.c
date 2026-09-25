@@ -6,8 +6,10 @@
  *     small sphere marks it; shapes are unlit, so it shows the light's color)
  *   - a white spotlight sweeping across them from above
  * Behind them stand billboard sprites with a built-in material (wgr_sprite3d_set_material):
- * they take the same lights as the models, facing the camera, with a normal map for
- * relief. Scenes start unlit (no lights, no ambient); everything here is explicit.
+ * they take the same lights as the models, facing the camera. Each shows one cell of the
+ * tilemap example's sprite sheet (wgr_sprite3d_set_source), and the sheet's normal map
+ * gives it relief: the normal map is sampled through the same region.
+ * Scenes start unlit (no lights, no ambient); everything here is explicit.
  * Keys: 1 sun, 2 point light, 3 spotlight, ESC quit. */
 #include <math.h>
 #include <stddef.h>
@@ -19,9 +21,18 @@
 
 #define MODEL_PATH "models/gumshoe/gumshoe.glb"
 #define SPRITE_PATH "textures/tiles.png"
-#define NORMAL_PATH "textures/tiles_normal.png"
+#define NORMAL_PATH "textures/tiles_sheet_normal.png" /* tools/gen_tiles.py */
 
 enum { MODEL_COUNT = 5, SPRITE_COUNT = 4 };
+
+/* the sprites' cells in the sheet (pixels, from tools/gen_tiles.py) and their world
+ * height; all 1.6 wide */
+static const float SPRITE_CELLS[SPRITE_COUNT][5] = {
+    {62, 2, 16, 16, 1.6f},  /* stone */
+    {2, 22, 16, 32, 3.2f},  /* tree */
+    {42, 22, 16, 16, 1.6f}, /* coin */
+    {62, 22, 16, 16, 1.6f}, /* rock */
+};
 
 static struct {
     wgr_handle_t scene;
@@ -52,6 +63,7 @@ static void on_sprite_texture(const char *path, void *user)
 {
     wgr_handle_t texture = wgr_texture_create(path);
     (void)user;
+    wgr_texture_set_sampling(texture, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_FILTER_NEAREST);
     for (int i = 0; i < SPRITE_COUNT; i++) wgr_sprite3d_set_texture(g.sprites[i], texture);
     wgr_texture_release(texture); /* the sprites hold their own references */
 }
@@ -121,10 +133,16 @@ static void init(void *user_data)
     g.sprite_material = wgr_material_create(WGR_MATERIAL_PBR);
     wgr_material_set_float(g.sprite_material, "metallic", 0.0f);
     wgr_material_set_float(g.sprite_material, "roughness", 0.55f);
+    /* cells sit side by side in the sheet: clamp, so none reaches into the next */
+    wgr_material_set_texture_sampling(g.sprite_material, "normal_texture", WGR_TEXTURE_WRAP_CLAMP,
+                                      WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_FILTER_LINEAR);
     for (int i = 0; i < SPRITE_COUNT; i++) {
         g.sprites[i] = wgr_sprite3d_create(0);
-        wgr_sprite3d_set_transform(g.sprites[i], -3.0f + 2.0f * (float)i, 1.0f, -2.5f, 0, 0, 0, 1, 1, 1);
-        wgr_sprite3d_set_size(g.sprites[i], 1.6f);
+        const float *cell = SPRITE_CELLS[i];
+        wgr_sprite3d_set_transform(g.sprites[i], -3.0f + 2.0f * (float)i, 0.2f, -2.5f, 0, 0, 0, 1, 1, 1);
+        wgr_sprite3d_set_source(g.sprites[i], cell[0], cell[1], cell[2], cell[3]);
+        wgr_sprite3d_set_extent(g.sprites[i], 1.6f, cell[4]);
+        wgr_sprite3d_set_pivot(g.sprites[i], 0.5f, 1.0f); /* standing on their bottom edge */
         wgr_sprite3d_set_alpha_mode(g.sprites[i], WGR_ALPHA_MASK, 0.5f);
         wgr_sprite3d_set_material(g.sprites[i], g.sprite_material);
         wgr_scene_add(g.scene, g.sprites[i], 0);
