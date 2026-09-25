@@ -157,7 +157,9 @@ def stress(site, label, url, probe='wgrender-host.js'):
 def callbench():
     """The per-call cost of JS -> wasm against the same call inside the wasm, in the
     browser the rest is measured in (tools/bench/callbench: its page runs the loops)."""
-    out = WGRENDER / 'build/callbench'
+    # a tool's byproduct beside the web build it measures alongside (WEB_VARS), in its
+    # work directory: build/web/webgl2-nothreads/callbench
+    out = WGRENDER / 'build/web/webgl2-nothreads/callbench'
     out.mkdir(parents=True, exist_ok=True)
     src = HERE / 'callbench'
     run([shutil.which('emcc') or 'emcc', '-O2', src / 'shapes.c', src / 'loops.c', '-o', out / 'callbench.js',

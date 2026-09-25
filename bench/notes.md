@@ -27,7 +27,7 @@ frame and the late frames, with 8 ms of the frame already spent.
 
 **Not measured yet:**
 
-- callbench in the browser, not only Node, and in Firefox, whose JS -> wasm path is a
-  different engine
+- callbench in Firefox, whose JS -> wasm path is a different engine: every browser
+  number here is Chromium's
 - hxcpp's collector on a wgrender scene, traced from inside the wasm
 - Windows, and the WebGPU backend: every number here is Linux and webgl2
