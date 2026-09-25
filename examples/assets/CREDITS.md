@@ -10,7 +10,7 @@ it plays.
 | File | Work | Author | Source | License |
 |---|---|---|---|---|
 | `music/ethernight_club.mp3` | "Ethernight Club" | Kevin MacLeod | [incompetech.com](https://incompetech.com) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
-| `fonts/Komika/KOMIKAH_.ttf` | Komika Hand | © 1999-2001 WolfBainX & Apostrophic Labs | [apostrophiclab.com](https://www.apostrophiclab.com) | Freeware; the authors' readme is `fonts/Komika/Komika.txt` |
+| `fonts/Komika/KOMIKAH_.ttf` | Komika Hand | © 1999-2001 WolfBainX & Apostrophic Labs | [apostrophiclab.com](https://www.apostrophiclab.com) | Freeware, unmodified; terms in `fonts/Komika/readme.txt`, the authors' notes in `Komika.txt` |
 | `fonts/JetBrainsMono/JetBrainsMono-Regular.ttf` | JetBrains Mono | JetBrains | [jetbrains.com/lp/mono](https://www.jetbrains.com/lp/mono/) | [SIL OFL 1.1](fonts/JetBrainsMono/OFL.txt) |
 | `sounds/click_004.ogg` | UI Audio | Kenney | [kenney.nl](https://kenney.nl) | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `environments/venice_sunset_1k.hdr` | Venice Sunset | Greg Zaal | [Poly Haven](https://polyhaven.com/a/venice_sunset) | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) |
