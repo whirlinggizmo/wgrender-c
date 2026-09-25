@@ -24,7 +24,7 @@ enum { ENVIRONMENTS = 2, MESHES = 2, TEXTURES = 2, FILES = ENVIRONMENTS + MESHES
 static const char *PATHS[FILES] = {
     "environments/venice_sunset_1k.hdr",
     "environments/studio_small_09_1k.hdr",
-    "models/woman_casual/woman_casual.glb",
+    CHARACTER_PATH,
     "models/sphere/sphere.glb",
     "textures/tiles_normal.png",
     "sprites/logo/wg-logo-white-alpha.png",
@@ -33,7 +33,7 @@ static const char *PATHS[FILES] = {
 static struct {
     wgr_handle_t scene, camera;
     wgr_color_t bg, bar, graph_ok, graph_slow, line, cube;
-    wgr_handle_t woman_casual, sphere, material;
+    wgr_handle_t character, sphere, material;
     wgr_handle_t group;
     bool sync;                 /* the load in progress creates everything in its group callback */
     char paths[FILES][512];    /* local paths, from the members' callbacks */
@@ -50,7 +50,7 @@ static void release_all(void)
 {
     wgr_scene_set_environment(g.scene, 0, 1.0f, 0.0f);
     wgr_scene_set_background(g.scene, 0, 0.0f);
-    wgr_model_set_mesh(g.woman_casual, 0);
+    wgr_model_set_mesh(g.character, 0);
     wgr_model_set_mesh(g.sphere, 0);
     wgr_material_set_texture(g.material, "normal_texture", 0);
     for (int i = 0; i < FILES; i++) {
@@ -75,7 +75,7 @@ static void create_all(void)
 
     wgr_scene_set_environment(g.scene, g.resources[0], 1.0f, 0.0f);
     wgr_scene_set_background(g.scene, g.resources[0], 0.3f);
-    wgr_model_set_mesh(g.woman_casual, g.resources[2]);
+    wgr_model_set_mesh(g.character, g.resources[2]);
     wgr_model_set_mesh(g.sphere, g.resources[3]);
     wgr_material_set_texture(g.material, "normal_texture", g.resources[4]);
     g.loaded = true;
@@ -137,10 +137,10 @@ static void init(void *user_data)
     g.scene = wgr_scene_create();
     wgr_scene_set_active_camera(g.scene, g.camera);
 
-    g.woman_casual = wgr_model_create(0);
-    wgr_model_set_transform(g.woman_casual, -1.2f, 0, 0, 0, 0.4f, 0, 0.5f, 0.5f, 0.5f);
-    wgr_model_set_animation(g.woman_casual, 3);
-    wgr_scene_add(g.scene, g.woman_casual, 0);
+    g.character = wgr_model_create(0);
+    wgr_model_set_transform(g.character, -1.2f, 0, 0, 0, 0.4f, 0, 0.5f, 0.5f, 0.5f);
+    wgr_model_set_animation(g.character, 3);
+    wgr_scene_add(g.scene, g.character, 0);
 
     g.sphere = wgr_model_create(0);
     wgr_model_set_transform(g.sphere, 1.2f, 0.8f, 0, 0, 0, 0, 0.8f, 0.8f, 0.8f);
@@ -197,7 +197,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     if (kb.keys[WGR_KEY_U] == WGR_BUTTON_PRESSED && g.group == 0) release_all();
 
     g.time += dt;
-    wgr_model_animate(g.woman_casual, dt);
+    wgr_model_animate(g.character, dt);
 
     wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);

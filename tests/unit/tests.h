@@ -8,6 +8,10 @@
 #define WGR_TEST_DIR "build/tests"
 #endif
 
+/* The examples' character (CHARACTER_PATH), which the tests load from the repo root as
+ * "examples/assets/" CHARACTER_PATH: one place to swap it. */
+#include "../../examples/example_assets.h"
+
 /* Every unit test; add new ones here and to the table in main.c. */
 
 void test_asset_join_relative(void);

@@ -3,7 +3,7 @@
  *   - top row: dielectric (metallic 0) spheres, roughness 0 to 1 left to right
  *   - middle row: metal (metallic 1) spheres, same roughness steps
  *   - bottom row: unlit, emissive, normal mapped (tangents generated at load),
- *     alpha blended, and the animated woman with its body material replaced
+ *     alpha blended, and the animated character with its body material replaced
  *     by gold on this model only
  * One sphere mesh backs every sphere; each model overrides the mesh's material.
  * The materials are assigned before the mesh finishes loading. A sun, an orbiting
@@ -17,17 +17,16 @@
 #include "wgr.h"
 
 #define SPHERE_PATH "models/sphere/sphere.glb"
-#define WOMAN_CASUAL_PATH "models/woman_casual/woman_casual.glb"
 #define NORMAL_MAP_PATH "textures/tiles_normal.png"
 
-enum { COLUMNS = 5, SPHERE_COUNT = 2 * COLUMNS + 4, WOMAN_CASUAL_BODY_SLOT = 1 };
+enum { COLUMNS = 5, SPHERE_COUNT = 2 * COLUMNS + 4, CHARACTER_BODY_SLOT = 1 };
 
 static struct {
     wgr_handle_t scene;
     wgr_handle_t camera;
     wgr_color_t bg;
     wgr_handle_t spheres[SPHERE_COUNT];
-    wgr_handle_t woman_casual;
+    wgr_handle_t character;
     wgr_handle_t tiles; /* normal-mapped material, gets its texture when it loads */
     wgr_handle_t sun;
     wgr_handle_t lamp;
@@ -45,11 +44,11 @@ static void on_sphere_loaded(const char *path, void *user)
     wgr_mesh_release(mesh); /* the models hold their own references */
 }
 
-static void on_woman_casual_loaded(const char *path, void *user)
+static void on_character_loaded(const char *path, void *user)
 {
     wgr_handle_t mesh = wgr_mesh_create(path);
     (void)user;
-    wgr_model_set_mesh(g.woman_casual, mesh);
+    wgr_model_set_mesh(g.character, mesh);
     wgr_mesh_release(mesh);
 }
 
@@ -148,17 +147,17 @@ static void init(void *user_data)
     wgr_material_set_alpha_mode(material, WGR_ALPHA_BLEND, 0.5f);
     g.spheres[n++] = create_sphere(spacing, 0.0f, material);
 
-    /* the woman: slot 1 is her body ("woman" material); slot 0, the blob shadow, is kept */
-    g.woman_casual = wgr_model_create(0);
-    wgr_model_set_transform(g.woman_casual, 2 * spacing, -0.55f, 0, 0, -0.6f, 0, 0.3f, 0.3f, 0.3f);
-    wgr_model_set_animation(g.woman_casual, 3);
+    /* the character: slot 1 is its body; slot 0, the blob shadow, is kept */
+    g.character = wgr_model_create(0);
+    wgr_model_set_transform(g.character, 2 * spacing, -0.55f, 0, 0, -0.6f, 0, 0.3f, 0.3f, 0.3f);
+    wgr_model_set_animation(g.character, 3);
     material = create_pbr(1.0f, 0.77f, 0.34f, 1.0f, 0.3f);
-    wgr_model_set_material(g.woman_casual, WOMAN_CASUAL_BODY_SLOT, material);
+    wgr_model_set_material(g.character, CHARACTER_BODY_SLOT, material);
     wgr_material_release(material);
-    wgr_scene_add(g.scene, g.woman_casual, 0);
+    wgr_scene_add(g.scene, g.character, 0);
 
     wgr_asset_add_task(wgr_asset_ensure_async(SPHERE_PATH, NULL, WGR_ASSET_NONE), on_sphere_loaded, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(WOMAN_CASUAL_PATH, NULL, WGR_ASSET_NONE), on_woman_casual_loaded, on_failed, NULL);
+    wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_character_loaded, on_failed, NULL);
     wgr_asset_add_task(wgr_asset_ensure_async(NORMAL_MAP_PATH, NULL, WGR_ASSET_NONE), on_normal_map_loaded, on_failed,
                       NULL);
 }
@@ -192,7 +191,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
         const float x = ((float)(i - 2 * COLUMNS) - 2.0f) * 1.35f;
         wgr_model_set_transform(g.spheres[i], x, 0.0f, 0, 0, g.time * 0.5f, 0, 1, 1, 1);
     }
-    wgr_model_animate(g.woman_casual, dt);
+    wgr_model_animate(g.character, dt);
 
     wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);

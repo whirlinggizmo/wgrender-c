@@ -21,7 +21,6 @@
 
 #define LOGO_PATH "sprites/logo/wg-logo-bw-alpha.png"
 #define WHITE_LOGO_PATH "sprites/logo/wg-logo-white-alpha.png"
-#define MODEL_PATH "models/woman_casual/woman_casual.glb"
 
 enum { SPRITE_COUNT = 5, TINT_SPRITE = 4, PALETTE_SIZE = 24 };
 
@@ -117,7 +116,7 @@ static void init(void *user_data)
 
     wgr_asset_add_task(wgr_asset_ensure_async(LOGO_PATH, NULL, WGR_ASSET_NONE), on_logo_loaded, on_failed, NULL);
     wgr_asset_add_task(wgr_asset_ensure_async(WHITE_LOGO_PATH, NULL, WGR_ASSET_NONE), on_white_logo_loaded, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(MODEL_PATH, NULL, WGR_ASSET_NONE), on_mesh_loaded, on_failed, NULL);
+    wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_mesh_loaded, on_failed, NULL);
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)

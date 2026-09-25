@@ -3,7 +3,7 @@
  * Nothing here asks for instancing: it is what libwgrender does when models agree on
  * everything but where they stand (docs/PLAN-instancing.md). A field of cubes shares
  * one mesh and one material and differs only in transform and tint, so it is one draw;
- * six women share the same asset and animate out of step, so their joints are
+ * six characters share the same asset and animate out of step, so their joints are
  * per instance; a few cubes are see-through, and those keep their back-to-front order.
  * The sun casts, so the same batching happens again into its shadow map: 400 cubes and
  * six walkers go into it as two draws, and every shadow lands under its own model.
@@ -16,7 +16,6 @@
 #include "example_assets.h"
 #include "wgr.h"
 
-#define MODEL_PATH "models/woman_casual/woman_casual.glb"
 #define FIELD_SIDE 20
 #define FIELD_COUNT (FIELD_SIDE * FIELD_SIDE)
 #define WALKERS 6
@@ -124,10 +123,10 @@ static void on_init(void *user)
         wgr_model_set_animation_loop(g_walkers[i], true);
         wgr_scene_add(g_scene, g_walkers[i], 0);
     }
-    wgr_asset_add_task(wgr_asset_ensure_async(MODEL_PATH, NULL, 0), on_mesh_loaded, on_failed,
+    wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, 0), on_mesh_loaded, on_failed,
                       (void *)(uintptr_t)g_walkers[0]);
     for (int i = 1; i < WALKERS; i++) {
-        wgr_asset_add_task(wgr_asset_ensure_async(MODEL_PATH, NULL, 0), on_mesh_loaded, on_failed,
+        wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, 0), on_mesh_loaded, on_failed,
                           (void *)(uintptr_t)g_walkers[i]);
     }
 }

@@ -10,7 +10,6 @@
 #include "example_assets.h"
 #include "wgr.h"
 
-#define MODEL_PATH "models/woman_casual/woman_casual.glb"
 
 static wgr_handle_t g_scene;
 static wgr_handle_t g_camera;
@@ -64,7 +63,7 @@ static void on_init(void *user_data) {
   wgr_scene_set_ambient(g_scene, WGR_COLOR_WHITE, 0.3f);
   wgr_debug_enable_fps(12, 10, 16);
 
-  g_model = create_model(MODEL_PATH);
+  g_model = create_model(CHARACTER_PATH);
   wgr_scene_add(g_scene, g_model, 0);
 }
 
@@ -96,7 +95,7 @@ static void frame(float dt, float tick_fraction, void *user_data) {
 
   wgr_text_draw("libwgrender + sokol — model (glTF/cgltf)", 12, 36, 22,
                WGR_COLOR_RAYWHITE);
-  wgr_text_draw(g_model ? "woman_casual.glb — skeletal animation (glTF skin)"
+  wgr_text_draw(g_model ? CHARACTER_PATH " — skeletal animation (glTF skin)"
                         : "loading model...",
                12, 68, 16, WGR_COLOR_LIGHTGRAY);
 

@@ -14,7 +14,6 @@
 #include "wgr_sprite3d.h"
 
 #define LOGO_PATH  "sprites/logo/wg-logo-bw-alpha.png"
-#define MODEL_PATH "models/woman_casual/woman_casual.glb"
 
 static wgr_handle_t g_scene;
 static wgr_handle_t g_camera;
@@ -107,7 +106,7 @@ static void on_init(void *user_data)
     wgr_scene_add(g_scene, g_sphere, 0);
 
     wgr_asset_add_task(wgr_asset_ensure_async(LOGO_PATH, NULL, 0), on_logo_loaded, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(MODEL_PATH, NULL, 0), on_model_loaded, on_failed, NULL);
+    wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, 0), on_model_loaded, on_failed, NULL);
 
     wgr_debug_enable_fps(12, 10, 16);
 }

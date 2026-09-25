@@ -19,7 +19,6 @@
 #include "example_assets.h"
 #include "wgr.h"
 
-#define MODEL_PATH "models/woman_casual/woman_casual.glb"
 #define SPRITE_PATH "textures/tiles.png"
 #define NORMAL_PATH "textures/tiles_sheet_normal.png" /* tools/gen_tiles.py */
 
@@ -149,7 +148,7 @@ static void init(void *user_data)
     }
     wgr_material_release(g.sprite_material); /* the sprites hold it */
 
-    wgr_asset_add_task(wgr_asset_ensure_async(MODEL_PATH, NULL, WGR_ASSET_NONE), on_mesh_loaded, on_failed, NULL);
+    wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_mesh_loaded, on_failed, NULL);
     wgr_asset_add_task(wgr_asset_ensure_async(SPRITE_PATH, NULL, WGR_ASSET_NONE), on_sprite_texture, on_failed, NULL);
     wgr_asset_add_task(wgr_asset_ensure_async(NORMAL_PATH, NULL, WGR_ASSET_NONE), on_sprite_normal_map, on_failed, NULL);
 }

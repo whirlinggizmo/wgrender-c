@@ -1,7 +1,7 @@
 /* libwgrender environment example — image-based lighting, background and tone mapping.
  *
  * The material spheres (red plastic and gold, roughness 0 to 1 left to right),
- * a normal-mapped sphere and the woman, lit only by an environment map: no
+ * a normal-mapped sphere and the character, lit only by an environment map: no
  * lights, no ambient. Metals reflect the environment; rough surfaces blur it.
  *
  * Keys:
@@ -20,7 +20,6 @@
 #include "wgr.h"
 
 #define SPHERE_PATH "models/sphere/sphere.glb"
-#define WOMAN_CASUAL_PATH "models/woman_casual/woman_casual.glb"
 #define NORMAL_MAP_PATH "textures/tiles_normal.png"
 
 enum { COLUMNS = 5, ENVIRONMENT_COUNT = 2 };
@@ -40,7 +39,7 @@ static struct {
     wgr_color_t bar;
     wgr_handle_t environments[ENVIRONMENT_COUNT];
     wgr_handle_t spheres[2 * COLUMNS + 1];
-    wgr_handle_t woman_casual;
+    wgr_handle_t character;
     wgr_handle_t tiles;
     int environment; /* index, ENVIRONMENT_COUNT = none */
     int blur;        /* index into BLURS, 3 = no background */
@@ -75,11 +74,11 @@ static void on_sphere_loaded(const char *path, void *user)
     wgr_mesh_release(mesh);
 }
 
-static void on_woman_casual_loaded(const char *path, void *user)
+static void on_character_loaded(const char *path, void *user)
 {
     wgr_handle_t mesh = wgr_mesh_create(path);
     (void)user;
-    wgr_model_set_mesh(g.woman_casual, mesh);
+    wgr_model_set_mesh(g.character, mesh);
     wgr_mesh_release(mesh);
 }
 
@@ -135,10 +134,10 @@ static void init(void *user_data)
     g.spheres[n] = create_sphere(-1.3f, -0.7f, 0.9f, 0.9f, 0.9f, 0.0f, 0.3f);
     g.tiles = wgr_model_get_material(g.spheres[n], 0); /* borrowed: the model's own material */
 
-    g.woman_casual = wgr_model_create(0);
-    wgr_model_set_transform(g.woman_casual, 1.3f, -1.3f, 0, 0, 0.4f, 0, 0.3f, 0.3f, 0.3f);
-    wgr_model_set_animation(g.woman_casual, 3);
-    wgr_scene_add(g.scene, g.woman_casual, 0);
+    g.character = wgr_model_create(0);
+    wgr_model_set_transform(g.character, 1.3f, -1.3f, 0, 0, 0.4f, 0, 0.3f, 0.3f, 0.3f);
+    wgr_model_set_animation(g.character, 3);
+    wgr_scene_add(g.scene, g.character, 0);
 
     apply_environment();
     for (int i = 0; i < ENVIRONMENT_COUNT; i++) {
@@ -146,7 +145,7 @@ static void init(void *user_data)
                           on_failed, (void *)(intptr_t)i);
     }
     wgr_asset_add_task(wgr_asset_ensure_async(SPHERE_PATH, NULL, WGR_ASSET_NONE), on_sphere_loaded, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(WOMAN_CASUAL_PATH, NULL, WGR_ASSET_NONE), on_woman_casual_loaded, on_failed, NULL);
+    wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_character_loaded, on_failed, NULL);
     wgr_asset_add_task(wgr_asset_ensure_async(NORMAL_MAP_PATH, NULL, WGR_ASSET_NONE), on_normal_map_loaded, on_failed,
                       NULL);
 }
@@ -176,7 +175,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     g.time += dt;
     wgr_camera3d_set_view(g.camera, sinf(g.time * 0.15f) * 7.5f, 1.2f, cosf(g.time * 0.15f) * 7.5f, 0, 0.3f, 0,
                          0, 1, 0);
-    wgr_model_animate(g.woman_casual, dt);
+    wgr_model_animate(g.character, dt);
 
     wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);

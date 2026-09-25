@@ -17,4 +17,9 @@
 #  define EXAMPLE_ASSET_BASE "examples/assets"
 #endif
 
+/* The animated character the examples load: skinned, with its blob shadow in material
+ * slot 0 and its body in slot 1, and clips in the order idle, run, tpose, walk (the
+ * examples pick them by number). Swap it here. */
+#define CHARACTER_PATH "models/woman_casual/woman_casual.glb"
+
 #endif // EXAMPLE_ASSETS_H

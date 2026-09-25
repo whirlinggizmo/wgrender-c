@@ -150,7 +150,7 @@ void test_model_state(void)
 {
     setup();
     wgr_handle_t camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
-    wgr_camera3d_set_view(camera, 0, 1, 12, 0, 1, 0, 0, 1, 0); /* the woman is 1.84 tall */
+    wgr_camera3d_set_view(camera, 0, 1, 12, 0, 1, 0, 0, 1, 0); /* the character is about 2 tall */
     wgr_handle_t model = wgr_model_create(0);
 
     CHECK(!wgr_model_is_ready(model));
@@ -158,7 +158,7 @@ void test_model_state(void)
     CHECK(wgr_model_set_animation(model, 3));
     CHECK(wgr_model_set_animation_time(model, 0.25f)); /* kept until the mesh arrives */
 
-    wgr_handle_t mesh = wgr_mesh_create("examples/assets/models/woman_casual/woman_casual.glb");
+    wgr_handle_t mesh = wgr_mesh_create("examples/assets/" CHARACTER_PATH);
     CHECK(mesh != 0);
     wgr_model_set_mesh(model, mesh);
     wgr_mesh_release(mesh);
@@ -176,7 +176,7 @@ void test_model_state(void)
     CHECK_NEAR(wgr_model_get_animation_time(model), duration, EPS); /* stays at the end */
 
     CHECK(wgr_model_is_pickable(model));
-    CHECK(wgr_pick_object(model, camera, 0.5f, 0.5f).hit); /* the woman stands at the origin */
+    CHECK(wgr_pick_object(model, camera, 0.5f, 0.5f).hit); /* the character stands at the origin */
     CHECK(wgr_model_set_pickable(model, false));
     CHECK(!wgr_pick_object(model, camera, 0.5f, 0.5f).hit);
     teardown();
