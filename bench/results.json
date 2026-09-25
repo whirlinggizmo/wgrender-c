@@ -8,7 +8,7 @@
     "emcc": "5.0.7"
   },
   "wgrender": {
-    "commit": "399ede3",
+    "commit": "7399bc8",
     "dirty": false,
     "source": "self"
   },
@@ -39,8 +39,8 @@
             "name": "index.html",
             "kind": "page",
             "raw": 10352,
-            "gzip": 4484,
-            "brotli": 3614
+            "gzip": 4486,
+            "brotli": 3613
           },
           {
             "name": "examples.json",
@@ -52,8 +52,8 @@
         ],
         "total": {
           "raw": 772345,
-          "gzip": 321684,
-          "brotli": 262550
+          "gzip": 321686,
+          "brotli": 262549
         }
       },
       "frame": {
@@ -62,22 +62,22 @@
         "median": 16.66,
         "p95": 16.67,
         "overCap": 0.0,
-        "scriptMs": 0.489,
-        "taskMs": 0.776,
+        "scriptMs": 0.515,
+        "taskMs": 0.812,
         "scriptRuns": [
-          0.45,
-          0.489,
-          0.519
+          0.47,
+          0.515,
+          0.525
         ]
       },
       "gc": {
         "label": "c",
-        "frames": 605,
+        "frames": 606,
         "uncapped": false,
-        "allocBytesPerFrame": 771,
-        "allocMBPerMinute": 2.6,
-        "collections": 1,
-        "freedMB": 0.26,
+        "allocBytesPerFrame": 328,
+        "allocMBPerMinute": 1.1,
+        "collections": 0,
+        "freedMB": 0.0,
         "heapStartMB": 8.6,
         "heapEndMB": 8.8,
         "frameMs": {
@@ -85,10 +85,7 @@
           "p99": 16.67,
           "max": 16.67
         },
-        "gcFrameMs": {
-          "median": 16.67,
-          "max": 16.67
-        },
+        "gcFrameMs": null,
         "loadMs": 0,
         "lateFrames": {
           "over20": 0,
@@ -122,30 +119,33 @@
             "median": 16.66,
             "p95": 16.67,
             "overCap": 0.0,
-            "scriptMs": 0.426,
-            "taskMs": 0.506,
+            "scriptMs": 0.476,
+            "taskMs": 0.571,
             "scriptRuns": [
-              0.423,
-              0.426,
-              0.525
+              0.463,
+              0.476,
+              0.537
             ]
           },
           "gc": {
             "label": "c-1000",
             "frames": 606,
             "uncapped": false,
-            "allocBytesPerFrame": 413,
+            "allocBytesPerFrame": 412,
             "allocMBPerMinute": 1.4,
-            "collections": 0,
-            "freedMB": 0.0,
-            "heapStartMB": 1.9,
-            "heapEndMB": 2.2,
+            "collections": 1,
+            "freedMB": 0.43,
+            "heapStartMB": 2.3,
+            "heapEndMB": 2.1,
             "frameMs": {
               "median": 16.66,
               "p99": 16.67,
               "max": 16.67
             },
-            "gcFrameMs": null,
+            "gcFrameMs": {
+              "median": 16.66,
+              "max": 16.66
+            },
             "loadMs": 8,
             "lateFrames": {
               "over20": 0,
@@ -157,8 +157,8 @@
               "pctOfWall": 0.0,
               "minor": {
                 "count": 1,
-                "medianMs": 0.44,
-                "maxMs": 0.44,
+                "medianMs": 0.35,
+                "maxMs": 0.35,
                 "totalMs": 0.4
               },
               "major": {
@@ -179,19 +179,76 @@
             "median": 16.66,
             "p95": 16.67,
             "overCap": 0.0,
-            "scriptMs": 1.4,
-            "taskMs": 1.482,
+            "scriptMs": 1.399,
+            "taskMs": 1.486,
             "scriptRuns": [
-              1.372,
-              1.4,
-              1.613
+              1.375,
+              1.399,
+              1.4
             ]
           },
           "gc": {
             "label": "c-5000",
-            "frames": 606,
+            "frames": 605,
             "uncapped": false,
             "allocBytesPerFrame": 414,
+            "allocMBPerMinute": 1.4,
+            "collections": 0,
+            "freedMB": 0.0,
+            "heapStartMB": 1.9,
+            "heapEndMB": 2.2,
+            "frameMs": {
+              "median": 16.66,
+              "p99": 16.67,
+              "max": 16.67
+            },
+            "gcFrameMs": null,
+            "loadMs": 8,
+            "lateFrames": {
+              "over20": 0,
+              "over33": 0,
+              "pct": 0.0
+            },
+            "gc": {
+              "totalMs": 0.5,
+              "pctOfWall": 0.01,
+              "minor": {
+                "count": 1,
+                "medianMs": 0.46,
+                "maxMs": 0.46,
+                "totalMs": 0.5
+              },
+              "major": {
+                "count": 0,
+                "medianMs": null,
+                "maxMs": null,
+                "totalMs": 0
+              }
+            },
+            "bufferFull": false
+          }
+        },
+        {
+          "n": 10000,
+          "frame": {
+            "label": "c-10000",
+            "frames": 479,
+            "median": 16.66,
+            "p95": 16.67,
+            "overCap": 0.0,
+            "scriptMs": 2.682,
+            "taskMs": 2.767,
+            "scriptRuns": [
+              2.646,
+              2.682,
+              2.786
+            ]
+          },
+          "gc": {
+            "label": "c-10000",
+            "frames": 606,
+            "uncapped": false,
+            "allocBytesPerFrame": 411,
             "allocMBPerMinute": 1.4,
             "collections": 1,
             "freedMB": 0.42,
@@ -217,69 +274,9 @@
               "pctOfWall": 0.0,
               "minor": {
                 "count": 1,
-                "medianMs": 0.37,
-                "maxMs": 0.37,
+                "medianMs": 0.4,
+                "maxMs": 0.4,
                 "totalMs": 0.4
-              },
-              "major": {
-                "count": 0,
-                "medianMs": null,
-                "maxMs": null,
-                "totalMs": 0
-              }
-            },
-            "bufferFull": false
-          }
-        },
-        {
-          "n": 10000,
-          "frame": {
-            "label": "c-10000",
-            "frames": 479,
-            "median": 16.66,
-            "p95": 16.67,
-            "overCap": 0.0,
-            "scriptMs": 2.662,
-            "taskMs": 2.753,
-            "scriptRuns": [
-              2.641,
-              2.662,
-              2.691
-            ]
-          },
-          "gc": {
-            "label": "c-10000",
-            "frames": 606,
-            "uncapped": false,
-            "allocBytesPerFrame": 414,
-            "allocMBPerMinute": 1.4,
-            "collections": 1,
-            "freedMB": 0.43,
-            "heapStartMB": 2.3,
-            "heapEndMB": 2.1,
-            "frameMs": {
-              "median": 16.66,
-              "p99": 16.67,
-              "max": 16.67
-            },
-            "gcFrameMs": {
-              "median": 16.66,
-              "max": 16.66
-            },
-            "loadMs": 8,
-            "lateFrames": {
-              "over20": 0,
-              "over33": 0,
-              "pct": 0.0
-            },
-            "gc": {
-              "totalMs": 0.5,
-              "pctOfWall": 0.01,
-              "minor": {
-                "count": 1,
-                "medianMs": 0.5,
-                "maxMs": 0.5,
-                "totalMs": 0.5
               },
               "major": {
                 "count": 0,
@@ -300,27 +297,27 @@
     "shapes": {
       "tint": {
         "c": "wgr_model_set_tint",
-        "jsNs": 3.25,
-        "wasmNs": 0.45,
-        "boundaryNs": 2.8
+        "jsNs": 3.44,
+        "wasmNs": 0.49,
+        "boundaryNs": 2.95
       },
       "transform": {
         "c": "wgr_model_set_transform",
-        "jsNs": 5.82,
-        "wasmNs": 0.45,
-        "boundaryNs": 5.37
+        "jsNs": 6.4,
+        "wasmNs": 0.5,
+        "boundaryNs": 5.9
       },
       "struct": {
         "c": "wgr_input_get_mouse_state",
-        "jsNs": 12.63,
-        "wasmNs": 1.43,
-        "boundaryNs": 11.21
+        "jsNs": 14.04,
+        "wasmNs": 1.52,
+        "boundaryNs": 12.52
       },
       "string": {
         "c": "wgr_text_measure",
-        "jsNs": 26.61,
-        "wasmNs": 2.49,
-        "boundaryNs": 24.12
+        "jsNs": 26.83,
+        "wasmNs": 2.35,
+        "boundaryNs": 24.48
       }
     },
     "engine": "Chrome/153.0.8010.53"
