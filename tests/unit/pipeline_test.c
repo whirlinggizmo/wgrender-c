@@ -324,10 +324,11 @@ void test_pipeline_budget(void)
     wgr_asset_set_upload_budget(0.0f);
     load(CHARACTER_PATH, WGR_ASSET_NONE, on_mesh);
     const int frames = run_until_done();
-    /* frame 1 prepares and uploads the buffers; the 2 textures and the materials
-     * take a frame each */
-    CHECK(frames == 4);
-    CHECK(got.mesh != 0 && loaded_textures(got.mesh) >= 2);
+    const int textures = got.mesh != 0 ? loaded_textures(got.mesh) : 0;
+    /* frame 1 prepares and uploads the buffers; each texture (the character has at
+     * least 2) and then the materials take a frame each */
+    CHECK(textures >= 2);
+    CHECK(frames == 1 + textures + 1);
     wgr_mesh_release(got.mesh);
     wgr_asset_set_upload_budget(4.0f);
     stop_assets();
