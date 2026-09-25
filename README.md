@@ -219,3 +219,22 @@ handle-only surface (every parameter a handle, a number, an enum or a `const cha
 | Haxe | [wgrender-hx](https://github.com/whirlinggizmo/wgrender-hx) | in development: hxcpp (desktop) and JS (web) targets, generated from the headers |
 | Nim | [wgrender-nim](https://github.com/whirlinggizmo/wgrender-nim) | in development: desktop and web, wgrender compiled in from `build.json` |
 | Beef | [wgrender-beef](https://github.com/whirlinggizmo/wgrender-beef) | early: desktop and web examples |
+
+## License
+
+wgrender's own code is MIT; see [LICENSE](LICENSE). What it vendors keeps its own
+license, in or next to each file:
+
+| Where | What | License |
+|---|---|---|
+| `deps/sokol/` | sokol (Andre Weissflog) | zlib |
+| `deps/sokol_utils/` | sokol_utils | zlib |
+| `deps/clay/` | clay (Nic Barker), wgrender's fork | zlib |
+| `deps/fontstash/` | fontstash (Mikko Mononen) | zlib |
+| `deps/cgltf/` | cgltf (Johannes Kuhlmann) | MIT |
+| `deps/dr/` | dr_mp3, dr_wav (David Reid) | public domain or MIT-0 |
+| `deps/stb/` | stb_image, stb_truetype, stb_vorbis (Sean Barrett) | public domain or MIT |
+| `src/fonts/` | JetBrains Mono, embedded as the default font | SIL OFL 1.1 |
+
+The example assets that are not wgrender's own are listed with their licenses in
+[examples/assets/CREDITS.md](examples/assets/CREDITS.md).
