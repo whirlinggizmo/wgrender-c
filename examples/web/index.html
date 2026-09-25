@@ -12,6 +12,8 @@
     background: #1e2128; border-bottom: 1px solid #2c313c; }
   #bar b { color: #7ea2ff; }
   #status { color: #7b8494; }
+  #src { color: #7ea2ff; text-decoration: none; }
+  #src:hover { text-decoration: underline; }
   select { background: #0f1115; color: #cdd3de; border: 1px solid #3a4150;
     border-radius: 6px; padding: 4px 8px; font: inherit; }
   /* canvas fills the area below the bar; sokol manages the drawing buffer. Touches
@@ -37,6 +39,7 @@
   <div id="bar">
     <b>libwgrender</b>
     <label>example <select id="ex"></select></label>
+    <a id="src" target="_blank" rel="noopener">source</a>
     <span id="status">loading…</span>
     <button id="logbtn" type="button">console</button>
   </div>
@@ -89,6 +92,11 @@
     const current = params.get("ex") || "hello";
     const statusEl = document.getElementById("status");
     const sel = document.getElementById("ex");
+
+    // Where each example's source is read, {name} standing for the example. A binding
+    // that reuses this page for its own site swaps in its own repository.
+    const SOURCE = "https://github.com/whirlinggizmo/wgrender-c/blob/main/examples/{name}.c";
+    document.getElementById("src").href = SOURCE.replaceAll("{name}", current);
 
     // Each program's version (a hash of its .js and .wasm), written in when the site is
     // built (tools/webdeploy.py): files are loaded as name.js?v=<hash>, so a host can
