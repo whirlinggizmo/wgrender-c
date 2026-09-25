@@ -953,7 +953,24 @@ static bool draw_lit(const wgr_sprite_batch_t *b)
         /* the frame's casting lights, a layer of the map each */
         wgri_shadow_fill_uniforms(&shadow, scene.u_shadow_mat, scene.u_shadow_params, scene.u_shadow_tint,
                                 scene.u_shadow_extra, scene.u_shadow_map);
+        /* each selected light, as a model's are (wgr_model.c): light_count tells the shader
+         * how many to read, so an unfilled one is a zero direction, normalized to NaN,
+         * which blackens the whole sprite, ambient included */
         for (int i = 0; i < light_count; i++) {
+            const wgri_scene_light_t *light = &env->lights[lights[i]];
+            light_block.u_light_pos_range[i][0] = light->position.x;
+            light_block.u_light_pos_range[i][1] = light->position.y;
+            light_block.u_light_pos_range[i][2] = light->position.z;
+            light_block.u_light_pos_range[i][3] = light->range;
+            light_block.u_light_dir_type[i][0] = light->direction.x;
+            light_block.u_light_dir_type[i][1] = light->direction.y;
+            light_block.u_light_dir_type[i][2] = light->direction.z;
+            light_block.u_light_dir_type[i][3] = (float)light->type;
+            light_block.u_light_radiance[i][0] = light->radiance.x;
+            light_block.u_light_radiance[i][1] = light->radiance.y;
+            light_block.u_light_radiance[i][2] = light->radiance.z;
+            light_block.u_light_spot[i][0] = light->cos_inner;
+            light_block.u_light_spot[i][1] = light->cos_outer;
             light_block.u_light_spot[i][2] = (float)wgri_shadow_slot_of(&shadow, lights[i]);
         }
     }
