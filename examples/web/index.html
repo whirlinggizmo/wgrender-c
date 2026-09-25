@@ -9,9 +9,12 @@
     color: #cdd3de; font: 14px/1.4 system-ui, sans-serif; }
   #bar { position: fixed; inset: 0 0 auto 0; height: 38px; z-index: 10;
     display: flex; align-items: center; gap: 12px; padding: 0 12px;
-    background: #1e2128; border-bottom: 1px solid #2c313c; }
+    background: #1e2128; border-bottom: 1px solid #2c313c;
+    white-space: nowrap; overflow: hidden; }
   #bar b { color: #7ea2ff; }
-  #status { color: #7b8494; }
+  #status { color: #7b8494; overflow: hidden; text-overflow: ellipsis; }
+  /* a phone's bar has no room for the label: the picker says what it is */
+  @media (max-width: 520px) { #exlabel { display: none; } }
   #src { color: #7ea2ff; text-decoration: none; }
   #src:hover { text-decoration: underline; }
   select { background: #0f1115; color: #cdd3de; border: 1px solid #3a4150;
@@ -38,7 +41,7 @@
 <body>
   <div id="bar">
     <b>libwgrender</b>
-    <label>example <select id="ex"></select></label>
+    <label><span id="exlabel">example </span><select id="ex" aria-label="example"></select></label>
     <a id="src" target="_blank" rel="noopener">source</a>
     <span id="status">loading…</span>
     <button id="logbtn" type="button">console</button>
@@ -155,7 +158,8 @@
         else if (kind === "warn") console.warn(text);
         else console.log(text);
       },
-      onRuntimeInitialized: () => { statusEl.textContent = current; },
+      // the picker names the example; the status is only for loading and failures
+      onRuntimeInitialized: () => { statusEl.textContent = ""; },
       locateFile: (path, prefix) => (path.endsWith(".wasm") ? wasmUrl : prefix + path),
       // Instantiate from the download started above (with its module, which worker
       // threads are sent). A server that doesn't say application/wasm can't stream:
