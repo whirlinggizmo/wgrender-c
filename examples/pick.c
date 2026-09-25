@@ -14,7 +14,7 @@
 #include "wgr_sprite3d.h"
 
 #define LOGO_PATH  "sprites/logo/wg-logo-bw-alpha.png"
-#define MODEL_PATH "models/gumshoe/gumshoe.glb"
+#define MODEL_PATH "models/woman_casual/woman_casual.glb"
 
 static wgr_handle_t g_scene;
 static wgr_handle_t g_camera;

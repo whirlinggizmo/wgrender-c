@@ -101,7 +101,7 @@ static void teardown(void)
     sg_shutdown();
 }
 
-#define GUMSHOE "examples/assets/models/gumshoe/gumshoe.glb"
+#define WOMAN_CASUAL "examples/assets/models/woman_casual/woman_casual.glb"
 
 /* Textures a mesh's materials use that loaded (not missing, not the placeholder). */
 static int loaded_textures(wgr_handle_t mesh)
@@ -121,10 +121,10 @@ static int loaded_textures(wgr_handle_t mesh)
 void test_pipeline_mesh_textures(void)
 {
     setup();
-    wgr_handle_t mesh = wgr_mesh_create(GUMSHOE);
+    wgr_handle_t mesh = wgr_mesh_create(WOMAN_CASUAL);
     CHECK(mesh != 0);
     CHECK(loaded_textures(mesh) >= 2);
-    CHECK(wgr_mesh_create(GUMSHOE) == mesh); /* deduped */
+    CHECK(wgr_mesh_create(WOMAN_CASUAL) == mesh); /* deduped */
     wgr_mesh_release(mesh);
     wgr_mesh_release(mesh);
     teardown();
@@ -230,7 +230,7 @@ static void check_async_loads(int workers)
     start_assets(workers, ASSETS);
     CHECK(wgri_asset_get_worker_count() == workers);
     load(TEXTURE, WGR_ASSET_NONE, on_texture);
-    load("models/gumshoe/gumshoe.glb", WGR_ASSET_NONE, on_mesh);
+    load("models/woman_casual/woman_casual.glb", WGR_ASSET_NONE, on_mesh);
     load("sounds/click_004.ogg", WGR_ASSET_NONE, on_audio);
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 3 && got.failures == 0);
@@ -322,7 +322,7 @@ void test_pipeline_budget(void)
 {
     start_assets(0, ASSETS);
     wgr_asset_set_upload_budget(0.0f);
-    load("models/gumshoe/gumshoe.glb", WGR_ASSET_NONE, on_mesh);
+    load("models/woman_casual/woman_casual.glb", WGR_ASSET_NONE, on_mesh);
     const int frames = run_until_done();
     /* frame 1 prepares and uploads the buffers; the 2 textures and the materials
      * take a frame each */
@@ -340,7 +340,7 @@ void test_pipeline_shutdown(void)
     for (int round = 0; round < 3; round++) {
         start_assets(2, ASSETS);
         wgr_asset_set_upload_budget(0.0f);
-        load("models/gumshoe/gumshoe.glb", WGR_ASSET_NONE, on_mesh);
+        load("models/woman_casual/woman_casual.glb", WGR_ASSET_NONE, on_mesh);
         load(TEXTURE, WGR_ASSET_NONE, on_texture);
         load("sounds/click_004.ogg", WGR_ASSET_NONE, on_audio);
         for (int frame = 0; frame < round * 3; frame++) {
@@ -375,7 +375,7 @@ void test_pipeline_group(void)
     start_assets(1, ASSETS);
     wgr_handle_t group = wgr_asset_group_create();
     wgr_handle_t texture = wgr_asset_ensure_async(TEXTURE, NULL, WGR_ASSET_NONE);
-    wgr_handle_t mesh = wgr_asset_ensure_async("models/gumshoe/gumshoe.glb", NULL, WGR_ASSET_NONE);
+    wgr_handle_t mesh = wgr_asset_ensure_async("models/woman_casual/woman_casual.glb", NULL, WGR_ASSET_NONE);
     CHECK(wgr_asset_add_task(texture, on_texture, on_failed, NULL) == WGR_ASSET_ADD_TASK_OK);
     CHECK(wgr_asset_group_add(group, texture));
     CHECK(wgr_asset_group_add(group, mesh)); /* no callbacks of its own */
@@ -780,7 +780,7 @@ void test_pipeline_skinned_joints(void)
 
     setup();
     stm_setup(); /* the frame's time */
-    const wgr_handle_t mesh = wgr_mesh_create(GUMSHOE);
+    const wgr_handle_t mesh = wgr_mesh_create(WOMAN_CASUAL);
     CHECK(mesh != 0);
     const wgr_handle_t camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
     wgr_camera3d_set_view(camera, 0, 2, 8, 0, 1, 0, 0, 1, 0);

@@ -1,6 +1,6 @@
 /* libwgrender post-processing example — screen effects over the finished frame.
  *
- * The frame is an ordinary lit scene (an animated gumshoe on a floor, generated shapes,
+ * The frame is an ordinary lit scene (an animated woman on a floor, generated shapes,
  * a circling point light). The effects are custom materials whose shaders are screen
  * effects (examples/shaders/vignette.glsl and scanlines.glsl, compiled by
  * tools/shaderpack.py; tools/gen_shaders.py --examples):
@@ -22,14 +22,14 @@
 #include "example_assets.h"
 #include "wgr.h"
 
-#define GUMSHOE_PATH "models/gumshoe/gumshoe.glb"
+#define WOMAN_CASUAL_PATH "models/woman_casual/woman_casual.glb"
 #define VIGNETTE_PATH "shaders/vignette.wgrshader"
 #define SCANLINES_PATH "shaders/scanlines.wgrshader"
 
 enum { SHAPE_COUNT = 3 };
 
 static struct {
-    wgr_handle_t scene, camera, gumshoe, lamp, lamp_marker;
+    wgr_handle_t scene, camera, woman_casual, lamp, lamp_marker;
     wgr_handle_t shapes[SHAPE_COUNT];
     wgr_handle_t vignette, scanlines; /* the effect materials (0 until they load) */
     bool vignette_on, scanlines_on, breathing, orbit;
@@ -50,10 +50,10 @@ static void on_model_loaded(const char *path, void *user)
 {
     wgr_handle_t mesh = wgr_mesh_create(path);
     (void)user;
-    wgr_model_set_mesh(g.gumshoe, mesh);
+    wgr_model_set_mesh(g.woman_casual, mesh);
     wgr_mesh_release(mesh); /* the model holds its own reference */
-    wgr_model_set_animation(g.gumshoe, 3);
-    wgr_model_set_animation_loop(g.gumshoe, true);
+    wgr_model_set_animation(g.woman_casual, 3);
+    wgr_model_set_animation_loop(g.woman_casual, true);
 }
 
 static void on_vignette_loaded(const char *path, void *user)
@@ -94,7 +94,7 @@ static void load(const char *path, wgr_asset_callback_fn done)
 
 static void init(void *user_data)
 {
-    /* the shapes beside the gumshoe, and their colors */
+    /* the shapes beside the woman, and their colors */
     const struct {
         wgr_handle_t mesh;
         float x, y;
@@ -150,11 +150,11 @@ static void init(void *user_data)
         wgr_scene_add(g.scene, g.shapes[i], 0);
     }
 
-    g.gumshoe = wgr_model_create(0);
-    wgr_model_set_transform(g.gumshoe, 0, 0, 0, 0, 0, 0, 1, 1, 1);
-    wgr_scene_add(g.scene, g.gumshoe, 0);
+    g.woman_casual = wgr_model_create(0);
+    wgr_model_set_transform(g.woman_casual, 0, 0, 0, 0, 0, 0, 1, 1, 1);
+    wgr_scene_add(g.scene, g.woman_casual, 0);
 
-    load(GUMSHOE_PATH, on_model_loaded);
+    load(WOMAN_CASUAL_PATH, on_model_loaded);
     load(VIGNETTE_PATH, on_vignette_loaded);
     load(SCANLINES_PATH, on_scanlines_loaded);
     wgr_debug_enable_fps(12, 10, 16);
@@ -181,7 +181,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     if (wgr_input_get_key(WGR_KEY_DOWN) != WGR_BUTTON_UP) g.strength = fmaxf(g.strength - dt, 0.0f);
 
     g.time += dt;
-    wgr_model_animate(g.gumshoe, dt);
+    wgr_model_animate(g.woman_casual, dt);
     if (g.orbit) g.angle += dt * 0.25f;
     wgr_camera3d_set_view(g.camera, 9.0f * sinf(g.angle), 3.2f, 9.0f * cosf(g.angle), 0, 1.0f, 0, 0, 1, 0);
     const float lamp_x = 3.0f * sinf(g.time * 0.9f), lamp_z = 2.2f + 1.2f * cosf(g.time * 0.9f);

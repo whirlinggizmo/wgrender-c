@@ -3,7 +3,7 @@
  * Nothing here asks for instancing: it is what libwgrender does when models agree on
  * everything but where they stand (docs/PLAN-instancing.md). A field of cubes shares
  * one mesh and one material and differs only in transform and tint, so it is one draw;
- * six gumshoes share the same asset and animate out of step, so their joints are
+ * six women share the same asset and animate out of step, so their joints are
  * per instance; a few cubes are see-through, and those keep their back-to-front order.
  * The sun casts, so the same batching happens again into its shadow map: 400 cubes and
  * six walkers go into it as two draws, and every shadow lands under its own model.
@@ -16,7 +16,7 @@
 #include "example_assets.h"
 #include "wgr.h"
 
-#define MODEL_PATH "models/gumshoe/gumshoe.glb"
+#define MODEL_PATH "models/woman_casual/woman_casual.glb"
 #define FIELD_SIDE 20
 #define FIELD_COUNT (FIELD_SIDE * FIELD_SIDE)
 #define WALKERS 6

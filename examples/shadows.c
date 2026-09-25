@@ -2,7 +2,7 @@
  *
  * The sun casts (wgr_light_set_casts_shadows): once a frame it draws everything that
  * casts into a depth map, and the lit shading darkens what's behind something. The
- * scene is a floor, a wall, some generated shapes and an animated gumshoe, so the
+ * scene is a floor, a wall, some generated shapes and an animated woman, so the
  * shadows fall across each other and across themselves.
  *
  *   - 1 turns the sun's casting on and off, the difference this whole feature makes
@@ -27,13 +27,13 @@
 #include "example_assets.h"
 #include "wgr.h"
 
-#define GUMSHOE_PATH "models/gumshoe/gumshoe.glb"
+#define WOMAN_CASUAL_PATH "models/woman_casual/woman_casual.glb"
 
 enum { SIZE_COUNT = 4 };
 static const int MAP_SIZES[SIZE_COUNT] = {512, 1024, 2048, 4096};
 
 static struct {
-    wgr_handle_t scene, camera, sun, spot, spot_marker, gumshoe;
+    wgr_handle_t scene, camera, sun, spot, spot_marker, woman_casual;
     wgr_handle_t no_cast, no_receive;
     bool shadows, spot_shadows, orbit;
     float distance, bias, strength;
@@ -51,10 +51,10 @@ static void on_model_loaded(const char *path, void *user)
 {
     wgr_handle_t mesh = wgr_mesh_create(path);
     (void)user;
-    wgr_model_set_mesh(g.gumshoe, mesh);
+    wgr_model_set_mesh(g.woman_casual, mesh);
     wgr_mesh_release(mesh);
-    wgr_model_set_animation(g.gumshoe, 3);
-    wgr_model_set_animation_loop(g.gumshoe, true);
+    wgr_model_set_animation(g.woman_casual, 3);
+    wgr_model_set_animation_loop(g.woman_casual, true);
 }
 
 static void on_failed(const char *path, void *user)
@@ -129,10 +129,10 @@ static void init(void *user_data)
     g.no_receive = place(wgr_mesh_create_sphere(0.6f, 24, 48), -2.6f, 0.6f, -1.2f, 0.9f, 0.3f, 0.5f, 0.35f);
     wgr_model_set_receives_shadow(g.no_receive, false);
 
-    g.gumshoe = wgr_model_create(0);
-    wgr_model_set_transform(g.gumshoe, 0, 0, 0, 0, 0, 0, 1, 1, 1);
-    wgr_scene_add(g.scene, g.gumshoe, 0);
-    wgr_asset_add_task(wgr_asset_ensure_async(GUMSHOE_PATH, NULL, WGR_ASSET_NONE), on_model_loaded, on_failed, NULL);
+    g.woman_casual = wgr_model_create(0);
+    wgr_model_set_transform(g.woman_casual, 0, 0, 0, 0, 0, 0, 1, 1, 1);
+    wgr_scene_add(g.scene, g.woman_casual, 0);
+    wgr_asset_add_task(wgr_asset_ensure_async(WOMAN_CASUAL_PATH, NULL, WGR_ASSET_NONE), on_model_loaded, on_failed, NULL);
     wgr_debug_enable_fps(12, 10, 16);
 }
 
@@ -178,7 +178,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     }
 
     g.time += dt;
-    wgr_model_animate(g.gumshoe, dt);
+    wgr_model_animate(g.woman_casual, dt);
     /* the spot circles overhead, always aimed at the middle of the scene */
     const float sx = 7.0f * sinf(g.time * 0.35f), sz = 7.0f * cosf(g.time * 0.35f);
     wgr_light_set_position(g.spot, sx, 6.5f, sz);

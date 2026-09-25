@@ -12,7 +12,7 @@
  *   - the note under the bar is wrapped text (wgr_text2d_set_max_width)
  *   - the list at the bottom is clipped to the panel (wgr_scene_set_clip): the mouse
  *     wheel scrolls it, and rows scrolled out of the box can't be hovered or clicked
- *   - the gumshoe (a 3D member) lights up on hover; clicking it starts or stops its
+ *   - the woman (a 3D member) lights up on hover; clicking it starts or stops its
  *     animation
  *   - dragging anywhere else orbits the camera; a drag that starts on a button
  *     doesn't (wgr_input_is_pointer_captured)
@@ -26,7 +26,7 @@
 #include "wgr.h"
 #include "ui_widgets.h"
 
-#define GUMSHOE_PATH "models/gumshoe/gumshoe.glb"
+#define WOMAN_CASUAL_PATH "models/woman_casual/woman_casual.glb"
 #define PANEL_PATH "textures/ui_panel.png"
 
 enum { BUTTONS = 3, ROWS = 8 };
@@ -47,7 +47,7 @@ enum { LAYER_PANEL = 0, LAYER_CONTROL = 1, LAYER_LABEL = 2, LAYER_ROW = 5 };
 #define ROW_HEIGHT 34.0f
 
 static const char *LABELS[BUTTONS] = {"Count", "Enable / Disable", "Count too"};
-static const char *ROW_NAMES[ROWS] = {"Sponza", "Flight helmet", "Gumshoe", "Damaged helmet",
+static const char *ROW_NAMES[ROWS] = {"Sponza", "Flight helmet", "Woman", "Damaged helmet",
                                       "Water bottle", "Lantern", "Sphere grid", "Boom box"};
 
 static struct {
@@ -58,18 +58,18 @@ static struct {
     ui_button_t buttons[BUTTONS];
     ui_bar_t bar;
     ui_list_t list;
-    wgr_handle_t gumshoe;
+    wgr_handle_t woman_casual;
     wgr_handle_t panel_texture;
     int clicks;
     bool animating;
     float yaw;
 } g;
 
-static void on_gumshoe(const char *path, void *user)
+static void on_woman_casual(const char *path, void *user)
 {
     const wgr_handle_t mesh = wgr_mesh_create(path);
     (void)user;
-    wgr_model_set_mesh(g.gumshoe, mesh);
+    wgr_model_set_mesh(g.woman_casual, mesh);
     wgr_mesh_release(mesh);
 }
 
@@ -112,9 +112,9 @@ static void init(void *user_data)
     wgr_light_set_direction(g.sun, -0.4f, -1.0f, -0.6f);
     wgr_scene_add(g.scene, g.sun, 0);
 
-    g.gumshoe = wgr_model_create(0);
-    wgr_model_set_animation(g.gumshoe, 3);
-    wgr_scene_add(g.scene, g.gumshoe, 0);
+    g.woman_casual = wgr_model_create(0);
+    wgr_model_set_animation(g.woman_casual, 3);
+    wgr_scene_add(g.scene, g.woman_casual, 0);
 
     /* the panel: one 48x48 texture with 16 px borders, stretched to any size */
     g.panel = wgr_sprite2d_create(0);
@@ -150,7 +150,7 @@ static void init(void *user_data)
     /* the list clips its rows and their labels to its box (LAYER_ROW, LAYER_ROW + 1) */
     g.list = ui_list_create(g.scene, LAYER_ROW, ROW_NAMES, ROWS, LIST_X, LIST_Y, LIST_WIDTH, LIST_HEIGHT, ROW_HEIGHT, 15);
 
-    wgr_asset_add_task(wgr_asset_ensure_async(GUMSHOE_PATH, NULL, WGR_ASSET_NONE), on_gumshoe, on_failed, NULL);
+    wgr_asset_add_task(wgr_asset_ensure_async(WOMAN_CASUAL_PATH, NULL, WGR_ASSET_NONE), on_woman_casual, on_failed, NULL);
     wgr_asset_add_task(wgr_asset_ensure_async(PANEL_PATH, NULL, WGR_ASSET_NONE), on_panel, on_failed, NULL);
 }
 
@@ -181,15 +181,15 @@ static void frame(float dt, float tick_fraction, void *user_data)
     const int selected = ui_list_update(&g.list, g.scene, &g.theme, mouse.wheel);
 
     /* the 3D model */
-    wgr_model_set_tint(g.gumshoe, wgr_scene_get_hover(g.scene, g.gumshoe) >= WGR_BUTTON_PRESSED &&
-                                         wgr_scene_get_hover(g.scene, g.gumshoe) != WGR_BUTTON_RELEASED
+    wgr_model_set_tint(g.woman_casual, wgr_scene_get_hover(g.scene, g.woman_casual) >= WGR_BUTTON_PRESSED &&
+                                         wgr_scene_get_hover(g.scene, g.woman_casual) != WGR_BUTTON_RELEASED
                                      ? g.highlight
                                      : WGR_COLOR_WHITE);
-    if (wgr_scene_is_clicked(g.scene, g.gumshoe)) {
+    if (wgr_scene_is_clicked(g.scene, g.woman_casual)) {
         g.animating = !g.animating;
     }
     if (g.animating) {
-        wgr_model_animate(g.gumshoe, dt);
+        wgr_model_animate(g.woman_casual, dt);
     }
 
     /* orbit, unless the press started on UI */
@@ -209,7 +209,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_text_draw("libwgrender ui: hover, press and click 2D and 3D members", 22, 15, 20, g.theme.text);
     snprintf(line, sizeof(line), "clicks: %d   selected: %s   hovered: %s   pointer captured: %s", g.clicks,
              selected < 0 ? "nothing" : ROW_NAMES[selected],
-             hovered == 0 ? "nothing" : hovered == g.gumshoe ? "gumshoe" : hovered == g.panel ? "the panel" : "UI",
+             hovered == 0 ? "nothing" : hovered == g.woman_casual ? "the woman" : hovered == g.panel ? "the panel" : "UI",
              wgr_input_is_pointer_captured() ? "yes" : "no");
     wgr_text_draw(line, 28, 43, 15, g.theme.text_disabled);
     wgr_render_end_frame();

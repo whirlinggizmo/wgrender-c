@@ -19,7 +19,7 @@
 #include "example_assets.h"
 #include "wgr.h"
 
-#define MODEL_PATH "models/gumshoe/gumshoe.glb"
+#define MODEL_PATH "models/woman_casual/woman_casual.glb"
 #define SPRITE_PATH "textures/tiles.png"
 #define NORMAL_PATH "textures/tiles_sheet_normal.png" /* tools/gen_tiles.py */
 

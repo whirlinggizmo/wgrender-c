@@ -222,10 +222,10 @@ void test_model_instancing(void)
     /* skinned models sharing a mesh group as well: each instance's record says where
        its own joint matrices are, so two walkers out of step are still one draw per
        primitive of the mesh */
-    const wgr_handle_t gumshoe = wgr_mesh_create("examples/assets/models/gumshoe/gumshoe.glb");
-    const wgr_handle_t walker_a = wgr_model_create(gumshoe), walker_b = wgr_model_create(gumshoe);
-    CHECK(gumshoe != 0 && walker_a != 0 && walker_b != 0);
-    wgr_mesh_release(gumshoe);
+    const wgr_handle_t woman_casual = wgr_mesh_create("examples/assets/models/woman_casual/woman_casual.glb");
+    const wgr_handle_t walker_a = wgr_model_create(woman_casual), walker_b = wgr_model_create(woman_casual);
+    CHECK(woman_casual != 0 && walker_a != 0 && walker_b != 0);
+    wgr_mesh_release(woman_casual);
     wgr_model_set_transform(walker_a, -1.0f, 0, 2.0f, 0, 0, 0, 1, 1, 1);
     wgr_model_set_transform(walker_b, 1.0f, 0, 2.0f, 0, 0, 0, 1, 1, 1);
     wgr_model_set_animation(walker_a, 0);
@@ -250,8 +250,8 @@ void test_model_instancing(void)
             if (!seen && distinct_bases < 8) bases[distinct_bases++] = base;
         }
         wgr_render_end_frame();
-        /* the gumshoe is an opaque part and a see-through one, so each walker is two
-           primitives (and two placements: one per pass it appears in) */
+        /* the woman is four opaque parts and her see-through blob shadow, so each walker
+           is five primitives (and two placements: one per pass it appears in) */
         const int walker_prims = (primitives - 8) / 2;
         CHECK(placements >= 10 && walker_prims >= 1 && (primitives - 8) % 2 == 0);
         CHECK(distinct_bases >= 2);

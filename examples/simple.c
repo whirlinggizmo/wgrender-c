@@ -16,7 +16,7 @@
 
 #define DEBUG_FONT_PATH  "fonts/JetBrainsMono/JetBrainsMono-Regular.ttf"
 #define KOMIKA_FONT_PATH "fonts/Komika/KOMIKAH_.ttf"
-#define MODEL_PATH       "models/gumshoe/gumshoe.glb"
+#define MODEL_PATH       "models/woman_casual/woman_casual.glb"
 #define SPRITE_PATH      "sprites/logo/wg-logo-bw-alpha.png"
 #define BGM_PATH         "music/ethernight_club.mp3"
 

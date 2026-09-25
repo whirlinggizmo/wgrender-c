@@ -21,7 +21,7 @@
 
 #include "sokol_gfx.h"
 
-#define GUMSHOE "examples/assets/models/gumshoe/gumshoe.glb"
+#define WOMAN_CASUAL "examples/assets/models/woman_casual/woman_casual.glb"
 #define MAX_FLOATS (128 * 16)
 
 /* The model's pose, copied so it survives the next posing. Returns the float count. */
@@ -59,7 +59,7 @@ void test_animation_sampling(void)
     wgri_environment_init();
     wgri_model_init();
 
-    const wgr_handle_t mesh = wgr_mesh_create(GUMSHOE);
+    const wgr_handle_t mesh = wgr_mesh_create(WOMAN_CASUAL);
     const wgr_handle_t model = wgr_model_create(mesh);
     CHECK(mesh != 0 && model != 0);
     wgr_mesh_release(mesh); /* the model holds it */

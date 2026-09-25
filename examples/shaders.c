@@ -1,7 +1,7 @@
 /* libwgrender custom shaders example — materials drawn by shaders of your own.
  *
  *   - left: toon shading (lights in flat bands, a rim light) on the animated
- *     gumshoe: custom shaders work on skinned models too
+ *     woman: custom shaders work on skinned models too
  *   - middle: a sphere dissolving and coming back through a noise texture, with a
  *     glowing edge (time, a texture, discard)
  *   - right: a sphere of water rippling in waves (a vertex hook moves the surface)
@@ -19,14 +19,14 @@
 #include "example_assets.h"
 #include "wgr.h"
 
-#define GUMSHOE_PATH "models/gumshoe/gumshoe.glb"
+#define WOMAN_CASUAL_PATH "models/woman_casual/woman_casual.glb"
 #define NOISE_PATH "textures/noise.png"
 #define LOGO_PATH "sprites/logo/wg-logo-white-alpha.png"
 #define ENVIRONMENT_PATH "environments/venice_sunset_1k.hdr"
 #define FLOOR_Y -0.3f
 #define SPHERE_Y (FLOOR_Y + 0.5f) /* spheres 1 m across, resting on the floor */
 
-enum { SHADER_TOON, SHADER_DISSOLVE, SHADER_WAVE, SHADER_SPRITE_FX, SHADER_COUNT, GUMSHOE_BODY_SLOT = 1 };
+enum { SHADER_TOON, SHADER_DISSOLVE, SHADER_WAVE, SHADER_SPRITE_FX, SHADER_COUNT, WOMAN_CASUAL_BODY_SLOT = 1 };
 static const char *SHADER_PATHS[SHADER_COUNT] = {
     "shaders/toon.wgrshader",
     "shaders/dissolve.wgrshader",
@@ -38,7 +38,7 @@ static struct {
     wgr_handle_t scene;
     wgr_handle_t camera;
     wgr_color_t bg;
-    wgr_handle_t gumshoe, dissolving, rippling; /* models */
+    wgr_handle_t woman_casual, dissolving, rippling; /* models */
     wgr_handle_t floor;
     wgr_handle_t dissolve;                      /* its material gets the noise texture */
     wgr_handle_t sun, lamp, lamp_marker;
@@ -52,11 +52,11 @@ static void on_failed(const char *path, void *user)
     wgr_logger_error("load failed: %s", path);
 }
 
-static void on_gumshoe_loaded(const char *path, void *user)
+static void on_woman_casual_loaded(const char *path, void *user)
 {
     wgr_handle_t mesh = wgr_mesh_create(path);
     (void)user;
-    wgr_model_set_mesh(g.gumshoe, mesh);
+    wgr_model_set_mesh(g.woman_casual, mesh);
     wgr_mesh_release(mesh);
 }
 
@@ -99,7 +99,7 @@ static void on_shader_loaded(const char *path, void *user)
             wgr_material_set_color(material, "color", wgr_color_rgba(255, 196, 120, 255));
             wgr_material_set_float(material, "bands", 3.0f);
             wgr_material_set_float(material, "rim", 0.35f);
-            wgr_model_set_material(g.gumshoe, GUMSHOE_BODY_SLOT, material);
+            wgr_model_set_material(g.woman_casual, WOMAN_CASUAL_BODY_SLOT, material);
             break;
         case SHADER_DISSOLVE:
             wgr_material_set_vec4(material, "color", 0.55f, 0.6f, 0.7f, 1.0f); /* linear */
@@ -175,10 +175,10 @@ static void init(void *user_data)
     wgr_material_release(ground); /* the model holds its own reference */
     wgr_scene_add(g.scene, g.floor, 0);
 
-    g.gumshoe = wgr_model_create(0); /* meshes attach when they load */
-    wgr_model_set_transform(g.gumshoe, -1.9f, FLOOR_Y, 0, 0, 0.4f, 0, 0.5f, 0.5f, 0.5f); /* feet at its origin */
-    wgr_model_set_animation(g.gumshoe, 3);
-    wgr_scene_add(g.scene, g.gumshoe, 0);
+    g.woman_casual = wgr_model_create(0); /* meshes attach when they load */
+    wgr_model_set_transform(g.woman_casual, -1.9f, FLOOR_Y, 0, 0, 0.4f, 0, 0.5f, 0.5f, 0.5f); /* feet at its origin */
+    wgr_model_set_animation(g.woman_casual, 3);
+    wgr_scene_add(g.scene, g.woman_casual, 0);
     g.dissolving = wgr_model_create(sphere);
     wgr_model_set_transform(g.dissolving, 0.0f, SPHERE_Y, 0, 0, 0, 0, 1, 1, 1);
     wgr_scene_add(g.scene, g.dissolving, 0);
@@ -207,7 +207,7 @@ static void init(void *user_data)
     }
     wgr_asset_add_task(wgr_asset_ensure_async(ENVIRONMENT_PATH, NULL, WGR_ASSET_NONE), on_environment_loaded, on_failed,
                       NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(GUMSHOE_PATH, NULL, WGR_ASSET_NONE), on_gumshoe_loaded, on_failed, NULL);
+    wgr_asset_add_task(wgr_asset_ensure_async(WOMAN_CASUAL_PATH, NULL, WGR_ASSET_NONE), on_woman_casual_loaded, on_failed, NULL);
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)
@@ -236,7 +236,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_shape3d_set_transform(g.lamp_marker, lx, ly, lz, 0, 0, 0, 1, 1, 1);
     wgr_shape3d_set_visible(g.lamp_marker, wgr_light_is_enabled(g.lamp));
     wgr_model_set_transform(g.dissolving, 0.0f, SPHERE_Y, 0, 0, g.time * 0.4f, 0, 1, 1, 1);
-    wgr_model_animate(g.gumshoe, dt);
+    wgr_model_animate(g.woman_casual, dt);
 
     wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);

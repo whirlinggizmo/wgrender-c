@@ -15,7 +15,7 @@
 #include "example_assets.h"
 #include "wgr.h"
 
-#define GUMSHOE_PATH "models/gumshoe/gumshoe.glb"
+#define WOMAN_CASUAL_PATH "models/woman_casual/woman_casual.glb"
 #define SPHERE_PATH "models/sphere/sphere.glb"
 #define FONT_PATH "fonts/Komika/KOMIKAH_.ttf"
 
@@ -28,15 +28,15 @@ static struct {
     wgr_color_t bg, label_bg, minimap_bg, frame_color;
     wgr_handle_t pixel_view, minimap, label; /* render target textures */
     wgr_handle_t font;
-    wgr_handle_t gumshoe, globe, ground;
+    wgr_handle_t woman_casual, globe, ground;
     float time;
 } g;
 
-static void on_gumshoe_loaded(const char *path, void *user)
+static void on_woman_casual_loaded(const char *path, void *user)
 {
     wgr_handle_t mesh = wgr_mesh_create(path);
     (void)user;
-    wgr_model_set_mesh(g.gumshoe, mesh);
+    wgr_model_set_mesh(g.woman_casual, mesh);
     wgr_mesh_release(mesh);
 }
 
@@ -108,9 +108,9 @@ static void init(void *user_data)
     wgr_material_set_float(material, "metallic", 0.0f);
     g.ground = create_model(0, -0.05f, 0, 0.1f, 8.0f, material);
 
-    g.gumshoe = wgr_model_create(0);
-    wgr_model_set_animation(g.gumshoe, 3);
-    wgr_scene_add(g.scene, g.gumshoe, 0);
+    g.woman_casual = wgr_model_create(0);
+    wgr_model_set_animation(g.woman_casual, 3);
+    wgr_scene_add(g.scene, g.woman_casual, 0);
 
     /* the globe wears the label texture: drawn into each frame, used like any texture */
     material = wgr_material_create(WGR_MATERIAL_UNLIT);
@@ -118,7 +118,7 @@ static void init(void *user_data)
     wgr_material_set_vec2(material, "base_color_texture_scale", 2.0f, 1.0f); /* twice around */
     g.globe = create_model(2.2f, 1.2f, 0, 1.6f, 1.6f, material);
 
-    wgr_asset_add_task(wgr_asset_ensure_async(GUMSHOE_PATH, NULL, WGR_ASSET_NONE), on_gumshoe_loaded, on_failed, NULL);
+    wgr_asset_add_task(wgr_asset_ensure_async(WOMAN_CASUAL_PATH, NULL, WGR_ASSET_NONE), on_woman_casual_loaded, on_failed, NULL);
     wgr_asset_add_task(wgr_asset_ensure_async(SPHERE_PATH, NULL, WGR_ASSET_NONE), on_sphere_loaded, on_failed, NULL);
     wgr_asset_add_task(wgr_asset_ensure_async(FONT_PATH, NULL, WGR_ASSET_NONE), on_font_loaded, on_failed, NULL);
 }
@@ -142,8 +142,8 @@ static void frame(float dt, float tick_fraction, void *user_data)
         wgr_request_quit();
     }
     g.time += dt;
-    wgr_model_set_transform(g.gumshoe, gx, 0, gz, 0, -g.time * 0.6f, 0, 0.6f, 0.6f, 0.6f); /* walks in a circle */
-    wgr_model_animate(g.gumshoe, dt);
+    wgr_model_set_transform(g.woman_casual, gx, 0, gz, 0, -g.time * 0.6f, 0, 0.6f, 0.6f, 0.6f); /* walks in a circle */
+    wgr_model_animate(g.woman_casual, dt);
     wgr_model_set_transform(g.globe, -2.2f, 1.2f, 0, 0, g.time * 0.8f, 0, 1.6f, 1.6f, 1.6f);
 
     wgr_render_begin_frame();
