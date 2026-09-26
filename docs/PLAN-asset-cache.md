@@ -1,16 +1,21 @@
 # Plan: a web asset cache that notices changed files
 
-Status: **landed, but for wgrender-beef.** Steps 1-5 landed 2026-09-25: the metadata
-store, the cache mode, revalidation on the web, the manifest on both platforms, and
-the tooling (`tools/gen_manifest.py`, `site.py` writing manifests, the examples
-setting one, `tools/cachecheck.py [--manifest]`). As built: a cross-origin host is
-revalidated with `cache: "no-cache"` rather than conditional headers, which would need
-a CORS preflight (`wgr_asset.h`); the manifest reader is written for its one shape
-(`src/wgr_manifest.c`) instead of vendoring jsmn; the root manifest missing is an
-ordinary setup (serve.py has none) and logs at info. Step 6: wgrender-hx (bebd213) and
-wgrender-nim (9eaaae0) wrap it and publish manifests; wgrender-beef hasn't been done.
-Step 7, the docs sweep, landed with this line. The one-time fix for the bug that
-prompted this (a bumped `WGR_FS_CACHE_EPOCH`) landed separately.
+Status: **landed (2026-09-25).** All seven steps: the metadata store, the cache mode,
+revalidation on the web, the manifest on both platforms, the tooling
+(`tools/gen_manifest.py`, `site.py` writing manifests, the examples setting one,
+`tools/cachecheck.py [--manifest]`), the bindings, and the docs sweep. As built,
+beyond the design below: a cross-origin host is revalidated with `cache: "no-cache"`
+rather than conditional headers, which would need a CORS preflight; a 5xx counts as no
+answer, so the copy is used; `immutable` without `max-age` is fresh for a year, and
+`Expires` is not read; the root manifest is asked about once a run whatever the mode;
+a missing root is an ordinary setup (serve.py has none) and logs at info; the manifest
+reader is written for its one shape (`src/wgr_manifest.c`) instead of vendoring jsmn.
+`wgr_asset.h` is the contract. Bindings: wgrender-hx and wgrender-nim wrap the cache
+mode and the manifest and publish manifests with their sites; wgrender-beef takes the
+new library only (its binding covers what `simple` needs, and it publishes no site).
+Not wired in: `tools/cachecheck.py` runs by hand, not from `tools/verify.py` or CI.
+The one-time fix for the bug that prompted this (a bumped `WGR_FS_CACHE_EPOCH`) landed
+separately, and the epoch is now the last resort.
 
 ## The bug
 
