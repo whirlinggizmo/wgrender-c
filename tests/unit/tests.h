@@ -84,6 +84,7 @@ void test_render_command_merging(void);
 void test_render_command_passes(void);
 void test_fs_paths(void);
 void test_fs_files(void);
+void test_fs_meta(void);
 
 void test_math_angles(void);
 void test_math_inverse(void);

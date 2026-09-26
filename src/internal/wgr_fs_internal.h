@@ -11,7 +11,9 @@
  * Web: files in MEMFS under a root dir, kept between visits in IndexedDB, one
  * record per file. Init reads only the cache's list of files; a cached file is
  * read into MEMFS when it's needed (wgri_fs_cache_read_begin), so startup doesn't
- * grow with the cache (docs/PLAN-wgr_fs.md). */
+ * grow with the cache (docs/PLAN-wgr_fs.md). A cached file can carry metadata
+ * (wgri_fs_meta_t): on the web in a second IndexedDB store, read at init with the
+ * list; on desktop in a sidecar under the root's ".meta/". */
 
 void wgri_fs_init(const char *root_dir); /* root_dir NULL -> platform default */
 void wgri_fs_deinit(void);
@@ -34,11 +36,38 @@ bool wgri_fs_exists(const char *path);
 bool wgri_fs_read(const char *path, unsigned char **out_data, int *out_size);
 void wgri_fs_read_free(unsigned char *data);
 
-/* Write a file (creating parent dirs); on web also keep it in the cache. */
+/* What is known about where a cached file came from, kept beside it: the response's
+ * validators, how long it may be used without asking, and the hash of the bytes
+ * stored (docs/PLAN-asset-cache.md). An empty string is "none". A value too long for
+ * its field is dropped, never cut: a cut ETag would ask the server about some other
+ * version. */
+typedef struct {
+    char etag[128];
+    char last_modified[64];
+    double fresh_until; /* seconds since 1970 (wall clock); 0 = never fresh */
+    char hash[72];      /* "sha256:" + 64 hex */
+} wgri_fs_meta_t;
+
+/* Write a file (creating parent dirs); on web also keep it in the cache. Any
+ * metadata the old file had is dropped: it described other bytes. */
 bool wgri_fs_write(const char *path, const unsigned char *data, int size);
 
-/* Forget a cached file (web: the IndexedDB entry too), so the next read fetches it
- * again. wgri_fs_clear forgets the whole cache. */
+/* The same, with the new bytes' metadata kept with them: on the web in one
+ * transaction, so a failed store never leaves one without the other; on desktop the
+ * old metadata goes before the file is written and the new comes after, so an
+ * interruption leaves none rather than the wrong one. */
+bool wgri_fs_write_meta(const char *path, const unsigned char *data, int size, const wgri_fs_meta_t *meta);
+
+/* A cached file's metadata: false (and `out` zeroed) when it has none. Web: of the
+ * copy in the cache; desktop: of the file under the root. */
+bool wgri_fs_meta_get(const char *path, wgri_fs_meta_t *out);
+
+/* Replace a cached file's metadata, its bytes staying as they are (a 304's new
+ * freshness). False when there is no such file (web: none in the cache). */
+bool wgri_fs_meta_set(const char *path, const wgri_fs_meta_t *meta);
+
+/* Forget a cached file and its metadata (web: the IndexedDB entry too), so the next
+ * read fetches it again. wgri_fs_clear forgets the whole cache. */
 bool wgri_fs_remove(const char *path);
 void wgri_fs_clear(void);
 

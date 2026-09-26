@@ -79,6 +79,7 @@ static const test_case_t TESTS[] = {
     {"render_command_passes", test_render_command_passes},
     {"fs_paths", test_fs_paths},
     {"fs_files", test_fs_files},
+    {"fs_meta", test_fs_meta},
     {"math_angles", test_math_angles},
     {"math_inverse", test_math_inverse},
     {"math_trs", test_math_trs},
