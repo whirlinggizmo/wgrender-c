@@ -2,26 +2,19 @@
 
 Everything under `examples/assets/` that wgrender did not make itself, with its source
 and license, followed by what it did make. The web examples serve these files as they
-are, so a credit here covers the pages too; the CC BY music also needs its line wherever
-it plays.
+are, so a credit here covers the pages too.
 
 ## Third party
 
 | File | Work | Author | Source | License |
 |---|---|---|---|---|
-| `music/ethernight_club.mp3` | "Ethernight Club" | Kevin MacLeod | [incompetech.com](https://incompetech.com) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
 | `fonts/Komika/KOMIKAH_.ttf` | Komika Hand | © 1999-2001 WolfBainX & Apostrophic Labs | [apostrophiclab.com](https://www.apostrophiclab.com) | Freeware, unmodified; terms in `fonts/Komika/readme.txt`, the authors' notes in `Komika.txt` |
 | `fonts/JetBrainsMono/JetBrainsMono-Regular.ttf` | JetBrains Mono | JetBrains | [jetbrains.com/lp/mono](https://www.jetbrains.com/lp/mono/) | [SIL OFL 1.1](fonts/JetBrainsMono/OFL.txt) |
+| `music/a_hero_is_born.mp3` | "A Hero Is Born", its first 90 s | HoliznaCC0 | [Free Music Archive](https://freemusicarchive.org/music/holiznacc0/retro-gamer-soundtrack/a-hero-is-born/) | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `sounds/click_004.ogg` | UI Audio | Kenney | [kenney.nl](https://kenney.nl) | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `environments/venice_sunset_1k.hdr` | Venice Sunset | Greg Zaal | [Poly Haven](https://polyhaven.com/a/venice_sunset) | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `environments/studio_small_09_1k.hdr` | Studio Small 09 | Sergej Majboroda | [Poly Haven](https://polyhaven.com/a/studio_small_09) | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `models/woman_casual/woman_casual.glb` | A Quaternius woman, one outfit, with its Idle_Neutral, Run and Walk clips | Quaternius | [Ultimate Modular Women](https://quaternius.com) | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) |
-
-The music's attribution line, as its author asks for it:
-
-> "Ethernight Club" Kevin MacLeod (incompetech.com)
-> Licensed under Creative Commons: By Attribution 4.0 License
-> http://creativecommons.org/licenses/by/4.0/
 
 The benchmark models (Sponza, CC BY 4.0, Crytek and Frank Meinl; FlightHelmet, CC0) are
 not in the repository: `tools/bench/fetch_assets.py` downloads them from the

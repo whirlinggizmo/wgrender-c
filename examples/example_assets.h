@@ -22,4 +22,8 @@
  * examples pick them by number). Swap it here. */
 #define CHARACTER_PATH "models/woman_casual/woman_casual.glb"
 
+/* The examples' music: over 1 MB, so it streams (decoded while playing) where a short
+ * sound effect is decoded up front. Swap it here. */
+#define MUSIC_PATH "music/a_hero_is_born.mp3"
+
 #endif // EXAMPLE_ASSETS_H

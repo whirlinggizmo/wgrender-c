@@ -1,7 +1,7 @@
 /* libwgrender audio example — looping mp3 music + a one-shot ogg sound.
  *
  * Each file is ensured local (async), then wgr_audio_create(path) makes a shared
- * Audio resource: the 6 MB music is streamed (decoded while playing), the small
+ * Audio resource: the music (over 1 MB) is streamed (decoded while playing), the small
  * click is decoded up front. Sound objects play them. On desktop mixing runs on the
  * audio device's thread, so music keeps playing through a slow frame: press S to
  * stall one frame for 300 ms and hear it not care. On the web it stutters instead:
@@ -13,7 +13,6 @@
 #include "wgr.h"
 #include "example_assets.h"
 
-#define MUSIC_PATH "music/ethernight_club.mp3"
 #define CLICK_PATH "sounds/click_004.ogg"
 
 static wgr_color_t g_bg;

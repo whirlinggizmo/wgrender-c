@@ -17,7 +17,6 @@
 #define DEBUG_FONT_PATH  "fonts/JetBrainsMono/JetBrainsMono-Regular.ttf"
 #define KOMIKA_FONT_PATH "fonts/Komika/KOMIKAH_.ttf"
 #define SPRITE_PATH      "sprites/logo/wg-logo-bw-alpha.png"
-#define BGM_PATH         "music/ethernight_club.mp3"
 
 enum {
     SCREEN_WIDTH = 1024,
@@ -139,7 +138,7 @@ static void on_init(void *user_data)
     g.background_color = wgr_color_rgba(245, 245, 245, 255);
     g.grey_alpha = wgr_color_rgba(0, 0, 0, 128);
 
-    load(BGM_PATH, on_bgm_ready);
+    load(MUSIC_PATH, on_bgm_ready);
     load(CHARACTER_PATH, on_model_ready);
     load(SPRITE_PATH, on_sprite_ready);
     load(DEBUG_FONT_PATH, on_debug_font_ready);

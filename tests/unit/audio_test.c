@@ -14,7 +14,7 @@
 #include "test_os.h"
 #include "tests.h"
 
-#define MUSIC_PATH "examples/assets/music/ethernight_club.mp3" /* tests run from the repo root */
+#define MUSIC "examples/assets/" MUSIC_PATH /* tests run from the repo root */
 #define CLICK_PATH "examples/assets/sounds/click_004.ogg"
 #define WAV_PATH WGR_TEST_DIR "/audio_test_tone.wav"
 #define BLOCK 1024
@@ -118,15 +118,15 @@ void test_audio_streaming(void)
     /* OGG sound effect: short, loops many times */
     check_stream_matches_decode(CLICK_PATH, 44100 * 2, 0.8f, 44100);
     /* MP3 music: the first 3 seconds, at pitch 2 so blocks cross decode chunks unevenly */
-    check_stream_matches_decode(MUSIC_PATH, 44100 * 3, 2.0f, 44100);
+    check_stream_matches_decode(MUSIC, 44100 * 3, 2.0f, 44100);
 
-    /* automatic choice: the 6 MB music streams, the small click decodes */
-    wgr_handle_t music = wgr_audio_create(MUSIC_PATH), click = wgr_audio_create(CLICK_PATH);
+    /* automatic choice: the music (over 1 MB) streams, the small click decodes */
+    wgr_handle_t music = wgr_audio_create(MUSIC), click = wgr_audio_create(CLICK_PATH);
     CHECK(wgri_audio_is_streamed(music));
     CHECK(!wgri_audio_is_streamed(click));
 
     /* two sounds on one streamed Audio keep independent positions */
-    wgr_handle_t reference_audio = wgri_audio_create_mode("./" MUSIC_PATH, WGRI_AUDIO_MODE_DECODE);
+    wgr_handle_t reference_audio = wgri_audio_create_mode("./" MUSIC, WGRI_AUDIO_MODE_DECODE);
     wgr_handle_t first = wgr_sound_create(music), second = wgr_sound_create(music), reference = wgr_sound_create(reference_audio);
     float mixed[BLOCK * 2], expected[BLOCK * 2];
     wgr_sound_play(first);
@@ -215,7 +215,7 @@ void test_audio_threads(void)
     wgri_sound_init();
     wgr_logger_set_level(WGR_LOGGER_LEVEL_WARN);
 
-    wgr_handle_t music = wgr_audio_create(MUSIC_PATH);
+    wgr_handle_t music = wgr_audio_create(MUSIC);
     wgr_handle_t click = wgr_audio_create(CLICK_PATH);
     wgr_handle_t sounds[4];
     for (int i = 0; i < 4; i++) {

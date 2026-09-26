@@ -22,7 +22,7 @@ type**; it's just where data comes from — a path today, a bundle entry later.
 ```
 logo.png
 woman_casual.glb
-ethernight_club.mp3
+a_hero_is_born.mp3
 JetBrainsMono
 ```
 
@@ -42,7 +42,7 @@ its model, or makes another mesh).
 ```c
 wgr_handle_t tex   = wgr_texture_create("logo.png");      // Texture resource
 wgr_handle_t mesh  = wgr_mesh_create("woman_casual.glb");      // Mesh resource
-wgr_handle_t audio = wgr_audio_create("ethernight.mp3");  // Audio resource
+wgr_handle_t audio = wgr_audio_create("a_hero_is_born.mp3");  // Audio resource
 wgr_handle_t font  = wgr_font_create("JetBrainsMono");    // Font resource
 ```
 
@@ -57,7 +57,7 @@ transform / tint / volume / playback state and points at a shared resource via
 |-----------------------|------------------------------------------|----------------------------------|
 | `logo.png`            | **Texture**                              | Sprite2d / Sprite3d (`set_texture`) |
 | `woman_casual.glb` / *gen* | **Mesh** (primitives + skin + clips)     | **Model** (`set_mesh`)           |
-| `ethernight_club.mp3` | **Audio** (decoded \| streamed)          | **Sound** (`set_audio`)          |
+| `a_hero_is_born.mp3` | **Audio** (decoded \| streamed)          | **Sound** (`set_audio`)          |
 | `JetBrainsMono`       | **Font**                                 | Text2d / Text3d (`set_font`)     |
 | *(code)* / `woman_casual.glb` | **Material** (shading + params + textures) | Model (`set_material`, per slot) |
 | `venice_sunset_1k.hdr` | **Environment** (irradiance + prefiltered cubemap) | Scene (`set_environment`, `set_background`) |
