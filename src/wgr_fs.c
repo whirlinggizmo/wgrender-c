@@ -31,7 +31,7 @@
  * Module.wgr_fs_state is 0 pending / 1 ready / 2 no store (files still work in
  * MEMFS, nothing persists), surfaced via wgri_fs_is_ready(). */
 /* Bump to invalidate every cached file on the next visit (see the note inside). */
-#define WGR_FS_CACHE_EPOCH 2
+#define WGR_FS_CACHE_EPOCH 3
 
 EM_JS(void, wgr_fs_store_open, (const char *root_c, int epoch), {
     const root = UTF8ToString(root_c);
