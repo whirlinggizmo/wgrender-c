@@ -218,6 +218,13 @@ else()
 endif()
 message(STATUS "wgrender: ${WGR_TARGET}")
 
+# What wgrender's own web programs (the examples and benchmarks) export for its tools to
+# call from JS: the asset queue webcheck.py and webstart.py wait on, and the cache
+# cachecheck.py clears. Nothing in wgrender forces an export (src/internal/
+# exports_internal.h), so a program of anyone else's carries none of these.
+set(WGR_TOOL_EXPORTS
+    "-sEXPORTED_FUNCTIONS=_main,_wgri_asset_pending_count,_wgri_asset_pending_log,_wgr_asset_clear_cache")
+
 # How a program here runs: directly, or under CMAKE_CROSSCOMPILING_EMULATOR (Wine for
 # a Windows build made on Linux: tools/wine.py)
 set(WGR_RUNNER ${CMAKE_CROSSCOMPILING_EMULATOR})
@@ -234,6 +241,7 @@ if(WGR_EXAMPLES)
     target_link_libraries(${name} PRIVATE wgrender)
     if(EMSCRIPTEN)
       target_compile_options(${name} PRIVATE ${WGR_CFLAGS}) # as the library: NDEBUG, backend
+      target_link_options(${name} PRIVATE ${WGR_TOOL_EXPORTS})
     endif()
     if(name STREQUAL "fetch" AND NOT EMSCRIPTEN)
       # its download cache, in this preset's work directory, relative to where examples
@@ -268,6 +276,7 @@ if(PROJECT_IS_TOP_LEVEL)
     target_link_libraries(${name} PRIVATE wgrender)
     if(EMSCRIPTEN)
       target_compile_options(${name} PRIVATE ${WGR_CFLAGS})
+      target_link_options(${name} PRIVATE ${WGR_TOOL_EXPORTS})
     else()
       target_compile_definitions(${name} PRIVATE ${WGR_DEFINES})
     endif()

@@ -1,11 +1,15 @@
 #ifndef WGRI_INTERNAL_EXPORTS_H
 #define WGRI_INTERNAL_EXPORTS_H
 
-/* WGRI_KEEP keeps a public function in a web build even when nothing in the program
- * calls it, and exports it. That is what a library archive wants: an object is only
- * linked when something references it. A program that compiles wgrender's sources in
- * directly (wgrender-nim does, from build.json) links every object, so it defines
- * WGRI_KEEP empty (-DWGRI_KEEP=) and lets the linker drop what it never calls. */
+/* WGRI_KEEP marks the public API. By default it is nothing: a program links what it
+ * calls and the linker drops the rest, and a JS host lists what its guest calls
+ * (wgrender-hx's WebHost), so nothing needs forcing. Built with -DWGR_EXPORT_FULL_API,
+ * a web build keeps and exports every public function whose object is linked, for a
+ * JS host that wants the whole API from the library without listing it. (Until
+ * 2026-09-26 that was the default, carried over from librl, and it put every public
+ * function of a linked object into every program and host.) wgrender's own programs
+ * export the few functions its tools call from JS at link time instead (CMakeLists.txt,
+ * WGR_TOOL_EXPORTS). */
 #if defined(PLATFORM_WEB) || defined(__EMSCRIPTEN__)
     #include <emscripten.h>
     /* A C function wgrender's own JS calls (an EM_JS body): kept always, whatever
@@ -15,13 +19,11 @@
     #define WGRI_JS_CALLED
 #endif
 
-#ifndef WGRI_KEEP
-#if defined(PLATFORM_WEB) || defined(__EMSCRIPTEN__)
+#if defined(WGR_EXPORT_FULL_API) && (defined(PLATFORM_WEB) || defined(__EMSCRIPTEN__))
     #include <emscripten.h>
     #define WGRI_KEEP EMSCRIPTEN_KEEPALIVE
-#else // empty stub on native targets
+#else
     #define WGRI_KEEP
-#endif
 #endif
 
 #endif // WGRI_INTERNAL_EXPORTS_H

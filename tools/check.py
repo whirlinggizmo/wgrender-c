@@ -90,8 +90,9 @@ def check_naming(r):
     # One prefix per surface. Telling a declaration from a use needs a parser, so check
     # what doesn't: every wgr_ name an internal header mentions is one include/ declares
     # (it is using the public API), and include/ never mentions wgri_. Build flags the
-    # build passes with -D (WGR_HEADLESS) are exempt: -D and #ifdef spell them alike.
-    build_flags = {'WGR_HEADLESS'}
+    # build passes with -D (WGR_HEADLESS, WGR_EXPORT_FULL_API) are exempt: -D and #ifdef
+    # spell them alike.
+    build_flags = {'WGR_HEADLESS', 'WGR_EXPORT_FULL_API'}
     public = stripped(files('include/*.h'))
     internal = stripped(files('src/internal/*.h'))
     public_names = set(re.findall(r'\b(?:wgr|WGR)_\w+\b', public))
