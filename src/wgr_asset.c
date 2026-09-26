@@ -15,6 +15,8 @@
 #include "internal/wgr_fs_internal.h"
 #include "internal/wgr_handle_pool_internal.h"
 #include "internal/wgr_loader_internal.h"
+#include "internal/wgr_manifest_internal.h"
+#include "internal/wgr_sha256_internal.h"
 #include "internal/wgr_thread_internal.h"
 #include "internal/wgr_internal_internal.h"
 #include "wgr_handle.h"
@@ -79,6 +81,12 @@ typedef struct {
     int fetch_result;         /* web: FETCH_* set when the download finishes */
     int cache_read;           /* web: reading the file from the cache (wgri_fs_cache_read_begin), or 0 */
     bool revalidating;        /* web: the fetch in flight asks about a cached copy */
+    /* the manifest (wgr_asset_set_manifest) */
+    bool manifest_checked;    /* looked up: expect_hash is the manifest's word, or "" (not listed) */
+    char expect_hash[WGRI_SHA256_TEXT]; /* what the file's bytes must hash to; "" = anything */
+    int manifest_dir;         /* this task loads wgr_manifest_dirs[manifest_dir - 1]; 0 = none */
+    unsigned manifest_generation;
+    bool manifest_root;       /* ... and it is the root, asked about once per run */
     /* dependencies (files this file references; see internal/wgr_asset.h) */
     uint16_t parent;          /* slot of the task this one is a dependency of; 0 = none */
     int pending;              /* dependencies not finished yet */
@@ -133,6 +141,20 @@ static wgri_handle_pool_t wgr_asset_pool;
 static bool wgr_asset_ready = false;
 static char wgr_asset_host[256] = "";
 static wgr_asset_cache_mode_t wgr_asset_cache_mode = WGR_ASSET_CACHE_REVALIDATE;
+
+/* The manifest tree (wgr_asset_set_manifest): one record per directory whose
+ * manifest.json was wanted this run, read or not. */
+enum { MANIFEST_LOADING = 0, MANIFEST_READY, MANIFEST_FAILED };
+typedef struct {
+    char dir[512]; /* under the root manifest's directory: "" for its own, "textures", ... */
+    int state;
+    wgri_manifest_t manifest;
+} wgr_manifest_dir_t;
+static char wgr_manifest_path[512];  /* the root's logical path; "" = no manifest */
+static size_t wgr_manifest_base_len; /* how much of it is its directory, with the "/" */
+static unsigned wgr_manifest_generation; /* bumped when the manifest changes */
+static wgr_manifest_dir_t *wgr_manifest_dirs;
+static int wgr_manifest_dir_count, wgr_manifest_dir_capacity;
 #ifndef __EMSCRIPTEN__
 /* Desktop downloads: the host is a URL, the app supplies the downloader, and the cache
  * directory is both where a download lands and where the next run finds it -- the same
@@ -209,6 +231,29 @@ void wgr_asset_set_host(const char *host)
 }
 
 #ifndef __EMSCRIPTEN__
+/* A download the manifest lists is hashed before it counts: a match is recorded with
+ * the file, a mismatch deleted (the host still serving the old file, a broken
+ * deploy). Anything else counts as it is. */
+static bool download_matches(wgr_asset_task_t *task)
+{
+    wgri_fs_meta_t meta = {0};
+    unsigned char *data = NULL;
+    int size = 0;
+    if (task->expect_hash[0] == '\0') return true;
+    if (wgri_fs_read(task->path, &data, &size)) {
+        wgri_sha256_text(data, (size_t)size, meta.hash);
+        wgri_fs_read_free(data);
+    }
+    if (strcmp(meta.hash, task->expect_hash) != 0) {
+        log_warn("asset: %s isn't what the manifest lists (%.19s..., not %.19s...); not kept", task->path, meta.hash,
+                 task->expect_hash);
+        wgri_fs_remove(task->path);
+        return false;
+    }
+    wgri_fs_meta_set(task->path, &meta);
+    return true;
+}
+
 bool wgr_asset_fetch_done(wgr_handle_t request, bool ok)
 {
     uint16_t i = 0;
@@ -221,7 +266,12 @@ bool wgr_asset_fetch_done(wgr_handle_t request, bool ok)
         return false; /* not a request we are waiting on */
     }
     task->state = TASK_NEW;
-    if (ok && wgri_fs_exists(task->path)) {
+    if (ok && wgri_fs_exists(task->path) && download_matches(task)) {
+        resolved(i, true);
+        return true;
+    }
+    if (!ok && task->manifest_root && wgri_fs_exists(task->path)) {
+        log_info("asset: couldn't fetch %s; using the one from before", task->path);
         resolved(i, true);
         return true;
     }
@@ -347,6 +397,157 @@ double wgri_asset_fresh_until(const char *cache_control, const char *age, double
     return max_age > already ? now + (max_age - already) : 0.0;
 }
 
+/* ------------------------------------------------------------ manifest */
+
+static void forget_manifests(void)
+{
+    for (int i = 0; i < wgr_manifest_dir_count; i++) wgri_manifest_free(&wgr_manifest_dirs[i].manifest);
+    free(wgr_manifest_dirs);
+    wgr_manifest_dirs = NULL;
+    wgr_manifest_dir_count = wgr_manifest_dir_capacity = 0;
+    wgr_manifest_generation++; /* a manifest task still in flight is for the old one */
+}
+
+WGRI_KEEP
+bool wgr_asset_set_manifest(const char *path)
+{
+    const char *slash;
+    if (path == NULL) path = "";
+    if (path[0] == '/' || strstr(path, "://") != NULL || strlen(path) >= sizeof(wgr_manifest_path)) {
+        log_warn("wgr_asset_set_manifest: %s isn't a path under the host", path);
+        return false;
+    }
+    forget_manifests();
+    snprintf(wgr_manifest_path, sizeof(wgr_manifest_path), "%s", path);
+    slash = strrchr(wgr_manifest_path, '/');
+    wgr_manifest_base_len = slash != NULL ? (size_t)(slash - wgr_manifest_path) + 1 : 0;
+    return true;
+}
+
+/* The record for directory `dir`, wanted now if it wasn't before: its manifest.json
+ * is ensured by a task of its own, and (but for the root) has to hash to `hash`.
+ * NULL when there is no room for it. Adding a task may move the tasks. */
+static wgr_manifest_dir_t *want_manifest(const char *dir, const char *hash)
+{
+    wgr_manifest_dir_t *record;
+    wgr_asset_task_t *task;
+    wgr_handle_t handle;
+    char path[512];
+    int written;
+
+    for (int i = 0; i < wgr_manifest_dir_count; i++) {
+        if (strcmp(wgr_manifest_dirs[i].dir, dir) == 0) return &wgr_manifest_dirs[i];
+    }
+    if (wgr_manifest_dir_count == wgr_manifest_dir_capacity) {
+        const int capacity = wgr_manifest_dir_capacity > 0 ? wgr_manifest_dir_capacity * 2 : 16;
+        wgr_manifest_dir_t *dirs = realloc(wgr_manifest_dirs, sizeof(*dirs) * (size_t)capacity);
+        if (dirs == NULL) return NULL;
+        wgr_manifest_dirs = dirs;
+        wgr_manifest_dir_capacity = capacity;
+    }
+    record = &wgr_manifest_dirs[wgr_manifest_dir_count++];
+    memset(record, 0, sizeof(*record));
+    snprintf(record->dir, sizeof(record->dir), "%s", dir);
+    written = dir[0] == '\0' ? snprintf(path, sizeof(path), "%s", wgr_manifest_path)
+                             : snprintf(path, sizeof(path), "%.*s%s/manifest.json", (int)wgr_manifest_base_len,
+                                        wgr_manifest_path, dir);
+    handle = written > 0 && (size_t)written < sizeof(path) ? alloc_task() : 0;
+    if (handle == 0) {
+        record->state = MANIFEST_FAILED;
+        return record;
+    }
+    task = resolve(handle);
+    *task = (wgr_asset_task_t){0};
+    snprintf(task->path, sizeof(task->path), "%s", path);
+    task->flags = WGR_ASSET_FILE_ONLY;
+    task->manifest_checked = true;
+    snprintf(task->expect_hash, sizeof(task->expect_hash), "%s", hash);
+    task->manifest_dir = wgr_manifest_dir_count;
+    task->manifest_generation = wgr_manifest_generation;
+    task->manifest_root = dir[0] == '\0';
+    task->armed = true;
+    return record;
+}
+
+enum { NOT_LISTED = 0, LISTED, LOOKING };
+
+/* What the manifest says about a task's file: LISTED, with the hash its bytes must
+ * have in `hash`; NOT_LISTED; or LOOKING while a manifest on the way to it is still
+ * loading (it has been asked for). May add tasks, which may move them. */
+static int manifest_lookup(uint16_t slot, char hash[WGRI_SHA256_TEXT])
+{
+    const wgr_asset_task_t *task = &wgr_asset_tasks[slot];
+    const wgr_manifest_dir_t *record;
+    char rest[512], dir[512] = "";
+    char *name = rest;
+
+    if (wgr_manifest_path[0] == '\0' || task->fetch_url[0] != '\0' ||
+        strncmp(task->path, wgr_manifest_path, wgr_manifest_base_len) != 0) {
+        return NOT_LISTED;
+    }
+#ifndef __EMSCRIPTEN__
+    if (!wgr_asset_host_is_url || wgr_asset_fetcher == NULL) {
+        return NOT_LISTED; /* a local directory host: its files are simply there */
+    }
+#endif
+    snprintf(rest, sizeof(rest), "%s", task->path + wgr_manifest_base_len);
+    record = want_manifest("", "");
+    while (record != NULL && record->state == MANIFEST_READY) {
+        char *slash = strchr(name, '/');
+        char want[WGRI_SHA256_TEXT];
+        const char *listed;
+        if (slash == NULL) {
+            listed = wgri_manifest_find(&record->manifest, name, false);
+            if (listed == NULL) return NOT_LISTED;
+            memcpy(hash, listed, WGRI_SHA256_TEXT);
+            return LISTED;
+        }
+        *slash = '\0';
+        listed = wgri_manifest_find(&record->manifest, name, true);
+        if (listed == NULL) return NOT_LISTED;
+        memcpy(want, listed, sizeof(want));
+        {
+            const size_t used = strlen(dir), more = strlen(name) + (used > 0 ? 1 : 0);
+            if (used + more >= sizeof(dir)) return NOT_LISTED;
+            if (used > 0) dir[used] = '/';
+            memcpy(dir + used + (used > 0 ? 1 : 0), name, strlen(name) + 1);
+        }
+        record = want_manifest(dir, want);
+        name = slash + 1;
+    }
+    return record != NULL && record->state == MANIFEST_LOADING ? LOOKING : NOT_LISTED;
+}
+
+/* A manifest task finished: read what it made local, or give that directory up
+ * (its files are then cached as the mode says). */
+static void manifest_loaded(const wgr_asset_task_t *task, bool ok)
+{
+    wgr_manifest_dir_t *record;
+    unsigned char *data = NULL;
+    int size = 0;
+
+    if (task->manifest_generation != wgr_manifest_generation || task->manifest_dir > wgr_manifest_dir_count) {
+        return; /* the manifest was set again meanwhile */
+    }
+    record = &wgr_manifest_dirs[task->manifest_dir - 1];
+    record->state = MANIFEST_FAILED;
+    if (!ok && task->manifest_root) { /* a host without one, as tools/serve.py is */
+        log_info("asset: no manifest at %s; files are cached as the cache mode says", task->path);
+        return;
+    }
+    if (!ok) {
+        log_warn("asset: no manifest %s; what it would list is cached as the cache mode says", task->path);
+        return;
+    }
+    if (wgri_fs_read(task->path, &data, &size) &&
+        wgri_manifest_parse((const char *)data, (size_t)size, &record->manifest)) {
+        record->state = MANIFEST_READY;
+    } else {
+        log_warn("asset: %s isn't a manifest; what it would list is cached as the cache mode says", task->path);
+    }
+    wgri_fs_read_free(data);
+}
+
 const char *wgr_asset_get_host(void)
 {
     return wgr_asset_host;
@@ -358,17 +559,22 @@ const char *wgr_asset_get_host(void)
  * pointer. The response's validators and Cache-Control wait in JS for
  * wgri_asset_fetch_header.
  *
- * `revalidate`: a cached copy exists, so this asks whether it is still current. On
- * the page's own origin that is a conditional GET, with the copy's validators, past
- * the browser's cache (a 304 is the server's). On another origin the conditional
+ * `mode` FETCH_PLAIN: a GET the browser's cache may answer.
+ * FETCH_REVALIDATE: a cached copy exists, so this asks whether it is still current.
+ * On the page's own origin that is a conditional GET, with the copy's validators,
+ * past the browser's cache (a 304 is the server's). On another origin the conditional
  * headers would need a CORS preflight the host may refuse, which would look like no
  * answer and keep a stale copy for good; there the browser revalidates its own cache
- * instead (no-cache) and hands back a 200 either way. */
-EM_JS(void, wgri_asset_fetch_js, (int slot, const char *url_cstr, int revalidate, const char *etag_c,
+ * instead (no-cache) and hands back a 200 either way.
+ * FETCH_CURRENT: what the host has now (no-cache), for a file the manifest says
+ * changed, and hashed here (header 4) when the page may use crypto.subtle (a secure
+ * context; otherwise C hashes it). */
+EM_JS(void, wgri_asset_fetch_js, (int slot, const char *url_cstr, int mode, const char *etag_c,
                                   const char *modified_c), {
     const url = UTF8ToString(url_cstr);
     const init = { credentials: "same-origin" };
-    if (revalidate) {
+    if (mode === 2) init.cache = "no-cache";
+    if (mode === 1) {
         let same = false;
         try { same = new URL(url, location.href).origin === location.origin; } catch (e) {}
         const etag = UTF8ToString(etag_c);
@@ -386,14 +592,24 @@ EM_JS(void, wgri_asset_fetch_js, (int slot, const char *url_cstr, int revalidate
     fetch(url, init)
         .then((response) => {
             const h = response.headers;
-            Module.wgr_asset_headers.set(slot, [h.get("ETag") || "", h.get("Last-Modified") || "",
-                                                h.get("Cache-Control") || "", h.get("Age") || ""]);
+            const headers = [h.get("ETag") || "", h.get("Last-Modified") || "", h.get("Cache-Control") || "",
+                             h.get("Age") || "", ""];
+            Module.wgr_asset_headers.set(slot, headers);
             if (!response.ok) {
                 if (response.status !== 304) console.warn("wgr_asset: " + url + ": HTTP " + response.status);
                 _wgri_asset_fetch_finished(slot, 0, 0, response.status);
                 return;
             }
             return response.arrayBuffer().then((buffer) => {
+                const subtle = mode === 2 && globalThis.crypto && crypto.subtle;
+                return (subtle ? subtle.digest("SHA-256", buffer) : Promise.resolve(null))
+                    .catch(() => null)
+                    .then((digest) => [buffer, digest]);
+            }).then(([buffer, digest]) => {
+                if (digest) {
+                    headers[4] = "sha256:" + Array.from(new Uint8Array(digest),
+                                                        (b) => b.toString(16).padStart(2, "0")).join("");
+                }
                 /* byteLength is the decoded size, whatever the host did on the wire */
                 const bytes = new Uint8Array(buffer);
                 const ptr = _wgri_asset_fetch_alloc(bytes.length); /* malloc lives in C */
@@ -413,7 +629,8 @@ EM_JS(void, wgri_asset_fetch_js, (int slot, const char *url_cstr, int revalidate
 })
 
 /* One of the finished response's headers into `out` (0 ETag, 1 Last-Modified,
- * 2 Cache-Control, 3 Age), or "" -- also for one too long for `out`, never cut. */
+ * 2 Cache-Control, 3 Age; and 4, the body's sha256 when JS hashed it), or "" -- also
+ * for one too long for `out`, never cut. */
 EM_JS(void, wgri_asset_fetch_header, (int slot, int which, char *out, int out_size), {
     const headers = Module.wgr_asset_headers && Module.wgr_asset_headers.get(slot);
     const text = headers ? headers[which] : "";
@@ -442,6 +659,7 @@ static wgri_fs_meta_t response_meta(int slot)
     wgri_asset_fetch_header(slot, 1, meta.last_modified, (int)sizeof(meta.last_modified));
     wgri_asset_fetch_header(slot, 2, cache_control, (int)sizeof(cache_control));
     wgri_asset_fetch_header(slot, 3, age, (int)sizeof(age));
+    wgri_asset_fetch_header(slot, 4, meta.hash, (int)sizeof(meta.hash));
     wgri_asset_fetch_headers_done(slot);
     meta.fresh_until = wgri_asset_fresh_until(cache_control, age, (double)time(NULL));
     return meta;
@@ -461,7 +679,18 @@ void wgri_asset_fetch_finished(int slot, unsigned char *data, int size, int stat
         return;
     }
     meta = response_meta(slot);
-    if (data != NULL && status / 100 == 2) {
+    if (data != NULL && status / 100 == 2 && task->expect_hash[0] != '\0') {
+        /* hash before store: the copy's hash is always that of the bytes it holds */
+        if (meta.hash[0] == '\0') wgri_sha256_text(data, (size_t)size, meta.hash);
+        if (strcmp(meta.hash, task->expect_hash) != 0) {
+            log_warn("asset: %s isn't what the manifest lists (%.19s..., not %.19s...); not kept", task->path,
+                     meta.hash, task->expect_hash);
+            task->fetch_result = FETCH_FAILED;
+        } else {
+            task->fetch_result = wgri_fs_write_meta(task->path, data, size, &meta) ? FETCH_OK : FETCH_FAILED;
+        }
+    } else if (data != NULL && status / 100 == 2) {
+        meta.hash[0] = '\0'; /* hashed only for the manifest's files */
         task->fetch_result = wgri_fs_write_meta(task->path, data, size, &meta) ? FETCH_OK : FETCH_FAILED;
     } else if (task->revalidating && status == 304) {
         wgri_fs_meta_t kept;
@@ -486,8 +715,11 @@ void wgri_asset_fetch_finished(int slot, unsigned char *data, int size, int stat
     if (wgr_asset_fetching > 0) wgr_asset_fetching--;
 }
 
+enum { FETCH_PLAIN = 0, FETCH_REVALIDATE, FETCH_CURRENT }; /* wgri_asset_fetch_js's modes */
+
 /* Download the task's file; `cached` (or NULL) is the metadata of a cached copy this
- * asks about (wgri_asset_fetch_js). */
+ * asks about (wgri_asset_fetch_js). A file the manifest lists, and the root manifest,
+ * come from the host as it is now. */
 static void start_fetch(uint16_t slot, const wgri_fs_meta_t *cached)
 {
     wgr_asset_task_t *task = &wgr_asset_tasks[slot];
@@ -505,8 +737,11 @@ static void start_fetch(uint16_t slot, const wgri_fs_meta_t *cached)
         url = joined;
     }
     wgr_asset_fetching++;
-    wgri_asset_fetch_js((int)slot, url, cached != NULL, cached != NULL ? cached->etag : "",
-                        cached != NULL ? cached->last_modified : ""); /* answers via fetch_finished */
+    wgri_asset_fetch_js((int)slot, url,
+                        cached != NULL                                             ? FETCH_REVALIDATE
+                        : task->expect_hash[0] != '\0' || task->manifest_root ? FETCH_CURRENT
+                                                                                   : FETCH_PLAIN,
+                        cached != NULL ? cached->etag : "", cached != NULL ? cached->last_modified : "");
 }
 #endif
 
@@ -1388,6 +1623,10 @@ static void complete(uint16_t i, bool ok)
     free(task.candidates);
     wgr_asset_tasks[i] = (wgr_asset_task_t){0};
     wgri_handle_pool_free(&wgr_asset_pool, handle);
+    if (task.manifest_dir != 0) {
+        manifest_loaded(&task, ok); /* no callbacks, resource, parent or group */
+        return;
+    }
     if (ok) {
         if (task.on_success) task.on_success(local, task.user_data);
     } else {
@@ -1605,6 +1844,8 @@ static bool use_fallback(wgr_asset_task_t *task)
     task->overlay = next->overlay;
     task->state = TASK_NEW;
     task->fetch_result = FETCH_PENDING;
+    task->manifest_checked = false; /* another path: another entry */
+    task->expect_hash[0] = '\0';
     return true;
 }
 
@@ -1635,6 +1876,14 @@ void wgri_asset_tick(void)
         if (task->state == TASK_WAITING) {
             continue;
         }
+        if (task->state == TASK_NEW && !task->manifest_checked) {
+            char hash[WGRI_SHA256_TEXT];
+            const int listed = manifest_lookup(i, hash);
+            task = &wgr_asset_tasks[i]; /* the lookup may have added tasks */
+            if (listed == LOOKING) continue;
+            task->manifest_checked = true;
+            if (listed == LISTED) memcpy(task->expect_hash, hash, sizeof(hash));
+        }
 
 #ifdef __EMSCRIPTEN__
         if (task->cache_read != 0) {
@@ -1660,23 +1909,28 @@ void wgri_asset_tick(void)
             resolved(i, task->fetch_result == FETCH_OK);
             continue;
         }
-        /* FORCE_FETCH re-downloads. Otherwise a file already loaded this visit is used;
-           a cached one is used if the mode trusts it or it is still fresh, and checked
-           with the host if not (wgr_asset.h). */
+        /* FORCE_FETCH re-downloads. Otherwise a file already loaded this visit is used.
+           A cached one the manifest lists is used if its hash is the listed one, and
+           fetched if not; any other is used if the mode trusts it or it is still fresh,
+           and checked with the host if not (wgr_asset.h). The root manifest is always
+           checked. */
         if (!(task->flags & WGR_ASSET_FORCE_FETCH) && wgri_fs_exists(task->path)) {
             resolved(i, true);
             continue;
         }
         if (!(task->flags & WGR_ASSET_FORCE_FETCH) && wgri_fs_is_cached(task->path)) {
             wgri_fs_meta_t meta;
-            const bool fresh = wgri_fs_meta_get(task->path, &meta) && meta.fresh_until > (double)time(NULL);
-            if (wgr_asset_cache_mode == WGR_ASSET_CACHE_TRUST || fresh) {
+            const bool has_meta = wgri_fs_meta_get(task->path, &meta);
+            const bool fresh = has_meta && meta.fresh_until > (double)time(NULL);
+            const bool listed = task->expect_hash[0] != '\0';
+            if (listed ? strcmp(meta.hash, task->expect_hash) == 0
+                       : !task->manifest_root && (wgr_asset_cache_mode == WGR_ASSET_CACHE_TRUST || fresh)) {
                 task->state = TASK_FETCHING;
                 task->cache_read = wgri_fs_cache_read_begin(task->path); /* resolves on a later tick */
                 continue;
             }
             if (wgr_asset_fetching >= MAX_FETCHES) continue;
-            start_fetch(i, &meta); /* a copy without metadata is asked about unconditionally */
+            start_fetch(i, listed ? NULL : &meta); /* asked about: unconditionally without metadata */
             continue;
         }
         if (wgr_asset_fetching >= MAX_FETCHES) {
@@ -1689,10 +1943,20 @@ void wgri_asset_tick(void)
          * or a source this task was given outright (a per-call fetch_url, or a URL
          * redirect). It answers on a later tick (wgr_asset_fetch_done). Without a
          * fetcher a miss fails, as it always has. */
+        if (task->state == TASK_FETCHING) {
+            continue; /* the fetcher answers with wgr_asset_fetch_done */
+        }
         {
             const bool have = wgri_fs_exists(task->path);
             const bool forced = (task->flags & WGR_ASSET_FORCE_FETCH) != 0;
-            if (have && !forced) {
+            /* a file the manifest lists is current when its recorded hash is the listed
+               one; the root manifest is fetched once a run, whatever is there */
+            bool current = have && !forced && !task->manifest_root;
+            if (current && task->expect_hash[0] != '\0') {
+                wgri_fs_meta_t meta;
+                current = wgri_fs_meta_get(task->path, &meta) && strcmp(meta.hash, task->expect_hash) == 0;
+            }
+            if (current) {
                 resolved(i, true);
                 continue;
             }
@@ -1707,6 +1971,10 @@ void wgri_asset_tick(void)
                 }
                 wgri_fs_resolve(task->path, dest, sizeof(dest));
                 wgri_fs_make_parents(task->path); /* the fetcher only has to write */
+                if (have) { /* the bytes are about to change under what described them */
+                    const wgri_fs_meta_t none = {0};
+                    wgri_fs_meta_set(task->path, &none);
+                }
                 task->state = TASK_FETCHING;
                 wgr_asset_fetcher(wgri_handle_pool_handle_from_index(&wgr_asset_pool, i), url, dest,
                                   wgr_asset_fetcher_user);
@@ -1801,4 +2069,5 @@ void wgri_asset_deinit(void)
 #ifdef __EMSCRIPTEN__
 #endif
     wgri_handle_pool_destroy(&wgr_asset_pool);
+    forget_manifests(); /* read again, from the cache or the host, after the next init */
 }

@@ -18,6 +18,7 @@ void test_asset_join_relative(void);
 void test_asset_freshness(void);
 void test_asset_cache_mode(void);
 void test_asset_fetch_hook(void);
+void test_asset_manifest(void);
 
 void test_audio_streaming(void);
 void test_audio_threads(void);
@@ -87,6 +88,8 @@ void test_render_command_passes(void);
 void test_fs_paths(void);
 void test_fs_files(void);
 void test_fs_meta(void);
+void test_sha256(void);
+void test_manifest_parse(void);
 
 void test_math_angles(void);
 void test_math_inverse(void);

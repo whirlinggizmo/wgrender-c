@@ -125,6 +125,30 @@ typedef enum {
 bool wgr_asset_set_cache_mode(wgr_asset_cache_mode_t mode);
 wgr_asset_cache_mode_t wgr_asset_get_cache_mode(void);
 
+/* An asset manifest: a hash of each file's contents, so a cached copy whose hash
+ * still matches is used with no request at all, and one that changed is fetched once
+ * (docs/PLAN-asset-cache.md; tools/gen_manifest.py writes them). `path` is the root
+ * manifest's logical path under the host ("manifest.json"). A manifest lists the
+ * files beside it and, for each directory, the hash of that directory's own
+ * manifest.json, which is fetched only when a file under it is first ensured, and
+ * then only if its hash changed.
+ *
+ * The root is asked about once per run, as WGR_ASSET_CACHE_REVALIDATE asks whatever
+ * the mode is; without an answer the cached root is used, and without either, nothing
+ * is listed. A listed file is fetched past the browser's cache and its bytes are
+ * hashed before they are kept: bytes that don't match (a host still serving the old
+ * file, a broken deploy) are not kept, and the load fails. A file no manifest lists,
+ * a file ensured with a fetch_url, and every file under a manifest that couldn't be
+ * read or didn't match its hash are cached as the cache mode says. On desktop a
+ * manifest needs a URL host and a fetcher (wgr_asset_set_fetcher), and a download is
+ * hashed once the fetcher reports it.
+ *
+ * NULL or "" for none (the default). False for a path that isn't relative (one
+ * starting with "/" or holding "://"), or is 512 bytes or longer. Set it before the
+ * ensures it should cover;
+ * setting it again forgets what was read of the last one. */
+bool wgr_asset_set_manifest(const char *path);
+
 /* Ensure an asset is locally available, then fire the callback with a directly
  * openable local path.
  *
