@@ -41,9 +41,11 @@ static int wgr_asset_fetching;
  * callback with a directly-openable local path. Storage is delegated to wgr_fs.
  *
  * Desktop: the host is a local base dir (set as the wgr_fs root); a missing file
- * is a failure. Web: the host is a fetch origin — a cached file is read from the
- * cache (IndexedDB) into the local store; a miss downloads the asset via
- * sokol_fetch and writes it into the store, which keeps it; then it resolves.
+ * is a failure, unless the host is a URL and the program supplied a fetcher. Web: the
+ * host is a fetch origin — a cached file is read from the cache (IndexedDB) into the
+ * local store, once the cache mode or the manifest says it is current (else the host
+ * is asked first); a miss downloads the asset with fetch() and writes it into the
+ * store, which keeps it with the response's metadata; then it resolves.
  * Either way the callback receives a path the sync wgr_*_create(path) creators
  * can fopen. */
 

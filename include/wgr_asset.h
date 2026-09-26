@@ -10,7 +10,9 @@ extern "C" {
 /* Asset loading is split from resource creation (see docs/ARCHITECTURE.md):
  *
  *   1. ENSURE the file is locally available — async; fetches from the asset host
- *      if absent (desktop: a file already on disk is ready immediately).
+ *      if absent, and on the web checks a cached copy as the cache mode says
+ *      (wgr_asset_set_cache_mode, wgr_asset_set_manifest). Desktop: a file already
+ *      on disk is ready immediately.
  *   2. CREATE the resource synchronously from that local path inside the ready
  *      callback: wgr_texture_create(path), wgr_mesh_create(path), etc.
  *
@@ -50,7 +52,8 @@ enum {
 
 /* Set the asset base that logical paths resolve against. A URL ("https://host/assets")
  * is a fetch origin on both platforms: a missing file is downloaded from it and cached,
- * on the web by the browser and on desktop by the fetcher below. Anything else is a
+ * on the web in the browser's storage (IndexedDB, checked as wgr_asset_set_cache_mode
+ * says) and on desktop in the cache directory, by the fetcher below. Anything else is a
  * local directory ("examples/assets"), as it has always been on desktop. Pass the same
  * logical paths everywhere; only the base differs. */
 void wgr_asset_set_host(const char *host);
@@ -80,9 +83,9 @@ bool wgr_asset_set_fetcher(wgr_asset_fetch_fn fn, void *user_data);
 bool wgr_asset_fetch_done(wgr_handle_t request, bool ok);
 
 /* Forget a cached asset, so the next ensure fetches it again; wgr_asset_clear_cache
- * forgets every one. A cache can hold a file that is wrong rather than missing (a host
- * that compresses once served gzip bytes under an asset's name), and a wrong file is
- * read in preference to the network for good unless something can drop it.
+ * forgets every one. A cache can hold a file that is wrong rather than old (a host
+ * that compresses once served gzip bytes under an asset's name): the host says it
+ * hasn't changed, so revalidation keeps it, and only something that drops it helps.
  *
  * libwgrender also drops an entry by itself when a loader rejects a cached file and
  * fetches it once more, so this is for a program that knows better -- a new version of

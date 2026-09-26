@@ -1,14 +1,16 @@
 # Plan: a web asset cache that notices changed files
 
-Status: **in progress.** Steps 1-5 landed 2026-09-25: the metadata store, the cache
-mode, revalidation on the web, the manifest on both platforms, and the tooling
-(`tools/gen_manifest.py`, `site.py` writing manifests, the examples setting one,
-`tools/cachecheck.py [--manifest]`). As built: a cross-origin host is revalidated
-with `cache: "no-cache"` rather than conditional headers, which would need a CORS
-preflight (`wgr_asset.h`); the manifest reader is written for its one shape
+Status: **landed, but for wgrender-beef.** Steps 1-5 landed 2026-09-25: the metadata
+store, the cache mode, revalidation on the web, the manifest on both platforms, and
+the tooling (`tools/gen_manifest.py`, `site.py` writing manifests, the examples
+setting one, `tools/cachecheck.py [--manifest]`). As built: a cross-origin host is
+revalidated with `cache: "no-cache"` rather than conditional headers, which would need
+a CORS preflight (`wgr_asset.h`); the manifest reader is written for its one shape
 (`src/wgr_manifest.c`) instead of vendoring jsmn; the root manifest missing is an
-ordinary setup (serve.py has none) and logs at info. Next: the bindings (step 6). The one-time fix for the bug that prompted this (a bumped
-`WGR_FS_CACHE_EPOCH`) landed separately.
+ordinary setup (serve.py has none) and logs at info. Step 6: wgrender-hx (bebd213) and
+wgrender-nim (9eaaae0) wrap it and publish manifests; wgrender-beef hasn't been done.
+Step 7, the docs sweep, landed with this line. The one-time fix for the bug that
+prompted this (a bumped `WGR_FS_CACHE_EPOCH`) landed separately.
 
 ## The bug
 

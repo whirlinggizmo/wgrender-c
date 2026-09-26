@@ -368,6 +368,14 @@ wgr_asset_add_task(wgr_asset_ensure_async(path, NULL, WGR_ASSET_NONE), on_ready,
 3. **Where it downloads from** (web): the asset host, or a redirect's URL (a CDN); the
    file is still cached and named by its path.
 
+**The web cache never shows a stale file by default.** A cached copy is kept with its
+response's validators and freshness; one that isn't fresh is checked with the host
+before it's used (304 keeps it, 200 replaces it, 4xx forgets it, no answer uses it, so
+an offline start works). With a manifest (`wgr_asset_set_manifest`, one per directory,
+hashes of the files' contents; `tools/gen_manifest.py`) the host is asked only about
+the root once per run, and a file is fetched only when its hash changed, and kept only
+when its bytes match ([PLAN-asset-cache.md](PLAN-asset-cache.md)).
+
 The callback receives the file actually found, and files it references (a glTF's
 buffers and images) resolve the same way: the loader reads them from where the asset
 layer found them (`wgri_asset_found_path`). Direct `wgr_*_create(path)` calls load the

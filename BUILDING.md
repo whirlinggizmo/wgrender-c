@@ -140,9 +140,23 @@ a host should send:
   (`?v=`), and `no-cache` for the page: a returning visit then revalidates only the
   page and fetches no code (a CDN must keep the query string in its cache key)
 - gzip or brotli for `.js`, `.wasm` and `.html`
+- `ETag` or `Last-Modified` on assets, and an answer to `If-None-Match` /
+  `If-Modified-Since`: a returning visit checks a cached asset that isn't fresh by its
+  `Cache-Control` with a conditional request, and a 304 costs no download. Any
+  `max-age` works (GitHub Pages sends 600); how long it is, is how long a changed
+  asset may go unnoticed without a manifest
 
-`tools/site.py` copies a build and the assets it loads into `<build>/site/`, ready for
-any static host. `tools/serve.py` sends no-store by default (every reload gets the
+Assets are cached by libwgrender (IndexedDB), not by the browser's HTTP cache, which
+it goes past when it asks. A manifest (`tools/gen_manifest.py DIR`, then
+`wgr_asset_set_manifest("manifest.json")`) removes those checks: a returning visit
+asks only about the root manifest, and fetches only the assets whose hash changed.
+It matters most on a host that stamps every file at deploy, as GitHub Pages does:
+there each deploy changes every asset's `ETag` and `Last-Modified`, so without a
+manifest a returning visit downloads them all again. Regenerate the manifests on every
+deploy, after the last file is in place.
+
+`tools/site.py` copies a build and the assets it loads into `<build>/site/`, with
+their manifests, ready for any static host. `tools/serve.py` sends no-store by default (every reload gets the
 latest build); `--cache --gzip` serves as above. `tools/webstart.py` opens each
 example three times in a fresh browser profile
 (cold, warm, and hot: Chrome's compiled-code cache), locally and on emulated 4G, and

@@ -32,7 +32,10 @@
  * can't suspend inside sokol's RAF-driven callbacks), so this is a polled barrier:
  * Module.wgr_fs_state is 0 pending / 1 ready / 2 no store (files still work in
  * MEMFS, nothing persists), surfaced via wgri_fs_is_ready(). */
-/* Bump to invalidate every cached file on the next visit (see the note inside). */
+/* Bump to invalidate every cached file on the next visit (see the note inside). The
+ * last resort, not how a changed asset reaches a returning visitor: revalidation and
+ * the manifest do that (wgr_asset_set_cache_mode, docs/PLAN-asset-cache.md). This is
+ * for a cached file that is wrong in a way nothing can detect. */
 #define WGR_FS_CACHE_EPOCH 3
 
 EM_JS(void, wgr_fs_store_open, (const char *root_c, int epoch), {
