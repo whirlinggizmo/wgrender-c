@@ -8,13 +8,15 @@ that locally).
 BUILD is what a web preset made (default out/web/webgl2-nothreads); the copy goes to the
 preset's work directory, build/web/<variant>/site, unless --out says otherwise, so the
 build's own out/ stays just the build. Not the benchmarks (bench/ in the build, and
-examples/assets/bench): a local tool, and loadbench's models are downloaded.
+examples/assets/bench): a local tool, and loadbench's models are downloaded. The
+copied assets get their manifests (tools/gen_manifest.py).
 
 Use a -nothreads build for a host that can't send COOP/COEP headers (GitHub Pages): a
 threaded build doesn't start at all there.
 """
 import argparse
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -47,6 +49,9 @@ def main():
     for name in files:
         shutil.copy2(build / name, out / name)
     shutil.copytree(ROOT / 'examples' / 'assets', out / 'assets', ignore=shutil.ignore_patterns('bench'))
+    # the manifests the examples set (EXAMPLE_ASSET_MANIFEST): a returning visitor then
+    # fetches only the assets that changed since the last deploy
+    subprocess.run([sys.executable, ROOT / 'tools' / 'gen_manifest.py', out / 'assets'], check=True)
     print(f'site: {out} ({size(out) / 1e6:.1f} MB): any static host, at a domain root or under a path')
 
 

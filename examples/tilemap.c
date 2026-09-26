@@ -142,6 +142,7 @@ static void init(void *user_data)
 {
     (void)user_data;
     wgr_asset_set_host(EXAMPLE_ASSET_BASE);
+    wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
     g.bg = wgr_color_rgba(24, 28, 38, 255);
     g.shade = wgr_color_rgba(18, 20, 28, 190);
     g.text = wgr_color_rgba(235, 238, 245, 255);

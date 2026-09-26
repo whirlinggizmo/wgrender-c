@@ -17,6 +17,13 @@
 #  define EXAMPLE_ASSET_BASE "examples/assets"
 #endif
 
+/* The manifest of the asset host (docs/PLAN-asset-cache.md): the published site's
+ * assets have one (tools/site.py writes it with tools/gen_manifest.py), so a returning
+ * visitor fetches only what changed. Where there is none, as under tools/serve.py, the
+ * cache asks the host about each file instead; on desktop the host is a directory
+ * and it's ignored. Pass it to wgr_asset_set_manifest() after wgr_asset_set_host(). */
+#define EXAMPLE_ASSET_MANIFEST "manifest.json"
+
 /* The animated character the examples load: skinned, with its blob shadow in material
  * slot 0 and its body in slot 1, and clips in the order idle, run, tpose, walk (the
  * examples pick them by number). Swap it here. */

@@ -76,6 +76,7 @@ static void init(void *user_data)
 {
     (void)user_data;
     wgr_asset_set_host(EXAMPLE_ASSET_BASE);
+    wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
     g.bg = wgr_color_rgba(28, 30, 38, 255);
     for (int i = 0; i < PALETTE_SIZE; i++) { /* colors are immutable, so cycle a palette */
         const float a = (float)i / PALETTE_SIZE * 6.2831853f;

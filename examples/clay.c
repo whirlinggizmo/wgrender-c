@@ -437,6 +437,7 @@ static void init(void *user_data)
     const uint32_t memory = Clay_MinMemorySize();
     (void)user_data;
     wgr_asset_set_host(EXAMPLE_ASSET_BASE);
+    wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
     Clay_Initialize(Clay_CreateArenaWithCapacityAndMemory(memory, malloc(memory)),
                     (Clay_Dimensions){screen.x - GAME_WIDTH, screen.y}, (Clay_ErrorHandler){on_clay_error, NULL});
     Clay_SetMeasureTextFunction(measure_text, NULL);

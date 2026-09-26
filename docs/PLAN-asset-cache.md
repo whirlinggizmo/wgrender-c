@@ -1,10 +1,13 @@
 # Plan: a web asset cache that notices changed files
 
-Status: **in progress.** Steps 1-3 landed 2026-09-25: the metadata store, the cache
-mode, and revalidation on the web (`tools/cachecheck.py` shows the bug fixed). As
-built, a cross-origin host is revalidated with `cache: "no-cache"` rather than
-conditional headers, which would need a CORS preflight (`wgr_asset.h`). Next: the
-manifest (step 4). The one-time fix for the bug that prompted this (a bumped
+Status: **in progress.** Steps 1-5 landed 2026-09-25: the metadata store, the cache
+mode, revalidation on the web, the manifest on both platforms, and the tooling
+(`tools/gen_manifest.py`, `site.py` writing manifests, the examples setting one,
+`tools/cachecheck.py [--manifest]`). As built: a cross-origin host is revalidated
+with `cache: "no-cache"` rather than conditional headers, which would need a CORS
+preflight (`wgr_asset.h`); the manifest reader is written for its one shape
+(`src/wgr_manifest.c`) instead of vendoring jsmn; the root manifest missing is an
+ordinary setup (serve.py has none) and logs at info. Next: the bindings (step 6). The one-time fix for the bug that prompted this (a bumped
 `WGR_FS_CACHE_EPOCH`) landed separately.
 
 ## The bug

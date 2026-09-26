@@ -94,6 +94,7 @@ static void init(void *user_data)
 {
     (void)user_data;
     wgr_asset_set_host(EXAMPLE_ASSET_BASE);
+    wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
     g.theme = ui_theme_default();
     g.bg = wgr_color_rgba(30, 34, 44, 255);
     g.highlight = wgr_color_rgba(255, 220, 120, 255);

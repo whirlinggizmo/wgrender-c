@@ -117,6 +117,7 @@ static void on_init(void *user_data)
 {
     (void)user_data;
     wgr_asset_set_host(EXAMPLE_ASSET_BASE);
+    wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_WARN);
     wgr_set_target_fps(60);
 

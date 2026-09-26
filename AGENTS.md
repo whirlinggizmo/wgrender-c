@@ -84,10 +84,13 @@ make and no shell script: everything below works the same on Windows, Linux and 
   else in a visible window). Web builds use threads by default, which need cross-origin
   isolation (`tools/serve.py` sends the headers); the `-nothreads` presets build
   without.
-- `python3 tools/cachecheck.py [--backend=webgpu] [--threads=0]` — the web asset cache
-  across visits: tilemap in one browser context while its sheet is kept, changed and
-  deleted on the server, and the network blocked; each visit judged by its requests'
-  statuses and the screen. Run it when touching `wgr_fs` or the asset fetch.
+- `python3 tools/cachecheck.py [--manifest] [--backend=webgpu] [--threads=0]` — the web
+  asset cache across visits: tilemap in one browser context while its sheet is kept,
+  changed and deleted on the server, and the network blocked; each visit judged by its
+  requests' statuses and the screen. `--manifest` does it with manifests. Run both when
+  touching `wgr_fs` or the asset fetch.
+- `tools/gen_manifest.py DIR` — the asset manifests (`manifest.json` in DIR and every
+  directory under it) that `wgr_asset_set_manifest` reads; `tools/site.py` runs it.
 - `python3 tools/serve.py [port] [out/web/...]` — the dev server (COOP/COEP headers,
   `/assets/` mounted) on http://localhost:8000. `--tls CERT KEY` serves HTTPS for other
   devices on the LAN (a phone), which need a secure page for threaded builds.

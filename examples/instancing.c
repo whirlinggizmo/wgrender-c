@@ -69,6 +69,7 @@ static void on_init(void *user)
 {
     (void)user;
     wgr_asset_set_host(EXAMPLE_ASSET_BASE);
+    wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
     g_camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
     g_scene = wgr_scene_create();
     wgr_scene_set_active_camera(g_scene, g_camera);

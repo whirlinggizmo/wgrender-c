@@ -2,14 +2,17 @@
 """The web asset cache, end to end (docs/PLAN-asset-cache.md): the bug of 2026-09-25,
 reproduced and shown fixed.
 
-    tools/cachecheck.py [--backend=webgl2|webgpu] [--threads=0] [--browser=PATH] [--verbose]
+    tools/cachecheck.py [--manifest] [--backend=webgl2|webgpu] [--threads=0] [--browser=PATH]
+                        [--verbose]
 
 Serves a web build with tools/serve.py, with /assets/ mounted from a scratch copy of
 the one file the tilemap example loads (textures/tiles.png), and visits tilemap
 again and again in one browser context, so its IndexedDB cache carries over from
 visit to visit as a returning visitor's does. Between visits the file changes, and
-each visit is judged by the requests it made (their HTTP status), what libwgrender
-logged, and whether the screen shows the replacement sheet, which is solid magenta:
+each visit is judged by every request it made under /assets/ (and its HTTP status),
+what libwgrender logged, and whether the screen shows the replacement sheet, which
+is solid magenta. Without a manifest (the examples ask for manifest.json, and get a
+404), each cached copy is asked about:
 
   first      downloaded (200), the real sheet on screen
   unchanged  asked about and kept (304)
@@ -19,6 +22,18 @@ logged, and whether the screen shows the replacement sheet, which is solid magen
   gone       the file deleted: 404, the cached copy forgotten, the load fails
   gone, offline  /assets/ blocked: nothing cached any more, so it fails again
 
+--manifest writes the manifests (tools/gen_manifest.py) after each change, and only
+the root manifest is asked about:
+
+  first      the root, textures/manifest.json and the sheet downloaded
+  unchanged  the root asked about (304), nothing else requested
+  offline    the root blocked: the cached one is used, and the cached sheet
+  changed    the root, the directory's manifest and the sheet downloaded; magenta
+  again      the root asked about (304), still magenta, nothing else requested
+  stale host the manifests list a green sheet, the host serves magenta: downloaded,
+             not kept, the load fails
+  caught up  the host serves the green sheet: only it is downloaded
+
 Default serving (no-store), so every copy is stale and every visit asks: the
 revalidation path, which is the one that fixes the bug. Standard library only.
 """
@@ -27,6 +42,7 @@ import base64
 import os
 import shutil
 import struct
+import subprocess
 import sys
 import threading
 import time
@@ -46,6 +62,7 @@ MAGENTA_MIN = 2000  # pixels: the tile map covers much of the screen when the sh
 
 def parse_args():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('--manifest', action='store_true', help='with manifests (tools/gen_manifest.py)')
     ap.add_argument('--backend', default='webgl2', choices=('webgl2', 'webgpu'))
     ap.add_argument('--threads', default='1', choices=('0', '1'))
     ap.add_argument('--browser')
@@ -178,12 +195,15 @@ class Visitor:
         self.browser.try_send('Target.disposeBrowserContext', {'browserContextId': self.context})
 
 
-def judge(v, tiles_status, magenta, failed=False, log=None):
-    """What's wrong with a visit, as lines."""
+def judge(v, requests, magenta, failed=False, log=None):
+    """What's wrong with a visit, as lines. `requests`: path under /assets/ -> the
+    status of its one request ('failed': no answer); any other asset request is wrong."""
     problems = []
-    got = v['status'].get('/assets/' + TILES, [])
-    if got != [tiles_status]:
-        problems.append(f'{TILES}: expected {[tiles_status]}, got {got}')
+    got = {path[len('/assets/'):]: statuses for path, statuses in v['status'].items() if path.startswith('/assets/')}
+    for path in sorted(set(got) | set(requests)):
+        want = [requests[path]] if path in requests else []
+        if got.get(path, []) != want:
+            problems.append(f'{path}: expected {want or "no request"}, got {got.get(path) or "no request"}')
     if v['pending'] != 0:
         problems.append(f'still loading ({v["pending"]} asset task(s) pending)')
     if magenta and v['magenta'] < MAGENTA_MIN:
@@ -224,22 +244,56 @@ def main():
         debug_base, browser = launch_browser(run, find_browser(opts.browser), opts.display)
         visitor = Visitor(browser, debug_base, base_url, opts)
         blocked = [f'{base_url}/assets/*']
+        clock = {'later': time.time()}
+        magenta = solid_png(*png_size(original), (255, 0, 255, 255))
+        green = solid_png(*png_size(original), (0, 160, 0, 255))
 
-        def change():
-            tiles.write_bytes(solid_png(*png_size(original), (255, 0, 255, 255)))
-            later = time.time() + 5  # Last-Modified counts whole seconds
-            os.utime(tiles, (later, later))
+        def touch(path):
+            """A modification time past every earlier one: Last-Modified counts whole
+            seconds, and a change within one would answer 304."""
+            clock['later'] = max(clock['later'], time.time()) + 2
+            os.utime(path, (clock['later'], clock['later']))
 
-        steps = [
-            ('first', None, lambda v: judge(v, 200, False)),
-            ('unchanged', None, lambda v: judge(v, 304, False)),
-            ('offline', 'block', lambda v: judge(v, 'failed', False)),
-            ('changed', change, lambda v: judge(v, 200, True)),
-            ('again', None, lambda v: judge(v, 304, True)),
-            ('gone', tiles.unlink, lambda v: judge(v, 404, False, failed=True, log='gone from the host')),
-            ('gone, offline', 'block', lambda v: judge(v, 'failed', False, failed=True)),
-        ]
-        print(f'cachecheck: {EXAMPLE} on {opts.site}, {opts.display}', flush=True)
+        def serve(data):
+            tiles.write_bytes(data)
+            touch(tiles)
+
+        def deploy():
+            subprocess.run([PYTHON, ROOT / 'tools' / 'gen_manifest.py', assets, '--quiet'], check=True)
+            for manifest in assets.rglob('manifest.json'):
+                touch(manifest)
+
+        M, D, T = 'manifest.json', 'textures/manifest.json', TILES
+        if opts.manifest:
+            def stale_host():
+                serve(green)
+                deploy()
+                serve(magenta)  # the manifests list green
+
+            deploy()
+            steps = [
+                ('first', None, lambda v: judge(v, {M: 200, D: 200, T: 200}, False)),
+                ('unchanged', None, lambda v: judge(v, {M: 304}, False)),
+                ('offline', 'block', lambda v: judge(v, {M: 'failed'}, False)),
+                ('changed', lambda: (serve(magenta), deploy()), lambda v: judge(v, {M: 200, D: 200, T: 200}, True)),
+                ('again', None, lambda v: judge(v, {M: 304}, True)),
+                ('stale host', stale_host, lambda v: judge(v, {M: 200, D: 200, T: 200}, False, failed=True,
+                                                          log="isn't what the manifest lists")),
+                ('caught up', lambda: serve(green), lambda v: judge(v, {M: 304, T: 200}, False)),
+            ]
+        else:
+            steps = [
+                ('first', None, lambda v: judge(v, {M: 404, T: 200}, False)),
+                ('unchanged', None, lambda v: judge(v, {M: 404, T: 304}, False)),
+                ('offline', 'block', lambda v: judge(v, {M: 'failed', T: 'failed'}, False)),
+                ('changed', lambda: serve(magenta), lambda v: judge(v, {M: 404, T: 200}, True)),
+                ('again', None, lambda v: judge(v, {M: 404, T: 304}, True)),
+                ('gone', tiles.unlink, lambda v: judge(v, {M: 404, T: 404}, False, failed=True,
+                                                      log='gone from the host')),
+                ('gone, offline', 'block', lambda v: judge(v, {M: 'failed', T: 'failed'}, False, failed=True)),
+            ]
+        print(f'cachecheck: {EXAMPLE} on {opts.site}, {opts.display}{", with manifests" if opts.manifest else ""}',
+              flush=True)
         for name, before, check in steps:
             if callable(before):
                 before()

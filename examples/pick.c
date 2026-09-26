@@ -77,6 +77,7 @@ static void on_failed(const char *path, void *user)
 static void on_init(void *user_data)
 {
     wgr_asset_set_host(EXAMPLE_ASSET_BASE);
+    wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
     (void)user_data;
 
     g_bg = wgr_color_rgba(24, 26, 34, 255);

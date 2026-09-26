@@ -41,6 +41,7 @@ static void on_failed(const char *p, void *u) { (void)u; wgr_logger_error("load 
 static void on_init(void *user_data)
 {
     wgr_asset_set_host(EXAMPLE_ASSET_BASE);
+    wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
     (void)user_data;
     g_bg = wgr_color_rgba(18, 20, 28, 255);
 

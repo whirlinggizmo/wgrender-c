@@ -78,6 +78,7 @@ static void init(void *user_data)
 
     (void)user_data;
     wgr_asset_set_host(EXAMPLE_ASSET_BASE);
+    wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
     g.bg = wgr_color_rgba(24, 26, 34, 255);
     g.label_bg = wgr_color_rgba(30, 60, 140, 255);
     g.minimap_bg = wgr_color_rgba(12, 14, 18, 255);

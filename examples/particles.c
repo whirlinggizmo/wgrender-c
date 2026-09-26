@@ -183,6 +183,7 @@ static void on_init(void *user_data)
 {
     (void)user_data;
     wgr_asset_set_host(EXAMPLE_ASSET_BASE);
+    wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
 
     g_camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
     wgr_camera3d_set_view(g_camera, 0.0f, 6.0f, 16.0f, 0.0f, 3.0f, 0.0f, 0.0f, 1.0f, 0.0f);

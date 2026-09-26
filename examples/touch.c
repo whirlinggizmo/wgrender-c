@@ -56,6 +56,7 @@ static void init(void *user_data)
     const vec2_t screen = wgr_window_get_screen_size();
     (void)user_data;
     wgr_asset_set_host(EXAMPLE_ASSET_BASE);
+    wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
     wgr_asset_add_task(wgr_asset_ensure_async(LOGO_PATH, NULL, WGR_ASSET_NONE), on_logo, on_failed, NULL);
     wgr_asset_add_task(wgr_asset_ensure_async(TILES_PATH, NULL, WGR_ASSET_NONE), on_tiles, on_failed, NULL);
     g.logo_x = screen.x * 0.5f;

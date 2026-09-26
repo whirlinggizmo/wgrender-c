@@ -117,6 +117,7 @@ static void init(void *user_data)
 
     (void)user_data;
     wgr_asset_set_host(EXAMPLE_ASSET_BASE);
+    wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
     g.bg = wgr_color_rgba(20, 22, 28, 255);
     g.bar = wgr_color_rgba(0, 0, 0, 150);
     g.tonemap = WGR_TONEMAP_NEUTRAL;

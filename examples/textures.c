@@ -52,6 +52,7 @@ static void init(void *user_data)
     char path[160];
     (void)user_data;
     wgr_asset_set_host(EXAMPLE_ASSET_BASE);
+    wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
     for (int t = 0; t < TEXTURES; t++) {
         for (int k = 0; k < KINDS; k++) {
             slot_t *slot = &g_slots[t][k];

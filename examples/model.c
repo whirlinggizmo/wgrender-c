@@ -48,6 +48,7 @@ static wgr_handle_t create_model(const char *mesh_path) {
 
 static void on_init(void *user_data) {
   wgr_asset_set_host(EXAMPLE_ASSET_BASE);
+  wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
   (void)user_data;
   g_bg = wgr_color_rgba(30, 32, 40, 255);
   g_camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);

@@ -42,6 +42,7 @@ static void init(void *user_data)
 {
     (void)user_data;
     wgr_asset_set_host(EXAMPLE_ASSET_BASE);
+    wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
     g.bg = wgr_color_rgba(30, 36, 48, 255);
     g.quit_at = wgr_get_time() + 1.0; /* soon enough for tools/webcheck.py to see the quit */
     wgr_asset_add_task(wgr_asset_ensure_async(MUSIC_PATH, NULL, WGR_ASSET_NONE), on_music, NULL,
