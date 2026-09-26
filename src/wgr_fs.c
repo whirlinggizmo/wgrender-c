@@ -269,6 +269,30 @@ EM_JS(void, wgr_fs_store_delete, (const char *full_c), {
     }
 });
 
+/* This visit's copies of the files under `root` (MEMFS), gone: with the store cleared,
+ * the next read of any of them has to fetch it. */
+EM_JS(void, wgr_fs_memfs_clear, (const char *root_c), {
+    const walk = (dir) => {
+        let names;
+        try { names = FS.readdir(dir); } catch (e) { return; }
+        for (const name of names) {
+            if (name === "." || name === "..") continue;
+            const path = dir + "/" + name;
+            try {
+                if (FS.isDir(FS.stat(path).mode)) {
+                    walk(path);
+                    FS.rmdir(path);
+                } else {
+                    FS.unlink(path);
+                }
+            } catch (e) {
+                console.warn("wgr_fs: couldn't remove " + path, e);
+            }
+        }
+    };
+    walk(UTF8ToString(root_c));
+});
+
 EM_JS(void, wgr_fs_store_clear, (void), {
     if (Module.wgr_fs_keys) Module.wgr_fs_keys.clear();
     if (Module.wgr_fs_meta) Module.wgr_fs_meta.clear();
@@ -537,20 +561,25 @@ bool wgri_fs_remove(const char *path)
         return false;
     }
 #ifdef __EMSCRIPTEN__
-    wgr_fs_store_delete(full); /* the cache, so the next read goes to the network */
+    {
+        const bool stored = wgr_fs_store_has(full) != 0;
+        wgr_fs_store_delete(full); /* the cache, so the next read goes to the network */
+        return (remove(full) == 0) || stored; /* this visit's copy, the stored one, or both */
+    }
 #else
     meta_remove(path);
-#endif
     return remove(full) == 0;
+#endif
 }
 
 void wgri_fs_clear(void)
 {
 #ifdef __EMSCRIPTEN__
     wgr_fs_store_clear();
+    if (wgr_fs_root[0] != '\0') wgr_fs_memfs_clear(wgr_fs_root);
 #endif
-    /* the files themselves stay: on web MEMFS goes away with the page, and on desktop
-       a cache directory is the program's to manage (wgr_asset_set_cache_dir) */
+    /* desktop: files are files; the asset layer deletes what it downloaded itself
+       (wgr_asset_clear_cache), since only it knows which files those are */
 }
 
 bool wgri_fs_write(const char *path, const unsigned char *data, int size)

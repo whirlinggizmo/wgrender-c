@@ -67,7 +67,9 @@ bool wgri_fs_meta_get(const char *path, wgri_fs_meta_t *out);
 bool wgri_fs_meta_set(const char *path, const wgri_fs_meta_t *meta);
 
 /* Forget a cached file and its metadata (web: the IndexedDB entry too), so the next
- * read fetches it again. wgri_fs_clear forgets the whole cache. */
+ * read fetches it again. wgri_fs_clear forgets the whole cache: on the web the store
+ * and this visit's copies (MEMFS under the root); on desktop nothing (a directory's
+ * files are not all the cache's: wgr_asset_clear_cache deletes its own downloads). */
 bool wgri_fs_remove(const char *path);
 void wgri_fs_clear(void);
 

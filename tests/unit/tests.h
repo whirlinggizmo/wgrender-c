@@ -19,6 +19,7 @@ void test_asset_freshness(void);
 void test_asset_cache_mode(void);
 void test_asset_fetch_hook(void);
 void test_asset_manifest(void);
+void test_asset_clear_cache(void);
 
 void test_audio_streaming(void);
 void test_audio_threads(void);

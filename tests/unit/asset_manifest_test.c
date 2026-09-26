@@ -211,3 +211,73 @@ void test_asset_manifest(void)
     wgri_asset_deinit();
     wgri_fs_deinit();
 }
+
+/* wgr_asset_clear_cache on desktop: every file libwgrender downloaded into the cache
+ * directory goes, with its metadata and the directories that leaves empty, and the
+ * manifest is read again; a file of the program's there stays, and so does anything a
+ * tampered list names outside the directory. */
+void test_asset_clear_cache(void)
+{
+    static const char *const stale[] = {
+        CACHE "/manifest.json", CACHE "/top.txt", CACHE "/textures/manifest.json", CACHE "/textures/a.png",
+        CACHE "/textures/b.png", CACHE "/.meta/manifest.json", CACHE "/.meta/textures/manifest.json",
+        CACHE "/.meta/textures/a.png", CACHE "/.wgr-downloads", CACHE "/mine.txt", CACHE "/textures/mine.png",
+        WGR_TEST_DIR "/escape.txt",
+    };
+    FILE *f;
+    for (size_t i = 0; i < sizeof(stale) / sizeof(stale[0]); i++) remove(stale[i]);
+
+    wgri_fs_init(NULL);
+    wgri_asset_init();
+    CHECK(wgr_asset_set_cache_dir(CACHE));
+    wgr_asset_set_host(HOST);
+    wgr_asset_set_fetcher(server_fetcher, NULL);
+    CHECK(wgr_asset_set_manifest("manifest.json"));
+    ready = failed = 0;
+    deploy("A1", "B1", NULL);
+
+    CHECK(log_is(ensure("textures/a.png"), "manifest.json;textures/manifest.json;textures/a.png;"));
+    CHECK(log_is(ensure("top.txt"), "top.txt;"));
+    CHECK(ready == 2);
+
+    /* the program's own files in the cache directory, and a list line that would reach
+       out of it */
+    CHECK(write_all(CACHE "/mine.txt", "mine", 4));
+    CHECK(write_all(CACHE "/textures/mine.png", "mine", 4));
+    CHECK(write_all(WGR_TEST_DIR "/escape.txt", "outside", 7));
+    f = fopen(CACHE "/.wgr-downloads", "ab");
+    CHECK(f != NULL);
+    if (f != NULL) {
+        fputs("../escape.txt\n/etc/hostname\n", f);
+        fclose(f);
+    }
+
+    wgr_asset_clear_cache();
+    CHECK(!wgri_fs_exists("textures/a.png") && !wgri_fs_exists("top.txt"));
+    CHECK(!wgri_fs_exists("manifest.json") && !wgri_fs_exists("textures/manifest.json"));
+    CHECK(!wgri_fs_exists(".meta/textures/a.png") && !wgri_fs_exists(".wgr-downloads"));
+    CHECK(wgri_fs_exists("mine.txt") && wgri_fs_exists("textures/mine.png")); /* not ours */
+    {
+        FILE *outside = fopen(WGR_TEST_DIR "/escape.txt", "rb");
+        CHECK(outside != NULL); /* named by the list, but not under the cache directory */
+        if (outside != NULL) fclose(outside);
+    }
+
+    /* forgotten, manifests included: the next ensure fetches all it needs again */
+    CHECK(log_is(ensure("textures/a.png"), "manifest.json;textures/manifest.json;textures/a.png;"));
+    CHECK(ready == 3 && failed == 0);
+
+    /* evict says whether there was anything to forget */
+    CHECK(wgr_asset_evict("textures/a.png"));
+    CHECK(!wgr_asset_evict("textures/a.png"));
+
+    wgr_asset_clear_cache();
+    remove(CACHE "/mine.txt");
+    remove(CACHE "/textures/mine.png");
+    remove(WGR_TEST_DIR "/escape.txt");
+    wgr_asset_set_manifest(NULL);
+    wgr_asset_set_fetcher(NULL, NULL);
+    wgr_asset_set_host("");
+    wgri_asset_deinit();
+    wgri_fs_deinit();
+}

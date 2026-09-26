@@ -24,6 +24,7 @@ static const test_case_t TESTS[] = {
     {"asset_cache_mode", test_asset_cache_mode},
     {"asset_fetch_hook", test_asset_fetch_hook},
     {"asset_manifest", test_asset_manifest},
+    {"asset_clear_cache", test_asset_clear_cache},
     {"audio_streaming", test_audio_streaming},
     {"audio_threads", test_audio_threads},
     {"audio_many_sounds", test_audio_many_sounds},

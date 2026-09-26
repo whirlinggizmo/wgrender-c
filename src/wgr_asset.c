@@ -9,6 +9,12 @@
 #if defined(_MSC_VER) && !defined(S_ISDIR)
 #define S_ISDIR(mode) (((mode) & _S_IFMT) == _S_IFDIR) /* MSVC has stat(), not S_IS* */
 #endif
+#if defined(_WIN32)
+#include <direct.h> /* _rmdir */
+#define rmdir _rmdir
+#elif !defined(__EMSCRIPTEN__)
+#include <unistd.h> /* rmdir */
+#endif
 
 #include "internal/exports_internal.h"
 #include "internal/wgr_asset_internal.h"
@@ -202,6 +208,7 @@ static float wgr_asset_upload_budget_ms = DEFAULT_UPLOAD_BUDGET_MS;
 static uint32_t wgr_asset_finish_counter;
 
 static wgr_handle_t alloc_task(void);
+static void forget_manifests(void);
 #ifndef __EMSCRIPTEN__
 static void resolved(uint16_t i, bool ok);            /* a task finished, well or badly */
 static bool use_fallback(wgr_asset_task_t *task);     /* another candidate path to try */
@@ -256,6 +263,90 @@ static bool download_matches(wgr_asset_task_t *task)
     return true;
 }
 
+/* What libwgrender downloaded into the cache directory, one path per line, so
+ * wgr_asset_clear_cache deletes exactly that and never a file of the program's (the
+ * cache directory can be any directory, "." included). */
+#define DOWNLOADS_LIST ".wgr-downloads"
+
+static void note_download(const char *path)
+{
+    char list[512];
+    FILE *f;
+    if (!wgr_asset_host_is_url) return; /* it landed in the host directory, not the cache */
+    snprintf(list, sizeof(list), "%s/" DOWNLOADS_LIST, wgr_asset_cache_dir);
+    f = fopen(list, "ab");
+    if (f == NULL) {
+        log_warn("asset: couldn't note %s in %s; wgr_asset_clear_cache won't delete it", path, list);
+        return;
+    }
+    fprintf(f, "%s\n", path);
+    fclose(f);
+}
+
+/* A path that stays under the directory it is joined to: relative, no "..", no drive. */
+static bool stays_under(const char *path)
+{
+    const char *segment = path;
+    if (path[0] == '\0' || path[0] == '/' || path[0] == '\\' || strchr(path, ':') != NULL) return false;
+    for (const char *p = path;; p++) {
+        if (*p == '/' || *p == '\\' || *p == '\0') {
+            if (p - segment == 2 && segment[0] == '.' && segment[1] == '.') return false;
+            if (*p == '\0') return true;
+            segment = p + 1;
+        }
+    }
+}
+
+/* Remove the directories above `root`/`path`, deepest first, while they are empty. */
+static void remove_empty_parents(const char *root, const char *path)
+{
+    char full[1024];
+    const size_t root_len = strlen(root);
+    char *slash;
+    if ((size_t)snprintf(full, sizeof(full), "%s/%s", root, path) >= sizeof(full)) return;
+    while ((slash = strrchr(full, '/')) != NULL && (size_t)(slash - full) > root_len) {
+        *slash = '\0';
+        if (rmdir(full) != 0) return; /* not empty: it and what is above it stay */
+    }
+}
+
+/* Delete every file the list names, with its metadata, and then the list: the count. */
+static int delete_downloads(void)
+{
+    char list[512], line[1024], file[1536], meta_root[512];
+    FILE *f;
+    int deleted = 0;
+    snprintf(list, sizeof(list), "%s/" DOWNLOADS_LIST, wgr_asset_cache_dir);
+    snprintf(meta_root, sizeof(meta_root), "%s/.meta", wgr_asset_cache_dir);
+    f = fopen(list, "rb");
+    if (f == NULL) return 0;
+    while (fgets(line, sizeof(line), f) != NULL) {
+        size_t n = strlen(line);
+        if (n == 0 || line[n - 1] != '\n') { /* too long to be one of ours: skip the rest */
+            int c;
+            while ((c = fgetc(f)) != EOF && c != '\n') {}
+            continue;
+        }
+        line[--n] = '\0';
+        if (n > 0 && line[n - 1] == '\r') line[--n] = '\0';
+        if (n == 0) continue;
+        if (!stays_under(line)) {
+            log_warn("wgr_asset_clear_cache: %s lists %s, which isn't under it; left alone", list, line);
+            continue;
+        }
+        snprintf(file, sizeof(file), "%s/%s", wgr_asset_cache_dir, line);
+        deleted += remove(file) == 0 ? 1 : 0; /* listed twice, or evicted since: already gone */
+        snprintf(file, sizeof(file), "%s/%s", meta_root, line);
+        remove(file);
+        remove_empty_parents(wgr_asset_cache_dir, line);
+        remove_empty_parents(meta_root, line);
+    }
+    fclose(f);
+    remove(list);
+    rmdir(meta_root); /* if nothing else was described there */
+    return deleted;
+}
+
 bool wgr_asset_fetch_done(wgr_handle_t request, bool ok)
 {
     uint16_t i = 0;
@@ -269,6 +360,7 @@ bool wgr_asset_fetch_done(wgr_handle_t request, bool ok)
     }
     task->state = TASK_NEW;
     if (ok && wgri_fs_exists(task->path) && download_matches(task)) {
+        note_download(task->path);
         resolved(i, true);
         return true;
     }
@@ -332,9 +424,19 @@ bool wgr_asset_evict(const char *path)
     return path != NULL && *path != '\0' && wgri_fs_remove(path);
 }
 
+WGRI_KEEP
 void wgr_asset_clear_cache(void)
 {
     wgri_fs_clear();
+    forget_manifests(); /* the root is asked about again, and the rest as needed */
+#ifndef __EMSCRIPTEN__
+    {
+        const int deleted = delete_downloads();
+        if (deleted > 0) {
+            log_warn("wgr_asset_clear_cache: deleted %d downloaded file(s) from %s", deleted, wgr_asset_cache_dir);
+        }
+    }
+#endif
 }
 
 WGRI_KEEP

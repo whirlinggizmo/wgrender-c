@@ -82,15 +82,26 @@ typedef void (*wgr_asset_fetch_fn)(wgr_handle_t request, const char *url,
 bool wgr_asset_set_fetcher(wgr_asset_fetch_fn fn, void *user_data);
 bool wgr_asset_fetch_done(wgr_handle_t request, bool ok);
 
-/* Forget a cached asset, so the next ensure fetches it again; wgr_asset_clear_cache
- * forgets every one. A cache can hold a file that is wrong rather than old (a host
- * that compresses once served gzip bytes under an asset's name): the host says it
- * hasn't changed, so revalidation keeps it, and only something that drops it helps.
+/* Forget a cached asset, so the next ensure fetches it again: the file and what was
+ * kept about it, on the web from the browser's storage and from this visit, on
+ * desktop from the cache directory. False when there was no such file. A cache can
+ * hold a file that is wrong rather than old (a host that compresses once served gzip
+ * bytes under an asset's name): the host says it hasn't changed, so revalidation
+ * keeps it, and only something that drops it helps.
  *
  * libwgrender also drops an entry by itself when a loader rejects a cached file and
  * fetches it once more, so this is for a program that knows better -- a new version of
  * an asset, or a user asking to free the space. */
 bool wgr_asset_evict(const char *path);
+
+/* Forget every cached asset, so the next ensure of any file fetches it again, and
+ * what was read of the manifest (wgr_asset_set_manifest), so the root is asked about
+ * again. On the web: the browser's storage and this visit's copies. On desktop: every
+ * file libwgrender downloaded into the cache directory (wgr_asset_set_cache_dir) is
+ * deleted, with its metadata and the directories that leaves empty, and a warning
+ * says how many; it keeps a list of its downloads there, ".wgr-downloads", and never
+ * deletes a file it didn't download. Resources already created stay as they are.
+ * Call it while nothing is loading: a load in flight may fail. */
 void wgr_asset_clear_cache(void);
 
 /* How a cached asset is treated on a later visit. On the web the cache keeps each

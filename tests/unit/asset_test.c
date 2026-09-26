@@ -226,12 +226,15 @@ void test_asset_fetch_hook(void)
     CHECK(strcmp(fetched_url, "https://cdn.example.com/hd/textures/rock.png") == 0);
     wgr_asset_clear_redirects();
 
-    wgr_asset_clear_cache(); /* desktop keeps the files; the web store is emptied */
+    /* clearing deletes what was downloaded into the cache directory, so the file is
+       gone and there is nothing left to evict */
+    wgr_asset_clear_cache();
+    CHECK(!wgri_fs_exists("textures/rock.png"));
+    CHECK(!wgr_asset_evict("textures/rock.png"));
 
     /* the pending report names a task and its stage; here: one download in flight */
     CHECK(wgri_asset_pending_count() == 0);
     wgr_asset_set_fetcher(silent_fetcher, NULL);
-    CHECK(wgr_asset_evict("textures/rock.png"));
     wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_FILE_ONLY), on_ready, on_failed,
                        NULL);
     wgri_asset_tick();

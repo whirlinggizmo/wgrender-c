@@ -19,6 +19,7 @@ is solid magenta. Without a manifest (the examples ask for manifest.json, and ge
   offline    /assets/ blocked: the cached copy is used, no error
   changed    the sheet replaced on disk: downloaded again (200), magenta on screen
   again      the new copy kept (304), still magenta
+  cleared    wgr_asset_clear_cache() called in the page first: downloaded again (200)
   gone       the file deleted: 404, the cached copy forgotten, the load fails
   gone, offline  /assets/ blocked: nothing cached any more, so it fails again
 
@@ -30,6 +31,7 @@ the root manifest is asked about:
   offline    the root blocked: the cached one is used, and the cached sheet
   changed    the root, the directory's manifest and the sheet downloaded; magenta
   again      the root asked about (304), still magenta, nothing else requested
+  cleared    wgr_asset_clear_cache() called in the page first: all three downloaded again
   stale host the manifests list a green sheet, the host serves magenta: downloaded,
              not kept, the load fails
   caught up  the host serves the green sheet: only it is downloaded
@@ -277,6 +279,7 @@ def main():
                 ('offline', 'block', lambda v: judge(v, {M: 'failed'}, False)),
                 ('changed', lambda: (serve(magenta), deploy()), lambda v: judge(v, {M: 200, D: 200, T: 200}, True)),
                 ('again', None, lambda v: judge(v, {M: 304}, True)),
+                ('cleared', 'clear', lambda v: judge(v, {M: 200, D: 200, T: 200}, True)),
                 ('stale host', stale_host, lambda v: judge(v, {M: 200, D: 200, T: 200}, False, failed=True,
                                                           log="isn't what the manifest lists")),
                 ('caught up', lambda: serve(green), lambda v: judge(v, {M: 304, T: 200}, False)),
@@ -288,6 +291,7 @@ def main():
                 ('offline', 'block', lambda v: judge(v, {M: 'failed', T: 'failed'}, False)),
                 ('changed', lambda: serve(magenta), lambda v: judge(v, {M: 404, T: 200}, True)),
                 ('again', None, lambda v: judge(v, {M: 404, T: 304}, True)),
+                ('cleared', 'clear', lambda v: judge(v, {M: 404, T: 200}, True)),
                 ('gone', tiles.unlink, lambda v: judge(v, {M: 404, T: 404}, False, failed=True,
                                                       log='gone from the host')),
                 ('gone, offline', 'block', lambda v: judge(v, {M: 'failed', T: 'failed'}, False, failed=True)),
@@ -297,6 +301,8 @@ def main():
         for name, before, check in steps:
             if callable(before):
                 before()
+            elif before == 'clear':  # on the page the last visit left open
+                visitor.session.send('Runtime.evaluate', {'expression': 'Module._wgr_asset_clear_cache()'})
             v = visitor.visit(blocked if before == 'block' else ())
             problems = check(v)
             failed += 1 if problems else 0
