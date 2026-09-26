@@ -18,10 +18,13 @@ for a visual check. Standard library only (tools/weblib.py).
                       runs on a private virtual X display (Xvfb, ANGLE on Vulkan), so it
                       never shows a window or wakes the monitors. Without Xvfb (on
                       Windows and macOS always), WebGPU runs on the real screen.
-  --settle=MS         longest an example runs before it is checked (default 20000). An
-                      example is checked once it has started, has no asset tasks pending
-                      (libwgrender's queue) and no network requests in flight, and has run
-                      --quiet ms since the last of those changed
+  --startup=MS        longest an example may take to start: to log its backend
+                      (default 60000). WebGPU on the virtual display is slow to start when
+                      several examples start at once, and that isn't the example's doing
+  --settle=MS         longest an example runs once it has started before it is checked
+                      (default 20000). An example is checked once it has started, has no
+                      asset tasks pending (libwgrender's queue) and no network requests in
+                      flight, and has run --quiet ms since the last of those changed
   --quiet=MS          (default 1500)
   --jobs=N            examples checked at once (default 4). Each example has its own
                       browser context (own storage; its own window when headed)
@@ -62,6 +65,7 @@ def parse_args():
     ap.add_argument('--backend', default='webgl2', choices=sorted(BACKEND_LOG))
     ap.add_argument('--threads', default='1', choices=['0', '1'])
     ap.add_argument('--headed', action='store_true')
+    ap.add_argument('--startup', type=int, default=60000)
     ap.add_argument('--settle', type=int, default=20000)
     ap.add_argument('--quiet', type=int, default=1500)
     ap.add_argument('--jobs', type=int, default=4)
@@ -115,6 +119,8 @@ def check_example(browser, debug_base, base_url, example, opts):
                                 for a in params['args'])
                 result['console'].append(first_line(text))
                 if 'libwgrender:' in text and 'backend' in text:
+                    if not result['started']:
+                        state['started'] = time.monotonic()
                     result['started'] = True
                     if result['start_ms'] is None:
                         result['start_ms'] = (time.monotonic() - state['navigated']) * 1000
@@ -143,19 +149,24 @@ def check_example(browser, debug_base, base_url, example, opts):
     try:
         for domain in ('Runtime', 'Log', 'Page', 'Network'):
             session.send(f'{domain}.enable')
-        deadline = time.monotonic() + opts.settle / 1000
+        startup_deadline = time.monotonic() + opts.startup / 1000
         state['navigated'] = time.monotonic()
         session.send('Page.navigate', {'url': f'{base_url}/?ex={urllib.parse.quote(example)}'})
-        # Wait until the example has started, its asset downloads are done, and it has
-        # run for a while since (errors from loading show up in that window), or until
-        # the deadline, whichever comes first.
+        # Wait until the example has started (within --startup), then until its asset
+        # downloads are done and it has run for a while since (errors from loading show
+        # up in that window), or until --settle has passed since it started, whichever
+        # comes first. Starting is timed on its own: a slow GPU start isn't a slow load.
         pending = -1
-        while time.monotonic() < deadline:
+        while True:
             if not result['started']:
+                if time.monotonic() >= startup_deadline:
+                    break
                 # don't call into the page before libwgrender reports it's running: calling
                 # an exported function before the wasm runtime is initialized aborts the page
                 time.sleep(0.1)
                 continue
+            if time.monotonic() >= state['started'] + opts.settle / 1000:
+                break
             value = session.send('Runtime.evaluate', {
                 'expression': "typeof Module !== 'undefined' && Module._wgri_asset_pending_count"
                               " ? Module._wgri_asset_pending_count() : -1",
@@ -188,12 +199,12 @@ def check_example(browser, debug_base, base_url, example, opts):
 def problems_of(r, opts):
     problems = list(r['errors'])
     if not r['started']:
-        problems.append('never logged its backend (did not start?); last console output:')
+        problems.append(f'never logged its backend in {opts.startup} ms (did not start?); last console output:')
         problems += [f'  | {line}' for line in r['console'][-6:]]
     elif r['pending'] is None or r['pending'] < 0:
-        problems.append(f'never reported its asset queue in {opts.settle} ms (the runtime was still starting)')
+        problems.append(f'never reported its asset queue in {opts.settle} ms after starting')
     elif r['pending'] != 0:
-        problems.append(f'still loading after {opts.settle} ms ({r["pending"]} asset task(s) pending):')
+        problems.append(f'still loading {opts.settle} ms after starting ({r["pending"]} asset task(s) pending):')
         stuck = [line for line in r['console'] if 'wgr_asset: pending:' in line]
         problems += [f'  | {line}' for line in (stuck or r['console'][-6:])]
     elif not r['backend_ok']:
