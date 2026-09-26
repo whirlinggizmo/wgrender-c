@@ -6,8 +6,11 @@ tree (examples/assets/) at /assets/ — so assets are never copied or symlinked 
 the site. Single source of truth, works on Windows/macOS/Linux. This mirrors the
 web asset host "/assets/" (the same logical path the desktop fs resolves locally).
 
-    python3 tools/serve.py [port] [site] [--tls CERT KEY] [--cache] [--gzip]
+    python3 tools/serve.py [port] [site] [--tls CERT KEY] [--cache] [--gzip] [--assets DIR]
                                                             # default 8000, out/web/webgl2
+
+--assets mounts DIR at /assets/ instead of examples/assets/ (tools/cachecheck.py
+serves a copy it can change).
 
 --tls serves HTTPS with that certificate and key (PEM), e.g. a locally trusted dev
 certificate, so another device on the LAN (a phone) gets a secure page: threaded
@@ -39,6 +42,13 @@ if "--tls" in ARGS:
         sys.exit("serve.py: --tls needs CERT and KEY")
     TLS = (ARGS[i + 1], ARGS[i + 2])
     del ARGS[i:i + 3]
+ASSETS_DIR = None
+if "--assets" in ARGS:
+    i = ARGS.index("--assets")
+    if len(ARGS) < i + 2:
+        sys.exit("serve.py: --assets needs a directory")
+    ASSETS_DIR = ARGS[i + 1]
+    del ARGS[i:i + 2]
 CACHE = "--cache" in ARGS
 GZIP = "--gzip" in ARGS
 ARGS = [a for a in ARGS if a not in ("--cache", "--gzip")]
@@ -50,7 +60,7 @@ GZIP_TYPES = (".html", ".js", ".wasm", ".json", ".css", ".txt", ".glb", ".gltf",
 
 ROOT   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SITE   = os.path.abspath(ARGS[1]) if len(ARGS) > 1 else os.path.join(ROOT, "out", "web", "webgl2")
-ASSETS = os.path.join(ROOT, "examples", "assets")
+ASSETS = os.path.abspath(ASSETS_DIR) if ASSETS_DIR else os.path.join(ROOT, "examples", "assets")
 PORT   = int(ARGS[0]) if len(ARGS) > 0 else 8000
 
 
@@ -210,8 +220,7 @@ if __name__ == "__main__":
         context.load_cert_chain(certfile=os.path.expanduser(TLS[0]), keyfile=os.path.expanduser(TLS[1]))
         server.socket = context.wrap_socket(server.socket, server_side=True)
         scheme = "https"
-    print(f"libwgrender: {scheme}://localhost:{PORT}/  ({SITE} at /, examples/assets/ mounted at /assets/)",
-          flush=True)
+    print(f"libwgrender: {scheme}://localhost:{PORT}/  ({SITE} at /, {ASSETS} mounted at /assets/)", flush=True)
     if TLS is not None:
         import socket
         try:  # the address other devices reach this machine at (no packet is sent)

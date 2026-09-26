@@ -20,6 +20,8 @@ typedef struct {
 
 static const test_case_t TESTS[] = {
     {"asset_join_relative", test_asset_join_relative},
+    {"asset_freshness", test_asset_freshness},
+    {"asset_cache_mode", test_asset_cache_mode},
     {"asset_fetch_hook", test_asset_fetch_hook},
     {"audio_streaming", test_audio_streaming},
     {"audio_threads", test_audio_threads},

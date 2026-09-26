@@ -50,6 +50,13 @@ bool wgri_asset_is_relative_uri(const char *uri);
 void wgri_asset_set_worker_count(int count);
 int wgri_asset_get_worker_count(void);
 
+/* When a response stops being fresh, from its Cache-Control and Age headers (either
+ * may be NULL or ""), for a response received at `now` (seconds since 1970): `now`
+ * plus what is left of max-age; a year for immutable without max-age; 0 (never
+ * fresh) for no-cache, no-store, or neither max-age nor immutable. Pure; exposed for
+ * tests. */
+double wgri_asset_fresh_until(const char *cache_control, const char *age, double now);
+
 /* Asset tasks not finished yet (for test tooling), and a warning per task saying where
  * each is stuck. */
 int wgri_asset_pending_count(void);

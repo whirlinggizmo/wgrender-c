@@ -20,6 +20,59 @@ static void check_join(const char *base, const char *uri, const char *expected)
     }
 }
 
+/* How long a response may be used without asking (Cache-Control, Age): the cache's
+ * whole idea of freshness (wgr_asset.h, WGR_ASSET_CACHE_REVALIDATE). */
+void test_asset_freshness(void)
+{
+    const double now = 1790000000.0;
+    const double year = 365.0 * 24.0 * 3600.0;
+
+    /* nothing said, nothing fresh: every visit asks */
+    CHECK(wgri_asset_fresh_until(NULL, NULL, now) == 0.0);
+    CHECK(wgri_asset_fresh_until("", "", now) == 0.0);
+    CHECK(wgri_asset_fresh_until("public", NULL, now) == 0.0);
+
+    /* max-age from now, less what a shared cache already held it for */
+    CHECK(wgri_asset_fresh_until("max-age=600", NULL, now) == now + 600.0);
+    CHECK(wgri_asset_fresh_until("public, max-age=600", "100", now) == now + 500.0);
+    CHECK(wgri_asset_fresh_until("max-age=600", "600", now) == 0.0);
+    CHECK(wgri_asset_fresh_until("max-age=600", "9000", now) == 0.0);
+    CHECK(wgri_asset_fresh_until("max-age=0", NULL, now) == 0.0);
+    CHECK(wgri_asset_fresh_until("Max-Age=60", NULL, now) == now + 60.0); /* directives ignore case */
+    CHECK(wgri_asset_fresh_until("max-age=600", "junk", now) == now + 600.0);
+
+    /* a max-age that isn't a number is none */
+    CHECK(wgri_asset_fresh_until("max-age=soon", NULL, now) == 0.0);
+    CHECK(wgri_asset_fresh_until("max-age=-5", NULL, now) == 0.0);
+    CHECK(wgri_asset_fresh_until("max-age=\"600\"", NULL, now) == 0.0);
+
+    /* immutable: max-age still says how long; without one, a year */
+    CHECK(wgri_asset_fresh_until("public, max-age=31536000, immutable", NULL, now) == now + 31536000.0);
+    CHECK(wgri_asset_fresh_until("immutable", NULL, now) == now + year);
+
+    /* no-cache and no-store win wherever they are, field-specific no-cache included */
+    CHECK(wgri_asset_fresh_until("max-age=600, no-cache", NULL, now) == 0.0);
+    CHECK(wgri_asset_fresh_until("no-store, max-age=600", NULL, now) == 0.0);
+    CHECK(wgri_asset_fresh_until("immutable,no-cache=\"Set-Cookie\"", NULL, now) == 0.0);
+    CHECK(wgri_asset_fresh_until("no-cacheable, max-age=60", NULL, now) == now + 60.0); /* not no-cache */
+    CHECK(wgri_asset_fresh_until("  max-age=60  ,  must-revalidate ", NULL, now) == now + 60.0);
+}
+
+/* The cache mode: one of three, the default the one that can't show a stale file. */
+void test_asset_cache_mode(void)
+{
+    CHECK(wgr_asset_get_cache_mode() == WGR_ASSET_CACHE_REVALIDATE);
+    CHECK(wgr_asset_set_cache_mode(WGR_ASSET_CACHE_TRUST));
+    CHECK(wgr_asset_get_cache_mode() == WGR_ASSET_CACHE_TRUST);
+    CHECK(wgr_asset_set_cache_mode(WGR_ASSET_CACHE_OFF));
+    CHECK(wgr_asset_get_cache_mode() == WGR_ASSET_CACHE_OFF);
+    CHECK(!wgr_asset_set_cache_mode((wgr_asset_cache_mode_t)3)); /* refused, and nothing changes */
+    CHECK(!wgr_asset_set_cache_mode((wgr_asset_cache_mode_t)-1));
+    CHECK(wgr_asset_get_cache_mode() == WGR_ASSET_CACHE_OFF);
+    CHECK(wgr_asset_set_cache_mode(WGR_ASSET_CACHE_REVALIDATE));
+    CHECK(wgr_asset_get_cache_mode() == WGR_ASSET_CACHE_REVALIDATE);
+}
+
 void test_asset_join_relative(void)
 {
     check_join("models/box/box.gltf", "box.bin", "models/box/box.bin");

@@ -75,6 +75,11 @@ void wgri_fs_clear(void);
  * an asset fetcher writing a download -- can open it for writing. */
 void wgri_fs_make_parents(const char *path);
 
+/* Web: keep written files between visits (the default). Off, writes stay in MEMFS
+ * for this visit and the cache is left as it is: nothing is added, and nothing in it
+ * counts as cached (wgri_fs_is_cached). Desktop: files are files; ignored. */
+void wgri_fs_set_persistent(bool persistent);
+
 /* Web: is `path` in the cache, readable into the local store? (Desktop: never.) */
 bool wgri_fs_is_cached(const char *path);
 

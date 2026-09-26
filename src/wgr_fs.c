@@ -284,6 +284,7 @@ EM_JS(void, wgr_fs_store_clear, (void), {
 #endif
 
 static char wgr_fs_root[256];
+static bool wgr_fs_transient; /* wgri_fs_set_persistent(false) */
 
 /* Join the configured root with `path` (absolute paths pass through). */
 static void resolve(const char *path, char *out, size_t out_size)
@@ -573,9 +574,11 @@ bool wgri_fs_write_meta(const char *path, const unsigned char *data, int size, c
     }
     fclose(f);
 #ifdef __EMSCRIPTEN__
-    wgr_fs_store_put(full, data, size, meta != NULL, meta != NULL ? meta->etag : "",
-                     meta != NULL ? meta->last_modified : "", meta != NULL ? meta->fresh_until : 0.0,
-                     meta != NULL ? meta->hash : "");
+    if (!wgr_fs_transient) {
+        wgr_fs_store_put(full, data, size, meta != NULL, meta != NULL ? meta->etag : "",
+                         meta != NULL ? meta->last_modified : "", meta != NULL ? meta->fresh_until : 0.0,
+                         meta != NULL ? meta->hash : "");
+    }
 #else
     if (meta != NULL && !meta_write(path, meta)) {
         /* the bytes landed; without their metadata they are only fetched once more */
@@ -585,12 +588,17 @@ bool wgri_fs_write_meta(const char *path, const unsigned char *data, int size, c
     return true;
 }
 
+void wgri_fs_set_persistent(bool persistent)
+{
+    wgr_fs_transient = !persistent;
+}
+
 bool wgri_fs_is_cached(const char *path)
 {
 #ifdef __EMSCRIPTEN__
     char full[512];
     resolve(path, full, sizeof(full));
-    return full[0] != '\0' && wgr_fs_store_has(full);
+    return !wgr_fs_transient && full[0] != '\0' && wgr_fs_store_has(full);
 #else
     (void)path;
     return false;
@@ -602,7 +610,7 @@ int wgri_fs_cache_read_begin(const char *path)
 #ifdef __EMSCRIPTEN__
     char full[512];
     resolve(path, full, sizeof(full));
-    return full[0] != '\0' && wgr_fs_store_has(full) ? wgr_fs_store_read(full) : 0;
+    return !wgr_fs_transient && full[0] != '\0' && wgr_fs_store_has(full) ? wgr_fs_store_read(full) : 0;
 #else
     (void)path;
     return 0;

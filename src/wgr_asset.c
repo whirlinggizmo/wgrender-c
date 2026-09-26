@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #if defined(_MSC_VER) && !defined(S_ISDIR)
 #define S_ISDIR(mode) (((mode) & _S_IFMT) == _S_IFDIR) /* MSVC has stat(), not S_IS* */
 #endif
@@ -57,7 +58,7 @@ enum {
 };
 #define MAX_WORKERS 4
 #define DEFAULT_UPLOAD_BUDGET_MS 4.0f
-enum { FETCH_PENDING = 0, FETCH_OK, FETCH_FAILED };
+enum { FETCH_PENDING = 0, FETCH_OK, FETCH_FAILED, FETCH_USE_CACHE /* the cached copy is current */ };
 
 typedef struct {
     char path[512];      /* logical key: cache path + default (host + path) source */
@@ -77,6 +78,7 @@ typedef struct {
     int state;
     int fetch_result;         /* web: FETCH_* set when the download finishes */
     int cache_read;           /* web: reading the file from the cache (wgri_fs_cache_read_begin), or 0 */
+    bool revalidating;        /* web: the fetch in flight asks about a cached copy */
     /* dependencies (files this file references; see internal/wgr_asset.h) */
     uint16_t parent;          /* slot of the task this one is a dependency of; 0 = none */
     int pending;              /* dependencies not finished yet */
@@ -130,6 +132,7 @@ static wgr_asset_task_t *wgr_asset_tasks; /* grown by the pool: don't hold a poi
 static wgri_handle_pool_t wgr_asset_pool;
 static bool wgr_asset_ready = false;
 static char wgr_asset_host[256] = "";
+static wgr_asset_cache_mode_t wgr_asset_cache_mode = WGR_ASSET_CACHE_REVALIDATE;
 #ifndef __EMSCRIPTEN__
 /* Desktop downloads: the host is a URL, the app supplies the downloader, and the cache
  * directory is both where a download lands and where the next run finds it -- the same
@@ -282,6 +285,68 @@ void wgr_asset_clear_cache(void)
     wgri_fs_clear();
 }
 
+WGRI_KEEP
+bool wgr_asset_set_cache_mode(wgr_asset_cache_mode_t mode)
+{
+    if (mode != WGR_ASSET_CACHE_REVALIDATE && mode != WGR_ASSET_CACHE_TRUST && mode != WGR_ASSET_CACHE_OFF) {
+        log_warn("wgr_asset_set_cache_mode: %d isn't a cache mode", (int)mode);
+        return false;
+    }
+    wgr_asset_cache_mode = mode;
+    wgri_fs_set_persistent(mode != WGR_ASSET_CACHE_OFF);
+    return true;
+}
+
+WGRI_KEEP
+wgr_asset_cache_mode_t wgr_asset_get_cache_mode(void)
+{
+    return wgr_asset_cache_mode;
+}
+
+/* A year: how long an immutable response without a max-age stays fresh. */
+#define IMMUTABLE_SECONDS (365.0 * 24.0 * 3600.0)
+
+double wgri_asset_fresh_until(const char *cache_control, const char *age, double now)
+{
+    const char *p = cache_control != NULL ? cache_control : "";
+    double max_age = -1.0;
+    double already = 0.0;
+    bool immutable = false;
+
+    while (*p != '\0') {
+        char token[64];
+        size_t n = 0;
+        while (*p == ' ' || *p == '\t' || *p == ',') p++;
+        while (*p != '\0' && *p != ',') {
+            if (n + 1 < sizeof(token)) token[n++] = (char)tolower((unsigned char)*p);
+            p++;
+        }
+        while (n > 0 && (token[n - 1] == ' ' || token[n - 1] == '\t')) n--;
+        token[n] = '\0';
+        /* no-cache="field" is still no-cache, as far as a whole file goes */
+        if ((strncmp(token, "no-cache", 8) == 0 && (token[8] == '\0' || token[8] == '=')) ||
+            strcmp(token, "no-store") == 0) {
+            return 0.0;
+        }
+        if (strcmp(token, "immutable") == 0) {
+            immutable = true;
+        } else if (strncmp(token, "max-age=", 8) == 0) {
+            char *end;
+            const double value = strtod(token + 8, &end);
+            if (end != token + 8 && *end == '\0' && value >= 0.0) max_age = value;
+        }
+    }
+    if (max_age < 0.0) {
+        return immutable ? now + IMMUTABLE_SECONDS : 0.0;
+    }
+    if (age != NULL && age[0] != '\0') {
+        char *end;
+        const double value = strtod(age, &end);
+        if (end != age && value > 0.0) already = value; /* how long a shared cache held it */
+    }
+    return max_age > already ? now + (max_age - already) : 0.0;
+}
+
 const char *wgr_asset_get_host(void)
 {
     return wgr_asset_host;
@@ -289,31 +354,74 @@ const char *wgr_asset_get_host(void)
 
 #ifdef __EMSCRIPTEN__
 /* Fetch `url` and give the bytes to wgri_asset_fetch_finished, which owns them from
- * then on. Errors (network, 404) arrive there too, with a null pointer. */
-EM_JS(void, wgri_asset_fetch_js, (int slot, const char *url_cstr), {
+ * then on, with the HTTP status (0: no answer). Errors arrive there too, with a null
+ * pointer. The response's validators and Cache-Control wait in JS for
+ * wgri_asset_fetch_header.
+ *
+ * `revalidate`: a cached copy exists, so this asks whether it is still current. On
+ * the page's own origin that is a conditional GET, with the copy's validators, past
+ * the browser's cache (a 304 is the server's). On another origin the conditional
+ * headers would need a CORS preflight the host may refuse, which would look like no
+ * answer and keep a stale copy for good; there the browser revalidates its own cache
+ * instead (no-cache) and hands back a 200 either way. */
+EM_JS(void, wgri_asset_fetch_js, (int slot, const char *url_cstr, int revalidate, const char *etag_c,
+                                  const char *modified_c), {
     const url = UTF8ToString(url_cstr);
-    fetch(url, { credentials: "same-origin" })
+    const init = { credentials: "same-origin" };
+    if (revalidate) {
+        let same = false;
+        try { same = new URL(url, location.href).origin === location.origin; } catch (e) {}
+        const etag = UTF8ToString(etag_c);
+        const modified = UTF8ToString(modified_c);
+        if (same && (etag || modified)) {
+            init.headers = {};
+            if (etag) init.headers["If-None-Match"] = etag;
+            if (modified) init.headers["If-Modified-Since"] = modified;
+            init.cache = "no-store";
+        } else {
+            init.cache = "no-cache";
+        }
+    }
+    if (!Module.wgr_asset_headers) Module.wgr_asset_headers = new Map();
+    fetch(url, init)
         .then((response) => {
+            const h = response.headers;
+            Module.wgr_asset_headers.set(slot, [h.get("ETag") || "", h.get("Last-Modified") || "",
+                                                h.get("Cache-Control") || "", h.get("Age") || ""]);
             if (!response.ok) {
-                throw new Error(url + ": HTTP " + response.status);
-            }
-            return response.arrayBuffer();
-        })
-        .then((buffer) => {
-            /* byteLength is the decoded size, whatever the host did on the wire */
-            const bytes = new Uint8Array(buffer);
-            const ptr = _wgri_asset_fetch_alloc(bytes.length); /* malloc lives in C */
-            if (ptr === 0) {
-                _wgri_asset_fetch_finished(slot, 0, 0);
+                if (response.status !== 304) console.warn("wgr_asset: " + url + ": HTTP " + response.status);
+                _wgri_asset_fetch_finished(slot, 0, 0, response.status);
                 return;
             }
-            HEAPU8.set(bytes, ptr);
-            _wgri_asset_fetch_finished(slot, ptr, bytes.length);
+            return response.arrayBuffer().then((buffer) => {
+                /* byteLength is the decoded size, whatever the host did on the wire */
+                const bytes = new Uint8Array(buffer);
+                const ptr = _wgri_asset_fetch_alloc(bytes.length); /* malloc lives in C */
+                if (ptr === 0) {
+                    _wgri_asset_fetch_finished(slot, 0, 0, 0);
+                    return;
+                }
+                HEAPU8.set(bytes, ptr);
+                _wgri_asset_fetch_finished(slot, ptr, bytes.length, response.status);
+            });
         })
         .catch((err) => {
-            console.warn("wgr_asset: " + err);
-            _wgri_asset_fetch_finished(slot, 0, 0);
+            console.warn("wgr_asset: " + url + ": " + err);
+            Module.wgr_asset_headers.delete(slot);
+            _wgri_asset_fetch_finished(slot, 0, 0, 0);
         });
+})
+
+/* One of the finished response's headers into `out` (0 ETag, 1 Last-Modified,
+ * 2 Cache-Control, 3 Age), or "" -- also for one too long for `out`, never cut. */
+EM_JS(void, wgri_asset_fetch_header, (int slot, int which, char *out, int out_size), {
+    const headers = Module.wgr_asset_headers && Module.wgr_asset_headers.get(slot);
+    const text = headers ? headers[which] : "";
+    stringToUTF8(lengthBytesUTF8(text) < out_size ? text : "", out, out_size);
+})
+
+EM_JS(void, wgri_asset_fetch_headers_done, (int slot), {
+    if (Module.wgr_asset_headers) Module.wgr_asset_headers.delete(slot);
 })
 
 /* Room for a download the browser has already decoded. In C so the JS side needs no
@@ -324,21 +432,63 @@ unsigned char *wgri_asset_fetch_alloc(int size)
     return (unsigned char *)malloc(size > 0 ? (size_t)size : 1);
 }
 
-/* The download finished: `data` is malloc'd for us (null when it failed). */
+/* What the response said about the file, for keeping with it. */
+static wgri_fs_meta_t response_meta(int slot)
+{
+    wgri_fs_meta_t meta;
+    char cache_control[256], age[32];
+    memset(&meta, 0, sizeof(meta));
+    wgri_asset_fetch_header(slot, 0, meta.etag, (int)sizeof(meta.etag));
+    wgri_asset_fetch_header(slot, 1, meta.last_modified, (int)sizeof(meta.last_modified));
+    wgri_asset_fetch_header(slot, 2, cache_control, (int)sizeof(cache_control));
+    wgri_asset_fetch_header(slot, 3, age, (int)sizeof(age));
+    wgri_asset_fetch_headers_done(slot);
+    meta.fresh_until = wgri_asset_fresh_until(cache_control, age, (double)time(NULL));
+    return meta;
+}
+
+/* The download finished with HTTP `status` (0: no answer): `data` is malloc'd for us
+ * (null without a body). The answer decides what becomes of a cached copy
+ * (wgr_asset.h, WGR_ASSET_CACHE_REVALIDATE). */
 WGRI_JS_CALLED
-void wgri_asset_fetch_finished(int slot, unsigned char *data, int size)
+void wgri_asset_fetch_finished(int slot, unsigned char *data, int size, int status)
 {
     wgr_asset_task_t *task = &wgr_asset_tasks[slot];
+    wgri_fs_meta_t meta;
     if (slot <= 0 || slot >= wgr_asset_pool.capacity || task->state != TASK_FETCHING) {
+        wgri_asset_fetch_headers_done(slot);
         free(data); /* cancelled, or the task went away while it was in flight */
         return;
     }
-    task->fetch_result = (data != NULL && wgri_fs_write(task->path, data, size)) ? FETCH_OK : FETCH_FAILED;
+    meta = response_meta(slot);
+    if (data != NULL && status / 100 == 2) {
+        task->fetch_result = wgri_fs_write_meta(task->path, data, size, &meta) ? FETCH_OK : FETCH_FAILED;
+    } else if (task->revalidating && status == 304) {
+        wgri_fs_meta_t kept;
+        wgri_fs_meta_get(task->path, &kept);
+        /* a 304 need not repeat the validators; the bytes, and so their hash, are the same */
+        if (meta.etag[0] == '\0') memcpy(meta.etag, kept.etag, sizeof(meta.etag));
+        if (meta.last_modified[0] == '\0') memcpy(meta.last_modified, kept.last_modified, sizeof(meta.last_modified));
+        memcpy(meta.hash, kept.hash, sizeof(meta.hash));
+        wgri_fs_meta_set(task->path, &meta);
+        task->fetch_result = FETCH_USE_CACHE;
+    } else if (task->revalidating && status / 100 == 4) {
+        log_info("asset: %s is gone from the host (HTTP %d); forgetting the cached copy", task->path, status);
+        wgri_fs_remove(task->path);
+        task->fetch_result = FETCH_FAILED;
+    } else if (task->revalidating) {
+        log_debug("asset: no answer about %s (HTTP %d); using the cached copy", task->path, status);
+        task->fetch_result = FETCH_USE_CACHE;
+    } else {
+        task->fetch_result = FETCH_FAILED;
+    }
     free(data);
     if (wgr_asset_fetching > 0) wgr_asset_fetching--;
 }
 
-static void start_fetch(uint16_t slot)
+/* Download the task's file; `cached` (or NULL) is the metadata of a cached copy this
+ * asks about (wgri_asset_fetch_js). */
+static void start_fetch(uint16_t slot, const wgri_fs_meta_t *cached)
 {
     wgr_asset_task_t *task = &wgr_asset_tasks[slot];
     char joined[1024];
@@ -346,6 +496,7 @@ static void start_fetch(uint16_t slot)
 
     task->state = TASK_FETCHING;
     task->fetch_result = FETCH_PENDING;
+    task->revalidating = cached != NULL;
     /* per-call override wins; otherwise the default host + key */
     if (task->fetch_url[0] != '\0') {
         url = task->fetch_url;
@@ -354,7 +505,8 @@ static void start_fetch(uint16_t slot)
         url = joined;
     }
     wgr_asset_fetching++;
-    wgri_asset_fetch_js((int)slot, url); /* answers on a later tick, via fetch_finished */
+    wgri_asset_fetch_js((int)slot, url, cached != NULL, cached != NULL ? cached->etag : "",
+                        cached != NULL ? cached->last_modified : ""); /* answers via fetch_finished */
 }
 #endif
 
@@ -1498,24 +1650,39 @@ void wgri_asset_tick(void)
         }
         if (task->state == TASK_FETCHING) {
             if (task->fetch_result == FETCH_PENDING) continue; /* still downloading */
+            if (task->fetch_result == FETCH_USE_CACHE) {
+                task->revalidating = false;
+                task->cache_read = wgri_fs_cache_read_begin(task->path); /* resolves on a later tick */
+                if (task->cache_read == 0) task->state = TASK_NEW; /* gone meanwhile: download it */
+                continue;
+            }
             if (task->fetch_result == FETCH_FAILED && use_fallback(task)) continue;
             resolved(i, task->fetch_result == FETCH_OK);
             continue;
         }
-        /* FORCE_FETCH re-downloads; otherwise serve the cache when present. */
+        /* FORCE_FETCH re-downloads. Otherwise a file already loaded this visit is used;
+           a cached one is used if the mode trusts it or it is still fresh, and checked
+           with the host if not (wgr_asset.h). */
         if (!(task->flags & WGR_ASSET_FORCE_FETCH) && wgri_fs_exists(task->path)) {
             resolved(i, true);
             continue;
         }
         if (!(task->flags & WGR_ASSET_FORCE_FETCH) && wgri_fs_is_cached(task->path)) {
-            task->state = TASK_FETCHING;
-            task->cache_read = wgri_fs_cache_read_begin(task->path); /* resolves on a later tick */
+            wgri_fs_meta_t meta;
+            const bool fresh = wgri_fs_meta_get(task->path, &meta) && meta.fresh_until > (double)time(NULL);
+            if (wgr_asset_cache_mode == WGR_ASSET_CACHE_TRUST || fresh) {
+                task->state = TASK_FETCHING;
+                task->cache_read = wgri_fs_cache_read_begin(task->path); /* resolves on a later tick */
+                continue;
+            }
+            if (wgr_asset_fetching >= MAX_FETCHES) continue;
+            start_fetch(i, &meta); /* a copy without metadata is asked about unconditionally */
             continue;
         }
         if (wgr_asset_fetching >= MAX_FETCHES) {
             continue; /* waits for a download to finish */
         }
-        start_fetch(i); /* miss (or forced): download, cache, resolve on later ticks */
+        start_fetch(i, NULL); /* miss (or forced): download, cache, resolve on later ticks */
 #else
         /* Desktop: a hit resolves from the jailed local fs. A miss asks the app's
          * fetcher, if one is set and there is somewhere to download from -- a URL host,

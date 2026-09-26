@@ -90,6 +90,41 @@ bool wgr_asset_fetch_done(wgr_handle_t request, bool ok);
 bool wgr_asset_evict(const char *path);
 void wgr_asset_clear_cache(void);
 
+/* How a cached asset is treated on a later visit. On the web the cache keeps each
+ * file with what its response said about it (ETag, Last-Modified, Cache-Control);
+ * on desktop, downloads in the cache directory are used as they are in every mode
+ * (asking the server there is not built yet).
+ *
+ * WGR_ASSET_CACHE_REVALIDATE, the default: a copy still fresh by its Cache-Control
+ * (max-age not passed, or immutable) is used without a request. Any other copy is
+ * checked with the server first, and its answer decides: 304, the copy is used (and
+ * is fresh again for the new max-age); 200, the new file replaces it; 4xx, the copy
+ * is deleted and the load fails as it would without one; no answer (offline, DNS, a
+ * timeout) or a 5xx, the copy is used. no-cache and no-store make a copy never
+ * fresh, but it is still kept, for the next check and for starting offline. For a
+ * host on the page's own origin the check is a conditional GET; on another origin it
+ * is a GET that the browser revalidates from its own cache (a conditional header
+ * there needs the host's CORS consent), so a changed file is always noticed, but an
+ * unchanged one is stored again.
+ *
+ * WGR_ASSET_CACHE_TRUST: a cached copy is used without asking, however old: for a
+ * program that must start without the network, or evicts by itself
+ * (wgr_asset_evict).
+ *
+ * WGR_ASSET_CACHE_OFF: nothing is kept between visits, and what earlier visits kept
+ * is neither used nor deleted (development).
+ *
+ * WGR_ASSET_FORCE_FETCH is a plain GET in every mode, and fails without an answer.
+ * A mode applies to every file checked after it is set. */
+typedef enum {
+    WGR_ASSET_CACHE_REVALIDATE = 0,
+    WGR_ASSET_CACHE_TRUST,
+    WGR_ASSET_CACHE_OFF,
+} wgr_asset_cache_mode_t;
+/* False for a value that isn't one of the modes. */
+bool wgr_asset_set_cache_mode(wgr_asset_cache_mode_t mode);
+wgr_asset_cache_mode_t wgr_asset_get_cache_mode(void);
+
 /* Ensure an asset is locally available, then fire the callback with a directly
  * openable local path.
  *
