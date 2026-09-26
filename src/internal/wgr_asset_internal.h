@@ -34,6 +34,13 @@ void wgri_asset_register_dependencies(const char *extension, wgri_asset_dependen
  * A leading "/" in base_path is kept. Pure; exposed for tests. */
 bool wgri_asset_join_relative(const char *base_path, const char *uri, char *out, size_t out_size);
 
+/* A path a program names (ensure, evict, a redirect), made one that stays under the
+ * asset root, as wgutils' fileio does: "\\" becomes "/", empty and "." segments go,
+ * ".." takes back the segment before it. False for a path that is absolute ("/" or
+ * "\\" first), names a drive or has any ":", climbs above the root, is empty once
+ * normalized, or doesn't fit. Pure; exposed for tests. */
+bool wgri_asset_normalize_path(const char *path, char *out, size_t out_size);
+
 /* Where the asset layer found the file at local path `local` (a redirect or a
  * fallback, wgr_asset_add_redirect), into `out`: true if elsewhere, else `local` as
  * it is. Loaders reading the files a file references (a glTF's buffers and images)

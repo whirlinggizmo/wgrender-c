@@ -15,6 +15,7 @@
 /* Every unit test; add new ones here and to the table in main.c. */
 
 void test_asset_join_relative(void);
+void test_asset_paths(void);
 void test_asset_freshness(void);
 void test_asset_cache_mode(void);
 void test_asset_fetch_hook(void);

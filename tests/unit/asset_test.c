@@ -73,6 +73,56 @@ void test_asset_cache_mode(void)
     CHECK(wgr_asset_get_cache_mode() == WGR_ASSET_CACHE_REVALIDATE);
 }
 
+static void check_normalize(const char *path, const char *expected)
+{
+    char out[64];
+    const bool ok = wgri_asset_normalize_path(path, out, sizeof(out));
+    CHECK(ok == (expected != NULL));
+    if (ok && expected != NULL && strcmp(out, expected) != 0) {
+        fprintf(stderr, "    normalize(%s): got %s, expected %s\n", path, out, expected);
+        wgr_test_failures++;
+    }
+}
+
+/* What a program may name (ensure, evict, redirects): paths under the asset root,
+ * read as wgutils' fileio reads them. */
+void test_asset_paths(void)
+{
+    check_normalize("textures/rock.png", "textures/rock.png");
+    check_normalize("./textures//rock.png", "textures/rock.png");
+    check_normalize("textures\\rock.png", "textures/rock.png");         /* Windows separators */
+    check_normalize("textures/../models/box.glb", "models/box.glb");    /* ".." within the root */
+    check_normalize("a/b/../../c", "c");
+    check_normalize("textures/", "textures");
+
+    check_normalize("/etc/passwd", NULL);           /* absolute */
+    check_normalize("\\server\\share", NULL);
+    check_normalize("C:/Windows/win.ini", NULL);     /* a drive */
+    check_normalize("C:foo", NULL);
+    check_normalize("textures/a:b.png", NULL);       /* any ":" */
+    check_normalize("../secret", NULL);              /* above the root */
+    check_normalize("textures/../../secret", NULL);
+    check_normalize("", NULL);                       /* names nothing */
+    check_normalize(".", NULL);
+    check_normalize("a/..", NULL);
+    check_normalize("0123456789/0123456789/0123456789/0123456789/0123456789/0123456789", NULL); /* too long */
+    check_normalize(NULL, NULL);
+
+    wgri_fs_init(NULL);
+    wgri_asset_init();
+    CHECK(wgr_asset_ensure_async("/etc/passwd", NULL, WGR_ASSET_FILE_ONLY) == 0);
+    CHECK(wgr_asset_ensure_async("../outside.png", NULL, WGR_ASSET_FILE_ONLY) == 0);
+    CHECK(wgr_asset_ensure_async("C:/x.png", NULL, WGR_ASSET_FILE_ONLY) == 0);
+    CHECK(!wgr_asset_evict("../../etc/passwd"));
+    CHECK(!wgr_asset_add_redirect("textures/", "../mods/"));
+    CHECK(!wgr_asset_add_redirect("/textures/", "mods/"));
+    CHECK(wgr_asset_add_redirect("./textures/", "mods/hd/../sd/"));  /* normalized: textures/ -> mods/sd/ */
+    CHECK(wgr_asset_add_redirect("models/", "https://cdn.example.com/../models/")); /* a URL is left as it is */
+    wgr_asset_clear_redirects();
+    wgri_asset_deinit();
+    wgri_fs_deinit();
+}
+
 void test_asset_join_relative(void)
 {
     check_join("models/box/box.gltf", "box.bin", "models/box/box.bin");

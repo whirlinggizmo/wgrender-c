@@ -209,6 +209,7 @@ static uint32_t wgr_asset_finish_counter;
 
 static wgr_handle_t alloc_task(void);
 static void forget_manifests(void);
+static bool normalize_prefix(const char *text, char *out, size_t out_size);
 #ifndef __EMSCRIPTEN__
 static void resolved(uint16_t i, bool ok);            /* a task finished, well or badly */
 static bool use_fallback(wgr_asset_task_t *task);     /* another candidate path to try */
@@ -283,20 +284,6 @@ static void note_download(const char *path)
     fclose(f);
 }
 
-/* A path that stays under the directory it is joined to: relative, no "..", no drive. */
-static bool stays_under(const char *path)
-{
-    const char *segment = path;
-    if (path[0] == '\0' || path[0] == '/' || path[0] == '\\' || strchr(path, ':') != NULL) return false;
-    for (const char *p = path;; p++) {
-        if (*p == '/' || *p == '\\' || *p == '\0') {
-            if (p - segment == 2 && segment[0] == '.' && segment[1] == '.') return false;
-            if (*p == '\0') return true;
-            segment = p + 1;
-        }
-    }
-}
-
 /* Remove the directories above `root`/`path`, deepest first, while they are empty. */
 static void remove_empty_parents(const char *root, const char *path)
 {
@@ -313,7 +300,7 @@ static void remove_empty_parents(const char *root, const char *path)
 /* Delete every file the list names, with its metadata, and then the list: the count. */
 static int delete_downloads(void)
 {
-    char list[512], line[1024], file[1536], meta_root[512];
+    char list[512], line[1024], relative[1024], file[1536], meta_root[512];
     FILE *f;
     int deleted = 0;
     snprintf(list, sizeof(list), "%s/" DOWNLOADS_LIST, wgr_asset_cache_dir);
@@ -330,10 +317,11 @@ static int delete_downloads(void)
         line[--n] = '\0';
         if (n > 0 && line[n - 1] == '\r') line[--n] = '\0';
         if (n == 0) continue;
-        if (!stays_under(line)) {
+        if (!wgri_asset_normalize_path(line, relative, sizeof(relative))) {
             log_warn("wgr_asset_clear_cache: %s lists %s, which isn't under it; left alone", list, line);
             continue;
         }
+        snprintf(line, sizeof(line), "%s", relative);
         snprintf(file, sizeof(file), "%s/%s", wgr_asset_cache_dir, line);
         deleted += remove(file) == 0 ? 1 : 0; /* listed twice, or evicted since: already gone */
         snprintf(file, sizeof(file), "%s/%s", meta_root, line);
@@ -421,7 +409,12 @@ bool wgr_asset_fetch_done(wgr_handle_t request, bool ok)
 WGRI_KEEP
 bool wgr_asset_evict(const char *path)
 {
-    return path != NULL && *path != '\0' && wgri_fs_remove(path);
+    char logical[512];
+    if (path == NULL || !wgri_asset_normalize_path(path, logical, sizeof(logical))) {
+        log_warn("wgr_asset_evict: %s isn't a path under the asset root", path != NULL ? path : "(null)");
+        return false;
+    }
+    return wgri_fs_remove(logical);
 }
 
 WGRI_KEEP
@@ -907,9 +900,19 @@ bool wgr_asset_add_redirect(const char *prefix, const char *target)
         log_warn("wgr_asset_add_redirect: too many redirects (%d), or too long", MAX_REDIRECTS);
         return false;
     }
-    snprintf(wgr_asset_redirects[wgr_asset_redirect_count].prefix, sizeof(wgr_asset_redirects[0].prefix), "%s", prefix);
-    snprintf(wgr_asset_redirects[wgr_asset_redirect_count].target, sizeof(wgr_asset_redirects[0].target), "%s", target);
-    wgr_asset_redirects[wgr_asset_redirect_count].url = strstr(target, "://") != NULL;
+    {
+        const bool url = strstr(target, "://") != NULL;
+        char *const to_prefix = wgr_asset_redirects[wgr_asset_redirect_count].prefix;
+        char *const to_target = wgr_asset_redirects[wgr_asset_redirect_count].target;
+        /* paths stay under the asset root, as ensured paths do; a URL is a URL */
+        if (!normalize_prefix(prefix, to_prefix, sizeof(wgr_asset_redirects[0].prefix)) ||
+            (!url && !normalize_prefix(target, to_target, sizeof(wgr_asset_redirects[0].target)))) {
+            log_warn("wgr_asset_add_redirect: %s -> %s: a path that isn't under the asset root", prefix, target);
+            return false;
+        }
+        if (url) snprintf(to_target, sizeof(wgr_asset_redirects[0].target), "%s", target);
+        wgr_asset_redirects[wgr_asset_redirect_count].url = url;
+    }
     wgr_asset_redirect_count++;
     return true;
 }
@@ -1203,6 +1206,58 @@ static int hex_value(char c)
     return -1;
 }
 
+bool wgri_asset_normalize_path(const char *path, char *out, size_t out_size)
+{
+    size_t marks[256]; /* where each kept segment starts, for ".." to go back to */
+    size_t depth = 0, len = 0;
+    const char *p = path;
+
+    if (path == NULL || out == NULL || out_size == 0) return false;
+    out[0] = '\0';
+    if (path[0] == '/' || path[0] == '\\' || strchr(path, ':') != NULL) return false;
+    while (*p != '\0') {
+        const char *start;
+        size_t n;
+        while (*p == '/' || *p == '\\') p++;
+        if (*p == '\0') break;
+        start = p;
+        while (*p != '\0' && *p != '/' && *p != '\\') p++;
+        n = (size_t)(p - start);
+        if (n == 1 && start[0] == '.') continue;
+        if (n == 2 && start[0] == '.' && start[1] == '.') {
+            if (depth == 0) return false; /* above the root */
+            len = marks[--depth];
+            out[len] = '\0';
+            continue;
+        }
+        if (depth == sizeof(marks) / sizeof(marks[0])) return false;
+        marks[depth++] = len;
+        if (len + (len > 0 ? 1 : 0) + n >= out_size) return false;
+        if (len > 0) out[len++] = '/';
+        memcpy(out + len, start, n);
+        len += n;
+        out[len] = '\0';
+    }
+    return len > 0; /* else nothing is left to name a file */
+}
+
+/* A redirect's prefix or path target, normalized, keeping the "/" it ends with (the
+ * rule matches text, so "textures/" and "textures" are different prefixes). */
+static bool normalize_prefix(const char *text, char *out, size_t out_size)
+{
+    const size_t n = strlen(text);
+    const bool slash = n > 0 && (text[n - 1] == '/' || text[n - 1] == '\\');
+    size_t len;
+    if (!wgri_asset_normalize_path(text, out, out_size)) return false;
+    len = strlen(out);
+    if (slash) {
+        if (len + 1 >= out_size) return false;
+        out[len] = '/';
+        out[len + 1] = '\0';
+    }
+    return true;
+}
+
 bool wgri_asset_join_relative(const char *base_path, const char *uri, char *out, size_t out_size)
 {
     char buffer[1024];
@@ -1404,10 +1459,17 @@ wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
 {
     wgr_handle_t handle;
     wgr_asset_task_t *task_ptr;
+    char logical[512];
 
     if (!wgr_asset_ready || path == NULL) {
         return 0;
     }
+    if (!wgri_asset_normalize_path(path, logical, sizeof(logical))) {
+        log_warn("wgr_asset_ensure_async: %s isn't a path under the asset root (absolute, a drive, or "
+                 "climbing out with \"..\")", path);
+        return 0;
+    }
+    path = logical;
     handle = alloc_task();
     if (handle == 0) {
         return 0;

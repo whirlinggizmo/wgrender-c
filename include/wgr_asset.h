@@ -84,7 +84,8 @@ bool wgr_asset_fetch_done(wgr_handle_t request, bool ok);
 
 /* Forget a cached asset, so the next ensure fetches it again: the file and what was
  * kept about it, on the web from the browser's storage and from this visit, on
- * desktop from the cache directory. False when there was no such file. A cache can
+ * desktop from the cache directory. False when there was no such file, or for a path
+ * that isn't under the host (as wgr_asset_ensure_async reads one). A cache can
  * hold a file that is wrong rather than old (a host that compresses once served gzip
  * bytes under an asset's name): the host says it hasn't changed, so revalidation
  * keeps it, and only something that drops it helps.
@@ -168,7 +169,10 @@ bool wgr_asset_set_manifest(const char *path);
  *
  *   path      logical key: the cache path on web, the read path under the
  *             configured host on desktop, and (host + path) the default
- *             download location when fetched.
+ *             download location when fetched. It stays under the host: "\\" is
+ *             read as "/", and "." and ".." segments are resolved; a path that is
+ *             absolute, names a drive (any ":"), or climbs above the host with ".."
+ *             is refused (0).
  *   fetch_url optional per-call override of the download SOURCE only — a URL /
  *             mirror / signed link, used verbatim; bytes are still cached and
  *             resolved under `path`. NULL = use the default host + path. On desktop
@@ -225,7 +229,8 @@ float wgr_asset_get_progress(wgr_handle_t task);
  * fetch_url) and the files they reference (a model's buffers and images, found next
  * to wherever the model came from); the callback gets the path of the file found.
  * Direct wgr_*_create(path) calls load the path they're given. Up to 32 rules; false
- * when full or given an empty prefix or target. */
+ * when full, given an empty prefix or target, or a prefix or path target that isn't
+ * under the host (as wgr_asset_ensure_async reads a path; a trailing "/" is kept). */
 bool wgr_asset_add_redirect(const char *prefix, const char *target);
 void wgr_asset_clear_redirects(void);
 

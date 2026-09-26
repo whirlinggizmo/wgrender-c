@@ -357,8 +357,11 @@ static void on_ready(const char *path, void *user) {
 wgr_asset_add_task(wgr_asset_ensure_async(path, NULL, WGR_ASSET_NONE), on_ready, on_failed, ctx);
 ```
 
-**The path is logical; the asset layer decides which file it is.** Ensuring
-`textures/rock.png` may load another file, tried in order until one exists:
+**The path is logical; the asset layer decides which file it is.** It stays under the
+asset root: `.` and `..` are resolved, and a path that is absolute, names a drive or
+climbs out is refused (the rule wgutils' fileio has), for what a program names and for
+what a file references alike. Ensuring `textures/rock.png` may load another file, tried
+in order until one exists:
 
 1. **Redirects** (`wgr_asset_add_redirect`): path rules stack, newest first, so a mod
    or a translation overrides only the files it has; the file's own path comes last.
