@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include "example_assets.h"
+#include "shared/example_assets.h"
 #include "wgr.h"
 
 #define SPRITE_PATH "textures/tiles.png"

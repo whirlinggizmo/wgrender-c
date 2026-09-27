@@ -12,7 +12,7 @@
 #include <math.h>
 #include <stdio.h>
 
-#include "example_assets.h"
+#include "shared/example_assets.h"
 #include "wgr.h"
 
 #define LOGO_PATH "sprites/logo/wg-logo-white-alpha.png"

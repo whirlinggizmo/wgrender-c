@@ -16,7 +16,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "example_assets.h"
+#include "shared/example_assets.h"
 #include "wgr.h"
 
 enum { ENVIRONMENTS = 2, MESHES = 2, TEXTURES = 2, FILES = ENVIRONMENTS + MESHES + TEXTURES, GRAPH = 300 };

@@ -8,7 +8,7 @@
 #include <stddef.h>
 
 #include "wgr.h"
-#include "example_assets.h"
+#include "shared/example_assets.h"
 
 #define LOGO_PATH "sprites/logo/wg-logo-bw-alpha.png"
 

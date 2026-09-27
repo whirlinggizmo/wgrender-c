@@ -9,7 +9,7 @@
 #include <string.h>
 
 #include "wgr.h"
-#include "example_assets.h"
+#include "shared/example_assets.h"
 
 enum { TEXTURES = 2, KINDS = 2 }; /* kind 0: the PNG, 1: the .ktx */
 static const char *NAMES[TEXTURES] = {"sprites/logo/wg-logo-bw-alpha", "textures/flame"};

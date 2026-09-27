@@ -12,7 +12,7 @@
 #include <stddef.h>
 
 #include "wgr.h"
-#include "example_assets.h"
+#include "shared/example_assets.h"
 
 #define INVALID_MUSIC_PATH "music/invalid.mp3" /* intentionally invalid to demonstrate force_fetch */
 /* where the bytes are, relative to the asset host: under it wherever the site is

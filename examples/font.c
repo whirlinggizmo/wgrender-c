@@ -10,7 +10,7 @@
 #include <stdio.h>
 
 #include "wgr.h"
-#include "example_assets.h"
+#include "shared/example_assets.h"
 
 #define JETBRAINS_PATH "fonts/JetBrainsMono/JetBrainsMono-Regular.ttf"
 #define KOMIKA_PATH    "fonts/Komika/KOMIKAH_.ttf"

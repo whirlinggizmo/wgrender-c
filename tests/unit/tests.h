@@ -10,7 +10,7 @@
 
 /* The examples' character (CHARACTER_PATH), which the tests load from the repo root as
  * "examples/assets/" CHARACTER_PATH: one place to swap it. */
-#include "../../examples/example_assets.h"
+#include "../../examples/shared/example_assets.h"
 
 /* Every unit test; add new ones here and to the table in main.c. */
 

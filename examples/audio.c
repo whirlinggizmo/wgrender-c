@@ -11,7 +11,7 @@
 #include <stddef.h>
 
 #include "wgr.h"
-#include "example_assets.h"
+#include "shared/example_assets.h"
 
 #define CLICK_PATH "sounds/click_004.ogg"
 

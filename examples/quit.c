@@ -12,7 +12,7 @@
  *   ESC  quit now */
 #include <stdio.h>
 
-#include "example_assets.h"
+#include "shared/example_assets.h"
 #include "wgr.h"
 
 static struct {

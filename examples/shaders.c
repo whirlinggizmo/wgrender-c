@@ -16,7 +16,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "example_assets.h"
+#include "shared/example_assets.h"
 #include "wgr.h"
 
 #define NOISE_PATH "textures/noise.png"

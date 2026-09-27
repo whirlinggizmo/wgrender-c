@@ -11,7 +11,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#include "example_assets.h"
+#include "shared/example_assets.h"
 #include "wgr.h"
 
 #define FONT_PATH "fonts/JetBrainsMono/JetBrainsMono-Regular.ttf"

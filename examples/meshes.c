@@ -8,7 +8,7 @@
 #include <math.h>
 #include <stddef.h>
 
-#include "example_assets.h"
+#include "shared/example_assets.h"
 #include "wgr.h"
 
 #define NORMAL_MAP_PATH "textures/tiles_normal.png"

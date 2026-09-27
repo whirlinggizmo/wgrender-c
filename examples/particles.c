@@ -15,7 +15,7 @@
 #include <stdio.h>
 
 #include "wgr.h"
-#include "example_assets.h"
+#include "shared/example_assets.h"
 
 #define PARTICLE_PATH "textures/particle.png"
 #define FLAME_PATH    "textures/flame.png" /* a 4x4 flipbook (tools/gen_particles.py) */

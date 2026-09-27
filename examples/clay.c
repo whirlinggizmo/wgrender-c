@@ -40,7 +40,7 @@
 #include "clay.h"
 #include "examples/shared-layouts/clay-video-demo.c" /* Clay's demo layout, unchanged */
 
-#include "example_assets.h"
+#include "shared/example_assets.h"
 #include "wgr.h"
 
 #define GAME_WIDTH 240.0f /* the strip of "game" to the right of the UI */

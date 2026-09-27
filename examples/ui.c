@@ -1,6 +1,6 @@
 /* libwgrender ui example — pointer interaction with 2D and 3D members of one scene.
  *
- * The buttons, the progress bar and the scrolling list come from examples/ui_widgets.h,
+ * The buttons, the progress bar and the scrolling list come from examples/shared/ui/ui_widgets.h,
  * which builds them out of 2D shapes, text2d and scene interaction — libwgrender has no
  * widget API (docs/ROADMAP.md, "GUI direction"), so this is how a game writes one.
  *
@@ -22,9 +22,9 @@
 #include <math.h>
 #include <stdio.h>
 
-#include "example_assets.h"
+#include "shared/example_assets.h"
 #include "wgr.h"
-#include "ui_widgets.h"
+#include "shared/ui/ui_widgets.h"
 
 #define PANEL_PATH "textures/ui_panel.png"
 

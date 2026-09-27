@@ -13,7 +13,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "example_assets.h"
+#include "shared/example_assets.h"
 #include "wgr.h"
 
 #define FIELD_SIDE 20
