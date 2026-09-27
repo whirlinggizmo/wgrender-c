@@ -45,7 +45,9 @@ Run.hx                `haxelib run wgrender-hx setup`
 
 tools/gen_raw.py      writes BOTH impl/Raw.*.hx whole, from wgrender's include/*.h
 tools/gen_keys.py     regenerates wgr.Key from wgrender's wgr_keys.h
-tools/coverage.py     what the binding reaches, and what wrapping next buys
+tools/coverage.py     what the binding reaches, and what wrapping next buys;
+                      --check fails if a C call has two names (tools/members.py
+                      is the member index it and refusals.py share)
 tools/refusals.py     every way a wgrender call can return false, read from the C
                       with clang; --check fails if a documented refusal is not
                       repeated in these docs
@@ -64,10 +66,17 @@ web/index.html        the page for the all-in-one hxcpp builds (the JS guests' p
 
 Every operation is a static named after the C call it makes, taking the handle first:
 `wgr_model_set_tint` is `Model.setTint`, `wgr_model_is_visible` is `Model.isVisible`,
-`wgr_window_has_fullscreen` is `Window.hasFullscreen`. The name is the mapping, which
-is what lets the binding be audited mechanically (`tools/refusals.py --check`) and what
-keeps a second binding in step — a property has no counterpart in Lua or Nim, and it
-cannot return the `Bool` a wgrender setter uses to refuse.
+`wgr_window_has_fullscreen` is `Window.hasFullscreen`. Some names are Haxe's rather
+than C's — `Mesh.cube` for `wgr_mesh_create_cube`, `Font.draw` for `wgr_text_draw_ex`
+— but every C call has exactly one member, and a member that calls C calls one C
+function. That is what lets the binding be audited mechanically
+(`tools/coverage.py --check` holds the rule, `tools/refusals.py --check` reads each
+member's docs) and what keeps a second binding in step — a property has no counterpart
+in Lua or Nim, and it cannot return the `Bool` a wgrender setter uses to refuse.
+
+Anything more is sugar over those members, never a second path to C:
+`Text2D.measure` is `measureWidth` and `measureHeight` in a `Vec2`, and the two
+rounded rectangles are overloads of one `Shape2D.drawRoundedRectangle`.
 
 A member that only reads struct data keeps its shape, because there is no C name to
 mirror: `Vec3.x`, `MouseState`, `KeyboardState.isPressed`, `Handle.isNone`.

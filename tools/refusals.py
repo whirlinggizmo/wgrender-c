@@ -16,9 +16,10 @@ Its rule was "a property is right when every way the call can fail is one wgrend
 logs, and a method returning Bool is right when it can fail silently" -- which only
 matters while there are properties. There is one left, and it has no C call behind
 it. What made that tool 388 lines was inferring which C call a member wrapped, since
-`wgr_model_set_tint -> Model.tint` cannot be read off a name; flattening made the
-name the mapping, and the inference, the DELEGATED table of hand-written verdicts
-and the regex reader of C control flow all went with it.
+`wgr_model_set_tint -> Model.tint` cannot be read off a name; flattening put each C
+call in the body of exactly one member (tools/coverage.py --check holds that), so the
+call is read off the body, and the inference, the DELEGATED table of hand-written
+verdicts and the regex reader of C control flow all went with it.
 
 This replaces the regular expressions that tools/setters.py used to read wgrender's
 control flow with. Those could not be trusted -- they produced one false clean (a
@@ -48,6 +49,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from wgrpath import find  # noqa: E402
+import members  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -92,23 +94,21 @@ def documented_refusals(wgrender):
 
 
 def binding(root):
-    """{c_name: "Module.member"} -- read straight off the flat API.
+    """{c_name: "Module.member"}, and each member's doc -- from tools/members.py.
 
-    One line each, because every member is a static whose body is its Raw call. The
-    tool this replaced needed 37 lines and a hand-maintained exception table to do
-    the same job, and still lost members silently when one grew a second line.
+    The one-name rule (tools/coverage.py --check) makes this a function: each C call has
+    one public member, so its doc is the one place a refusal has to be repeated. Overloads
+    share a name, so their docs are read together. The index follows bodies, not first
+    lines: the one-line regex this used before missed every wrapper with a default or a
+    `#if`, the same silent loss the tool before it was replaced for.
     """
     out, docs = {}, {}
-    for f in sorted((root / 'src/wgr').glob('*.hx')):
-        if f.suffixes[:1] in ([".cpp"], [".js"]):
+    for m in members.members(root):
+        if not m.public:
             continue
-        text = f.read_text(encoding='utf-8')
-        for m in re.finditer(
-                r'(?:/\*\*((?:[^*]|\*(?!/))*)\*\*/\s*)?'
-                r'\tpublic static inline function (\w+)\([^)]*\)[^\n]*\n\s*'
-                r'(?:return )?(?:[\w.]*\()?Raw\.(wgr_\w+)\(', text):
-            out.setdefault(m.group(3), f'{f.stem}.{m.group(2)}')
-            docs[f'{f.stem}.{m.group(2)}'] = m.group(1) or ''
+        for c in m.calls:
+            out.setdefault(c, m.qualified)
+        docs[m.qualified] = docs.get(m.qualified, '') + m.doc
     return out, docs
 
 

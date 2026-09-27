@@ -985,7 +985,7 @@ class CheckBindings {
 		Shape2D.drawCircleLines(new Vec2(5, 5), 4, Color.VIOLET);
 		Shape2D.drawTriangle(new Vec2(0, 0), new Vec2(10, 0), new Vec2(5, 8), Color.RED);
 		Shape2D.drawRoundedRectangle(0, 0, 20, 10, 3, Color.SKYBLUE);
-		Shape2D.drawRoundedRectangleCorners(0, 0, 20, 10, 1, 2, 3, 4, Color.GOLD);
+		Shape2D.drawRoundedRectangle(0, 0, 20, 10, 1, 2, 3, 4, Color.GOLD);
 		Shape2D.drawBorder(0, 0, 20, 10, 1, 1, 1, 1, 2, 2, 2, 2, Color.LIGHTGRAY);
 		Text.draw("built-in", 10, 10, 16, Color.BLACK);
 		Text2D.draw(label);

@@ -155,17 +155,19 @@ cross-binding parity — not for bytes.
 `tools/setters.py` is gone. It asked "should this member be a property or a method?",
 which only has subjects while there are properties; the flat API has one, and it has
 no C call behind it. Most of its 388 lines existed to infer *which* C call a member
-wrapped, because `wgr_model_set_tint -> Model.tint` cannot be read off a name. Making
-the name the mapping deleted the inference, and with it the `DELEGATED` table of
-hand-written verdicts and the regex reader of C control flow that needed it.
+wrapped, because `wgr_model_set_tint -> Model.tint` cannot be read off a name. Putting
+each C call in exactly one member's body deleted the inference, and with it the
+`DELEGATED` table of hand-written verdicts and the regex reader of C control flow that
+needed it.
 
 What survived moved into `tools/refusals.py --check`: a refusal a header names must be
 repeated in the binding's doc comment. That half was always the trustworthy one -- prose
 against prose, safe to fail a build on, as against the C reading that only warned and had
-produced one false clean and two false positives. The member index it needs is now one
-regex over the flat sources, because every member is a static whose body is its `Raw`
-call; the tool it replaced needed 37 lines and an exception table for the same job, and
-still lost members silently when one grew a second line.
+produced one false clean and two false positives. The member index it needs is
+`tools/members.py`, which reads each function's body for its `Raw` calls. It was first
+one regex matching a member whose body is one line, which lost members silently when
+one grew a second -- `Camera3D.setView`, `Input.getTouch`, anything with a default or a `#if` -- the same
+failure the tool it replaced had needed an exception table to paper over.
 
 One exception list remains, `UNREACHABLE`: refusals the binding's types rule out, where
 an `enum abstract` with two values cannot produce the third that wgrender would reject.

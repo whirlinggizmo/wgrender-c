@@ -2,7 +2,8 @@
 """What of wgrender this binding reaches, and what it would take to reach more.
 
     tools/coverage.py [WGRENDER_DIR]     the report
-    tools/coverage.py --check            fail if OMISSIONS has rotted
+    tools/coverage.py --check            fail if OMISSIONS has rotted, or a C call has
+                                         more than one name
 
 Two layers answer separately. `wgr.impl.Raw` is generated and covers the C surface;
 the API layer above it — the handle abstracts and their methods — is hand-written, and
@@ -16,6 +17,14 @@ Borrowed from librl's tools/audit_binding_parity.py, which audits six bindings a
 four languages. This one has one binding to audit, and its methods call Raw directly
 rather than through a name mapping, so it is much smaller — but the idea of recording
 *intentional* omissions is taken whole. Without it a decision and a to-do look alike.
+
+`--check` also holds the rule every wgrender binding keeps (wgrender's AGENTS.md,
+"Bindings"): each C call has one public name, and a public member that calls C calls
+one C function. So `Text2D.measure` returns `new Vec2(measureWidth(t),
+measureHeight(t))` rather than calling both itself, and the two rounded rectangles are
+overloads of one name. Private plumbing -- a trampoline, a shared on/once -- is exempt.
+The C name does not have to be read off the Haxe one; the rule is that there is
+exactly one to find.
 """
 import pathlib
 import re
@@ -24,6 +33,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from wgrpath import find  # noqa: E402
+import members  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 WGRENDER = find()
@@ -76,6 +86,22 @@ def reached():
     return api, raw
 
 
+def one_name(every):
+    """Each C call has one public name, and each public member calls one C function."""
+    found = members.members(ROOT)
+    problems = []
+    for c, names in sorted(members.names_by_call(found).items()):
+        if c in every and len(names) > 1:
+            problems.append(f'{c}: called by {", ".join(sorted(names))} -- one name, '
+                            'and the others call it')
+    for m in found:
+        if m.public and len(m.calls & every) > 1:
+            problems.append(f'{m.qualified} ({m.file}:{m.line}): calls '
+                            f'{", ".join(sorted(m.calls & every))} -- give each its own '
+                            'member and call those')
+    return problems
+
+
 def macros():
     joined = '\n'.join(p.read_text(encoding='utf-8') for p in (WGRENDER / 'include').glob('*.h'))
     return set(re.findall(r'#\s*define\s+(wgr_\w+)\s*\(', joined))
@@ -102,7 +128,11 @@ def main():
         bad = rotted or unknown or wrapped
         print(f'OMISSIONS: {"stale" if bad else "current"} '
               f'({len(OMISSIONS)} js, {len(API_OMISSIONS)} api)')
-        return 1 if bad else 0
+        names = one_name(every)
+        for line in names:
+            print(f'  {line}')
+        print(f'one name per C call: {"broken" if names else "holds"}')
+        return 1 if bad or names else 0
 
     print(f'wgrender: {len(every)} public functions across {len(by_header)} headers\n')
     print(f'  {"C surface (generated)":<28} hxcpp {len(raw["hxcpp"]):>3}/{len(every)}   '

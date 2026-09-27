@@ -59,6 +59,9 @@ jobs:
       - name: A documented refusal is repeated in the binding's docs
         run: python3 tools/refusals.py --check
 
+      - name: Each C call has one name; recorded omissions are current
+        run: python3 tools/coverage.py --check
+
       - name: Raw.cpp.hx and Raw.js.hx are current
         run: python3 tools/gen_raw.py --check
 

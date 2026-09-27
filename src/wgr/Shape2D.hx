@@ -128,12 +128,12 @@ abstract Shape2D(Handle) from Handle to Handle {
 		Raw.wgr_shape2d_draw_triangle(a.x, a.y, b.x, b.y, c.x, c.y, color);
 
 	/** Every corner rounded the same. **/
-	public static inline function drawRoundedRectangle(x:Float, y:Float, width:Float, height:Float, radius:Float,
-			color:Color):Void
+	public static overload extern inline function drawRoundedRectangle(x:Float, y:Float, width:Float, height:Float,
+			radius:Float, color:Color):Void
 		Raw.wgr_shape2d_draw_rounded_rectangle(x, y, width, height, radius, radius, radius, radius, color);
 
 	/** Corner radii clockwise from the top left. **/
-	public static inline function drawRoundedRectangleCorners(x:Float, y:Float, width:Float, height:Float,
+	public static overload extern inline function drawRoundedRectangle(x:Float, y:Float, width:Float, height:Float,
 			topLeft:Float, topRight:Float, bottomRight:Float, bottomLeft:Float, color:Color):Void
 		Raw.wgr_shape2d_draw_rounded_rectangle(x, y, width, height, topLeft, topRight, bottomRight, bottomLeft,
 			color);

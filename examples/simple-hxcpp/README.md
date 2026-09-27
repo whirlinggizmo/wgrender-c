@@ -223,9 +223,9 @@ AssetTask.then(Asset.ensureAsync(path), path -> { ... }, path -> Log.error('fail
 if (pick.handle == model) ...
 ```
 
-Why flat rather than methods and properties: the name is then the mapping, so the
-binding can be audited mechanically and a second binding in Lua or Nim mirrors it
-without translation — and a property setter cannot return the `Bool` a wgrender setter
+Why flat rather than methods and properties: each C call is then exactly one member,
+so the binding can be audited mechanically and a second binding in Lua or Nim covers
+the same calls one for one — and a property setter cannot return the `Bool` a wgrender setter
 uses to refuse, which was silently discarded in nine places. `docs/handles.md` has the
 measurements; it cost nothing, either in bytes or per frame.
 
@@ -272,8 +272,8 @@ raw C type, and name every accessor separately.
 
 `librl/bindings/haxe` is a flat façade — `Model.setTransform(handle, 9 floats)` — with
 a single untyped `RLHandle` for everything. This binding is now flat the same way, and
-for librl's reason: four bindings only stay in step if all four mirror the C names
-mechanically. Where it differs is the handle. librl passes one untyped `RLHandle`
+for librl's reason: four bindings only stay in step if each C call is one name in all
+four. Where it differs is the handle. librl passes one untyped `RLHandle`
 everywhere, and this keeps a distinct type per kind, which costs nothing at runtime and
 rejects both a `Mesh` where a `Texture` belongs and a bare literal `0` where
 `Handle.NONE` is meant. So: librl's shape, Nim's types. `docs/handles.md` has the

@@ -7,8 +7,8 @@ package wgr;
 
 	Every operation is a static taking the handle, named after the C call it makes:
 	`wgr_model_set_tint` is `Model.setTint`, `wgr_model_is_visible` is
-	`Model.isVisible`. The name is the mapping, which is what lets a binding be
-	audited mechanically and what keeps four bindings in step.
+	`Model.isVisible`. Each C call has exactly one member, which is what lets a
+	binding be audited mechanically and what keeps four bindings in step.
 
 	```haxe
 	final model = Model.create(mesh);

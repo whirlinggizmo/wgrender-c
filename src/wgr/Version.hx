@@ -17,18 +17,23 @@ class Version {
 	/** The wgrender the binding was generated against. **/
 	public static inline final BUILT = BuiltVersion.STRING;
 
+	/** The running library's version, as `BUILT` spells it. **/
 	public static function runtime():String
-		return '${Raw.wgr_version_major()}.${Raw.wgr_version_minor()}.${Raw.wgr_version_patch()}';
+		return '${major()}.${minor()}.${patch()}';
+
+	public static inline function major():Int
+		return Raw.wgr_version_major();
+
+	public static inline function minor():Int
+		return Raw.wgr_version_minor();
+
+	public static inline function patch():Int
+		return Raw.wgr_version_patch();
 
 	/** The full string the library reports, label and all. **/
 	public static inline function runtimeLabelled():String
 		return Raw.wgr_version_string();
 
-	/**
-		True when the running library is one this binding was generated for. A false
-		stops `GuestAbi.start`, so this logs at fatal rather than leaving a trace for
-		someone to find later.
-	**/
 	/** The pre-release label ("dev"), or "" for a plain release. **/
 	public static inline function label():String
 		return Raw.wgr_version_label();
@@ -37,10 +42,13 @@ class Version {
 	public static inline function number():Int
 		return Raw.wgr_version_number();
 
+	/**
+		True when the running library is one this binding was generated for. A false
+		stops `GuestAbi.start`, so this logs at fatal rather than leaving a trace for
+		someone to find later.
+	**/
 	public static function check():Bool {
-		final major = Raw.wgr_version_major();
-		final minor = Raw.wgr_version_minor();
-		if (major == BuiltVersion.MAJOR && minor == BuiltVersion.MINOR)
+		if (major() == BuiltVersion.MAJOR && minor() == BuiltVersion.MINOR)
 			return true;
 		Log.fatal('wgrender ${runtime()} does not match the $BUILT this binding was generated '
 			+ 'against (${BuiltVersion.COMMIT}) — regenerate with tools/gen_raw.py');
