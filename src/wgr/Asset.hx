@@ -316,26 +316,92 @@ class Asset {
 		verified (`sys.ssl.Socket.DEFAULT_VERIFY_CERT`), from the system store on
 		Windows and macOS and from the usual bundle paths elsewhere.
 
+		Redirects are followed as a browser's fetch follows them, so a URL gets the same
+		file on desktop as on the web: 301, 302, 303, 307 and 308, up to
+		`MAX_REDIRECTS` hops, https to http included. Anything else that isn't a 2xx
+		fails the fetch: haxe.Http counts every status under 400 a success, so left to
+		itself it would save a redirect's body as the asset.
+
 		Synchronous, so it blocks the frame it runs on -- fine for a handful of small
 		files, wrong for a large one. The hook is built for the other way round: start
 		a download and call `fetchDone` from a later tick. Wrap this, or write your
 		own, when that matters.
 	**/
 	public static function httpFetcher(request:Handle, url:String, destPath:String):Void {
-		var ok = false;
-		final http = new haxe.Http(url);
-		// onBytes, not onData: onData is a String and assets are images and audio.
-		http.onBytes = bytes -> {
-			sys.io.File.saveBytes(destPath, bytes);
-			ok = true;
-		};
-		http.onError = e -> Log.error('fetch failed: $url ($e)');
-		try
-			http.request(false)
-		catch (e:haxe.Exception)
-			Log.error('fetch failed: $url (${e.message})');
 		// Either way: a false is what makes the asset fail rather than wait for ever.
-		fetchDone(request, ok);
+		fetchDone(request, download(url, destPath));
+	}
+
+	/** How many redirects `httpFetcher` follows before it gives up: the Fetch standard's 20. **/
+	public static inline final MAX_REDIRECTS = 20;
+
+	static function download(url:String, destPath:String):Bool {
+		var at = url;
+		for (_ in 0...MAX_REDIRECTS + 1) {
+			var status = 0;
+			var body:haxe.io.Bytes = null;
+			var failure:String = null;
+			final http = new haxe.Http(at);
+			http.onStatus = s -> status = s;
+			// onBytes, not onData: onData is a String and assets are images and audio.
+			http.onBytes = bytes -> body = bytes;
+			http.onError = e -> failure = e;
+			try
+				http.request(false)
+			catch (e:haxe.Exception)
+				failure = e.message;
+			if (failure != null)
+				return fetchFailed(url, at, failure);
+			if (isRedirect(status)) {
+				final location = responseHeader(http, "location");
+				if (location == null)
+					return fetchFailed(url, at, 'HTTP $status with no Location');
+				at = resolveUrl(at, location);
+				continue;
+			}
+			if (status < 200 || status >= 300 || body == null)
+				return fetchFailed(url, at, 'HTTP $status');
+			try
+				sys.io.File.saveBytes(destPath, body)
+			catch (e:haxe.Exception)
+				return fetchFailed(url, at, 'writing $destPath: ${e.message}');
+			return true;
+		}
+		return fetchFailed(url, at, 'more than $MAX_REDIRECTS redirects');
+	}
+
+	/** The statuses a browser's fetch follows; any other 3xx is its own answer. **/
+	static inline function isRedirect(status:Int):Bool
+		return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+
+	static function fetchFailed(url:String, at:String, why:String):Bool {
+		Log.error('fetch failed: $url' + (at != url ? ' (at $at)' : '') + ': $why');
+		return false;
+	}
+
+	/** A response header by name, which HTTP compares without case and haxe.Http with. **/
+	static function responseHeader(http:haxe.Http, name:String):Null<String> {
+		for (key => value in http.responseHeaders)
+			if (key.toLowerCase() == name)
+				return value;
+		return null;
+	}
+
+	/** Where a Location points, read against the URL that sent it (RFC 3986, less dot segments). **/
+	static function resolveUrl(base:String, location:String):String {
+		if (~/^[A-Za-z][A-Za-z0-9+.-]*:/.match(location))
+			return location; // absolute
+		final scheme = base.substr(0, base.indexOf(":") + 1);
+		if (StringTools.startsWith(location, "//"))
+			return scheme + location;
+		final authorityEnd = base.indexOf("/", scheme.length + 2);
+		final origin = authorityEnd < 0 ? base : base.substr(0, authorityEnd);
+		if (StringTools.startsWith(location, "/"))
+			return origin + location;
+		// relative to the base's directory, without its query or fragment
+		var path = authorityEnd < 0 ? "/" : base.substr(authorityEnd);
+		path = ~/[?#].*$/.replace(path, "");
+		return origin + path.substr(0, path.lastIndexOf("/") + 1) + location;
 	}
 	#end
 
