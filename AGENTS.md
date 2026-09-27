@@ -232,6 +232,31 @@ file is local* and fires a **path-only** callback
 (`wgr_asset_callback_fn(const char *path, void *user)`); the consumer then calls
 the sync `wgr_*_create(path)`. Bytes never cross into user code.
 
+## Bindings: one name per C call
+
+A binding names things in its own language's style -- `Model.create(mesh)` in Haxe,
+`newModel(mesh)` in Nim -- and nothing requires reading the C name off the binding's.
+What every binding keeps is the correspondence:
+
+1. **Each C function has exactly one public name.** Overloads of that name count as
+   one: Nim's `newModel(mesh)` and `newModel()`, or Haxe's two
+   `Shape2D.drawRoundedRectangle`s, one with a radius and one with four corners.
+2. **A public member that calls C calls one C function.** Anything that combines calls
+   -- `Text2D.measure` returning width and height together, a version string built
+   from major, minor and patch -- calls the members that wrap them, never C directly.
+   A generic that picks its one call by type at compile time (Nim's
+   `when e is Emitter3d`) is overloads written once, and counts as one call.
+3. **Sugar is welcome, on top of those members.** Constructors, operators, extension
+   methods and language features that add no member (Haxe's `@:using`, Nim's UFCS)
+   make a binding pleasant to use; they reach C only through the one name.
+4. **Private plumbing is exempt:** a callback trampoline, or a helper shared by `on` and
+   `once`.
+
+Why: a C call's doc -- above all its "false for ..." refusal sentence (see "Say clamp
+or refuse") -- then has exactly one home in each binding, a binding can be audited for
+coverage call by call, and a second path to C can't quietly skip a check the first one
+makes. Each binding's `tools/coverage.py --check` enforces rules 1 and 2.
+
 ## Core and optional subsystems
 
 - Optional subsystems (textures, models, sprites, particles, audio, ...) register with
@@ -290,8 +315,9 @@ What they come to here:
   `can_<verb>` is that an action is possible (`can_move` in `wgr_platform.c`). The noun
   vs verb is what picks the last two: "has fullscreen" reads, "can fullscreen" doesn't,
   and "can move window" reads where "has move" doesn't. All three return `bool`, take
-  no state with them, and a binding carries the name straight through -- wgrender-hx
-  mirrors C names mechanically, so `wgr_window_is_fullscreen` is `Window.isFullscreen`.
+  no state with them, and a binding carries the verb straight through --
+  `wgr_window_is_fullscreen` is `Window.isFullscreen` in wgrender-hx and `isFullscreen`
+  in wgrender-nim.
   The verb is the name in every language, not a hint someone translates, which is why
   it is worth getting right. `tools/check.py` doesn't enforce verbs (it checks
   types, `_ptr` and the prefix per surface), so this is convention.
