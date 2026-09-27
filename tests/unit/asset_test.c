@@ -1,5 +1,11 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32)
+#include <direct.h> /* _getcwd */
+#else
+#include <unistd.h> /* getcwd */
+#endif
 
 #include "internal/wgr_fs_internal.h"
 #include "internal/wgr_internal_internal.h"
@@ -363,6 +369,156 @@ void test_asset_dependency_jail(void)
     CHECK(!dependency_loads("models/backslash.dep", "..\\..\\secret.bin"));
     CHECK(!dependency_loads("models/encoded.dep", "..%5C..%5Csecret.bin"));
     CHECK(!dependency_loads("models/mixed.dep", "../..\\secret.bin"));
+
+    wgr_asset_set_host("");
+    wgri_asset_deinit();
+    wgri_fs_deinit();
+}
+
+static void check_source(const char *host, wgri_asset_host_kind_t kind, const char *ref, wgri_asset_source_t want,
+                         const char *expected)
+{
+    char out[512];
+    const wgri_asset_source_t got = wgri_asset_resolve_source(host, kind, ref, out, sizeof(out));
+    CHECK(got == want);
+    if (got != want || (expected != NULL && strcmp(out, expected) != 0)) {
+        fprintf(stderr, "    resolve(%s, %s): got %d \"%s\", expected %d \"%s\"\n", host, ref, (int)got, out, (int)want,
+                expected != NULL ? expected : "");
+        if (got == want) wgr_test_failures++;
+    }
+}
+
+/* A fetch_url is read against the host as a browser reads a URL against a directory;
+ * the URL cases' expectations are what the WHATWG URL parser gives (node's URL). */
+void test_asset_resolve_source(void)
+{
+    const char *cdn = "https://cdn.example.com/game";
+    const wgri_asset_source_t url = WGRI_SOURCE_URL, local = WGRI_SOURCE_LOCAL, refused = WGRI_SOURCE_REFUSED;
+
+    /* a URL host, as the browser resolves against it */
+    check_source(cdn, WGRI_HOST_URL, "music/a.mp3", url, "https://cdn.example.com/game/music/a.mp3");
+    check_source(cdn, WGRI_HOST_URL, "../shared/a.mp3", url, "https://cdn.example.com/shared/a.mp3");
+    check_source(cdn, WGRI_HOST_URL, "../../../a.mp3", url, "https://cdn.example.com/a.mp3");
+    check_source(cdn, WGRI_HOST_URL, "/other/a.mp3", url, "https://cdn.example.com/other/a.mp3");
+    check_source(cdn, WGRI_HOST_URL, "//mirror.example.net/a.mp3", url, "https://mirror.example.net/a.mp3");
+    check_source(cdn, WGRI_HOST_URL, "music/a.mp3?sig=1#t", url, "https://cdn.example.com/game/music/a.mp3?sig=1#t");
+    check_source(cdn, WGRI_HOST_URL, "?v=2", url, "https://cdn.example.com/game/?v=2");
+    check_source(cdn, WGRI_HOST_URL, "./music/./x/../a.mp3", url, "https://cdn.example.com/game/music/a.mp3");
+    check_source(cdn, WGRI_HOST_URL, "music\\a.mp3", url, "https://cdn.example.com/game/music/a.mp3");
+    check_source(cdn, WGRI_HOST_URL, "..\\shared\\a.mp3", url, "https://cdn.example.com/shared/a.mp3");
+    check_source(cdn, WGRI_HOST_URL, "music/", url, "https://cdn.example.com/game/music/");
+    check_source(cdn, WGRI_HOST_URL, "music/..", url, "https://cdn.example.com/game/");
+    check_source("https://cdn.example.com", WGRI_HOST_URL, "music/a.mp3", url, "https://cdn.example.com/music/a.mp3");
+    check_source("http://localhost:8000/assets", WGRI_HOST_URL, "music/a.mp3", url,
+                 "http://localhost:8000/assets/music/a.mp3"); /* a port is part of the origin */
+    check_source("http://localhost:8000/assets", WGRI_HOST_URL, "../x/a.mp3", url, "http://localhost:8000/x/a.mp3");
+    check_source(cdn, WGRI_HOST_URL, "https://other.example.org/a.mp3", url, "https://other.example.org/a.mp3");
+    check_source(cdn, WGRI_HOST_URL, "HTTPS://other.example.org/a.mp3", url, "HTTPS://other.example.org/a.mp3");
+
+    /* on desktop an absolute source is http or https: nothing handed over names a local file */
+    check_source(cdn, WGRI_HOST_URL, "file:///etc/passwd", refused, NULL);
+    check_source(cdn, WGRI_HOST_URL, "data:application/octet-stream,AAAA", refused, NULL);
+    check_source(cdn, WGRI_HOST_URL, "C:/Windows/win.ini", refused, NULL); /* "c:" is a scheme */
+
+    /* the web's relative host: relative out, and the page finishes it as it would have
+       (page /game/index.html: assets/music/a.mp3, /game/x.mp3, /x.mp3, ...) */
+    check_source("assets", WGRI_HOST_BROWSER, "music/a.mp3", url, "assets/music/a.mp3");
+    check_source("assets", WGRI_HOST_BROWSER, "../x.mp3", url, "x.mp3");
+    check_source("assets", WGRI_HOST_BROWSER, "../../x.mp3", url, "../x.mp3");
+    check_source("assets", WGRI_HOST_BROWSER, "/root.mp3", url, "/root.mp3");
+    check_source("assets", WGRI_HOST_BROWSER, "//cdn.example.com/a.mp3", url, "//cdn.example.com/a.mp3");
+    check_source("assets", WGRI_HOST_BROWSER, "?q=1", url, "assets/?q=1");
+    check_source("", WGRI_HOST_BROWSER, "music/a.mp3", url, "music/a.mp3");
+    check_source("/static/assets", WGRI_HOST_BROWSER, "../../../x.mp3", url, "/x.mp3");
+    check_source(cdn, WGRI_HOST_BROWSER, "music/a.mp3", url, "https://cdn.example.com/game/music/a.mp3");
+    check_source("assets", WGRI_HOST_BROWSER, "data:application/octet-stream,AAAA", url,
+                 "data:application/octet-stream,AAAA"); /* the browser's business */
+
+    /* a local host: a path under it, held to a key's rules, read where it is */
+    check_source("assets", WGRI_HOST_LOCAL, "music/a.mp3", local, "music/a.mp3");
+    check_source("assets", WGRI_HOST_LOCAL, "music/a.mp3?sig=1#t", local, "music/a.mp3");
+    check_source("assets", WGRI_HOST_LOCAL, "music/my%20song.mp3", local, "music/my song.mp3");
+    check_source("assets", WGRI_HOST_LOCAL, "music/../shared/a.mp3", local, "shared/a.mp3");
+    check_source("assets", WGRI_HOST_LOCAL, "music\\a.mp3", local, "music/a.mp3");
+    check_source("assets", WGRI_HOST_LOCAL, "../a.mp3", refused, NULL);
+    check_source("assets", WGRI_HOST_LOCAL, "..\\a.mp3", refused, NULL);
+    check_source("assets", WGRI_HOST_LOCAL, "%2e%2e/a.mp3", refused, NULL);
+    check_source("assets", WGRI_HOST_LOCAL, "..%5Ca.mp3", refused, NULL);
+    check_source("assets", WGRI_HOST_LOCAL, "/etc/passwd", refused, NULL);
+    check_source("assets", WGRI_HOST_LOCAL, "//server/share/a.mp3", refused, NULL);
+    check_source("assets", WGRI_HOST_LOCAL, "file:///etc/passwd", refused, NULL);
+    check_source("assets", WGRI_HOST_LOCAL, "a%00.mp3", refused, NULL);
+    check_source("assets", WGRI_HOST_LOCAL, "https://cdn.example.com/a.mp3", url,
+                 "https://cdn.example.com/a.mp3"); /* a download, for the fetcher */
+
+    check_source(cdn, WGRI_HOST_URL, "", refused, NULL);
+    check_source(cdn, WGRI_HOST_URL, NULL, refused, NULL);
+
+    char dir[256];
+    CHECK(wgri_asset_file_url_path("file:///opt/game/assets", dir, sizeof(dir)) && strcmp(dir, "/opt/game/assets") == 0);
+    CHECK(wgri_asset_file_url_path("file://localhost/opt/game", dir, sizeof(dir)) && strcmp(dir, "/opt/game") == 0);
+    CHECK(wgri_asset_file_url_path("FILE:///opt/my%20game", dir, sizeof(dir)) && strcmp(dir, "/opt/my game") == 0);
+#if defined(_WIN32)
+    CHECK(wgri_asset_file_url_path("file:///C:/games/assets", dir, sizeof(dir)) && strcmp(dir, "C:/games/assets") == 0);
+#endif
+    CHECK(!wgri_asset_file_url_path("file://server/share", dir, sizeof(dir))); /* another machine's */
+    CHECK(!wgri_asset_file_url_path("https://cdn.example.com/game", dir, sizeof(dir)));
+    CHECK(!wgri_asset_file_url_path("file:///opt/a%00b", dir, sizeof(dir)));
+}
+
+/* JAIL_HOST as a file: URL: absolute, "/" throughout ("file:///C:/..." on Windows). */
+static void jail_file_url(char *out, size_t out_size)
+{
+#if defined(_WIN32)
+    char *cwd = _getcwd(NULL, 0);
+#else
+    char *cwd = getcwd(NULL, 0);
+#endif
+    snprintf(out, out_size, "file://%s%s/%s", cwd != NULL && cwd[0] != '/' ? "/" : "", cwd != NULL ? cwd : "",
+             JAIL_HOST);
+    for (char *c = out; *c != '\0'; c++) {
+        if (*c == '\\') *c = '/';
+    }
+    free(cwd);
+}
+
+/* A relative fetch_url under a local host is read in place, under the key's name; one
+ * that would leave the host, or names a local file by URL, is refused like a bad key.
+ * The same, spelled as a file: URL host. */
+void test_asset_local_source(void)
+{
+    char where[512];
+    wgri_fs_init(NULL);
+    wgri_asset_init();
+
+    for (int spelling = 0; spelling < 2; spelling++) {
+        char host[512];
+        if (spelling == 0) {
+            snprintf(host, sizeof(host), "%s", JAIL_HOST);
+        } else {
+            jail_file_url(host, sizeof(host));
+        }
+        wgr_asset_set_host(host);
+        wgri_fs_make_parents("music/real.mp3");
+        wgri_fs_resolve("music/real.mp3", where, sizeof(where));
+        write_text(where, "the real bytes");
+
+        ready_count = failed_count = 0;
+        wgr_asset_add_task(wgr_asset_ensure_async("music/invalid.mp3", "music/real.mp3?v=2", WGR_ASSET_FILE_ONLY),
+                           on_ready, on_failed, NULL);
+        for (int i = 0; i < 8; i++) wgri_asset_tick();
+        CHECK(ready_count == 1);
+        CHECK(!wgri_fs_exists("music/invalid.mp3")); /* read in place: nothing copied under the key */
+        {
+            char key[512], found[512];
+            wgri_fs_resolve("music/invalid.mp3", key, sizeof(key));
+            CHECK(wgri_asset_found_path(key, found, sizeof(found)) && strcmp(found, where) == 0);
+        }
+
+        CHECK(wgr_asset_ensure_async("music/x.mp3", "../secret.bin", WGR_ASSET_FILE_ONLY) == 0);
+        CHECK(wgr_asset_ensure_async("music/x.mp3", "file:///etc/passwd", WGR_ASSET_FILE_ONLY) == 0);
+        CHECK(wgr_asset_ensure_async("music/x.mp3", "/etc/passwd", WGR_ASSET_FILE_ONLY) == 0);
+    }
 
     wgr_asset_set_host("");
     wgri_asset_deinit();

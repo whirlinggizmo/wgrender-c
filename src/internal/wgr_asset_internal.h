@@ -37,6 +37,39 @@ void wgri_asset_register_dependencies(const char *extension, wgri_asset_dependen
  * doesn't fit. A leading "/" in base_path is kept. Pure; exposed for tests. */
 bool wgri_asset_join_relative(const char *base_path, const char *uri, char *out, size_t out_size);
 
+/* What a fetch_url names, read against the asset host (wgri_asset_resolve_source). */
+typedef enum {
+    WGRI_SOURCE_REFUSED = 0, /* nowhere this host may read from */
+    WGRI_SOURCE_URL,         /* a URL to download from */
+    WGRI_SOURCE_LOCAL        /* a path under a local host, read where it is */
+} wgri_asset_source_t;
+
+/* How the host reads a source: the browser's rules on web, a URL host's or a local
+ * directory's (a path, or a file: URL) on desktop. */
+typedef enum { WGRI_HOST_BROWSER, WGRI_HOST_URL, WGRI_HOST_LOCAL } wgri_asset_host_kind_t;
+
+/* Resolve `ref`, a fetch_url, into `out` as a browser resolves a URL against the host
+ * taken as a directory (the host with "/" added): "music/a.mp3" is under it, "../x"
+ * beside it, "/x" at its origin's root, "//cdn/x" on its scheme, "?q" on it. "\" is
+ * read as "/" in a URL, as a browser reads it in an http(s) one. A relative host (the
+ * web's "assets") keeps the ".." that climb above it, for the page to resolve.
+ *
+ * A ref with a scheme is absolute: used as it is in the browser, and on desktop only
+ * when it is http or https -- a file:, data: or other URL is refused there, so what a
+ * program is handed can't name a local file outside the host.
+ *
+ * Under a local host the result is a path under it, for the task to read in place:
+ * decoded, the query and fragment dropped, and held to the same rules as a key
+ * (wgri_asset_normalize_path), so it can't climb out, be absolute or name a drive.
+ * Pure; exposed for tests. */
+wgri_asset_source_t wgri_asset_resolve_source(const char *host, wgri_asset_host_kind_t kind, const char *ref,
+                                              char *out, size_t out_size);
+
+/* The directory a file: URL names ("file:///opt/game", "file://localhost/opt/game";
+ * "file:///C:/game" is "C:/game" on Windows), decoded, into `out`. False for another
+ * scheme, a remote authority, or a path that doesn't fit. Pure; exposed for tests. */
+bool wgri_asset_file_url_path(const char *url, char *out, size_t out_size);
+
 /* A path a program names (ensure, evict, a redirect), made one that stays under the
  * asset root, as wgutils' fileio does: "\\" becomes "/", empty and "." segments go,
  * ".." takes back the segment before it. False for a path that is absolute ("/" or

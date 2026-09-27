@@ -171,6 +171,7 @@ static wgr_asset_fetch_fn wgr_asset_fetcher;
 static void *wgr_asset_fetcher_user;
 static char wgr_asset_cache_dir[256] = ".wgr-cache";
 static bool wgr_asset_host_is_url;
+static char wgr_asset_local_root[512]; /* a local host's directory: the host, or what its file: URL names */
 #endif
 static wgr_asset_format_t wgr_asset_formats[MAX_DEPENDENCY_FORMATS];
 static int wgr_asset_format_count;
@@ -235,8 +236,17 @@ void wgr_asset_set_host(const char *host)
     wgr_asset_host_is_url = strncmp(wgr_asset_host, "http://", 7) == 0 ||
                             strncmp(wgr_asset_host, "https://", 8) == 0;
     /* A URL is a fetch origin, so reads resolve against the cache instead; anything
-       else is the local directory it has always been. */
-    wgri_fs_set_root(wgr_asset_host_is_url ? wgr_asset_cache_dir : wgr_asset_host);
+       else is a local directory, named as a path or as a file: URL. */
+    snprintf(wgr_asset_local_root, sizeof(wgr_asset_local_root), "%s", wgr_asset_host);
+    if (!wgr_asset_host_is_url && strncmp(wgr_asset_host, "file:", 5) == 0 &&
+        !wgri_asset_file_url_path(wgr_asset_host, wgr_asset_local_root, sizeof(wgr_asset_local_root))) {
+        log_warn("wgr_asset_set_host: %s isn't a file: URL naming a directory on this machine", wgr_asset_host);
+    }
+    wgri_fs_set_root(wgr_asset_host_is_url ? wgr_asset_cache_dir : wgr_asset_local_root);
+#else
+    if (strncmp(wgr_asset_host, "file:", 5) == 0) {
+        log_warn("wgr_asset_set_host: %s: a browser doesn't read file: URLs", wgr_asset_host);
+    }
 #endif
 }
 
@@ -1061,11 +1071,15 @@ bool wgr_asset_ping_host(const char *host, int timeout_ms, wgr_asset_ping_fn on_
     /* desktop: a local directory is there or it isn't. A URL would need a request of
      * its own, which the fetcher hook (files, not round trips) can't make. */
     struct stat st;
-    if (strstr(host, "://") != NULL) {
+    char dir[512];
+    snprintf(dir, sizeof(dir), "%s", host);
+    if (strncmp(host, "file:", 5) == 0 && !wgri_asset_file_url_path(host, dir, sizeof(dir))) {
+        wgr_asset_pings[slot].result = -1.0f; /* not a directory on this machine */
+    } else if (strstr(host, "://") != NULL && strncmp(host, "file:", 5) != 0) {
         log_warn("wgr_asset_ping_host: %s: no host ping on desktop; set a fetcher and time an ensure", host);
         wgr_asset_pings[slot].result = -1.0f;
     } else {
-        wgr_asset_pings[slot].result = stat(host[0] != '\0' ? host : ".", &st) == 0 && S_ISDIR(st.st_mode) ? 0.0f : -1.0f;
+        wgr_asset_pings[slot].result = stat(dir[0] != '\0' ? dir : ".", &st) == 0 && S_ISDIR(st.st_mode) ? 0.0f : -1.0f;
     }
 #endif
     return true;
@@ -1324,6 +1338,178 @@ bool wgri_asset_join_relative(const char *base_path, const char *uri, char *out,
     return count > 0;
 }
 
+static bool starts_with_ci(const char *text, const char *prefix)
+{
+    for (; *prefix != '\0'; text++, prefix++) {
+        if (tolower((unsigned char)*text) != tolower((unsigned char)*prefix)) return false;
+    }
+    return true;
+}
+
+/* How much of `text` is a scheme and its ":" (RFC 3986: a letter, then letters,
+ * digits, "+", "-" or "."), or 0 when it has none. */
+static size_t scheme_length(const char *text)
+{
+    size_t i = 0;
+    if (!isalpha((unsigned char)text[0])) return 0;
+    while (isalnum((unsigned char)text[i]) || text[i] == '+' || text[i] == '-' || text[i] == '.') i++;
+    return text[i] == ':' ? i + 1 : 0;
+}
+
+/* Percent-decode `len` bytes of `text` into `out`; false for a decoded NUL or no room. */
+static bool percent_decode(const char *text, size_t len, char *out, size_t out_size)
+{
+    size_t n = 0;
+    for (size_t i = 0; i < len; i++) {
+        char ch = text[i];
+        if (ch == '%' && i + 2 < len && hex_value(text[i + 1]) >= 0 && hex_value(text[i + 2]) >= 0) {
+            ch = (char)(hex_value(text[i + 1]) * 16 + hex_value(text[i + 2]));
+            i += 2;
+        }
+        if (ch == '\0' || n + 1 >= out_size) return false;
+        out[n++] = ch;
+    }
+    out[n] = '\0';
+    return true;
+}
+
+/* RFC 3986's remove_dot_segments over `path`, appended to `out` at `*pos`. An
+ * absolute path stops ".." at its root; a relative one keeps what climbs above it. */
+static bool remove_dots(const char *path, size_t len, char *out, size_t out_size, size_t *pos)
+{
+    const bool absolute = len > 0 && path[0] == '/';
+    const char *segments[128];
+    size_t lengths[128];
+    int count = 0, above = 0;
+    bool trailing = false;
+
+    for (size_t start = absolute ? 1 : 0; start <= len;) {
+        size_t end = start;
+        while (end < len && path[end] != '/') end++;
+        const size_t n = end - start;
+        if (n == 1 && path[start] == '.') {
+            trailing = end >= len;
+        } else if (n == 2 && path[start] == '.' && path[start + 1] == '.') {
+            if (count > 0) {
+                count--;
+            } else if (!absolute) {
+                above++;
+            }
+            trailing = end >= len;
+        } else {
+            if (count == (int)(sizeof(segments) / sizeof(segments[0]))) return false;
+            segments[count] = path + start;
+            lengths[count++] = n;
+            trailing = false;
+        }
+        start = end + 1;
+    }
+    if (absolute) {
+        if (*pos + 1 >= out_size) return false;
+        out[(*pos)++] = '/';
+    }
+    for (int i = 0; i < above; i++) {
+        if (*pos + 3 >= out_size) return false;
+        memcpy(out + *pos, "../", 3);
+        *pos += 3;
+    }
+    for (int i = 0; i < count; i++) {
+        if (*pos + lengths[i] + 1 >= out_size) return false;
+        if (i > 0) out[(*pos)++] = '/';
+        memcpy(out + *pos, segments[i], lengths[i]);
+        *pos += lengths[i];
+    }
+    if (trailing && count > 0) {
+        if (*pos + 1 >= out_size) return false;
+        out[(*pos)++] = '/';
+    }
+    out[*pos] = '\0';
+    return true;
+}
+
+static bool append(char *out, size_t out_size, size_t *pos, const char *text, size_t len)
+{
+    if (*pos + len >= out_size) return false;
+    memcpy(out + *pos, text, len);
+    *pos += len;
+    out[*pos] = '\0';
+    return true;
+}
+
+wgri_asset_source_t wgri_asset_resolve_source(const char *host, wgri_asset_host_kind_t kind, const char *ref,
+                                              char *out, size_t out_size)
+{
+    char r[1024], merged[1024];
+    size_t pos = 0, path_len, host_len, prefix_len = 0;
+    const size_t host_scheme = host != NULL ? scheme_length(host) : 0;
+
+    if (host == NULL || ref == NULL || ref[0] == '\0' || out == NULL || out_size == 0) return WGRI_SOURCE_REFUSED;
+    out[0] = '\0';
+    if (scheme_length(ref) > 0) {
+        if (kind != WGRI_HOST_BROWSER && !starts_with_ci(ref, "http://") && !starts_with_ci(ref, "https://")) {
+            return WGRI_SOURCE_REFUSED;
+        }
+        return append(out, out_size, &pos, ref, strlen(ref)) ? WGRI_SOURCE_URL : WGRI_SOURCE_REFUSED;
+    }
+    path_len = strcspn(ref, "?#");
+    if (kind == WGRI_HOST_LOCAL) {
+        return percent_decode(ref, path_len, r, sizeof(r)) && wgri_asset_normalize_path(r, out, out_size)
+                   ? WGRI_SOURCE_LOCAL
+                   : WGRI_SOURCE_REFUSED;
+    }
+
+    /* a URL: "\\" is "/" in its path, as the browser reads an http(s) one */
+    if (strlen(ref) >= sizeof(r)) return WGRI_SOURCE_REFUSED;
+    snprintf(r, sizeof(r), "%s", ref);
+    for (size_t i = 0; i < path_len; i++) {
+        if (r[i] == '\\') r[i] = '/';
+    }
+    if (r[0] == '/' && r[1] == '/') { /* another host, on this one's scheme */
+        return append(out, out_size, &pos, host, host_scheme) && append(out, out_size, &pos, r, strlen(r))
+                   ? WGRI_SOURCE_URL
+                   : WGRI_SOURCE_REFUSED;
+    }
+    host_len = strcspn(host, "?#");
+    while (host_len > 0 && host[host_len - 1] == '/') host_len--;
+    if (host_scheme > 0 && strncmp(host + host_scheme, "//", 2) == 0) { /* scheme and authority */
+        const char *slash = memchr(host + host_scheme + 2, '/', host_len - host_scheme - 2);
+        prefix_len = slash != NULL ? (size_t)(slash - host) : host_len;
+    }
+    if (!append(out, out_size, &pos, host, prefix_len)) return WGRI_SOURCE_REFUSED;
+    if (r[0] == '/') {
+        merged[0] = '\0';
+        snprintf(merged, sizeof(merged), "%.*s", (int)path_len, r);
+    } else { /* under the host's path, or on it for a bare query or fragment */
+        const size_t base = host_len - prefix_len;
+        const size_t kept = r[0] == '?' || r[0] == '#' ? 0 : path_len;
+        if (base + kept + 2 >= sizeof(merged)) return WGRI_SOURCE_REFUSED;
+        snprintf(merged, sizeof(merged), "%.*s%s%.*s", (int)base, host + prefix_len,
+                 base > 0 || prefix_len > 0 ? "/" : "", (int)kept, r);
+    }
+    if (!remove_dots(merged, strlen(merged), out, out_size, &pos)) return WGRI_SOURCE_REFUSED;
+    return append(out, out_size, &pos, r + path_len, strlen(r + path_len)) ? WGRI_SOURCE_URL : WGRI_SOURCE_REFUSED;
+}
+
+bool wgri_asset_file_url_path(const char *url, char *out, size_t out_size)
+{
+    const char *path;
+    size_t authority;
+    if (url == NULL || out == NULL || out_size == 0 || !starts_with_ci(url, "file://")) return false;
+    url += 7;
+    authority = strcspn(url, "/");
+    if (authority != 0 && !(authority == 9 && starts_with_ci(url, "localhost"))) {
+        return false; /* another machine's file */
+    }
+    path = url + authority;
+    if (!percent_decode(path, strcspn(path, "?#"), out, out_size)) return false;
+#if defined(_WIN32)
+    if (out[0] == '/' && isalpha((unsigned char)out[1]) && out[2] == ':') {
+        memmove(out, out + 1, strlen(out)); /* "/C:/game" is "C:/game" */
+    }
+#endif
+    return out[0] != '\0';
+}
+
 static bool has_extension(const char *path, const char *extension)
 {
     const size_t path_len = strlen(path), ext_len = strlen(extension);
@@ -1463,7 +1649,8 @@ wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
 {
     wgr_handle_t handle;
     wgr_asset_task_t *task_ptr;
-    char logical[512];
+    char logical[512], source[1024] = "";
+    wgri_asset_source_t found = WGRI_SOURCE_URL;
 
     if (!wgr_asset_ready || path == NULL) {
         return 0;
@@ -1474,6 +1661,19 @@ wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
         return 0;
     }
     path = logical;
+    if (fetch_url != NULL && fetch_url[0] != '\0') {
+#ifdef __EMSCRIPTEN__
+        const wgri_asset_host_kind_t kind = WGRI_HOST_BROWSER;
+#else
+        const wgri_asset_host_kind_t kind = wgr_asset_host_is_url ? WGRI_HOST_URL : WGRI_HOST_LOCAL;
+#endif
+        found = wgri_asset_resolve_source(wgr_asset_host, kind, fetch_url, source, sizeof(source));
+        if (found == WGRI_SOURCE_REFUSED) {
+            log_warn("wgr_asset_ensure_async: %s: %s isn't a source this host can read (a local one has to be a "
+                     "path under the host; a URL, http or https)", path, fetch_url);
+            return 0;
+        }
+    }
     handle = alloc_task();
     if (handle == 0) {
         return 0;
@@ -1482,8 +1682,10 @@ wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
     *task_ptr = (wgr_asset_task_t){0};
     snprintf(task_ptr->origin, sizeof(task_ptr->origin), "%s", path);
     if (fetch_url != NULL) { /* the caller chose the file: no redirects or variants */
-        snprintf(task_ptr->path, sizeof(task_ptr->path), "%s", path);
-        snprintf(task_ptr->fetch_url, sizeof(task_ptr->fetch_url), "%s", fetch_url);
+        /* a local source is read where it is, as a path redirect would; the key is what
+           it is known by (the task's origin), which loaders asking for it are told */
+        snprintf(task_ptr->path, sizeof(task_ptr->path), "%s", found == WGRI_SOURCE_LOCAL ? source : path);
+        snprintf(task_ptr->fetch_url, sizeof(task_ptr->fetch_url), "%s", found == WGRI_SOURCE_LOCAL ? "" : source);
         task_ptr->caller_url = true;
     } else {
         char primary[512], fallback[512] = "";

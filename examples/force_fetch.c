@@ -2,23 +2,23 @@
  * `fetch_url` (per-call source override) and WGR_ASSET_FORCE_FETCH.
  *
  * The asset KEY is a bogus path (nothing exists at host + key, so a plain ensure
- * would just fail), while `fetch_url` points at an explicit source URL and
- * FORCE_FETCH bypasses the cache. On web the bytes are pulled from that URL and
- * cached under the key; on desktop (no network fetcher yet) it falls back to
- * loading the real file locally so the example still plays.
+ * would just fail), while `fetch_url` names where the bytes really are and
+ * FORCE_FETCH bypasses the cache. It is relative, so it is read against the host as
+ * a browser reads a URL against a directory -- the same call on every platform. On
+ * web the bytes are downloaded and cached under the key; on desktop, whose host is a
+ * local directory, the file is read where it is, under the key's name. With a URL
+ * host and a fetcher, desktop would download it as the web does.
  * Press M to toggle the looping music. */
 #include <stddef.h>
-#include <string.h>
 
 #include "wgr.h"
 #include "example_assets.h"
 
 #define INVALID_MUSIC_PATH "music/invalid.mp3" /* intentionally invalid to demonstrate force_fetch */
-/* explicit source URL, used verbatim. Relative to the page, so it works on whatever
- * host serves the site and at whatever depth -- "/assets/..." would be the server root,
- * which is wrong wherever the site isn't at one (GitHub Pages serves a project under
- * /<repo>/). An absolute https://cdn.example/... URL is passed through the same way. */
-#define MUSIC_FORCE_FETCH_PATH "assets/" MUSIC_PATH
+/* where the bytes are, relative to the asset host: under it wherever the site is
+ * served, GitHub Pages' /<repo>/ included. An absolute https://cdn.example/... URL is
+ * used as it is. */
+#define MUSIC_FORCE_FETCH_PATH MUSIC_PATH
 
 static wgr_color_t g_bg;
 static wgr_handle_t g_music;
@@ -45,21 +45,11 @@ static void on_init(void *user_data)
     (void)user_data;
     g_bg = wgr_color_rgba(18, 20, 28, 255);
 
-    if (strcmp(wgr_get_platform(), "web") == 0) {
-        /* Web: demonstrate fetch_url + FORCE_FETCH. The key (INVALID_MUSIC_PATH)
-         * is a bogus path, so the bytes can only come from the explicit
-         * source URL, proving the override is honored and cached under the key. */
-        wgr_asset_add_task(wgr_asset_ensure_async(INVALID_MUSIC_PATH, MUSIC_FORCE_FETCH_PATH,
-                                                WGR_ASSET_FORCE_FETCH),
-                          on_music_loaded, on_failed, NULL);
-        log_info("force_fetch: %s from %s", INVALID_MUSIC_PATH, MUSIC_FORCE_FETCH_PATH);
-    } else {
-        /* Desktop has no network fetcher yet, so fetch_url/FORCE_FETCH are no-ops;
-         * load the real file from the local asset dir so the example still plays. */
-        wgr_asset_add_task(wgr_asset_ensure_async(MUSIC_PATH, NULL, 0),
-                          on_music_loaded, on_failed, NULL);
-        log_info("force_fetch is web-only; loading %s locally on desktop", MUSIC_PATH);
-    }
+    /* The key (INVALID_MUSIC_PATH) is a bogus path, so the bytes can only come from
+     * the explicit source, proving the override is honored. */
+    wgr_asset_add_task(wgr_asset_ensure_async(INVALID_MUSIC_PATH, MUSIC_FORCE_FETCH_PATH, WGR_ASSET_FORCE_FETCH),
+                       on_music_loaded, on_failed, NULL);
+    log_info("force_fetch: %s from %s", INVALID_MUSIC_PATH, MUSIC_FORCE_FETCH_PATH);
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)

@@ -54,8 +54,9 @@ enum {
  * is a fetch origin on both platforms: a missing file is downloaded from it and cached,
  * on the web in the browser's storage (IndexedDB, checked as wgr_asset_set_cache_mode
  * says) and on desktop in the cache directory, by the fetcher below. Anything else is a
- * local directory ("examples/assets"), as it has always been on desktop. Pass the same
- * logical paths everywhere; only the base differs. */
+ * local directory ("examples/assets"), as it has always been on desktop, and a file:
+ * URL ("file:///opt/game/assets") names one too -- on desktop only, since a browser
+ * reads no file: URLs. Pass the same logical paths everywhere; only the base differs. */
 void wgr_asset_set_host(const char *host);
 /* The asset base set with wgr_asset_set_host (without a trailing slash), or "". */
 const char *wgr_asset_get_host(void);
@@ -173,11 +174,17 @@ bool wgr_asset_set_manifest(const char *path);
  *             read as "/", and "." and ".." segments are resolved; a path that is
  *             absolute, names a drive (any ":"), or climbs above the host with ".."
  *             is refused (0).
- *   fetch_url optional per-call override of the download SOURCE only — a URL /
- *             mirror / signed link, used verbatim; bytes are still cached and
- *             resolved under `path`. NULL = use the default host + path. On desktop
- *             it needs a fetcher, but not a URL host: a task told where to download
- *             from downloads from there.
+ *   fetch_url optional per-call override of the SOURCE only — a mirror, a signed
+ *             link, a versioned name; bytes are still cached and resolved under
+ *             `path`. NULL = the default host + path. It is read against the host
+ *             as a browser reads a URL against a directory, on every platform:
+ *             "music/v2/a.mp3" is under the host, "../x" beside it, "/x" at its
+ *             origin's root, and an absolute URL is used as it is.
+ *             On desktop an absolute one has to be http or https, and needs a
+ *             fetcher but not a URL host. Under a local host a relative one is a
+ *             file under it, read where it is (nothing is copied); it is held to
+ *             `path`'s rules, so it can't climb out of the host. Anything else --
+ *             a file: URL, one leaving a local host -- is refused (0).
  *   flags     bitmask of WGR_ASSET_* (e.g. WGR_ASSET_FORCE_FETCH).
  *
  * Returns a task handle (kind ASSET_TASK) to attach callbacks to, or 0. */
