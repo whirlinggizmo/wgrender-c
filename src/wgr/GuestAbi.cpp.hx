@@ -205,14 +205,14 @@ class GuestAbi {
 		Make a file local; the host calls the asset op with `id` when it is.
 
 		`fetchUrl` overrides where the bytes are downloaded from, without changing the
-		key they are cached and resolved under -- a mirror, a CDN, a signed link. It is
-		used verbatim, so a relative URL is relative to the page. `flags` is
-		wgrender's, `ForceFetch` being the one worth knowing: fetch even if the cache
-		already has it.
+		key they are cached and resolved under -- a mirror, a CDN, a signed link. A
+		relative one is read against the asset host, as `Asset.ensureAsync` says.
+		`flags` is wgrender's, `ForceFetch` being the one worth knowing: fetch even if
+		the cache already has it.
 	**/
 	public static function loadAsset(path:String, id:Int, ?fetchUrl:String, ?flags:AssetFlag):Bool {
 		#if !emscripten
-		Asset.needsFetcher(fetchUrl); // a URL source natively wants a downloader
+		Asset.needsFetcher(fetchUrl); // an http(s) source natively wants a downloader
 		#end
 		return GuestRaw.wgr_guest_asset_load(path, id, Native.cstr(fetchUrl),
 			flags == null ? 0 : (flags : Int)) != 0;

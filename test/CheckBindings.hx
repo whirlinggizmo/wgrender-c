@@ -863,6 +863,14 @@ class CheckBindings {
 		check(!AssetTask.isNone(plain), "ensureAsync with no fetch url makes a task");
 		final sourced = Asset.ensureAsync("no/such2.png", "https://example.invalid/no/such2.png");
 		check(!AssetTask.isNone(sourced), "and so does one with a source of its own");
+		#if (sys && !emscripten)
+		// natively a source is http(s), or a path under a local host: nothing a program
+		// is handed can name a local file outside it (the web leaves that to the browser)
+		check(AssetTask.isNone(Asset.ensureAsync("no/such3.png", "file:///etc/passwd")),
+			"a file: URL source is refused");
+		check(AssetTask.isNone(Asset.ensureAsync("no/such3.png", "../outside.png")),
+			"and so is one climbing out of a local host");
+		#end
 
 		// redirects: a URL target is legal on desktop now, not just on the web
 		check(Asset.addRedirect("models/", "https://cdn.example.invalid/models/"),

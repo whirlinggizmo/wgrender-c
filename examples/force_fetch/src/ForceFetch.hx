@@ -7,16 +7,14 @@
 // music plays is the proof the override was honoured, and it is cached under the
 // bogus key afterwards.
 //
-// The URL is the asset base's (wgr.Assets), not the server root's: "/assets/..." would
-// be wrong anywhere the site is not at one -- GitHub Pages serves a project under
-// /<repo>/, and the examples' site keeps the assets beside the pages, not under them.
-// An absolute https://cdn.example/... URL passes through the same way.
-//
-// On desktop the same two overrides go through the fetcher, and the build passes
-// `-D WGR_INCLUDE_FETCHER` so there is one. The host is a URL there, standing in for
-// the page's, so the download lands in the cache directory under the bogus key rather
-// than in the local asset tree. With no network it falls back to the real file from
-// the local asset directory, so the example still plays.
+// The source is relative, so it is read against the asset host as a browser reads a
+// URL against a directory, and the call is the same everywhere: under the page's
+// assets on the web (at a domain root or under GitHub Pages' /<repo>/ alike), under
+// the remote host on desktop, which downloads it through the fetcher the build asks
+// for with `-D WGR_INCLUDE_FETCHER`, into the cache directory under the bogus key.
+// With no network desktop switches to the local asset directory and asks again, and
+// the file is read where it is, still under the bogus key. An absolute
+// https://cdn.example/... source is used as it is.
 //
 // This is the example that widened the guest ABI. `wgr_guest_asset_load` took a path
 // and an id, which is everything the earlier examples need and nothing this one does,
@@ -34,8 +32,8 @@ class ForceFetch {
 	static inline final MUSIC_PATH = "music/a_hero_is_born.mp3";
 	/** Deliberately wrong: nothing is served at host + this, so only the override works. **/
 	static inline final INVALID_MUSIC_PATH = "music/invalid.mp3";
-	/** Where the bytes really are, under the asset base. **/
-	static inline final MUSIC_FETCH_PATH = "music/a_hero_is_born.mp3";
+	/** Where the bytes really are, relative to the asset host. **/
+	static inline final MUSIC_SOURCE = "music/a_hero_is_born.mp3";
 
 	static inline final ASSET_MUSIC = 1;
 
@@ -48,7 +46,6 @@ class ForceFetch {
 	static var background:Color;
 	static var music:Sound;
 	static var musicOn = false;
-	static var source = "";
 	static var offline = false;
 
 	static function main():Void {
@@ -68,32 +65,28 @@ class ForceFetch {
 		if (Wgr.getPlatform() == "web") {
 			Asset.setHost(Assets.defaultBase());
 			Asset.setManifest(Assets.MANIFEST);
-			// The key cannot resolve, so the bytes can only have come from the URL.
-			source = '${Assets.defaultBase()}/$MUSIC_FETCH_PATH';
 		} else {
 			// No manifest: the remote host has none, and a task with a source of its
 			// own isn't checked against one anyway.
 			Asset.setCacheDir(CACHE_DIR);
 			Asset.setHost(REMOTE_HOST);
-			source = '$REMOTE_HOST/$MUSIC_FETCH_PATH';
 		}
-		GuestAbi.loadAsset(INVALID_MUSIC_PATH, ASSET_MUSIC, source, ForceFetch);
-		Log.info('force_fetch: $INVALID_MUSIC_PATH from $source');
+		load();
 	}
 
-	/** Desktop with no network: the real file, from the local asset directory. **/
-	static function playLocal():Void {
-		offline = true;
-		Asset.setHost(Assets.defaultBase());
-		source = '${Assets.defaultBase()}/$MUSIC_PATH';
-		Log.warn('force_fetch: no download, so $MUSIC_PATH locally');
-		GuestAbi.loadAsset(MUSIC_PATH, ASSET_MUSIC);
+	/** The key cannot resolve, so the bytes can only have come from the source. **/
+	static function load():Void {
+		GuestAbi.loadAsset(INVALID_MUSIC_PATH, ASSET_MUSIC, MUSIC_SOURCE, ForceFetch);
+		Log.info('force_fetch: $INVALID_MUSIC_PATH from $MUSIC_SOURCE under ${Asset.getHost()}');
 	}
 
 	static function onAsset(id:Int, path:String, ok:Bool):Void {
 		if (!ok) {
 			if (id == ASSET_MUSIC && !offline && Wgr.getPlatform() != "web") {
-				playLocal();
+				// desktop with no network: the same call, against the local directory
+				offline = true;
+				Asset.setHost(Assets.defaultBase());
+				load();
 				return;
 			}
 			Log.error('load failed: $path');
@@ -128,7 +121,8 @@ class ForceFetch {
 		Text.draw("wgrender + sokol_audio + force_fetch (Haxe guest)", 24, 30, 28, Color.RAYWHITE);
 		Text.draw(music.isNone() ? "music: loading..."
 			: (musicOn ? "music: playing (mp3, looping)" : "music: paused"), 24, 80, 18, Color.SKYBLUE);
-		Text.draw((offline ? "no download; read from " : "downloaded from ") + source, 24, 110, 14, Color.LIGHTGRAY);
+		Text.draw((offline ? "no download; read in place under " : "from ") + '${Asset.getHost()}/$MUSIC_SOURCE', 24,
+			110, 14, Color.LIGHTGRAY);
 		Text.draw("[M] toggle music   [ESC] quit", 24, 150, 16, Color.LIGHTGRAY);
 		Text.drawFps(24, 12);
 		Render.endFrame();

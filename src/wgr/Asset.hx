@@ -57,13 +57,14 @@ class Asset {
 	static var fetcherWarned = false;
 
 	/**
-		A URL on a native build needs a downloader, because wgrender links none.
+		An http(s) URL on a native build needs a downloader, because wgrender links none.
 
-		Every way a URL reaches wgrender passes through here: a URL host, a `fetchUrl`
+		Every way one reaches wgrender passes through here: a URL host, a `fetchUrl`
 		handed to `ensureAsync` or `GuestAbi.loadAsset`, and a redirect whose target is
 		a URL. Those are the only moments a fetcher can be needed, since wgrender
-		consults one only for a URL host or a task with a source of its own
-		(wgr_asset.c). A directory host and plain paths never reach it.
+		consults one only for a URL host or a task with a URL of its own
+		(wgr_asset.c). A local host -- a directory or a file: URL -- and a relative
+		`fetchUrl` under one are read where they are, and never reach it.
 
 		With `-D WGR_INCLUDE_FETCHER` the binding installs `httpFetcher` the first
 		time, unless the program installed its own with `setFetcher` — whichever order
@@ -80,9 +81,15 @@ class Asset {
 		no complaint about the one thing that was missing. Saying it once costs
 		nothing and is the difference between a puzzle and a sentence.
 	**/
+	/** http or https, the only URLs a native build downloads. **/
+	static function isHttp(url:String):Bool {
+		final lower = url == null ? "" : url.toLowerCase();
+		return StringTools.startsWith(lower, "http://") || StringTools.startsWith(lower, "https://");
+	}
+
 	@:allow(wgr.GuestAbi)
 	static function needsFetcher(source:String):Void {
-		if (fetcherInstalled || source == null || source.indexOf("://") < 0)
+		if (fetcherInstalled || !isHttp(source))
 			return;
 		#if WGR_INCLUDE_FETCHER
 		setFetcher(httpFetcher);
@@ -215,14 +222,20 @@ class Asset {
 		`path` is the logical key: the cache path on the web, the read path under the
 		host on desktop, and where a fetched file lands. It stays under the host: "\\"
 		is read as "/", and "." and ".." are resolved; a path that is absolute, names a
-		drive, or climbs above the host is refused (no task). `fetchUrl` overrides only where
-		it downloads *from* — a mirror or a signed link, used verbatim — and leaving it
-		null means the host plus the path, with redirects and per-device variants
-		applied. Null is not the same as "": passing a URL tells wgrender the caller
-		chose this exact file.
+		drive, or climbs above the host is refused (no task).
 
-		On desktop a `fetchUrl` needs a fetcher (`setFetcher`) but not a URL host: a
-		task told where to download from downloads from there.
+		`fetchUrl` overrides only where the bytes come *from* — a mirror, a signed link,
+		a versioned name — and leaving it null means the host plus the path, with
+		redirects and per-device variants applied. Null is not the same as "": passing
+		one tells wgrender the caller chose this exact file.
+
+		It is read against the host as a browser reads a URL against a directory, on
+		every platform: "music/v2/a.mp3" is under the host, "../x" beside it, "/x" at
+		its origin's root, and an absolute URL is used as it is. On desktop an absolute
+		one has to be http or https, and needs a fetcher (`setFetcher`) but not a URL
+		host. Under a local host a relative one is a file under it, read where it is;
+		it is held to `path`'s rules, so it can't climb out. A `fetchUrl` that is
+		refused — a file: URL, one leaving a local host — means no task.
 	**/
 	public static function ensureAsync(path:String, ?fetchUrl:String, ?flags:AssetFlag):AssetTask {
 		#if (sys && !emscripten)
@@ -338,6 +351,10 @@ class Asset {
 	static function download(url:String, destPath:String):Bool {
 		var at = url;
 		for (_ in 0...MAX_REDIRECTS + 1) {
+			// a browser's fetch fails a redirect anywhere else too; and haxe.Http would
+			// read "file" in file:///x as a host name
+			if (!isHttp(at))
+				return fetchFailed(url, at, 'not an http or https URL');
 			var status = 0;
 			var body:haxe.io.Bytes = null;
 			var failure:String = null;
