@@ -3,6 +3,7 @@ package wgr;
 // wgr_window.h
 
 /** Window flags, or-ed together: `Msaa4x | Resizable`. **/
+@:using(wgr.WindowFlag)
 enum abstract WindowFlag(Int) to Int {
 	var Fullscreen = 0x00000002;
 	var Resizable = 0x00000004;

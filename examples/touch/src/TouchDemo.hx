@@ -76,14 +76,14 @@ class TouchDemo {
 		}
 		switch (id) {
 			case LOGO_ID:
-				logo = Sprite2D.create(Texture.create(path));
-				Sprite2D.setSize(logo, 240, 240);
+				logo = new Sprite2D(new Texture(path));
+				logo.setSize(240, 240);
 			case TILES_ID:
-				final texture = Texture.create(path);
-				Texture.setSampling(texture, Clamp, Clamp, Nearest);
-				tile = Sprite2D.create(texture);
-				Sprite2D.setSource(tile, 32, 16, 16, 16); // the coin
-				Sprite2D.setSize(tile, 96, 96);
+				final texture = new Texture(path);
+				texture.setSampling(Clamp, Clamp, Nearest);
+				tile = new Sprite2D(texture);
+				tile.setSource(32, 16, 16, 16); // the coin
+				tile.setSize(96, 96);
 		}
 	}
 
@@ -138,28 +138,28 @@ class TouchDemo {
 
 		Render.beginFrame();
 		Render.clearBackground(Color.rgba(22, 25, 33, 255));
-		if (!Sprite2D.isNone(logo)) {
-			Sprite2D.setPosition(logo, new Vec2(logoX, logoY));
-			Sprite2D.setScale(logo, new Vec2(logoScale, logoScale));
-			Sprite2D.setRotation(logo, logoRotation);
-			Sprite2D.draw(logo);
+		if (!logo.isNone()) {
+			logo.setPosition(logoX, logoY);
+			logo.setScale(logoScale, logoScale);
+			logo.setRotation(logoRotation);
+			logo.draw();
 		}
-		if (!Sprite2D.isNone(tile)) {
-			Sprite2D.setPosition(tile, new Vec2(tileX, tileY));
-			Sprite2D.setTint(tile, dragging ? Color.rgba(255, 230, 150, 255) : Color.WHITE);
-			Sprite2D.draw(tile);
+		if (!tile.isNone()) {
+			tile.setPosition(tileX, tileY);
+			tile.setTint(dragging ? Color.rgba(255, 230, 150, 255) : Color.WHITE);
+			tile.draw();
 		}
 		for (i in 0...Input.MAX_TOUCHES) {
 			if (lifted[i][2] > 0.0)
 				Shape2D.drawCircleLines(new Vec2(lifted[i][0], lifted[i][1]), RING * (2.0 - lifted[i][2]),
-					Color.withAlpha(colors[i], Std.int(200 * lifted[i][2])));
+					colors[i].withAlpha(Std.int(200 * lifted[i][2])));
 		}
 		for (i in 0...count) {
 			final touch = Input.getTouch(i);
 			if (touch.state == ButtonState.Released)
 				continue;
 			final at = new Vec2(touch.x, touch.y);
-			Shape2D.drawCircle(at, RING, Color.withAlpha(colors[touch.id], 90));
+			Shape2D.drawCircle(at, RING, colors[touch.id].withAlpha(90));
 			Shape2D.drawCircleLines(at, RING, colors[touch.id]);
 			Text.draw(Std.string(touch.id), Std.int(touch.x) - 6, Std.int(touch.y - RING) - 26, 22, colors[touch.id]);
 		}

@@ -3,6 +3,7 @@ package wgr;
 // wgr_sprite3d.h — a Texture placed in the 3D scene
 
 /** A `Texture` placed in the 3D scene, with its own transform, tint and facing. **/
+@:using(wgr.Sprite3D)
 abstract Sprite3D(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -10,6 +11,10 @@ abstract Sprite3D(Handle) from Handle to Handle {
 	/** Whether this refers to nothing; tolerates a field never assigned, on js. **/
 	public static inline function isNone(sprite3D:Sprite3D):Bool
 		return (sprite3D : Handle).isNone;
+
+	/** `new Sprite3D(...)` is `Sprite3D.create(...)`, the same call. **/
+	public inline function new(texture:Texture)
+		this = create(texture);
 
 	/** The sprite takes its own reference to `texture`. **/
 	public static inline function create(texture:Texture):Sprite3D
@@ -81,15 +86,27 @@ abstract Sprite3D(Handle) from Handle to Handle {
 			scale.y, scale.z);
 
 	/** One part of the transform, leaving the others as they are. **/
-	public static inline function setPosition(sprite3D:Sprite3D, value:Vec3):Bool
+	public static overload extern inline function setPosition(sprite3D:Sprite3D, value:Vec3):Bool
 		return Raw.wgr_sprite3d_set_position(sprite3D, value.x, value.y, value.z);
 
+	/** The same, without a `Vec3`. **/
+	public static overload extern inline function setPosition(sprite3D:Sprite3D, x:Float, y:Float, z:Float):Bool
+		return Raw.wgr_sprite3d_set_position(sprite3D, x, y, z);
+
 	/** Radians. **/
-	public static inline function setRotation(sprite3D:Sprite3D, value:Vec3):Bool
+	public static overload extern inline function setRotation(sprite3D:Sprite3D, value:Vec3):Bool
 		return Raw.wgr_sprite3d_set_rotation(sprite3D, value.x, value.y, value.z);
 
-	public static inline function setScale(sprite3D:Sprite3D, value:Vec3):Bool
+	/** The same, without a `Vec3`. **/
+	public static overload extern inline function setRotation(sprite3D:Sprite3D, x:Float, y:Float, z:Float):Bool
+		return Raw.wgr_sprite3d_set_rotation(sprite3D, x, y, z);
+
+	public static overload extern inline function setScale(sprite3D:Sprite3D, value:Vec3):Bool
 		return Raw.wgr_sprite3d_set_scale(sprite3D, value.x, value.y, value.z);
+
+	/** The same, without a `Vec3`. **/
+	public static overload extern inline function setScale(sprite3D:Sprite3D, x:Float, y:Float, z:Float):Bool
+		return Raw.wgr_sprite3d_set_scale(sprite3D, x, y, z);
 
 	/** The sprite takes its own reference; a none texture leaves it with nothing to draw. **/
 	public static inline function setTexture(sprite3D:Sprite3D, texture:Texture):Bool
@@ -113,8 +130,16 @@ abstract Sprite3D(Handle) from Handle to Handle {
 		down the texture, so (0.5, 1) puts the position at the bottom edge, which is
 		what a sprite standing on the ground wants.
 	**/
-	public static inline function setPivot(sprite3D:Sprite3D, x:Float, y:Float):Bool
+	public static overload extern inline function setPivot(sprite3D:Sprite3D, x:Float, y:Float):Bool
 		return Raw.wgr_sprite3d_set_pivot(sprite3D, x, y);
+
+	/** The same, as a `Vec2`. **/
+	public static overload extern inline function setPivot(sprite3D:Sprite3D, pivot:Vec2):Bool
+		return Raw.wgr_sprite3d_set_pivot(sprite3D, pivot.x, pivot.y);
+
+	/** The pivot, as set; (0.5, 0.5) by default. **/
+	public static inline function getPivot(sprite3D:Sprite3D):Vec2
+		return Vec2.of(Raw.wgr_sprite3d_get_pivot(sprite3D));
 
 	/**
 		How it uses its texture's alpha; `Blend` by default. In a scene, blended sprites

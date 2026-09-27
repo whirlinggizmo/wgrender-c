@@ -86,20 +86,20 @@ class Tilemap {
 
 		centreX = WORLD_W * 0.5;
 		centreY = WORLD_H * 0.5;
-		camera = Camera3D.create(Orthographic);
+		camera = new Camera3D(Orthographic);
 		placeCamera();
 
-		scene = Scene.create();
-		Scene.setActiveCamera(scene, camera);
-		Scene.setInteractive(scene, true);
+		scene = new Scene();
+		scene.setActiveCamera(camera);
+		scene.setInteractive(true);
 
 		if (!GuestAbi.loadAsset(TILES_PATH, ASSET_TILES))
 			Log.error('failed to queue asset: $TILES_PATH');
 	}
 
 	static function placeCamera():Void {
-		Camera3D.setView(camera, new Vec3(centreX, centreY, 10.0), new Vec3(centreX, centreY, 0.0));
-		Camera3D.setOrthoHeight(camera, zoom);
+		camera.setView(new Vec3(centreX, centreY, 10.0), new Vec3(centreX, centreY, 0.0));
+		camera.setOrthoHeight(zoom);
 	}
 
 	/** A small hand-made map: water along the bottom, a sand shore, stone paths. **/
@@ -119,14 +119,14 @@ class Tilemap {
 	**/
 	static function addSprite(cell:Array<Float>, x:Float, y:Float, z:Float, width:Float, height:Float, pivotY:Float,
 			layer:Int):Sprite3D {
-		final sprite = Sprite3D.create(texture);
-		Sprite3D.setFacing(sprite, Free);
-		Sprite3D.setSource(sprite, cell[0], cell[1], cell[2], cell[3]);
-		Sprite3D.setExtent(sprite, width, height);
-		Sprite3D.setPivot(sprite, 0.5, pivotY);
-		Sprite3D.setPosition(sprite, new Vec3(x, y, z));
-		Sprite3D.setAlphaMode(sprite, layer == LAYER_GROUND ? Opaque : Mask, 0.5);
-		Scene.add(scene, sprite, layer);
+		final sprite = new Sprite3D(texture);
+		sprite.setFacing(Free);
+		sprite.setSource(cell[0], cell[1], cell[2], cell[3]);
+		sprite.setExtent(width, height);
+		sprite.setPivot(0.5, pivotY);
+		sprite.setPosition(x, y, z);
+		sprite.setAlphaMode(layer == LAYER_GROUND ? Opaque : Mask, 0.5);
+		scene.add(sprite, layer);
 		return sprite;
 	}
 
@@ -134,10 +134,10 @@ class Tilemap {
 		// The pivot is the bottom edge, so a prop stands on its cell whatever its height.
 		final prop = addSprite(cell, x, y - 0.5, 0.1, width, height, 1.0, LAYER_PROPS);
 		if (coin) {
-			Sprite3D.setPickAlphaTest(prop, true, 0.5);
+			prop.setPickAlphaTest(true, 0.5);
 			coins.push(prop);
 		} else {
-			Sprite3D.setPickable(prop, false);
+			prop.setPickable(false);
 		}
 	}
 
@@ -148,9 +148,9 @@ class Tilemap {
 		}
 		if (id != ASSET_TILES)
 			return;
-		texture = Texture.create(path);
+		texture = new Texture(path);
 		// pixel art: keep the texels crisp when zoomed in
-		Texture.setSampling(texture, Clamp, Clamp, Nearest);
+		texture.setSampling(Clamp, Clamp, Nearest);
 		buildWorld();
 		loaded = true;
 	}
@@ -162,7 +162,7 @@ class Tilemap {
 				// an edge landing exactly on a pixel boundary shows the background
 				// through as a hairline seam.
 				final tile = addSprite(tileAt(x, y), x + 0.5, y + 0.5, 0.0, 1.01, 1.01, 0.5, LAYER_GROUND);
-				Sprite3D.setPickable(tile, false);
+				tile.setPickable(false);
 			}
 		}
 		for (i in 0...7) // trees: 16x32 cells drawn 1x2
@@ -200,11 +200,11 @@ class Tilemap {
 	/** Hover lights a coin up, a click collects it -- both from the scene, not a pick. **/
 	static function updateCoins():Void {
 		for (coin in coins) {
-			final hover = Scene.getHover(scene, coin);
-			Sprite3D.setTint(coin, hover == Pressed || hover == Down ? highlight : Color.WHITE);
-			if (Scene.isClicked(scene, coin)) {
-				Sprite3D.setVisible(coin, false);
-				Sprite3D.setPickable(coin, false);
+			final hover = scene.getHover(coin);
+			coin.setTint(hover == Pressed || hover == Down ? highlight : Color.WHITE);
+			if (scene.isClicked(coin)) {
+				coin.setVisible(false);
+				coin.setPickable(false);
 				collected++;
 			}
 		}
@@ -224,7 +224,7 @@ class Tilemap {
 
 		Render.beginFrame();
 		Render.clearBackground(background);
-		Scene.draw(scene);
+		scene.draw();
 		Render.beginMode2D(); // back to screen space for the HUD
 		Shape2D.drawRectangle(0, 0, screen.x, 88, shade);
 		Text.draw("wgrender tilemap: an orthographic camera over sprite3d tiles", 20, 20, 20, textColor);

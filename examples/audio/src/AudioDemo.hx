@@ -1,6 +1,6 @@
 // wgrender's audio example, as a Haxe guest: looping mp3 music and a one-shot ogg.
 //
-// A port of examples/audio.c. Each file is made local, then `Audio.create(path)`
+// A port of examples/audio.c. Each file is made local, then `new Audio(path)`
 // makes the shared resource and a `Sound` plays it -- the music (over 1 MB) streamed, the
 // small click decoded up front.
 //
@@ -64,37 +64,37 @@ class AudioDemo {
 			Log.error('load failed: $path');
 			return;
 		}
-		final audio = Audio.create(path);
-		final sound = Sound.create(audio);
-		Audio.release(audio); // the sound holds its own reference
+		final audio = new Audio(path);
+		final sound = new Sound(audio);
+		audio.release(); // the sound holds its own reference
 		switch id {
 			case ASSET_MUSIC:
 				music = sound;
-				Sound.setVolume(music, 0.5);
-				Sound.setLoop(music, true); // "music" is just a looping sound
-				Sound.play(music);
+				music.setVolume(0.5);
+				music.setLoop(true); // "music" is just a looping sound
+				music.play();
 				musicOn = true;
 
 			case ASSET_CLICK:
 				click = sound;
-				Sound.setVolume(click, 1.0);
+				click.setVolume(1.0);
 		}
 	}
 
 	static function handleKeys():Void {
 		final keys = Input.getKeyboardState();
 
-		if (keys.isPressed(Space) && !Sound.isNone(click))
-			Sound.play(click);
+		if (keys.isPressed(Space) && !click.isNone())
+			click.play();
 		if (keys.isPressed(S)) {
 			final until = Wgr.getTime() + STALL; // a deliberately slow frame
 			while (Wgr.getTime() < until) {}
 		}
-		if (keys.isPressed(M) && !Sound.isNone(music)) {
+		if (keys.isPressed(M) && !music.isNone()) {
 			if (musicOn)
-				Sound.pause(music);
+				music.pause();
 			else
-				Sound.resume(music);
+				music.resume();
 			musicOn = !musicOn;
 		}
 		if (keys.isPressed(Escape))
@@ -107,9 +107,9 @@ class AudioDemo {
 		Render.beginFrame();
 		Render.clearBackground(background);
 		Text.draw("wgrender + sokol_audio (Haxe guest)", 24, 30, 28, Color.RAYWHITE);
-		Text.draw(Sound.isNone(music) ? "music: loading..."
+		Text.draw(music.isNone() ? "music: loading..."
 			: (musicOn ? "music: playing (mp3, streamed, looping)" : "music: paused"), 24, 80, 18, Color.SKYBLUE);
-		Text.draw(Sound.isNone(click) ? "click: loading..." : "click: ready (ogg)", 24, 110, 18, Color.LIME);
+		Text.draw(click.isNone() ? "click: loading..." : "click: ready (ogg)", 24, 110, 18, Color.LIME);
 		Text.draw("[SPACE] play click   [M] toggle music   [S] stall 300 ms   [ESC] quit", 24, 150, 16,
 			Color.LIGHTGRAY);
 		Text.drawFps(24, 12);

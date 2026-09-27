@@ -3,6 +3,7 @@ package wgr;
 // wgr_sound.h — a playable instance of an Audio
 
 /** A playing (or playable) instance of an `Audio`, with its own state. **/
+@:using(wgr.Sound)
 abstract Sound(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -10,6 +11,10 @@ abstract Sound(Handle) from Handle to Handle {
 	/** Whether this refers to nothing; tolerates a field never assigned, on js. **/
 	public static inline function isNone(sound:Sound):Bool
 		return (sound : Handle).isNone;
+
+	/** `new Sound(...)` is `Sound.create(...)`, the same call. **/
+	public inline function new(audio:Audio)
+		this = create(audio);
 
 	/** The sound takes its own reference to `audio`. **/
 	public static inline function create(audio:Audio):Sound

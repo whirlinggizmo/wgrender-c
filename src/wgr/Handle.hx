@@ -3,6 +3,7 @@ package wgr;
 // wgr_handle.h — the untyped handle every typed kind is an abstract over
 
 /** An untyped wgrender handle (what a pick result hits); 0 is none. **/
+@:using(wgr.Handle)
 abstract Handle(Int) from Int to Int {
 	/**
 		The zero handle — "nothing", and a value you pass on purpose.

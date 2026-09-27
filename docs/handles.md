@@ -90,7 +90,8 @@ So dropping the abstracts does not fix it, and all four columns need the same fr
 `isNone` / `isValid` inline. `wgr.Handle.isNone` carries the `== null` tolerance for
 this reason, and any flat replacement has to keep it -- flattening loses the
 discoverability of `m.isNone` after a dot, not the correctness, provided the free form
-tolerates `null` the same way.
+tolerates `null` the same way. (Declaring each kind `@:using` itself, since, puts the
+dot back: `m.isNone()` is `Model.isNone(m)`, with nothing to import.)
 
 ## What types cannot catch
 
@@ -202,7 +203,8 @@ Two Nim-specific costs:
 
 And Nim's UFCS means the flat statics read as methods for free — `setRoughness(m, 0.5)`
 and `m.setRoughness(0.5)` are the same call — so flattening costs nothing in
-readability there.
+readability there. Haxe gets the same from `@:using` on each kind, declared once in
+the binding rather than at every call site.
 
 For contrast, librl's Nim binding today is `RLHandle* = uint32`, a plain alias: colors
 and models share one type and nothing is caught until C sees it. librl's Haxe binding

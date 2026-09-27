@@ -14,6 +14,7 @@ package wgr;
 	directly, in call order. A sprite with no texture, or one still loading, is
 	neither drawn nor picked.
 **/
+@:using(wgr.Sprite2D)
 abstract Sprite2D(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -21,6 +22,10 @@ abstract Sprite2D(Handle) from Handle to Handle {
 	/** Whether this refers to nothing; tolerates a field never assigned, on js. **/
 	public static inline function isNone(sprite2D:Sprite2D):Bool
 		return (sprite2D : Handle).isNone;
+
+	/** `new Sprite2D(...)` is `Sprite2D.create(...)`, the same call. **/
+	public inline function new(texture:Texture)
+		this = create(texture);
 
 	/** `texture` may be none and set later with `setTexture`. **/
 	public static inline function create(texture:Texture):Sprite2D
@@ -31,16 +36,24 @@ abstract Sprite2D(Handle) from Handle to Handle {
 		return Raw.wgr_sprite2d_set_transform(sprite2D, position.x, position.y, rotation, scale.x, scale.y);
 
 	/** One part of the transform, leaving the others as they are. Where the pivot goes, in logical pixels. **/
-	public static inline function setPosition(sprite2D:Sprite2D, value:Vec2):Bool
+	public static overload extern inline function setPosition(sprite2D:Sprite2D, value:Vec2):Bool
 		return Raw.wgr_sprite2d_set_position(sprite2D, value.x, value.y);
+
+	/** The same, without a `Vec2`. **/
+	public static overload extern inline function setPosition(sprite2D:Sprite2D, x:Float, y:Float):Bool
+		return Raw.wgr_sprite2d_set_position(sprite2D, x, y);
 
 	/** Radians around the pivot; positive turns clockwise, since y points down. **/
 	public static inline function setRotation(sprite2D:Sprite2D, value:Float):Bool
 		return Raw.wgr_sprite2d_set_rotation(sprite2D, value);
 
 	/** Multiplies the size. A negative component flips it on that axis. **/
-	public static inline function setScale(sprite2D:Sprite2D, value:Vec2):Bool
+	public static overload extern inline function setScale(sprite2D:Sprite2D, value:Vec2):Bool
 		return Raw.wgr_sprite2d_set_scale(sprite2D, value.x, value.y);
+
+	/** The same, without a `Vec2`. **/
+	public static overload extern inline function setScale(sprite2D:Sprite2D, x:Float, y:Float):Bool
+		return Raw.wgr_sprite2d_set_scale(sprite2D, x, y);
 
 	/** Where the pivot is, as last set. **/
 	public static inline function getPosition(sprite2D:Sprite2D):Vec2
@@ -115,8 +128,16 @@ abstract Sprite2D(Handle) from Handle to Handle {
 		the sprite** rather than in pixels: (0, 0) is its top-left and (1, 1) its
 		bottom-right. Default (0.5, 0.5), the center.
 	**/
-	public static inline function setPivot(sprite2D:Sprite2D, x:Float, y:Float):Bool
+	public static overload extern inline function setPivot(sprite2D:Sprite2D, x:Float, y:Float):Bool
 		return Raw.wgr_sprite2d_set_pivot(sprite2D, x, y);
+
+	/** The same, as a `Vec2`. **/
+	public static overload extern inline function setPivot(sprite2D:Sprite2D, pivot:Vec2):Bool
+		return Raw.wgr_sprite2d_set_pivot(sprite2D, pivot.x, pivot.y);
+
+	/** The pivot, as set; (0.5, 0.5) by default. **/
+	public static inline function getPivot(sprite2D:Sprite2D):Vec2
+		return Vec2.of(Raw.wgr_sprite2d_get_pivot(sprite2D));
 
 	/**
 		Nine-slice: borders in source pixels that keep their size when the sprite is

@@ -7,6 +7,7 @@ package wgr;
 	draw immediately in logical pixels with a top-left origin, an instance is a scene
 	object with its own transform, pivot and outline.
 **/
+@:using(wgr.Shape2D)
 abstract Shape2D(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -14,6 +15,10 @@ abstract Shape2D(Handle) from Handle to Handle {
 	/** Whether this refers to nothing; tolerates a field never assigned, on js. **/
 	public static inline function isNone(shape2D:Shape2D):Bool
 		return (shape2D : Handle).isNone;
+
+	/** `new Shape2D()` is `Shape2D.create()`, the same call. **/
+	public inline function new()
+		this = create();
 
 	public static inline function create():Shape2D
 		return (Raw.wgr_shape2d_create() : Handle);
@@ -36,16 +41,24 @@ abstract Shape2D(Handle) from Handle to Handle {
 		return Raw.wgr_shape2d_set_transform(shape2D, position.x, position.y, rotation, scale.x, scale.y);
 
 	/** One part of the transform, leaving the others as they are. Where the pivot goes. **/
-	public static inline function setPosition(shape2D:Shape2D, value:Vec2):Bool
+	public static overload extern inline function setPosition(shape2D:Shape2D, value:Vec2):Bool
 		return Raw.wgr_shape2d_set_position(shape2D, value.x, value.y);
+
+	/** The same, without a `Vec2`. **/
+	public static overload extern inline function setPosition(shape2D:Shape2D, x:Float, y:Float):Bool
+		return Raw.wgr_shape2d_set_position(shape2D, x, y);
 
 	/** Radians around the pivot; positive turns clockwise, since y points down. **/
 	public static inline function setRotation(shape2D:Shape2D, value:Float):Bool
 		return Raw.wgr_shape2d_set_rotation(shape2D, value);
 
 	/** Multiplies the size. A negative component flips it on that axis. **/
-	public static inline function setScale(shape2D:Shape2D, value:Vec2):Bool
+	public static overload extern inline function setScale(shape2D:Shape2D, value:Vec2):Bool
 		return Raw.wgr_shape2d_set_scale(shape2D, value.x, value.y);
+
+	/** The same, without a `Vec2`. **/
+	public static overload extern inline function setScale(shape2D:Shape2D, x:Float, y:Float):Bool
+		return Raw.wgr_shape2d_set_scale(shape2D, x, y);
 
 	/** Where the pivot is, as last set. **/
 	public static inline function getPosition(shape2D:Shape2D):Vec2
@@ -67,8 +80,16 @@ abstract Shape2D(Handle) from Handle to Handle {
 		centre — so nothing moves until one is set. Lines have explicit endpoints and
 		ignore it.
 	**/
-	public static inline function setPivot(shape2D:Shape2D, pivot:Vec2):Bool
+	public static overload extern inline function setPivot(shape2D:Shape2D, pivot:Vec2):Bool
 		return Raw.wgr_shape2d_set_pivot(shape2D, pivot.x, pivot.y);
+
+	/** The same, without a `Vec2`. **/
+	public static overload extern inline function setPivot(shape2D:Shape2D, x:Float, y:Float):Bool
+		return Raw.wgr_shape2d_set_pivot(shape2D, x, y);
+
+	/** The pivot in effect: before `setPivot`, the kind's own origin -- (0, 0) for a rectangle, (0.5, 0.5) for a circle. **/
+	public static inline function getPivot(shape2D:Shape2D):Vec2
+		return Vec2.of(Raw.wgr_shape2d_get_pivot(shape2D));
 
 	public static inline function setColor(shape2D:Shape2D, value:Color):Bool
 		return Raw.wgr_shape2d_set_color(shape2D, value);

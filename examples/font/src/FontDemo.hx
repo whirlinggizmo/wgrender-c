@@ -63,39 +63,39 @@ class FontDemo {
 			return;
 		}
 		switch id {
-			case ASSET_MONO: mono = Font.create(path);
-			case ASSET_KOMIKA: komika = Font.create(path);
+			case ASSET_MONO: mono = new Font(path);
+			case ASSET_KOMIKA: komika = new Font(path);
 		}
 	}
 
 	static function drawTitle():Void {
-		if (Font.isNone(komika))
+		if (komika.isNone())
 			return;
 		final screen = Window.getScreenSize();
-		final size = Font.measure(komika, TITLE, TITLE_SIZE);
-		Font.draw(komika, TITLE, (screen.x - size.x) * 0.5, 90.0, TITLE_SIZE, Color.DARKBLUE);
+		final size = komika.measure(TITLE, TITLE_SIZE);
+		komika.draw(TITLE, (screen.x - size.x) * 0.5, 90.0, TITLE_SIZE, Color.DARKBLUE);
 	}
 
 	static function drawSamples():Void {
-		if (Font.isNone(mono)) {
+		if (mono.isNone()) {
 			Text.draw("loading fonts...", 40, 200, 20, Color.GRAY);
 			return;
 		}
-		Font.draw(mono, "The quick brown fox jumps over the lazy dog.", 40, 200, 28, Color.BLACK);
-		Font.draw(mono, "scalable, anti-aliased TrueType glyphs", 40, 250, 20, Color.DARKGRAY);
-		Font.draw(mono, "0123456789  !@#$%^&*()  +-*/=", 40, 290, 24, Color.MAROON);
+		mono.draw("The quick brown fox jumps over the lazy dog.", 40, 200, 28, Color.BLACK);
+		mono.draw("scalable, anti-aliased TrueType glyphs", 40, 250, 20, Color.DARKGRAY);
+		mono.draw("0123456789  !@#$%^&*()  +-*/=", 40, 290, 24, Color.MAROON);
 	}
 
 	static function onFrame(dt:Float):Void {
 		final keys = Input.getKeyboardState();
-		if (keys.isPressed(D) && !Font.isNone(komika))
-			Text.setDefaultFont(Font.isNone(Text.getDefaultFont()) ? komika : Handle.NONE);
+		if (keys.isPressed(D) && !komika.isNone())
+			Text.setDefaultFont(Text.getDefaultFont().isNone() ? komika : Handle.NONE);
 
 		Render.beginFrame();
 		Render.clearBackground(background);
 		drawTitle();
 		drawSamples();
-		Text.draw(Font.isNone(Text.getDefaultFont()) ? "[D] default font: built in   {a|b} ~ \\ ^_`"
+		Text.draw(Text.getDefaultFont().isNone() ? "[D] default font: built in   {a|b} ~ \\ ^_`"
 			: "[D] default font: Komika   {a|b} ~ \\ ^_`", 40, 360, 16, Color.DARKGREEN);
 		Text.drawFps(12, 12);
 		Render.endFrame();

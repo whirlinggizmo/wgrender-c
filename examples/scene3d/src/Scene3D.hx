@@ -40,31 +40,31 @@ class Scene3D {
 	static function onInit():Void {
 		background = Color.rgba(24, 26, 34, 255);
 		target = new Vec3(0, 1.0, 0);
-		camera = Camera3D.create(Perspective);
-		Camera3D.setView(camera, new Vec3(16.0, 11.0, 16.0), target);
-		scene = Scene.create();
-		Scene.setActiveCamera(scene, camera);
+		camera = new Camera3D(Perspective);
+		camera.setView(new Vec3(16.0, 11.0, 16.0), target);
+		scene = new Scene();
+		scene.setActiveCamera(camera);
 
 		for (i in 0...RING) {
 			final a = i * 2 * Math.PI / RING;
-			final cube = Shape3D.create();
-			Shape3D.setCube(cube, new Vec3(1.5, 1.5, 1.5));
-			Shape3D.setTransform(cube, new Vec3(Math.cos(a) * 6.0, 0.75, Math.sin(a) * 6.0), new Vec3(0, a, 0), Vec3.ONE);
-			Shape3D.setColor(cube, defaultColorFor(i));
-			Scene.add(scene, cube);
+			final cube = new Shape3D();
+			cube.setCube(new Vec3(1.5, 1.5, 1.5));
+			cube.setTransform(new Vec3(Math.cos(a) * 6.0, 0.75, Math.sin(a) * 6.0), new Vec3(0, a, 0), Vec3.ONE);
+			cube.setColor(defaultColorFor(i));
+			scene.add(cube);
 			ring.push(cube);
 		}
 
-		sphere = Shape3D.create();
-		Shape3D.setSphere(sphere, 1.5);
-		Shape3D.setPosition(sphere, new Vec3(0, 2.5, 0));
-		Shape3D.setColor(sphere, Color.GOLD);
-		Scene.add(scene, sphere);
+		sphere = new Shape3D();
+		sphere.setSphere(1.5);
+		sphere.setPosition(0, 2.5, 0);
+		sphere.setColor(Color.GOLD);
+		scene.add(sphere);
 
-		spinner = Shape3D.create();
-		Shape3D.setCube(spinner, new Vec3(2.0, 2.0, 2.0));
-		Shape3D.setColor(spinner, Color.LIME);
-		Scene.add(scene, spinner, 1); // layer 1: over the rest
+		spinner = new Shape3D();
+		spinner.setCube(new Vec3(2.0, 2.0, 2.0));
+		spinner.setColor(Color.LIME);
+		scene.add(spinner, 1); // layer 1: over the rest
 
 		Debug.enableFps(12, 10, 16);
 	}
@@ -87,22 +87,22 @@ class Scene3D {
 	static function select(hit:Shape3D):Void {
 		if (hit == selected)
 			return;
-		if (!Shape3D.isNone(selected))
-			Shape3D.setColor(selected, restingColor(selected));
+		if (!selected.isNone())
+			selected.setColor(restingColor(selected));
 		selected = hit;
-		if (!Shape3D.isNone(selected))
-			Shape3D.setColor(selected, Color.RAYWHITE);
+		if (!selected.isNone())
+			selected.setColor(Color.RAYWHITE);
 	}
 
 	static function onFrame(dt:Float):Void {
 		final t = Wgr.getTime();
 		final mouse = Input.getMouseState();
 
-		Camera3D.setView(camera, new Vec3(Math.cos(t * 0.35) * 18.0, 11.0, Math.sin(t * 0.35) * 18.0), target);
-		Shape3D.setTransform(spinner, new Vec3(0, 5.0, 0), new Vec3(t * 1.3, t * 0.9, 0), Vec3.ONE);
+		camera.setView(new Vec3(Math.cos(t * 0.35) * 18.0, 11.0, Math.sin(t * 0.35) * 18.0), target);
+		spinner.setTransform(new Vec3(0, 5.0, 0), new Vec3(t * 1.3, t * 0.9, 0), Vec3.ONE);
 
 		if (mouse.left == ButtonState.Pressed) {
-			final pick = Scene.pick(scene, mouse.x, mouse.y);
+			final pick = scene.pick(mouse.x, mouse.y);
 			// A pick gives an untyped Handle; it compares to a typed one as it is.
 			select(pick.hit ? pick.handle : Handle.NONE);
 		}
@@ -114,11 +114,11 @@ class Scene3D {
 		Shape3D.drawGrid(24, 1.0, Color.DARKGRAY);
 		Render.endMode3D();
 
-		Scene.draw(scene);
+		scene.draw();
 
 		Text.draw("wgrender + sokol — scene pick", 12, 36, 24, Color.RAYWHITE);
 		Text.draw("click a shape to select it", 12, 70, 16, Color.LIGHTGRAY);
-		Text.draw(Shape3D.isNone(selected) ? "selected: none" : 'selected handle: $selected', 12, 94, 16, Color.LIGHTGRAY);
+		Text.draw(selected.isNone() ? "selected: none" : 'selected handle: $selected', 12, 94, 16, Color.LIGHTGRAY);
 		Render.endFrame();
 
 		if (Input.isKeyPressed(Escape))

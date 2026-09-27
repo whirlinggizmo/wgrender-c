@@ -8,15 +8,18 @@ package wgr;
 	Every operation is a static taking the handle, named after the C call it makes:
 	`wgr_model_set_tint` is `Model.setTint`, `wgr_model_is_visible` is
 	`Model.isVisible`. Each C call has exactly one member, which is what lets a
-	binding be audited mechanically and what keeps four bindings in step.
+	binding be audited mechanically and what keeps four bindings in step. The type
+	is `@:using` itself, so each is also a method: `model.setTint(c)` is
+	`Model.setTint(model, c)`, and `new Model(mesh)` is `Model.create(mesh)`.
 
 	```haxe
-	final model = Model.create(mesh);
-	Model.setPosition(model, new Vec3(0, 0, 0));
-	Model.setTint(model, Color.WHITE);
-	Scene.add(scene, model);
+	final model = new Model(mesh);
+	model.setPosition(0, 0, 0);
+	model.setTint(Color.WHITE);
+	scene.add(model);
 	```
 **/
+@:using(wgr.Model)
 abstract Model(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -24,6 +27,10 @@ abstract Model(Handle) from Handle to Handle {
 	/** Whether this refers to nothing; tolerates a field never assigned, on js. **/
 	public static inline function isNone(model:Model):Bool
 		return (model : Handle).isNone;
+
+	/** `new Model(...)` is `Model.create(...)`, the same call. **/
+	public inline function new(mesh:Mesh)
+		this = create(mesh);
 
 	/**
 		The model takes its own reference to `mesh`, which may be none: an empty model
@@ -47,15 +54,27 @@ abstract Model(Handle) from Handle to Handle {
 			scale.y, scale.z);
 
 	/** One part of the transform, leaving the others as they are. **/
-	public static inline function setPosition(model:Model, value:Vec3):Bool
+	public static overload extern inline function setPosition(model:Model, value:Vec3):Bool
 		return Raw.wgr_model_set_position(model, value.x, value.y, value.z);
 
+	/** The same, without a `Vec3`. **/
+	public static overload extern inline function setPosition(model:Model, x:Float, y:Float, z:Float):Bool
+		return Raw.wgr_model_set_position(model, x, y, z);
+
 	/** Radians. **/
-	public static inline function setRotation(model:Model, value:Vec3):Bool
+	public static overload extern inline function setRotation(model:Model, value:Vec3):Bool
 		return Raw.wgr_model_set_rotation(model, value.x, value.y, value.z);
 
-	public static inline function setScale(model:Model, value:Vec3):Bool
+	/** The same, without a `Vec3`. **/
+	public static overload extern inline function setRotation(model:Model, x:Float, y:Float, z:Float):Bool
+		return Raw.wgr_model_set_rotation(model, x, y, z);
+
+	public static overload extern inline function setScale(model:Model, value:Vec3):Bool
 		return Raw.wgr_model_set_scale(model, value.x, value.y, value.z);
+
+	/** The same, without a `Vec3`. **/
+	public static overload extern inline function setScale(model:Model, x:Float, y:Float, z:Float):Bool
+		return Raw.wgr_model_set_scale(model, x, y, z);
 
 	/** Where it is, as last set. **/
 	public static inline function getPosition(model:Model):Vec3

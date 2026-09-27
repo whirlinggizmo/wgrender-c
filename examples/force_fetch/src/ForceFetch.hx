@@ -73,23 +73,23 @@ class ForceFetch {
 		}
 		if (id != ASSET_MUSIC)
 			return;
-		final audio = Audio.create(path);
-		music = Sound.create(audio);
-		Audio.release(audio); // the sound holds its own reference
-		Sound.setVolume(music, 0.5);
-		Sound.setLoop(music, true); // "music" is just a looping sound
-		Sound.play(music);
+		final audio = new Audio(path);
+		music = new Sound(audio);
+		audio.release(); // the sound holds its own reference
+		music.setVolume(0.5);
+		music.setLoop(true); // "music" is just a looping sound
+		music.play();
 		musicOn = true;
 	}
 
 	static function onFrame(dt:Float):Void {
 		final keys = Input.getKeyboardState();
 
-		if (keys.isPressed(M) && !Sound.isNone(music)) {
+		if (keys.isPressed(M) && !music.isNone()) {
 			if (musicOn)
-				Sound.pause(music);
+				music.pause();
 			else
-				Sound.resume(music);
+				music.resume();
 			musicOn = !musicOn;
 		}
 		if (keys.isPressed(Escape))
@@ -98,7 +98,7 @@ class ForceFetch {
 		Render.beginFrame();
 		Render.clearBackground(background);
 		Text.draw("wgrender + sokol_audio + force_fetch (Haxe guest)", 24, 30, 28, Color.RAYWHITE);
-		Text.draw(Sound.isNone(music) ? "music: loading..."
+		Text.draw(music.isNone() ? "music: loading..."
 			: (musicOn ? "music: playing (mp3, looping)" : "music: paused"), 24, 80, 18, Color.SKYBLUE);
 		Text.draw("[M] toggle music   [ESC] quit", 24, 150, 16, Color.LIGHTGRAY);
 		Text.drawFps(24, 12);

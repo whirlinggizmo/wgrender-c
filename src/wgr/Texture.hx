@@ -3,6 +3,7 @@ package wgr;
 // wgr_texture.h — the image resource
 
 /** A loaded image: reference counted, shared. **/
+@:using(wgr.Texture)
 abstract Texture(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -10,6 +11,10 @@ abstract Texture(Handle) from Handle to Handle {
 	/** Whether this refers to nothing; tolerates a field never assigned, on js. **/
 	public static inline function isNone(texture:Texture):Bool
 		return (texture : Handle).isNone;
+
+	/** `new Texture(...)` is `Texture.create(...)`, the same call. **/
+	public inline function new(path:String)
+		this = create(path);
 
 	/**
 		Load an image. A path ending `.ktx` names a texture compressed for GPUs: the

@@ -2,6 +2,7 @@ package wgr;
 
 // wgr_scene.h — what is drawn, and picking against it
 
+@:using(wgr.Scene)
 abstract Scene(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -9,6 +10,10 @@ abstract Scene(Handle) from Handle to Handle {
 	/** Whether this refers to nothing; tolerates a field never assigned, on js. **/
 	public static inline function isNone(scene:Scene):Bool
 		return (scene : Handle).isNone;
+
+	/** `new Scene()` is `Scene.create()`, the same call. **/
+	public inline function new()
+		this = create();
 
 	public static inline function create():Scene
 		return (Raw.wgr_scene_create() : Handle);

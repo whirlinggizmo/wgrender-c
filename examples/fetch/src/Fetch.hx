@@ -72,9 +72,9 @@ class Fetch {
 
 	static function onInit():Void {
 		background = Color.rgba(28, 30, 38, 255);
-		camera = Camera3D.create(Perspective);
-		sprite = Sprite2D.create(Handle.NONE); // the texture is attached when it loads
-		Sprite2D.setPosition(sprite, new Vec2(512, 380));
+		camera = new Camera3D(Perspective);
+		sprite = new Sprite2D(Handle.NONE); // the texture is attached when it loads
+		sprite.setPosition(512, 380);
 		Debug.enableFps(12, 10, 16);
 
 		#if sys
@@ -122,15 +122,15 @@ class Fetch {
 		}
 		if (id != ASSET_TEXTURE)
 			return;
-		final texture = Texture.create(path);
-		Sprite2D.setTexture(sprite, texture);
-		Texture.release(texture); // the sprite holds its own reference
+		final texture = new Texture(path);
+		sprite.setTexture(texture);
+		texture.release(); // the sprite holds its own reference
 	}
 
 	static function onFrame(dt:Float):Void {
 		Render.beginFrame();
 		Render.clearBackground(background);
-		Sprite2D.draw(sprite);
+		sprite.draw();
 		Text.draw("wgrender fetch: the desktop build downloads what the browser downloads", 12, 36, 20,
 			Color.RAYWHITE);
 		Text.draw('host: $host', 12, 64, 16, Color.LIGHTGRAY);

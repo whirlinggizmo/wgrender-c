@@ -64,15 +64,15 @@ class TexturesDemo {
 		slot.took = Wgr.getTime() - slot.asked;
 		slot.loaded = path;
 
-		final texture = Texture.create(path);
-		if (Texture.isNone(texture))
+		final texture = new Texture(path);
+		if (texture.isNone())
 			return;
-		final size = Texture.getSize(texture);
+		final size = texture.getSize();
 		slot.width = Std.int(size.x);
 		slot.height = Std.int(size.y);
-		slot.sprite = Sprite2D.create(texture);
-		Texture.release(texture); // the sprite holds its own reference
-		Sprite2D.setSize(slot.sprite, SIZE, SIZE);
+		slot.sprite = new Sprite2D(texture);
+		texture.release(); // the sprite holds its own reference
+		slot.sprite.setSize(SIZE, SIZE);
 	}
 
 	/**
@@ -98,13 +98,13 @@ class TexturesDemo {
 			final slot = slots[i];
 			final x = 20.0 + i * TILE;
 			final y = 80.0;
-			if (!Sprite2D.isNone(slot.sprite)) {
-				Sprite2D.setPosition(slot.sprite, new Vec2(x + SIZE * 0.5, y + SIZE * 0.5)); // the pivot is the middle
-				Sprite2D.draw(slot.sprite);
+			if (!slot.sprite.isNone()) {
+				slot.sprite.setPosition(x + SIZE * 0.5, y + SIZE * 0.5); // the pivot is the middle
+				slot.sprite.draw();
 			}
 			Text.draw(slot.loaded == "" ? "loading..." : basename(slot.loaded), Std.int(x), Std.int(y) + 236, 16,
 				Color.LIGHTGRAY);
-			if (!Sprite2D.isNone(slot.sprite))
+			if (!slot.sprite.isNone())
 				Text.draw('${slot.width}x${slot.height}  GPU ${Math.round(gpuKb(slot))} KB  '
 					+ '${Math.round(slot.took * 1000)} ms', Std.int(x), Std.int(y) + 258, 14, Color.LIGHTGRAY);
 		}

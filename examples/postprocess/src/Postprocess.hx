@@ -66,32 +66,32 @@ class Postprocess {
 		Asset.setHost(Assets.defaultBase());
 		Asset.setManifest(Assets.MANIFEST);
 		target = new Vec3(0, 1.0, 0);
-		camera = Camera3D.create(Perspective);
-		scene = Scene.create();
-		Scene.setActiveCamera(scene, camera);
-		Scene.setAmbient(scene, Color.rgba(90, 110, 160, 255), 0.12);
+		camera = new Camera3D(Perspective);
+		scene = new Scene();
+		scene.setActiveCamera(camera);
+		scene.setAmbient(Color.rgba(90, 110, 160, 255), 0.12);
 
-		final sun = Light.create(Directional);
-		Light.setDirection(sun, new Vec3(-0.4, -1.0, -0.5));
-		Light.setColor(sun, Color.rgba(255, 215, 170, 255));
-		Light.setIntensity(sun, 2.2);
-		Scene.add(scene, sun);
+		final sun = new Light(Directional);
+		sun.setDirection(new Vec3(-0.4, -1.0, -0.5));
+		sun.setColor(Color.rgba(255, 215, 170, 255));
+		sun.setIntensity(2.2);
+		scene.add(sun);
 
-		lamp = Light.create(Point);
-		Light.setColor(lamp, Color.rgba(80, 220, 255, 255));
-		Light.setIntensity(lamp, 18.0);
-		Light.setRange(lamp, 6.0);
-		Scene.add(scene, lamp);
-		lampMarker = Shape3D.create();
-		Shape3D.setSphere(lampMarker, 0.1);
-		Shape3D.setColor(lampMarker, Color.rgba(80, 220, 255, 255));
-		Scene.add(scene, lampMarker);
+		lamp = new Light(Point);
+		lamp.setColor(Color.rgba(80, 220, 255, 255));
+		lamp.setIntensity(18.0);
+		lamp.setRange(6.0);
+		scene.add(lamp);
+		lampMarker = new Shape3D();
+		lampMarker.setSphere(0.1);
+		lampMarker.setColor(Color.rgba(80, 220, 255, 255));
+		scene.add(lampMarker);
 
 		addScenery();
 
-		character = Model.create(Handle.NONE);
-		Model.setPosition(character, new Vec3(0, 0, 0));
-		Scene.add(scene, character);
+		character = new Model(Handle.NONE);
+		character.setPosition(0, 0, 0);
+		scene.add(character);
 
 		load(CHARACTER_PATH, ASSET_CHARACTER);
 		load(VIGNETTE_PATH, ASSET_VIGNETTE);
@@ -106,14 +106,14 @@ class Postprocess {
 
 	static function addScenery():Void {
 		final plane = Mesh.plane(16.0, 16.0, 0);
-		final floor = Model.create(plane);
-		Mesh.release(plane);
-		final ground = Material.create(Pbr);
-		Material.setBaseColor(ground, 0.07, 0.07, 0.08, 1.0);
-		Material.setRoughness(ground, 0.85);
-		Model.setMaterial(floor, -1, ground);
-		Material.release(ground);
-		Scene.add(scene, floor);
+		final floor = new Model(plane);
+		plane.release();
+		final ground = new Material(Pbr);
+		ground.setBaseColor(0.07, 0.07, 0.08, 1.0);
+		ground.setRoughness(0.85);
+		floor.setMaterial(-1, ground);
+		ground.release();
+		scene.add(floor);
 
 		final shapes = [
 			{mesh: Mesh.sphere(0.5, 24, 48), x: -2.2, y: 0.5, r: 0.2, g: 0.55, b: 0.9},
@@ -122,15 +122,15 @@ class Postprocess {
 		];
 		for (i in 0...shapes.length) {
 			final s = shapes[i];
-			final model = Model.create(s.mesh);
-			Mesh.release(s.mesh);
-			Model.setPosition(model, new Vec3(s.x, s.y, -0.6));
-			final material = Material.create(Pbr);
-			Material.setBaseColor(material, s.r, s.g, s.b, 1.0);
-			Material.setRoughness(material, 0.4);
-			Model.setMaterial(model, 0, material);
-			Material.release(material);
-			Scene.add(scene, model);
+			final model = new Model(s.mesh);
+			s.mesh.release();
+			model.setPosition(s.x, s.y, -0.6);
+			final material = new Material(Pbr);
+			material.setBaseColor(s.r, s.g, s.b, 1.0);
+			material.setRoughness(0.4);
+			model.setMaterial(0, material);
+			material.release();
+			scene.add(model);
 			if (i == 1)
 				torus = model; // the one that tumbles
 		}
@@ -143,29 +143,29 @@ class Postprocess {
 		}
 		switch id {
 			case ASSET_CHARACTER:
-				final mesh = Mesh.create(path);
-				Model.setMesh(character, mesh);
-				Mesh.release(mesh);
-				Model.setAnimation(character, 3);
-				Model.setAnimationLoop(character, true);
+				final mesh = new Mesh(path);
+				character.setMesh(mesh);
+				mesh.release();
+				character.setAnimation(3);
+				character.setAnimationLoop(true);
 
 			case ASSET_VIGNETTE:
-				final shader = Shader.create(path);
+				final shader = new Shader(path);
 				vignette = Material.custom(shader);
-				Shader.release(shader); // the material holds its own reference
-				Material.setFloat(vignette, "strength", strength);
-				Material.setFloat(vignette, "radius", 0.25);
-				Material.setVec4(vignette, "tint", 1.04, 1.0, 0.94, 1.0);
+				shader.release(); // the material holds its own reference
+				vignette.setFloat("strength", strength);
+				vignette.setFloat("radius", 0.25);
+				vignette.setVec4("tint", 1.04, 1.0, 0.94, 1.0);
 				rebuildEffects();
 
 			case ASSET_SCANLINES:
-				final shader = Shader.create(path);
+				final shader = new Shader(path);
 				scanlines = Material.custom(shader);
-				Shader.release(shader);
-				Material.setFloat(scanlines, "lines", 220.0);
-				Material.setFloat(scanlines, "darkness", 0.35);
-				Material.setFloat(scanlines, "offset", 1.5);
-				Material.setFloat(scanlines, "flicker", 1.0);
+				shader.release();
+				scanlines.setFloat("lines", 220.0);
+				scanlines.setFloat("darkness", 0.35);
+				scanlines.setFloat("offset", 1.5);
+				scanlines.setFloat("flicker", 1.0);
 				rebuildEffects();
 		}
 	}
@@ -173,9 +173,9 @@ class Postprocess {
 	/** The chain is rebuilt whole rather than edited: clear, then add what is on. **/
 	static function rebuildEffects():Void {
 		Render.clearEffects();
-		if (vignetteOn && !Material.isNone(vignette))
+		if (vignetteOn && !vignette.isNone())
 			Render.addEffect(vignette);
-		if (scanlinesOn && !Material.isNone(scanlines))
+		if (scanlinesOn && !scanlines.isNone())
 			Render.addEffect(scanlines);
 	}
 
@@ -204,28 +204,28 @@ class Postprocess {
 		handleKeys(dt);
 
 		elapsed += dt;
-		Model.animate(character, dt);
+		character.animate(dt);
 		if (orbit)
 			angle += dt * 0.25;
-		Camera3D.setView(camera, new Vec3(9.0 * Math.sin(angle), 3.2, 9.0 * Math.cos(angle)), target);
+		camera.setView(new Vec3(9.0 * Math.sin(angle), 3.2, 9.0 * Math.cos(angle)), target);
 
 		final lampX = 3.0 * Math.sin(elapsed * 0.9);
 		final lampZ = 2.2 + 1.2 * Math.cos(elapsed * 0.9);
-		Light.setPosition(lamp, new Vec3(lampX, 1.4, lampZ));
-		Shape3D.setPosition(lampMarker, new Vec3(lampX, 1.4, lampZ));
+		lamp.setPosition(lampX, 1.4, lampZ);
+		lampMarker.setPosition(lampX, 1.4, lampZ);
 		// isNone, not != null: Model is an abstract over Int, so on a static target
 		// there is no null to compare against.
-		if (!Model.isNone(torus))
-			Model.setTransform(torus, new Vec3(2.2, 0.7, -0.6), new Vec3(0, elapsed * 40.0, elapsed * 25.0), Vec3.ONE);
+		if (!torus.isNone())
+			torus.setTransform(new Vec3(2.2, 0.7, -0.6), new Vec3(0, elapsed * 40.0, elapsed * 25.0), Vec3.ONE);
 
 		// An effect's parameters are its material's: change them any frame you like.
 		final live = breathing ? strength * (0.55 + 0.45 * Math.sin(elapsed * 0.8)) : strength;
-		if (!Material.isNone(vignette))
-			Material.setFloat(vignette, "strength", live);
+		if (!vignette.isNone())
+			vignette.setFloat("strength", live);
 
 		Render.beginFrame();
 		Render.clearBackground(Color.rgba(16, 18, 24, 255));
-		Scene.draw(scene);
+		scene.draw();
 		Text.draw("wgrender post-processing: screen effects over the finished frame", 12, 36, 20, Color.RAYWHITE);
 		Text.draw('[1] vignette ${vignetteOn ? "on" : "off"}   [2] scanlines ${scanlinesOn ? "on" : "off"}   '
 			+ 'effects: ${Render.effectCount()}', 12, 64, 16, Color.LIGHTGRAY);

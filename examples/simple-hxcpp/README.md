@@ -208,16 +208,16 @@ Haxe's:
 ```haxe
 // one abstract per handle kind — a Mesh where a Texture belongs is a compile error,
 // and so is a bare literal 0 where Handle.NONE is accepted
-final mesh = Mesh.create(path);
-model = Model.create(mesh);            // wgrender's rule: object from resource, resource from path
-Mesh.release(mesh);                    // the model holds its own reference
-Model.setAnimationLoop(model, true);
-Model.setTint(model, Color.RAYWHITE);
-Model.setTransform(model, new Vec3(0, 0, 0));
-Scene.add(scene, model);               // takes a Model, Sprite3D or Light, and nothing else
+final mesh = new Mesh(path);
+model = new Model(mesh);      // wgrender's rule: object from resource, resource from path
+mesh.release();               // the model holds its own reference
+model.setAnimationLoop(true);
+model.setTint(Color.RAYWHITE);
+model.setPosition(0, 0, 0);
+scene.add(model);             // takes a Model, Sprite3D or Light, and nothing else
 
 // closures, not function pointers plus a void*
-AssetTask.then(Asset.ensureAsync(path), path -> { ... }, path -> Log.error('failed: $path'));
+Asset.ensureAsync(path).then(path -> { ... }, path -> Log.error('failed: $path'));
 
 // the pick result's untyped handle still compares against typed ones
 if (pick.handle == model) ...

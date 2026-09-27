@@ -78,16 +78,16 @@ class EnvironmentDemo {
 		bar = Color.rgba(0, 0, 0, 150);
 		target = new Vec3(0, 0.3, 0);
 
-		camera = Camera3D.create(Perspective);
-		scene = Scene.create();
-		Scene.setActiveCamera(scene, camera);
+		camera = new Camera3D(Perspective);
+		scene = new Scene();
+		scene.setActiveCamera(camera);
 
 		addSpheres();
 
-		character = Model.create(Handle.NONE);
-		Model.setTransform(character, new Vec3(1.3, -1.3, 0), new Vec3(0, 0.4, 0), new Vec3(0.3, 0.3, 0.3));
-		Model.setAnimation(character, 3);
-		Scene.add(scene, character);
+		character = new Model(Handle.NONE);
+		character.setTransform(new Vec3(1.3, -1.3, 0), new Vec3(0, 0.4, 0), new Vec3(0.3, 0.3, 0.3));
+		character.setAnimation(3);
+		scene.add(character);
 
 		applyEnvironment();
 		for (i in 0...ENVIRONMENT_PATHS.length)
@@ -103,15 +103,15 @@ class EnvironmentDemo {
 	}
 
 	static function sphere(x:Float, y:Float, r:Float, g:Float, b:Float, metallic:Float, roughness:Float):Model {
-		final model = Model.create(Handle.NONE); // the mesh arrives later
-		Model.setPosition(model, new Vec3(x, y, 0));
-		final material = Material.create(Pbr);
-		Material.setBaseColor(material, r, g, b, 1.0);
-		Material.setMetallic(material, metallic);
-		Material.setRoughness(material, roughness);
-		Model.setMaterial(model, 0, material);
-		Material.release(material);
-		Scene.add(scene, model);
+		final model = new Model(Handle.NONE); // the mesh arrives later
+		model.setPosition(x, y, 0);
+		final material = new Material(Pbr);
+		material.setBaseColor(r, g, b, 1.0);
+		material.setMetallic(metallic);
+		material.setRoughness(roughness);
+		model.setMaterial(0, material);
+		material.release();
+		scene.add(model);
 		spheres.push(model);
 		return model;
 	}
@@ -124,16 +124,16 @@ class EnvironmentDemo {
 			sphere(x, 0.6, 1.0, 0.77, 0.34, 1.0, roughness); // gold
 		}
 		final normalMapped = sphere(-1.3, -0.7, 0.9, 0.9, 0.9, 0.0, 0.3);
-		tiles = Model.getMaterial(normalMapped, 0); // borrowed: the model's own material
+		tiles = normalMapped.getMaterial(0); // borrowed: the model's own material
 	}
 
 	/** All three settings together, because any of them changing re-applies the lot. **/
 	static function applyEnvironment():Void {
 		final env = environmentIndex < environments.length ? environments[environmentIndex] : Handle.NONE;
-		Scene.setEnvironment(scene, env, 1.0, rotation);
+		scene.setEnvironment(env, 1.0, rotation);
 		final showBackground = blurIndex < BLURS.length;
-		Scene.setBackground(scene, showBackground ? env : Handle.NONE, showBackground ? BLURS[blurIndex] : 0.0);
-		Scene.setTonemap(scene, TONEMAPS[tonemapIndex], exposure);
+		scene.setBackground(showBackground ? env : Handle.NONE, showBackground ? BLURS[blurIndex] : 0.0);
+		scene.setTonemap(TONEMAPS[tonemapIndex], exposure);
 	}
 
 	static function onAsset(id:Int, path:String, ok:Bool):Void {
@@ -143,24 +143,24 @@ class EnvironmentDemo {
 		}
 		switch id {
 			case ASSET_SPHERE:
-				final mesh = Mesh.create(path);
+				final mesh = new Mesh(path);
 				for (model in spheres)
-					Model.setMesh(model, mesh);
-				Mesh.release(mesh);
+					model.setMesh(mesh);
+				mesh.release();
 
 			case ASSET_CHARACTER:
-				final mesh = Mesh.create(path);
-				Model.setMesh(character, mesh);
-				Mesh.release(mesh);
+				final mesh = new Mesh(path);
+				character.setMesh(mesh);
+				mesh.release();
 
 			case ASSET_NORMAL_MAP:
-				final texture = Texture.create(path);
-				Material.setNormalTexture(tiles, texture);
-				Texture.release(texture);
+				final texture = new Texture(path);
+				tiles.setNormalTexture(texture);
+				texture.release();
 
 			default:
 				// an environment: preparing its lighting is the slow part, done once
-				environments[id - 1] = Environment.create(path);
+				environments[id - 1] = new Environment(path);
 				applyEnvironment();
 		}
 	}
@@ -206,12 +206,12 @@ class EnvironmentDemo {
 			applyEnvironment();
 
 		elapsed += dt;
-		Camera3D.setView(camera, new Vec3(Math.sin(elapsed * 0.15) * 7.5, 1.2, Math.cos(elapsed * 0.15) * 7.5), target);
-		Model.animate(character, dt);
+		camera.setView(new Vec3(Math.sin(elapsed * 0.15) * 7.5, 1.2, Math.cos(elapsed * 0.15) * 7.5), target);
+		character.animate(dt);
 
 		Render.beginFrame();
 		Render.clearBackground(background);
-		Scene.draw(scene);
+		scene.draw();
 		Shape2D.drawRectangle(0, 0, Window.getScreenSize().x, 60, bar);
 		Text.draw("wgrender environment lighting: reflections, background and tone mapping", 12, 12, 16,
 			Color.RAYWHITE);

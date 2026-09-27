@@ -8,6 +8,7 @@ package wgr;
 	the scene's other transparent parts. Note there is no scale — the size is the
 	scale.
 **/
+@:using(wgr.Text3D)
 abstract Text3D(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -15,6 +16,10 @@ abstract Text3D(Handle) from Handle to Handle {
 	/** Whether this refers to nothing; tolerates a field never assigned, on js. **/
 	public static inline function isNone(text3D:Text3D):Bool
 		return (text3D : Handle).isNone;
+
+	/** `new Text3D(...)` is `Text3D.create(...)`, the same call. **/
+	public inline function new(font:Font)
+		this = create(font);
 
 	/** `Handle.NONE` for the default font; attach a real one later with `font`. **/
 	public static inline function create(font:Font):Text3D
@@ -71,12 +76,20 @@ abstract Text3D(Handle) from Handle to Handle {
 		return Raw.wgr_text3d_set_transform(text3D, position.x, position.y, position.z, rotation.x, rotation.y, rotation.z);
 
 	/** One part of the transform, leaving the others as they are. **/
-	public static inline function setPosition(text3D:Text3D, value:Vec3):Bool
+	public static overload extern inline function setPosition(text3D:Text3D, value:Vec3):Bool
 		return Raw.wgr_text3d_set_position(text3D, value.x, value.y, value.z);
 
+	/** The same, without a `Vec3`. **/
+	public static overload extern inline function setPosition(text3D:Text3D, x:Float, y:Float, z:Float):Bool
+		return Raw.wgr_text3d_set_position(text3D, x, y, z);
+
 	/** Radians. **/
-	public static inline function setRotation(text3D:Text3D, value:Vec3):Bool
+	public static overload extern inline function setRotation(text3D:Text3D, value:Vec3):Bool
 		return Raw.wgr_text3d_set_rotation(text3D, value.x, value.y, value.z);
+
+	/** The same, without a `Vec3`. **/
+	public static overload extern inline function setRotation(text3D:Text3D, x:Float, y:Float, z:Float):Bool
+		return Raw.wgr_text3d_set_rotation(text3D, x, y, z);
 
 	/** Where it is, as last set. **/
 	public static inline function getPosition(text3D:Text3D):Vec3

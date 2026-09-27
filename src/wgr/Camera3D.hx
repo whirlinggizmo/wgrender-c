@@ -2,6 +2,7 @@ package wgr;
 
 // wgr_camera3d.h
 
+@:using(wgr.Camera3D)
 abstract Camera3D(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -9,6 +10,10 @@ abstract Camera3D(Handle) from Handle to Handle {
 	/** Whether this refers to nothing; tolerates a field never assigned, on js. **/
 	public static inline function isNone(camera3D:Camera3D):Bool
 		return (camera3D : Handle).isNone;
+
+	/** `new Camera3D(...)` is `Camera3D.create(...)`, the same call. **/
+	public inline function new(projection:Projection = Perspective)
+		this = create(projection);
 
 	/** Perspective's default fov is pi/4 (45 degrees). **/
 	public static inline function create(projection:Projection = Perspective):Camera3D

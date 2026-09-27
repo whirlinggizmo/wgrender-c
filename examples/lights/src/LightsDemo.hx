@@ -78,11 +78,11 @@ class LightsDemo {
 		gridColor = Color.rgba(40, 42, 50, 255);
 		lampColor = Color.rgba(60, 220, 255, 255);
 
-		camera = Camera3D.create(Perspective);
-		Camera3D.setView(camera, new Vec3(0, 4.5, 10), new Vec3(0, 1, 0));
-		scene = Scene.create();
-		Scene.setActiveCamera(scene, camera);
-		Scene.setAmbient(scene, Color.rgba(90, 110, 160, 255), 0.05);
+		camera = new Camera3D(Perspective);
+		camera.setView(new Vec3(0, 4.5, 10), new Vec3(0, 1, 0));
+		scene = new Scene();
+		scene.setActiveCamera(camera);
+		scene.setAmbient(Color.rgba(90, 110, 160, 255), 0.05);
 
 		addModels();
 		addLights();
@@ -100,61 +100,61 @@ class LightsDemo {
 
 	static function addModels():Void {
 		for (i in 0...MODEL_COUNT) {
-			final model = Model.create(Handle.NONE); // the mesh is attached when it loads
-			Model.setPosition(model, new Vec3(-4.0 + 2.0 * i, 0, i % 2 == 1 ? -0.8 : 0.8));
-			Model.setAnimation(model, 3);
-			Model.setAnimationLoop(model, true);
-			Scene.add(scene, model);
+			final model = new Model(Handle.NONE); // the mesh is attached when it loads
+			model.setPosition(-4.0 + 2.0 * i, 0, i % 2 == 1 ? -0.8 : 0.8);
+			model.setAnimation(3);
+			model.setAnimationLoop(true);
+			scene.add(model);
 			models.push(model);
 		}
 	}
 
 	static function addLights():Void {
-		sun = Light.create(Directional);
-		Light.setDirection(sun, new Vec3(-0.4, -1.0, -0.6));
-		Light.setColor(sun, Color.rgba(255, 210, 160, 255));
-		Light.setIntensity(sun, 1.1);
-		Scene.add(scene, sun);
+		sun = new Light(Directional);
+		sun.setDirection(new Vec3(-0.4, -1.0, -0.6));
+		sun.setColor(Color.rgba(255, 210, 160, 255));
+		sun.setIntensity(1.1);
+		scene.add(sun);
 
-		lamp = Light.create(Point);
-		Light.setColor(lamp, lampColor);
-		Light.setIntensity(lamp, 20.0);
-		Light.setRange(lamp, 5.0);
-		Scene.add(scene, lamp);
+		lamp = new Light(Point);
+		lamp.setColor(lampColor);
+		lamp.setIntensity(20.0);
+		lamp.setRange(5.0);
+		scene.add(lamp);
 
 		// Unlit, so it shows the lamp's colour rather than being lit by it.
-		lampMarker = Shape3D.create();
-		Shape3D.setSphere(lampMarker, 0.12);
-		Shape3D.setColor(lampMarker, lampColor);
-		Scene.add(scene, lampMarker);
+		lampMarker = new Shape3D();
+		lampMarker.setSphere(0.12);
+		lampMarker.setColor(lampColor);
+		scene.add(lampMarker);
 
-		spot = Light.create(Spot);
-		Light.setPosition(spot, new Vec3(0, 6, 2));
-		Light.setSpotCone(spot, 0.14, 0.28); // radians: about 8 and 16 degrees
-		Light.setIntensity(spot, 125.0);
-		Scene.add(scene, spot);
+		spot = new Light(Spot);
+		spot.setPosition(0, 6, 2);
+		spot.setSpotCone(0.14, 0.28); // radians: about 8 and 16 degrees
+		spot.setIntensity(125.0);
+		scene.add(spot);
 	}
 
 	/** Lit billboards: a built-in material is what lets the scene's lights reach them. **/
 	static function addSprites():Void {
-		spriteMaterial = Material.create(Pbr);
-		Material.setMetallic(spriteMaterial, 0.0);
-		Material.setRoughness(spriteMaterial, 0.55);
+		spriteMaterial = new Material(Pbr);
+		spriteMaterial.setMetallic(0.0);
+		spriteMaterial.setRoughness(0.55);
 		// cells sit side by side in the sheet: clamp, so none reaches into the next
-		Material.setTextureSampling(spriteMaterial, "normal_texture", Clamp, Clamp, Linear);
+		spriteMaterial.setTextureSampling("normal_texture", Clamp, Clamp, Linear);
 		for (i in 0...SPRITE_COUNT) {
 			final cell = SPRITE_CELLS[i];
-			final sprite = Sprite3D.create(Handle.NONE);
-			Sprite3D.setPosition(sprite, new Vec3(-3.0 + 2.0 * i, 0.2, -2.5));
-			Sprite3D.setSource(sprite, cell[0], cell[1], cell[2], cell[3]);
-			Sprite3D.setExtent(sprite, 1.6, cell[4]);
-			Sprite3D.setPivot(sprite, 0.5, 1.0); // standing on their bottom edge
-			Sprite3D.setAlphaMode(sprite, Mask, 0.5);
-			Sprite3D.setMaterial(sprite, spriteMaterial);
-			Scene.add(scene, sprite);
+			final sprite = new Sprite3D(Handle.NONE);
+			sprite.setPosition(-3.0 + 2.0 * i, 0.2, -2.5);
+			sprite.setSource(cell[0], cell[1], cell[2], cell[3]);
+			sprite.setExtent(1.6, cell[4]);
+			sprite.setPivot(0.5, 1.0); // standing on their bottom edge
+			sprite.setAlphaMode(Mask, 0.5);
+			sprite.setMaterial(spriteMaterial);
+			scene.add(sprite);
 			sprites.push(sprite);
 		}
-		Material.release(spriteMaterial); // the sprites hold it
+		spriteMaterial.release(); // the sprites hold it
 	}
 
 	static function onAsset(id:Int, path:String, ok:Bool):Void {
@@ -164,54 +164,54 @@ class LightsDemo {
 		}
 		switch id {
 			case ASSET_MESH:
-				final mesh = Mesh.create(path);
+				final mesh = new Mesh(path);
 				for (model in models)
-					Model.setMesh(model, mesh);
-				Mesh.release(mesh); // the models hold their own references
+					model.setMesh(mesh);
+				mesh.release(); // the models hold their own references
 
 			case ASSET_SPRITE:
-				final texture = Texture.create(path);
-				Texture.setSampling(texture, Clamp, Clamp, Nearest);
+				final texture = new Texture(path);
+				texture.setSampling(Clamp, Clamp, Nearest);
 				for (sprite in sprites)
-					Sprite3D.setTexture(sprite, texture);
-				Texture.release(texture);
+					sprite.setTexture(texture);
+				texture.release();
 
 			case ASSET_NORMAL:
-				final texture = Texture.create(path);
-				Material.setNormalTexture(spriteMaterial, texture);
-				Texture.release(texture);
+				final texture = new Texture(path);
+				spriteMaterial.setNormalTexture(texture);
+				texture.release();
 		}
 	}
 
 	static function onFrame(dt:Float):Void {
 		final keys = Input.getKeyboardState();
 		if (keys.isPressed(Digit1))
-			Light.setEnabled(sun, !Light.isEnabled(sun));
+			sun.setEnabled(!sun.isEnabled());
 		if (keys.isPressed(Digit2))
-			Light.setEnabled(lamp, !Light.isEnabled(lamp));
+			lamp.setEnabled(!lamp.isEnabled());
 		if (keys.isPressed(Digit3))
-			Light.setEnabled(spot, !Light.isEnabled(spot));
+			spot.setEnabled(!spot.isEnabled());
 		if (keys.isPressed(Escape))
 			Wgr.requestQuit();
 
 		elapsed += dt;
 		for (model in models)
-			Model.animate(model, dt);
+			model.animate(dt);
 
 		// the lamp orbits through the row; the spotlight sweeps left and right
 		final lx = Math.sin(elapsed * 0.6) * 5.0;
 		final lz = Math.cos(elapsed * 0.6) * 2.0;
-		Light.setPosition(lamp, new Vec3(lx, 1.2, lz));
-		Shape3D.setPosition(lampMarker, new Vec3(lx, 1.2, lz));
-		Shape3D.setVisible(lampMarker, Light.isEnabled(lamp));
-		Light.setDirection(spot, new Vec3(Math.sin(elapsed * 0.8) * 0.7, -1.0, -0.3));
+		lamp.setPosition(lx, 1.2, lz);
+		lampMarker.setPosition(lx, 1.2, lz);
+		lampMarker.setVisible(lamp.isEnabled());
+		spot.setDirection(new Vec3(Math.sin(elapsed * 0.8) * 0.7, -1.0, -0.3));
 
 		Render.beginFrame();
 		Render.clearBackground(background);
 		Render.beginMode3D();
 		Shape3D.drawGrid(20, 1.0, gridColor);
 		Render.endMode3D();
-		Scene.draw(scene);
+		scene.draw();
 
 		Text.draw("wgrender lights: directional, point, spot", 12, 12, 20, Color.RAYWHITE);
 		Text.draw('[1] sun ${on(sun)}   [2] point light ${on(lamp)}   [3] spotlight ${on(spot)}', 12, 40, 16,
@@ -221,5 +221,5 @@ class LightsDemo {
 	}
 
 	static inline function on(light:Light):String
-		return Light.isEnabled(light) ? "on " : "off";
+		return light.isEnabled() ? "on " : "off";
 }

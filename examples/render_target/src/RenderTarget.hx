@@ -72,23 +72,23 @@ class RenderTarget {
 
 		pixelView = Texture.createTarget(PIXEL_W, PIXEL_H);
 		// nearest, so enlarging it keeps the pixels square rather than smearing them
-		Texture.setSampling(pixelView, Clamp, Clamp, Nearest);
+		pixelView.setSampling(Clamp, Clamp, Nearest);
 		minimap = Texture.createTarget(MINIMAP, MINIMAP);
 		label = Texture.createTarget(LABEL_W, LABEL_H);
 
-		scene = Scene.create();
-		camera = Camera3D.create(Perspective);
-		Camera3D.setView(camera, new Vec3(0, 6.0, 10.0), new Vec3(0, 0.8, 0));
-		topCamera = Camera3D.create(Orthographic);
+		scene = new Scene();
+		camera = new Camera3D(Perspective);
+		camera.setView(new Vec3(0, 6.0, 10.0), new Vec3(0, 0.8, 0));
+		topCamera = new Camera3D(Orthographic);
 		// looking down, with -z up the map
-		Camera3D.setView(topCamera, new Vec3(0, 12, 0), new Vec3(0, 0, 0), new Vec3(0, 0, -1));
-		Camera3D.setOrthoHeight(topCamera, 9.0);
+		topCamera.setView(new Vec3(0, 12, 0), new Vec3(0, 0, 0), new Vec3(0, 0, -1));
+		topCamera.setOrthoHeight(9.0);
 
-		final sun = Light.create(Directional);
-		Light.setDirection(sun, new Vec3(-0.5, -1.0, -0.4));
-		Light.setIntensity(sun, 3.0);
-		Scene.add(scene, sun);
-		Scene.setAmbient(scene, Color.WHITE, 0.25);
+		final sun = new Light(Directional);
+		sun.setDirection(new Vec3(-0.5, -1.0, -0.4));
+		sun.setIntensity(3.0);
+		scene.add(sun);
+		scene.setAmbient(Color.WHITE, 0.25);
 
 		addModels();
 		load(CHARACTER_PATH, ASSET_CHARACTER);
@@ -102,31 +102,31 @@ class RenderTarget {
 	}
 
 	static function model(position:Vec3, scaleY:Float, scale:Float, material:Material):Model {
-		final m = Model.create(Handle.NONE); // the mesh arrives later
-		Model.setTransform(m, position, Vec3.ZERO, new Vec3(scale, scaleY, scale));
-		if (!Material.isNone(material)) {
-			Model.setMaterial(m, 0, material);
-			Material.release(material); // the model keeps its own reference
+		final m = new Model(Handle.NONE); // the mesh arrives later
+		m.setTransform(position, Vec3.ZERO, new Vec3(scale, scaleY, scale));
+		if (!material.isNone()) {
+			m.setMaterial(0, material);
+			material.release(); // the model keeps its own reference
 		}
-		Scene.add(scene, m);
+		scene.add(m);
 		return m;
 	}
 
 	static function addModels():Void {
 		// ground: a flattened sphere
-		final groundMaterial = Material.create(Pbr);
-		Material.setBaseColor(groundMaterial, 0.25, 0.3, 0.25, 1.0);
-		Material.setMetallic(groundMaterial, 0.0);
+		final groundMaterial = new Material(Pbr);
+		groundMaterial.setBaseColor(0.25, 0.3, 0.25, 1.0);
+		groundMaterial.setMetallic(0.0);
 		ground = model(new Vec3(0, -0.05, 0), 0.1, 8.0, groundMaterial);
 
-		character = Model.create(Handle.NONE);
-		Model.setAnimation(character, 3);
-		Scene.add(scene, character);
+		character = new Model(Handle.NONE);
+		character.setAnimation(3);
+		scene.add(character);
 
 		// The globe wears the label: a target texture used like any other texture.
-		final globeMaterial = Material.create(Unlit);
-		Material.setTexture(globeMaterial, "base_color_texture", label);
-		Material.setVec2(globeMaterial, "base_color_texture_scale", 2.0, 1.0); // twice around
+		final globeMaterial = new Material(Unlit);
+		globeMaterial.setTexture("base_color_texture", label);
+		globeMaterial.setVec2("base_color_texture_scale", 2.0, 1.0); // twice around
 		globe = model(new Vec3(2.2, 1.2, 0), 1.6, 1.6, globeMaterial);
 	}
 
@@ -137,25 +137,25 @@ class RenderTarget {
 		}
 		switch id {
 			case ASSET_CHARACTER:
-				final mesh = Mesh.create(path);
-				Model.setMesh(character, mesh);
-				Mesh.release(mesh);
+				final mesh = new Mesh(path);
+				character.setMesh(mesh);
+				mesh.release();
 
 			case ASSET_SPHERE:
-				final mesh = Mesh.create(path);
-				Model.setMesh(globe, mesh);
-				Model.setMesh(ground, mesh);
-				Mesh.release(mesh);
+				final mesh = new Mesh(path);
+				globe.setMesh(mesh);
+				ground.setMesh(mesh);
+				mesh.release();
 
 			case ASSET_FONT:
-				font = Font.create(path);
+				font = new Font(path);
 		}
 	}
 
 	/** A texture with a 2px frame and a caption above it. **/
 	static function panel(texture:Texture, x:Float, y:Float, w:Float, h:Float, caption:String):Void {
 		Shape2D.drawRectangle(x - 2, y - 2, w + 4, h + 4, frameColor);
-		Texture.draw(texture, x, y, w, h, Color.WHITE);
+		texture.draw(x, y, w, h, Color.WHITE);
 		Text.draw(caption, Std.int(x), Std.int(y) - 20, 16, Color.LIGHTGRAY);
 	}
 
@@ -166,18 +166,18 @@ class RenderTarget {
 		elapsed += dt;
 		final gx = Math.cos(elapsed * 0.6) * 2.5;
 		final gz = Math.sin(elapsed * 0.6) * 2.5;
-		Model.setTransform(character, new Vec3(gx, 0, gz), new Vec3(0, -elapsed * 0.6, 0),
+		character.setTransform(new Vec3(gx, 0, gz), new Vec3(0, -elapsed * 0.6, 0),
 			new Vec3(0.6, 0.6, 0.6)); // walks in a circle
-		Model.animate(character, dt);
-		Model.setTransform(globe, new Vec3(-2.2, 1.2, 0), new Vec3(0, elapsed * 0.8, 0), new Vec3(1.6, 1.6, 1.6));
+		character.animate(dt);
+		globe.setTransform(new Vec3(-2.2, 1.2, 0), new Vec3(0, elapsed * 0.8, 0), new Vec3(1.6, 1.6, 1.6));
 
 		Render.beginFrame();
 
 		// 1. the label first, so the views below use this frame's text
 		if (Render.beginTexture(label)) {
 			Render.clearBackground(labelBackground);
-			if (!Font.isNone(font))
-				Font.draw(font, "wgrender", 20, 14, 64, Color.RAYWHITE);
+			if (!font.isNone())
+				font.draw("wgrender", 20, 14, 64, Color.RAYWHITE);
 			Text.draw('t = ${fixed(elapsed, 1)}', 24, 92, 16, Color.GOLD);
 			Render.endTexture();
 		}
@@ -185,16 +185,16 @@ class RenderTarget {
 		// 2. a low-resolution view of the scene
 		if (Render.beginTexture(pixelView)) {
 			Render.clearBackground(background);
-			Scene.setActiveCamera(scene, camera);
-			Scene.draw(scene);
+			scene.setActiveCamera(camera);
+			scene.draw();
 			Render.endTexture();
 		}
 
 		// 3. the minimap, from above
 		if (Render.beginTexture(minimap)) {
 			Render.clearBackground(minimapBackground);
-			Scene.setActiveCamera(scene, topCamera);
-			Scene.draw(scene);
+			scene.setActiveCamera(topCamera);
+			scene.draw();
 			Render.endTexture();
 		}
 

@@ -62,11 +62,11 @@ class MaterialsDemo {
 		Asset.setManifest(Assets.MANIFEST);
 		background = Color.rgba(20, 22, 28, 255);
 
-		camera = Camera3D.create(Perspective);
-		Camera3D.setView(camera, new Vec3(0, 1.6, 7.5), new Vec3(0, 1.2, 0));
-		scene = Scene.create();
-		Scene.setActiveCamera(scene, camera);
-		Scene.setAmbient(scene, Color.WHITE, 0.12);
+		camera = new Camera3D(Perspective);
+		camera.setView(new Vec3(0, 1.6, 7.5), new Vec3(0, 1.2, 0));
+		scene = new Scene();
+		scene.setActiveCamera(camera);
+		scene.setAmbient(Color.WHITE, 0.12);
 
 		addLights();
 		addRoughnessRows();
@@ -84,41 +84,41 @@ class MaterialsDemo {
 	}
 
 	static function addLights():Void {
-		sun = Light.create(Directional);
-		Light.setDirection(sun, new Vec3(-0.4, -0.7, -0.6));
-		Light.setColor(sun, Color.rgba(255, 244, 228, 255));
-		Light.setIntensity(sun, 3.0);
-		Scene.add(scene, sun);
+		sun = new Light(Directional);
+		sun.setDirection(new Vec3(-0.4, -0.7, -0.6));
+		sun.setColor(Color.rgba(255, 244, 228, 255));
+		sun.setIntensity(3.0);
+		scene.add(sun);
 
-		lamp = Light.create(Point);
-		Light.setColor(lamp, Color.rgba(120, 190, 255, 255));
-		Light.setIntensity(lamp, 8.0);
-		Light.setRange(lamp, 10.0);
-		Scene.add(scene, lamp);
+		lamp = new Light(Point);
+		lamp.setColor(Color.rgba(120, 190, 255, 255));
+		lamp.setIntensity(8.0);
+		lamp.setRange(10.0);
+		scene.add(lamp);
 
 		// Shapes are unlit, so this shows the light's own colour.
-		lampMarker = Shape3D.create();
-		Shape3D.setSphere(lampMarker, 0.06);
-		Shape3D.setColor(lampMarker, Color.SKYBLUE);
-		Scene.add(scene, lampMarker);
+		lampMarker = new Shape3D();
+		lampMarker.setSphere(0.06);
+		lampMarker.setColor(Color.SKYBLUE);
+		scene.add(lampMarker);
 	}
 
 	/** Linear rgb, glTF's factor -- not an sRGB `Color`. **/
 	static function pbr(r:Float, g:Float, b:Float, metallic:Float, roughness:Float):Material {
-		final material = Material.create(Pbr);
-		Material.setBaseColor(material, r, g, b, 1.0);
-		Material.setMetallic(material, metallic);
-		Material.setRoughness(material, roughness);
+		final material = new Material(Pbr);
+		material.setBaseColor(r, g, b, 1.0);
+		material.setMetallic(metallic);
+		material.setRoughness(roughness);
 		return material;
 	}
 
 	/** Place a sphere and give it `material`; the model keeps its own reference. **/
 	static function sphere(x:Float, y:Float, material:Material):Model {
-		final model = Model.create(Handle.NONE); // the mesh is attached when it loads
-		Model.setPosition(model, new Vec3(x, y, 0));
-		Model.setMaterial(model, 0, material);
-		Material.release(material);
-		Scene.add(scene, model);
+		final model = new Model(Handle.NONE); // the mesh is attached when it loads
+		model.setPosition(x, y, 0);
+		model.setMaterial(0, material);
+		material.release();
+		scene.add(model);
 		spheres.push(model);
 		return model;
 	}
@@ -134,35 +134,35 @@ class MaterialsDemo {
 
 	static function addBottomRow():Void {
 		// unlit: ignores the lights entirely
-		final unlit = Material.create(Unlit);
-		Material.setColor(unlit, "base_color", Color.SKYBLUE);
+		final unlit = new Material(Unlit);
+		unlit.setColor("base_color", Color.SKYBLUE);
 		bottomRow.push(sphere(-2 * SPACING, 0.0, unlit));
 
 		// emissive: glows whatever the lighting does
 		final emissive = pbr(0.05, 0.05, 0.05, 0.0, 0.6);
-		Material.setEmissive(emissive, 1.0, 0.35, 0.05);
+		emissive.setEmissive(1.0, 0.35, 0.05);
 		bottomRow.push(sphere(-SPACING, 0.0, emissive));
 
 		// normal mapped: bevelled tiles, tangents generated at load
 		tiles = pbr(0.6, 0.6, 0.62, 0.0, 0.45);
-		Material.setNormalScale(tiles, 1.0);
+		tiles.setNormalScale(1.0);
 		bottomRow.push(sphere(0.0, 0.0, tiles)); // releases our reference; the model keeps one
 
 		// alpha blended glass
 		final glass = pbr(0.3, 0.9, 0.5, 0.0, 0.1);
-		Material.setBaseColor(glass, 0.3, 0.9, 0.5, 0.35);
-		Material.setAlphaMode(glass, Blend, 0.5);
+		glass.setBaseColor(0.3, 0.9, 0.5, 0.35);
+		glass.setAlphaMode(Blend, 0.5);
 		bottomRow.push(sphere(SPACING, 0.0, glass));
 	}
 
 	static function addCharacter():Void {
-		character = Model.create(Handle.NONE);
-		Model.setTransform(character, new Vec3(2 * SPACING, -0.55, 0), new Vec3(0, -0.6, 0), new Vec3(0.3, 0.3, 0.3));
-		Model.setAnimation(character, 3);
+		character = new Model(Handle.NONE);
+		character.setTransform(new Vec3(2 * SPACING, -0.55, 0), new Vec3(0, -0.6, 0), new Vec3(0.3, 0.3, 0.3));
+		character.setAnimation(3);
 		final gold = pbr(1.0, 0.77, 0.34, 1.0, 0.3);
-		Model.setMaterial(character, CHARACTER_BODY_SLOT, gold);
-		Material.release(gold);
-		Scene.add(scene, character);
+		character.setMaterial(CHARACTER_BODY_SLOT, gold);
+		gold.release();
+		scene.add(character);
 	}
 
 	static function onAsset(id:Int, path:String, ok:Bool):Void {
@@ -172,20 +172,20 @@ class MaterialsDemo {
 		}
 		switch id {
 			case ASSET_SPHERE:
-				final mesh = Mesh.create(path);
+				final mesh = new Mesh(path);
 				for (model in spheres)
-					Model.setMesh(model, mesh);
-				Mesh.release(mesh); // the models hold their own references
+					model.setMesh(mesh);
+				mesh.release(); // the models hold their own references
 
 			case ASSET_CHARACTER:
-				final mesh = Mesh.create(path);
-				Model.setMesh(character, mesh);
-				Mesh.release(mesh);
+				final mesh = new Mesh(path);
+				character.setMesh(mesh);
+				mesh.release();
 
 			case ASSET_NORMAL_MAP:
-				final texture = Texture.create(path);
-				Material.setNormalTexture(tiles, texture);
-				Texture.release(texture); // the material holds its own reference
+				final texture = new Texture(path);
+				tiles.setNormalTexture(texture);
+				texture.release(); // the material holds its own reference
 		}
 	}
 
@@ -194,30 +194,30 @@ class MaterialsDemo {
 		if (keys.isPressed(Escape))
 			Wgr.requestQuit();
 		if (keys.isPressed(Digit1))
-			Light.setEnabled(sun, !Light.isEnabled(sun));
+			sun.setEnabled(!sun.isEnabled());
 		if (keys.isPressed(Digit2))
-			Light.setEnabled(lamp, !Light.isEnabled(lamp));
+			lamp.setEnabled(!lamp.isEnabled());
 
 		elapsed += dt;
 		final lx = Math.cos(elapsed * 0.7) * 4.0;
 		final ly = 1.4 + Math.sin(elapsed * 0.9) * 1.2;
 		final lz = Math.sin(elapsed * 0.7) * 1.5 + 2.0;
-		Light.setPosition(lamp, new Vec3(lx, ly, lz));
-		Shape3D.setPosition(lampMarker, new Vec3(lx, ly, lz));
-		Shape3D.setVisible(lampMarker, Light.isEnabled(lamp));
+		lamp.setPosition(lx, ly, lz);
+		lampMarker.setPosition(lx, ly, lz);
+		lampMarker.setVisible(lamp.isEnabled());
 
 		// turn the bottom row, so the normal map has something to catch
 		for (i in 0...bottomRow.length)
-			Model.setTransform(bottomRow[i], new Vec3((i - 2.0) * SPACING, 0.0, 0), new Vec3(0, elapsed * 0.5, 0), Vec3.ONE);
-		Model.animate(character, dt);
+			bottomRow[i].setTransform(new Vec3((i - 2.0) * SPACING, 0.0, 0), new Vec3(0, elapsed * 0.5, 0), Vec3.ONE);
+		character.animate(dt);
 
 		Render.beginFrame();
 		Render.clearBackground(background);
-		Scene.draw(scene);
+		scene.draw();
 		Text.draw("wgrender materials: metallic-roughness, unlit, emissive, normal map, blend", 12, 12, 16,
 			Color.RAYWHITE);
 		Text.draw('roughness 0 -> 1 (left to right)   rows: plastic, gold   '
-			+ '[1] sun ${Light.isEnabled(sun) ? "on" : "off"}  [2] lamp ${Light.isEnabled(lamp) ? "on" : "off"}', 12, 36, 16,
+			+ '[1] sun ${sun.isEnabled() ? "on" : "off"}  [2] lamp ${lamp.isEnabled() ? "on" : "off"}', 12, 36, 16,
 			Color.LIGHTGRAY);
 		Render.endFrame();
 	}

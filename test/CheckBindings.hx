@@ -914,6 +914,45 @@ class CheckBindings {
 
 	// --- lifecycle ----------------------------------------------------------
 
+	// The sugar: each kind is @:using itself, so its statics are methods too, and a
+	// plain create has a constructor. Both are the same inline calls as the statics
+	// above; these check they reach them, not that the calls work a second time.
+	static function checkSugar():Void {
+		final m = new Model(Handle.NONE);
+		check(!m.isNone(), "new Model(...) makes a model");
+		eq((m : Handle).getKind(), HandleKind.Model, "and it is a model handle");
+		m.setPosition(new Vec3(1, 2, 3));
+		near(Model.getPosition(m).y, 2, "a method call is the static's call");
+		near(m.getPosition().z, 3, "and a method reads back what a static would");
+		m.setPosition(4, 5, 6);
+		near(m.getPosition().x, 4, "the split overload is the same setter");
+		m.setScale(2, 2, 2);
+		near(m.getScale().y, 2, "and so is setScale's");
+
+		final sprite = new Sprite2D(Handle.NONE);
+		check(sprite.setPivot(new Vec2(0.25, 0.75)), "a sprite's pivot takes a Vec2 too");
+		near(sprite.getPivot().y, 0.75, "and reads back");
+		check(sprite.setPivot(0.5, 1.0), "and the components, as it did");
+		near(sprite.getPivot().x, 0.5, "which read back the same way");
+		sprite.destroy();
+		scene.add(m);
+		m.destroy();
+
+		final l = new Light(Directional);
+		l.setIntensity(2.5);
+		near(Light.getIntensity(l), 2.5, "new Light(...) and a method on it");
+		l.destroy();
+
+		final s = new Scene();
+		check(!s.isNone(), "new Scene() needs no arguments");
+		s.destroy();
+
+		final text = new Text2D(Handle.NONE);
+		text.setText("iiii");
+		check(text.measure().x == text.measureWidth(), "measure is measureWidth in a Vec2");
+		text.destroy();
+	}
+
 	static function onInit():Void {
 		Log.setLevel(Fatal); // the missing-asset checks below log errors on purpose
 		camera = Camera3D.create(Perspective);
@@ -941,6 +980,7 @@ class CheckBindings {
 		checkSoundAndAsset();
 		checkEvents();
 		checkPick();
+		checkSugar();
 		checkSweptBehaviour();
 		checkLightGetters();
 	}

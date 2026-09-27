@@ -3,6 +3,7 @@ package wgr;
 // wgr_event.h
 
 /** What `Event.on` hands back, for `Event.off` to take. A zero token never listened. **/
+@:using(wgr.EventListener)
 abstract EventListener(Int) from Int to Int {
 	/**
 		Whether this token never listened.

@@ -3,6 +3,7 @@ package wgr;
 // wgr_color.h
 
 /** A packed 0xRRGGBBAA color, by value. **/
+@:using(wgr.Color)
 abstract Color(Int) from Int to Int {
 	public static inline var LIGHTGRAY:Color = cast 0xC8C8C8FF;
 	public static inline var GRAY:Color = cast 0x828282FF;

@@ -88,9 +88,9 @@ class Stress {
 	}
 
 	static function spawn():Entity {
-		final e = new Entity(Sprite3D.create(texture));
-		Sprite3D.setFacing(e.sprite, Free);
-		Scene.add(scene, e.sprite);
+		final e = new Entity(new Sprite3D(texture));
+		e.sprite.setFacing(Free);
+		scene.add(e.sprite);
 		return e;
 	}
 
@@ -101,10 +101,10 @@ class Stress {
 		Wgr.setTargetFps(60);
 		rng = 0x92D68CA2; // 2463534242
 
-		final camera = Camera3D.create(Perspective);
-		Camera3D.setView(camera, new Vec3(0, 14, 30), new Vec3(0, 3, 0), UP);
-		scene = Scene.create();
-		Scene.setActiveCamera(scene, camera);
+		final camera = new Camera3D(Perspective);
+		camera.setView(new Vec3(0, 14, 30), new Vec3(0, 3, 0), UP);
+		scene = new Scene();
+		scene.setActiveCamera(camera);
 		background = Color.rgba(245, 245, 245, 255);
 
 		if (!GuestAbi.loadAsset(SPRITE_PATH, ASSET_SPRITE))
@@ -116,7 +116,7 @@ class Stress {
 			Log.error('failed to import asset: $path');
 			return;
 		}
-		texture = Texture.create(path);
+		texture = new Texture(path);
 		entities = [for (_ in 0...n) spawn()];
 	}
 
@@ -140,9 +140,9 @@ class Stress {
 		}
 		e.angle += e.spin * STEP;
 		e.life -= STEP;
-		Sprite3D.setTransform(e.sprite, new Vec3(e.x, e.y, e.z), new Vec3(0, e.angle, 0), new Vec3(0.5, 0.5, 0.5));
+		e.sprite.setTransform(new Vec3(e.x, e.y, e.z), new Vec3(0, e.angle, 0), new Vec3(0.5, 0.5, 0.5));
 		if (e.life <= 0) {
-			Sprite3D.destroy(e.sprite);
+			e.sprite.destroy();
 			entities[i] = spawn(); // a new instance; the old one is garbage
 		}
 	}
@@ -170,7 +170,7 @@ class Stress {
 				update(i);
 		Render.beginFrame();
 		Render.clearBackground(background);
-		Scene.draw(scene);
+		scene.draw();
 		drawText();
 		Render.endFrame();
 	}

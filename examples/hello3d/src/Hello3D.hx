@@ -36,9 +36,9 @@ class Hello3D {
 	}
 
 	static function onInit():Void {
-		camera = Camera3D.create(Perspective); // default fov: pi/4
-		Camera3D.setView(camera, new Vec3(14, 8, 14), LOOK_AT);
-		Camera3D.setActive(camera);
+		camera = new Camera3D(Perspective); // default fov: pi/4
+		camera.setView(new Vec3(14, 8, 14), LOOK_AT);
+		camera.setActive();
 		background = Color.rgba(28, 28, 38);
 		Debug.enableFps(12, 10, 16);
 	}
@@ -46,7 +46,7 @@ class Hello3D {
 	static function onFrame(dt:Float):Void {
 		// orbit the camera around the origin
 		final t = Wgr.getTime();
-		Camera3D.setView(camera, new Vec3(Math.cos(t * ORBIT_SPEED) * ORBIT_RADIUS, CAMERA_HEIGHT,
+		camera.setView(new Vec3(Math.cos(t * ORBIT_SPEED) * ORBIT_RADIUS, CAMERA_HEIGHT,
 			Math.sin(t * ORBIT_SPEED) * ORBIT_RADIUS), LOOK_AT);
 
 		Render.beginFrame();

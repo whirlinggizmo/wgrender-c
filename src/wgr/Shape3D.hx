@@ -10,6 +10,7 @@ package wgr;
 	add it to a `Scene`. Picked by its surface — the inside of a circle counts, a line
 	or strip has no area and is never hit.
 **/
+@:using(wgr.Shape3D)
 abstract Shape3D(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -17,6 +18,10 @@ abstract Shape3D(Handle) from Handle to Handle {
 	/** Whether this refers to nothing; tolerates a field never assigned, on js. **/
 	public static inline function isNone(shape3D:Shape3D):Bool
 		return (shape3D : Handle).isNone;
+
+	/** `new Shape3D()` is `Shape3D.create()`, the same call. **/
+	public inline function new()
+		this = create();
 
 	public static inline function create():Shape3D
 		return (Raw.wgr_shape3d_create() : Handle);
@@ -60,15 +65,27 @@ abstract Shape3D(Handle) from Handle to Handle {
 			scale.y, scale.z);
 
 	/** One part of the transform, leaving the others as they are. **/
-	public static inline function setPosition(shape3D:Shape3D, value:Vec3):Bool
+	public static overload extern inline function setPosition(shape3D:Shape3D, value:Vec3):Bool
 		return Raw.wgr_shape3d_set_position(shape3D, value.x, value.y, value.z);
 
+	/** The same, without a `Vec3`. **/
+	public static overload extern inline function setPosition(shape3D:Shape3D, x:Float, y:Float, z:Float):Bool
+		return Raw.wgr_shape3d_set_position(shape3D, x, y, z);
+
 	/** Radians. **/
-	public static inline function setRotation(shape3D:Shape3D, value:Vec3):Bool
+	public static overload extern inline function setRotation(shape3D:Shape3D, value:Vec3):Bool
 		return Raw.wgr_shape3d_set_rotation(shape3D, value.x, value.y, value.z);
 
-	public static inline function setScale(shape3D:Shape3D, value:Vec3):Bool
+	/** The same, without a `Vec3`. **/
+	public static overload extern inline function setRotation(shape3D:Shape3D, x:Float, y:Float, z:Float):Bool
+		return Raw.wgr_shape3d_set_rotation(shape3D, x, y, z);
+
+	public static overload extern inline function setScale(shape3D:Shape3D, value:Vec3):Bool
 		return Raw.wgr_shape3d_set_scale(shape3D, value.x, value.y, value.z);
+
+	/** The same, without a `Vec3`. **/
+	public static overload extern inline function setScale(shape3D:Shape3D, x:Float, y:Float, z:Float):Bool
+		return Raw.wgr_shape3d_set_scale(shape3D, x, y, z);
 
 	/** Where it is, as last set. **/
 	public static inline function getPosition(shape3D:Shape3D):Vec3

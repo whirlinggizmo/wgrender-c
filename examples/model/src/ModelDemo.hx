@@ -51,27 +51,27 @@ class ModelDemo {
 		background = Color.rgba(30, 32, 40, 255);
 		target = new Vec3(0, 3, 0);
 
-		camera = Camera3D.create(Perspective);
-		Camera3D.setView(camera, new Vec3(8, 8, 8), target);
-		scene = Scene.create();
-		Scene.setActiveCamera(scene, camera);
+		camera = new Camera3D(Perspective);
+		camera.setView(new Vec3(8, 8, 8), target);
+		scene = new Scene();
+		scene.setActiveCamera(camera);
 
 		// A scene starts unlit: it needs a sun and some ambient before anything shows.
-		final sun = Light.create(Directional);
-		Light.setDirection(sun, new Vec3(-0.6, -1.0, -0.5));
-		Light.setIntensity(sun, 3.0); // about pi: a white surface facing it shows its full colour
-		Scene.add(scene, sun);
-		Scene.setAmbient(scene, Color.WHITE, 0.3);
+		final sun = new Light(Directional);
+		sun.setDirection(new Vec3(-0.6, -1.0, -0.5));
+		sun.setIntensity(3.0); // about pi: a white surface facing it shows its full colour
+		scene.add(sun);
+		scene.setAmbient(Color.WHITE, 0.3);
 		Debug.enableFps(12, 10, 16);
 
-		model = Model.create(Handle.NONE); // empty: the mesh is attached when it loads
-		Model.setPosition(model, new Vec3(0, 0, 0));
-		Model.setTint(model, Color.RAYWHITE);
+		model = new Model(Handle.NONE); // empty: the mesh is attached when it loads
+		model.setPosition(0, 0, 0);
+		model.setTint(Color.RAYWHITE);
 		// Skeletal animation, if the glTF has any; a no-op until the mesh arrives.
-		Model.setAnimation(model, 3);
-		Model.setAnimationSpeed(model, 1.0);
-		Model.setAnimationLoop(model, true);
-		Scene.add(scene, model);
+		model.setAnimation(3);
+		model.setAnimationSpeed(1.0);
+		model.setAnimationLoop(true);
+		scene.add(model);
 
 		if (!GuestAbi.loadAsset(CHARACTER_PATH, ASSET_MESH))
 			Log.error('failed to queue asset: $CHARACTER_PATH');
@@ -84,9 +84,9 @@ class ModelDemo {
 		}
 		if (id != ASSET_MESH)
 			return;
-		final mesh = Mesh.create(path);
-		Model.setMesh(model, mesh);
-		Mesh.release(mesh); // the model holds its own reference
+		final mesh = new Mesh(path);
+		model.setMesh(mesh);
+		mesh.release(); // the model holds its own reference
 		loaded = true;
 	}
 
@@ -94,11 +94,11 @@ class ModelDemo {
 		final t = Wgr.getTime();
 
 		if (orbitCamera)
-			Camera3D.setView(camera, new Vec3(Math.cos(t * ORBIT_SPEED) * ORBIT_RADIUS, 7.0,
+			camera.setView(new Vec3(Math.cos(t * ORBIT_SPEED) * ORBIT_RADIUS, 7.0,
 				Math.sin(t * ORBIT_SPEED) * ORBIT_RADIUS), target);
 		if (spinModel)
-			Model.setTransform(model, new Vec3(0, 0, 0), new Vec3(0, t * 0.5, 0), Vec3.ONE);
-		Model.animate(model, dt);
+			model.setTransform(new Vec3(0, 0, 0), new Vec3(0, t * 0.5, 0), Vec3.ONE);
+		model.animate(dt);
 
 		Render.beginFrame();
 		Render.clearBackground(background);
@@ -107,7 +107,7 @@ class ModelDemo {
 		Shape3D.drawGrid(20, 1.0, Color.DARKGRAY);
 		Render.endMode3D();
 
-		Scene.draw(scene);
+		scene.draw();
 
 		Text.draw("wgrender + sokol — model (glTF/cgltf)", 12, 36, 22, Color.RAYWHITE);
 		Text.draw(loaded ? CHARACTER_PATH + " — skeletal animation (glTF skin)" : "loading model...", 12, 68, 16,

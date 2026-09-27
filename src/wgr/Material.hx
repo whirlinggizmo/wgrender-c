@@ -15,8 +15,8 @@ package wgr;
 
 	```haxe
 	final m = new Material(Pbr);
-	m.roughness = 0.35;
-	m.baseColorTexture = albedo;
+	m.setRoughness(0.35);
+	m.setBaseColorTexture(albedo);
 	m.setBaseColor(0.9, 0.2, 0.2);   // linear rgba, glTF's factors
 	model.setMaterial(0, m);
 	m.release();                     // the model holds its own reference
@@ -25,6 +25,7 @@ package wgr;
 	A custom shader's parameters are whatever it declares, so those go through the
 	`set*` methods by name.
 **/
+@:using(wgr.Material)
 abstract Material(Handle) from Handle to Handle {
 	// --- the built-in glTF parameters, by name in the header's table ---
 
@@ -34,6 +35,10 @@ abstract Material(Handle) from Handle to Handle {
 	/** Whether this refers to nothing; tolerates a field never assigned, on js. **/
 	public static inline function isNone(material:Material):Bool
 		return (material : Handle).isNone;
+
+	/** `new Material(...)` is `Material.create(...)`, the same call. **/
+	public inline function new(shading:MaterialShading = Pbr)
+		this = create(shading);
 
 	public static inline function create(shading:MaterialShading = Pbr):Material
 		return (Raw.wgr_material_create(shading) : Handle);

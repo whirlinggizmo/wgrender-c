@@ -6,6 +6,7 @@ package wgr;
 	The same as `Emitter3D`, on the screen instead of in the world: positions and
 	velocities are in logical pixels, and it draws over the 3D like `Sprite2D`.
 **/
+@:using(wgr.Emitter2D)
 abstract Emitter2D(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -18,16 +19,28 @@ abstract Emitter2D(Handle) from Handle to Handle {
 	public static inline function getPosition(emitter2D:Emitter2D):Vec2
 		return Vec2.of(Raw.wgr_emitter2d_get_position(emitter2D));
 
+	/** `new Emitter2D(...)` is `Emitter2D.create(...)`, the same call. **/
+	public inline function new(texture:Texture)
+		this = create(texture);
+
 	public static inline function create(texture:Texture):Emitter2D
 		return (Raw.wgr_emitter2d_create(texture) : Handle);
 
 	/** Where new particles appear; the ones alive stay where they were born. **/
-	public static inline function setPosition(emitter2D:Emitter2D, position:Vec2):Bool
+	public static overload extern inline function setPosition(emitter2D:Emitter2D, position:Vec2):Bool
 		return Raw.wgr_emitter2d_set_position(emitter2D, position.x, position.y);
 
+	/** The same, without a `Vec2`. **/
+	public static overload extern inline function setPosition(emitter2D:Emitter2D, x:Float, y:Float):Bool
+		return Raw.wgr_emitter2d_set_position(emitter2D, x, y);
+
 	/** Move without the trail a `setPosition` sweep would leave. **/
-	public static inline function jump(emitter2D:Emitter2D, position:Vec2):Bool
+	public static overload extern inline function jump(emitter2D:Emitter2D, position:Vec2):Bool
 		return Raw.wgr_emitter2d_jump(emitter2D, position.x, position.y);
+
+	/** The same, without a `Vec2`. **/
+	public static overload extern inline function jump(emitter2D:Emitter2D, x:Float, y:Float):Bool
+		return Raw.wgr_emitter2d_jump(emitter2D, x, y);
 
 	/** New particles appear anywhere in this box around the position. **/
 	public static inline function setSpawnBox(emitter2D:Emitter2D, halfWidth:Float, halfHeight:Float):Bool

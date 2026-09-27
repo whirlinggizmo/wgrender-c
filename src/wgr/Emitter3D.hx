@@ -11,6 +11,7 @@ package wgr;
 	Particles are unlit: the texture times the particle's color, with no material
 	and no scene lighting. A lit effect wants `Sprite3D` objects with a material.
 **/
+@:using(wgr.Emitter3D)
 abstract Emitter3D(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -23,16 +24,28 @@ abstract Emitter3D(Handle) from Handle to Handle {
 	public static inline function getPosition(emitter3D:Emitter3D):Vec3
 		return Vec3.of(Raw.wgr_emitter3d_get_position(emitter3D));
 
+	/** `new Emitter3D(...)` is `Emitter3D.create(...)`, the same call. **/
+	public inline function new(texture:Texture)
+		this = create(texture);
+
 	public static inline function create(texture:Texture):Emitter3D
 		return (Raw.wgr_emitter3d_create(texture) : Handle);
 
 	/** Where new particles appear; the ones alive stay where they were born. **/
-	public static inline function setPosition(emitter3D:Emitter3D, position:Vec3):Bool
+	public static overload extern inline function setPosition(emitter3D:Emitter3D, position:Vec3):Bool
 		return Raw.wgr_emitter3d_set_position(emitter3D, position.x, position.y, position.z);
 
+	/** The same, without a `Vec3`. **/
+	public static overload extern inline function setPosition(emitter3D:Emitter3D, x:Float, y:Float, z:Float):Bool
+		return Raw.wgr_emitter3d_set_position(emitter3D, x, y, z);
+
 	/** Move without the trail a `setPosition` sweep would leave. **/
-	public static inline function jump(emitter3D:Emitter3D, position:Vec3):Bool
+	public static overload extern inline function jump(emitter3D:Emitter3D, position:Vec3):Bool
 		return Raw.wgr_emitter3d_jump(emitter3D, position.x, position.y, position.z);
+
+	/** The same, without a `Vec3`. **/
+	public static overload extern inline function jump(emitter3D:Emitter3D, x:Float, y:Float, z:Float):Bool
+		return Raw.wgr_emitter3d_jump(emitter3D, x, y, z);
 
 	/** New particles appear anywhere in this box around the position. **/
 	public static inline function setSpawnBox(emitter3D:Emitter3D, half:Vec3):Bool

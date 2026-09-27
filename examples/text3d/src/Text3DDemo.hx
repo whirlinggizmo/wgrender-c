@@ -61,25 +61,25 @@ class Text3DDemo {
 		rose = Color.rgba(220, 90, 120, 255);
 		ringColor = Color.rgba(120, 130, 160, 255);
 
-		camera = Camera3D.create(Perspective);
-		Camera3D.setView(camera, new Vec3(0, 4.0, 9.0), new Vec3(0, 0.8, 0));
-		scene = Scene.create();
-		Scene.setActiveCamera(scene, camera);
+		camera = new Camera3D(Perspective);
+		camera.setView(new Vec3(0, 4.0, 9.0), new Vec3(0, 0.8, 0));
+		scene = new Scene();
+		scene.setActiveCamera(camera);
 
-		cube = Shape3D.create();
-		Shape3D.setCube(cube, new Vec3(1.2, 1.2, 1.2));
-		Shape3D.setPosition(cube, new Vec3(-3, 0.6, 0));
-		Scene.add(scene, cube);
+		cube = new Shape3D();
+		cube.setCube(new Vec3(1.2, 1.2, 1.2));
+		cube.setPosition(-3, 0.6, 0);
+		scene.add(cube);
 
-		sphere = Shape3D.create();
-		Shape3D.setSphere(sphere, 0.7);
-		Shape3D.setPosition(sphere, new Vec3(0, 0.7, 0));
-		Scene.add(scene, sphere);
+		sphere = new Shape3D();
+		sphere.setSphere(0.7);
+		sphere.setPosition(0, 0.7, 0);
+		scene.add(sphere);
 
-		panel = Shape3D.create();
-		Shape3D.setRectangle(panel, 1.4, 1.0);
-		Shape3D.setTransform(panel, new Vec3(3, 0.8, 0), new Vec3(0, -0.5, 0), Vec3.ONE);
-		Scene.add(scene, panel);
+		panel = new Shape3D();
+		panel.setRectangle(1.4, 1.0);
+		panel.setTransform(new Vec3(3, 0.8, 0), new Vec3(0, -0.5, 0), Vec3.ONE);
+		scene.add(panel);
 
 		addRings();
 		addSpiral();
@@ -90,12 +90,12 @@ class Text3DDemo {
 
 		// Free facing: oriented by its own rotation, like a sign, rather than turned
 		// to the camera the way the labels are.
-		sign = Text3D.create(Handle.NONE); // the font is attached when it loads
-		Text3D.setText(sign, "wgrender text3d");
-		Text3D.setSize(sign, 0.6);
-		Text3D.setFacing(sign, Free);
-		Text3D.setColor(sign, gold);
-		Scene.add(scene, sign);
+		sign = new Text3D(Handle.NONE); // the font is attached when it loads
+		sign.setText("wgrender text3d");
+		sign.setSize(0.6);
+		sign.setFacing(Free);
+		sign.setColor(gold);
+		scene.add(sign);
 
 		if (!GuestAbi.loadAsset(FONT_PATH, ASSET_FONT))
 			Log.error('failed to queue asset: $FONT_PATH');
@@ -104,35 +104,35 @@ class Text3DDemo {
 	/** Rings lying on the ground under each object, and not pickable. **/
 	static function addRings():Void {
 		for (i in 0...3) {
-			final ring = Shape3D.create();
-			Shape3D.setCircle(ring, 1.0);
-			Shape3D.setTransform(ring, new Vec3(-3.0 + 3.0 * i, 0.01, 0), new Vec3(-Math.PI / 2, 0, 0), Vec3.ONE);
-			Shape3D.setColor(ring, ringColor);
-			Shape3D.setPickable(ring, false);
-			Scene.add(scene, ring);
+			final ring = new Shape3D();
+			ring.setCircle(1.0);
+			ring.setTransform(new Vec3(-3.0 + 3.0 * i, 0.01, 0), new Vec3(-Math.PI / 2, 0, 0), Vec3.ONE);
+			ring.setColor(ringColor);
+			ring.setPickable(false);
+			scene.add(ring);
 		}
 	}
 
 	static function addSpiral():Void {
-		final spiral = Shape3D.create();
-		Shape3D.setLineStrip(spiral);
+		final spiral = new Shape3D();
+		spiral.setLineStrip();
 		for (i in 0...SPIRAL_POINTS + 1) {
 			final t = i / SPIRAL_POINTS;
 			final a = t * 2 * Math.PI * 4.0;
-			Shape3D.addPoint(spiral, new Vec3(Math.cos(a) * (0.2 + t), t * 2.5, Math.sin(a) * (0.2 + t)));
+			spiral.addPoint(new Vec3(Math.cos(a) * (0.2 + t), t * 2.5, Math.sin(a) * (0.2 + t)));
 		}
-		Shape3D.setPosition(spiral, new Vec3(0, 0, -3));
-		Shape3D.setColor(spiral, teal);
-		Scene.add(scene, spiral);
+		spiral.setPosition(0, 0, -3);
+		spiral.setColor(teal);
+		scene.add(spiral);
 	}
 
 	static function addLabel(text:String, position:Vec3):Text3D {
-		final label = Text3D.create(Handle.NONE); // the font is attached when it loads
-		Text3D.setText(label, text);
-		Text3D.setSize(label, 0.35);
-		Text3D.setPosition(label, position);
-		Text3D.setColor(label, Color.RAYWHITE);
-		Scene.add(scene, label);
+		final label = new Text3D(Handle.NONE); // the font is attached when it loads
+		label.setText(text);
+		label.setSize(0.35);
+		label.setPosition(position);
+		label.setColor(Color.RAYWHITE);
+		scene.add(label);
 		return label;
 	}
 
@@ -143,10 +143,10 @@ class Text3DDemo {
 		}
 		if (id != ASSET_FONT)
 			return;
-		font = Font.create(path);
+		font = new Font(path);
 		for (label in labels)
-			Text3D.setFont(label, font);
-		Text3D.setFont(sign, font);
+			label.setFont(font);
+		sign.setFont(font);
 	}
 
 	static function nameOf(handle:Handle):String {
@@ -168,21 +168,21 @@ class Text3DDemo {
 		if (keys.isPressed(Escape))
 			Wgr.requestQuit();
 		if (keys.isPressed(P))
-			Shape3D.setPickable(cube, !Shape3D.isPickable(cube));
+			cube.setPickable(!cube.isPickable());
 
 		elapsed += dt;
-		Shape3D.setTransform(cube, new Vec3(-3, 0.6, 0), new Vec3(0, elapsed * 0.7, 0), Vec3.ONE);
-		Text3D.setTransform(sign, new Vec3(0, 3.2, -3), new Vec3(0, Math.sin(elapsed * 0.6) * 0.6, 0));
+		cube.setTransform(new Vec3(-3, 0.6, 0), new Vec3(0, elapsed * 0.7, 0), Vec3.ONE);
+		sign.setTransform(new Vec3(0, 3.2, -3), new Vec3(0, Math.sin(elapsed * 0.6) * 0.6, 0));
 
 		// hover: the nearest pickable object under the mouse
 		Pick.resetStats();
-		final pick = Scene.pick(scene, mouse.x, mouse.y);
+		final pick = scene.pick(mouse.x, mouse.y);
 		final hovered = pick.hit ? pick.handle : Handle.NONE;
-		Shape3D.setColor(cube, hovered == cube ? Color.WHITE : gold);
-		Shape3D.setColor(sphere, hovered == sphere ? Color.WHITE : rose);
-		Shape3D.setColor(panel, hovered == panel ? Color.WHITE : teal);
+		cube.setColor(hovered == cube ? Color.WHITE : gold);
+		sphere.setColor(hovered == sphere ? Color.WHITE : rose);
+		panel.setColor(hovered == panel ? Color.WHITE : teal);
 		for (label in labels)
-			Text3D.setColor(label, hovered == label ? gold : Color.RAYWHITE);
+			label.setColor(hovered == label ? gold : Color.RAYWHITE);
 		final stats = Pick.getStats();
 
 		Render.beginFrame();
@@ -190,14 +190,14 @@ class Text3DDemo {
 		Render.beginMode3D();
 		Shape3D.drawGrid(16, 1.0, grey);
 		Render.endMode3D();
-		Scene.draw(scene);
+		scene.draw();
 
-		Font.draw(font, "wgrender text3d: text in 3D, shapes, picking", 12, 10, 20, Color.RAYWHITE);
-		Font.draw(font, 'hover: ${pick.hit ? nameOf(pick.handle) : "nothing"}   '
-			+ '[P] cube pickable: ${Shape3D.isPickable(cube) ? "yes" : "no"}', 12, 36, 16, Color.LIGHTGRAY);
-		Font.draw(font, 'pick stats: ${stats.broadphaseTests} box tests (${stats.broadphaseRejects} rejected), '
+		font.draw("wgrender text3d: text in 3D, shapes, picking", 12, 10, 20, Color.RAYWHITE);
+		font.draw('hover: ${pick.hit ? nameOf(pick.handle) : "nothing"}   '
+			+ '[P] cube pickable: ${cube.isPickable() ? "yes" : "no"}', 12, 36, 16, Color.LIGHTGRAY);
+		font.draw('pick stats: ${stats.broadphaseTests} box tests (${stats.broadphaseRejects} rejected), '
 			+ '${stats.narrowphaseTests} exact tests, ${stats.narrowphaseHits} hits', 12, 56, 16, Color.LIGHTGRAY);
-		Font.drawFps(font, 12, 80, 16, Color.LIME);
+		font.drawFps(12, 80, 16, Color.LIME);
 		Render.endFrame();
 	}
 }

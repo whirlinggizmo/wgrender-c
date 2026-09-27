@@ -3,6 +3,7 @@ package wgr;
 // wgr_asset.h
 
 /** Asset flags, or-ed together. **/
+@:using(wgr.AssetFlag)
 enum abstract AssetFlag(Int) to Int {
 	/**
 		Re-download even if cached. Does nothing where nothing can download — a desktop

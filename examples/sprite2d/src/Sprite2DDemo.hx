@@ -75,38 +75,38 @@ class Sprite2DDemo {
 				Std.int(127 + 127 * Math.sin(a + 4.2)), 255));
 		}
 
-		camera = Camera3D.create(Perspective);
-		Camera3D.setView(camera, new Vec3(0, 1.4, 5.5), new Vec3(0, 1, 0));
-		scene = Scene.create();
-		Scene.setActiveCamera(scene, camera);
+		camera = new Camera3D(Perspective);
+		camera.setView(new Vec3(0, 1.4, 5.5), new Vec3(0, 1, 0));
+		scene = new Scene();
+		scene.setActiveCamera(camera);
 
-		final sun = Light.create(Directional);
-		Light.setDirection(sun, new Vec3(-0.5, -1.0, -0.7));
-		Light.setIntensity(sun, 3.0);
-		Scene.add(scene, sun);
-		Scene.setAmbient(scene, Color.WHITE, 0.35);
+		final sun = new Light(Directional);
+		sun.setDirection(new Vec3(-0.5, -1.0, -0.7));
+		sun.setIntensity(3.0);
+		scene.add(sun);
+		scene.setAmbient(Color.WHITE, 0.35);
 
-		model = Model.create(Handle.NONE); // the mesh is attached when it loads
-		Model.setAnimation(model, 3);
-		Model.setAnimationLoop(model, true);
-		Scene.add(scene, model);
+		model = new Model(Handle.NONE); // the mesh is attached when it loads
+		model.setAnimation(3);
+		model.setAnimationLoop(true);
+		scene.add(model);
 
 		for (i in 0...SPRITE_COUNT) {
-			final sprite = Sprite2D.create(Handle.NONE); // the texture likewise
-			Sprite2D.setSize(sprite, 128, 128);
-			Sprite2D.setPickAlphaTest(sprite, true, 0.5);
-			Scene.add(scene, sprite);
+			final sprite = new Sprite2D(Handle.NONE); // the texture likewise
+			sprite.setSize(128, 128);
+			sprite.setPickAlphaTest(true, 0.5);
+			scene.add(sprite);
 			sprites.push(sprite);
 		}
-		Sprite2D.setPosition(sprites[0], new Vec2(140, 170));
-		Sprite2D.setPosition(sprites[1], new Vec2(140, 380));
-		Sprite2D.setPivot(sprites[2], 0, 0);
-		Sprite2D.setPosition(sprites[2], new Vec2(700, 110));
-		Sprite2D.setSize(sprites[2], 96, 96);
-		Sprite2D.setPosition(sprites[FLIP_SPRITE], new Vec2(760, 400));
-		Sprite2D.setScale(sprites[FLIP_SPRITE], new Vec2(-1, 1));
-		Sprite2D.setPosition(sprites[TINT_SPRITE], new Vec2(450, 110));
-		Sprite2D.setSize(sprites[TINT_SPRITE], 96, 96);
+		sprites[0].setPosition(140, 170);
+		sprites[1].setPosition(140, 380);
+		sprites[2].setPivot(0, 0);
+		sprites[2].setPosition(700, 110);
+		sprites[2].setSize(96, 96);
+		sprites[FLIP_SPRITE].setPosition(760, 400);
+		sprites[FLIP_SPRITE].setScale(-1, 1);
+		sprites[TINT_SPRITE].setPosition(450, 110);
+		sprites[TINT_SPRITE].setSize(96, 96);
 
 		load(LOGO_PATH, ASSET_LOGO);
 		load(WHITE_LOGO_PATH, ASSET_WHITE_LOGO);
@@ -127,45 +127,45 @@ class Sprite2DDemo {
 			case ASSET_LOGO:
 				// Kept, not released: the corner Texture.draw below needs the handle,
 				// so this one outlives the sprites that also reference it.
-				logo = Texture.create(path);
+				logo = new Texture(path);
 				for (i in 0...SPRITE_COUNT)
 					if (i != TINT_SPRITE)
-						Sprite2D.setTexture(sprites[i], logo);
+						sprites[i].setTexture(logo);
 
 			case ASSET_WHITE_LOGO:
-				final texture = Texture.create(path);
-				Sprite2D.setTexture(sprites[TINT_SPRITE], texture);
-				Texture.release(texture); // the sprite holds its own reference
+				final texture = new Texture(path);
+				sprites[TINT_SPRITE].setTexture(texture);
+				texture.release(); // the sprite holds its own reference
 
 			case ASSET_MESH:
-				final mesh = Mesh.create(path);
-				Model.setMesh(model, mesh);
-				Mesh.release(mesh);
+				final mesh = new Mesh(path);
+				model.setMesh(mesh);
+				mesh.release();
 		}
 	}
 
 	static function animate(dt:Float):Void {
 		elapsed += dt;
-		Model.animate(model, dt);
+		model.animate(dt);
 
 		// sprite sheet: one quadrant of the 256x256 texture per frame
 		sheetFrame = Std.int(elapsed * 2.0) % 4;
-		Sprite2D.setSource(sprites[0], (sheetFrame % 2) * SHEET_CELL, Std.int(sheetFrame / 2) * SHEET_CELL, SHEET_CELL,
+		sprites[0].setSource((sheetFrame % 2) * SHEET_CELL, Std.int(sheetFrame / 2) * SHEET_CELL, SHEET_CELL,
 			SHEET_CELL);
-		Sprite2D.setRotation(sprites[1], elapsed);
-		Sprite2D.setRotation(sprites[2], Math.sin(elapsed * 1.5) * 0.8);
-		Sprite2D.setTint(sprites[TINT_SPRITE], palette[Std.int(elapsed * 6.0) % PALETTE_SIZE]);
+		sprites[1].setRotation(elapsed);
+		sprites[2].setRotation(Math.sin(elapsed * 1.5) * 0.8);
+		sprites[TINT_SPRITE].setTint(palette[Std.int(elapsed * 6.0) % PALETTE_SIZE]);
 	}
 
 	/** Hover: 2D sprites are picked before the model behind them. **/
 	static function hover(mouse:MouseState):String {
-		final pick = Scene.pick(scene, mouse.x, mouse.y);
+		final pick = scene.pick(mouse.x, mouse.y);
 		final hovered = pick.hit ? pick.handle : Handle.NONE;
 		var name = "nothing";
 		for (i in 0...SPRITE_COUNT) {
 			final grow = sprites[i] == hovered ? 1.15 : 1.0;
 			// "flip" keeps its mirror while it grows.
-			Sprite2D.setScale(sprites[i], new Vec2(i == FLIP_SPRITE ? -grow : grow, grow));
+			sprites[i].setScale(i == FLIP_SPRITE ? -grow : grow, grow);
 			if (sprites[i] == hovered)
 				name = NAMES[i];
 		}
@@ -182,9 +182,9 @@ class Sprite2DDemo {
 
 		Render.beginFrame();
 		Render.clearBackground(background);
-		Scene.draw(scene);
+		scene.draw();
 		// one-off, with no object behind it
-		Texture.draw(logo, Window.getScreenSize().x - 74, 10, 64, 64, Color.WHITE);
+		logo.draw(Window.getScreenSize().x - 74, 10, 64, 64, Color.WHITE);
 
 		Text.draw("wgrender sprite2d: source rect, pivot, rotation, flip, picking", 12, 12, 16, Color.RAYWHITE);
 		Text.draw('mouse (${mouse.x}, ${mouse.y})  hover: $hovering  sheet frame $sheetFrame', 12, 36, 16,

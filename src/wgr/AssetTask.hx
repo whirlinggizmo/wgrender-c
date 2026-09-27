@@ -10,6 +10,7 @@ package wgr;
 	the guest ABI hands the guest an id rather than a task to hang closures on — so
 	watch `Asset.getProgress` instead.
 **/
+@:using(wgr.AssetTask)
 abstract AssetTask(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);

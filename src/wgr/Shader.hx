@@ -10,6 +10,7 @@ package wgr;
 	name.glsl`, and load the `.wgrshader` it writes. Use it with `Material.custom`;
 	its parameters and textures are then set by the names your shader gives them.
 **/
+@:using(wgr.Shader)
 abstract Shader(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -17,6 +18,10 @@ abstract Shader(Handle) from Handle to Handle {
 	/** Whether this refers to nothing; tolerates a field never assigned, on js. **/
 	public static inline function isNone(shader:Shader):Bool
 		return (shader : Handle).isNone;
+
+	/** `new Shader(...)` is `Shader.create(...)`, the same call. **/
+	public inline function new(path:String)
+		this = create(path);
 
 	public static inline function create(path:String):Shader
 		return (Raw.wgr_shader_create(path) : Handle);

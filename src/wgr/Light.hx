@@ -2,6 +2,7 @@ package wgr;
 
 // wgr_light.h
 
+@:using(wgr.Light)
 abstract Light(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -31,6 +32,10 @@ abstract Light(Handle) from Handle to Handle {
 	/** The part scaled by how steeply the surface faces the light. Set with `setShadowBias`. **/
 	public static inline function getShadowBiasSlope(light:Light):Float
 		return Raw.wgr_light_get_shadow_bias_slope(light);
+
+	/** `new Light(...)` is `Light.create(...)`, the same call. **/
+	public inline function new(kind:LightKind)
+		this = create(kind);
 
 	public static inline function create(kind:LightKind):Light
 		return (Raw.wgr_light_create(kind) : Handle);
@@ -66,8 +71,12 @@ abstract Light(Handle) from Handle to Handle {
 		return Vec3.of(Raw.wgr_light_get_position(light));
 
 	/** Point and spot. **/
-	public static inline function setPosition(light:Light, value:Vec3):Bool
+	public static overload extern inline function setPosition(light:Light, value:Vec3):Bool
 		return Raw.wgr_light_set_position(light, value.x, value.y, value.z);
+
+	/** The same, without a `Vec3`. **/
+	public static overload extern inline function setPosition(light:Light, x:Float, y:Float, z:Float):Bool
+		return Raw.wgr_light_set_position(light, x, y, z);
 
 	/** Point and spot; 0 is unlimited, the default. Below 0 is held as 0. **/
 	public static inline function getRange(light:Light):Float

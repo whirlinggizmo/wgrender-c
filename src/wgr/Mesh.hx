@@ -3,6 +3,7 @@ package wgr;
 // wgr_model.h — the geometry resource
 
 /** Loaded model geometry: reference counted, shared. **/
+@:using(wgr.Mesh)
 abstract Mesh(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -10,6 +11,10 @@ abstract Mesh(Handle) from Handle to Handle {
 	/** Whether this refers to nothing; tolerates a field never assigned, on js. **/
 	public static inline function isNone(mesh:Mesh):Bool
 		return (mesh : Handle).isNone;
+
+	/** `new Mesh(...)` is `Mesh.create(...)`, the same call. **/
+	public inline function new(path:String)
+		this = create(path);
 
 	public static inline function create(path:String):Mesh
 		return (Raw.wgr_mesh_create(path) : Handle);

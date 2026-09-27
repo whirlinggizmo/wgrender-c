@@ -13,6 +13,7 @@ package wgr;
 
 	Use with `Scene.setEnvironment`, `Scene.setBackground` and `Scene.setTonemap`.
 **/
+@:using(wgr.Environment)
 abstract Environment(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -20,6 +21,10 @@ abstract Environment(Handle) from Handle to Handle {
 	/** Whether this refers to nothing; tolerates a field never assigned, on js. **/
 	public static inline function isNone(environment:Environment):Bool
 		return (environment : Handle).isNone;
+
+	/** `new Environment(...)` is `Environment.create(...)`, the same call. **/
+	public inline function new(path:String)
+		this = create(path);
 
 	public static inline function create(path:String):Environment
 		return (Raw.wgr_environment_create(path) : Handle);

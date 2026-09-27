@@ -3,6 +3,7 @@ package wgr;
 // wgr_font.h — the typeface resource
 
 /** A loaded typeface. Fonts are sized per draw call, so one handle serves any size. **/
+@:using(wgr.Font)
 abstract Font(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -10,6 +11,10 @@ abstract Font(Handle) from Handle to Handle {
 	/** Whether this refers to nothing; tolerates a field never assigned, on js. **/
 	public static inline function isNone(font:Font):Bool
 		return (font : Handle).isNone;
+
+	/** `new Font(...)` is `Font.create(...)`, the same call. **/
+	public inline function new(path:String)
+		this = create(path);
 
 	public static inline function create(path:String):Font
 		return (Raw.wgr_font_create(path) : Handle);

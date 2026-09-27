@@ -90,7 +90,7 @@ class UiDemo {
 	}
 
 	static function placeCamera():Void
-		Camera3D.setView(camera, new Vec3(Math.sin(yaw) * 5.0, 1.6, Math.cos(yaw) * 5.0), new Vec3(0, 0.9, 0));
+		camera.setView(new Vec3(Math.sin(yaw) * 5.0, 1.6, Math.cos(yaw) * 5.0), new Vec3(0, 0.9, 0));
 
 	static function onInit():Void {
 		Asset.setHost(Assets.defaultBase());
@@ -102,47 +102,47 @@ class UiDemo {
 		pillEdge = Color.rgba(90, 105, 140, 255);
 		panelTexture = Handle.NONE;
 
-		camera = Camera3D.create(Perspective);
+		camera = new Camera3D(Perspective);
 		placeCamera();
-		scene = Scene.create();
-		Scene.setActiveCamera(scene, camera);
-		Scene.setAmbient(scene, Color.WHITE, 0.35);
-		Scene.setInteractive(scene, true);
+		scene = new Scene();
+		scene.setActiveCamera(camera);
+		scene.setAmbient(Color.WHITE, 0.35);
+		scene.setInteractive(true);
 
-		sun = Light.create(Directional);
-		Light.setDirection(sun, new Vec3(-0.4, -1.0, -0.6));
-		Scene.add(scene, sun, 0);
+		sun = new Light(Directional);
+		sun.setDirection(new Vec3(-0.4, -1.0, -0.6));
+		scene.add(sun, 0);
 
-		character = Model.create(Handle.NONE);
-		Model.setAnimation(character, 3);
-		Scene.add(scene, character, 0);
+		character = new Model(Handle.NONE);
+		character.setAnimation(3);
+		scene.add(character, 0);
 
 		// the panel: one 48x48 texture with 16 px borders, stretched to any size
-		panel = Sprite2D.create(Handle.NONE);
-		Sprite2D.setNineSlice(panel, 16, 16, 16, 16);
-		Sprite2D.setPivot(panel, 0, 0);
-		Sprite2D.setPosition(panel, new Vec2(PANEL_X, PANEL_Y));
-		Sprite2D.setSize(panel, PANEL_WIDTH, PANEL_HEIGHT);
-		Scene.add(scene, panel, LAYER_PANEL); // pickable, so presses on it don't orbit
+		panel = new Sprite2D(Handle.NONE);
+		panel.setNineSlice(16, 16, 16, 16);
+		panel.setPivot(0, 0);
+		panel.setPosition(PANEL_X, PANEL_Y);
+		panel.setSize(PANEL_WIDTH, PANEL_HEIGHT);
+		scene.add(panel, LAYER_PANEL); // pickable, so presses on it don't orbit
 
-		divider = Shape2D.create();
-		Shape2D.setLine(divider, new Vec2(0, 0), new Vec2(220, 0), 2);
-		Shape2D.setPosition(divider, new Vec2(30, 300));
-		Shape2D.setColor(divider, theme.disabled);
-		Shape2D.setPickable(divider, false);
-		Scene.add(scene, divider, LAYER_CONTROL);
+		divider = new Shape2D();
+		divider.setLine(new Vec2(0, 0), new Vec2(220, 0), 2);
+		divider.setPosition(30, 300);
+		divider.setColor(theme.disabled);
+		divider.setPickable(false);
+		scene.add(divider, LAYER_CONTROL);
 
 		bar = new UiBar(scene, LAYER_CONTROL, 30, 320, 220, 18);
 
 		// wrapped note: laid out inside 220 pixels, breaking between words
-		note = Text2D.create(Handle.NONE);
-		Text2D.setText(note, "Every click fills the bar. The list below is clipped to the panel: scroll it with the wheel.");
-		Text2D.setSize(note, 14);
-		Text2D.setMaxWidth(note, 220);
-		Text2D.setPosition(note, new Vec2(30, 352));
-		Text2D.setColor(note, theme.textDisabled);
-		Text2D.setPickable(note, false);
-		Scene.add(scene, note, LAYER_LABEL);
+		note = new Text2D(Handle.NONE);
+		note.setText("Every click fills the bar. The list below is clipped to the panel: scroll it with the wheel.");
+		note.setSize(14);
+		note.setMaxWidth(220);
+		note.setPosition(30, 352);
+		note.setColor(theme.textDisabled);
+		note.setPickable(false);
+		scene.add(note, LAYER_LABEL);
 
 		for (i in 0...LABELS.length)
 			buttons.push(new UiButton(scene, LAYER_CONTROL, LABELS[i], 30, 100.0 + 60.0 * i, 220, 44, 18));
@@ -160,19 +160,19 @@ class UiDemo {
 		}
 		switch (id) {
 			case CHARACTER_ID:
-				final mesh = Mesh.create(path);
-				Model.setMesh(character, mesh);
-				Mesh.release(mesh);
+				final mesh = new Mesh(path);
+				character.setMesh(mesh);
+				mesh.release();
 			case PANEL_ID:
-				panelTexture = Texture.create(path); // kept: the header draws it too
-				Sprite2D.setTexture(panel, panelTexture);
+				panelTexture = new Texture(path); // kept: the header draws it too
+				panel.setTexture(panelTexture);
 		}
 	}
 
 	static function onFrame(dt:Float):Void {
 		final keys = Input.getKeyboardState();
 		final mouse = Input.getMouseState();
-		final hovered = Scene.getHovered(scene);
+		final hovered = scene.getHovered();
 
 		if (keys.isPressed(Escape))
 			Wgr.requestQuit();
@@ -191,12 +191,12 @@ class UiDemo {
 		final selected = list.update(scene, theme, mouse.wheel);
 
 		// the 3D model
-		final hover = Scene.getHover(scene, character);
-		Model.setTint(character, Ui.isActive(hover) ? highlight : Color.WHITE);
-		if (Scene.isClicked(scene, character))
+		final hover = scene.getHover(character);
+		character.setTint(Ui.isActive(hover) ? highlight : Color.WHITE);
+		if (scene.isClicked(character))
 			animating = !animating;
 		if (animating)
-			Model.animate(character, dt);
+			character.animate(dt);
 
 		// orbit, unless the press started on UI
 		if (mouse.left == ButtonState.Down && !Input.isPointerCaptured()) {
@@ -206,14 +206,14 @@ class UiDemo {
 
 		Render.beginFrame();
 		Render.clearBackground(background);
-		Scene.draw(scene);
+		scene.draw();
 		// the header is immediate drawing, next to the retained panel below it: the same
 		// nine-slice texture as the panel, and a rounded, bordered pill for the status
-		Texture.drawNineSlice(panelTexture, 0, 0, 0, 0, 16, 16, 16, 16, 10, 6, 640, 62);
+		panelTexture.drawNineSlice(0, 0, 0, 0, 16, 16, 16, 16, 10, 6, 640, 62);
 		Shape2D.drawRoundedRectangle(18, 40, 624, 22, 11, pill);
 		Shape2D.drawBorder(18, 40, 624, 22, 1, 1, 1, 1, 11, 11, 11, 11, pillEdge);
 		Text.draw("wgrender ui: hover, press and click 2D and 3D members", 22, 15, 20, theme.text);
-		final what = SceneMember.isNone(hovered) ? "nothing" : same(hovered, character) ? "the character" : same(hovered,
+		final what = hovered.isNone() ? "nothing" : same(hovered, character) ? "the character" : same(hovered,
 			panel) ? "the panel" : "UI";
 		Text.draw('clicks: $clicks   selected: ${selected < 0 ? "nothing" : ROW_NAMES[selected]}   '
 			+ 'hovered: $what   pointer captured: ${Input.isPointerCaptured() ? "yes" : "no"}', 28, 43, 15,

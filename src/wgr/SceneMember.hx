@@ -4,6 +4,7 @@ package wgr;
 
 /** What `Scene.add` takes: a `Model`, `Sprite2D`, `Sprite3D`, `Text2D`, `Text3D`, `Emitter2D`,
 	`Emitter3D`, `Shape2D`, `Shape3D` or `Light`. **/
+@:using(wgr.SceneMember)
 abstract SceneMember(Handle) to Handle {
 	/** Whether there is a member here at all — `Scene.hovered` returns none for nothing. **/
 	@:to inline function toRaw():WgrHandle

@@ -15,14 +15,14 @@ send the headers a threaded page needs), WebGL2.
 ```haxe
 import wgr.*;
 
-final mesh = Mesh.create(path);
-model = Model.create(mesh);            // wgrender's rule: object from resource, resource from path
-Mesh.release(mesh);                    // the model holds its own reference
-Model.setAnimationLoop(model, true);
-Model.setTint(model, Color.RAYWHITE);
-Scene.add(scene, model);               // takes a Model, Sprite3D, Text2D, Text3D or Light
+final mesh = new Mesh(path);
+model = new Model(mesh);      // wgrender's rule: object from resource, resource from path
+mesh.release();               // the model holds its own reference
+model.setAnimationLoop(true);
+model.setTint(Color.RAYWHITE);
+scene.add(model);             // takes a Model, Sprite3D, Text2D, Text3D or Light
 
-if (pick.handle == model) ...          // the untyped pick handle still compares to typed ones
+if (pick.handle == model) ... // the untyped pick handle still compares to typed ones
 ```
 
 ## Layout
@@ -78,16 +78,29 @@ Anything more is sugar over those members, never a second path to C:
 `Text2D.measure` is `measureWidth` and `measureHeight` in a `Vec2`, and the two
 rounded rectangles are overloads of one `Shape2D.drawRoundedRectangle`.
 
+The sugar you will use most is how those statics are called. Every handle kind is
+declared `@:using` itself, so a static whose first parameter is that kind is also a
+method on it, with no `using` or import at the call site: `model.setTint(c)` is
+`Model.setTint(model, c)`, the same inline call. And each kind with a plain `create`
+has a constructor that calls it, so `new Model(mesh)` is `Model.create(mesh)`. It is
+still a handle, not an object the GC owns: `destroy` or `release` it as before. The
+examples use these forms; the statics remain, and are what the audits read.
+
 A member that only reads struct data keeps its shape, because there is no C name to
 mirror: `Vec3.x`, `MouseState`, `KeyboardState.isPressed`, `Handle.isNone`.
 
 Anything with a transform has the same calls for it, as in C: `setTransform` with every
 part it has (none of them optional), and `setPosition`, `setRotation`, `setScale` and
 their getters for one part at a time, which leave the others as they are. So moving a
-model is `Model.setPosition(model, p)`, with no need to know or keep its rotation and
+model is `model.setPosition(p)`, with no need to know or keep its rotation and
 scale; `setTransform` is the one call a frame for something whose parts all change.
-Pass `Vec3.ZERO` or `Vec3.ONE` for a part that isn't turned or scaled. Nothing here
-allocates: a `new Vec3(...)` handed to an inline call compiles away.
+Pass `Vec3.ZERO` or `Vec3.ONE` for a part that isn't turned or scaled. Each one-part
+setter, and a pivot or an emitter's `jump`, also takes the components, as Nim's
+overloads do: `model.setPosition(x, y, 0)` is `model.setPosition(new Vec3(x, y, 0))`,
+the same C call, which takes three floats either way. Neither allocates -- a
+`new Vec3(...)` handed to an inline call compiles away -- so the split form is for the
+reader, not the frame. A getter is where a vector is real: on js it reads C's
+`vec3_t` into a new `Vec3` on every call.
 
 Every handle kind is an `abstract` over `Int` and every member is `inline`, so the API
 layer compiles away: a call costs what the C call costs. The only allocations are the
@@ -100,10 +113,10 @@ documented. See `docs/handles.md`.
 ### Why handles aren't `null`
 
 A handle is 0 when it refers to nothing, and `isNone` reports that — rather than the
-`model != null` a Haxe developer would reach for first — `Model.isNone(model)`, or
-`Handle.isNone` on an untyped one.
+`model != null` a Haxe developer would reach for first — `model.isNone()`, or
+`h.isNone` on an untyped `Handle`.
 
-0 is a value you *pass*, not only one you get back. `Model.create(Handle.NONE)` is an
+0 is a value you *pass*, not only one you get back. `new Model(Handle.NONE)` is an
 empty model that joins the scene immediately and is given its mesh when the asset
 arrives, so the frame loop never asks whether it has loaded — which is how `model`,
 `materials`, `lights`, `sprite2d` and `text3d` are all written, following the C.
@@ -138,9 +151,9 @@ overload on `Handle` never sees the comparison and cannot correct it.
 
 Note what this does *not* argue. The abstract does not prevent `== 0` — the table above
 is measured with it in place. It only makes `isNone` discoverable, because `h.` offers
-it. A flattened API would carry the same check as a free function,
-`Handle.isNone(h)`, with the same `undefined` tolerance inside it; what it would lose
-is the autocomplete, not the correctness.
+it. The flat API carries the same check as a static, `Model.isNone(model)`, with the
+same `undefined` tolerance inside it; flattening lost the autocomplete, not the
+correctness, and `@:using` gives the autocomplete back.
 
 ## The two shapes
 

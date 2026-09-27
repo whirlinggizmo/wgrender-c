@@ -89,40 +89,40 @@ class Loading {
 		for (_ in 0...GRAPH)
 			frameMs.push(0.0);
 
-		camera = Camera3D.create(Perspective);
-		Camera3D.setView(camera, new Vec3(0, 1.0, 5.5), new Vec3(0, 0.6, 0));
-		scene = Scene.create();
-		Scene.setActiveCamera(scene, camera);
+		camera = new Camera3D(Perspective);
+		camera.setView(new Vec3(0, 1.0, 5.5), new Vec3(0, 0.6, 0));
+		scene = new Scene();
+		scene.setActiveCamera(camera);
 
-		character = Model.create(Handle.NONE);
-		Model.setTransform(character, new Vec3(-1.2, 0, 0), new Vec3(0, 0.4, 0), new Vec3(0.5, 0.5, 0.5));
-		Model.setAnimation(character, 3);
-		Scene.add(scene, character);
+		character = new Model(Handle.NONE);
+		character.setTransform(new Vec3(-1.2, 0, 0), new Vec3(0, 0.4, 0), new Vec3(0.5, 0.5, 0.5));
+		character.setAnimation(3);
+		scene.add(character);
 
-		sphere = Model.create(Handle.NONE);
-		Model.setTransform(sphere, new Vec3(1.2, 0.8, 0), Vec3.ZERO, new Vec3(0.8, 0.8, 0.8));
-		material = Material.create(Pbr);
-		Material.setBaseColor(material, 0.9, 0.9, 0.9, 1.0);
-		Material.setRoughness(material, 0.25);
-		Model.setMaterial(sphere, 0, material);
-		Scene.add(scene, sphere);
+		sphere = new Model(Handle.NONE);
+		sphere.setTransform(new Vec3(1.2, 0.8, 0), Vec3.ZERO, new Vec3(0.8, 0.8, 0.8));
+		material = new Material(Pbr);
+		material.setBaseColor(0.9, 0.9, 0.9, 1.0);
+		material.setRoughness(0.25);
+		sphere.setMaterial(0, material);
+		scene.add(sphere);
 
 		lastTime = Wgr.getTime();
 		startLoad(false);
 	}
 
 	static function releaseAll():Void {
-		Scene.setEnvironment(scene, Handle.NONE, 1.0, 0.0);
-		Scene.setBackground(scene, Handle.NONE, 0.0);
-		Model.setMesh(character, Handle.NONE);
-		Model.setMesh(sphere, Handle.NONE);
-		Material.setNormalTexture(material, Handle.NONE);
+		scene.setEnvironment(Handle.NONE, 1.0, 0.0);
+		scene.setBackground(Handle.NONE, 0.0);
+		character.setMesh(Handle.NONE);
+		sphere.setMesh(Handle.NONE);
+		material.setNormalTexture(Handle.NONE);
 		for (e in environments)
-			Environment.release(e);
+			e.release();
 		for (m in meshes)
-			Mesh.release(m);
+			m.release();
 		for (t in textures)
-			Texture.release(t);
+			t.release();
 		environments = [];
 		meshes = [];
 		textures = [];
@@ -139,18 +139,18 @@ class Loading {
 	static function createAll():Void {
 		final start = Wgr.getTime();
 		for (i in 0...ENVIRONMENTS)
-			environments.push(Environment.create(paths[i]));
+			environments.push(new Environment(paths[i]));
 		for (i in ENVIRONMENTS...ENVIRONMENTS + MESHES)
-			meshes.push(Mesh.create(paths[i]));
+			meshes.push(new Mesh(paths[i]));
 		for (i in ENVIRONMENTS + MESHES...PATHS.length)
-			textures.push(Texture.create(paths[i]));
+			textures.push(new Texture(paths[i]));
 		createMs = (Wgr.getTime() - start) * 1000.0;
 
-		Scene.setEnvironment(scene, environments[0], 1.0, 0.0);
-		Scene.setBackground(scene, environments[0], 0.3);
-		Model.setMesh(character, meshes[0]);
-		Model.setMesh(sphere, meshes[1]);
-		Material.setNormalTexture(material, textures[0]);
+		scene.setEnvironment(environments[0], 1.0, 0.0);
+		scene.setBackground(environments[0], 0.3);
+		character.setMesh(meshes[0]);
+		sphere.setMesh(meshes[1]);
+		material.setNormalTexture(textures[0]);
 		loaded = true;
 	}
 
@@ -226,11 +226,11 @@ class Loading {
 			releaseAll();
 
 		elapsed += dt;
-		Model.animate(character, dt);
+		character.animate(dt);
 
 		Render.beginFrame();
 		Render.clearBackground(background);
-		Scene.draw(scene);
+		scene.draw();
 		Render.beginMode3D();
 		Shape3D.drawCubeWires(new Vec3(0, 1.9 + 0.1 * Math.sin(elapsed * 3.0), 0), new Vec3(0.5, 0.5, 0.5),
 			cubeColor);
