@@ -751,6 +751,20 @@ class CheckBindings {
 
 		Asset.setUploadBudget(8);
 		check(Asset.setCacheDir(".wgr-cache"), "a cache directory is accepted");
+		#if (sys && !emscripten)
+		eq(Asset.getCacheDir(), ".wgr-cache", "and is the one downloads go in");
+		#end
+
+		// who the program is: nothing unset looks like anyone's
+		Wgr.setAppCompany(null);
+		eq(Wgr.getAppCompany(), "DefaultCompany", "the company defaults to DefaultCompany");
+		Wgr.setAppCompany("Acme/Games");
+		eq(Wgr.getAppCompany(), "Acme_Games", "a company is one safe path component");
+		Wgr.setAppName("Rocket");
+		eq(Wgr.getAppName(), "Rocket", "the app name round-trips");
+		Wgr.setAppName(null);
+		check(Wgr.getAppName() != "" && Wgr.getAppName() != "Rocket", "and null is the default again");
+		Wgr.setAppCompany(null);
 
 		eq(Asset.getCacheMode(), AssetCacheMode.Revalidate, "the cache revalidates by default");
 		check(Asset.setCacheMode(AssetCacheMode.Trust), "a cache mode is accepted");

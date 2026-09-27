@@ -105,11 +105,18 @@ class Asset {
 
 	/**
 		Where downloads land on desktop, and where later runs find them — created as
-		needed. `.wgr-cache` by default. Ignored on the web, which caches in the
-		browser. Set it before the first `host` that is a URL.
+		needed. By default the user's cache directory for this program,
+		<cache>/<company>/<app> (`Wgr.setAppCompany`, `Wgr.setAppName`): ~/.cache or
+		$XDG_CACHE_HOME on Linux, ~/Library/Caches on macOS, %LOCALAPPDATA%\...\cache
+		on Windows. Ignored on the web, which caches in the browser. Set it before the
+		first `host` that is a URL.
 	**/
 	public static inline function setCacheDir(dir:String):Bool
 		return Raw.wgr_asset_set_cache_dir(dir);
+
+	/** The directory downloads go in: set, or the default. "" on the web. **/
+	public static inline function getCacheDir():String
+		return Raw.wgr_asset_get_cache_dir().toString();
 
 	/**
 		Forget a cached asset, so the next ensure fetches it again. False when there

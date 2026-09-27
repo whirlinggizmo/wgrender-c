@@ -132,6 +132,30 @@ class Wgr {
 		return Raw.wgr_get_platform().toString();
 	}
 
+	/**
+		Who the program is: the directories its own files go under on desktop, the asset
+		cache now (`Asset.getCacheDir`), as <user's cache>/<company>/<app>. The company
+		is "DefaultCompany" until set, so nothing unset looks like anyone's; the app is
+		the executable's name. Set both for anything shipped, before the asset host: two
+		programs left with the defaults and the same name share a cache. Each is made
+		one safe path component; null, or a name with nothing left, is the default again.
+	**/
+	public static inline function setAppCompany(company:String):Void {
+		Raw.wgr_set_app_company(company);
+	}
+
+	public static inline function getAppCompany():String {
+		return Raw.wgr_get_app_company().toString();
+	}
+
+	public static inline function setAppName(name:String):Void {
+		Raw.wgr_set_app_name(name);
+	}
+
+	public static inline function getAppName():String {
+		return Raw.wgr_get_app_name().toString();
+	}
+
 	public static inline function setTargetFps(fps:Int):Void {
 		Raw.wgr_set_target_fps(fps);
 	}
