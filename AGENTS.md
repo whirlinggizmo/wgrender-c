@@ -272,8 +272,8 @@ What every binding keeps is the correspondence:
    one: Nim's `newModel(mesh)` and `newModel()`, or Haxe's two
    `Shape2D.drawRoundedRectangle`s, one with a radius and one with four corners.
 2. **A public member that calls C calls one C function.** Anything that combines calls
-   -- `Text2D.measure` returning width and height together, a version string built
-   from major, minor and patch -- calls the members that wrap them, never C directly.
+   -- a version string built from major, minor and patch -- calls the members that
+   wrap them, never C directly.
    A generic that picks its one call by type at compile time (Nim's
    `when e is Emitter3d`) is overloads written once, and counts as one call.
 3. **Sugar is welcome, on top of those members.** Constructors, operators, extension
