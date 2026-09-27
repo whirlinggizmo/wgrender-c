@@ -47,21 +47,27 @@ class Asset {
 	/** Where relative asset paths resolve from: a directory or a URL base. **/
 	public static function setHost(host:String):Void {
 		#if (sys && !emscripten)
-		onHost(host);
+		needsFetcher(host);
 		#end
 		Raw.wgr_asset_set_host(host);
 	}
 
 	#if (sys && !emscripten)
 	static var fetcherInstalled = false;
+	static var fetcherWarned = false;
 
 	/**
-		A URL host on a native build needs a downloader, because wgrender links none.
+		A URL on a native build needs a downloader, because wgrender links none.
 
-		With `-D WGR_INCLUDE_FETCHER` the binding installs `httpFetcher` here, the
-		first time a URL host is set — which is the only moment it can be needed, since
-		wgrender consults a fetcher only when the host is a URL or a task was handed a
-		`fetchUrl` (wgr_asset.c). A directory host never reaches it.
+		Every way a URL reaches wgrender passes through here: a URL host, a `fetchUrl`
+		handed to `ensureAsync` or `GuestAbi.loadAsset`, and a redirect whose target is
+		a URL. Those are the only moments a fetcher can be needed, since wgrender
+		consults one only for a URL host or a task with a source of its own
+		(wgr_asset.c). A directory host and plain paths never reach it.
+
+		With `-D WGR_INCLUDE_FETCHER` the binding installs `httpFetcher` the first
+		time, unless the program installed its own with `setFetcher` — whichever order
+		the two calls come in, the program's stays.
 
 		Without the define, nothing is installed and nothing is linked: the reference
 		to `httpFetcher` is inside the `#if`, so `-dce full` leaves mbedtls out
@@ -69,20 +75,23 @@ class Asset {
 		anything grows 2,807,448 -> 4,588,784 bytes. That is why this is a define and
 		not the default.
 
-		The warning is the other half. Set a URL host without a fetcher and wgrender's
-		miss path just resolves the task as failed — no complaint about the one thing
-		that was missing. Saying it once here costs nothing and is the difference
-		between a puzzle and a sentence.
+		The warning is the other half. Hand wgrender a URL without a fetcher and its
+		miss path just resolves the task — as failed, or from whatever is local — with
+		no complaint about the one thing that was missing. Saying it once costs
+		nothing and is the difference between a puzzle and a sentence.
 	**/
-	static function onHost(host:String):Void {
-		if (fetcherInstalled || host == null || host.indexOf("://") < 0)
+	@:allow(wgr.GuestAbi)
+	static function needsFetcher(source:String):Void {
+		if (fetcherInstalled || source == null || source.indexOf("://") < 0)
 			return;
 		#if WGR_INCLUDE_FETCHER
 		setFetcher(httpFetcher);
-		fetcherInstalled = true;
 		#else
-		Log.warn('asset host "$host" is a URL and this build has no fetcher, so a miss '
-			+ 'will fail. Build with -D WGR_INCLUDE_FETCHER.');
+		if (fetcherWarned)
+			return;
+		fetcherWarned = true;
+		Log.warn('"$source" is a URL and this build has no fetcher, so a miss will fail. '
+			+ 'Build with -D WGR_INCLUDE_FETCHER, or install one with Asset.setFetcher.');
 		#end
 	}
 	#end
@@ -166,8 +175,12 @@ class Asset {
 		`ensureAsync` reads a path; a trailing "/" is kept). Every refusal is logged. Adding the same prefix twice keeps both
 		rules rather than replacing the first.
 	**/
-	public static inline function addRedirect(prefix:String, target:String):Bool
+	public static function addRedirect(prefix:String, target:String):Bool {
+		#if (sys && !emscripten)
+		needsFetcher(target);
+		#end
 		return Raw.wgr_asset_add_redirect(prefix, target);
+	}
 
 	public static inline function clearRedirects():Void
 		Raw.wgr_asset_clear_redirects();
@@ -211,9 +224,13 @@ class Asset {
 		On desktop a `fetchUrl` needs a fetcher (`setFetcher`) but not a URL host: a
 		task told where to download from downloads from there.
 	**/
-	public static inline function ensureAsync(path:String, ?fetchUrl:String, ?flags:AssetFlag):AssetTask
+	public static function ensureAsync(path:String, ?fetchUrl:String, ?flags:AssetFlag):AssetTask {
+		#if (sys && !emscripten)
+		needsFetcher(fetchUrl);
+		#end
 		return (Raw.wgr_asset_ensure_async(path, #if cpp Native.cstr(fetchUrl) #else fetchUrl #end,
 			flags == null ? 0 : (flags : Int)) : Handle);
+	}
 
 	/**
 		Time the round trip to an asset host: `onDone` fires on a later frame with the
@@ -274,6 +291,9 @@ class Asset {
 	public static function setFetcher(fetch:(request:Handle, url:String, destPath:String) -> Void):Bool {
 		#if cpp
 		fetcher = fetch;
+		#if !emscripten
+		fetcherInstalled = fetch != null; // so needsFetcher leaves this one alone
+		#end
 		return Raw.wgr_asset_set_fetcher(cpp.Callable.fromStaticFunction(fetchTrampoline), Native.nullPtr());
 		#else
 		return false;
@@ -333,8 +353,10 @@ class Asset {
 
 	static function fetchTrampoline(request:WgrHandle, url:ConstCharStar, destPath:ConstCharStar,
 			user:VoidStar):Void {
-		if (fetcher == null)
+		if (fetcher == null) { // setFetcher(null): fail it, or the task waits for ever
+			Raw.wgr_asset_fetch_done(request, false);
 			return;
+		}
 		try
 			fetcher((request : Handle), url.toString(), destPath.toString())
 		catch (e:haxe.Exception) {

@@ -28,6 +28,9 @@ class CheckBindings {
 	/** Deliberately never assigned: a field needs no initialiser (a local does). **/
 	static var neverSet:Model;
 
+	/** What the program's own fetcher was asked for; checked once the loop has run. **/
+	static var fetchedUrl:String = null;
+
 	/** The assertions are target-neutral so js can type-check them; only `main` isn't. **/
 	static function say(line:String):Void {
 		#if sys
@@ -865,6 +868,24 @@ class CheckBindings {
 		check(Asset.addRedirect("models/", "https://cdn.example.invalid/models/"),
 			"a download redirect is accepted on desktop");
 		Asset.clearRedirects();
+
+		#if cpp
+		// A fetcher the program installs is the one a URL reaches, whichever order the
+		// calls come in: under -D WGR_INCLUDE_FETCHER a URL host set after it used to
+		// swap in httpFetcher. The task has a source of its own and the host is a
+		// directory, so only the fetchUrl route leads to it. It answers at once, so
+		// the task fails on its first tick (callbacks are what arm it); a key at the
+		// root makes no directories.
+		check(Asset.setFetcher((request, url, _) -> {
+			fetchedUrl = url;
+			Asset.fetchDone(request, false);
+		}), "a fetcher installs on desktop");
+		final was = Asset.getHost();
+		Asset.setHost("https://example.invalid/assets");
+		Asset.setHost(was);
+		AssetTask.then(Asset.ensureAsync("no-such3.png", "https://example.invalid/no-such3.png", FileOnly),
+			_ -> {}, _ -> {});
+		#end
 	}
 
 	static function checkEvents():Void {
@@ -1054,6 +1075,9 @@ class CheckBindings {
 		Wgr.run();
 
 		check(frames > 0, "the loop ran at least one frame, with the handlers set before initValues");
+		eq(fetchedUrl, "https://example.invalid/no-such3.png",
+			"the program's fetcher got the task's own source, a URL host set later notwithstanding");
+		Asset.setFetcher(null);
 		say('${checks - failures}/$checks checks passed over $frames frames');
 		Sys.exit(failures == 0 ? 0 : 1);
 	}

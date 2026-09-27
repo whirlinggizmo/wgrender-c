@@ -210,9 +210,13 @@ class GuestAbi {
 		wgrender's, `ForceFetch` being the one worth knowing: fetch even if the cache
 		already has it.
 	**/
-	public static inline function loadAsset(path:String, id:Int, ?fetchUrl:String, ?flags:AssetFlag):Bool
+	public static function loadAsset(path:String, id:Int, ?fetchUrl:String, ?flags:AssetFlag):Bool {
+		#if !emscripten
+		Asset.needsFetcher(fetchUrl); // a URL source natively wants a downloader
+		#end
 		return GuestRaw.wgr_guest_asset_load(path, id, Native.cstr(fetchUrl),
 			flags == null ? 0 : (flags : Int)) != 0;
+	}
 
 	/** On desktop there is no page: `main` is the entry, so run the guest now. **/
 	public static function autostart(boot:(host:Dynamic) -> Void):Void

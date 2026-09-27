@@ -12,6 +12,12 @@
 // /<repo>/, and the examples' site keeps the assets beside the pages, not under them.
 // An absolute https://cdn.example/... URL passes through the same way.
 //
+// On desktop the same two overrides go through the fetcher, and the build passes
+// `-D WGR_INCLUDE_FETCHER` so there is one. The host is a URL there, standing in for
+// the page's, so the download lands in the cache directory under the bogus key rather
+// than in the local asset tree. With no network it falls back to the real file from
+// the local asset directory, so the example still plays.
+//
 // This is the example that widened the guest ABI. `wgr_guest_asset_load` took a path
 // and an id, which is everything the earlier examples need and nothing this one does,
 // so it now takes wgrender's `fetch_url` and `flags` as well.
@@ -33,9 +39,17 @@ class ForceFetch {
 
 	static inline final ASSET_MUSIC = 1;
 
+	/** Desktop's host, the same one examples/fetch downloads from. **/
+	static inline final REMOTE_HOST =
+		"https://raw.githubusercontent.com/whirlinggizmo/wgrender-c/main/examples/assets";
+	/** the build's work directory, build/<os>/<variant> (wgr.macros.NativeOut) **/
+	static final CACHE_DIR = (haxe.macro.Compiler.getDefine("wgr-work-dir") ?? "build") + "/asset-cache";
+
 	static var background:Color;
 	static var music:Sound;
 	static var musicOn = false;
+	static var source = "";
+	static var offline = false;
 
 	static function main():Void {
 		GuestAbi.autostart(start);
@@ -49,25 +63,39 @@ class ForceFetch {
 
 	static function onInit():Void {
 		Log.setLevel(Info);
-		Asset.setHost(Assets.defaultBase());
-		Asset.setManifest(Assets.MANIFEST);
 		background = Color.rgba(18, 20, 28, 255);
 
 		if (Wgr.getPlatform() == "web") {
+			Asset.setHost(Assets.defaultBase());
+			Asset.setManifest(Assets.MANIFEST);
 			// The key cannot resolve, so the bytes can only have come from the URL.
-			final url = '${Assets.defaultBase()}/$MUSIC_FETCH_PATH';
-			GuestAbi.loadAsset(INVALID_MUSIC_PATH, ASSET_MUSIC, url, ForceFetch);
-			Log.info('force_fetch: $INVALID_MUSIC_PATH from $url');
+			source = '${Assets.defaultBase()}/$MUSIC_FETCH_PATH';
 		} else {
-			// Desktop has no fetcher by default, so both overrides are no-ops there;
-			// load the real file from the local asset directory and still play.
-			GuestAbi.loadAsset(MUSIC_PATH, ASSET_MUSIC);
-			Log.info('force_fetch is web-only; loading $MUSIC_PATH locally on desktop');
+			// No manifest: the remote host has none, and a task with a source of its
+			// own isn't checked against one anyway.
+			Asset.setCacheDir(CACHE_DIR);
+			Asset.setHost(REMOTE_HOST);
+			source = '$REMOTE_HOST/$MUSIC_FETCH_PATH';
 		}
+		GuestAbi.loadAsset(INVALID_MUSIC_PATH, ASSET_MUSIC, source, ForceFetch);
+		Log.info('force_fetch: $INVALID_MUSIC_PATH from $source');
+	}
+
+	/** Desktop with no network: the real file, from the local asset directory. **/
+	static function playLocal():Void {
+		offline = true;
+		Asset.setHost(Assets.defaultBase());
+		source = '${Assets.defaultBase()}/$MUSIC_PATH';
+		Log.warn('force_fetch: no download, so $MUSIC_PATH locally');
+		GuestAbi.loadAsset(MUSIC_PATH, ASSET_MUSIC);
 	}
 
 	static function onAsset(id:Int, path:String, ok:Bool):Void {
 		if (!ok) {
+			if (id == ASSET_MUSIC && !offline && Wgr.getPlatform() != "web") {
+				playLocal();
+				return;
+			}
 			Log.error('load failed: $path');
 			return;
 		}
@@ -100,6 +128,7 @@ class ForceFetch {
 		Text.draw("wgrender + sokol_audio + force_fetch (Haxe guest)", 24, 30, 28, Color.RAYWHITE);
 		Text.draw(music.isNone() ? "music: loading..."
 			: (musicOn ? "music: playing (mp3, looping)" : "music: paused"), 24, 80, 18, Color.SKYBLUE);
+		Text.draw((offline ? "no download; read from " : "downloaded from ") + source, 24, 110, 14, Color.LIGHTGRAY);
 		Text.draw("[M] toggle music   [ESC] quit", 24, 150, 16, Color.LIGHTGRAY);
 		Text.drawFps(24, 12);
 		Render.endFrame();
