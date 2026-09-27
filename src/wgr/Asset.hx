@@ -353,8 +353,12 @@ class Asset {
 		fetchDone(request, download(url, destPath));
 	}
 
-	/** How many redirects `httpFetcher` follows before it gives up: the Fetch standard's 20. **/
-	public static inline final MAX_REDIRECTS = 20;
+	/**
+		How many redirects `httpFetcher` follows before it gives up: 10, where a browser
+		takes 20, as the systems' own HTTP behind wgrender-nim's fetcher (WinHTTP,
+		libcurl) stop at 10, and a program should get the same file from either binding.
+	**/
+	public static inline final MAX_REDIRECTS = 10;
 
 	static function download(url:String, destPath:String):Bool {
 		var at = url;
