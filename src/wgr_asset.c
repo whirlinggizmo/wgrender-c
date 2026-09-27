@@ -1271,8 +1271,11 @@ bool wgri_asset_join_relative(const char *base_path, const char *uri, char *out,
     if (base_path == NULL || uri == NULL || out == NULL || out_size == 0) {
         return false;
     }
-    /* base directory, then the decoded uri, as one '/'-separated string */
-    last_slash = strrchr(base_path, '/');
+    /* base directory, then the decoded uri, as one string of segments */
+    last_slash = NULL;
+    for (const char *c = base_path; *c != '\0'; c++) {
+        if (*c == '/' || *c == '\\') last_slash = c;
+    }
     if (last_slash != NULL) {
         n = (size_t)(last_slash - base_path) + 1;
         if (n >= sizeof(buffer)) return false;
@@ -1284,6 +1287,7 @@ bool wgri_asset_join_relative(const char *base_path, const char *uri, char *out,
             ch = (char)(hex_value(c[1]) * 16 + hex_value(c[2]));
             c += 2;
         }
+        if (ch == ':') return false; /* a drive, decoded or not */
         if (n + 1 >= sizeof(buffer)) return false;
         buffer[n++] = ch;
     }
@@ -1291,7 +1295,7 @@ bool wgri_asset_join_relative(const char *base_path, const char *uri, char *out,
 
     for (size_t start = 0; start <= n;) {
         size_t end = start;
-        while (end < n && buffer[end] != '/') end++;
+        while (end < n && buffer[end] != '/' && buffer[end] != '\\') end++;
         const size_t len = end - start;
         if (len == 0 || (len == 1 && buffer[start] == '.')) {
             /* empty or "." */

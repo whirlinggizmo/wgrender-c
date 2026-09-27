@@ -135,6 +135,14 @@ void test_asset_join_relative(void)
     check_join("box.gltf", "box.bin", "box.bin");                   /* no directory */
     check_join("/wgr/models/box.gltf", "box.bin", "/wgr/models/box.bin"); /* leading / kept */
     check_join("models//box.gltf", "a.bin", "models/a.bin");        /* empty segments dropped */
+    check_join("models/box/box.gltf", "..\\shared\\wood.png", "models/shared/wood.png"); /* "\\" separates */
+    check_join("models\\box\\box.gltf", "wood.png", "models/box/wood.png");  /* in the base too */
+    check_join("models/box/box.gltf", "..\\..\\..\\wood.png", NULL);   /* so it can't climb out */
+    check_join("models/box/box.gltf", "..%5C..%5C..%5Cwood.png", NULL); /* decoded or not */
+    check_join("models/box/box.gltf", "../..\\../wood.png", NULL);     /* or mixed */
+    check_join("models/box/box.gltf", "a/../C:/wood.png", NULL);     /* a drive in the uri */
+    check_join("models/box/box.gltf", "C%3A/wood.png", NULL);        /* encoded */
+    check_join("C:/game/models/box.gltf", "../wood.png", "C:/game/wood.png"); /* a base's drive is its own */
 
     char small[8];
     CHECK(!wgri_asset_join_relative("models/box.gltf", "texture.png", small, sizeof(small))); /* doesn't fit */
@@ -296,6 +304,66 @@ void test_asset_fetch_hook(void)
     CHECK(wgri_asset_pending_count() == 0);
 
     wgr_asset_set_fetcher(NULL, NULL);
+    wgr_asset_set_host("");
+    wgri_asset_deinit();
+    wgri_fs_deinit();
+}
+
+/* A format whose whole file is the one URI it depends on. */
+static void list_one_uri(const unsigned char *data, int size, wgri_asset_add_dependency_fn add, void *context)
+{
+    char uri[256];
+    snprintf(uri, sizeof(uri), "%.*s", size, (const char *)data);
+    add(uri, NULL, true, context);
+}
+
+#define JAIL_HOST WGR_TEST_DIR "/jail/assets"
+
+static void write_text(const char *path, const char *text)
+{
+    FILE *f = fopen(path, "wb");
+    CHECK(f != NULL);
+    if (f == NULL) return;
+    fputs(text, f);
+    fclose(f);
+}
+
+/* Ensure a file naming `uri` as its dependency; true when it and the dependency load. */
+static bool dependency_loads(const char *key, const char *uri)
+{
+    char full[512];
+    ready_count = failed_count = 0;
+    wgri_fs_make_parents(key);
+    wgri_fs_resolve(key, full, sizeof(full));
+    write_text(full, uri);
+    wgr_asset_add_task(wgr_asset_ensure_async(key, NULL, WGR_ASSET_FILE_ONLY), on_ready, on_failed, NULL);
+    for (int i = 0; i < 8; i++) wgri_asset_tick();
+    CHECK(ready_count + failed_count == 1);
+    fprintf(stderr, "    %s -> %s: %s\n", key, uri, ready_count == 1 ? "loaded" : "refused");
+    return ready_count == 1;
+}
+
+/* A dependency stays under the host, as a key does (wgri_asset_normalize_path): models
+ * can share a directory elsewhere in the tree, but a file can't reach out of it. "\\"
+ * is a separator on Windows, so it has to be one here too, or "..\\..\\" climbs out
+ * there and nowhere else. */
+void test_asset_dependency_jail(void)
+{
+    wgri_fs_init(NULL);
+    wgri_asset_init();
+    wgri_asset_register_dependencies(".dep", list_one_uri);
+    wgr_asset_set_host(JAIL_HOST);
+
+    wgri_fs_make_parents("shared.bin");
+    write_text(JAIL_HOST "/shared.bin", "shared");
+    write_text(WGR_TEST_DIR "/jail/secret.bin", "outside the host");
+
+    CHECK(dependency_loads("models/shares.dep", "../shared.bin")); /* elsewhere in the tree */
+    CHECK(!dependency_loads("models/climbs.dep", "../../secret.bin"));
+    CHECK(!dependency_loads("models/backslash.dep", "..\\..\\secret.bin"));
+    CHECK(!dependency_loads("models/encoded.dep", "..%5C..%5Csecret.bin"));
+    CHECK(!dependency_loads("models/mixed.dep", "../..\\secret.bin"));
+
     wgr_asset_set_host("");
     wgri_asset_deinit();
     wgri_fs_deinit();

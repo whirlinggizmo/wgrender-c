@@ -29,9 +29,12 @@ typedef void (*wgri_asset_dependencies_fn)(const unsigned char *data, int size, 
 void wgri_asset_register_dependencies(const char *extension, wgri_asset_dependencies_fn list);
 
 /* Resolve `uri`, relative to the directory of `base_path`, into `out`: decodes
- * %XX escapes, drops "." segments and applies ".." segments. Fails (false) when
- * the result would climb above the base path's top directory, or doesn't fit.
- * A leading "/" in base_path is kept. Pure; exposed for tests. */
+ * %XX escapes, drops "." segments and applies ".." segments. "\\" separates
+ * segments as "/" does, before and after decoding, because Windows reads it as one:
+ * otherwise "..\\..\\x" is a single segment here and a climb there. Fails (false)
+ * when the result would climb above the base path's top directory, when the uri
+ * holds a ":" (a drive, as wgri_asset_normalize_path refuses for a key), or when it
+ * doesn't fit. A leading "/" in base_path is kept. Pure; exposed for tests. */
 bool wgri_asset_join_relative(const char *base_path, const char *uri, char *out, size_t out_size);
 
 /* A path a program names (ensure, evict, a redirect), made one that stays under the
