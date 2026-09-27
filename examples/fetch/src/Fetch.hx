@@ -38,7 +38,15 @@
 // is reading an environment variable and writing a file, which are facts about the
 // standard library rather than about the binding.
 //
+// Two buttons (`UiWidgets.hx`, from examples/shared/ui) show the cache at work: Fetch
+// asset loads the logo again, and Clear cache forgets what was downloaded, so the next
+// fetch downloads it again. The line under them says what happened -- natively, whether
+// the file came from the cache or was downloaded, told by looking in the cache
+// directory first (`Asset.getCacheDir`). The web keeps its cache in the browser, where
+// the example can't look, so there it just says loaded.
+//
 //   ESC  quit
+import UiWidgets;
 import wgr.*;
 
 @:expose("WgrGuest")
@@ -47,6 +55,7 @@ class Fetch {
 	static inline final SCREEN_HEIGHT = 640;
 	static inline final TEXTURE_PATH = "sprites/logo/wg-logo-white-alpha.png";
 	static inline final ASSET_TEXTURE = 1;
+	static inline final LAYER_CONTROL = 1; // a button's label goes on the layer above
 	// the build's work directory, build/<os>/<variant> (wgr.macros.NativeOut); on the
 	// web the browser caches
 	static final CACHE_DIR = (haxe.macro.Compiler.getDefine("wgr-work-dir") ?? "build") + "/asset-cache";
@@ -58,7 +67,12 @@ class Fetch {
 	static var camera:Camera3D;
 	static var host = "";
 	static var remote = false;
-	static var downloads = 0;
+	static var scene:Scene;
+	static var theme:UiTheme;
+	static var fetchButton:UiButton;
+	static var clearButton:UiButton;
+	static var state = "";
+	static var wasCached = false; // the file was in the cache before this fetch
 
 	static function main():Void {
 		GuestAbi.autostart(start);
@@ -77,6 +91,13 @@ class Fetch {
 		sprite.setPosition(512, 380);
 		Debug.enableFps(12, 10, 16);
 
+		theme = new UiTheme();
+		scene = new Scene();
+		scene.setActiveCamera(camera);
+		scene.setInteractive(true);
+		fetchButton = new UiButton(scene, LAYER_CONTROL, "Fetch asset", 12, 150, 180, 40, 17);
+		clearButton = new UiButton(scene, LAYER_CONTROL, "Clear cache", 204, 150, 180, 40, 17);
+
 		#if sys
 		// Native: pick a host, check something is serving there, and install a
 		// downloader. Sys.getEnv and Sys.command are what need the guard -- they are
@@ -94,9 +115,23 @@ class Fetch {
 		remote = true;
 		#end
 		Asset.setHost(host);
+		fetch();
+	}
 
-		if (!GuestAbi.loadAsset(TEXTURE_PATH, ASSET_TEXTURE))
-			Log.error('failed to queue asset: $TEXTURE_PATH');
+	/** Load the logo again, having noted whether the cache has it already. **/
+	static function fetch():Void {
+		wasCached = false;
+		#if sys
+		if (remote)
+			wasCached = sys.FileSystem.exists('${Asset.getCacheDir()}/$TEXTURE_PATH');
+		#end
+		sprite.setTexture(Handle.NONE); // so a fetch is seen to happen
+		fetchButton.enabled = false;
+		state = 'fetching $TEXTURE_PATH...';
+		if (!GuestAbi.loadAsset(TEXTURE_PATH, ASSET_TEXTURE)) {
+			state = 'couldn\'t queue $TEXTURE_PATH';
+			fetchButton.enabled = true;
+		}
 	}
 
 	#if sys
@@ -116,28 +151,45 @@ class Fetch {
 	#end
 
 	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('could not get $path');
-			return;
-		}
 		if (id != ASSET_TEXTURE)
 			return;
+		fetchButton.enabled = true;
+		if (!ok) {
+			Log.error('could not get $path');
+			state = 'failed to get $TEXTURE_PATH';
+			return;
+		}
 		final texture = new Texture(path);
 		sprite.setTexture(texture);
 		texture.release(); // the sprite holds its own reference
+		#if sys
+		state = !remote ? 'read $TEXTURE_PATH from ${Assets.defaultBase()}'
+			: wasCached ? 'loaded $TEXTURE_PATH from the cache' : 'downloaded $TEXTURE_PATH into the cache';
+		#else
+		state = 'loaded $TEXTURE_PATH';
+		#end
 	}
 
 	static function onFrame(dt:Float):Void {
+		if (fetchButton.update(scene, theme))
+			fetch();
+		if (clearButton.update(scene, theme)) {
+			Asset.clearCache();
+			state = "cache cleared: the next fetch downloads";
+		}
+
 		Render.beginFrame();
 		Render.clearBackground(background);
 		sprite.draw();
+		scene.draw();
 		Text.draw("wgrender fetch: the desktop build downloads what the browser downloads", 12, 36, 20,
 			Color.RAYWHITE);
 		Text.draw('host: $host', 12, 64, 16, Color.LIGHTGRAY);
 		#if sys
-		Text.draw(remote ? 'downloaded $downloads file(s) into $CACHE_DIR   (delete it and re-run: they come back)'
+		Text.draw(remote ? 'cache: ${Asset.getCacheDir()}'
 			: 'no host reachable — reading ${Assets.defaultBase()} locally instead', 12, 86, 16, Color.LIGHTGRAY);
 		#end
+		Text.draw(state, 12, 120, 18, Color.SKYBLUE);
 		Render.endFrame();
 
 		if (Input.getKeyboardState().isPressed(Escape))

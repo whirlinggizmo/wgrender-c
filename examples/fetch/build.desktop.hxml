@@ -1,6 +1,7 @@
 # fetch, native: the same guest source through hxcpp, with wgrender compiled into
 # the binary. `haxe build.desktop.hxml`; the program looks for assets/ beside itself.
 -cp src
+-cp ../shared/ui
 -lib wgrender-hx
 --main Fetch
 --cpp build/cpp

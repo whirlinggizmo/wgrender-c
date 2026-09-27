@@ -6,8 +6,8 @@
 // policy, and a library that picks it for everyone is the GUI toolkit that decision
 // rules out. This file is example code, not API: copy it, change it, throw it away.
 // Anything here that wgrender's public API can't express is a gap in wgrender, to fix
-// there. It is the Haxe half of `examples/ui_widgets.h`, and it stays beside its one
-// caller for the same reason the C header does.
+// there. It is the Haxe half of wgrender's `examples/shared/ui/ui_widgets.h`, shared by
+// the examples that want a button (`-cp ../shared/ui`) as the C header is.
 //
 // Each widget is scene members, so they're drawn, picked and clipped with everything
 // else: create them once, then call the update each frame for their colors and what

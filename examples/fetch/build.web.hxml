@@ -3,6 +3,7 @@
 # out/web/js-webgl2-nothreads; the page loads its assets from assets/ beside it (which
 # tools/serve.py provides).
 -cp src
+-cp ../shared/ui
 -lib wgrender-hx
 --main Fetch
 --js out/web/js-webgl2-nothreads/fetch.js
