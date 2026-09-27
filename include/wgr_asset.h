@@ -56,7 +56,11 @@ enum {
  * says) and on desktop in the cache directory, by the fetcher below. Anything else is a
  * local directory ("examples/assets"), as it has always been on desktop, and a file:
  * URL ("file:///opt/game/assets") names one too -- on desktop only, since a browser
- * reads no file: URLs. Pass the same logical paths everywhere; only the base differs. */
+ * reads no file: URLs. A local host is only ever read, as a browser only reads its
+ * host: what is downloaded under one -- a fetch_url's file, or one a "://" redirect
+ * finds missing -- goes in the cache directory, so a shipped file is never
+ * overwritten, and it can sit where the program can't write (Program Files, an app
+ * bundle). Pass the same logical paths everywhere; only the base differs. */
 void wgr_asset_set_host(const char *host);
 /* The asset base set with wgr_asset_set_host (without a trailing slash), or "". */
 const char *wgr_asset_get_host(void);
@@ -90,11 +94,12 @@ bool wgr_asset_fetch_done(wgr_handle_t request, bool ok);
 
 /* Forget a cached asset, so the next ensure fetches it again: the file and what was
  * kept about it, on the web from the browser's storage and from this visit, on
- * desktop from the cache directory. False when there was no such file, or for a path
- * that isn't under the host (as wgr_asset_ensure_async reads one). A cache can
- * hold a file that is wrong rather than old (a host that compresses once served gzip
- * bytes under an asset's name): the host says it hasn't changed, so revalidation
- * keeps it, and only something that drops it helps.
+ * desktop from the cache directory -- never a local host's own file. False when there
+ * was no such file, or for a path that isn't under the host (as
+ * wgr_asset_ensure_async reads one). A cache can hold a file that is wrong rather
+ * than old (a host that compresses once served gzip bytes under an asset's name):
+ * the host says it hasn't changed, so revalidation keeps it, and only something that
+ * drops it helps.
  *
  * libwgrender also drops an entry by itself when a loader rejects a cached file and
  * fetches it once more, so this is for a program that knows better -- a new version of

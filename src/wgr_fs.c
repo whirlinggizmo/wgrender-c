@@ -311,15 +311,30 @@ EM_JS(void, wgr_fs_store_clear, (void), {
 #endif
 
 static char wgr_fs_root[512];
+static char wgr_fs_cache_root[512]; /* desktop: where WGRI_FS_CACHE paths are */
 static bool wgr_fs_transient; /* wgri_fs_set_persistent(false) */
+
+/* `path` without WGRI_FS_CACHE, and the root it is under. */
+static const char *root_of(const char **path)
+{
+    if (strncmp(*path, WGRI_FS_CACHE, sizeof(WGRI_FS_CACHE) - 1) == 0) {
+        *path += sizeof(WGRI_FS_CACHE) - 1;
+        return wgr_fs_cache_root;
+    }
+    return wgr_fs_root;
+}
 
 /* Join the configured root with `path` (absolute paths pass through). */
 static void resolve(const char *path, char *out, size_t out_size)
 {
+    const char *root;
     if (path == NULL) {
         out[0] = '\0';
-    } else if (wgr_fs_root[0] != '\0' && path[0] != '/') {
-        snprintf(out, out_size, "%s/%s", wgr_fs_root, path);
+        return;
+    }
+    root = root_of(&path);
+    if (root[0] != '\0' && path[0] != '/') {
+        snprintf(out, out_size, "%s/%s", root, path);
     } else {
         snprintf(out, out_size, "%s", path);
     }
@@ -330,14 +345,14 @@ static void mkdir_parents(const char *full);
 
 void wgri_fs_make_parents(const char *path)
 {
-    char full[1024];
+    char full[1100];
     wgri_fs_resolve(path, full, sizeof(full));
     mkdir_parents(full);
 }
 
 static void mkdir_parents(const char *full)
 {
-    char tmp[512];
+    char tmp[1100];
     size_t i;
     snprintf(tmp, sizeof(tmp), "%s", full);
     for (i = 1; tmp[i] != '\0'; i++) {
@@ -361,6 +376,14 @@ void wgri_fs_set_root(const char *root)
 }
 
 /* Build the directly-openable local path for `path` (root + path). */
+void wgri_fs_set_cache_root(const char *root)
+{
+    size_t n;
+    snprintf(wgr_fs_cache_root, sizeof(wgr_fs_cache_root), "%s", root != NULL ? root : "");
+    n = strlen(wgr_fs_cache_root);
+    while (n > 1 && wgr_fs_cache_root[n - 1] == '/') wgr_fs_cache_root[--n] = '\0';
+}
+
 void wgri_fs_resolve(const char *path, char *out, size_t out_size)
 {
     resolve(path, out, out_size);
@@ -401,7 +424,7 @@ bool wgri_fs_is_ready(void)
 
 bool wgri_fs_exists(const char *path)
 {
-    char full[512];
+    char full[1100];
     FILE *f;
     resolve(path, full, sizeof(full));
     f = (full[0] != '\0') ? fopen(full, "rb") : NULL;
@@ -414,7 +437,7 @@ bool wgri_fs_exists(const char *path)
 
 bool wgri_fs_read(const char *path, unsigned char **out_data, int *out_size)
 {
-    char full[512];
+    char full[1100];
     FILE *f;
     long size;
     unsigned char *bytes;
@@ -457,31 +480,36 @@ void wgri_fs_read_free(unsigned char *data)
 
 static bool meta_path(const char *path, char *out, size_t out_size)
 {
-    char rel[512];
+    char rel[600];
+    const bool cached = path != NULL && strncmp(path, WGRI_FS_CACHE, sizeof(WGRI_FS_CACHE) - 1) == 0;
+    if (cached) path += sizeof(WGRI_FS_CACHE) - 1; /* the sidecar is under the file's own root */
     if (path == NULL || path[0] == '\0' || path[0] == '/') return false;
-    if ((size_t)snprintf(rel, sizeof(rel), WGR_FS_META_DIR "/%s", path) >= sizeof(rel)) return false;
+    if ((size_t)snprintf(rel, sizeof(rel), "%s" WGR_FS_META_DIR "/%s", cached ? WGRI_FS_CACHE : "", path) >=
+        sizeof(rel)) {
+        return false;
+    }
     resolve(rel, out, out_size);
     return true;
 }
 
 static void meta_remove(const char *path)
 {
-    char side[512];
+    char side[1100];
     if (meta_path(path, side, sizeof(side))) remove(side);
 }
 
 /* One "key value" line each; a value is one header's worth, so never a newline. */
 static bool meta_write(const char *path, const wgri_fs_meta_t *meta)
 {
-    char side[512];
+    char side[1100];
     FILE *f;
     bool ok;
     if (!meta_path(path, side, sizeof(side))) return false;
     mkdir_parents(side);
     f = fopen(side, "wb");
     if (f == NULL) return false;
-    ok = fprintf(f, "wgr_meta 1\netag %s\nlast-modified %s\nfresh-until %.17g\nhash %s\n", meta->etag,
-                 meta->last_modified, meta->fresh_until, meta->hash) > 0;
+    ok = fprintf(f, "wgr_meta 1\netag %s\nlast-modified %s\nfresh-until %.17g\nhash %s\nsource %s\n", meta->etag,
+                 meta->last_modified, meta->fresh_until, meta->hash, meta->source) > 0;
     return (fclose(f) == 0) && ok;
 }
 
@@ -493,8 +521,8 @@ static void meta_field(char *out, size_t out_size, const char *value)
 
 static bool meta_read(const char *path, wgri_fs_meta_t *out)
 {
-    char side[512];
-    char line[512];
+    char side[1100];
+    char line[1100];
     FILE *f;
     bool versioned = false;
     if (!meta_path(path, side, sizeof(side))) return false;
@@ -514,6 +542,7 @@ static bool meta_read(const char *path, wgri_fs_meta_t *out)
         else if (strncmp(line, "last-modified ", 14) == 0) meta_field(out->last_modified, sizeof(out->last_modified), line + 14);
         else if (strncmp(line, "fresh-until ", 12) == 0) out->fresh_until = strtod(line + 12, NULL);
         else if (strncmp(line, "hash ", 5) == 0) meta_field(out->hash, sizeof(out->hash), line + 5);
+        else if (strncmp(line, "source ", 7) == 0) meta_field(out->source, sizeof(out->source), line + 7);
     }
     fclose(f);
     return versioned;
@@ -522,7 +551,7 @@ static bool meta_read(const char *path, wgri_fs_meta_t *out)
 
 bool wgri_fs_meta_get(const char *path, wgri_fs_meta_t *out)
 {
-    char full[512];
+    char full[1100];
     if (out == NULL) return false;
     memset(out, 0, sizeof(*out));
     resolve(path, full, sizeof(full));
@@ -542,7 +571,7 @@ bool wgri_fs_meta_get(const char *path, wgri_fs_meta_t *out)
 
 bool wgri_fs_meta_set(const char *path, const wgri_fs_meta_t *meta)
 {
-    char full[512];
+    char full[1100];
     if (meta == NULL) return false;
     resolve(path, full, sizeof(full));
     if (full[0] == '\0') return false;
@@ -555,7 +584,7 @@ bool wgri_fs_meta_set(const char *path, const wgri_fs_meta_t *meta)
 
 bool wgri_fs_remove(const char *path)
 {
-    char full[512];
+    char full[1100];
     resolve(path, full, sizeof(full));
     if (full[0] == '\0') {
         return false;
@@ -589,7 +618,7 @@ bool wgri_fs_write(const char *path, const unsigned char *data, int size)
 
 bool wgri_fs_write_meta(const char *path, const unsigned char *data, int size, const wgri_fs_meta_t *meta)
 {
-    char full[512];
+    char full[1100];
     FILE *f;
 
     resolve(path, full, sizeof(full));
@@ -628,7 +657,7 @@ void wgri_fs_set_persistent(bool persistent)
 bool wgri_fs_is_cached(const char *path)
 {
 #ifdef __EMSCRIPTEN__
-    char full[512];
+    char full[1100];
     resolve(path, full, sizeof(full));
     return !wgr_fs_transient && full[0] != '\0' && wgr_fs_store_has(full);
 #else
@@ -640,7 +669,7 @@ bool wgri_fs_is_cached(const char *path)
 int wgri_fs_cache_read_begin(const char *path)
 {
 #ifdef __EMSCRIPTEN__
-    char full[512];
+    char full[1100];
     resolve(path, full, sizeof(full));
     return !wgr_fs_transient && full[0] != '\0' && wgr_fs_store_has(full) ? wgr_fs_store_read(full) : 0;
 #else

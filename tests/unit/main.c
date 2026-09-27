@@ -12,6 +12,7 @@
 
 #include "test.h"
 #include "tests.h"
+#include "wgr_asset.h"
 
 typedef struct {
     const char *name;
@@ -29,6 +30,7 @@ static const test_case_t TESTS[] = {
     {"asset_dependency_jail", test_asset_dependency_jail},
     {"asset_resolve_source", test_asset_resolve_source},
     {"asset_local_source", test_asset_local_source},
+    {"asset_readonly_host", test_asset_readonly_host},
     {"app_identity", test_app_identity},
     {"audio_streaming", test_audio_streaming},
     {"audio_threads", test_audio_threads},
@@ -185,6 +187,10 @@ static int matches_filter(const char *name, int argc, char **argv)
 int main(int argc, char **argv)
 {
     int run = 0, failed = 0;
+
+    /* downloads a test doesn't place itself go in this work directory, never the
+       user's cache (wgr_asset_get_cache_dir's default) */
+    wgr_asset_set_cache_dir(WGR_TEST_DIR "/cache");
 
     for (size_t i = 0; i < sizeof(TESTS) / sizeof(TESTS[0]); i++) {
         if (!matches_filter(TESTS[i].name, argc, argv)) {

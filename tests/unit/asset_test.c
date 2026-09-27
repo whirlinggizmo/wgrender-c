@@ -524,3 +524,109 @@ void test_asset_local_source(void)
     wgri_asset_deinit();
     wgri_fs_deinit();
 }
+
+#define RO_HOST WGR_TEST_DIR "/ro/assets"
+#define RO_CACHE WGR_TEST_DIR "/ro/cache"
+
+static char completed_path[512];
+static void on_ready_path(const char *path, void *user)
+{
+    (void)user;
+    ready_count++;
+    snprintf(completed_path, sizeof(completed_path), "%s", path);
+}
+
+static bool read_back(const char *path, const char *want)
+{
+    char got[64] = "";
+    FILE *f = fopen(path, "rb");
+    if (f == NULL) return false;
+    if (fgets(got, sizeof(got), f) == NULL) got[0] = '\0';
+    fclose(f);
+    return strcmp(got, want) == 0;
+}
+
+static void ensure_and_tick(const char *key, const char *source, unsigned flags)
+{
+    ready_count = failed_count = 0;
+    completed_path[0] = '\0';
+    wgr_asset_add_task(wgr_asset_ensure_async(key, source, flags | WGR_ASSET_FILE_ONLY), on_ready_path, on_failed,
+                       NULL);
+    for (int i = 0; i < 8; i++) wgri_asset_tick();
+}
+
+/* A local host is only ever read, as a browser only reads its host: what a task
+ * downloads from a URL of its own lands in the cache, and counts there only for that
+ * URL, so a shipped file is never overwritten or evicted, and an old download never
+ * hides it. */
+void test_asset_readonly_host(void)
+{
+    bool succeed = true;
+    const char *shipped = RO_HOST "/textures/rock.png";
+    const char *cached = RO_CACHE "/textures/rock.png";
+
+    wgri_fs_init(NULL);
+    wgri_asset_init();
+    CHECK(wgr_asset_set_cache_dir(RO_CACHE));
+    wgr_asset_set_host(RO_HOST);
+    wgri_fs_make_parents("textures/rock.png");
+    write_text(shipped, "shipped");
+    remove(cached);
+    CHECK(wgr_asset_set_fetcher(test_fetcher, &succeed));
+    fetch_calls = 0;
+
+    /* downloaded into the cache, not over the shipped file */
+    ensure_and_tick("textures/rock.png", "https://mirror.example.net/rock.png", 0);
+    CHECK(fetch_calls == 1 && ready_count == 1);
+    CHECK(read_back(cached, "fetched"));
+    CHECK(read_back(shipped, "shipped"));
+    CHECK(strcmp(completed_path, cached) == 0);
+
+    /* the same source again: the cached copy, no request */
+    ensure_and_tick("textures/rock.png", "https://mirror.example.net/rock.png", 0);
+    CHECK(fetch_calls == 1 && ready_count == 1);
+
+    /* another source for the same key: that copy isn't this one */
+    ensure_and_tick("textures/rock.png", "https://other.example.net/rock.png", 0);
+    CHECK(fetch_calls == 2 && ready_count == 1);
+
+    /* a plain ensure reads the host, whatever the cache holds */
+    ensure_and_tick("textures/rock.png", NULL, 0);
+    CHECK(fetch_calls == 2 && ready_count == 1 && strcmp(completed_path, shipped) == 0);
+
+    /* forced: downloaded again, still into the cache */
+    ensure_and_tick("textures/rock.png", "https://other.example.net/rock.png", WGR_ASSET_FORCE_FETCH);
+    CHECK(fetch_calls == 3 && ready_count == 1 && read_back(shipped, "shipped"));
+
+    /* evicting and clearing touch the cache, never the host */
+    CHECK(wgr_asset_evict("textures/rock.png"));
+    CHECK(!wgri_fs_exists(WGRI_FS_CACHE "textures/rock.png") && read_back(shipped, "shipped"));
+    ensure_and_tick("textures/rock.png", "https://mirror.example.net/rock.png", 0);
+    CHECK(fetch_calls == 4 && read_back(cached, "fetched"));
+    wgr_asset_clear_cache();
+    CHECK(!read_back(cached, "fetched") && read_back(shipped, "shipped"));
+    CHECK(!wgr_asset_evict("textures/rock.png")); /* nothing of the cache's left */
+    CHECK(read_back(shipped, "shipped"));
+
+    /* a URL redirect downloads only what the host hasn't, and into the cache */
+    CHECK(wgr_asset_add_redirect("textures/", "https://cdn.example.com/textures/"));
+    fetch_calls = 0;
+    ensure_and_tick("textures/rock.png", NULL, 0);
+    CHECK(fetch_calls == 0 && ready_count == 1 && strcmp(completed_path, shipped) == 0);
+    remove(RO_CACHE "/textures/missing.png");
+    ensure_and_tick("textures/missing.png", NULL, 0);
+    CHECK(fetch_calls == 1 && ready_count == 1);
+    CHECK(strcmp(fetched_url, "https://cdn.example.com/textures/missing.png") == 0);
+    CHECK(read_back(RO_CACHE "/textures/missing.png", "fetched"));
+    CHECK(!read_back(RO_HOST "/textures/missing.png", "fetched"));
+    wgr_asset_clear_redirects();
+
+    /* no fetcher: a URL of its own can't be had, and the host's file isn't it */
+    wgr_asset_set_fetcher(NULL, NULL);
+    ensure_and_tick("textures/rock.png", "https://mirror.example.net/rock.png", 0);
+    CHECK(ready_count == 0 && failed_count == 1);
+
+    wgr_asset_set_host("");
+    wgri_asset_deinit();
+    wgri_fs_deinit();
+}

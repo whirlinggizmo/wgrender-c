@@ -21,6 +21,13 @@ void wgri_fs_deinit(void);
 /* Override the local root (base dir reads/writes resolve against). */
 void wgri_fs_set_root(const char *root);
 
+/* Desktop: a path starting with WGRI_FS_CACHE names a file under the cache root
+ * rather than the root -- a download kept apart from a local host, which is only ever
+ * read. No key has a ":", so the prefix can't be one's own. The cache root is the
+ * root too while the host is a URL; unused on the web, whose root is the cache. */
+#define WGRI_FS_CACHE "cache:"
+void wgri_fs_set_cache_root(const char *root);
+
 /* Build the directly-openable local path for `path` (root + path). */
 void wgri_fs_resolve(const char *path, char *out, size_t out_size);
 
@@ -46,6 +53,7 @@ typedef struct {
     char last_modified[64];
     double fresh_until; /* seconds since 1970 (wall clock); 0 = never fresh */
     char hash[72];      /* "sha256:" + 64 hex */
+    char source[1024];  /* desktop: the URL a download came from ("" = the host's own) */
 } wgri_fs_meta_t;
 
 /* Write a file (creating parent dirs); on web also keep it in the cache. Any

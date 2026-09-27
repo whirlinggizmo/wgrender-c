@@ -253,6 +253,7 @@ void wgr_asset_set_host(const char *host)
         log_warn("wgr_asset_set_host: %s isn't a file: URL naming a directory on this machine", wgr_asset_host);
     }
     wgri_fs_set_root(wgr_asset_host_is_url ? cache_dir() : wgr_asset_local_root);
+    wgri_fs_set_cache_root(cache_dir());
 #else
     if (strncmp(wgr_asset_host, "file:", 5) == 0) {
         log_warn("wgr_asset_set_host: %s: a browser doesn't read file: URLs", wgr_asset_host);
@@ -293,7 +294,11 @@ static void note_download(const char *path)
 {
     char list[600];
     FILE *f;
-    if (!wgr_asset_host_is_url) return; /* it landed in the host directory, not the cache */
+    if (strncmp(path, WGRI_FS_CACHE, sizeof(WGRI_FS_CACHE) - 1) == 0) {
+        path += sizeof(WGRI_FS_CACHE) - 1; /* the list is the cache's own: paths under it */
+    } else if (!wgr_asset_host_is_url) {
+        return; /* not a download: a local host is only ever read */
+    }
     snprintf(list, sizeof(list), "%s/" DOWNLOADS_LIST, cache_dir());
     f = fopen(list, "ab");
     if (f == NULL) {
@@ -368,6 +373,12 @@ bool wgr_asset_fetch_done(wgr_handle_t request, bool ok)
     }
     task->state = TASK_NEW;
     if (ok && wgri_fs_exists(task->path) && download_matches(task)) {
+        if (task->fetch_url[0] != '\0') { /* what a later ensure matches its own source against */
+            wgri_fs_meta_t meta;
+            wgri_fs_meta_get(task->path, &meta);
+            snprintf(meta.source, sizeof(meta.source), "%s", task->fetch_url);
+            wgri_fs_meta_set(task->path, &meta);
+        }
         note_download(task->path);
         resolved(i, true);
         return true;
@@ -395,6 +406,7 @@ bool wgr_asset_set_cache_dir(const char *dir)
     if (wgr_asset_host_is_url) {
         wgri_fs_set_root(cache_dir());
     }
+    wgri_fs_set_cache_root(cache_dir());
     return true;
 }
 
@@ -446,7 +458,15 @@ bool wgr_asset_evict(const char *path)
         log_warn("wgr_asset_evict: %s isn't a path under the asset root", path != NULL ? path : "(null)");
         return false;
     }
+#ifndef __EMSCRIPTEN__
+    { /* the cache's copy: a local host is only ever read, and it's the cache under a URL host */
+        char cached[600];
+        snprintf(cached, sizeof(cached), WGRI_FS_CACHE "%s", logical);
+        return wgri_fs_remove(cached);
+    }
+#else
     return wgri_fs_remove(logical);
+#endif
 }
 
 WGRI_KEEP
@@ -2336,19 +2356,41 @@ void wgri_asset_tick(void)
          * fetcher, if one is set and there is somewhere to download from -- a URL host,
          * or a source this task was given outright (a per-call fetch_url, or a URL
          * redirect). It answers on a later tick (wgr_asset_fetch_done). Without a
-         * fetcher a miss fails, as it always has. */
+         * fetcher a miss fails, as it always has.
+         *
+         * A local host is only ever read, as a browser only reads its host. A task the
+         * caller gave a URL of its own lives in the cache (WGRI_FS_CACHE) under one, as
+         * does a file a URL redirect would download because the host hasn't it; what is
+         * there counts only if it came from that URL -- so a shipped file is never
+         * overwritten, and an old download never hides a newer shipped one. */
         if (task->state == TASK_FETCHING) {
             continue; /* the fetcher answers with wgr_asset_fetch_done */
+        }
+        if (!wgr_asset_host_is_url && task->fetch_url[0] != '\0' &&
+            strncmp(task->path, WGRI_FS_CACHE, sizeof(WGRI_FS_CACHE) - 1) != 0 &&
+            (task->caller_url || !wgri_fs_exists(task->path))) {
+            char cached[sizeof(task->path)];
+            if (snprintf(cached, sizeof(cached), WGRI_FS_CACHE "%s", task->path) >= (int)sizeof(cached)) {
+                log_warn("asset: %s is too long to keep in the cache", task->path);
+                resolved(i, false);
+                continue;
+            }
+            snprintf(task->path, sizeof(task->path), "%s", cached);
         }
         {
             const bool have = wgri_fs_exists(task->path);
             const bool forced = (task->flags & WGR_ASSET_FORCE_FETCH) != 0;
+            const bool sourced = strncmp(task->path, WGRI_FS_CACHE, sizeof(WGRI_FS_CACHE) - 1) == 0;
             /* a file the manifest lists is current when its recorded hash is the listed
                one; the root manifest is fetched once a run, whatever is there */
             bool current = have && !forced && !task->manifest_root;
             if (current && task->expect_hash[0] != '\0') {
                 wgri_fs_meta_t meta;
                 current = wgri_fs_meta_get(task->path, &meta) && strcmp(meta.hash, task->expect_hash) == 0;
+            }
+            if (current && sourced) { /* downloaded from this URL, not another */
+                wgri_fs_meta_t meta;
+                current = wgri_fs_meta_get(task->path, &meta) && strcmp(meta.source, task->fetch_url) == 0;
             }
             if (current) {
                 resolved(i, true);
@@ -2372,6 +2414,11 @@ void wgri_asset_tick(void)
                 task->state = TASK_FETCHING;
                 wgr_asset_fetcher(wgri_handle_pool_handle_from_index(&wgr_asset_pool, i), url, dest,
                                   wgr_asset_fetcher_user);
+                continue;
+            }
+            if (sourced) { /* no fetcher, and nothing kept from this URL: the host's file isn't it */
+                if (use_fallback(task)) continue;
+                resolved(i, false);
                 continue;
             }
             if (!have && use_fallback(task)) continue;
