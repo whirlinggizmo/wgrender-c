@@ -37,6 +37,10 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / 'tools'))
 from wgrpath import find, host_os  # noqa: E402
+import cli  # noqa: E402
+
+if __name__ == '__main__':
+    cli.parse(__doc__, ('--lists',), positional=1)
 from guestbuild import check_library, desktop_variant  # noqa: E402
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 WGRENDER = find()

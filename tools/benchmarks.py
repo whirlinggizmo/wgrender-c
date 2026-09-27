@@ -24,6 +24,10 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
 from wgrpath import find  # noqa: E402
+import cli  # noqa: E402
+
+if __name__ == '__main__':
+    cli.parse(__doc__, ('--doc',), positional=0)
 
 WGRENDER = find(argv=[])
 sys.path.insert(0, str(WGRENDER / 'tools/bench'))

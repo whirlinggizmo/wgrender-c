@@ -50,6 +50,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from wgrpath import find  # noqa: E402
 import members  # noqa: E402
+import cli  # noqa: E402
+
+if __name__ == '__main__':
+    cli.parse(__doc__, ('--check', '--json', '--require-clang'), positional=1)
 
 ROOT = Path(__file__).resolve().parent.parent
 

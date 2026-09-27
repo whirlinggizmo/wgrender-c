@@ -23,6 +23,10 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from wgrpath import find  # noqa: E402
+import cli  # noqa: E402
+
+if __name__ == '__main__':
+    cli.parse(__doc__, (), positional=None)
 LIB = pathlib.Path(__file__).resolve().parent.parent
 # argv here is example directories, so wgrender comes from the environment or
 # the usual places -- not from a positional that means something else.

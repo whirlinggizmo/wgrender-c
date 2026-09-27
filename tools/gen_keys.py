@@ -18,6 +18,10 @@ import pathlib, re, sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from wgrpath import find  # noqa: E402
+import cli  # noqa: E402
+
+if __name__ == '__main__':
+    cli.parse(__doc__, ('--check',), positional=1)
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 # Same default as the other generators: the sibling checkout. This used to say
 # ../../github/whirlinggizmo/wgrender-c, which resolved to .../github/github/... once
