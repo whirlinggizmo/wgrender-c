@@ -192,7 +192,7 @@ GETTERS_TODO = {
         'nine_slice', 'pick_alpha_test', 'size', 'source', 'texture', 'tint')),
     *(f'wgr_sprite3d_set_{v}' for v in (
         'extent', 'facing', 'pick_alpha_test', 'size', 'source', 'texture', 'tint')),
-    *(f'wgr_text2d_set_{v}' for v in ('align', 'color', 'font', 'max_width', 'size', 'text')),
+    *(f'wgr_text2d_set_{v}' for v in ('align', 'color', 'font', 'max_width', 'text')),
     *(f'wgr_text3d_set_{v}' for v in ('align', 'color', 'facing', 'font', 'max_width', 'text')),
     'wgr_texture_set_sampling',
     'wgr_window_set_title',

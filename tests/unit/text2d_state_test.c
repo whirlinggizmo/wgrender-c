@@ -59,9 +59,10 @@ void test_text2d_state(void)
     const wgr_handle_t text = wgr_text2d_create(0);
     CHECK(text != 0);
     CHECK(wgr_text2d_set_text(text, "pick me"));
-    CHECK(wgr_text2d_set_size(text, 20));
+    CHECK(wgr_text2d_set_font_size(text, 20));
+    CHECK_NEAR(wgr_text2d_get_font_size(text), 20.0f, 1e-6);
     CHECK(wgr_text2d_set_position(text, 20, 20));
-    CHECK(wgr_text2d_measure_width(text) > 0.0f);
+    CHECK(wgr_text2d_measure(text).x > 0.0f);
 
     /* the flags start on, and each one answers back */
     CHECK(wgr_text2d_is_visible(text) && wgr_text2d_is_pickable(text) && wgr_text2d_is_enabled(text));
@@ -90,22 +91,22 @@ void test_text2d_state(void)
     /* empty text measures nothing and can't be hit */
     const wgr_handle_t empty = wgr_text2d_create(0);
     CHECK(wgr_text2d_set_position(empty, 20, 20));
-    CHECK(wgr_text2d_measure_width(empty) == 0.0f);
-    CHECK(wgr_text2d_measure_height(empty) == 0.0f);
+    CHECK(wgr_text2d_measure(empty).x == 0.0f);
+    CHECK(wgr_text2d_measure(empty).y == 0.0f);
     CHECK(!wgr_pick_object(empty, 0, inside_x, inside_y).hit);
     CHECK(wgr_text2d_set_text(empty, "")); /* the same, said explicitly */
-    CHECK(wgr_text2d_measure_width(empty) == 0.0f);
+    CHECK(wgr_text2d_measure(empty).x == 0.0f);
     wgr_text2d_destroy(empty);
 
     /* a font of its own: the text holds a reference, and gives it back when it goes */
     const wgr_handle_t font = wgr_font_create(FONT);
     CHECK(font != 0);
     CHECK(wgr_text2d_set_font(text, font));
-    const float default_width = wgr_text2d_measure_width(text);
+    const float default_width = wgr_text2d_measure(text).x;
     CHECK(default_width > 0.0f);
     wgr_font_release(font);             /* the text is the only holder now */
     CHECK(wgr_text2d_set_font(text, 0)); /* back to the built-in font */
-    CHECK(wgr_text2d_measure_width(text) > 0.0f);
+    CHECK(wgr_text2d_measure(text).x > 0.0f);
 
     const wgr_handle_t kept = wgr_font_create(FONT);
     CHECK(wgr_text2d_set_font(text, kept));
@@ -114,14 +115,14 @@ void test_text2d_state(void)
 
     /* every setter refuses a handle that isn't a text2d, and says so */
     CHECK(!wgr_text2d_set_text(0, "x"));
-    CHECK(!wgr_text2d_set_size(text, 12)); /* destroyed above */
+    CHECK(!wgr_text2d_set_font_size(text, 12)); /* destroyed above */
     CHECK(!wgr_text2d_set_color(text, WGR_COLOR_RED));
     CHECK(!wgr_text2d_set_visible(text, true));
     CHECK(!wgr_text2d_set_pickable(text, true));
     CHECK(!wgr_text2d_set_enabled(text, true));
     CHECK(!wgr_text2d_set_font(text, 0));
     CHECK(!wgr_text2d_is_visible(text) && !wgr_text2d_is_pickable(text));
-    CHECK(wgr_text2d_measure_width(text) == 0.0f);
+    CHECK(wgr_text2d_measure(text).x == 0.0f);
     wgr_text2d_destroy(text); /* twice is harmless */
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);

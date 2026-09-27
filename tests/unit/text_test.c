@@ -41,8 +41,8 @@ void test_text_default_font(void)
 
     wgr_handle_t label = wgr_text3d_create(0);
     wgr_text3d_set_text(label, "label");
-    wgr_text3d_set_size(label, 1.0f);
-    const float label_width = wgr_text3d_get_size(label).x;
+    wgr_text3d_set_font_size(label, 1.0f);
+    const float label_width = wgr_text3d_measure(label).x;
     CHECK(label_width > 0.0f); /* 3D text with the built-in font */
 
     /* a font of our own as the default */
@@ -54,7 +54,7 @@ void test_text_default_font(void)
     CHECK(comic.x != builtin.x);
     CHECK(wgr_text_measure_ex(0, "[ab]", 16.0f).x == comic.x);
     CHECK(wgr_text_measure("[ab]", 16) == (int)(comic.x + 0.5f));
-    CHECK(wgr_text3d_get_size(label).x != label_width);
+    CHECK(wgr_text3d_measure(label).x != label_width);
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
     CHECK(!wgr_text_set_default_font(12345)); /* not a font */
@@ -68,7 +68,7 @@ void test_text_default_font(void)
     CHECK(wgri_font_fons_id(font) == FONS_INVALID);
     CHECK(wgr_text_measure_ex(0, "[ab]", 16.0f).x == builtin.x);
     CHECK(wgr_text_measure_ex(font, "[ab]", 16.0f).x == builtin.x); /* freed handle: built in */
-    CHECK(wgr_text3d_get_size(label).x == label_width);
+    CHECK(wgr_text3d_measure(label).x == label_width);
 
     wgr_text3d_destroy(label);
     wgri_text3d_deinit();
@@ -100,7 +100,7 @@ void test_text_font_refcount(void)
     wgr_font_release(font);                      /* the last of ours */
     CHECK(wgri_font_fons_id(font) == fons_id);   /* the text keeps it */
     wgr_text3d_set_text(label, "x");
-    CHECK(wgr_text3d_get_size(label).x > 0.0f);
+    CHECK(wgr_text3d_measure(label).x > 0.0f);
 
     wgr_text3d_destroy(label); /* the last reference: freed */
     CHECK(wgri_font_fons_id(font) == FONS_INVALID);

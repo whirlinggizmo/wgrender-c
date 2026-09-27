@@ -74,7 +74,7 @@ static inline ui_button_t ui_button_create(wgr_handle_t scene, int layer, const 
     /* centered on the button, so the label needs no measuring */
     button.label = wgr_text2d_create(0);
     wgr_text2d_set_text(button.label, text);
-    wgr_text2d_set_size(button.label, text_size);
+    wgr_text2d_set_font_size(button.label, text_size);
     wgr_text2d_set_align(button.label, WGR_TEXT_ALIGN_CENTER, WGR_TEXT_ALIGN_MIDDLE);
     wgr_text2d_set_position(button.label, x + width * 0.5f, y + height * 0.5f);
     wgr_text2d_set_pickable(button.label, false); /* the rectangle under it takes the pointer */
@@ -211,7 +211,7 @@ static inline ui_list_t ui_list_create(wgr_handle_t scene, int row_layer, const 
 
         list.labels[i] = wgr_text2d_create(0);
         wgr_text2d_set_text(list.labels[i], names[i]);
-        wgr_text2d_set_size(list.labels[i], text_size);
+        wgr_text2d_set_font_size(list.labels[i], text_size);
         wgr_text2d_set_align(list.labels[i], WGR_TEXT_ALIGN_LEFT, WGR_TEXT_ALIGN_MIDDLE);
         wgr_text2d_set_pickable(list.labels[i], false);
         wgr_scene_add(scene, list.labels[i], row_layer + 1);

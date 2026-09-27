@@ -380,16 +380,23 @@ bool wgr_text3d_set_text(wgr_handle_t handle, const char *text)
 }
 
 WGRI_KEEP
-bool wgr_text3d_set_size(wgr_handle_t handle, float size)
+bool wgr_text3d_set_font_size(wgr_handle_t handle, float size)
 {
     wgr_text3d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL) return false;
     if (size <= 0.0f) {
-        log_warn("wgr_text3d_set_size: %g: the size has to be more than 0", size);
+        log_warn("wgr_text3d_set_font_size: %g: the size has to be more than 0", size);
         return false;
     }
     text_ptr->size = size;
     return true;
+}
+
+WGRI_KEEP
+float wgr_text3d_get_font_size(wgr_handle_t handle)
+{
+    const wgr_text3d_t *text_ptr = resolve(handle);
+    return text_ptr != NULL ? text_ptr->size : 0.0f;
 }
 
 WGRI_KEEP
@@ -529,7 +536,7 @@ bool wgr_text3d_is_enabled(wgr_handle_t handle)
 }
 
 WGRI_KEEP
-vec2_t wgr_text3d_get_size(wgr_handle_t handle)
+vec2_t wgr_text3d_measure(wgr_handle_t handle)
 {
     const wgr_text3d_t *text_ptr = resolve(handle);
     return text_ptr != NULL ? text_extent(text_ptr->font, text_ptr->text, text_ptr->size, text_ptr->max_width)

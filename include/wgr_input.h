@@ -12,8 +12,7 @@ void wgr_input_capture_cursor(void);
 void wgr_input_release_cursor(void);
 vec2_t wgr_input_get_mouse_position(void);
 vec2_t wgr_input_get_mouse_delta(void);
-float wgr_input_get_mouse_wheel(void);   /* this frame (or tick); fractional on trackpads */
-float wgr_input_get_mouse_wheel_x(void); /* horizontal */
+vec2_t wgr_input_get_mouse_wheel(void); /* this frame (or tick): y vertical, x horizontal; fractional on trackpads */
 int wgr_input_get_mouse_button(int button);
 wgr_mouse_state_t wgr_input_get_mouse_state(void);
 int wgr_input_get_key(wgr_keycode_t key); /* WGR_BUTTON_*; WGR_BUTTON_UP for an unknown key */

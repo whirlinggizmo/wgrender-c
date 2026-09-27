@@ -432,15 +432,9 @@ vec2_t wgr_input_get_mouse_delta(void)
 }
 
 WGRI_KEEP
-float wgr_input_get_mouse_wheel(void)
+vec2_t wgr_input_get_mouse_wheel(void)
 {
-    return current_edges()->wheel;
-}
-
-WGRI_KEEP
-float wgr_input_get_mouse_wheel_x(void)
-{
-    return current_edges()->wheel_x;
+    return (vec2_t){current_edges()->wheel_x, current_edges()->wheel};
 }
 
 WGRI_KEEP

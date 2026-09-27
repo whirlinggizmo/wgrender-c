@@ -89,33 +89,33 @@ void test_text2d_layout(void)
 
     wgr_handle_t text = wgr_text2d_create(0);
     CHECK(wgr_text2d_set_text(text, "one two three four"));
-    CHECK(wgr_text2d_set_size(text, 16));
+    CHECK(wgr_text2d_set_font_size(text, 16));
     CHECK(wgr_text2d_set_position(text, 100, 50));
 
-    const float full_width = wgr_text2d_measure_width(text);
-    const float line_height = wgr_text2d_measure_height(text);
+    const float full_width = wgr_text2d_measure(text).x;
+    const float line_height = wgr_text2d_measure(text).y;
     CHECK(full_width > 0.0f && line_height > 0.0f);
 
     /* wrapped: the block is the box wide and taller, by whole lines */
     CHECK(wgr_text2d_set_max_width(text, full_width * 0.5f));
-    const float wrapped_height = wgr_text2d_measure_height(text);
-    CHECK(wgr_text2d_measure_width(text) < full_width);
+    const float wrapped_height = wgr_text2d_measure(text).y;
+    CHECK(wgr_text2d_measure(text).x < full_width);
     CHECK_NEAR(wrapped_height, line_height * 3.0f, 0.01); /* "one two" / "three" / "four" */
 
     /* a word longer than the box keeps its own line (no mid-word break) */
     CHECK(wgr_text2d_set_text(text, "unbreakable"));
     CHECK(wgr_text2d_set_max_width(text, 10));
-    CHECK_NEAR(wgr_text2d_measure_height(text), line_height, 0.01);
-    CHECK(wgr_text2d_measure_width(text) > 10.0f);
+    CHECK_NEAR(wgr_text2d_measure(text).y, line_height, 0.01);
+    CHECK(wgr_text2d_measure(text).x > 10.0f);
 
     /* newlines always break */
     CHECK(wgr_text2d_set_max_width(text, 0));
     CHECK(wgr_text2d_set_text(text, "a\nb\nc"));
-    CHECK_NEAR(wgr_text2d_measure_height(text), line_height * 3.0f, 0.01);
+    CHECK_NEAR(wgr_text2d_measure(text).y, line_height * 3.0f, 0.01);
 
     /* alignment moves the block around the position: picks follow it */
     CHECK(wgr_text2d_set_text(text, "pick me"));
-    const float w = wgr_text2d_measure_width(text), h = wgr_text2d_measure_height(text);
+    const float w = wgr_text2d_measure(text).x, h = wgr_text2d_measure(text).y;
     CHECK(wgr_pick_object(text, 0, 100 + w * 0.5f, 50 + h * 0.5f).hit); /* left/top by default */
     CHECK(!wgr_pick_object(text, 0, 100 - w * 0.25f, 50 + h * 0.5f).hit);
 
@@ -332,26 +332,26 @@ void test_text_layout_shared(void)
     /* text3d: same splitting, sizes in world units */
     const wgr_handle_t label = wgr_text3d_create(0);
     CHECK(wgr_text3d_set_text(label, "one two three four"));
-    CHECK(wgr_text3d_set_size(label, 1.0f));
-    const vec2_t unwrapped = wgr_text3d_get_size(label);
+    CHECK(wgr_text3d_set_font_size(label, 1.0f));
+    const vec2_t unwrapped = wgr_text3d_measure(label);
     CHECK(unwrapped.x > 0.0f && unwrapped.y > 0.0f);
 
     CHECK(wgr_text3d_set_max_width(label, unwrapped.x * 0.5f));
-    const vec2_t wrapped = wgr_text3d_get_size(label);
+    const vec2_t wrapped = wgr_text3d_measure(label);
     CHECK(wrapped.x < unwrapped.x);
     CHECK(wrapped.y > unwrapped.y);                             /* more lines */
     CHECK_NEAR(wrapped.y, unwrapped.y * 3.0f, 0.01);            /* "one two" / "three" / "four" */
     CHECK(wgr_text3d_set_max_width(label, 0.0f));                /* off again */
-    CHECK_NEAR(wgr_text3d_get_size(label).y, unwrapped.y, 0.01);
+    CHECK_NEAR(wgr_text3d_measure(label).y, unwrapped.y, 0.01);
 
     /* newlines break without wrapping, and one line of size 1 is about 1 unit tall */
     CHECK(wgr_text3d_set_text(label, "a\nb"));
-    CHECK_NEAR(wgr_text3d_get_size(label).y, unwrapped.y * 2.0f, 0.01);
+    CHECK_NEAR(wgr_text3d_measure(label).y, unwrapped.y * 2.0f, 0.01);
     CHECK(unwrapped.y > 0.8f && unwrapped.y < 1.6f);
 
     /* alignment takes only its own axis's values; the size doesn't depend on it */
     CHECK(wgr_text3d_set_align(label, WGR_TEXT_ALIGN_LEFT, WGR_TEXT_ALIGN_TOP));
-    CHECK_NEAR(wgr_text3d_get_size(label).y, unwrapped.y * 2.0f, 0.01);
+    CHECK_NEAR(wgr_text3d_measure(label).y, unwrapped.y * 2.0f, 0.01);
     CHECK(!wgr_text3d_set_align(label, WGR_TEXT_ALIGN_MIDDLE, WGR_TEXT_ALIGN_TOP));
     CHECK(!wgr_text3d_set_align(label, WGR_TEXT_ALIGN_LEFT, WGR_TEXT_ALIGN_RIGHT));
     CHECK(!wgr_text3d_set_align(0, WGR_TEXT_ALIGN_LEFT, WGR_TEXT_ALIGN_TOP));

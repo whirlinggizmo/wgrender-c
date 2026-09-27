@@ -74,13 +74,15 @@ void test_text3d_state(void)
 
     wgr_handle_t text = wgr_text3d_create(0);
     CHECK(wgr_text3d_set_text(text, "Hello"));
-    CHECK(wgr_text3d_set_size(text, 1.0f));
-    CHECK(!wgr_text3d_set_size(text, 0.0f));
-    CHECK(wgr_text3d_get_size(text).x == 0.0f); /* no font yet: nothing to measure or hit */
+    CHECK(wgr_text3d_set_font_size(text, 1.0f));
+    CHECK(!wgr_text3d_set_font_size(text, 0.0f));
+    CHECK_NEAR(wgr_text3d_get_font_size(text), 1.0f, 1e-6); /* the refused 0 left it as it was */
+    CHECK(wgr_text3d_get_font_size(0) == 0.0f);
+    CHECK(wgr_text3d_measure(text).x == 0.0f); /* no font yet: nothing to measure or hit */
     CHECK(!wgr_pick_object(text, camera, 0.5f, 0.5f).hit);
 
     CHECK(wgr_text3d_set_font(text, font));
-    vec2_t size = wgr_text3d_get_size(text);
+    vec2_t size = wgr_text3d_measure(text);
     CHECK(size.x > 1.5f && size.x < 4.0f); /* five monospace glyphs, each about 0.45 of the font size */
     CHECK(size.y > 0.9f && size.y < 1.6f); /* one line at size 1: the font's line height, not the ink */
 

@@ -114,13 +114,13 @@ void test_input_wheel(void)
     }
     CHECK_NEAR(wgr_input_get_mouse_state().wheel, 1.0, 1e-6);
     CHECK_NEAR(wgr_input_get_mouse_state().wheel_x, -2.0, 1e-6);
-    CHECK_NEAR(wgr_input_get_mouse_wheel(), 1.0, 1e-6);
-    CHECK_NEAR(wgr_input_get_mouse_wheel_x(), -2.0, 1e-6);
+    CHECK_NEAR(wgr_input_get_mouse_wheel().y, 1.0, 1e-6);
+    CHECK_NEAR(wgr_input_get_mouse_wheel().x, -2.0, 1e-6);
 
     ev.scroll_y = 0.03f; /* one trackpad step: kept, not rounded away */
     ev.scroll_x = 0.0f;
     wgri_input_handle_event(&ev);
-    CHECK_NEAR(wgr_input_get_mouse_wheel(), 1.03, 1e-5);
+    CHECK_NEAR(wgr_input_get_mouse_wheel().y, 1.03, 1e-5);
 
     wgri_input_end_frame();
     CHECK(wgr_input_get_mouse_state().wheel == 0.0f && wgr_input_get_mouse_state().wheel_x == 0.0f);

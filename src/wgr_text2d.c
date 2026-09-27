@@ -184,12 +184,19 @@ vec2_t wgr_text2d_get_position(wgr_handle_t handle)
 }
 
 WGRI_KEEP
-bool wgr_text2d_set_size(wgr_handle_t handle, float size)
+bool wgr_text2d_set_font_size(wgr_handle_t handle, float size)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL) return false;
     text_ptr->size = size;
     return true;
+}
+
+WGRI_KEEP
+float wgr_text2d_get_font_size(wgr_handle_t handle)
+{
+    const wgr_text2d_t *text_ptr = resolve(handle);
+    return text_ptr != NULL ? text_ptr->size : 0.0f;
 }
 
 WGRI_KEEP
@@ -241,19 +248,11 @@ bool wgr_text2d_set_max_width(wgr_handle_t handle, float width)
 }
 
 WGRI_KEEP
-float wgr_text2d_measure_width(wgr_handle_t handle)
+vec2_t wgr_text2d_measure(wgr_handle_t handle)
 {
     wgr_text2d_t *text_ptr = resolve(handle);
-    if (text_ptr == NULL || text_ptr->text == NULL) return 0.0f;
-    return wgri_text_block_size(text_ptr->font, text_ptr->text, -1, text_ptr->size, text_ptr->max_width).x;
-}
-
-WGRI_KEEP
-float wgr_text2d_measure_height(wgr_handle_t handle)
-{
-    wgr_text2d_t *text_ptr = resolve(handle);
-    if (text_ptr == NULL || text_ptr->text == NULL) return 0.0f;
-    return wgri_text_block_size(text_ptr->font, text_ptr->text, -1, text_ptr->size, text_ptr->max_width).y;
+    if (text_ptr == NULL || text_ptr->text == NULL) return (vec2_t){0, 0};
+    return wgri_text_block_size(text_ptr->font, text_ptr->text, -1, text_ptr->size, text_ptr->max_width);
 }
 
 WGRI_KEEP

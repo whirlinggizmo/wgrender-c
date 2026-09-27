@@ -14,7 +14,7 @@ extern "C" {
 /* Text3d object (kind TEXT3D): a string placed in the 3D world, drawn with a
  * TrueType font (wgr_font_create), centered on its position.
  *
- * - size is the font size in world units (default 1): one line's height, from the
+ * - font size is in world units (default 1): one line's height, from the
  *   lowest descender to the highest ascender.
  * - Newlines break lines; wgr_text3d_set_max_width wraps between words, and
  *   wgr_text3d_set_align says where the block sits relative to the position.
@@ -30,7 +30,8 @@ wgr_handle_t wgr_text3d_create(wgr_handle_t font);
 void        wgr_text3d_destroy(wgr_handle_t text);
 bool        wgr_text3d_set_font(wgr_handle_t text, wgr_handle_t font);
 bool        wgr_text3d_set_text(wgr_handle_t text, const char *string); /* copied */
-bool        wgr_text3d_set_size(wgr_handle_t text, float size);
+bool        wgr_text3d_set_font_size(wgr_handle_t text, float size); /* > 0 */
+float       wgr_text3d_get_font_size(wgr_handle_t text);             /* 0 for a handle that isn't one */
 /* Where the text sits relative to its position: LEFT/CENTER/RIGHT horizontally,
  * TOP/MIDDLE/BOTTOM vertically. Default: centered both ways, so the position is
  * the middle of the block. Wrapped lines line up the same way inside it. */
@@ -42,7 +43,7 @@ bool        wgr_text3d_set_max_width(wgr_handle_t text, float width);
 bool        wgr_text3d_set_transform(wgr_handle_t text, float x, float y, float z,
                                     float rotation_x, float rotation_y, float rotation_z); /* radians */
 /* One part of the transform, leaving the other as it is; the getters read them back
- * (0, 0, 0 for a handle that isn't one). A 3D text's size stands in for a scale. */
+ * (0, 0, 0 for a handle that isn't one). A 3D text's font size stands in for a scale. */
 bool        wgr_text3d_set_position(wgr_handle_t text, float x, float y, float z);
 bool        wgr_text3d_set_rotation(wgr_handle_t text, float x, float y, float z); /* radians */
 vec3_t      wgr_text3d_get_position(wgr_handle_t text);
@@ -57,8 +58,8 @@ bool        wgr_text3d_is_pickable(wgr_handle_t text);
  * Disabled: still drawn and picked, and still blocks the pointer, but doesn't react. */
 bool wgr_text3d_set_enabled(wgr_handle_t text, bool enabled);
 bool wgr_text3d_is_enabled(wgr_handle_t text);
-/* World-space width and height of the current text ((0, 0) until the font loads). */
-vec2_t      wgr_text3d_get_size(wgr_handle_t text);
+/* World-space width and height of the laid-out text ((0, 0) until the font loads). */
+vec2_t      wgr_text3d_measure(wgr_handle_t text);
 /* Draw now (inside 3D mode); scenes draw their members themselves. */
 void        wgr_text3d_draw(wgr_handle_t text);
 

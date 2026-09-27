@@ -26,7 +26,8 @@ bool wgr_text2d_set_font(wgr_handle_t handle, wgr_handle_t font);
 bool wgr_text2d_set_text(wgr_handle_t handle, const char *text); /* copied */
 bool wgr_text2d_set_position(wgr_handle_t handle, float x, float y);
 vec2_t wgr_text2d_get_position(wgr_handle_t handle); /* (0, 0) for a handle that isn't one */
-bool wgr_text2d_set_size(wgr_handle_t handle, float size);
+bool wgr_text2d_set_font_size(wgr_handle_t handle, float size);  /* pixels */
+float wgr_text2d_get_font_size(wgr_handle_t handle);             /* 0 for a handle that isn't one */
 bool wgr_text2d_set_color(wgr_handle_t handle, wgr_color_t color);
 bool wgr_text2d_set_visible(wgr_handle_t handle, bool visible);
 bool wgr_text2d_is_visible(wgr_handle_t handle);
@@ -51,11 +52,9 @@ bool wgr_text2d_set_align(wgr_handle_t handle, wgr_text_align_t horizontal, wgr_
  * picking, however short its lines are. */
 bool wgr_text2d_set_max_width(wgr_handle_t handle, float width);
 
-/* Size of the laid-out text at the current size — the widest line and the lines'
- * total height (0 if no text). Uses the font it draws with (its own, or the
- * default font). */
-float wgr_text2d_measure_width(wgr_handle_t handle);
-float wgr_text2d_measure_height(wgr_handle_t handle);
+/* The laid-out text at its font size: x the widest line, y the lines' total height
+ * ((0, 0) with no text). Uses the font it draws with (its own, or the default font). */
+vec2_t wgr_text2d_measure(wgr_handle_t handle);
 
 void wgr_text2d_draw(wgr_handle_t handle);
 void wgr_text2d_destroy(wgr_handle_t handle);

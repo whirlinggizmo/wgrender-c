@@ -50,7 +50,7 @@ static wgr_handle_t add_label(const char *text, float x, float y, float z)
 {
     wgr_handle_t label = wgr_text3d_create(0); /* font attached when it loads */
     wgr_text3d_set_text(label, text);
-    wgr_text3d_set_size(label, 0.35f);
+    wgr_text3d_set_font_size(label, 0.35f);
     wgr_text3d_set_transform(label, x, y, z, 0, 0, 0);
     wgr_text3d_set_color(label, WGR_COLOR_RAYWHITE);
     wgr_scene_add(g.scene, label, 0);
@@ -115,7 +115,7 @@ static void init(void *user_data)
 
     g.sign = wgr_text3d_create(0); /* FREE facing: oriented by its rotation, like a sign */
     wgr_text3d_set_text(g.sign, "libwgrender text3d");
-    wgr_text3d_set_size(g.sign, 0.6f);
+    wgr_text3d_set_font_size(g.sign, 0.6f);
     wgr_text3d_set_facing(g.sign, WGR_SPRITE3D_FACING_FREE);
     wgr_text3d_set_color(g.sign, g.gold);
     wgr_scene_add(g.scene, g.sign, 0);

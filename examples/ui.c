@@ -137,7 +137,7 @@ static void init(void *user_data)
     g.note = wgr_text2d_create(0);
     wgr_text2d_set_text(g.note, "Every click fills the bar. The list below is clipped to the panel: "
                                "scroll it with the wheel.");
-    wgr_text2d_set_size(g.note, 14);
+    wgr_text2d_set_font_size(g.note, 14);
     wgr_text2d_set_max_width(g.note, 220);
     wgr_text2d_set_position(g.note, 30, 352);
     wgr_text2d_set_color(g.note, g.theme.text_disabled);
