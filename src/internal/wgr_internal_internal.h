@@ -2,6 +2,7 @@
 #define WGRI_INTERNAL_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "wgr_text.h" /* wgr_text_align_t */
 #include "wgr_types.h"
@@ -10,6 +11,20 @@
  * API. */
 
 extern bool wgri_initialized;
+
+/* `name` made one safe path component, as wgr_set_app_company describes, into `out`;
+ * false when nothing is left of it. Pure; exposed for tests. */
+bool wgri_app_clean_name(const char *name, char *out, size_t out_size);
+
+/* <base>/<company>/<app>[/<leaf>], "/" throughout. Pure; exposed for tests. */
+bool wgri_app_join(const char *base, const char *company, const char *app, const char *leaf, char *out,
+                   size_t out_size);
+
+/* The directory this program's cached files go in by default: the user's cache
+ * directory ($XDG_CACHE_HOME or ~/.cache, ~/Library/Caches, %LOCALAPPDATA% with a
+ * "cache" under the app), then <company>/<app> (wgr_get_app_company, wgr_get_app_name).
+ * False where there is no such directory to name (the web, or no HOME). */
+bool wgri_app_cache_dir(char *out, size_t out_size);
 
 /* smoothed seconds per frame that actually ran (FPS counter) */
 double wgri_get_fps_delta(void);

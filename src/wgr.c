@@ -1,11 +1,18 @@
 #include "wgr.h"
 
+#include <ctype.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #if defined(_WIN32)
 #  include <windows.h>
 #elif !defined(__EMSCRIPTEN__)
 #  include <time.h>
+#  include <unistd.h> /* readlink */
+#endif
+#if defined(__APPLE__)
+#  include <mach-o/dyld.h> /* _NSGetExecutablePath */
 #endif
 
 #include "internal/wgr_thread_internal.h"
@@ -434,6 +441,155 @@ const char *wgr_get_platform(void)
     return "web";
 #else
     return "desktop";
+#endif
+}
+
+/* ---------------------------------------------------------------- identity */
+
+/* Outside wgr_rt, which wgr_init_values clears: a program names itself first. */
+static char wgr_app_company[128];
+static char wgr_app_name[128];
+static char wgr_app_default_name[128];
+
+bool wgri_app_clean_name(const char *name, char *out, size_t out_size)
+{
+    static const char *const devices[] = {"CON", "PRN", "AUX", "NUL"};
+    size_t n = 0, start = 0, end, stem;
+    char kept[128];
+    bool device = false;
+
+    if (out == NULL || out_size == 0) return false;
+    out[0] = '\0';
+    if (name == NULL) return false;
+    for (const char *c = name; *c != '\0' && n + 1 < sizeof(kept); c++) {
+        const unsigned char ch = (unsigned char)*c;
+        kept[n++] = ch < 0x20 || strchr("<>:\"/\\|?*", ch) != NULL ? '_' : (char)ch;
+    }
+    end = n;
+    while (start < end && (kept[start] == '.' || kept[start] == ' ')) start++;
+    while (end > start && (kept[end - 1] == '.' || kept[end - 1] == ' ')) end--;
+    if (start == end) return false;
+
+    /* Windows opens a device for these names, whatever follows a dot */
+    for (stem = start; stem < end && kept[stem] != '.'; stem++) {
+    }
+    for (size_t d = 0; d < sizeof(devices) / sizeof(devices[0]) && !device; d++) {
+        device = stem - start == 3 && tolower((unsigned char)kept[start]) == tolower((unsigned char)devices[d][0]) &&
+                 tolower((unsigned char)kept[start + 1]) == tolower((unsigned char)devices[d][1]) &&
+                 tolower((unsigned char)kept[start + 2]) == tolower((unsigned char)devices[d][2]);
+    }
+    if (stem - start == 4 && isdigit((unsigned char)kept[start + 3]) && kept[start + 3] != '0') {
+        char three[4] = {(char)toupper((unsigned char)kept[start]), (char)toupper((unsigned char)kept[start + 1]),
+                         (char)toupper((unsigned char)kept[start + 2]), '\0'};
+        device = device || strcmp(three, "COM") == 0 || strcmp(three, "LPT") == 0;
+    }
+    return snprintf(out, out_size, "%s%.*s", device ? "_" : "", (int)(end - start), kept + start) <
+           (int)out_size;
+}
+
+bool wgri_app_join(const char *base, const char *company, const char *app, const char *leaf, char *out,
+                   size_t out_size)
+{
+    int n;
+    if (base == NULL || base[0] == '\0' || company == NULL || app == NULL || out == NULL || out_size == 0) {
+        return false;
+    }
+    n = snprintf(out, out_size, "%s/%s/%s%s%s", base, company, app, leaf != NULL ? "/" : "",
+                 leaf != NULL ? leaf : "");
+    if (n < 0 || n >= (int)out_size) return false;
+    for (char *c = out; *c != '\0'; c++) {
+        if (*c == '\\') *c = '/'; /* Windows takes either, and wgr_fs makes directories at "/" */
+    }
+    return true;
+}
+
+/* The executable's name less its extension, or "" where there isn't one to find. */
+static void executable_name(char *out, size_t out_size)
+{
+    char path[1024] = "";
+#if defined(_WIN32)
+    const DWORD len = GetModuleFileNameA(NULL, path, (DWORD)sizeof(path));
+    if (len == 0 || len >= sizeof(path)) path[0] = '\0';
+#elif defined(__APPLE__)
+    uint32_t size = (uint32_t)sizeof(path);
+    if (_NSGetExecutablePath(path, &size) != 0) path[0] = '\0';
+#elif defined(__linux__)
+    const ssize_t len = readlink("/proc/self/exe", path, sizeof(path) - 1);
+    path[len > 0 ? len : 0] = '\0';
+#endif
+    const char *base = path;
+    char *dot;
+    for (const char *c = path; *c != '\0'; c++) {
+        if (*c == '/' || *c == '\\') base = c + 1;
+    }
+    snprintf(out, out_size, "%s", base);
+    dot = strrchr(out, '.');
+    if (dot != NULL && dot != out) *dot = '\0';
+}
+
+WGRI_KEEP
+void wgr_set_app_company(const char *company)
+{
+    if (!wgri_app_clean_name(company, wgr_app_company, sizeof(wgr_app_company))) wgr_app_company[0] = '\0';
+}
+
+WGRI_KEEP
+const char *wgr_get_app_company(void)
+{
+    return wgr_app_company[0] != '\0' ? wgr_app_company : "DefaultCompany";
+}
+
+WGRI_KEEP
+void wgr_set_app_name(const char *name)
+{
+    if (!wgri_app_clean_name(name, wgr_app_name, sizeof(wgr_app_name))) wgr_app_name[0] = '\0';
+}
+
+WGRI_KEEP
+const char *wgr_get_app_name(void)
+{
+    if (wgr_app_name[0] != '\0') return wgr_app_name;
+    if (wgr_app_default_name[0] == '\0') {
+        char exe[128];
+        executable_name(exe, sizeof(exe));
+        if (!wgri_app_clean_name(exe, wgr_app_default_name, sizeof(wgr_app_default_name))) {
+            snprintf(wgr_app_default_name, sizeof(wgr_app_default_name), "DefaultApp");
+        }
+    }
+    return wgr_app_default_name;
+}
+
+bool wgri_app_cache_dir(char *out, size_t out_size)
+{
+#if defined(__EMSCRIPTEN__)
+    (void)out;
+    (void)out_size;
+    return false; /* the browser keeps a site's files apart itself */
+#else
+    char base[512];
+    const char *leaf = NULL;
+#if defined(_WIN32)
+    const char *local = getenv("LOCALAPPDATA");
+    if (local == NULL || local[0] == '\0') return false;
+    snprintf(base, sizeof(base), "%s", local);
+    leaf = "cache"; /* LOCALAPPDATA\\<company>\\<app> is the app's own, not only its cache */
+#else
+    const char *home = getenv("HOME");
+#if defined(__APPLE__)
+    if (home == NULL || home[0] == '\0') return false;
+    snprintf(base, sizeof(base), "%s/Library/Caches", home);
+#else
+    const char *xdg = getenv("XDG_CACHE_HOME");
+    if (xdg != NULL && xdg[0] == '/') { /* the spec ignores a relative one */
+        snprintf(base, sizeof(base), "%s", xdg);
+    } else if (home != NULL && home[0] != '\0') {
+        snprintf(base, sizeof(base), "%s/.cache", home);
+    } else {
+        return false;
+    }
+#endif
+#endif
+    return wgri_app_join(base, wgr_get_app_company(), wgr_get_app_name(), leaf, out, out_size);
 #endif
 }
 

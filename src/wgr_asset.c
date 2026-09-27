@@ -169,9 +169,19 @@ static int wgr_manifest_dir_count, wgr_manifest_dir_capacity;
  * job the browser's cache does on web (docs/PLAN-asset-fetch.md). */
 static wgr_asset_fetch_fn wgr_asset_fetcher;
 static void *wgr_asset_fetcher_user;
-static char wgr_asset_cache_dir[256] = ".wgr-cache";
+static char wgr_asset_cache_dir[512]; /* set by the program; "" = derived (cache_dir) */
 static bool wgr_asset_host_is_url;
 static char wgr_asset_local_root[512]; /* a local host's directory: the host, or what its file: URL names */
+
+/* Where downloads go: the program's directory, or <user's cache>/<company>/<app>
+ * (wgri_app_cache_dir), or ".wgr-cache" where there's no user cache directory to name. */
+static const char *cache_dir(void)
+{
+    static char derived[512];
+    if (wgr_asset_cache_dir[0] != '\0') return wgr_asset_cache_dir;
+    if (!wgri_app_cache_dir(derived, sizeof(derived))) snprintf(derived, sizeof(derived), ".wgr-cache");
+    return derived;
+}
 #endif
 static wgr_asset_format_t wgr_asset_formats[MAX_DEPENDENCY_FORMATS];
 static int wgr_asset_format_count;
@@ -242,7 +252,7 @@ void wgr_asset_set_host(const char *host)
         !wgri_asset_file_url_path(wgr_asset_host, wgr_asset_local_root, sizeof(wgr_asset_local_root))) {
         log_warn("wgr_asset_set_host: %s isn't a file: URL naming a directory on this machine", wgr_asset_host);
     }
-    wgri_fs_set_root(wgr_asset_host_is_url ? wgr_asset_cache_dir : wgr_asset_local_root);
+    wgri_fs_set_root(wgr_asset_host_is_url ? cache_dir() : wgr_asset_local_root);
 #else
     if (strncmp(wgr_asset_host, "file:", 5) == 0) {
         log_warn("wgr_asset_set_host: %s: a browser doesn't read file: URLs", wgr_asset_host);
@@ -281,10 +291,10 @@ static bool download_matches(wgr_asset_task_t *task)
 
 static void note_download(const char *path)
 {
-    char list[512];
+    char list[600];
     FILE *f;
     if (!wgr_asset_host_is_url) return; /* it landed in the host directory, not the cache */
-    snprintf(list, sizeof(list), "%s/" DOWNLOADS_LIST, wgr_asset_cache_dir);
+    snprintf(list, sizeof(list), "%s/" DOWNLOADS_LIST, cache_dir());
     f = fopen(list, "ab");
     if (f == NULL) {
         log_warn("asset: couldn't note %s in %s; wgr_asset_clear_cache won't delete it", path, list);
@@ -310,11 +320,11 @@ static void remove_empty_parents(const char *root, const char *path)
 /* Delete every file the list names, with its metadata, and then the list: the count. */
 static int delete_downloads(void)
 {
-    char list[512], line[1024], relative[1024], file[1536], meta_root[512];
+    char list[600], line[1024], relative[1024], file[1600], meta_root[600];
     FILE *f;
     int deleted = 0;
-    snprintf(list, sizeof(list), "%s/" DOWNLOADS_LIST, wgr_asset_cache_dir);
-    snprintf(meta_root, sizeof(meta_root), "%s/.meta", wgr_asset_cache_dir);
+    snprintf(list, sizeof(list), "%s/" DOWNLOADS_LIST, cache_dir());
+    snprintf(meta_root, sizeof(meta_root), "%s/.meta", cache_dir());
     f = fopen(list, "rb");
     if (f == NULL) return 0;
     while (fgets(line, sizeof(line), f) != NULL) {
@@ -332,11 +342,11 @@ static int delete_downloads(void)
             continue;
         }
         snprintf(line, sizeof(line), "%s", relative);
-        snprintf(file, sizeof(file), "%s/%s", wgr_asset_cache_dir, line);
+        snprintf(file, sizeof(file), "%s/%s", cache_dir(), line);
         deleted += remove(file) == 0 ? 1 : 0; /* listed twice, or evicted since: already gone */
         snprintf(file, sizeof(file), "%s/%s", meta_root, line);
         remove(file);
-        remove_empty_parents(wgr_asset_cache_dir, line);
+        remove_empty_parents(cache_dir(), line);
         remove_empty_parents(meta_root, line);
     }
     fclose(f);
@@ -383,9 +393,15 @@ bool wgr_asset_set_cache_dir(const char *dir)
     }
     snprintf(wgr_asset_cache_dir, sizeof(wgr_asset_cache_dir), "%s", dir);
     if (wgr_asset_host_is_url) {
-        wgri_fs_set_root(wgr_asset_cache_dir);
+        wgri_fs_set_root(cache_dir());
     }
     return true;
+}
+
+WGRI_KEEP
+const char *wgr_asset_get_cache_dir(void)
+{
+    return cache_dir();
 }
 
 bool wgr_asset_set_fetcher(wgr_asset_fetch_fn fn, void *user_data)
@@ -399,6 +415,12 @@ bool wgr_asset_set_cache_dir(const char *dir)
 {
     (void)dir; /* the browser caches; there is no directory to choose */
     return false;
+}
+
+WGRI_KEEP
+const char *wgr_asset_get_cache_dir(void)
+{
+    return ""; /* the browser's */
 }
 
 bool wgr_asset_set_fetcher(wgr_asset_fetch_fn fn, void *user_data)
@@ -436,7 +458,7 @@ void wgr_asset_clear_cache(void)
     {
         const int deleted = delete_downloads();
         if (deleted > 0) {
-            log_warn("wgr_asset_clear_cache: deleted %d downloaded file(s) from %s", deleted, wgr_asset_cache_dir);
+            log_warn("wgr_asset_clear_cache: deleted %d downloaded file(s) from %s", deleted, cache_dir());
         }
     }
 #endif

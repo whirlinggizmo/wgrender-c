@@ -62,9 +62,14 @@ void wgr_asset_set_host(const char *host);
 const char *wgr_asset_get_host(void);
 
 /* Where downloads land on desktop, and where later runs find them: a local directory,
- * created as needed. Default ".wgr-cache". Ignored on the web, which caches in the
+ * created as needed. By default the user's cache directory for this program,
+ * <cache>/<company>/<app> (wgr_set_app_company, wgr_set_app_name): ~/.cache/... or
+ * $XDG_CACHE_HOME/... on Linux, ~/Library/Caches/... on macOS, %LOCALAPPDATA%\...\cache
+ * on Windows; ".wgr-cache" where there is none. Ignored on the web, which caches in the
  * browser. Set it before the first wgr_asset_set_host with a URL. */
 bool wgr_asset_set_cache_dir(const char *dir);
+/* The directory downloads go in: set, or the default above. "" on the web. */
+const char *wgr_asset_get_cache_dir(void);
 
 /* Download a missing asset. libwgrender calls this when the host is a URL, the file
  * isn't local yet, and there is no built-in fetcher for this platform (desktop):

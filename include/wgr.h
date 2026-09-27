@@ -112,6 +112,22 @@ const char *wgr_get_renderer(void);
  * blocks the frame it happens on. */
 bool wgr_has_threads(void);
 
+/* Who the program is: the company and the app, the two directories a program's own
+ * files go under on desktop -- the asset cache now (wgr_asset_set_cache_dir), and
+ * saves or settings later -- as <user's cache>/<company>/<app>. The company is
+ * "DefaultCompany" until set, so that nothing unset looks like anyone's; the app is
+ * the executable's name, less its extension. Set both for anything shipped: two
+ * programs left with the defaults and the same name share a cache, and renaming the
+ * executable would leave its cache behind. Each is made safe as one path component
+ * (separators and characters Windows refuses become "_", leading and trailing dots and
+ * spaces go, a Windows device name such as "CON" gets a "_" in front); NULL, or a name
+ * with nothing left, goes back to the default. Set them before anything is cached,
+ * that is before wgr_asset_set_host with a URL. Kept across wgr_init_values. */
+void wgr_set_app_company(const char *company);
+const char *wgr_get_app_company(void);
+void wgr_set_app_name(const char *name);
+const char *wgr_get_app_name(void);
+
 /* Frame rate (a power/heat cap; use a tick for simulation rate).
  * Frames are locked to the display's vsync by default. wgr_set_target_fps(fps)
  * caps the rate: fps <= 0 means no cap (vsync rate, or as fast as possible with

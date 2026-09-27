@@ -310,7 +310,7 @@ EM_JS(void, wgr_fs_store_clear, (void), {
 #define WGR_FS_DEFAULT_ROOT ""
 #endif
 
-static char wgr_fs_root[256];
+static char wgr_fs_root[512];
 static bool wgr_fs_transient; /* wgri_fs_set_persistent(false) */
 
 /* Join the configured root with `path` (absolute paths pass through). */

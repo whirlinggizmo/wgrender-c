@@ -29,6 +29,7 @@ static const test_case_t TESTS[] = {
     {"asset_dependency_jail", test_asset_dependency_jail},
     {"asset_resolve_source", test_asset_resolve_source},
     {"asset_local_source", test_asset_local_source},
+    {"app_identity", test_app_identity},
     {"audio_streaming", test_audio_streaming},
     {"audio_threads", test_audio_threads},
     {"audio_many_sounds", test_audio_many_sounds},

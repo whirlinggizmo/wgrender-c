@@ -24,6 +24,7 @@ void test_asset_clear_cache(void);
 void test_asset_dependency_jail(void);
 void test_asset_resolve_source(void);
 void test_asset_local_source(void);
+void test_app_identity(void);
 
 void test_audio_streaming(void);
 void test_audio_threads(void);
