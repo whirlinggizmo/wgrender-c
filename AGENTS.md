@@ -206,9 +206,26 @@ The pairings are deliberately different words so the name signals the category:
 
 The public surface (`include/*.h`) is **language/bindings-agnostic**: every
 parameter and return value is a **handle (`wgr_handle_t`)**, an **integral / float
-/ enum**, or a **`const char *`** (paths and text). **No other pointers in user
-code** — never `unsigned char *data` / `int size`, never struct pointers. This is
-enforced by `tools/check.py` (the `check` test), not just convention.
+/ enum**, a **`const char *`** (paths and text), or a **fixed-layout math value by
+value: `vec2_t`, `vec3_t`, `vec4_t`, `quat_t`** (a quaternion is laid out as a
+`vec4_t`). **No other pointers in user code** — never `unsigned char *data` /
+`int size`, never struct pointers — **and never a record.** This is enforced by
+`tools/check.py` (the `check` test), not just convention.
+
+Why the math values and nothing else: a struct returned by value puts its layout in
+the contract, which every binding mirrors and every FFI must get right (SysV returns a
+`vec3_t` in two registers, Win64 through a hidden pointer, and wasm always through
+one, which a JS guest reads back out of the heap). That is worth paying once for a type
+whose layout can never change -- `vec3_t` will not grow a field -- and not for a record
+that can: the day `wgr_pick_result_t` gains a surface normal, every binding's copy is
+wrong, some silently. So the test is "can its layout ever change?", not size.
+`matrix_t` passes it, but no public call takes or returns one; it joins the list the
+day one needs to. Handles are unaffected either way: a value copied out has no
+lifetime, so it can't dangle, alias or outlive anything. Records returned today
+(`wgr_pick_result_t`, `wgr_pick_stats_t`, `wgr_touch_t`, `wgr_touch_gesture_t`,
+`wgr_mouse_state_t`, `wgr_keyboard_state_t`) are known gaps, listed in
+`tools/check.py`'s `RECORDS_TODO`: each becomes per-field getters, or a handle to the
+result, as its subsystem is next worked on.
 
 Creation follows one pattern, no exceptions:
 
@@ -226,6 +243,19 @@ Creation follows one pattern, no exceptions:
   and frees the resource only when the last one goes. Objects are private, so they
   have `wgr_<object>_destroy(handle)`. `retain` stays internal: one `create` is one
   reference.
+
+**Every value a setter stores has a getter.** `set_<value>` pairs with
+`get_<value>` (or `is_`/`has_` for a bool), or with one getter per value when a setter
+takes several (`set_spot_cone` -> `get_spot_inner_angle`, `get_spot_outer_angle`), and a getter reads
+0 for a handle that isn't one. A setter that takes a vector's components returns them
+as that vector: `set_pivot(x, y)` -> `vec2_t get_pivot`. It is what makes a clamp observable: the
+light getters came from `set_shadow_map_size(64)` answering true while nothing outside
+could learn the map was 256. The transform rule under Naming is this rule applied to a
+transform's parts. `tools/check.py` holds it, with two lists beside it:
+`GETTERS_EXEMPT`, a setter with no getter on purpose and why (a callback, an action like
+`set_manifest`, a shape's geometry maker), and `GETTERS_TODO`, the gaps known when the
+rule was written. A new setter needs its getter or an entry in the first; the second
+only shrinks, since the check fails when a listed setter gains its getter.
 
 Loading is split from creation (the librl model): the **asset** layer *ensures a
 file is local* and fires a **path-only** callback

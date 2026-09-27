@@ -562,6 +562,13 @@ bool wgr_sprite2d_set_pivot(wgr_handle_t sprite, float x, float y)
 }
 
 WGRI_KEEP
+vec2_t wgr_sprite2d_get_pivot(wgr_handle_t sprite)
+{
+    const wgr_sprite2d_t *sprite_ptr = resolve(sprite);
+    return sprite_ptr != NULL ? (vec2_t){sprite_ptr->pivot_x, sprite_ptr->pivot_y} : (vec2_t){0, 0};
+}
+
+WGRI_KEEP
 bool wgr_sprite2d_set_tint(wgr_handle_t sprite, wgr_color_t color)
 {
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);

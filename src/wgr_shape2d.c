@@ -325,6 +325,20 @@ bool wgr_shape2d_set_pivot(wgr_handle_t shape, float x, float y)
 }
 
 WGRI_KEEP
+vec2_t wgr_shape2d_get_pivot(wgr_handle_t shape)
+{
+    const wgr_shape2d_t *shape_ptr = resolve(shape);
+    if (shape_ptr == NULL) {
+        return (vec2_t){0, 0};
+    }
+    if (shape_ptr->has_pivot) {
+        return (vec2_t){shape_ptr->pivot_x, shape_ptr->pivot_y};
+    }
+    /* none set: the kind's own origin, as the fraction set_pivot would take */
+    return shape_ptr->kind == WGR_SHAPE2D_CIRCLE ? (vec2_t){0.5f, 0.5f} : (vec2_t){0, 0};
+}
+
+WGRI_KEEP
 bool wgr_shape2d_set_outline(wgr_handle_t shape, float thickness)
 {
     wgr_shape2d_t *shape_ptr = resolve(shape);

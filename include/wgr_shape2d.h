@@ -72,6 +72,9 @@ vec2_t wgr_shape2d_get_scale(wgr_handle_t shape);
  * center — so nothing moves until you set one. Lines have explicit endpoints, so
  * they ignore the pivot. */
 bool wgr_shape2d_set_pivot(wgr_handle_t shape, float x, float y);
+/* The pivot in effect: before set_pivot, the kind's own origin as a fraction --
+ * (0, 0) for a rectangle, (0.5, 0.5) for a circle. 0, 0 for a handle that isn't one. */
+vec2_t wgr_shape2d_get_pivot(wgr_handle_t shape);
 
 bool wgr_shape2d_set_outline(wgr_handle_t shape, float thickness); /* rectangles and circles; 0 = filled (default) */
 bool wgr_shape2d_set_color(wgr_handle_t shape, wgr_color_t color);

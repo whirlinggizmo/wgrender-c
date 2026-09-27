@@ -44,6 +44,7 @@ bool wgr_sprite3d_set_source(wgr_handle_t handle, float x, float y, float width,
  * (0.5, 1) puts the position at the bottom edge — what a sprite standing on the
  * ground wants. */
 bool wgr_sprite3d_set_pivot(wgr_handle_t handle, float x, float y);
+vec2_t wgr_sprite3d_get_pivot(wgr_handle_t handle);   /* 0, 0 for a handle that isn't one */
 
 bool wgr_sprite3d_set_facing(wgr_handle_t handle, wgr_sprite3d_facing_t facing);
 vec3_t wgr_sprite3d_get_position(wgr_handle_t handle);

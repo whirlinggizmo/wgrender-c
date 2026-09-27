@@ -250,6 +250,13 @@ bool wgr_sprite3d_set_pivot(wgr_handle_t handle, float x, float y)
 }
 
 WGRI_KEEP
+vec2_t wgr_sprite3d_get_pivot(wgr_handle_t handle)
+{
+    const wgr_sprite3d_t *sprite_ptr = resolve(handle);
+    return sprite_ptr != NULL ? (vec2_t){sprite_ptr->pivot_x, sprite_ptr->pivot_y} : (vec2_t){0, 0};
+}
+
+WGRI_KEEP
 bool wgr_sprite3d_set_facing(wgr_handle_t handle, wgr_sprite3d_facing_t facing)
 {
     wgr_sprite3d_t *sprite_ptr = resolve(handle);

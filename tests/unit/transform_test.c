@@ -130,6 +130,24 @@ void test_transforms(void)
     CHECK_VEC2_NEAR(wgr_text2d_get_position(text2d), 12, 34);
     CHECK_VEC2_NEAR(wgr_text2d_get_position(0), 0, 0);
 
+    /* pivots read back; shape2d's reports its kind's own origin until one is set */
+    CHECK_VEC2_NEAR(wgr_sprite2d_get_pivot(sprite2d), 0.5f, 0.5f);
+    CHECK(wgr_sprite2d_set_pivot(sprite2d, 0.25f, 1.0f));
+    CHECK_VEC2_NEAR(wgr_sprite2d_get_pivot(sprite2d), 0.25f, 1.0f);
+    CHECK_VEC2_NEAR(wgr_sprite3d_get_pivot(sprite3d), 0.5f, 0.5f);
+    CHECK(wgr_sprite3d_set_pivot(sprite3d, 0.5f, 1.0f));
+    CHECK_VEC2_NEAR(wgr_sprite3d_get_pivot(sprite3d), 0.5f, 1.0f);
+    wgr_handle_t card = wgr_shape2d_create();
+    wgr_shape2d_set_rectangle(card, 40, 20, 0);
+    CHECK_VEC2_NEAR(wgr_shape2d_get_pivot(card), 0, 0);
+    wgr_shape2d_set_circle(card, 10);
+    CHECK_VEC2_NEAR(wgr_shape2d_get_pivot(card), 0.5f, 0.5f);
+    CHECK(wgr_shape2d_set_pivot(card, 0.0f, 1.0f));
+    CHECK_VEC2_NEAR(wgr_shape2d_get_pivot(card), 0.0f, 1.0f);
+    CHECK_VEC2_NEAR(wgr_sprite2d_get_pivot(0), 0, 0);
+    CHECK_VEC2_NEAR(wgr_sprite3d_get_pivot(0), 0, 0);
+    CHECK_VEC2_NEAR(wgr_shape2d_get_pivot(0), 0, 0);
+
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgri_text2d_deinit();
     wgri_text3d_deinit();

@@ -48,6 +48,7 @@ bool wgr_sprite2d_set_size(wgr_handle_t sprite, float width, float height);
 /* Point that position refers to and rotation turns around, as a fraction of the
  * sprite: (0, 0) top-left, (1, 1) bottom-right. Default (0.5, 0.5), the center. */
 bool wgr_sprite2d_set_pivot(wgr_handle_t sprite, float x, float y);
+vec2_t wgr_sprite2d_get_pivot(wgr_handle_t sprite);   /* 0, 0 for a handle that isn't one */
 
 /* Nine-slice: borders in source pixels that keep their size when the sprite is
  * drawn at another size (panels, buttons, frames). The corners stay as they are,
