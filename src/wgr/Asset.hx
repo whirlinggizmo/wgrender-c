@@ -119,14 +119,15 @@ class Asset {
 		return Raw.wgr_asset_get_cache_dir().toString();
 
 	/**
-		Forget a cached asset, so the next ensure fetches it again. False when there
-		was no such file, or for a path that isn't under the host (as `ensureAsync`
-		reads one). A cache can hold a
-		file that is wrong rather than old — a host that compresses once served gzip
-		bytes under an asset's name — and since the host says it hasn't changed,
-		revalidation keeps it: only something that drops it helps. wgrender drops an entry itself when
-		a loader rejects a cached file, so this is for a program that knows better: a
-		new version of an asset, or a user asking to free the space.
+		Forget a cached asset, so the next ensure fetches it again — the cache's copy,
+		never a local host's own file, which is only ever read. False when there was no
+		such file, or for a path that isn't under the host (as `ensureAsync` reads one).
+		A cache can hold a file that is wrong rather than old — a host that compresses
+		once served gzip bytes under an asset's name — and since the host says it hasn't
+		changed, revalidation keeps it: only something that drops it helps. wgrender
+		drops an entry itself when a loader rejects a cached file, so this is for a
+		program that knows better: a new version of an asset, or a user asking to free
+		the space.
 	**/
 	public static inline function evict(path:String):Bool
 		return Raw.wgr_asset_evict(path);
