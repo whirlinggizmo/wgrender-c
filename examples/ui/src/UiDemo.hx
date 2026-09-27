@@ -137,7 +137,7 @@ class UiDemo {
 		// wrapped note: laid out inside 220 pixels, breaking between words
 		note = new Text2D(Handle.NONE);
 		note.setText("Every click fills the bar. The list below is clipped to the panel: scroll it with the wheel.");
-		note.setSize(14);
+		note.setFontSize(14);
 		note.setMaxWidth(220);
 		note.setPosition(30, 352);
 		note.setColor(theme.textDisabled);

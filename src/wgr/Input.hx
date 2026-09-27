@@ -17,13 +17,9 @@ class Input {
 	public static inline function getMouseDelta():Vec2
 		return Vec2.of(Raw.wgr_input_get_mouse_delta());
 
-	/** This frame's (or tick's) wheel; fractional on trackpads. **/
-	public static inline function getMouseWheel():Float
-		return Raw.wgr_input_get_mouse_wheel();
-
-	/** The horizontal wheel, same units. **/
-	public static inline function getMouseWheelX():Float
-		return Raw.wgr_input_get_mouse_wheel_x();
+	/** This frame's (or tick's) wheel: y vertical, x horizontal; fractional on trackpads. **/
+	public static inline function getMouseWheel():Vec2
+		return Vec2.of(Raw.wgr_input_get_mouse_wheel());
 
 	/**
 		Whether game controls — camera drags, 3D selection, hotkeys — should leave the

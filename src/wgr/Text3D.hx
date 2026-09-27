@@ -32,8 +32,11 @@ abstract Text3D(Handle) from Handle to Handle {
 		return Raw.wgr_text3d_set_text(text3D, value); // wgrender copies it;
 
 	/** Line height in world units (default 1), descender to ascender. **/
-	public static inline function setSize(text3D:Text3D, value:Float):Bool
-		return Raw.wgr_text3d_set_size(text3D, value);
+	public static inline function setFontSize(text3D:Text3D, value:Float):Bool
+		return Raw.wgr_text3d_set_font_size(text3D, value);
+
+	public static inline function getFontSize(text3D:Text3D):Float
+		return Raw.wgr_text3d_get_font_size(text3D);
 
 	public static inline function setColor(text3D:Text3D, value:Color):Bool
 		return Raw.wgr_text3d_set_color(text3D, value);
@@ -101,7 +104,7 @@ abstract Text3D(Handle) from Handle to Handle {
 
 	/** World-space width and height of the current text; (0, 0) until the font loads. **/
 	public static inline function measure(text3D:Text3D):Vec2
-		return Vec2.of(Raw.wgr_text3d_get_size(text3D));
+		return Vec2.of(Raw.wgr_text3d_measure(text3D));
 
 	/** Draw it now, inside 3D mode; a scene draws its members itself. **/
 	public static inline function draw(text3D:Text3D):Void

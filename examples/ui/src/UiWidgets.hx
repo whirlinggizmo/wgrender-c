@@ -85,7 +85,7 @@ class UiButton {
 		// centered on the button, so the label needs no measuring
 		label = new Text2D(Handle.NONE);
 		label.setText(text);
-		label.setSize(textSize);
+		label.setFontSize(textSize);
 		label.setAlign(Center, Middle);
 		label.setPosition(x + width * 0.5, y + height * 0.5);
 		label.setPickable(false); // the rectangle under it takes the pointer
@@ -219,7 +219,7 @@ class UiList {
 
 			final label = new Text2D(Handle.NONE);
 			label.setText(name);
-			label.setSize(textSize);
+			label.setFontSize(textSize);
 			label.setAlign(Left, Middle);
 			label.setPickable(false);
 			scene.add(label, rowLayer + 1);

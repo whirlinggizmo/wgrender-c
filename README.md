@@ -75,7 +75,7 @@ member's docs) and what keeps a second binding in step — a property has no cou
 in Lua or Nim, and it cannot return the `Bool` a wgrender setter uses to refuse.
 
 Anything more is sugar over those members, never a second path to C:
-`Text2D.measure` is `measureWidth` and `measureHeight` in a `Vec2`, and the two
+`Version.runtime` builds its string from `major`, `minor` and `patch`, and the two
 rounded rectangles are overloads of one `Shape2D.drawRoundedRectangle`.
 
 The sugar you will use most is how those statics are called. Every handle kind is

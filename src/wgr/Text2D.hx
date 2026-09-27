@@ -49,8 +49,11 @@ abstract Text2D(Handle) from Handle to Handle {
 		return Vec2.of(Raw.wgr_text2d_get_position(text2D));
 
 	/** Pixel height of one line. **/
-	public static inline function setSize(text2D:Text2D, value:Float):Bool
-		return Raw.wgr_text2d_set_size(text2D, value);
+	public static inline function setFontSize(text2D:Text2D, value:Float):Bool
+		return Raw.wgr_text2d_set_font_size(text2D, value);
+
+	public static inline function getFontSize(text2D:Text2D):Float
+		return Raw.wgr_text2d_get_font_size(text2D);
 
 	public static inline function setColor(text2D:Text2D, value:Color):Bool
 		return Raw.wgr_text2d_set_color(text2D, value);
@@ -85,17 +88,9 @@ abstract Text2D(Handle) from Handle to Handle {
 	public static inline function setAlign(text2D:Text2D, horizontal:AlignX, vertical:AlignY):Bool
 		return Raw.wgr_text2d_set_align(text2D, horizontal, vertical);
 
-	/** The laid-out text at its current size: widest line, and the lines' total height. **/
+	/** The laid-out text at its font size: x the widest line, y the lines' total height. **/
 	public static inline function measure(text2D:Text2D):Vec2
-		return new Vec2(measureWidth(text2D), measureHeight(text2D));
-
-	/** The widest line, 0 with no text. **/
-	public static inline function measureWidth(text2D:Text2D):Float
-		return Raw.wgr_text2d_measure_width(text2D);
-
-	/** The lines' total height, 0 with no text. **/
-	public static inline function measureHeight(text2D:Text2D):Float
-		return Raw.wgr_text2d_measure_height(text2D);
+		return Vec2.of(Raw.wgr_text2d_measure(text2D));
 
 	/** Draw it now; a scene draws its members itself. **/
 	public static inline function draw(text2D:Text2D):Void

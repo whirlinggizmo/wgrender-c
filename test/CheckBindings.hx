@@ -191,7 +191,8 @@ class CheckBindings {
 		label = Text2D.create(Handle.NONE); // no font yet: the default font
 		check(!Text2D.isNone(label), "text2d created without a font");
 		Text2D.setText(label, "measure me");
-		Text2D.setSize(label, 20);
+		Text2D.setFontSize(label, 20);
+		near(Text2D.getFontSize(label), 20, "the font size reads back");
 		Text2D.setPosition(label, new Vec2(10, 20));
 		Text2D.setColor(label, Color.BLACK);
 		Text2D.setMaxWidth(label, 0);
@@ -215,7 +216,7 @@ class CheckBindings {
 		final sign = Text3D.create(Handle.NONE);
 		check(!Text3D.isNone(sign), "text3d created");
 		Text3D.setText(sign, "world");
-		Text3D.setSize(sign, 1.5);
+		Text3D.setFontSize(sign, 1.5);
 		Text3D.setColor(sign, Color.BLUE);
 		Text3D.setFacing(sign, CameraFixedY);
 		Text3D.setMaxWidth(sign, 4);
@@ -674,8 +675,8 @@ class CheckBindings {
 		final d = Input.getMouseDelta();
 		near(d.x, 0, "nothing moved the mouse");
 		near(d.y, 0, "on either axis");
-		near(Input.getMouseWheel(), 0, "nor the wheel");
-		near(Input.getMouseWheelX(), 0, "nor sideways");
+		near(Input.getMouseWheel().y, 0, "nor the wheel");
+		near(Input.getMouseWheel().x, 0, "nor sideways");
 
 		eq(Input.getMouseButton(Left), ButtonState.Up, "no mouse button is down");
 		check(!Input.isMouseButtonPressed(Left), "none was pressed");
@@ -949,7 +950,7 @@ class CheckBindings {
 
 		final text = new Text2D(Handle.NONE);
 		text.setText("iiii");
-		check(text.measure().x == text.measureWidth(), "measure is measureWidth in a Vec2");
+		check(text.measure().x > 0 && text.measure().y > 0, "measure reads the laid-out text as a Vec2");
 		text.destroy();
 	}
 

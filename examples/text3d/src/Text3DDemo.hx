@@ -92,7 +92,7 @@ class Text3DDemo {
 		// to the camera the way the labels are.
 		sign = new Text3D(Handle.NONE); // the font is attached when it loads
 		sign.setText("wgrender text3d");
-		sign.setSize(0.6);
+		sign.setFontSize(0.6);
 		sign.setFacing(Free);
 		sign.setColor(gold);
 		scene.add(sign);
@@ -129,7 +129,7 @@ class Text3DDemo {
 	static function addLabel(text:String, position:Vec3):Text3D {
 		final label = new Text3D(Handle.NONE); // the font is attached when it loads
 		label.setText(text);
-		label.setSize(0.35);
+		label.setFontSize(0.35);
 		label.setPosition(position);
 		label.setColor(Color.RAYWHITE);
 		scene.add(label);

@@ -20,8 +20,8 @@ rather than through a name mapping, so it is much smaller — but the idea of re
 
 `--check` also holds the rule every wgrender binding keeps (wgrender's AGENTS.md,
 "Bindings"): each C call has one public name, and a public member that calls C calls
-one C function. So `Text2D.measure` returns `new Vec2(measureWidth(t),
-measureHeight(t))` rather than calling both itself, and the two rounded rectangles are
+one C function. So `Version.runtime` builds its string from `major()`, `minor()` and
+`patch()` rather than calling C three times itself, and the two rounded rectangles are
 overloads of one name. Private plumbing -- a trampoline, a shared on/once -- is exempt.
 The C name does not have to be read off the Haxe one; the rule is that there is
 exactly one to find.
