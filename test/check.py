@@ -26,6 +26,9 @@ the binding can be wrong without failing to compile:
   sources    project/wgrender.xml lists wgrender's C files and flags for every build
              to compile with, and this fails when wgrender's build.json moves
 
+And it compiles the binding's own C, host/wgr_guest.c, with wgrender's warnings as
+errors, which no build of the binding otherwise holds it to.
+
 Then it builds the suite twice: native, where it runs, and against the js binding,
 where there is no host loop but a wrapper that exists only on hxcpp fails here rather
 than in whichever example first happened to call it.
@@ -94,8 +97,39 @@ def main():
          '--js', BUILD / 'check-js.js', '-D', 'js-es=6',
          '-D', 'wgr-listing', '--macro', 'wgr.macros.WebHost.build()'])
 
+    print("host/wgr_guest.c with wgrender's warnings, as errors")
+    check_guest_warnings()
+
     print('WebHost lists')
     return check_webhost_lists()
+
+
+def check_guest_warnings():
+    """The binding's own C -- host/wgr_guest.c, the only C here that isn't wgrender's --
+    compiled with the warnings wgrender's own build uses, as errors.
+
+    hxcpp compiles it with the compiler's defaults and Emscripten's, so nothing else here
+    ever holds it to them. The standard and flags come from wgrender's build.json, so
+    this follows wgrender; -O2, because some warnings (a string that could be cut short)
+    only appear once the optimizer traces values. On MSVC, /W3 /WX, the level wgrender's
+    own MSVC build has.
+    """
+    import json
+    import shutil
+    manifest = json.loads((WGRENDER / 'build.json').read_text(encoding='utf-8'))
+    BUILD.mkdir(parents=True, exist_ok=True)
+    source, includes = ROOT / 'host/wgr_guest.c', [WGRENDER / 'include', ROOT / 'host']
+    if os.name == 'nt':
+        if not shutil.which('cl'):
+            sys.exit('check: no cl.exe on PATH to compile host/wgr_guest.c with (run vcvars64.bat first)')
+        run(['cl', '/nologo', '/c', '/W3', '/WX', '/O2', *(f'/I{d}' for d in includes),
+             f'/Fo{BUILD / "wgr_guest.obj"}', source])
+    else:
+        cc = os.environ.get('CC') or shutil.which('cc') or shutil.which('gcc') or shutil.which('clang')
+        if not cc:
+            sys.exit('check: no C compiler (CC, cc, gcc or clang) to compile host/wgr_guest.c with')
+        run([cc, f'-std={manifest["std"]}', '-O2', *manifest['warn'], '-Werror',
+             *(f'-I{d}' for d in includes), '-c', '-o', BUILD / 'wgr_guest.o', source])
 
 
 def check_webhost_lists():
