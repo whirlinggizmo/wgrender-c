@@ -9,7 +9,7 @@
  * the last frame.
  *
  *   Q    quit now
- *   ESC  quit now */
+ *   ESC  quit now (desktop) */
 #include <stdio.h>
 
 #include "shared/example_assets.h"
@@ -57,9 +57,14 @@ static void frame(float dt, float tick_fraction, void *user_data)
     (void)dt;
     (void)tick_fraction;
     (void)user_data;
-    if (kb.keys[WGR_KEY_Q] == WGR_BUTTON_PRESSED || kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) {
+    if (kb.keys[WGR_KEY_Q] == WGR_BUTTON_PRESSED) {
         wgr_request_quit();
     }
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen): Q quits there */
+    if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) {
+        wgr_request_quit();
+    }
+#endif
 
     wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);

@@ -138,9 +138,11 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
     (void)tick_fraction;
     (void)user_data;
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to */
     if (wgr_input_get_key(WGR_KEY_ESCAPE) == WGR_BUTTON_PRESSED) {
         wgr_request_quit();
     }
+#endif
     g.time += dt;
     wgr_model_set_transform(g.character, gx, 0, gz, 0, -g.time * 0.6f, 0, 0.6f, 0.6f, 0.6f); /* walks in a circle */
     wgr_model_animate(g.character, dt);

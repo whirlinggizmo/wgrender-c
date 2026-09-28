@@ -202,10 +202,12 @@ static void frame(float dt, float fraction, void *user)
     wgr_text_draw(g_state, 12, 120, 18, WGR_COLOR_SKYBLUE);
     wgr_render_end_frame();
 
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to */
     const wgr_keyboard_state_t kb = wgr_input_get_keyboard_state();
     if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) {
         wgr_request_quit();
     }
+#endif
 }
 
 int main(void)

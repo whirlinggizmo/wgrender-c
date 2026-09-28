@@ -192,7 +192,9 @@ static void frame(float dt, float tick_fraction, void *user_data)
     g.frame_next = (g.frame_next + 1) % GRAPH;
     g.last_time = now;
 
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to */
     if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) wgr_request_quit();
+#endif
     if (kb.keys[WGR_KEY_A] == WGR_BUTTON_PRESSED) start_load(false);
     if (kb.keys[WGR_KEY_S] == WGR_BUTTON_PRESSED) start_load(true);
     if (kb.keys[WGR_KEY_U] == WGR_BUTTON_PRESSED && g.group == 0) release_all();

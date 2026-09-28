@@ -164,7 +164,9 @@ static void frame(float dt, float tick_fraction, void *user_data)
     if (kb.keys[WGR_KEY_1] == WGR_BUTTON_PRESSED) toggle(g.sun);
     if (kb.keys[WGR_KEY_2] == WGR_BUTTON_PRESSED) toggle(g.lamp);
     if (kb.keys[WGR_KEY_3] == WGR_BUTTON_PRESSED) toggle(g.spot);
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to */
     if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) wgr_request_quit();
+#endif
 
     g.time += dt;
     for (int i = 0; i < MODEL_COUNT; i++) {

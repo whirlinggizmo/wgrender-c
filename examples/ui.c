@@ -156,14 +156,15 @@ static void init(void *user_data)
 
 static void frame(float dt, float tick_fraction, void *user_data)
 {
-    const wgr_keyboard_state_t kb = wgr_input_get_keyboard_state();
     const wgr_mouse_state_t mouse = wgr_input_get_mouse_state();
     const wgr_handle_t hovered = wgr_scene_get_hovered(g.scene);
     char line[160];
 
     (void)tick_fraction;
     (void)user_data;
-    if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) wgr_request_quit();
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to */
+    if (wgr_input_get_key(WGR_KEY_ESCAPE) == WGR_BUTTON_PRESSED) wgr_request_quit();
+#endif
 
     /* buttons: each colors itself and says whether it was clicked */
     const bool counted = ui_button_update(&g.buttons[0], g.scene, &g.theme);

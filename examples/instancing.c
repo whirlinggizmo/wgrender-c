@@ -157,8 +157,13 @@ static void frame(float dt, float fraction, void *user)
     wgr_scene_draw(g_scene);
     wgr_text_draw("libwgrender instancing: models that share a mesh and a material go up as one draw", 12, 36, 20,
                  WGR_COLOR_RAYWHITE);
+#ifndef __EMSCRIPTEN__ /* the quit key's hint, as the key: desktop only */
     snprintf(line, sizeof line, "%d cubes, %s   SPACE toggles   ESC quit", FIELD_COUNT,
              g_own_materials ? "a material each (one draw each)" : "one material (one draw)");
+#else
+    snprintf(line, sizeof line, "%d cubes, %s   SPACE toggles", FIELD_COUNT,
+             g_own_materials ? "a material each (one draw each)" : "one material (one draw)");
+#endif
     wgr_text_draw(line, 12, 64, 16, WGR_COLOR_LIGHTGRAY);
     wgr_render_end_frame();
 
@@ -166,9 +171,11 @@ static void frame(float dt, float fraction, void *user)
     if (kb.keys[WGR_KEY_SPACE] == WGR_BUTTON_PRESSED) {
         set_materials(!g_own_materials);
     }
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to */
     if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) {
         wgr_request_quit();
     }
+#endif
 }
 
 int main(void)

@@ -166,7 +166,9 @@ static void frame(float dt, float tick_fraction, void *user_data)
     (void)tick_fraction;
     (void)user_data;
 
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to */
     if (wgr_input_get_key(WGR_KEY_ESCAPE) == WGR_BUTTON_PRESSED) wgr_request_quit();
+#endif
     if (wgr_input_get_key(WGR_KEY_1) == WGR_BUTTON_PRESSED) {
         g.vignette_on = !g.vignette_on;
         rebuild_effects();
@@ -200,8 +202,13 @@ static void frame(float dt, float tick_fraction, void *user_data)
     snprintf(line, sizeof(line), "[1] vignette %s   [2] scanlines %s   effects: %d", g.vignette_on ? "on" : "off",
              g.scanlines_on ? "on" : "off", wgr_render_effect_count());
     wgr_text_draw(line, 12, 64, 16, WGR_COLOR_LIGHTGRAY);
+#ifndef __EMSCRIPTEN__ /* the quit key's hint, as the key: desktop only */
     snprintf(line, sizeof(line), "UP/DOWN strength %.2f   SPACE %s   O camera   ESC quit", (double)g.strength,
              g.breathing ? "stop breathing" : "breathe");
+#else
+    snprintf(line, sizeof(line), "UP/DOWN strength %.2f   SPACE %s   O camera", (double)g.strength,
+             g.breathing ? "stop breathing" : "breathe");
+#endif
     wgr_text_draw(line, 12, 86, 16, WGR_COLOR_GRAY);
     wgr_render_end_frame();
 }

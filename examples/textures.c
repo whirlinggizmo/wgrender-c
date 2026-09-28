@@ -100,9 +100,11 @@ static void frame(float dt, float tick_fraction, void *user_data)
     }
     wgr_render_end_frame();
 
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to */
     if (wgr_input_get_key(WGR_KEY_ESCAPE) == WGR_BUTTON_PRESSED) {
         wgr_request_quit();
     }
+#endif
 }
 
 int main(void)

@@ -159,7 +159,9 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
     (void)tick_fraction;
     (void)user_data;
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to */
     if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) wgr_request_quit();
+#endif
     if (kb.keys[WGR_KEY_E] == WGR_BUTTON_PRESSED) { g.environment = (g.environment + 1) % (ENVIRONMENT_COUNT + 1); changed = true; }
     if (kb.keys[WGR_KEY_B] == WGR_BUTTON_PRESSED) { g.blur = (g.blur + 1) % 4; changed = true; }
     if (kb.keys[WGR_KEY_T] == WGR_BUTTON_PRESSED) {

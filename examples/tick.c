@@ -55,9 +55,11 @@ static void frame(float dt, float tick_fraction, void *user_data)
     if (kb.keys[WGR_KEY_SPACE] == WGR_BUTTON_PRESSED) {
         g.frame_presses++;
     }
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to */
     if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) {
         wgr_request_quit();
     }
+#endif
 
     wgr_render_begin_frame();
     wgr_render_clear_background(g.bg);

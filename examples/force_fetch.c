@@ -70,15 +70,22 @@ static void frame(float dt, float tick_fraction, void *user_data)
                                             : "music: paused")
                               : "music: loading...",
                  24, 80, 18, WGR_COLOR_SKYBLUE);
+#ifndef __EMSCRIPTEN__ /* the quit key's hint, as the key: desktop only */
     wgr_text_draw("[M] toggle music   [ESC] quit",
                  24, 150, 16, WGR_COLOR_LIGHTGRAY);
+#else
+    wgr_text_draw("[M] toggle music",
+                 24, 150, 16, WGR_COLOR_LIGHTGRAY);
+#endif
 
     wgr_text_draw_fps(24, 12);
     wgr_render_end_frame();
 
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to */
     if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) {
         wgr_request_quit();
     }
+#endif
 }
 
 int main(void)

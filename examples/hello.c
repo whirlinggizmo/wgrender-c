@@ -30,16 +30,20 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
     /* text */
     wgr_text_draw("libwgrender + sokol", 40, 360, 32, WGR_COLOR_DARKGRAY);
+#ifndef __EMSCRIPTEN__ /* the quit key's hint, as the key: desktop only */
     wgr_text_draw("press ESC to quit", 40, 410, 16, WGR_COLOR_GRAY);
+#endif
 
     wgr_text_draw_fps(40, 12);
 
     wgr_render_end_frame();
 
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to */
     wgr_keyboard_state_t kb = wgr_input_get_keyboard_state();
     if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) {
         wgr_request_quit();
     }
+#endif
 }
 
 int main(void)

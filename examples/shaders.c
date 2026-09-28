@@ -216,9 +216,11 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
     (void)tick_fraction;
     (void)user_data;
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to */
     if (wgr_input_get_key(WGR_KEY_ESCAPE) == WGR_BUTTON_PRESSED) {
         wgr_request_quit();
     }
+#endif
     if (wgr_input_get_key(WGR_KEY_1) == WGR_BUTTON_PRESSED) {
         wgr_light_set_enabled(g.sun, !wgr_light_is_enabled(g.sun));
     }
@@ -245,7 +247,11 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_sprite2d_set_position(g.logo2d, screen.x - 16.0f, screen.y - 16.0f); /* bottom right */
     wgr_sprite2d_draw(g.logo2d);
     wgr_text_draw("libwgrender custom shaders: toon, dissolve, water, sprite effects", 12, 12, 20, WGR_COLOR_RAYWHITE);
+#ifndef __EMSCRIPTEN__ /* the quit key's hint, as the key: desktop only */
     wgr_text_draw("1 sun, 2 point light, ESC quit", 12, 40, 16, WGR_COLOR_LIGHTGRAY);
+#else
+    wgr_text_draw("1 sun, 2 point light", 12, 40, 16, WGR_COLOR_LIGHTGRAY);
+#endif
     wgr_render_end_frame();
 }
 

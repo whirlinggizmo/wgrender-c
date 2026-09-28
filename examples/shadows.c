@@ -142,7 +142,9 @@ static void frame(float dt, float tick_fraction, void *user_data)
     (void)tick_fraction;
     (void)user_data;
 
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to */
     if (wgr_input_get_key(WGR_KEY_ESCAPE) == WGR_BUTTON_PRESSED) wgr_request_quit();
+#endif
     if (wgr_input_get_key(WGR_KEY_1) == WGR_BUTTON_PRESSED) {
         g.shadows = !g.shadows;
         wgr_light_set_casts_shadows(g.sun, g.shadows);
@@ -197,7 +199,11 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_text_draw(line, 12, 64, 16, WGR_COLOR_LIGHTGRAY);
     snprintf(line, sizeof(line), "[S] strength %.2f   [T] tint %s", (double)g.strength, TINT_NAMES[g.tint_index]);
     wgr_text_draw(line, 12, 86, 16, WGR_COLOR_LIGHTGRAY);
+#ifndef __EMSCRIPTEN__ /* the quit key's hint, as the key: desktop only */
     wgr_text_draw("UP/DOWN distance   [ ] bias   M map size   O camera   ESC quit", 12, 108, 16, WGR_COLOR_GRAY);
+#else
+    wgr_text_draw("UP/DOWN distance   [ ] bias   M map size   O camera", 12, 108, 16, WGR_COLOR_GRAY);
+#endif
     wgr_text_draw("left ball casts nothing; right ball receives nothing", 12, 130, 16, WGR_COLOR_GRAY);
     wgr_render_end_frame();
 }

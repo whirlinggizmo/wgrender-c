@@ -81,15 +81,22 @@ static void frame(float dt, float tick_fraction, void *user_data)
                  24, 80, 18, WGR_COLOR_SKYBLUE);
     wgr_text_draw(g_click != 0 ? "click: ready (ogg)" : "click: loading...",
                  24, 110, 18, WGR_COLOR_LIME);
+#ifndef __EMSCRIPTEN__ /* the quit key's hint, as the key: desktop only */
     wgr_text_draw("[SPACE] play click   [M] toggle music   [S] stall 300 ms   [ESC] quit",
                  24, 150, 16, WGR_COLOR_LIGHTGRAY);
+#else
+    wgr_text_draw("[SPACE] play click   [M] toggle music   [S] stall 300 ms",
+                 24, 150, 16, WGR_COLOR_LIGHTGRAY);
+#endif
 
     wgr_text_draw_fps(24, 12);
     wgr_render_end_frame();
 
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to */
     if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) {
         wgr_request_quit();
     }
+#endif
 }
 
 int main(void)

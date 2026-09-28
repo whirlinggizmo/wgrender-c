@@ -45,7 +45,9 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
     (void)tick_fraction;
     (void)user_data;
+#ifndef __EMSCRIPTEN__ /* on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to */
     if (kb.keys[WGR_KEY_ESCAPE] == WGR_BUTTON_PRESSED) wgr_request_quit();
+#endif
     if (kb.keys[WGR_KEY_LEFT] == WGR_BUTTON_PRESSED) report("move", wgr_window_set_position((int)position.x - 50, (int)position.y));
     if (kb.keys[WGR_KEY_RIGHT] == WGR_BUTTON_PRESSED) report("move", wgr_window_set_position((int)position.x + 50, (int)position.y));
     if (kb.keys[WGR_KEY_UP] == WGR_BUTTON_PRESSED) report("move", wgr_window_set_position((int)position.x, (int)position.y - 50));
