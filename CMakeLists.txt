@@ -27,6 +27,10 @@
 #                  relative to the working directory)
 #   WGR_TESTS      tests/unit, and a smoke test per example (headless builds)
 #   WGR_SANITIZE   thread | address | undefined: the library and tests built with it
+#   WGR_WERROR     warnings are errors (-Werror, /WX); on by default when wgrender is the
+#                  top-level project, off when another project builds it. This build's
+#                  policy, not how wgrender is built, so it isn't in build.json and the
+#                  bindings' builds don't take it
 # Under Emscripten (the web presets, or emcmake):
 #   WGR_WEB_BACKEND webgl2 | webgpu     WGR_WEB_THREADS ON | OFF     WGR_WEB_DEBUG OFF | ON
 
@@ -94,6 +98,11 @@ option(WGR_HEADLESS "No window, GPU or audio device (sokol's dummy backend)" OFF
 option(WGR_EXAMPLES "Build examples/*.c" OFF)
 option(WGR_TESTS "Unit tests and a smoke test per example (headless builds)" OFF)
 set(WGR_SANITIZE "" CACHE STRING "thread, address or undefined: the library and tests built with it")
+# Warnings are errors while wgrender is the project being built -- its presets, locally
+# and in CI -- so one is fixed where it appears rather than scrolling past. Not when
+# another project builds wgrender as part of its own, where a newer compiler's new
+# warning shouldn't break that project's build.
+option(WGR_WERROR "Warnings are errors (by default, when wgrender is the top-level project)" ${PROJECT_IS_TOP_LEVEL})
 
 find_package(Python3 COMPONENTS Interpreter) # the smoke tests' runner
 
@@ -142,6 +151,9 @@ function(wgr_c_target target)
     # (.depth.load_action = ..., Clay's CLAY() declarations) counted as missing, and an
     # array parameter (const float weights[4]) read as a region of 4 bytes
     target_compile_options(${target} PRIVATE -Wno-missing-field-initializers -Wno-stringop-overread)
+  endif()
+  if(WGR_WERROR)
+    target_compile_options(${target} PRIVATE $<IF:$<C_COMPILER_ID:MSVC>,/WX,-Werror>)
   endif()
   if(WGR_SANITIZE)
     target_compile_options(${target} PRIVATE -fsanitize=${WGR_SANITIZE} -fno-omit-frame-pointer -O1 -g)

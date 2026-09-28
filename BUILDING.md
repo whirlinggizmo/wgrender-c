@@ -56,6 +56,13 @@ the ones it can cross-build (`cmake --list-presets`):
 at 60/s until `wgr_request_quit()`, or for `WGR_HEADLESS_FRAMES` frames when that
 environment variable is set.
 
+Every preset treats warnings as errors (`-Werror`, `/WX` for MSVC), so a new one stops
+the build where it appears rather than scrolling past. Some only show in the debug and
+sanitizer builds, where the compiler traces more (`tools/verify.py` runs the headless
+and ThreadSanitizer builds, as CI does). A project that builds wgrender as part of its
+own (`add_subdirectory`) doesn't get this, so a newer compiler's new warning can't break
+it; `-DWGR_WERROR=ON` or `OFF` decides either way.
+
 On Windows, Visual Studio needs nothing more. From a command line, the `windows-msvc`
 presets need an "x64 Native Tools Command Prompt" (or `vcvars64.bat`) first; they build
 with the static C runtime (`/MT`, `/MTd` for debug), as every wg* library does, so the
