@@ -9,6 +9,7 @@
 #endif
 #if defined(_WIN32)
 #include <direct.h> /* _mkdir: Windows' mkdir takes no mode; _getcwd for getcwd */
+#include <windows.h> /* MoveFileExA: rename there won't replace a file */
 #define mkdir(path, mode) _mkdir(path)
 #endif
 
@@ -579,6 +580,27 @@ bool wgri_fs_meta_set(const char *path, const wgri_fs_meta_t *meta)
     return wgr_fs_store_meta_set(full, meta->etag, meta->last_modified, meta->fresh_until, meta->hash) != 0;
 #else
     return wgri_fs_exists(path) && meta_write(path, meta);
+#endif
+}
+
+bool wgri_fs_partial_path(const char *path, char *out, size_t out_size)
+{
+    const bool cached = path != NULL && strncmp(path, WGRI_FS_CACHE, sizeof(WGRI_FS_CACHE) - 1) == 0;
+    if (cached) path += sizeof(WGRI_FS_CACHE) - 1;
+    if (path == NULL || path[0] == '\0' || path[0] == '/') return false;
+    return (size_t)snprintf(out, out_size, "%s.part/%s", cached ? WGRI_FS_CACHE : "", path) < out_size;
+}
+
+bool wgri_fs_replace(const char *from, const char *to)
+{
+    char source[1100], target[1100];
+    resolve(from, source, sizeof(source));
+    resolve(to, target, sizeof(target));
+    if (source[0] == '\0' || target[0] == '\0') return false;
+#if defined(_WIN32)
+    return MoveFileExA(source, target, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+#else
+    return rename(source, target) == 0; /* replaces atomically on POSIX */
 #endif
 }
 

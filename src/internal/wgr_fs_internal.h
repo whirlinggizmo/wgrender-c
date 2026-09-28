@@ -79,6 +79,15 @@ bool wgri_fs_meta_set(const char *path, const wgri_fs_meta_t *meta);
  * and this visit's copies (MEMFS under the root); on desktop nothing (a directory's
  * files are not all the cache's: wgr_asset_clear_cache deletes its own downloads). */
 bool wgri_fs_remove(const char *path);
+
+/* Where a download of `path` is written until it is whole: under the same root's
+ * ".part/", as metadata is under ".meta/" -- never beside the file, where
+ * "foo.png.part" could be an asset's own name. False when it doesn't fit. Desktop. */
+bool wgri_fs_partial_path(const char *path, char *out, size_t out_size);
+
+/* Move `from` over `to` in one step, replacing what is there: a finished download
+ * taking its place, so nothing reads half a file. Desktop. */
+bool wgri_fs_replace(const char *from, const char *to);
 void wgri_fs_clear(void);
 
 /* Create the directories above `path` (desktop), so something outside libwgrender --

@@ -25,6 +25,7 @@ void test_asset_dependency_jail(void);
 void test_asset_resolve_source(void);
 void test_asset_local_source(void);
 void test_asset_readonly_host(void);
+void test_asset_broken_download(void);
 void test_app_identity(void);
 
 void test_audio_streaming(void);

@@ -31,6 +31,7 @@ static const test_case_t TESTS[] = {
     {"asset_resolve_source", test_asset_resolve_source},
     {"asset_local_source", test_asset_local_source},
     {"asset_readonly_host", test_asset_readonly_host},
+    {"asset_broken_download", test_asset_broken_download},
     {"app_identity", test_app_identity},
     {"audio_streaming", test_audio_streaming},
     {"audio_threads", test_audio_threads},

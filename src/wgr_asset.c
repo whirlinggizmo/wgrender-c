@@ -372,6 +372,26 @@ bool wgr_asset_fetch_done(wgr_handle_t request, bool ok)
         return false; /* not a request we are waiting on */
     }
     task->state = TASK_NEW;
+    {
+        char partial[600];
+        const bool written = wgri_fs_partial_path(task->path, partial, sizeof(partial)) && wgri_fs_exists(partial);
+        if (ok && !written) {
+            log_warn("asset: the fetcher said %s downloaded, but wrote nothing", task->path);
+            ok = false;
+        } else if (ok && !wgri_fs_replace(partial, task->path)) {
+            log_warn("asset: couldn't move the download of %s into place", task->path);
+            ok = false;
+        } else if (ok) { /* new bytes: what described the old ones goes */
+            const wgri_fs_meta_t none = {0};
+            wgri_fs_meta_set(task->path, &none);
+        }
+        if (!ok && written) wgri_fs_remove(partial); /* the copy that was there stays */
+        if (written) { /* downloads are always the cache's: its .part/ keeps no empty directories */
+            const size_t prefix = strncmp(partial, WGRI_FS_CACHE, sizeof(WGRI_FS_CACHE) - 1) == 0
+                                      ? sizeof(WGRI_FS_CACHE) - 1 : 0;
+            remove_empty_parents(cache_dir(), partial + prefix);
+        }
+    }
     if (ok && wgri_fs_exists(task->path) && download_matches(task)) {
         if (task->fetch_url[0] != '\0') { /* what a later ensure matches its own source against */
             wgri_fs_meta_t meta;
@@ -2405,12 +2425,20 @@ void wgri_asset_tick(void)
                     snprintf(joined, sizeof(joined), "%s/%s", wgr_asset_host, task->path);
                     url = joined;
                 }
-                wgri_fs_resolve(task->path, dest, sizeof(dest));
-                wgri_fs_make_parents(task->path); /* the fetcher only has to write */
-                if (have) { /* the bytes are about to change under what described them */
-                    const wgri_fs_meta_t none = {0};
-                    wgri_fs_meta_set(task->path, &none);
+                /* The fetcher writes a partial file (.part/), which takes the file's place
+                   only when the fetcher says it worked (wgr_asset_fetch_done): a failed or
+                   interrupted download never leaves half a file where one is read, and never
+                   costs the copy that was there. */
+                char partial[600];
+                if (!wgri_fs_partial_path(task->path, partial, sizeof(partial))) {
+                    log_warn("asset: %s is too long to download", task->path);
+                    resolved(i, false);
+                    continue;
                 }
+                wgri_fs_resolve(partial, dest, sizeof(dest));
+                wgri_fs_make_parents(partial);    /* the fetcher only has to write */
+                wgri_fs_make_parents(task->path); /* and the file has somewhere to go */
+                remove(dest);                     /* what an interrupted run left */
                 task->state = TASK_FETCHING;
                 wgr_asset_fetcher(wgri_handle_pool_handle_from_index(&wgr_asset_pool, i), url, dest,
                                   wgr_asset_fetcher_user);

@@ -82,7 +82,11 @@ const char *wgr_asset_get_cache_dir(void);
  *
  * Bytes never cross this boundary; a downloader deals in files, which is what curl,
  * WinHTTP and NSURLSession all hand you anyway. The directories above `dest_path`
- * already exist.
+ * already exist. `dest_path` is where the download is written until it is whole, not
+ * where the file is read: libwgrender moves it into place when you report success,
+ * and deletes it when you don't, so a failed or interrupted download never leaves half
+ * a file to be read and never costs the copy that was there. Reporting success with
+ * nothing written is a failure.
  *
  * Without a fetcher, a miss on desktop fails as it always has. With one, a miss
  * downloads whenever there is a source: the host if it's a URL, or whatever the task

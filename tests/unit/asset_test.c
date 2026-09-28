@@ -240,7 +240,7 @@ void test_asset_fetch_hook(void)
        filesystem, which left a bad copy unreachable (docs/TASKS.md) */
     succeed = true;
     fetch_calls = 0;
-    CHECK(wgr_asset_evict("textures/rock.png")); /* the failed attempt left a file behind */
+    CHECK(!wgr_asset_evict("textures/rock.png")); /* a failed download leaves nothing behind */
     wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_FILE_ONLY), on_ready, on_failed,
                        NULL);
     for (int i = 0; i < 8; i++) wgri_asset_tick();
@@ -626,6 +626,83 @@ void test_asset_readonly_host(void)
     ensure_and_tick("textures/rock.png", "https://mirror.example.net/rock.png", 0);
     CHECK(ready_count == 0 && failed_count == 1);
 
+    wgr_asset_set_host("");
+    wgri_asset_deinit();
+    wgri_fs_deinit();
+}
+
+#define BROKEN_CACHE WGR_TEST_DIR "/broken-cache"
+
+/* What the broken-download fetcher does with its destination. */
+enum { WRITE_AND_SUCCEED, WRITE_NEWER_AND_SUCCEED, WRITE_HALF_AND_FAIL, SUCCEED_WITHOUT_WRITING };
+static int broken_mode;
+static char broken_dest[1100];
+
+static void broken_fetcher(wgr_handle_t request, const char *url, const char *dest_path, void *user)
+{
+    (void)url;
+    (void)user;
+    fetch_calls++;
+    snprintf(broken_dest, sizeof(broken_dest), "%s", dest_path);
+    if (broken_mode != SUCCEED_WITHOUT_WRITING) {
+        write_text(dest_path, broken_mode == WRITE_AND_SUCCEED ? "fetched"
+                              : broken_mode == WRITE_NEWER_AND_SUCCEED ? "newer" : "hal");
+    }
+    wgr_asset_fetch_done(request, broken_mode != WRITE_HALF_AND_FAIL);
+}
+
+/* A download is written apart (.part/) and takes the file's place only when the fetcher
+ * says it worked, so a failed, empty or interrupted one never leaves half a file where
+ * one is read, and never costs the copy that was there. */
+void test_asset_broken_download(void)
+{
+    const char *final = BROKEN_CACHE "/textures/rock.png";
+    const char *partial = BROKEN_CACHE "/.part/textures/rock.png";
+
+    wgri_fs_init(NULL);
+    wgri_asset_init();
+    CHECK(wgr_asset_set_cache_dir(BROKEN_CACHE));
+    wgr_asset_set_host("https://assets.example.com/game");
+    CHECK(wgr_asset_set_fetcher(broken_fetcher, NULL));
+    remove(final);
+    fetch_calls = 0;
+
+    /* the fetcher writes apart, and the file is moved into place */
+    broken_mode = WRITE_AND_SUCCEED;
+    ensure_and_tick("textures/rock.png", NULL, 0);
+    CHECK(fetch_calls == 1 && ready_count == 1);
+    CHECK(strstr(broken_dest, "/.part/") != NULL);
+    CHECK(read_back(final, "fetched"));
+    CHECK(!read_back(partial, "fetched")); /* moved, not copied */
+
+    /* a download that fails partway: the copy that was there stays, the half goes */
+    broken_mode = WRITE_HALF_AND_FAIL;
+    ensure_and_tick("textures/rock.png", NULL, WGR_ASSET_FORCE_FETCH);
+    CHECK(fetch_calls == 2 && failed_count == 1);
+    CHECK(read_back(final, "fetched"));
+    CHECK(!read_back(partial, "hal"));
+
+    /* a fetcher that says it worked but wrote nothing: failed, and nothing replaced */
+    broken_mode = SUCCEED_WITHOUT_WRITING;
+    ensure_and_tick("textures/rock.png", NULL, WGR_ASSET_FORCE_FETCH);
+    CHECK(fetch_calls == 3 && failed_count == 1);
+    CHECK(read_back(final, "fetched"));
+
+    /* what an interrupted run left is never taken for a download */
+    wgri_fs_make_parents(WGRI_FS_CACHE ".part/textures/rock.png");
+    write_text(partial, "junk");
+    ensure_and_tick("textures/rock.png", NULL, WGR_ASSET_FORCE_FETCH);
+    CHECK(fetch_calls == 4 && failed_count == 1);
+    CHECK(read_back(final, "fetched") && !read_back(partial, "junk"));
+
+    /* and a download that works replaces the copy that was there (on Windows too, where
+       a rename won't) */
+    broken_mode = WRITE_NEWER_AND_SUCCEED;
+    ensure_and_tick("textures/rock.png", NULL, WGR_ASSET_FORCE_FETCH);
+    CHECK(fetch_calls == 5 && ready_count == 1);
+    CHECK(read_back(final, "newer"));
+
+    wgr_asset_set_fetcher(NULL, NULL);
     wgr_asset_set_host("");
     wgri_asset_deinit();
     wgri_fs_deinit();
