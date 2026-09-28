@@ -133,9 +133,10 @@ class Asset {
 		return Raw.wgr_asset_evict(path);
 
 	/**
-		Tell wgrender a fetch finished. Only a fetcher set with `setFetcher` is handed a
-		`request` to report on, so this is for hxcpp; finishing on a later tick is
-		expected, and nothing blocks meanwhile.
+		Tell wgrender a fetch finished, from any thread: it takes the answer at its next
+		tick, on the main thread. Only a fetcher set with `setFetcher` is handed a
+		`request` to report on, so this is for hxcpp. False when it can't be taken:
+		wgrender shut down while the download ran, say.
 	**/
 	public static inline function fetchDone(request:Handle, ok:Bool):Bool
 		return Raw.wgr_asset_fetch_done(request, ok);
@@ -347,14 +348,29 @@ class Asset {
 		fails the fetch: haxe.Http counts every status under 400 a success, so left to
 		itself it would save a redirect's body as the asset.
 
-		Synchronous, so it blocks the frame it runs on -- fine for a handful of small
-		files, wrong for a large one. The hook is built for the other way round: start
-		a download and call `fetchDone` from a later tick. Wrap this, or write your
-		own, when that matters.
+		Each download runs on a thread of its own and answers from there, so the frame
+		never waits on the network: wgrender takes the answer at its next tick, as a
+		browser's fetch reports back, and hands out at most 6 downloads at once.
 	**/
 	public static function httpFetcher(request:Handle, url:String, destPath:String):Void {
-		// Either way: a false is what makes the asset fail rather than wait for ever.
-		fetchDone(request, download(url, destPath));
+		#if target.threaded
+		sys.thread.Thread.create(() -> answer(request, url, destPath));
+		#else
+		answer(request, url, destPath);
+		#end
+	}
+
+	/**
+		Download, and say how it went, whatever happened: a false is what makes the
+		asset fail rather than wait for ever.
+	**/
+	static function answer(request:Handle, url:String, destPath:String):Void {
+		var ok = false;
+		try
+			ok = download(url, destPath)
+		catch (e:haxe.Exception)
+			Log.error('fetch failed: $url (${e.message})');
+		fetchDone(request, ok);
 	}
 
 	/**
