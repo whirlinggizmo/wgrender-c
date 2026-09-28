@@ -298,7 +298,11 @@ class Asset {
 
 		Bytes never cross this boundary: a downloader deals in files, which is what
 		curl, WinHTTP and NSURLSession all hand you anyway, and the directories above
-		the destination already exist.
+		the destination already exist. The destination is where the download is
+		written until it is whole, not where the file is read: wgrender moves it into
+		place when you report success and deletes it when you don't, so a failed or
+		interrupted download never leaves half a file and never costs the copy that
+		was there. Success with nothing written is a failure.
 
 		Without one, a miss on desktop fails as it always has.
 
