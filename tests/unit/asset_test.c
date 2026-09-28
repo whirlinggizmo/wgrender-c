@@ -8,6 +8,7 @@
 #endif
 
 #include "internal/wgr_fs_internal.h"
+#include "internal/wgr_thread_internal.h"
 #include "internal/wgr_internal_internal.h"
 #include "wgr_asset.h"
 
@@ -705,5 +706,98 @@ void test_asset_broken_download(void)
     wgr_asset_set_fetcher(NULL, NULL);
     wgr_asset_set_host("");
     wgri_asset_deinit();
+    wgri_fs_deinit();
+}
+
+#define ASYNC_CACHE WGR_TEST_DIR "/async-cache"
+
+/* A download answered from a thread of the fetcher's own, as a real one would be. */
+typedef struct {
+    wgr_handle_t request;
+    char dest[1100];
+} async_download_t;
+static async_download_t async_download;
+static wgri_thread_t async_thread;
+
+static void async_worker(void *arg)
+{
+    const async_download_t *d = (const async_download_t *)arg;
+    write_text(d->dest, "fetched");
+    wgr_asset_fetch_done(d->request, true); /* from this thread, not the main one */
+}
+
+static void threaded_fetcher(wgr_handle_t request, const char *url, const char *dest_path, void *user)
+{
+    (void)url;
+    (void)user;
+    fetch_calls++;
+    async_download.request = request;
+    snprintf(async_download.dest, sizeof(async_download.dest), "%s", dest_path);
+    CHECK(wgri_thread_create(&async_thread, async_worker, &async_download));
+}
+
+/* Requests held, to answer later: how many are out at once. */
+static wgr_handle_t held[16];
+static int held_count;
+static void holding_fetcher(wgr_handle_t request, const char *url, const char *dest_path, void *user)
+{
+    (void)url;
+    (void)user;
+    write_text(dest_path, "fetched");
+    if (held_count < 16) held[held_count++] = request;
+}
+
+/* A fetcher may answer from any thread, as a browser's fetch reports back: the answer
+ * is taken at the next tick, on the main thread. And a fetcher has at most 6 downloads
+ * out at once, a browser's limit per server; the rest wait their turn. */
+void test_asset_async_fetch(void)
+{
+    char key[64];
+    wgri_fs_init(NULL);
+    wgri_asset_init();
+    CHECK(wgr_asset_set_cache_dir(ASYNC_CACHE));
+    wgr_asset_set_host("https://assets.example.com/game");
+
+    /* answered from another thread */
+    CHECK(wgr_asset_set_fetcher(threaded_fetcher, NULL));
+    remove(ASYNC_CACHE "/textures/rock.png");
+    fetch_calls = 0;
+    ready_count = failed_count = 0;
+    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_FILE_ONLY), on_ready_path,
+                       on_failed, NULL);
+    wgri_asset_tick();
+    CHECK(fetch_calls == 1);
+    wgri_thread_join(&async_thread); /* the answer is in; it counts from the next tick */
+    for (int i = 0; i < 4 && ready_count == 0; i++) wgri_asset_tick();
+    CHECK(ready_count == 1 && failed_count == 0);
+    CHECK(read_back(ASYNC_CACHE "/textures/rock.png", "fetched"));
+
+    /* six out at once; the rest wait for a slot */
+    CHECK(wgr_asset_set_fetcher(holding_fetcher, NULL));
+    held_count = 0;
+    ready_count = 0;
+    for (int n = 0; n < 10; n++) {
+        char cached[160];
+        snprintf(key, sizeof(key), "many/%d.bin", n);
+        snprintf(cached, sizeof(cached), ASYNC_CACHE "/%s", key);
+        remove(cached); /* a run before this one's: each has to be downloaded */
+        wgr_asset_add_task(wgr_asset_ensure_async(key, NULL, WGR_ASSET_FILE_ONLY), on_ready_path, on_failed, NULL);
+    }
+    for (int i = 0; i < 3; i++) wgri_asset_tick();
+    CHECK(held_count == 6);
+    CHECK(wgr_asset_fetch_done(held[0], true) && wgr_asset_fetch_done(held[1], true));
+    for (int i = 0; i < 3; i++) wgri_asset_tick();
+    CHECK(held_count == 8 && ready_count == 2); /* two answered: two more out */
+    for (int n = 2; n < 8; n++) wgr_asset_fetch_done(held[n], true);
+    for (int i = 0; i < 3; i++) wgri_asset_tick();
+    CHECK(held_count == 10);
+    for (int n = 8; n < 10; n++) wgr_asset_fetch_done(held[n], true);
+    for (int i = 0; i < 3; i++) wgri_asset_tick();
+    CHECK(ready_count == 10 && wgri_asset_pending_count() == 0);
+
+    wgr_asset_set_fetcher(NULL, NULL);
+    wgr_asset_set_host("");
+    wgri_asset_deinit();
+    CHECK(!wgr_asset_fetch_done(held[0], true)); /* after shutdown: turned away, not a crash */
     wgri_fs_deinit();
 }

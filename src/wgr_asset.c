@@ -40,8 +40,10 @@
  * the browser, so the bytes are the file's and arrayBuffer's byteLength is its real
  * size -- nothing has to be known in advance and there is no per-file cap. */
 #define MAX_FETCHES 256 /* downloads at once; more tasks wait */
-static int wgr_asset_fetching;
 #endif
+
+#define MAX_DESKTOP_FETCHES 6 /* a fetcher's downloads at once: a browser's limit per server */
+static int wgr_asset_fetching; /* downloads in flight: the browser's on web, the fetcher's on desktop */
 
 /* Acquisition layer: "ensure" makes an asset locally available, then fires the
  * callback with a directly-openable local path. Storage is delegated to wgr_fs.
@@ -360,7 +362,72 @@ static int delete_downloads(void)
     return deleted;
 }
 
+/* A fetcher's answers, from whatever thread it answers on, applied at the next tick on
+ * the main thread -- as a browser's fetch reports back. The lock is made once and never
+ * destroyed, so a download finishing after shutdown finds it and is simply turned away. */
+typedef struct {
+    wgr_handle_t request;
+    bool ok;
+} wgr_fetch_answer_t;
+static wgri_mutex_t wgr_fetch_answers_lock;
+static bool wgr_fetch_answers_live, wgr_fetch_answers_open;
+static wgr_fetch_answer_t *wgr_fetch_answers;
+static int wgr_fetch_answer_count, wgr_fetch_answer_capacity;
+
+static void open_fetch_answers(bool open)
+{
+    if (!wgr_fetch_answers_live) {
+        wgri_mutex_init(&wgr_fetch_answers_lock);
+        wgr_fetch_answers_live = true;
+    }
+    wgri_mutex_lock(&wgr_fetch_answers_lock);
+    wgr_fetch_answers_open = open;
+    free(wgr_fetch_answers); /* none carries over a restart */
+    wgr_fetch_answers = NULL;
+    wgr_fetch_answer_count = wgr_fetch_answer_capacity = 0;
+    wgri_mutex_unlock(&wgr_fetch_answers_lock);
+}
+
 bool wgr_asset_fetch_done(wgr_handle_t request, bool ok)
+{
+    bool queued = false;
+    if (!wgr_fetch_answers_live) return false;
+    wgri_mutex_lock(&wgr_fetch_answers_lock);
+    if (wgr_fetch_answers_open && wgr_fetch_answer_count == wgr_fetch_answer_capacity) {
+        const int capacity = wgr_fetch_answer_capacity > 0 ? wgr_fetch_answer_capacity * 2 : 16;
+        wgr_fetch_answer_t *grown = realloc(wgr_fetch_answers, sizeof(*grown) * (size_t)capacity);
+        if (grown != NULL) {
+            wgr_fetch_answers = grown;
+            wgr_fetch_answer_capacity = capacity;
+        }
+    }
+    if (wgr_fetch_answers_open && wgr_fetch_answer_count < wgr_fetch_answer_capacity) {
+        wgr_fetch_answers[wgr_fetch_answer_count++] = (wgr_fetch_answer_t){request, ok};
+        queued = true;
+    }
+    wgri_mutex_unlock(&wgr_fetch_answers_lock);
+    return queued;
+}
+
+static bool apply_fetch_answer(wgr_handle_t request, bool ok);
+
+/* Apply what the fetchers have answered since the last tick (main thread). */
+static void apply_fetch_answers(void)
+{
+    wgr_fetch_answer_t *answers;
+    int count;
+    if (!wgr_fetch_answers_live) return;
+    wgri_mutex_lock(&wgr_fetch_answers_lock);
+    answers = wgr_fetch_answers;
+    count = wgr_fetch_answer_count;
+    wgr_fetch_answers = NULL; /* taken whole: answers arriving meanwhile start a new list */
+    wgr_fetch_answer_count = wgr_fetch_answer_capacity = 0;
+    wgri_mutex_unlock(&wgr_fetch_answers_lock);
+    for (int i = 0; i < count; i++) apply_fetch_answer(answers[i].request, answers[i].ok);
+    free(answers);
+}
+
+static bool apply_fetch_answer(wgr_handle_t request, bool ok)
 {
     uint16_t i = 0;
     wgr_asset_task_t *task;
@@ -372,6 +439,7 @@ bool wgr_asset_fetch_done(wgr_handle_t request, bool ok)
         return false; /* not a request we are waiting on */
     }
     task->state = TASK_NEW;
+    if (wgr_asset_fetching > 0) wgr_asset_fetching--; /* a slot for the next download */
     {
         char partial[600];
         const bool written = wgri_fs_partial_path(task->path, partial, sizeof(partial)) && wgri_fs_exists(partial);
@@ -2006,8 +2074,9 @@ void wgri_asset_init(void)
                              sizeof(wgr_asset_task_t), ASSET_TASKS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         log_error("asset: out of memory");
     }
-#ifdef __EMSCRIPTEN__
     wgr_asset_fetching = 0;
+#ifndef __EMSCRIPTEN__
+    open_fetch_answers(true);
 #endif
     if (!wgr_asset_jobs.lock_live) { /* still alive after a web shutdown (workers detached) */
         wgri_mutex_init(&wgr_asset_jobs.lock);
@@ -2294,7 +2363,8 @@ void wgri_asset_tick(void)
     if (!wgri_fs_is_ready()) {
         return;
     }
-#ifdef __EMSCRIPTEN__
+#ifndef __EMSCRIPTEN__
+    apply_fetch_answers(); /* what the fetchers answered since, from whatever thread */
 #endif
     for (uint16_t i = 1; i < wgr_asset_pool.capacity; i++) {
         wgr_asset_task_t *task = &wgr_asset_tasks[i];
@@ -2418,6 +2488,9 @@ void wgri_asset_tick(void)
             }
             if (wgr_asset_fetcher != NULL && (wgr_asset_host_is_url || task->fetch_url[0] != '\0')) {
                 char joined[1024], dest[1024];
+                if (wgr_asset_fetching >= MAX_DESKTOP_FETCHES) {
+                    continue; /* waits for a download to finish, as a browser queues them */
+                }
                 const char *url; /* per-call override wins, as on the web (start_fetch) */
                 if (task->fetch_url[0] != '\0') {
                     url = task->fetch_url;
@@ -2440,6 +2513,7 @@ void wgri_asset_tick(void)
                 wgri_fs_make_parents(task->path); /* and the file has somewhere to go */
                 remove(dest);                     /* what an interrupted run left */
                 task->state = TASK_FETCHING;
+                wgr_asset_fetching++;
                 wgr_asset_fetcher(wgri_handle_pool_handle_from_index(&wgr_asset_pool, i), url, dest,
                                   wgr_asset_fetcher_user);
                 continue;
@@ -2493,6 +2567,9 @@ void wgri_asset_deinit(void)
 
     wgr_asset_ready = false;
     memset(wgr_asset_pings, 0, sizeof(wgr_asset_pings)); /* unreported: dropped */
+#ifndef __EMSCRIPTEN__
+    open_fetch_answers(false); /* a download still running is turned away when it answers */
+#endif
     wgri_mutex_lock(&wgr_asset_jobs.lock);
     wgr_asset_found_count = 0;
     wgri_mutex_unlock(&wgr_asset_jobs.lock);

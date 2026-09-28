@@ -77,8 +77,14 @@ const char *wgr_asset_get_cache_dir(void);
 
 /* Download a missing asset. libwgrender calls this when the host is a URL, the file
  * isn't local yet, and there is no built-in fetcher for this platform (desktop):
- * fetch `url` into `dest_path`, then call wgr_asset_fetch_done(request, ok). Finishing
- * on a later tick is fine and expected -- nothing blocks meanwhile.
+ * fetch `url` into `dest_path`, then call wgr_asset_fetch_done(request, ok).
+ *
+ * It is called on the main thread, and should start the download and return: do the
+ * work on a thread of your own and call wgr_asset_fetch_done from there, from any
+ * thread. The answer is taken at the next wgr_asset_tick, on the main thread, as a
+ * browser's fetch reports back. A fetcher is handed at most 6 downloads at once, a
+ * browser's limit per server; the rest wait their turn. One that downloads before
+ * returning still works, but holds up the frame it runs in.
  *
  * Bytes never cross this boundary; a downloader deals in files, which is what curl,
  * WinHTTP and NSURLSession all hand you anyway. The directories above `dest_path`
@@ -94,6 +100,8 @@ const char *wgr_asset_get_cache_dir(void);
 typedef void (*wgr_asset_fetch_fn)(wgr_handle_t request, const char *url,
                                    const char *dest_path, void *user_data);
 bool wgr_asset_set_fetcher(wgr_asset_fetch_fn fn, void *user_data);
+/* What became of a download the fetcher was handed; any thread. False when it can't be
+ * taken: libwgrender isn't running (shut down while the download ran, say). */
 bool wgr_asset_fetch_done(wgr_handle_t request, bool ok);
 
 /* Forget a cached asset, so the next ensure fetches it again: the file and what was
