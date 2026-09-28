@@ -447,21 +447,21 @@ const char *wgr_get_platform(void)
 /* ---------------------------------------------------------------- identity */
 
 /* Outside wgr_rt, which wgr_init_values clears: a program names itself first. */
-static char wgr_app_company[128];
-static char wgr_app_name[128];
-static char wgr_app_default_name[128];
+static char wgr_app_company[WGRI_APP_NAME_SIZE];
+static char wgr_app_name[WGRI_APP_NAME_SIZE];
+static char wgr_app_default_name[WGRI_APP_NAME_SIZE];
 
 bool wgri_app_clean_name(const char *name, char *out, size_t out_size)
 {
     static const char *const devices[] = {"CON", "PRN", "AUX", "NUL"};
     size_t n = 0, start = 0, end, stem;
-    char kept[128];
+    char kept[WGRI_APP_NAME_SIZE];
     bool device = false;
 
     if (out == NULL || out_size == 0) return false;
     out[0] = '\0';
-    if (name == NULL) return false;
-    for (const char *c = name; *c != '\0' && n + 1 < sizeof(kept); c++) {
+    if (name == NULL || strlen(name) >= sizeof(kept)) return false; /* too long: refused, never cut */
+    for (const char *c = name; *c != '\0'; c++) {
         const unsigned char ch = (unsigned char)*c;
         kept[n++] = ch < 0x20 || strchr("<>:\"/\\|?*", ch) != NULL ? '_' : (char)ch;
     }
@@ -522,7 +522,11 @@ static void executable_name(char *out, size_t out_size)
     for (const char *c = path; *c != '\0'; c++) {
         if (*c == '/' || *c == '\\') base = c + 1;
     }
-    snprintf(out, out_size, "%s", base);
+    if (strlen(base) >= out_size) {
+        out[0] = '\0'; /* too long to be a name: none, rather than a cut one */
+        return;
+    }
+    memcpy(out, base, strlen(base) + 1);
     dot = strrchr(out, '.');
     if (dot != NULL && dot != out) *dot = '\0';
 }
@@ -530,7 +534,13 @@ static void executable_name(char *out, size_t out_size)
 WGRI_KEEP
 void wgr_set_app_company(const char *company)
 {
-    if (!wgri_app_clean_name(company, wgr_app_company, sizeof(wgr_app_company))) wgr_app_company[0] = '\0';
+    if (!wgri_app_clean_name(company, wgr_app_company, sizeof(wgr_app_company))) {
+        if (company != NULL && company[0] != '\0') {
+            log_warn("wgr_set_app_company: \"%s\" can't name a directory (too long, or nothing left of "
+                     "it); the company is \"DefaultCompany\"", company);
+        }
+        wgr_app_company[0] = '\0';
+    }
 }
 
 WGRI_KEEP
@@ -542,7 +552,13 @@ const char *wgr_get_app_company(void)
 WGRI_KEEP
 void wgr_set_app_name(const char *name)
 {
-    if (!wgri_app_clean_name(name, wgr_app_name, sizeof(wgr_app_name))) wgr_app_name[0] = '\0';
+    if (!wgri_app_clean_name(name, wgr_app_name, sizeof(wgr_app_name))) {
+        if (name != NULL && name[0] != '\0') {
+            log_warn("wgr_set_app_name: \"%s\" can't name a directory (too long, or nothing left of it); "
+                     "the app is the executable's name", name);
+        }
+        wgr_app_name[0] = '\0';
+    }
 }
 
 WGRI_KEEP
@@ -550,7 +566,7 @@ const char *wgr_get_app_name(void)
 {
     if (wgr_app_name[0] != '\0') return wgr_app_name;
     if (wgr_app_default_name[0] == '\0') {
-        char exe[128];
+        char exe[WGRI_APP_NAME_SIZE];
         executable_name(exe, sizeof(exe));
         if (!wgri_app_clean_name(exe, wgr_app_default_name, sizeof(wgr_app_default_name))) {
             snprintf(wgr_app_default_name, sizeof(wgr_app_default_name), "DefaultApp");

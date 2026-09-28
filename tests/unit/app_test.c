@@ -11,7 +11,7 @@
 
 static void check_clean(const char *name, const char *expected)
 {
-    char out[128];
+    char out[WGRI_APP_NAME_SIZE];
     const bool ok = wgri_app_clean_name(name, out, sizeof(out));
     CHECK(ok == (expected != NULL));
     if (ok && expected != NULL && strcmp(out, expected) != 0) {
@@ -53,6 +53,15 @@ void test_app_identity(void)
     check_clean("lpt9", "_lpt9");
     check_clean("COM0", "COM0"); /* not a device */
     check_clean("CONSOLE", "CONSOLE");
+    {
+        char longest[WGRI_APP_NAME_SIZE], too_long[WGRI_APP_NAME_SIZE + 1];
+        memset(longest, 'a', sizeof(longest) - 1);
+        longest[sizeof(longest) - 1] = '\0';
+        memset(too_long, 'a', sizeof(too_long) - 1);
+        too_long[sizeof(too_long) - 1] = '\0';
+        check_clean(longest, longest); /* the most there is room for: kept whole */
+        check_clean(too_long, NULL);   /* one more: refused, never cut short */
+    }
 
     CHECK(wgri_app_join("/home/u/.cache", "Co", "App", NULL, dir, sizeof(dir)) &&
           strcmp(dir, "/home/u/.cache/Co/App") == 0);

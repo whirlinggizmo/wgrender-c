@@ -349,9 +349,17 @@ static int delete_downloads(void)
             continue;
         }
         snprintf(line, sizeof(line), "%s", relative);
-        snprintf(file, sizeof(file), "%s/%s", cache_dir(), line);
+        /* what the list holds was normalized (under 1024) and the cache directory is under
+           512, so these fit; one that didn't is said, not cut short into another file */
+        if (snprintf(file, sizeof(file), "%s/%s", cache_dir(), line) >= (int)sizeof(file)) {
+            log_warn("wgr_asset_clear_cache: %s/%s is too long a path; left alone", cache_dir(), line);
+            continue;
+        }
         deleted += remove(file) == 0 ? 1 : 0; /* listed twice, or evicted since: already gone */
-        snprintf(file, sizeof(file), "%s/%s", meta_root, line);
+        if (snprintf(file, sizeof(file), "%s/%s", meta_root, line) >= (int)sizeof(file)) {
+            log_warn("wgr_asset_clear_cache: %s/%s is too long a path; left alone", meta_root, line);
+            continue;
+        }
         remove(file);
         remove_empty_parents(cache_dir(), line);
         remove_empty_parents(meta_root, line);
@@ -1798,6 +1806,9 @@ wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
         const wgri_asset_host_kind_t kind = wgr_asset_host_is_url ? WGRI_HOST_URL : WGRI_HOST_LOCAL;
 #endif
         found = wgri_asset_resolve_source(wgr_asset_host, kind, fetch_url, source, sizeof(source));
+        if (found == WGRI_SOURCE_LOCAL && strlen(source) >= sizeof(((wgr_asset_task_t *)0)->path)) {
+            found = WGRI_SOURCE_REFUSED; /* it becomes the task's path, which it wouldn't fit */
+        }
         if (found == WGRI_SOURCE_REFUSED) {
             log_warn("wgr_asset_ensure_async: %s: %s isn't a source this host can read (a local one has to be a "
                      "path under the host; a URL, http or https)", path, fetch_url);
@@ -1814,7 +1825,12 @@ wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
     if (fetch_url != NULL) { /* the caller chose the file: no redirects or variants */
         /* a local source is read where it is, as a path redirect would; the key is what
            it is known by (the task's origin), which loaders asking for it are told */
-        snprintf(task_ptr->path, sizeof(task_ptr->path), "%s", found == WGRI_SOURCE_LOCAL ? source : path);
+        {
+            /* fits: the key was normalized into logical[512], and a local source longer
+               than a task's path was refused before the task was made */
+            const char *read_from = found == WGRI_SOURCE_LOCAL ? source : path;
+            memcpy(task_ptr->path, read_from, strlen(read_from) + 1);
+        }
         snprintf(task_ptr->fetch_url, sizeof(task_ptr->fetch_url), "%s", found == WGRI_SOURCE_LOCAL ? "" : source);
         task_ptr->caller_url = true;
     } else {

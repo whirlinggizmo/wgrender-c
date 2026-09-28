@@ -12,8 +12,13 @@
 
 extern bool wgri_initialized;
 
+/* The room for a company or app name, its NUL included: one of WGRI_APP_NAME_SIZE
+ * bytes or more is refused (wgr_set_app_company), never cut short. */
+#define WGRI_APP_NAME_SIZE 128
+
 /* `name` made one safe path component, as wgr_set_app_company describes, into `out`;
- * false when nothing is left of it. Pure; exposed for tests. */
+ * false when nothing is left of it, or it is WGRI_APP_NAME_SIZE bytes or longer.
+ * Pure; exposed for tests. */
 bool wgri_app_clean_name(const char *name, char *out, size_t out_size);
 
 /* <base>/<company>/<app>[/<leaf>], "/" throughout. Pure; exposed for tests. */
