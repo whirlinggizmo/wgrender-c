@@ -216,7 +216,8 @@ class Loading {
 		frameNext = (frameNext + 1) % GRAPH;
 		lastTime = now;
 
-		if (keys.isPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && keys.isPressed(Escape))
 			Wgr.requestQuit();
 		if (keys.isPressed(A))
 			startLoad(false);

@@ -11,7 +11,8 @@
 // `wgr_guest.h` has had a shutdown slot all along and `GuestAbi.register` was passing
 // 0 for it, because nothing had needed wgrender's `wgr_set_cleanup` yet.
 //
-//   Q, ESC  quit now
+//   Q    quit now
+//   ESC  quit now (desktop)
 import wgr.*;
 
 @:expose("WgrGuest")
@@ -72,7 +73,10 @@ class Quit {
 
 	static function onFrame(dt:Float):Void {
 		final keys = Input.getKeyboardState();
-		if (keys.isPressed(Q) || keys.isPressed(Escape))
+		if (keys.isPressed(Q))
+			Wgr.requestQuit();
+		// on the web Escape is the browser's (it leaves fullscreen): Q quits there
+		if (Wgr.getPlatform() != "web" && keys.isPressed(Escape))
 			Wgr.requestQuit();
 
 		Render.beginFrame();

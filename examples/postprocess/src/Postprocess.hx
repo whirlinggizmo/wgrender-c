@@ -180,7 +180,8 @@ class Postprocess {
 	}
 
 	static function handleKeys(dt:Float):Void {
-		if (Input.isKeyPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && Input.isKeyPressed(Escape))
 			Wgr.requestQuit();
 		if (Input.isKeyPressed(Digit1)) {
 			vignetteOn = !vignetteOn;
@@ -230,7 +231,7 @@ class Postprocess {
 		Text.draw('[1] vignette ${vignetteOn ? "on" : "off"}   [2] scanlines ${scanlinesOn ? "on" : "off"}   '
 			+ 'effects: ${Render.effectCount()}', 12, 64, 16, Color.LIGHTGRAY);
 		Text.draw('UP/DOWN strength ${fixed(strength, 2)}   SPACE ${breathing ? "stop breathing" : "breathe"}   '
-			+ "O camera   ESC quit", 12, 86, 16, Color.GRAY);
+			+ "O camera" + (Wgr.getPlatform() == "web" ? "" : "   ESC quit"), 12, 86, 16, Color.GRAY);
 		Render.endFrame();
 	}
 

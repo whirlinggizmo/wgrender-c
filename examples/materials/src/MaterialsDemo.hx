@@ -191,7 +191,8 @@ class MaterialsDemo {
 
 	static function onFrame(dt:Float):Void {
 		final keys = Input.getKeyboardState();
-		if (keys.isPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && keys.isPressed(Escape))
 			Wgr.requestQuit();
 		if (keys.isPressed(Digit1))
 			sun.setEnabled(!sun.isEnabled());

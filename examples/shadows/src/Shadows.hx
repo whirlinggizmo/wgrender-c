@@ -165,7 +165,8 @@ class Shadows {
 	}
 
 	static function handleKeys(dt:Float):Void {
-		if (Input.isKeyPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && Input.isKeyPressed(Escape))
 			Wgr.requestQuit();
 		if (Input.isKeyPressed(Digit1)) {
 			shadows = !shadows;
@@ -226,7 +227,8 @@ class Shadows {
 			+ 'bias ${fixed(bias, 1)} texels', 12, 64, 16, Color.LIGHTGRAY);
 		Text.draw('[S] strength ${fixed(strength, 2)}   [T] tint ${TINT_NAMES[tintIndex]}', 12, 86, 16,
 			Color.LIGHTGRAY);
-		Text.draw("UP/DOWN distance   [ ] bias   M map size   O camera   ESC quit", 12, 108, 16, Color.GRAY);
+		Text.draw("UP/DOWN distance   [ ] bias   M map size   O camera" + (Wgr.getPlatform() == "web" ? "" : "   ESC quit"), 12, 108, 16,
+			Color.GRAY);
 		Text.draw("left ball casts nothing; right ball receives nothing", 12, 130, 16, Color.GRAY);
 		Render.endFrame();
 	}

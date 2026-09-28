@@ -174,7 +174,8 @@ class UiDemo {
 		final mouse = Input.getMouseState();
 		final hovered = scene.getHovered();
 
-		if (keys.isPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && keys.isPressed(Escape))
 			Wgr.requestQuit();
 
 		// buttons: each colors itself and says whether it was clicked

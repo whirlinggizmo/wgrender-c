@@ -100,7 +100,8 @@ class FontDemo {
 		Text.drawFps(12, 12);
 		Render.endFrame();
 
-		if (keys.isPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && keys.isPressed(Escape))
 			Wgr.requestQuit();
 	}
 }

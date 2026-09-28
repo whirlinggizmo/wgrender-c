@@ -127,7 +127,8 @@ class MeshesDemo {
 	}
 
 	static function onFrame(dt:Float):Void {
-		if (Input.isKeyPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && Input.isKeyPressed(Escape))
 			Wgr.requestQuit();
 		if (Input.isKeyPressed(O))
 			orbit = !orbit;
@@ -140,7 +141,7 @@ class MeshesDemo {
 		scene.draw();
 		Text.draw("wgrender generated meshes: plane, cube, sphere, cylinder, cone, capsule, torus", 12, 36, 20,
 			Color.RAYWHITE);
-		Text.draw(orbit ? "O: stop the camera   ESC: quit" : "O: turn the camera   ESC: quit", 12, 64, 16,
+		Text.draw((orbit ? "O: stop the camera" : "O: turn the camera") + (Wgr.getPlatform() == "web" ? "" : "   ESC: quit"), 12, 64, 16,
 			Color.LIGHTGRAY);
 		Render.endFrame();
 	}

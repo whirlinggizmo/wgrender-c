@@ -121,7 +121,8 @@ class Gamepad {
 			drawPad(pad, 20.0 + (pad % 2) * 320.0, 110.0 + Std.int(pad / 2) * 300.0);
 		Render.endFrame();
 
-		if (Input.isKeyPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && Input.isKeyPressed(Escape))
 			Wgr.requestQuit();
 	}
 

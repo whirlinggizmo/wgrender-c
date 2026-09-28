@@ -246,7 +246,8 @@ class Particles {
 
 		Render.endFrame();
 
-		if (Input.isKeyPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && Input.isKeyPressed(Escape))
 			Wgr.requestQuit();
 	}
 }

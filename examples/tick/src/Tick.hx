@@ -62,7 +62,8 @@ class Tick {
 		final keyboard = Input.getKeyboardState();
 		if (keyboard.isPressed(Space))
 			framePresses++;
-		if (keyboard.isPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && keyboard.isPressed(Escape))
 			Wgr.requestQuit();
 
 		final fraction = GuestAbi.tickFraction();

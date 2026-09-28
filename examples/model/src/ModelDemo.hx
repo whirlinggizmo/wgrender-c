@@ -114,7 +114,8 @@ class ModelDemo {
 			Color.LIGHTGRAY);
 		Render.endFrame();
 
-		if (Input.getKeyboardState().isPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && Input.getKeyboardState().isPressed(Escape))
 			Wgr.requestQuit();
 	}
 }

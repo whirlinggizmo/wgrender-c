@@ -175,13 +175,14 @@ class Instancing {
 		Text.draw("wgrender instancing: models that share a mesh and a material go up as one draw", 12, 36, 20,
 			Color.RAYWHITE);
 		Text.draw('$FIELD_COUNT cubes, ${ownMaterials ? "a material each (one draw each)" : "one material (one draw)"}'
-			+ "   SPACE toggles   ESC quit", 12, 64, 16, Color.LIGHTGRAY);
+			+ "   SPACE toggles" + (Wgr.getPlatform() == "web" ? "" : "   ESC quit"), 12, 64, 16, Color.LIGHTGRAY);
 		Render.endFrame();
 
 		final keys = Input.getKeyboardState();
 		if (keys.isPressed(Space))
 			setMaterials(!ownMaterials);
-		if (keys.isPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && keys.isPressed(Escape))
 			Wgr.requestQuit();
 	}
 }

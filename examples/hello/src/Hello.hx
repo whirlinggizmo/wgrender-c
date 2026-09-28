@@ -38,12 +38,14 @@ class Hello {
 		Shape2D.drawCircle(new Vec2(mouse.x, mouse.y), 8, Color.MAROON);
 
 		Text.draw("wgrender + sokol", 40, 360, 32, Color.DARKGRAY);
-		Text.draw("press ESC to quit", 40, 410, 16, Color.GRAY);
+		if (Wgr.getPlatform() != "web") // the quit key's hint, as the key: desktop only
+			Text.draw("press ESC to quit", 40, 410, 16, Color.GRAY);
 		Text.drawFps(40, 12);
 
 		Render.endFrame();
 
-		if (Input.getKeyboardState().isPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && Input.getKeyboardState().isPressed(Escape))
 			Wgr.requestQuit();
 	}
 }

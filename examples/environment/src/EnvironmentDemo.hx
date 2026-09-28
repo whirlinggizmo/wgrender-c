@@ -168,7 +168,8 @@ class EnvironmentDemo {
 	static function handleKeys(dt:Float):Bool {
 		final keys = Input.getKeyboardState();
 		var changed = false;
-		if (keys.isPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && keys.isPressed(Escape))
 			Wgr.requestQuit();
 		if (keys.isPressed(E)) {
 			environmentIndex = (environmentIndex + 1) % (ENVIRONMENT_PATHS.length + 1);

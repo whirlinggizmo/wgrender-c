@@ -102,7 +102,8 @@ class TouchDemo {
 		final gesture = Input.getTouchGesture();
 		final count = Input.getTouchCount();
 
-		if (Input.getKey(Escape) == ButtonState.Pressed)
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && Input.getKey(Escape) == ButtonState.Pressed)
 			Wgr.requestQuit();
 
 		// two fingers move the logo; the wheel zooms it about the mouse

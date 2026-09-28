@@ -121,7 +121,8 @@ class Scene3D {
 		Text.draw(selected.isNone() ? "selected: none" : 'selected handle: $selected', 12, 94, 16, Color.LIGHTGRAY);
 		Render.endFrame();
 
-		if (Input.isKeyPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && Input.isKeyPressed(Escape))
 			Wgr.requestQuit();
 	}
 }

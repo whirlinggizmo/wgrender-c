@@ -191,7 +191,8 @@ class LightsDemo {
 			lamp.setEnabled(!lamp.isEnabled());
 		if (keys.isPressed(Digit3))
 			spot.setEnabled(!spot.isEnabled());
-		if (keys.isPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && keys.isPressed(Escape))
 			Wgr.requestQuit();
 
 		elapsed += dt;

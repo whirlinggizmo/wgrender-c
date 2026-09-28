@@ -215,7 +215,8 @@ class Tilemap {
 		final mouse = Input.getMouseState();
 		final screen = Window.getScreenSize();
 
-		if (keys.isPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && keys.isPressed(Escape))
 			Wgr.requestQuit();
 
 		scroll(dt, keys, mouse, screen.y > 0 ? zoom / screen.y : 0);

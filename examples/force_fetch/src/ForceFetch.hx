@@ -113,7 +113,8 @@ class ForceFetch {
 				music.resume();
 			musicOn = !musicOn;
 		}
-		if (keys.isPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && keys.isPressed(Escape))
 			Wgr.requestQuit();
 
 		Render.beginFrame();
@@ -123,7 +124,7 @@ class ForceFetch {
 			: (musicOn ? "music: playing (mp3, looping)" : "music: paused"), 24, 80, 18, Color.SKYBLUE);
 		Text.draw((offline ? "no download; read in place under " : "from ") + '${Asset.getHost()}/$MUSIC_SOURCE', 24,
 			110, 14, Color.LIGHTGRAY);
-		Text.draw("[M] toggle music   [ESC] quit", 24, 150, 16, Color.LIGHTGRAY);
+		Text.draw("[M] toggle music" + (Wgr.getPlatform() == "web" ? "" : "   [ESC] quit"), 24, 150, 16, Color.LIGHTGRAY);
 		Text.drawFps(24, 12);
 		Render.endFrame();
 	}

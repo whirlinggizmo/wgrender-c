@@ -74,7 +74,8 @@ class WindowDemo {
 		final size = Window.getScreenSize();
 		final position = Window.getPosition();
 
-		if (keys.isPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && keys.isPressed(Escape))
 			Wgr.requestQuit();
 		if (keys.isPressed(Left))
 			report("move", Window.setPosition(Std.int(position.x) - STEP, Std.int(position.y)));

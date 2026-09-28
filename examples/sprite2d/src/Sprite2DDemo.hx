@@ -174,7 +174,8 @@ class Sprite2DDemo {
 
 	static function onFrame(dt:Float):Void {
 		final mouse = Input.getMouseState();
-		if (Input.isKeyPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && Input.isKeyPressed(Escape))
 			Wgr.requestQuit();
 
 		animate(dt);

@@ -97,7 +97,8 @@ class AudioDemo {
 				music.resume();
 			musicOn = !musicOn;
 		}
-		if (keys.isPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && keys.isPressed(Escape))
 			Wgr.requestQuit();
 	}
 
@@ -110,7 +111,7 @@ class AudioDemo {
 		Text.draw(music.isNone() ? "music: loading..."
 			: (musicOn ? "music: playing (mp3, streamed, looping)" : "music: paused"), 24, 80, 18, Color.SKYBLUE);
 		Text.draw(click.isNone() ? "click: loading..." : "click: ready (ogg)", 24, 110, 18, Color.LIME);
-		Text.draw("[SPACE] play click   [M] toggle music   [S] stall 300 ms   [ESC] quit", 24, 150, 16,
+		Text.draw("[SPACE] play click   [M] toggle music   [S] stall 300 ms" + (Wgr.getPlatform() == "web" ? "" : "   [ESC] quit"), 24, 150, 16,
 			Color.LIGHTGRAY);
 		Text.drawFps(24, 12);
 		Render.endFrame();

@@ -165,7 +165,8 @@ class Text3DDemo {
 		final keys = Input.getKeyboardState();
 		final mouse = Input.getMouseState();
 
-		if (keys.isPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && keys.isPressed(Escape))
 			Wgr.requestQuit();
 		if (keys.isPressed(P))
 			cube.setPickable(!cube.isPickable());

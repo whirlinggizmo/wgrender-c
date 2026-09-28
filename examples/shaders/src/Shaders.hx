@@ -252,7 +252,8 @@ class Shaders {
 	}
 
 	static function onFrame(dt:Float):Void {
-		if (Input.isKeyPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && Input.isKeyPressed(Escape))
 			Wgr.requestQuit();
 		if (Input.isKeyPressed(Digit1))
 			sun.setEnabled(!sun.isEnabled());
@@ -278,7 +279,7 @@ class Shaders {
 		logo2d.setPosition(screen.x - 16.0, screen.y - 16.0); // bottom right
 		logo2d.draw();
 		Text.draw("wgrender custom shaders: toon, dissolve, water, sprite effects", 12, 12, 20, Color.RAYWHITE);
-		Text.draw("1 sun, 2 point light, ESC quit", 12, 40, 16, Color.LIGHTGRAY);
+		Text.draw("1 sun, 2 point light" + (Wgr.getPlatform() == "web" ? "" : ", ESC quit"), 12, 40, 16, Color.LIGHTGRAY);
 		Render.endFrame();
 	}
 }

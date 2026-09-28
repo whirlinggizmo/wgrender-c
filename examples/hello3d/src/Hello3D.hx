@@ -74,7 +74,8 @@ class Hello3D {
 		// the whole keyboard at once, as the C does. On js this is a view into the
 		// wasm heap that is only good for this frame, which is why it is read here.
 		final keyboard = Input.getKeyboardState();
-		if (keyboard.isPressed(Escape))
+		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
+		if (Wgr.getPlatform() != "web" && keyboard.isPressed(Escape))
 			Wgr.requestQuit();
 	}
 }
