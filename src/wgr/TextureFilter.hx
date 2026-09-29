@@ -11,7 +11,7 @@ enum abstract TextureFilter(Int) to Int {
 
 	#if cpp
 	/** C++ needs the cast: the header says `wgr_texture_filter_t`, not `int`. **/
-	@:to inline function toRaw():CTextureFilter
+	@:to extern inline function toRaw():CTextureFilter
 		return untyped __cpp__("(wgr_texture_filter_t)({0})", this);
 	#end
 }

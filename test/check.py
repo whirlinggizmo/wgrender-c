@@ -26,6 +26,10 @@ the binding can be wrong without failing to compile:
   sources    project/wgrender.xml lists wgrender's C files and flags for every build
              to compile with, and this fails when wgrender's build.json moves
 
+Then check-cppia: the whole binding in a -D scriptable executable, and a cppia module
+that calls every public function of it, loaded into that, which is what hot reload
+does with an application's code (README, "Calling it from cppia").
+
 And it compiles the binding's own C, host/wgr_guest.c, with wgrender's warnings as
 errors, which no build of the binding otherwise holds it to.
 
@@ -97,11 +101,40 @@ def main():
          '--js', BUILD / 'check-js.js', '-D', 'js-es=6',
          '-D', 'wgr-listing', '--macro', 'wgr.macros.WebHost.build()'])
 
+    check_cppia()
+
     print("host/wgr_guest.c with wgrender's warnings, as errors")
     check_guest_warnings()
 
     print('WebHost lists')
     return check_webhost_lists()
+
+
+def check_cppia():
+    """The whole binding, called from a cppia module (README, "Calling it from cppia").
+
+    Hot reload runs an application's code as a cppia module, which calls the binding's
+    compiled copies in the executable. Two ways the binding can be wrong for that
+    compile and run natively: a function with a C type in its signature in a public
+    class, which fails the C++ of a -D scriptable build (hxcpp makes a Dynamic wrapper
+    for every static of one); and a wrapper without a compiled copy (`extern inline`,
+    which every `overload` is) that makes the C call itself, which fails when a module
+    that reaches it is built or loaded. So: an executable with the whole binding in it,
+    built -D scriptable; and a module with a generated class that calls every public
+    function of the binding once, loaded into it, so each one links or doesn't.
+    """
+    print('check-cppia: the whole binding, called from a cppia module')
+    cppia = BUILD / 'cppia'
+    cppia.mkdir(parents=True, exist_ok=True)
+    base = ['-D', f'WGRENDER_DIR={WGRENDER}', '-D', 'wgr-headless', '-D', 'HXCPP_M64',
+            '-lib', 'wgrender-hx', '-cp', ROOT / 'test', '-dce', 'no',
+            '--macro', "include('wgr', true, ['wgr.macros'])"]
+    run([HAXE, *base, '--main', 'CppiaHost', '--cpp', cppia, '-D', 'HAXE_OUTPUT_FILE=check-cppia',
+         '-D', 'scriptable', '-D', f'dll_export={cppia / "host.info"}'], cwd=ROOT)
+    run([HAXE, *base, '--main', 'CppiaModule', '--cppia', cppia / 'reach.cppia',
+         '-D', f'dll_import={cppia / "host.info"}',
+         '--macro', 'wgr.macros.Cppia.callHost()', '--macro', 'wgr.macros.Cppia.reachAll()'], cwd=ROOT)
+    run([cppia / ('check-cppia' + ('.exe' if os.name == 'nt' else '')), cppia / 'reach.cppia'])
 
 
 def check_guest_warnings():

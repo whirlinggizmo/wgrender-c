@@ -26,7 +26,7 @@ enum abstract AlphaMode(Int) to Int {
 
 	#if cpp
 	/** C++ needs the cast: the header says `wgr_alpha_mode_t`, not `int`. **/
-	@:to inline function toRaw():CAlphaMode
+	@:to extern inline function toRaw():CAlphaMode
 		return untyped __cpp__("(wgr_alpha_mode_t)({0})", this);
 	#end
 }

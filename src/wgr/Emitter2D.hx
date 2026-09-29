@@ -28,18 +28,26 @@ abstract Emitter2D(Handle) from Handle to Handle {
 
 	/** Where new particles appear; the ones alive stay where they were born. **/
 	public static overload extern inline function setPosition(emitter2D:Emitter2D, position:Vec2):Bool
-		return Raw.wgr_emitter2d_set_position(emitter2D, position.x, position.y);
+		return setPositionRaw(emitter2D, position.x, position.y);
 
 	/** The same, without a `Vec2`. **/
 	public static overload extern inline function setPosition(emitter2D:Emitter2D, x:Float, y:Float):Bool
+		return setPositionRaw(emitter2D, x, y);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setPositionRaw(emitter2D:Emitter2D, x:Float, y:Float):Bool
 		return Raw.wgr_emitter2d_set_position(emitter2D, x, y);
 
 	/** Move without the trail a `setPosition` sweep would leave. **/
 	public static overload extern inline function jump(emitter2D:Emitter2D, position:Vec2):Bool
-		return Raw.wgr_emitter2d_jump(emitter2D, position.x, position.y);
+		return jumpRaw(emitter2D, position.x, position.y);
 
 	/** The same, without a `Vec2`. **/
 	public static overload extern inline function jump(emitter2D:Emitter2D, x:Float, y:Float):Bool
+		return jumpRaw(emitter2D, x, y);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function jumpRaw(emitter2D:Emitter2D, x:Float, y:Float):Bool
 		return Raw.wgr_emitter2d_jump(emitter2D, x, y);
 
 	/** New particles appear anywhere in this box around the position. **/

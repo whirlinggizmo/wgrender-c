@@ -16,7 +16,7 @@ enum abstract GamepadAxis(Int) to Int {
 
 	#if cpp
 	/** C++ needs the cast: the header says `wgr_gamepad_axis_t`, not `int`. **/
-	@:to inline function toRaw():CGamepadAxis
+	@:to extern inline function toRaw():CGamepadAxis
 		return untyped __cpp__("(wgr_gamepad_axis_t)({0})", this);
 	#end
 }

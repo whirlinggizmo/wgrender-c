@@ -55,25 +55,37 @@ abstract Model(Handle) from Handle to Handle {
 
 	/** One part of the transform, leaving the others as they are. **/
 	public static overload extern inline function setPosition(model:Model, value:Vec3):Bool
-		return Raw.wgr_model_set_position(model, value.x, value.y, value.z);
+		return setPositionRaw(model, value.x, value.y, value.z);
 
 	/** The same, without a `Vec3`. **/
 	public static overload extern inline function setPosition(model:Model, x:Float, y:Float, z:Float):Bool
+		return setPositionRaw(model, x, y, z);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setPositionRaw(model:Model, x:Float, y:Float, z:Float):Bool
 		return Raw.wgr_model_set_position(model, x, y, z);
 
 	/** Radians. **/
 	public static overload extern inline function setRotation(model:Model, value:Vec3):Bool
-		return Raw.wgr_model_set_rotation(model, value.x, value.y, value.z);
+		return setRotationRaw(model, value.x, value.y, value.z);
 
 	/** The same, without a `Vec3`. **/
 	public static overload extern inline function setRotation(model:Model, x:Float, y:Float, z:Float):Bool
+		return setRotationRaw(model, x, y, z);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setRotationRaw(model:Model, x:Float, y:Float, z:Float):Bool
 		return Raw.wgr_model_set_rotation(model, x, y, z);
 
 	public static overload extern inline function setScale(model:Model, value:Vec3):Bool
-		return Raw.wgr_model_set_scale(model, value.x, value.y, value.z);
+		return setScaleRaw(model, value.x, value.y, value.z);
 
 	/** The same, without a `Vec3`. **/
 	public static overload extern inline function setScale(model:Model, x:Float, y:Float, z:Float):Bool
+		return setScaleRaw(model, x, y, z);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setScaleRaw(model:Model, x:Float, y:Float, z:Float):Bool
 		return Raw.wgr_model_set_scale(model, x, y, z);
 
 	/** Where it is, as last set. **/

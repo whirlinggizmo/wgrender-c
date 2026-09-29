@@ -38,7 +38,7 @@ enum abstract GamepadButton(Int) to Int {
 
 	#if cpp
 	/** C++ needs the cast: the header says `wgr_gamepad_button_t`, not `int`. **/
-	@:to inline function toRaw():CGamepadButton
+	@:to extern inline function toRaw():CGamepadButton
 		return untyped __cpp__("(wgr_gamepad_button_t)({0})", this);
 	#end
 }

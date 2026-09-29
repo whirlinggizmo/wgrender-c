@@ -14,7 +14,7 @@ enum abstract AlignX(Int) to Int {
 
 	#if cpp
 	/** C++ needs the cast: the header says `wgr_text_align_t`, not `int`. **/
-	@:to inline function toRaw():CTextAlign
+	@:to extern inline function toRaw():CTextAlign
 		return untyped __cpp__("(wgr_text_align_t)({0})", this);
 	#end
 }

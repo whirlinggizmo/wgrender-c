@@ -269,24 +269,12 @@ class Asset {
 		final id = nextId++;
 		pings.set(id, onDone);
 		final ok = Raw.wgr_asset_ping_host(#if cpp Native.cstr(host) #else host #end, timeoutMs,
-			Trampoline.ping(pingTrampoline), Native.toUser(id));
+			Trampoline.ping(AssetNative.pingTrampoline), Native.toUser(id));
 		if (!ok)
 			pings.remove(id);
 		return ok;
 	}
 
-	// One ping per call, so drop the closure as it fires.
-	static function pingTrampoline(host:CStr, milliseconds:F32, user:VoidStar):Void {
-		final id = Native.fromUser(user);
-		final cb = pings.get(id);
-		if (cb == null)
-			return;
-		pings.remove(id);
-		try
-			cb(#if cpp host.toString() #else Raw.str(host) #end, milliseconds)
-		catch (e:haxe.Exception)
-			Wgr.report("an asset ping callback", e);
-	}
 
 	/**
 		Download a missing asset. wgrender calls `fetch` when a file isn't local yet,
@@ -320,7 +308,7 @@ class Asset {
 		#if !emscripten
 		fetcherInstalled = fetch != null; // so needsFetcher leaves this one alone
 		#end
-		return Raw.wgr_asset_set_fetcher(cpp.Callable.fromStaticFunction(fetchTrampoline), Native.nullPtr());
+		return Raw.wgr_asset_set_fetcher(cpp.Callable.fromStaticFunction(AssetNative.fetchTrampoline), Native.nullPtr());
 		#else
 		return false;
 		#end
@@ -459,21 +447,42 @@ class Asset {
 	static function addTask(task:Handle, onSuccess:(path:String) -> Void, ?onFailure:(path:String) -> Void):Bool {
 		final id = nextId++;
 		pending.set(id, {onSuccess: onSuccess, onFailure: onFailure});
-		final ok = Raw.wgr_asset_add_task(task, cpp.Callable.fromStaticFunction(successTrampoline),
-			cpp.Callable.fromStaticFunction(failureTrampoline), Native.toUser(id)) == 0;
+		final ok = Raw.wgr_asset_add_task(task, cpp.Callable.fromStaticFunction(AssetNative.successTrampoline),
+			cpp.Callable.fromStaticFunction(AssetNative.failureTrampoline), Native.toUser(id)) == 0;
 		if (!ok)
 			pending.remove(id);
 		return ok;
 	}
 
+	#end
+}
+
+// its C callbacks: a private class, so -D scriptable makes no cppia wrappers for them
+// (README, "Calling it from cppia")
+@:access(wgr.Asset) @:allow(wgr.Asset)
+private class AssetNative {
+	// One ping per call, so drop the closure as it fires.
+	static function pingTrampoline(host:CStr, milliseconds:F32, user:VoidStar):Void {
+		final id = Native.fromUser(user);
+		final cb = Asset.pings.get(id);
+		if (cb == null)
+			return;
+		Asset.pings.remove(id);
+		try
+			cb(#if cpp host.toString() #else Raw.str(host) #end, milliseconds)
+		catch (e:haxe.Exception)
+			Wgr.report("an asset ping callback", e);
+	}
+
+	#if cpp
 	static function fetchTrampoline(request:WgrHandle, url:ConstCharStar, destPath:ConstCharStar,
 			user:VoidStar):Void {
-		if (fetcher == null) { // setFetcher(null): fail it, or the task waits for ever
+		if (Asset.fetcher == null) { // setFetcher(null): fail it, or the task waits for ever
 			Raw.wgr_asset_fetch_done(request, false);
 			return;
 		}
 		try
-			fetcher((request : Handle), url.toString(), destPath.toString())
+			Asset.fetcher((request : Handle), url.toString(), destPath.toString())
 		catch (e:haxe.Exception) {
 			Wgr.report('the asset fetcher for "${url.toString()}"', e);
 			Raw.wgr_asset_fetch_done(request, false);
@@ -483,10 +492,10 @@ class Asset {
 	// One callback per task, then the task is gone — so drop the closures here.
 	static function finish(user:VoidStar, path:ConstCharStar, success:Bool):Void {
 		final id = Native.fromUser(user);
-		final entry = pending.get(id);
+		final entry = Asset.pending.get(id);
 		if (entry == null)
 			return;
-		pending.remove(id);
+		Asset.pending.remove(id);
 		final cb = success ? entry.onSuccess : entry.onFailure;
 		if (cb == null)
 			return;

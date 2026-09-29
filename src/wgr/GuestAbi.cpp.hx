@@ -59,7 +59,7 @@ class GuestAbi {
 	static function installOps():Void {
 		opsInstalled = true;
 		GuestRaw.wgr_guest_register(cpp.Callable.fromStaticFunction(initOp), cpp.Callable.fromStaticFunction(frameOp),
-			cpp.Callable.fromStaticFunction(assetOp), cpp.Callable.fromStaticFunction(shutdownOp));
+			cpp.Callable.fromStaticFunction(GuestAbiNative.assetOp), cpp.Callable.fromStaticFunction(shutdownOp));
 		GuestRaw.wgr_guest_install();
 	}
 
@@ -162,18 +162,6 @@ class GuestAbi {
 		return 0;
 	}
 
-	static function assetOp(id:cpp.UInt32, path:cpp.ConstCharStar, ok:Int):Int {
-		if (onAsset == null)
-			return 0;
-		try
-			onAsset(id, path.toString(), ok != 0)
-		catch (e:haxe.Exception) {
-			Log.error('guest: uncaught exception in asset: ${e.message}');
-			return 1;
-		}
-		return 0;
-	}
-
 	static function shutdownOp():Int {
 		if (onShutdown == null)
 			return 0;
@@ -221,4 +209,19 @@ class GuestAbi {
 	/** On desktop there is no page: `main` is the entry, so run the guest now. **/
 	public static function autostart(boot:(host:Dynamic) -> Void):Void
 		boot(null);
+}
+
+@:access(wgr.GuestAbi) @:allow(wgr.GuestAbi)
+private class GuestAbiNative {
+	static function assetOp(id:cpp.UInt32, path:cpp.ConstCharStar, ok:Int):Int {
+		if (GuestAbi.onAsset == null)
+			return 0;
+		try
+			GuestAbi.onAsset(id, path.toString(), ok != 0)
+		catch (e:haxe.Exception) {
+			Log.error('guest: uncaught exception in asset: ${e.message}');
+			return 1;
+		}
+		return 0;
+	}
 }

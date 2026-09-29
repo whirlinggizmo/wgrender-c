@@ -42,10 +42,14 @@ abstract Shape2D(Handle) from Handle to Handle {
 
 	/** One part of the transform, leaving the others as they are. Where the pivot goes. **/
 	public static overload extern inline function setPosition(shape2D:Shape2D, value:Vec2):Bool
-		return Raw.wgr_shape2d_set_position(shape2D, value.x, value.y);
+		return setPositionRaw(shape2D, value.x, value.y);
 
 	/** The same, without a `Vec2`. **/
 	public static overload extern inline function setPosition(shape2D:Shape2D, x:Float, y:Float):Bool
+		return setPositionRaw(shape2D, x, y);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setPositionRaw(shape2D:Shape2D, x:Float, y:Float):Bool
 		return Raw.wgr_shape2d_set_position(shape2D, x, y);
 
 	/** Radians around the pivot; positive turns clockwise, since y points down. **/
@@ -54,10 +58,14 @@ abstract Shape2D(Handle) from Handle to Handle {
 
 	/** Multiplies the size. A negative component flips it on that axis. **/
 	public static overload extern inline function setScale(shape2D:Shape2D, value:Vec2):Bool
-		return Raw.wgr_shape2d_set_scale(shape2D, value.x, value.y);
+		return setScaleRaw(shape2D, value.x, value.y);
 
 	/** The same, without a `Vec2`. **/
 	public static overload extern inline function setScale(shape2D:Shape2D, x:Float, y:Float):Bool
+		return setScaleRaw(shape2D, x, y);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setScaleRaw(shape2D:Shape2D, x:Float, y:Float):Bool
 		return Raw.wgr_shape2d_set_scale(shape2D, x, y);
 
 	/** Where the pivot is, as last set. **/
@@ -81,10 +89,14 @@ abstract Shape2D(Handle) from Handle to Handle {
 		ignore it.
 	**/
 	public static overload extern inline function setPivot(shape2D:Shape2D, pivot:Vec2):Bool
-		return Raw.wgr_shape2d_set_pivot(shape2D, pivot.x, pivot.y);
+		return setPivotRaw(shape2D, pivot.x, pivot.y);
 
 	/** The same, without a `Vec2`. **/
 	public static overload extern inline function setPivot(shape2D:Shape2D, x:Float, y:Float):Bool
+		return setPivotRaw(shape2D, x, y);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setPivotRaw(shape2D:Shape2D, x:Float, y:Float):Bool
 		return Raw.wgr_shape2d_set_pivot(shape2D, x, y);
 
 	/** The pivot in effect: before `setPivot`, the kind's own origin -- (0, 0) for a rectangle, (0.5, 0.5) for a circle. **/
@@ -151,10 +163,16 @@ abstract Shape2D(Handle) from Handle to Handle {
 	/** Every corner rounded the same. **/
 	public static overload extern inline function drawRoundedRectangle(x:Float, y:Float, width:Float, height:Float,
 			radius:Float, color:Color):Void
-		Raw.wgr_shape2d_draw_rounded_rectangle(x, y, width, height, radius, radius, radius, radius, color);
+		drawRoundedRectangleRaw(x, y, width, height, radius, radius, radius, radius, color);
 
 	/** Corner radii clockwise from the top left. **/
 	public static overload extern inline function drawRoundedRectangle(x:Float, y:Float, width:Float, height:Float,
+			topLeft:Float, topRight:Float, bottomRight:Float, bottomLeft:Float, color:Color):Void
+		drawRoundedRectangleRaw(x, y, width, height, topLeft, topRight, bottomRight, bottomLeft,
+			color);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function drawRoundedRectangleRaw(x:Float, y:Float, width:Float, height:Float,
 			topLeft:Float, topRight:Float, bottomRight:Float, bottomLeft:Float, color:Color):Void
 		Raw.wgr_shape2d_draw_rounded_rectangle(x, y, width, height, topLeft, topRight, bottomRight, bottomLeft,
 			color);

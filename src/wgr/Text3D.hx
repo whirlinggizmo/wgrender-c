@@ -80,18 +80,26 @@ abstract Text3D(Handle) from Handle to Handle {
 
 	/** One part of the transform, leaving the others as they are. **/
 	public static overload extern inline function setPosition(text3D:Text3D, value:Vec3):Bool
-		return Raw.wgr_text3d_set_position(text3D, value.x, value.y, value.z);
+		return setPositionRaw(text3D, value.x, value.y, value.z);
 
 	/** The same, without a `Vec3`. **/
 	public static overload extern inline function setPosition(text3D:Text3D, x:Float, y:Float, z:Float):Bool
+		return setPositionRaw(text3D, x, y, z);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setPositionRaw(text3D:Text3D, x:Float, y:Float, z:Float):Bool
 		return Raw.wgr_text3d_set_position(text3D, x, y, z);
 
 	/** Radians. **/
 	public static overload extern inline function setRotation(text3D:Text3D, value:Vec3):Bool
-		return Raw.wgr_text3d_set_rotation(text3D, value.x, value.y, value.z);
+		return setRotationRaw(text3D, value.x, value.y, value.z);
 
 	/** The same, without a `Vec3`. **/
 	public static overload extern inline function setRotation(text3D:Text3D, x:Float, y:Float, z:Float):Bool
+		return setRotationRaw(text3D, x, y, z);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setRotationRaw(text3D:Text3D, x:Float, y:Float, z:Float):Bool
 		return Raw.wgr_text3d_set_rotation(text3D, x, y, z);
 
 	/** Where it is, as last set. **/

@@ -148,7 +148,7 @@ abstract Scene(Handle) from Handle to Handle {
 		Raw.wgr_scene_destroy(scene);
 
 	@:allow(wgr)
-	static function toPickResult(r:#if cpp CPickResult #else PickResult #end):PickResult {
+	static extern inline function toPickResult(r:#if cpp CPickResult #else PickResult #end):PickResult {
 		#if cpp
 		return new PickResult(r.hit, (r.handle : Int), r.distance, Vec3.of(r.point_local), Vec3.of(r.point_world),
 			Vec3.of(r.normal_local), Vec3.of(r.normal_world));

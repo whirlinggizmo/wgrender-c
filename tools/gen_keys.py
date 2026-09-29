@@ -64,7 +64,7 @@ enum abstract Key(Int) from Int to Int {{
 
 	#if cpp
 	/** C++ needs the cast: the header says `wgr_keycode_t`, not `int`. **/
-	@:to inline function toRaw():CKeycode
+	@:to extern inline function toRaw():CKeycode
 		return untyped __cpp__("(wgr_keycode_t)({{0}})", this);
 	#end
 }}

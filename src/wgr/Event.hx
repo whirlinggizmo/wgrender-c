@@ -57,7 +57,7 @@ class Event {
 	}
 
 	/** Fire `name`. Returns how many listeners ran. **/
-	public static inline function emit(name:String, ?payload:VoidStar):Int
+	public static extern inline function emit(name:String, ?payload:VoidStar):Int
 		return Raw.wgr_event_emit(name, payload == null ? Native.nullPtr() : payload);
 
 	static function register(name:String, listener:() -> Void, once:Bool):EventListener {

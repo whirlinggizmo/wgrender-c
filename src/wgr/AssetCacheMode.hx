@@ -32,7 +32,7 @@ enum abstract AssetCacheMode(Int) to Int {
 
 	#if cpp
 	/** C++ needs the cast: the header says `wgr_asset_cache_mode_t`, not `int`. **/
-	@:to inline function toRaw():CAssetCacheMode
+	@:to extern inline function toRaw():CAssetCacheMode
 		return untyped __cpp__("(wgr_asset_cache_mode_t)({0})", this);
 	#end
 }

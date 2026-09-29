@@ -66,25 +66,37 @@ abstract Shape3D(Handle) from Handle to Handle {
 
 	/** One part of the transform, leaving the others as they are. **/
 	public static overload extern inline function setPosition(shape3D:Shape3D, value:Vec3):Bool
-		return Raw.wgr_shape3d_set_position(shape3D, value.x, value.y, value.z);
+		return setPositionRaw(shape3D, value.x, value.y, value.z);
 
 	/** The same, without a `Vec3`. **/
 	public static overload extern inline function setPosition(shape3D:Shape3D, x:Float, y:Float, z:Float):Bool
+		return setPositionRaw(shape3D, x, y, z);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setPositionRaw(shape3D:Shape3D, x:Float, y:Float, z:Float):Bool
 		return Raw.wgr_shape3d_set_position(shape3D, x, y, z);
 
 	/** Radians. **/
 	public static overload extern inline function setRotation(shape3D:Shape3D, value:Vec3):Bool
-		return Raw.wgr_shape3d_set_rotation(shape3D, value.x, value.y, value.z);
+		return setRotationRaw(shape3D, value.x, value.y, value.z);
 
 	/** The same, without a `Vec3`. **/
 	public static overload extern inline function setRotation(shape3D:Shape3D, x:Float, y:Float, z:Float):Bool
+		return setRotationRaw(shape3D, x, y, z);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setRotationRaw(shape3D:Shape3D, x:Float, y:Float, z:Float):Bool
 		return Raw.wgr_shape3d_set_rotation(shape3D, x, y, z);
 
 	public static overload extern inline function setScale(shape3D:Shape3D, value:Vec3):Bool
-		return Raw.wgr_shape3d_set_scale(shape3D, value.x, value.y, value.z);
+		return setScaleRaw(shape3D, value.x, value.y, value.z);
 
 	/** The same, without a `Vec3`. **/
 	public static overload extern inline function setScale(shape3D:Shape3D, x:Float, y:Float, z:Float):Bool
+		return setScaleRaw(shape3D, x, y, z);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setScaleRaw(shape3D:Shape3D, x:Float, y:Float, z:Float):Bool
 		return Raw.wgr_shape3d_set_scale(shape3D, x, y, z);
 
 	/** Where it is, as last set. **/

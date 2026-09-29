@@ -12,7 +12,7 @@ enum abstract LogLevel(Int) to Int {
 
 	#if cpp
 	/** C++ needs the cast: the header says `wgr_log_level_t`, not `int`. **/
-	@:to inline function toRaw():CLogLevel
+	@:to extern inline function toRaw():CLogLevel
 		return untyped __cpp__("(wgr_log_level_t)({0})", this);
 	#end
 }

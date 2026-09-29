@@ -28,7 +28,7 @@ enum abstract Tonemap(Int) to Int {
 
 	#if cpp
 	/** C++ needs the cast: the header says `wgr_tonemap_t`, not `int`. **/
-	@:to inline function toRaw():CTonemap
+	@:to extern inline function toRaw():CTonemap
 		return untyped __cpp__("(wgr_tonemap_t)({0})", this);
 	#end
 }

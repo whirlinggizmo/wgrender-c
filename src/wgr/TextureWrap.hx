@@ -14,7 +14,7 @@ enum abstract TextureWrap(Int) to Int {
 
 	#if cpp
 	/** C++ needs the cast: the header says `wgr_texture_wrap_t`, not `int`. **/
-	@:to inline function toRaw():CTextureWrap
+	@:to extern inline function toRaw():CTextureWrap
 		return untyped __cpp__("(wgr_texture_wrap_t)({0})", this);
 	#end
 }

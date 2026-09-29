@@ -72,10 +72,14 @@ abstract Light(Handle) from Handle to Handle {
 
 	/** Point and spot. **/
 	public static overload extern inline function setPosition(light:Light, value:Vec3):Bool
-		return Raw.wgr_light_set_position(light, value.x, value.y, value.z);
+		return setPositionRaw(light, value.x, value.y, value.z);
 
 	/** The same, without a `Vec3`. **/
 	public static overload extern inline function setPosition(light:Light, x:Float, y:Float, z:Float):Bool
+		return setPositionRaw(light, x, y, z);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setPositionRaw(light:Light, x:Float, y:Float, z:Float):Bool
 		return Raw.wgr_light_set_position(light, x, y, z);
 
 	/** Point and spot; 0 is unlimited, the default. Below 0 is held as 0. **/

@@ -17,7 +17,7 @@ enum abstract Projection(Int) to Int {
 
 	#if cpp
 	/** C++ needs the cast: the header says `wgr_camera3d_projection_t`, not `int`. **/
-	@:to inline function toRaw():CCamera3DProjection
+	@:to extern inline function toRaw():CCamera3DProjection
 		return untyped __cpp__("(wgr_camera3d_projection_t)({0})", this);
 	#end
 }

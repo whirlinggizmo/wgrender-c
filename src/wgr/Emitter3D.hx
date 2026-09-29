@@ -33,18 +33,26 @@ abstract Emitter3D(Handle) from Handle to Handle {
 
 	/** Where new particles appear; the ones alive stay where they were born. **/
 	public static overload extern inline function setPosition(emitter3D:Emitter3D, position:Vec3):Bool
-		return Raw.wgr_emitter3d_set_position(emitter3D, position.x, position.y, position.z);
+		return setPositionRaw(emitter3D, position.x, position.y, position.z);
 
 	/** The same, without a `Vec3`. **/
 	public static overload extern inline function setPosition(emitter3D:Emitter3D, x:Float, y:Float, z:Float):Bool
+		return setPositionRaw(emitter3D, x, y, z);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setPositionRaw(emitter3D:Emitter3D, x:Float, y:Float, z:Float):Bool
 		return Raw.wgr_emitter3d_set_position(emitter3D, x, y, z);
 
 	/** Move without the trail a `setPosition` sweep would leave. **/
 	public static overload extern inline function jump(emitter3D:Emitter3D, position:Vec3):Bool
-		return Raw.wgr_emitter3d_jump(emitter3D, position.x, position.y, position.z);
+		return jumpRaw(emitter3D, position.x, position.y, position.z);
 
 	/** The same, without a `Vec3`. **/
 	public static overload extern inline function jump(emitter3D:Emitter3D, x:Float, y:Float, z:Float):Bool
+		return jumpRaw(emitter3D, x, y, z);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function jumpRaw(emitter3D:Emitter3D, x:Float, y:Float, z:Float):Bool
 		return Raw.wgr_emitter3d_jump(emitter3D, x, y, z);
 
 	/** New particles appear anywhere in this box around the position. **/

@@ -35,7 +35,7 @@ class Vec3 {
 		read it out of the heap, so there is nothing left to do.
 	**/
 	@:allow(wgr)
-	static inline function of(v:#if cpp CVec3 #else Vec3 #end):Vec3
+	static extern inline function of(v:#if cpp CVec3 #else Vec3 #end):Vec3
 		#if cpp
 		return new Vec3(v.x, v.y, v.z);
 		#else

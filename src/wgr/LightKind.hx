@@ -18,7 +18,7 @@ enum abstract LightKind(Int) to Int {
 
 	#if cpp
 	/** C++ needs the cast: the header says `wgr_light_type_t`, not `int`. **/
-	@:to inline function toRaw():CLightType
+	@:to extern inline function toRaw():CLightType
 		return untyped __cpp__("(wgr_light_type_t)({0})", this);
 	#end
 }

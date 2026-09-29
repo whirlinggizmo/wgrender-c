@@ -33,7 +33,7 @@ class Vec2 {
 		read it out of the heap, so there is nothing left to do.
 	**/
 	@:allow(wgr)
-	static inline function of(v:#if cpp CVec2 #else Vec2 #end):Vec2
+	static extern inline function of(v:#if cpp CVec2 #else Vec2 #end):Vec2
 		#if cpp
 		return new Vec2(v.x, v.y);
 		#else

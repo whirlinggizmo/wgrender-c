@@ -37,18 +37,30 @@ class Member:
 
 
 def members(root):
-    """Every function in src/wgr, each with the C calls its own body makes."""
+    """Every function in src/wgr, each with the C calls its body makes: its own, and
+    those of the private `...Raw` members of its type it calls. An overload makes its C
+    call through one (`setPositionRaw`: README, "Calling it from cppia"), and it's the
+    overload a refusal has to be documented on, and the overload that is the call's
+    one name."""
     out = []
     for f in sorted((Path(root) / 'src/wgr').glob('*.hx')):
         text = f.read_text(encoding='utf-8')
         found = list(FUNCTION.finditer(text))
+        here, bodies = [], []
         for i, m in enumerate(found):
             end = found[i + 1].start() if i + 1 < len(found) else len(text)
-            out.append(Member(
+            here.append(Member(
                 module=f.name.split('.')[0], name=m.group(4),
                 public='public' in m.group(3).split(), doc=m.group(1) or '',
                 calls=set(RAW_CALL.findall(text, m.end(), end)),
                 file=f.name, line=text.count('\n', 0, m.start(4)) + 1))
+            bodies.append(text[m.end():end])
+        helpers = {m.name: m.calls for m in here if not m.public and m.name.endswith('Raw') and m.calls}
+        for m, body in zip(here, bodies):
+            for name, calls in helpers.items():
+                if name != m.name and re.search(r'(?<![.\w])' + name + r'\s*\(', body):
+                    m.calls |= calls
+        out += here
     return out
 
 

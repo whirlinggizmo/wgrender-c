@@ -34,19 +34,19 @@ abstract KeyboardState(#if cpp CKeyboardState #else Int #end)
 		#end
 
 	/** Went down this frame. **/
-	public inline function isPressed(key:Key):Bool
+	public extern inline function isPressed(key:Key):Bool
 		return get(key) == Pressed;
 
 	/** Held, including the frame it went down. **/
-	public inline function isDown(key:Key):Bool
+	public extern inline function isDown(key:Key):Bool
 		return get(key) == Pressed || get(key) == Down;
 
 	/** Went up this frame. **/
-	public inline function isReleased(key:Key):Bool
+	public extern inline function isReleased(key:Key):Bool
 		return get(key) == Released;
 
 	/** One of this frame's keys, `0 <= index < numPressedKeys`, oldest first. **/
-	public inline function getPressedKey(index:Int):Key
+	public extern inline function getPressedKey(index:Int):Key
 		#if cpp
 		return this.pressed_keys[index];
 		#else
@@ -54,7 +54,7 @@ abstract KeyboardState(#if cpp CKeyboardState #else Int #end)
 		#end
 
 	/** One of this frame's characters as a codepoint, `0 <= index < numPressedChars`. **/
-	public inline function getPressedChar(index:Int):Int
+	public extern inline function getPressedChar(index:Int):Int
 		#if cpp
 		return this.pressed_chars[index];
 		#else
@@ -65,7 +65,7 @@ abstract KeyboardState(#if cpp CKeyboardState #else Int #end)
 		This frame's characters as one string — what to append to a text field.
 		Codepoints outside the basic plane are left out rather than split in half.
 	**/
-	public function typedText():String {
+	public extern inline function typedText():String {
 		final n = numPressedChars;
 		if (n == 0)
 			return "";
@@ -78,28 +78,28 @@ abstract KeyboardState(#if cpp CKeyboardState #else Int #end)
 		return out.toString();
 	}
 
-	inline function get_pressedKey():Key
+	extern inline function get_pressedKey():Key
 		#if cpp
 		return this.pressed_key;
 		#else
 		return KeyboardStateLayout.read(this, KeyboardStateLayout.pressedKey);
 		#end
 
-	inline function get_pressedChar():Int
+	extern inline function get_pressedChar():Int
 		#if cpp
 		return this.pressed_char;
 		#else
 		return KeyboardStateLayout.read(this, KeyboardStateLayout.pressedChar);
 		#end
 
-	inline function get_numPressedKeys():Int
+	extern inline function get_numPressedKeys():Int
 		#if cpp
 		return this.num_pressed_keys;
 		#else
 		return KeyboardStateLayout.read(this, KeyboardStateLayout.numPressedKeys);
 		#end
 
-	inline function get_numPressedChars():Int
+	extern inline function get_numPressedChars():Int
 		#if cpp
 		return this.num_pressed_chars;
 		#else

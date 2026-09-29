@@ -37,10 +37,14 @@ abstract Sprite2D(Handle) from Handle to Handle {
 
 	/** One part of the transform, leaving the others as they are. Where the pivot goes, in logical pixels. **/
 	public static overload extern inline function setPosition(sprite2D:Sprite2D, value:Vec2):Bool
-		return Raw.wgr_sprite2d_set_position(sprite2D, value.x, value.y);
+		return setPositionRaw(sprite2D, value.x, value.y);
 
 	/** The same, without a `Vec2`. **/
 	public static overload extern inline function setPosition(sprite2D:Sprite2D, x:Float, y:Float):Bool
+		return setPositionRaw(sprite2D, x, y);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setPositionRaw(sprite2D:Sprite2D, x:Float, y:Float):Bool
 		return Raw.wgr_sprite2d_set_position(sprite2D, x, y);
 
 	/** Radians around the pivot; positive turns clockwise, since y points down. **/
@@ -49,10 +53,14 @@ abstract Sprite2D(Handle) from Handle to Handle {
 
 	/** Multiplies the size. A negative component flips it on that axis. **/
 	public static overload extern inline function setScale(sprite2D:Sprite2D, value:Vec2):Bool
-		return Raw.wgr_sprite2d_set_scale(sprite2D, value.x, value.y);
+		return setScaleRaw(sprite2D, value.x, value.y);
 
 	/** The same, without a `Vec2`. **/
 	public static overload extern inline function setScale(sprite2D:Sprite2D, x:Float, y:Float):Bool
+		return setScaleRaw(sprite2D, x, y);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setScaleRaw(sprite2D:Sprite2D, x:Float, y:Float):Bool
 		return Raw.wgr_sprite2d_set_scale(sprite2D, x, y);
 
 	/** Where the pivot is, as last set. **/
@@ -129,11 +137,15 @@ abstract Sprite2D(Handle) from Handle to Handle {
 		bottom-right. Default (0.5, 0.5), the center.
 	**/
 	public static overload extern inline function setPivot(sprite2D:Sprite2D, x:Float, y:Float):Bool
-		return Raw.wgr_sprite2d_set_pivot(sprite2D, x, y);
+		return setPivotRaw(sprite2D, x, y);
 
 	/** The same, as a `Vec2`. **/
 	public static overload extern inline function setPivot(sprite2D:Sprite2D, pivot:Vec2):Bool
-		return Raw.wgr_sprite2d_set_pivot(sprite2D, pivot.x, pivot.y);
+		return setPivotRaw(sprite2D, pivot.x, pivot.y);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setPivotRaw(sprite2D:Sprite2D, x:Float, y:Float):Bool
+		return Raw.wgr_sprite2d_set_pivot(sprite2D, x, y);
 
 	/** The pivot, as set; (0.5, 0.5) by default. **/
 	public static inline function getPivot(sprite2D:Sprite2D):Vec2

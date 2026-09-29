@@ -16,7 +16,7 @@ enum abstract MaterialShading(Int) from Int to Int {
 
 	#if cpp
 	/** C++ needs the cast: the header says `wgr_material_shading_t`, not `int`. **/
-	@:to inline function toRaw():CMaterialShading
+	@:to extern inline function toRaw():CMaterialShading
 		return untyped __cpp__("(wgr_material_shading_t)({0})", this);
 	#end
 }

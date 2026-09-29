@@ -38,10 +38,14 @@ abstract Text2D(Handle) from Handle to Handle {
 		return Raw.wgr_text2d_set_text(text2D, value); // wgrender copies it;
 
 	public static overload extern inline function setPosition(text2D:Text2D, value:Vec2):Bool
-		return Raw.wgr_text2d_set_position(text2D, value.x, value.y);
+		return setPositionRaw(text2D, value.x, value.y);
 
 	/** The same, without a `Vec2`. **/
 	public static overload extern inline function setPosition(text2D:Text2D, x:Float, y:Float):Bool
+		return setPositionRaw(text2D, x, y);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setPositionRaw(text2D:Text2D, x:Float, y:Float):Bool
 		return Raw.wgr_text2d_set_position(text2D, x, y);
 
 	/** Where it is, as last set. **/

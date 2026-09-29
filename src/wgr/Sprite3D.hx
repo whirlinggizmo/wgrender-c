@@ -87,25 +87,37 @@ abstract Sprite3D(Handle) from Handle to Handle {
 
 	/** One part of the transform, leaving the others as they are. **/
 	public static overload extern inline function setPosition(sprite3D:Sprite3D, value:Vec3):Bool
-		return Raw.wgr_sprite3d_set_position(sprite3D, value.x, value.y, value.z);
+		return setPositionRaw(sprite3D, value.x, value.y, value.z);
 
 	/** The same, without a `Vec3`. **/
 	public static overload extern inline function setPosition(sprite3D:Sprite3D, x:Float, y:Float, z:Float):Bool
+		return setPositionRaw(sprite3D, x, y, z);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setPositionRaw(sprite3D:Sprite3D, x:Float, y:Float, z:Float):Bool
 		return Raw.wgr_sprite3d_set_position(sprite3D, x, y, z);
 
 	/** Radians. **/
 	public static overload extern inline function setRotation(sprite3D:Sprite3D, value:Vec3):Bool
-		return Raw.wgr_sprite3d_set_rotation(sprite3D, value.x, value.y, value.z);
+		return setRotationRaw(sprite3D, value.x, value.y, value.z);
 
 	/** The same, without a `Vec3`. **/
 	public static overload extern inline function setRotation(sprite3D:Sprite3D, x:Float, y:Float, z:Float):Bool
+		return setRotationRaw(sprite3D, x, y, z);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setRotationRaw(sprite3D:Sprite3D, x:Float, y:Float, z:Float):Bool
 		return Raw.wgr_sprite3d_set_rotation(sprite3D, x, y, z);
 
 	public static overload extern inline function setScale(sprite3D:Sprite3D, value:Vec3):Bool
-		return Raw.wgr_sprite3d_set_scale(sprite3D, value.x, value.y, value.z);
+		return setScaleRaw(sprite3D, value.x, value.y, value.z);
 
 	/** The same, without a `Vec3`. **/
 	public static overload extern inline function setScale(sprite3D:Sprite3D, x:Float, y:Float, z:Float):Bool
+		return setScaleRaw(sprite3D, x, y, z);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setScaleRaw(sprite3D:Sprite3D, x:Float, y:Float, z:Float):Bool
 		return Raw.wgr_sprite3d_set_scale(sprite3D, x, y, z);
 
 	/** The sprite takes its own reference; a none texture leaves it with nothing to draw. **/
@@ -131,11 +143,15 @@ abstract Sprite3D(Handle) from Handle to Handle {
 		what a sprite standing on the ground wants.
 	**/
 	public static overload extern inline function setPivot(sprite3D:Sprite3D, x:Float, y:Float):Bool
-		return Raw.wgr_sprite3d_set_pivot(sprite3D, x, y);
+		return setPivotRaw(sprite3D, x, y);
 
 	/** The same, as a `Vec2`. **/
 	public static overload extern inline function setPivot(sprite3D:Sprite3D, pivot:Vec2):Bool
-		return Raw.wgr_sprite3d_set_pivot(sprite3D, pivot.x, pivot.y);
+		return setPivotRaw(sprite3D, pivot.x, pivot.y);
+
+	// the C call, which the overloads forward to (README, "Calling it from cppia")
+	static inline function setPivotRaw(sprite3D:Sprite3D, x:Float, y:Float):Bool
+		return Raw.wgr_sprite3d_set_pivot(sprite3D, x, y);
 
 	/** The pivot, as set; (0.5, 0.5) by default. **/
 	public static inline function getPivot(sprite3D:Sprite3D):Vec2

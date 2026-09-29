@@ -17,24 +17,24 @@ import cpp.ConstCharStar;
 @:cppFileCode('#include <stdint.h>')
 class Native {
 	/** A `void *` / `const char *` null that survives hxcpp's type checking. **/
-	public static inline function nullPtr():VoidStar {
+	public static extern inline function nullPtr():VoidStar {
 		return untyped __cpp__("nullptr");
 	}
 
-	public static inline function nullStr():ConstCharStar {
+	public static extern inline function nullStr():ConstCharStar {
 		return untyped __cpp__("(const char *)nullptr");
 	}
 
 	/** wgrender's callbacks carry a `void *`; we carry a table key in it. **/
-	public static inline function toUser(id:Int):VoidStar {
+	public static extern inline function toUser(id:Int):VoidStar {
 		return untyped __cpp__("(void *)(intptr_t)({0})", id);
 	}
 
-	public static inline function fromUser(user:VoidStar):Int {
+	public static extern inline function fromUser(user:VoidStar):Int {
 		return untyped __cpp__("(int)(intptr_t)({0})", user);
 	}
 
-	public static inline function cstr(s:String):ConstCharStar {
+	public static extern inline function cstr(s:String):ConstCharStar {
 		return s == null ? nullStr() : ConstCharStar.fromString(s);
 	}
 }
@@ -44,21 +44,21 @@ class Native {
 /** The js half: on wasm a pointer is an Int, so none of this has work to do. **/
 @:noCompletion
 class Native {
-	public static inline function nullPtr():VoidStar
+	public static extern inline function nullPtr():VoidStar
 		return 0;
 
-	public static inline function nullStr():CStr
+	public static extern inline function nullStr():CStr
 		return 0;
 
 	/** The table key rides in the `void *` as itself. **/
-	public static inline function toUser(id:Int):VoidStar
+	public static extern inline function toUser(id:Int):VoidStar
 		return id;
 
-	public static inline function fromUser(user:VoidStar):Int
+	public static extern inline function fromUser(user:VoidStar):Int
 		return user;
 
 	/** `Raw.cstr` does this on js, into the op's arena; this is for a shared signature. **/
-	public static inline function cstr(s:String):CStr
+	public static extern inline function cstr(s:String):CStr
 		return Raw.cstr(s);
 }
 #end
