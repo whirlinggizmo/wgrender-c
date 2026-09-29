@@ -39,6 +39,9 @@ using StringTools;
 	Options, as defines:
 	- `-D wgr-host=full` exports the whole binding and skips the listing compile. A
 	  fallback, and the way to rule this out when something misbehaves.
+	- `-D wgr-host=none` leaves the host and page as they are: nothing built, linked or
+	  copied. For a guest rebuilt while a page runs it, whose host is already loaded (a
+	  hot reload, say).
 	- `-D wgr-build-dir=<dir>` where the linked host is cached (default
 	  `build/web/js-<variant>/webhost`, e.g. `build/web/js-webgl2-nothreads/webhost`: the
 	  wg* family layout, whirlinggizmo/.github CONVENTIONS.md).
@@ -84,6 +87,8 @@ class WebHost {
 		#if macro
 		if (Context.defined(LISTING))
 			return; // we are the listing compile this macro spawned
+		if (define("wgr-host", "") == "none")
+			return; // the host is already loaded: only the guest is wanted
 		if (!Context.defined("js")) {
 			Sys.println("WebHost: not a JS build, nothing to do");
 			return;
