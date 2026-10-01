@@ -165,6 +165,14 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
       reflection. Where nothing parses it, raise it rather than scan.
 - [ ] `docs/HISTORY.md`: what's done moves out of TASKS.md and the PLAN files, so they
       show only what's current.
+- [ ] Build names as libwgt's: platform is what a consumer links against, with the
+      architecture (`linux-x64`, `macos-arm64`, `windows-x64-msvc`,
+      `windows-x64-mingw`, `wasm32`); the variant names its config always, then
+      features (`debug-headless`, `release-threads`, `debug-webgpu`); presets
+      `<platform>-<variant>`; `out/<platform>/<variant>/` an install prefix
+      (`include/`, `lib/`, staged by `cmake --install`, emptied first); work in
+      `build/<preset>/`. A feature adds something, so the web build's default becomes
+      no threads, with `-threads` to opt in. The org's CONVENTIONS.md to match.
 - [ ] Hidden symbol visibility: only `wgr_*` exported.
 - [ ] Pixel tests: frames read back in headless Chrome and in a GL window on Xvfb; a
       desktop check of every example with screenshots.
