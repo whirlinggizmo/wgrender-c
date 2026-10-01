@@ -9,16 +9,15 @@
         "wasm",
         "sokol"
     ],
-    "description": "Haxe bindings for wgrender: one API over hxcpp (native and wasm) and JS, where wgrender is a wasm host and the game a guest module. Run `haxelib run wgrender-hx setup` once to build the wgrender it vendors.",
+    "description": "Haxe bindings for wgrender: one API over hxcpp (native and wasm) and JS, where wgrender is a wasm host and the game a guest module. Install from wgrender-c's bindings/haxe.",
     "version": "0.1.0",
     "releasenote": "First cut: the slice of wgrender the simple example uses, on both targets.",
     "classPath": "src",
-    "url": "https://github.com/whirlinggizmo/wgrender-hx",
+    "url": "https://github.com/whirlinggizmo/wgrender-c",
     "contributors": [
         "robknopf"
     ],
     "dependencies": {
         "hxcpp": ""
-    },
-    "main": "Run"
+    }
 }

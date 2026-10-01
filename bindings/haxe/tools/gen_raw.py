@@ -2,10 +2,8 @@
 """Generate the whole C surface — src/wgr/impl/Raw.cpp.hx and Raw.js.hx — from
 wgrender's public headers.
 
-    tools/gen_raw.py [WGRENDER_DIR]         write both files (tools/wgrpath.py says
-                                            where wgrender is looked for)
-    tools/gen_raw.py --check [WGRENDER_DIR]  say whether they are current, and exit
-                                            non-zero if not
+    tools/gen_raw.py          write both files
+    tools/gen_raw.py --check  say whether they are current, and exit non-zero if not
 
 Both files are written whole; neither is ever patched. Run it when wgrender's API
 moves, read what it reports, and rebuild.
@@ -36,14 +34,13 @@ import subprocess
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from wgrpath import find  # noqa: E402
+from wgrpath import WGRENDER  # noqa: E402
 import cli  # noqa: E402
 
 if __name__ == '__main__':
-    cli.parse(__doc__, ('--check',), positional=1)
+    cli.parse(__doc__, ('--check',), positional=0)
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-WGRENDER = find()
 OUT = ROOT / 'src/wgr/impl'
 
 # ---------------------------------------------------------------- the spec ---
@@ -397,10 +394,9 @@ def emit_cpp(enums, structs, functions):
         "// that touches wgrender at all reaches this class, so -dce full cannot strip it\n"
         "// out from under the build the way it can any class in the API layer.\n"
         "//\n"
-        "// project/Build.xml compiles wgrender's sources in, from the submodule under\n"
-        "// project/lib or -D WGRENDER_DIR, with whatever toolchain hxcpp chose; every build\n"
-        "// here goes that way. -D WGR_BUILD_XML=<file> replaces it outright, for a build\n"
-        "// that needs more than a different wgrender.\n"
+        "// project/Build.xml compiles wgrender's sources in, from the repository this\n"
+        "// binding lives in, with whatever toolchain hxcpp chose; every build here goes\n"
+        "// that way. -D WGR_BUILD_XML=<file> replaces it outright.\n"
         "@:buildXml('\n"
         '\t<include name="${WGR_BUILD_XML}" if="WGR_BUILD_XML" />\n'
         '\t<include name="${haxelib:wgrender-hx}/project/Build.xml" unless="WGR_BUILD_XML" />\n'
@@ -609,30 +605,7 @@ def check():
         print('  run tools/gen_raw.py')
         return 1
     print(f'wgrender at {commit}, {count} headers: the binding is current ({digest})')
-    return check_submodule(digest)
-
-
-def check_submodule(digest):
-    """The vendored wgrender has to be the one the binding was generated from.
-
-    A checkout works against the sibling wgrender-c and never looks at the submodule,
-    so regenerating against a newer wgrender leaves the pin behind without a word --
-    and then the first person to `haxelib git` this gets a STALE binding on their
-    first build, because an install has only the submodule. That happened, and this is
-    so it cannot happen quietly again: the check runs on the dev path, where it can be
-    fixed, rather than on the install path, where it cannot.
-    """
-    vendored = ROOT / 'project/lib/wgrender-c'
-    if not (vendored / 'include/wgr.h').exists() or vendored.resolve() == WGRENDER.resolve():
-        return 0  # no submodule checked out, or it is what was just checked
-    theirs, _ = header_digest(vendored)
-    if theirs == digest:
-        return 0
-    print(f'but the vendored wgrender ({vendored.relative_to(ROOT)}) is a different one:\n'
-          f'  its headers are {theirs}, the binding was generated from {digest}\n'
-          '  an install has only this one, so it would see a STALE binding\n'
-          f'  git -C {vendored.relative_to(ROOT)} checkout <the commit the binding is for>')
-    return 1
+    return 0
 
 
 def emit_built_version():

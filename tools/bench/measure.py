@@ -225,7 +225,7 @@ def environment():
 # these is not a different wgrender; without this, committing the baseline's results,
 # or a README line, would make every binding pinned before it read as measured
 # against another one.
-NOT_WGRENDER = [':(exclude)bench', ':(exclude)docs', ':(exclude,glob)**/*.md',
+NOT_WGRENDER = [':(exclude)bench', ':(exclude)bindings', ':(exclude)docs', ':(exclude,glob)**/*.md',
                 ':(exclude)tools/benchmarks.py']
 
 
@@ -233,22 +233,12 @@ def wgrender_info(wgr_dir, source):
     """The wgrender a project was built against: the last commit that changed anything
     that can change a number (NOT_WGRENDER), and whether there were uncommitted changes
     to any of it.
-    `source` says where it came from: 'self', 'submodule', 'WGRENDER_DIR', ..."""
+    `source` says where it came from: 'self' for wgrender and its bindings."""
     git = ['git', '-C', str(wgr_dir)]
     commit = _first_line(git + ['log', '-1', '--format=%h', '--', '.'] + NOT_WGRENDER)
     dirty = bool(subprocess.run(git + ['status', '--porcelain', '--untracked-files=no', '--', '.']
                                 + NOT_WGRENDER, capture_output=True, text=True).stdout.strip())
     return {'commit': commit, 'dirty': dirty, 'source': source}
-
-
-def find_wgrender(project_root):
-    """wgrender for a binding: WGRENDER_DIR when set, else the submodule."""
-    if os.environ.get('WGRENDER_DIR'):
-        return pathlib.Path(os.environ['WGRENDER_DIR']).resolve(), 'WGRENDER_DIR'
-    sub = pathlib.Path(project_root) / 'project/lib/wgrender-c'
-    if not (sub / 'include').is_dir():
-        sys.exit(f'measure: no wgrender at {sub} (git submodule update --init, or set WGRENDER_DIR)')
-    return sub.resolve(), 'submodule'
 
 
 # --- results.json ------------------------------------------------------------

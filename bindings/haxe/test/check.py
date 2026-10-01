@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the binding against headless wgrender and assert what it gets back.
 
-    test/check.py [WGRENDER_DIR]
+    test/check.py
     test/check.py --lists      only the WebHost list guards: pure Python, for CI
 
 Headless is wgrender's own test build (-D wgr-headless: its headless flags, compiled in
@@ -43,14 +43,13 @@ import subprocess
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / 'tools'))
-from wgrpath import find, host_os  # noqa: E402
+from wgrpath import WGRENDER, host_os  # noqa: E402
 import cli  # noqa: E402
 
 if __name__ == '__main__':
-    cli.parse(__doc__, ('--lists',), positional=1)
+    cli.parse(__doc__, ('--lists',), positional=0)
 from guestbuild import check_library, desktop_variant  # noqa: E402
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-WGRENDER = find()
 HAXE = os.environ.get('HAXE', 'haxe')
 # the repo's build/<os>/<variant>/ (the wg* layout): the headless variant of this host's
 # native build, build/linux/headless or build/windows/msvc-headless
@@ -65,7 +64,7 @@ def run(cmd, **kw):
 
 def main():
     for tool in ('gen_raw.py', 'gen_keys.py', 'coverage.py', 'refusals.py', 'gen_sources.py'):
-        run([sys.executable, ROOT / 'tools' / tool, '--check', WGRENDER])
+        run([sys.executable, ROOT / 'tools' / tool, '--check'])
 
     # wgrender's sources compiled in, as every build of the binding does
     # (project/Build.xml), with its headless flags
@@ -73,7 +72,7 @@ def main():
     print('check-bindings (headless)')
     check_library()
     BUILD.mkdir(parents=True, exist_ok=True)
-    common = ['-D', f'WGRENDER_DIR={WGRENDER}', '-D', 'wgr-headless', '-D', 'HXCPP_M64',
+    common = ['-D', 'wgr-headless', '-D', 'HXCPP_M64',
               '-lib', 'wgrender-hx', '-cp', ROOT / 'test', '--main', 'CheckBindings']
     run([HAXE, *common, '--cpp', BUILD / 'cpp', '-D', 'HAXE_OUTPUT_FILE=check-bindings', '-dce', 'full'],
         cwd=ROOT)
@@ -126,7 +125,7 @@ def check_cppia():
     print('check-cppia: the whole binding, called from a cppia module')
     cppia = BUILD / 'cppia'
     cppia.mkdir(parents=True, exist_ok=True)
-    base = ['-D', f'WGRENDER_DIR={WGRENDER}', '-D', 'wgr-headless', '-D', 'HXCPP_M64',
+    base = ['-D', 'wgr-headless', '-D', 'HXCPP_M64',
             '-lib', 'wgrender-hx', '-cp', ROOT / 'test', '-dce', 'no',
             '--macro', "include('wgr', true, ['wgr.macros'])"]
     run([HAXE, *base, '--main', 'CppiaHost', '--cpp', cppia, '-D', 'HAXE_OUTPUT_FILE=check-cppia',

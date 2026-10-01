@@ -10,16 +10,21 @@ This machine's own presets (linux-*, macos-*, or windows-msvc* on Windows):
 and on Linux and macOS:
   windows-mingw           the Windows build cross-built with MinGW-w64, when it's installed
   windows-mingw-headless  its unit tests and smoke run under Wine, when there's a Wine too
+and when Haxe is installed:
+  haxe      the Haxe binding's suite (bindings/haxe/test/check.py: its generators
+            current, headless hxcpp, JS, cppia, its C)
 With --web, also (needs Emscripten, and a Chromium-based browser: Brave, Chrome,
 Chromium or Edge):
   web-webgl2, web-webgl2-nothreads, web-webgpu
                     every example built for the web and loaded in the browser
                     (tools/webcheck.py)
+  haxe-web  the Haxe examples built for the web and driven in the browser, when Haxe
+            is installed
 
 Each step is a CMake preset (CMakePresets.json), configured, built and tested: its work
-in build/<platform>/<variant>/, what it makes in out/<platform>/<variant>/; --only takes
-preset names (linux-headless,
-web-webgl2, ...). Stops at the first step that fails.
+in build/<platform>/<variant>/, what it makes in out/<platform>/<variant>/; the haxe
+steps are the binding's own scripts. --only takes step names (linux-headless,
+web-webgl2, haxe, ...). Stops at the first step that fails.
 """
 import argparse
 import shutil
@@ -35,6 +40,8 @@ import builds  # noqa: E402
 
 WEB = {'web-webgl2': ['--backend=webgl2'], 'web-webgl2-nothreads': ['--backend=webgl2', '--threads=0'],
        'web-webgpu': ['--backend=webgpu']}
+HAXE = {'haxe': [['bindings/haxe/test/check.py']],
+        'haxe-web': [['bindings/haxe/examples/build.py', 'web'], ['bindings/haxe/examples/build.py', 'drive']]}
 
 
 def steps(web):
@@ -49,9 +56,16 @@ def steps(web):
                 yield 'windows-mingw-headless', True
             else:
                 print('verify: no Wine, so the Windows build is built but not run')
+    has_haxe = shutil.which('haxe') is not None
+    if has_haxe:
+        yield 'haxe', False
+    else:
+        print('verify: no Haxe, so the Haxe binding is not checked')
     if web:
         for preset in WEB:
             yield preset, False
+        if has_haxe:
+            yield 'haxe-web', False
 
 
 def run(*cmd):
@@ -66,15 +80,18 @@ def main():
     args = ap.parse_args()
     only = set(args.only.split(',')) if args.only else None
 
-    web = args.web or (only is not None and any(s in WEB for s in only))
+    web = args.web or (only is not None and any(s in WEB or s == 'haxe-web' for s in only))
     for preset, test in steps(web):
         if only and preset not in only:
             continue
         print(f'== {preset}', flush=True)
         start = time.monotonic()
-        ok = (run('cmake', '--preset', preset) and run('cmake', '--build', '--preset', preset)
-              and (not test or run('ctest', '--preset', preset))
-              and (preset not in WEB or run(sys.executable, 'tools/webcheck.py', *WEB[preset])))
+        if preset in HAXE:
+            ok = all(run(sys.executable, *cmd) for cmd in HAXE[preset])
+        else:
+            ok = (run('cmake', '--preset', preset) and run('cmake', '--build', '--preset', preset)
+                  and (not test or run('ctest', '--preset', preset))
+                  and (preset not in WEB or run(sys.executable, 'tools/webcheck.py', *WEB[preset])))
         if not ok:
             sys.exit(f'verify: FAIL at {preset}')
         print(f'== {preset}: ok ({time.monotonic() - start:.0f}s)', flush=True)

@@ -169,10 +169,9 @@ extern class CTonemap {}
 // that touches wgrender at all reaches this class, so -dce full cannot strip it
 // out from under the build the way it can any class in the API layer.
 //
-// project/Build.xml compiles wgrender's sources in, from the submodule under
-// project/lib or -D WGRENDER_DIR, with whatever toolchain hxcpp chose; every build
-// here goes that way. -D WGR_BUILD_XML=<file> replaces it outright, for a build
-// that needs more than a different wgrender.
+// project/Build.xml compiles wgrender's sources in, from the repository this
+// binding lives in, with whatever toolchain hxcpp chose; every build here goes
+// that way. -D WGR_BUILD_XML=<file> replaces it outright.
 @:buildXml('
 	<include name="${WGR_BUILD_XML}" if="WGR_BUILD_XML" />
 	<include name="${haxelib:wgrender-hx}/project/Build.xml" unless="WGR_BUILD_XML" />

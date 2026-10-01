@@ -5,7 +5,7 @@
                                  write bench/results.json and docs/benchmarks.md
     tools/benchmarks.py --doc    only regenerate docs/benchmarks.md from the results
                                  files already there
-    tools/benchmarks.py --all    the whole refresh: the C baseline, then every sibling
+    tools/benchmarks.py --all    the whole refresh: the C baseline, then every
                                  binding's own tools/benchmarks.py, then this page
 
 Run by hand, not in CI: it drives a browser for about a minute (--all: several).
@@ -16,18 +16,11 @@ it, then --doc.
 
 A binding measures itself with its own tools/benchmarks.py, which uses this
 repository's tools/bench/ (measure.py) and writes the binding's bench/results.json.
-The doc here reads those from sibling checkouts (../wgrender-hx, ../wgrender-nim,
-../wgrender-beef) when they are there and lists the ones that are not. It builds none
-of them: --all only runs each one's own script, in the order the numbers need (the
-baseline first, since a binding's page compares against it). A binding measured on
-another machine or against another wgrender commit is flagged in the doc rather than
-left out.
-
-A binding finds this baseline the way it finds wgrender. wgrender-hx and wgrender-nim
-use this checkout when it is their sibling, so they compare against the run just
-made; wgrender-beef uses only its submodule, so its own page compares against the
-baseline committed at its pin until the pin moves. What --all collects here is the
-same either way.
+The bindings live under bindings/ (BINDINGS); the doc reads each one's results and
+lists any that has none. It builds none of them: --all only runs each one's own
+script, in the order the numbers need (the baseline first, since a binding's page
+compares against it). A binding measured on another machine or against another
+wgrender commit is flagged in the doc rather than left out.
 """
 import pathlib
 import subprocess
@@ -41,7 +34,7 @@ import measure  # noqa: E402
 
 RESULTS = ROOT / 'bench/results.json'
 DOC = ROOT / 'docs/benchmarks.md'
-BINDINGS = ['wgrender-hx', 'wgrender-nim', 'wgrender-beef']
+BINDINGS = {'wgrender-hx': ROOT / 'bindings/haxe'}
 EXAMPLE = 'simple'
 
 
@@ -70,8 +63,8 @@ def measure_c():
 
 def write_doc(baseline):
     results, missing = [baseline], []
-    for name in BINDINGS:
-        path = ROOT.parent / name / 'bench/results.json'
+    for name, where in BINDINGS.items():
+        path = where / 'bench/results.json'
         if path.is_file():
             results.append(measure.load_results(path))
         else:
@@ -80,21 +73,18 @@ def write_doc(baseline):
             '(its `tools/benchmarks.py`) with the harness in `tools/bench/`, and this page '
             'collects what they recorded.')
     if missing:
-        lead += ' Not collected, no results found beside this checkout: ' + ', '.join(missing) + '.'
+        lead += ' Not collected, no results found: ' + ', '.join(missing) + '.'
     DOC.write_text(measure.render_doc('wgrender benchmarks', lead, results, baseline,
                                       'tools/benchmarks.py', measure.read_notes(ROOT)))
     print(f'wrote {DOC}')
 
 
 def measure_bindings():
-    """Each sibling binding's own tools/benchmarks.py, in turn. One that fails is
-    reported and the rest still run; the page then collects whatever results exist."""
+    """Each binding's own tools/benchmarks.py, in turn. One that fails is reported
+    and the rest still run; the page then collects whatever results exist."""
     failed = []
-    for name in BINDINGS:
-        script = ROOT.parent / name / 'tools/benchmarks.py'
-        if not script.is_file():
-            print(f'{name}: no checkout beside this one, skipped')
-            continue
+    for name, where in BINDINGS.items():
+        script = where / 'tools/benchmarks.py'
         print(f'== {name}', flush=True)
         if subprocess.run([sys.executable, script], cwd=script.parents[1]).returncode != 0:
             failed.append(name)

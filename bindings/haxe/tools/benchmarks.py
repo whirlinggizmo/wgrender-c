@@ -6,11 +6,10 @@ Haxe -> hxcpp in one wasm, beside wgrender's own C build of it.
                                  and docs/benchmarks.md
     tools/benchmarks.py --doc    only regenerate docs/benchmarks.md
 
-The harness is wgrender's (tools/bench/measure.py, found the way every tool here
-finds wgrender: tools/wgrpath.py), and so is the C baseline: run wgrender's
-tools/benchmarks.py first, on the same machine, so its bench/results.json is there
-to compare against. wgrender's docs/benchmarks.md collects this project's results
-from a sibling checkout.
+The harness is wgrender's (tools/bench/measure.py, in the repository this binding
+lives in), and so is the C baseline: run wgrender's tools/benchmarks.py first, on the
+same machine, so its bench/results.json is there to compare against. wgrender's
+docs/benchmarks.md collects this binding's results from bindings/haxe.
 
 Run by hand, not in CI: it drives a browser for about a minute per configuration.
 Commit bench/results.json and docs/benchmarks.md afterwards. bench/notes.md is the
@@ -23,13 +22,12 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from wgrpath import find  # noqa: E402
+from wgrpath import WGRENDER  # noqa: E402
 import cli  # noqa: E402
 
 if __name__ == '__main__':
     cli.parse(__doc__, ('--doc',), positional=0)
 
-WGRENDER = find(argv=[])
 sys.path.insert(0, str(WGRENDER / 'tools/bench'))
 import measure  # noqa: E402
 
@@ -38,18 +36,12 @@ DOC = ROOT / 'docs/benchmarks.md'
 EXAMPLES = ROOT / 'examples'
 
 
-def source():
-    if os.environ.get('WGRENDER_DIR'):
-        return 'WGRENDER_DIR'
-    return 'submodule' if WGRENDER == (ROOT / 'project/lib/wgrender-c').resolve() else 'sibling checkout'
-
-
 def version(cmd):
     return subprocess.run(cmd, capture_output=True, text=True).stdout.strip().splitlines()[0]
 
 
 def measure_all():
-    env = dict(measure.WEB_VARS, WGRENDER_DIR=str(WGRENDER))
+    env = dict(measure.WEB_VARS)
     measure.run([sys.executable, EXAMPLES / 'build.py', 'web', 'simple', 'stress'], cwd=EXAMPLES, env=env)
     measure.run([sys.executable, 'build.py', 'web'], cwd=EXAMPLES / 'simple-hxcpp', env=env)
     # the stress scene all-in-one through hxcpp: the Haxe GC inside the wasm, which
@@ -83,7 +75,7 @@ def measure_all():
         'gc': measure.gc(native, 'haxe-hxcpp', **page),
         'stress': measure.stress(EXAMPLES / 'stress/out/web/hxcpp-webgl2-nothreads', 'haxe-hxcpp', '/?n={n}', 'stress.js'),
     }
-    return measure.write_results(RESULTS, 'wgrender-hx', measure.wgrender_info(WGRENDER, source()),
+    return measure.write_results(RESULTS, 'wgrender-hx', measure.wgrender_info(WGRENDER, 'self'),
                                  [js, cpp])
 
 

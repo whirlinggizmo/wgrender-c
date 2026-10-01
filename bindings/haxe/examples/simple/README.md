@@ -2,7 +2,7 @@
 
 A port of wgrender's `simple` that runs the same scene on web and desktop from one
 source, next to [../simple-hxcpp](../simple-hxcpp) (Haxe → hxcpp → wasm, all in one
-module). The binding is the [wgrender-hx](../../github/whirlinggizmo/wgrender-hx)
+module). The binding is the [wgrender-hx](../..)
 haxelib, shared between them. Here the split is the other way round:
 **libwgrender is a wasm host and the game is a guest module in JS**, compiled from
 Haxe.
@@ -13,7 +13,7 @@ is the "ship it" variant.
 
 ## The shape
 
-It follows [wg-vf](../../github/whirlinggizmo/wg-vf)'s host/guest split, applied to a
+It follows [wg-vf](https://github.com/whirlinggizmo/wg-vf)'s host/guest split, applied to a
 renderer rather than a simulation:
 
 | The guest owns | The host owns |

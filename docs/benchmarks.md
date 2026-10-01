@@ -12,8 +12,6 @@ Everything a first visit downloads before the first frame, assets aside: the was
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | C | 695,714 | 65,959 | 10,672 | 772,345 | 321,686 | 262,549 | 1.00x |
 | Haxe -> JS guest | 694,791 | 90,156 | 930 | 785,877 | 321,922 | 264,130 | 1.01x |
-| Nim -> C | 720,009 | 54,980 | 8,647 | 783,636 | 331,204 | 271,231 | 1.03x |
-| Beef | 719,533 | 67,595 | 8,647 | 795,775 | 332,467 | 272,014 | 1.04x |
 | Haxe -> hxcpp | 1,706,364 | 70,894 | 8,647 | 1,785,905 | 498,515 | 386,531 | 1.47x |
 
 ## Frame cost
@@ -22,8 +20,6 @@ Chrome's own CPU accounting over 8 s of steady state (`tools/bench/pagebench.py`
 
 | Configuration | script (ms/frame) | task (ms/frame) | script, all runs |
 | --- | ---: | ---: | --- |
-| Beef | 0.49 | 0.78 | 0.47, 0.49, 0.49 |
-| Nim -> C | 0.51 | 0.81 | 0.48, 0.51, 0.52 |
 | C | 0.52 | 0.81 | 0.47, 0.52, 0.53 |
 | Haxe -> hxcpp | 0.52 | 0.80 | 0.50, 0.52, 0.55 |
 | Haxe -> JS guest | 0.52 | 0.82 | 0.52, 0.52, 0.54 |
@@ -36,11 +32,9 @@ V8's traced collections over 10 s at 60 fps (`tools/bench/pagebench.py`). Only t
 | --- | --- | ---: | ---: | --- | ---: |
 | Haxe -> JS guest | JS | 3,699 | 12.7 | 1 minor, 1.9 ms | 0 |
 | C | wasm | 328 | 1.1 | none | 0 |
-| Nim -> C | wasm | 1,982 | 6.8 | none | 0 |
-| Beef | wasm | 1,231 | 4.2 | none | 0 |
 | Haxe -> hxcpp | wasm | 320 | 1.1 | none | 0 |
 
-Code running in the wasm allocates nothing on the JS heap itself, so those rows (320 to 1,982 B/frame here) are the page's own noise: Emscripten's glue, the page and the measuring. Their order means nothing.
+Code running in the wasm allocates nothing on the JS heap itself, so those rows (320 to 328 B/frame here) are the page's own noise: Emscripten's glue, the page and the measuring. Their order means nothing.
 
 ## Stress
 
@@ -53,8 +47,6 @@ Script time per frame, the median of three runs:
 | C | 0.48 | 1.40 | 2.68 |
 | Haxe -> JS guest | 0.46 | 1.56 | 2.91 |
 | Haxe -> hxcpp | 0.50 | 1.61 | 2.98 |
-| Nim -> C | 0.48 | 1.50 | 2.85 |
-| Beef | 0.42 | 1.40 | 2.65 |
 
 With 8 ms of other work burned in every frame, so a pause has little slack to hide in: JS heap allocation, the collections V8 traced, and frames over 20 ms (`tools/bench/pagebench.py`, 10 s).
 
@@ -69,12 +61,6 @@ With 8 ms of other work burned in every frame, so a pause has little slack to hi
 | Haxe -> hxcpp | 1,000 | 1.4 | 1 minor, 0.5 ms | 16.67 | 0 |
 | Haxe -> hxcpp | 5,000 | 1.5 | 1 minor, 0.6 ms | 16.67 | 0 |
 | Haxe -> hxcpp | 10,000 | 1.4 | 1 minor, 0.4 ms | 16.67 | 0 |
-| Nim -> C | 1,000 | 1.7 | 1 minor, 0.4 ms | 16.67 | 0 |
-| Nim -> C | 5,000 | 1.7 | 1 minor, 0.4 ms | 16.67 | 0 |
-| Nim -> C | 10,000 | 1.7 | 1 minor, 0.4 ms | 16.67 | 0 |
-| Beef | 1,000 | 1.4 | 1 minor, 0.4 ms | 16.67 | 0 |
-| Beef | 5,000 | 1.4 | 1 minor, 0.4 ms | 16.67 | 0 |
-| Beef | 10,000 | 1.4 | 1 minor, 0.4 ms | 16.67 | 0 |
 
 ## Calls from a JS guest
 
@@ -149,5 +135,3 @@ frame and the late frames, with 8 ms of the frame already spent.
 | --- | --- | --- | --- |
 | wgrender-c | 2026-09-24 | `7399bc8` (self) | Emscripten 5.0.7 |
 | wgrender-hx | 2026-09-24 | `7399bc8` (sibling checkout) | Haxe 4.3.6, hxcpp 4.3.2 git |
-| wgrender-nim | 2026-09-24 | `7399bc8` (sibling checkout) | Nim 2.2.12 |
-| wgrender-beef | 2026-09-24 | `7399bc8` (submodule) | BeefBuild 0.43.6 |

@@ -2,7 +2,7 @@
 
 A port of wgrender's `examples/simple.c` to Haxe, alongside the same example in
 [Nim](../../nim/simple) and [Beef](../../beef/simple). The binding itself is the
-[wgrender-hx](../../github/whirlinggizmo/wgrender-hx) haxelib, shared with
+[wgrender-hx](../..) haxelib, shared with
 [../simple](../simple), which runs the same scene as a guest module instead. Same scene in all four: an
 animated model, a bobbing 3D sprite, looping music, two TTF fonts, a centred message
 that reports what the mouse is over (scene picking), and a debug overlay with timers,
@@ -24,16 +24,15 @@ Haxe, and what does Haxe cost in wasm.
 ../build.py drive simple-hxcpp   # headless-browser smoke test of the web build; writes build/web/webgl2-nothreads/check.png
 ```
 
-`./build.py` runs `haxe build.hxml` or `haxe web.hxml` with `-D WGRENDER_DIR`, and
-hxcpp compiles wgrender in from its sources, as every build of the binding does
-(wgrender-hx's `project/Build.xml`), with whichever compiler it uses: MSVC or MinGW on
+`./build.py` runs `haxe build.hxml` or `haxe web.hxml`, and hxcpp compiles wgrender in
+from its sources, as every build of the binding does (the binding's
+`project/Build.xml`), with whichever compiler it uses: MSVC or MinGW on
 Windows, emcc for the web. The C++ and objects are in `build/<platform>/<variant>/cpp`
 (`build/linux/release`, `build/web/webgl2-nothreads`), where `wgr.macros.NativeOut`
-puts them. `haxe build.hxml` works on its own too, against the binding's own wgrender.
+puts them. `haxe build.hxml` works on its own too.
 
 Web options are wgrender's own web build settings, read from the environment
-(`BACKEND=webgl2|webgpu`, `WEB_DEBUG=0|1`). `WGRENDER_DIR` overrides where wgrender
-is. Web builds are always `WEB_THREADS=0`: hxcpp's emscripten target is
+(`BACKEND=webgl2|webgpu`, `WEB_DEBUG=0|1`). Web builds are always `WEB_THREADS=0`: hxcpp's emscripten target is
 single-threaded.
 
 Needs Haxe 4.3, hxcpp, a C compiler, and for the web Emscripten (`emcc` on the path).
@@ -326,7 +325,7 @@ exceptions the legacy exception glue references those symbols natively.
 ## Layout
 
 ```
-build.hxml  web.hxml               the builds (build.py adds -D WGRENDER_DIR)
+build.hxml  web.hxml               the builds
 build.py                           builds wgrender, then haxe; serve / compare / clean
 src/Simple.hx                      the example
 src/Defines.hx                     reads a -D name=value define's value (needs a macro)

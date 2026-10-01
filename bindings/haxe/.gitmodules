@@ -1,3 +1,0 @@
-[submodule "project/lib/wgrender-c"]
-	path = project/lib/wgrender-c
-	url = https://github.com/whirlinggizmo/wgrender-c.git

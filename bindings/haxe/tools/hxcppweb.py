@@ -26,10 +26,9 @@ import sys
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(LIB / 'tools'))
-from wgrpath import find  # noqa: E402
+from wgrpath import WGRENDER  # noqa: E402
 from guestbuild import check_library  # noqa: E402
 
-WGRENDER = find(argv=[])
 HAXE = os.environ.get('HAXE', 'haxe')
 
 
@@ -48,7 +47,7 @@ def finish_site(site, work, name, source):
             sys.exit(f'{LIB}/web/index.html: no {mark} to fill in')
     page = page.replace('/*wgr:first*/"simple-hxcpp"', f'/*wgr:first*/"{name}"')
     page = re.sub(r'/\*wgr:source\*/"[^"]*"',
-                  f'/*wgr:source*/"https://github.com/whirlinggizmo/wgrender-hx/blob/main/{source}"', page)
+                  f'/*wgr:source*/"https://github.com/whirlinggizmo/wgrender-c/blob/main/bindings/haxe/{source}"', page)
     shell = work / 'index.html'
     shell.write_text(page, encoding='utf-8')
     run([sys.executable, LIB / 'tools/webdeploy.py', site, shell])
@@ -75,7 +74,7 @@ def main():
     check_library()  # project/Build.xml is found through haxelib: this copy's
     run([HAXE, '-cp', 'src', '-lib', 'wgrender-hx', '--main', entry.group(1),
          '--cpp', build / 'cpp', '-D', 'emscripten', '-D', f'HAXE_OUTPUT_FILE={name}',
-         '-D', f'WGRENDER_DIR={WGRENDER}', *(['-D', 'wgr-webgpu'] if backend == 'webgpu' else []),
+         *(['-D', 'wgr-webgpu'] if backend == 'webgpu' else []),
          *(['--debug'] if debug else []), '--macro', 'wgr.macros.NativeOut.toolchain()',
          '-dce', 'full', '-D', 'analyzer-optimize'],
         cwd=example)

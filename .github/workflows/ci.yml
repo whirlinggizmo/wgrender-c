@@ -7,6 +7,8 @@
 # - web: daily and on demand (Actions -> ci -> Run workflow), since web breakage
 #   from a clean environment is rare and `tools/verify.py --web` runs locally when
 #   web code changes.
+# - haxe: every push and pull request, the binding in bindings/haxe against the
+#   wgrender beside it.
 name: ci
 
 on:
@@ -88,3 +90,39 @@ jobs:
           name: webcheck-screenshots
           path: build/web/webgl2/webcheck
           if-no-files-found: ignore
+
+  # The Haxe binding: its audit, then its whole suite (bindings/haxe/test/check.py:
+  # the generators current, headless hxcpp, JS, cppia, its C). The audit reads
+  # wgrender's C with clang, which comes from emsdk. Locally a missing clang is a skip,
+  # so a desktop-only checkout still tests; a skip that can happen everywhere is not a
+  # gate, so here --require-clang makes it one.
+  haxe:
+    name: haxe (binding audit and tests)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      # parsing wgr_sokol_impl.c reaches GL/gl.h: the audit needs the same system
+      # headers compiling does
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          python3 tools/deps.py install
+      - uses: actions/cache@v6
+        with:
+          path: emsdk-cache
+          key: emsdk-5.0.7-${{ runner.os }}
+      - uses: mymindstorm/setup-emsdk@v16
+        with:
+          version: 5.0.7
+          actions-cache-folder: emsdk-cache
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: 4.3.6
+      - name: The binding from this checkout, and hxcpp
+        run: |
+          haxelib install hxcpp --always
+          haxelib dev wgrender-hx bindings/haxe
+      - name: Refusals read from the C with clang
+        run: python3 bindings/haxe/tools/refusals.py --require-clang
+      - name: The binding's suite
+        run: python3 bindings/haxe/test/check.py

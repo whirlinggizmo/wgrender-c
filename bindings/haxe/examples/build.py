@@ -31,7 +31,6 @@ Python rather than a Makefile: nothing else in wgrender-hx uses make, and wgrend
 own tools that this shells out to are Python already, so it adds no dependency the
 build did not have.
 
-    WGRENDER_DIR   build against a wgrender of your own
     TLS_CERT/TLS_KEY   serve https without passing --tls
 """
 import json
@@ -48,12 +47,11 @@ if not (LIB / 'tools/wgrpath.py').exists():
                             capture_output=True, text=True).stdout.strip()
     if not _found:
         sys.exit('wgrender-hx not found. Either keep examples/ inside the library, or:\n'
-                 '  haxelib git wgrender-hx https://github.com/whirlinggizmo/wgrender-hx')
+                 '  haxelib git wgrender-hx https://github.com/whirlinggizmo/wgrender-c main bindings/haxe')
     LIB = pathlib.Path(_found)
 sys.path.insert(0, str(LIB / 'tools'))
-from wgrpath import find  # noqa: E402
+from wgrpath import WGRENDER  # noqa: E402
 from guestbuild import Project, web_variant  # noqa: E402
-WGRENDER = find(argv=[])
 C_BUILD = WGRENDER / 'out/web/webgl2-nothreads'  # wgrender's own C build of each example
 
 
@@ -156,7 +154,7 @@ DRIVE_FLAGS = {'particles': ['--click']}
 
 
 def drive(chosen=()):
-    env = dict(os.environ, WGRENDER_DIR=str(WGRENDER))  # drive.py drives the wgrender this builds with
+    env = dict(os.environ)
     for name in wanted(GUESTS, chosen):
         run([sys.executable, LIB / 'tools/drive.py', f'--site={HERE / name / "out/web" / web_variant()}', f'--label={name}',
              *DRIVE_FLAGS.get(name, [])], HERE / name, env=env)
@@ -302,7 +300,7 @@ SITE_CONSOLE = """<pre id="log"></pre>
   })();
 </script>
 """
-SOURCE = 'https://github.com/whirlinggizmo/wgrender-hx/blob/main/examples/{name}/src/{main}.hx'
+SOURCE = 'https://github.com/whirlinggizmo/wgrender-c/blob/main/bindings/haxe/examples/{name}/src/{main}.hx'
 
 
 def main_class(name):

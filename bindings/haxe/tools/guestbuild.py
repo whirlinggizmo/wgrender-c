@@ -11,9 +11,6 @@ suite does:
 
 - it refuses to build against the wrong copy of the binding (check_library), or a
   binding that is stale against wgrender's headers (check_binding);
-- it passes -D WGRENDER_DIR, so the examples build against the wgrender this checkout
-  is paired with -- a wgrender-c beside it, when there is one -- rather than only the
-  pinned submodule. A user's build leaves it out and gets the submodule on both targets;
 - after a desktop build it copies the binary out of hxcpp's scratch and puts an
   `assets` link beside it, where wgr.Assets looks. A user's own game ships its own
   assets and does not need that step;
@@ -22,7 +19,7 @@ suite does:
 
 `guest` and `host` still work and mean `web`: the guest and its host are one build now.
 
-Env: WGRENDER_DIR, WEB_THREADS=0|1, BACKEND=webgl2|webgpu, WEB_DEBUG=0|1, HAXE.
+Env: WEB_THREADS=0|1, BACKEND=webgl2|webgpu, WEB_DEBUG=0|1, HAXE.
 """
 import gzip
 import os
@@ -32,7 +29,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from wgrpath import find, host_os  # noqa: E402
+from wgrpath import WGRENDER, host_os  # noqa: E402
 
 LIB = pathlib.Path(__file__).resolve().parent.parent
 
@@ -89,7 +86,7 @@ class Project:
         self.name = name
         self.variant = web_variant()
         self.site = self.root / 'out/web' / self.variant
-        self.wgrender = find(argv=[])
+        self.wgrender = WGRENDER
         self.haxe = os.environ.get('HAXE', 'haxe')
 
     # ---------------------------------------------------------------- shell ---
@@ -100,7 +97,7 @@ class Project:
 
     def haxe_build(self, hxml):
         """The example's own hxml, told which wgrender this checkout builds against."""
-        self.run([self.haxe, hxml, '-D', f'WGRENDER_DIR={self.wgrender}'], cwd=self.root)
+        self.run([self.haxe, hxml], cwd=self.root)
 
     # --------------------------------------------------------------- checks ---
 
@@ -116,9 +113,9 @@ class Project:
             return  # the binding is the same for every example in one run of the suite
         Project._checked = True
         self.check_library()
-        self.run([sys.executable, LIB / 'tools/gen_raw.py', '--check', self.wgrender])
-        self.run([sys.executable, LIB / 'tools/coverage.py', '--check', self.wgrender])
-        self.run([sys.executable, LIB / 'tools/refusals.py', '--check', self.wgrender])
+        self.run([sys.executable, LIB / 'tools/gen_raw.py', '--check'])
+        self.run([sys.executable, LIB / 'tools/coverage.py', '--check'])
+        self.run([sys.executable, LIB / 'tools/refusals.py', '--check'])
 
     # ---------------------------------------------------------------- build ---
 

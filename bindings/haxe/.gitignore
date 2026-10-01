@@ -4,5 +4,4 @@ __pycache__/
 /build/
 examples/*/out/
 examples/*/build/
-project/lib/*/build/
 examples/out/

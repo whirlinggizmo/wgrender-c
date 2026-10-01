@@ -1,4 +1,6 @@
-# Publish the examples to GitHub Pages: https://whirlinggizmo.github.io/wgrender-c/
+# Publish the examples to GitHub Pages: https://whirlinggizmo.github.io/wgrender-c/,
+# and the Haxe binding's under /haxe/: each a JS guest on a wgrender wasm host, whose
+# index compares its size with the C build of the same example above it.
 #
 # WEB_THREADS=0, because Pages sends no COOP/COEP headers and a threaded build needs
 # cross-origin isolation to get SharedArrayBuffer. Nothing requires threads (every
@@ -39,10 +41,20 @@ jobs:
         with:
           version: 5.0.7
           actions-cache-folder: emsdk-cache
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: 4.3.6
       - name: Build every example and assemble the site
         run: |
           cmake --preset web-webgl2-nothreads && cmake --build --preset web-webgl2-nothreads
           python3 tools/site.py out/web/webgl2-nothreads
+      - name: The Haxe examples, under /haxe/
+        run: |
+          haxelib install hxcpp --always
+          haxelib dev wgrender-hx bindings/haxe
+          python3 bindings/haxe/examples/build.py web
+          python3 bindings/haxe/examples/build.py site
+          cp -r bindings/haxe/examples/out/web/js-webgl2-nothreads build/web/webgl2-nothreads/site/haxe
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

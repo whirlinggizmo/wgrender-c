@@ -4,18 +4,18 @@ that serves a site with that wgrender's assets.
 
     from wgrweb import W, serve_command, weblib
 
-W is the wgrender tools/wgrpath.py finds ($WGRENDER_DIR, a sibling checkout, or the
-submodule), so a check here always drives the same wgrender the build used.
+W is the wgrender this binding lives in (tools/wgrpath.py), so a check here always
+drives the same wgrender the build used.
 """
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from wgrpath import find  # noqa: E402
+from wgrpath import WGRENDER  # noqa: E402
 import weblib  # noqa: E402,F401
 
-W = find(argv=[])
+W = WGRENDER
 
 
 def serve_command(port, site, *flags):

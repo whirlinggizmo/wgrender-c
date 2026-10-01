@@ -1,7 +1,7 @@
 # particles — wgrender's emitters, as a guest app
 
 A port of wgrender's `examples/particles.c`, sibling to [../simple](../simple) and
-built the same way: the [wgrender-hx](../../github/whirlinggizmo/wgrender-hx) haxelib,
+built the same way: the [wgrender-hx](../..) haxelib,
 wgrender as a wasm host on the web, and the same Haxe source compiled native through
 hxcpp on desktop.
 

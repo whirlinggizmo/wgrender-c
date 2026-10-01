@@ -19,17 +19,15 @@ The wgr binding is the wgrender-hx haxelib (haxelib dev wgrender-hx <path>), sha
 with the guest ports; this project only carries the example and its build.
 
 wgrender is compiled in from its sources, as every build of the binding is
-(project/Build.xml in wgrender-hx, by whichever compiler hxcpp uses); this passes
--D WGRENDER_DIR so it is the wgrender this checkout works against. The work is in
+(project/Build.xml in the binding, by whichever compiler hxcpp uses), from the
+repository the binding lives in. The work is in
 build/<platform>/<variant>/ (build/linux/release, build/web/webgl2-nothreads, ...: the
 wg* layout, whirlinggizmo/.github CONVENTIONS.md), where wgr.macros.NativeOut puts
-hxcpp's output. `haxe build.hxml` and `haxe web.hxml` work on their own too, against
-the binding's own wgrender.
+hxcpp's output. `haxe build.hxml` and `haxe web.hxml` work on their own too.
 
 Web options are wgrender's web build settings, read from the environment:
   BACKEND=webgl2|webgpu   WEB_DEBUG=0|1   (e.g. BACKEND=webgpu ./build.py web)
 Web builds are always WEB_THREADS=0: hxcpp's emscripten target is single-threaded.
-Override the wgrender location with WGRENDER_DIR=/path/to/wgrender.
 """
 import gzip
 import os
@@ -45,13 +43,12 @@ if not (LIB / 'tools/wgrpath.py').exists():
                             capture_output=True, text=True).stdout.strip()
     if not _found:
         sys.exit('wgrender-hx not found. Either keep this example inside the library, or:\n'
-                 '  haxelib git wgrender-hx https://github.com/whirlinggizmo/wgrender-hx')
+                 '  haxelib git wgrender-hx https://github.com/whirlinggizmo/wgrender-c main bindings/haxe')
     LIB = pathlib.Path(_found)
 sys.path.insert(0, str(LIB / 'tools'))
-from wgrpath import find, host_os  # noqa: E402  # examples/simple-hxcpp -> the library
+from wgrpath import WGRENDER, host_os  # noqa: E402  # examples/simple-hxcpp -> the library
 from guestbuild import check_library, desktop_variant as guest_desktop_variant  # noqa: E402
 from hxcppweb import finish_site  # noqa: E402
-WGRENDER = find(argv=[])
 HAXE = os.environ.get('HAXE', 'haxe')
 # The wgr binding, its generator and its host glue are the wgrender-hx haxelib.
 
@@ -82,7 +79,7 @@ def web_debug():
 def haxe(hxml, *extra):
     """The committed hxml, told which wgrender, from the example's directory."""
     check_library()
-    run([HAXE, hxml, '-D', f'WGRENDER_DIR={WGRENDER}', *extra], cwd=ROOT)
+    run([HAXE, hxml, *extra], cwd=ROOT)
 
 
 def desktop_out():

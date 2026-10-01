@@ -210,15 +210,14 @@ docs/           ARCHITECTURE.md, ROADMAP.md, TASKS.md and one PLAN-*.md per feat
 
 ## Bindings
 
-wgrender stays a plain C library; a binding is its own repo on the public API. The
-handle-only surface (every parameter a handle, a number, an enum or a `const char *`;
-`tools/check.py` enforces it) is what keeps one cheap to write and to keep in step.
+wgrender is a plain C library, and its bindings live beside it under `bindings/`, built
+only on the public API, so a change to the API and to each binding land in one commit.
+The handle-only surface (every parameter a handle, a number, an enum or a `const char
+*`; `tools/check.py` enforces it) is what keeps one cheap to write and to keep in step.
 
-| Language | Repo | State |
+| Language | Where | State |
 |---|---|---|
-| Haxe | [wgrender-hx](https://github.com/whirlinggizmo/wgrender-hx) | in development: hxcpp (desktop) and JS (web) targets, generated from the headers |
-| Nim | [wgrender-nim](https://github.com/whirlinggizmo/wgrender-nim) | in development: desktop and web, wgrender compiled in from `build.json` |
-| Beef | [wgrender-beef](https://github.com/whirlinggizmo/wgrender-beef) | early: desktop and web examples |
+| Haxe | [bindings/haxe](bindings/haxe) (the `wgrender-hx` haxelib) | in development: hxcpp (desktop) and JS (web) targets, generated from the headers |
 
 ## License
 

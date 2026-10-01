@@ -41,8 +41,7 @@ src/wgr/impl/         the generated C surface, chosen by target. Nothing outside
   GuestRaw.cpp.hx       externs for host/wgr_guest.h, which is this binding's own C
 host/wgr_guest.{c,h}  the guest ABI: wgrender as a host, five ops
 examples/             the guests, and simple-hxcpp the other way (all-in-one)
-project/              how an installed copy links wgrender, and the submodule it uses
-Run.hx                `haxelib run wgrender-hx setup`
+project/              how a build compiles wgrender (the repository two directories up)
 
 test/check.py         the binding's checks: headless, js, cppia, the lists, the C
 test/CheckBindings.hx runs against headless wgrender and asserts what comes back
@@ -255,44 +254,31 @@ link it to wherever wgrender is checked out.
 What to install on each OS, and every build, example and check: [BUILDING.md](BUILDING.md).
 
 ```sh
-haxelib git wgrender-hx https://github.com/whirlinggizmo/wgrender-hx
+haxelib git wgrender-hx https://github.com/whirlinggizmo/wgrender-c main bindings/haxe
 ```
 
-then `-lib wgrender-hx`. That is the whole install: `haxelib git` clones submodules
-too, so wgrender arrives under `project/lib` with its sources and vendored
-dependencies, and `project/Build.xml` hands hxcpp the include paths and the C files to
-compile. There is no library to build first and nothing to point at by hand, because
-hxcpp compiles wgrender with the same toolchain it compiles your program with.
+then `-lib wgrender-hx`. That is the whole install: `haxelib git` clones wgrender-c
+and makes `bindings/haxe` the library's root, so wgrender is two directories up with
+its sources and vendored dependencies, and `project/Build.xml` hands hxcpp the include
+paths and the C files to compile. There is no library to build first and nothing to
+point at by hand, because hxcpp compiles wgrender with the same toolchain it compiles
+your program with. A web build links wgrender's web library the same way, building it
+first when it isn't there.
 
 **On Windows, add `-D HXCPP_M64`.** hxcpp builds 32-bit there unless told otherwise,
 which is rarely what a game wants. The examples' `build.desktop.hxml` files carry the flag; it does nothing on Linux or macOS,
 which build 64-bit anyway.
 
-`haxelib run wgrender-hx setup` exists for when that is not true — a submodule that
-did not come down, or an archive install once this is published, since a haxelib zip
-is flat and carries no submodule.
-
-**Run it after every `haxelib update wgrender-hx`.** That updates this library and
-leaves the submodule where it was, so wgrender stays at whatever commit it was first
-cloned at; the binding is generated from wgrender's headers, so it then reports itself
-STALE against the older ones and refuses to build. `setup` moves the submodule to the
-commit this library pins. It fetches what is missing and reports; for a
-native target it has nothing to build. `setup web` additionally builds wgrender's
-Emscripten library, which `wgr.macros.WebHost` and the examples' own build both do
-for you.
-
-`haxelib run wgrender-hx where` says what is present.
-
-Working on the binding itself instead:
+Working on the binding itself, from a wgrender-c checkout:
 
 ```sh
-haxelib dev wgrender-hx /path/to/wgrender-hx
+haxelib dev wgrender-hx bindings/haxe
 ```
 
-and pass `-D WGRENDER_DIR=<path>` to build against a wgrender of your own rather than
-the vendored one. That is the only difference between a checkout's build and an
-install's: both go through `project/Build.xml`, which compiles wgrender with the same
-toolchain as your program, so a checkout is not exercising a path nobody else runs.
+A checkout's build and an install's are the same: both go through `project/Build.xml`,
+which compiles the wgrender the binding sits in, so a checkout is not exercising a path
+nobody else runs. A published haxelib zip can't reach `../..`; packaging one will need
+its own step that carries wgrender's sources.
 
 `project/wgrender.xml` carries wgrender's own flags for each build hxcpp can make:
 native per OS, `-D wgr-headless` for its headless build (no window, GPU or audio:
@@ -338,9 +324,6 @@ are all unchanged.
 - `-D wgr-build-dir=<dir>` is where linked hosts are cached; by default
   `build/web/js-<variant>/webhost` (`build/web/js-webgl2-nothreads/webhost`, ...).
 - `-D wgr-title=<text>` and `-D wgr-background=<css colour>` shape the first `index.html`.
-- `-D WGRENDER_DIR=<path>` builds against that wgrender instead of the pinned submodule,
-  exactly as it does for a native build — so the web host and the desktop binary always
-  agree on which wgrender they got.
 - `WEB_THREADS`, `BACKEND` and `WEB_DEBUG` in the environment mean what they mean to
   wgrender's own web build.
 
@@ -366,8 +349,7 @@ Each example is what you would write yourself: `src/`, a `build.web.hxml` and a
 example's directory gives you its `out/web/js-webgl2-nothreads`, host and page included — so copying an
 example is how to start a project. There is nothing else in an example to copy or to
 ignore: `examples/build.py` does the suite's chores for each one by name — it checks the
-binding is the one you are working on and current, points the build at this
-checkout's wgrender with `-D WGRENDER_DIR`, puts wgrender's sample assets beside a
+binding is the one you are working on and current, puts wgrender's sample assets beside a
 desktop binary, and serves every example from one server, each in its own
 subdirectory. Name examples to limit any command: `examples/build.py serve model`.
 
@@ -507,8 +489,8 @@ defaults to log-and-continue.
 
 ## License
 
-MIT; see [LICENSE](LICENSE). wgrender, in `project/lib/wgrender-c`, is MIT too, and the
+MIT; see [LICENSE](LICENSE). wgrender, the repository this lives in, is MIT too, and the
 libraries it vendors (sokol, clay, cgltf, stb and others) keep their own licenses, listed
-in [its README](https://github.com/whirlinggizmo/wgrender-c#license). The example assets
+in [its README](../../README.md#license). The example assets
 come from wgrender as well; their credits and licenses are in its
-[examples/assets/CREDITS.md](https://github.com/whirlinggizmo/wgrender-c/blob/main/examples/assets/CREDITS.md).
+[examples/assets/CREDITS.md](../../examples/assets/CREDITS.md).

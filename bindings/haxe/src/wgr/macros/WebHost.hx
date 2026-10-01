@@ -47,13 +47,10 @@ using StringTools;
 	  wg* family layout, whirlinggizmo/.github CONVENTIONS.md).
 	- `-D wgr-title=<text>` and `-D wgr-background=<css colour>` for the generated page.
 
-	- `-D WGRENDER_DIR=<path>` builds against that wgrender instead of the submodule this
-	  binding pins — the same define, with the same meaning, as a native build.
-
 	Environment: `WEB_THREADS` (default 0), `BACKEND` and `WEB_DEBUG`, as for wgrender's
 	own web build. Needs Emscripten (`emcc`) on the path, and nothing else: wgrender's
 	web library is built by its `tools/buildweb.py`, on the Python emsdk brings
-	(`EMSDK_PYTHON`), from its `mk/build.json`. No make, no shell, so the same on Windows.
+	(`EMSDK_PYTHON`), from its `build.json`. No make, no shell, so the same on Windows.
 
 	A reflection-only call into wgrender (`Reflect.callMethod` on `Raw`) is invisible to
 	DCE, so the listing will not have it; mark the caller `@:keep`.
@@ -263,7 +260,7 @@ class WebHost {
 		final dir = webVariant(web);
 		final manifest = Path.join([wgrender, "build.json"]);
 		if (!FileSystem.exists(manifest))
-			fail('WebHost: no $manifest. This wgrender predates it; update the submodule (haxelib run wgrender-hx setup).');
+			fail('WebHost: no $manifest.');
 		final target:Dynamic = Reflect.field(Reflect.field(haxe.Json.parse(File.getContent(manifest)), "web"), dir);
 		if (target == null)
 			fail('WebHost: $manifest has no web target $dir');
@@ -291,20 +288,14 @@ class WebHost {
 	}
 
 	/**
-		Which wgrender: `-D WGRENDER_DIR=<path>`, or else the submodule this binding pins.
-
-		The same rule, spelled the same way, as `project/Build.xml` uses for a native
-		build, so one guest never builds its web host against one wgrender and its desktop
-		binary against another. An earlier version also looked for a `wgrender-c` checkout
-		beside the binding, which a native build never does; on a machine with one, the
-		same source got two different libraries depending on the target.
+		Which wgrender: the repository this binding lives in (bindings/haxe), as
+		`project/Build.xml` finds it for a native build, so a guest's web host and its
+		desktop binary always come from the same one.
 	**/
 	static function findWgrender(binding:String):String {
-		final given = Context.definedValue("WGRENDER_DIR");
-		final dir = given != null && given != "" && given != "1" ? given : Path.join([binding, "project/lib/wgrender-c"]);
+		final dir = Path.join([binding, "../.."]);
 		if (!FileSystem.exists(Path.join([dir, "include/wgr.h"])))
-			return fail('WebHost: no wgrender at $dir (no include/wgr.h). '
-				+ (given != null ? "Check -D WGRENDER_DIR." : "Run `haxelib run wgrender-hx setup` to fetch the submodule."));
+			return fail('WebHost: no wgrender at $dir (no include/wgr.h): the binding is meant to stay in wgrender-c, at bindings/haxe');
 		return FileSystem.fullPath(dir);
 	}
 

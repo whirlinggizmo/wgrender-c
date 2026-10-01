@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Write project/wgrender.xml: wgrender's C sources and its flags, for hxcpp to compile.
 
-    tools/gen_sources.py [WGRENDER_DIR]         write it
-    tools/gen_sources.py --check [WGRENDER_DIR]  fail if it has drifted
+    tools/gen_sources.py          write it
+    tools/gen_sources.py --check  fail if it has drifted
 
 Every build of wgrender-hx compiles wgrender from source rather than linking a prebuilt
 library, which is what librl-hx does for librl: hxcpp uses MSVC on Windows by default,
@@ -27,14 +27,13 @@ import re
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from wgrpath import find  # noqa: E402
+from wgrpath import WGRENDER  # noqa: E402
 import cli  # noqa: E402
 
 if __name__ == '__main__':
-    cli.parse(__doc__, ('--check',), positional=1)
+    cli.parse(__doc__, ('--check',), positional=0)
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-WGRENDER = find()
 OUT = ROOT / 'project/wgrender.xml'
 
 # The vendored single-header libraries (build.json's system_include). wgrender reaches
@@ -203,7 +202,7 @@ def build(manifest, sources, deps):
 def main():
     path = WGRENDER / 'build.json'
     if not path.exists():
-        sys.exit(f'no {path}: this wgrender predates it; update the submodule')
+        sys.exit(f'no {path}')
     manifest = json.loads(path.read_text(encoding='utf-8'))
     sources = sorted(s.split('/', 1)[1] for s in manifest['sources'])
     deps = vendored(manifest)

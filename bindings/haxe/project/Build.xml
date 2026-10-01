@@ -2,8 +2,8 @@
 <!--
   How wgrender-hx builds wgrender, for every native build (and hxcpp's web one).
 
-  Pulled in by the @:buildXml on wgr.impl.Raw. wgrender comes from the submodule under
-  project/lib, or -D WGRENDER_DIR, and its C sources are compiled here, by whichever
+  Pulled in by the @:buildXml on wgr.impl.Raw. wgrender is the repository this binding
+  lives in, two directories up, and its C sources are compiled here, by whichever
   toolchain hxcpp chose (gcc or clang, MinGW, MSVC, hxcpp's default on Windows, or emcc
   for its emscripten target), rather than linked from a prebuilt library: MinGW objects
   and MSVC's linker don't mix, and compiling from source means both halves come from
@@ -20,10 +20,9 @@
 <xml>
     <pragma once="true" />
 
-    <!-- Which wgrender. -D WGRENDER_DIR names one; without it, the submodule that
-         came with this library. That define is the whole of what a build has to say. -->
-    <set name="WGRENDER" value="${WGRENDER_DIR}" if="WGRENDER_DIR" />
-    <set name="WGRENDER" value="${haxelib:wgrender-hx}/project/lib/wgrender-c" unless="WGRENDER_DIR" />
+    <!-- wgrender is the repository this binding lives in (bindings/haxe), in a
+         checkout and in a `haxelib git ... bindings/haxe` install alike. -->
+    <set name="WGRENDER" value="${haxelib:wgrender-hx}/../.." />
     <set name="WGRHX" value="${haxelib:wgrender-hx}" />
 
     <include name="${haxelib:wgrender-hx}/project/wgrender.xml" />

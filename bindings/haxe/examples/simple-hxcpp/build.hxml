@@ -1,8 +1,6 @@
 # Desktop build of the wgrender simple example: wgrender compiled in from its sources.
 #
-# `./build.py desktop` runs this with -D WGRENDER_DIR (the wgrender this checkout works
-# against) and installs the binary in out/<os>/<variant>/. `haxe build.hxml` on its own
-# builds against the binding's own wgrender.
+# `./build.py desktop` runs this and installs the binary in out/<os>/<variant>/.
 
 -cp src
 -lib wgrender-hx

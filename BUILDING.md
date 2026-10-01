@@ -19,8 +19,9 @@ The browser checks (`tools/webcheck.py`) are Python too: there is no Node to ins
 - [Generated files](#generated-files)
 - [Benchmarks](#benchmarks)
 
-The bindings build wgrender from the same description (`build.json`) with their own
-toolchains; each has a BUILDING.md of its own.
+The bindings under `bindings/` build wgrender from the same description (`build.json`)
+with their own toolchains; each has a BUILDING.md of its own
+([bindings/haxe](bindings/haxe/BUILDING.md)).
 
 ## Desktop
 
@@ -106,7 +107,7 @@ python3 tools/webcheck.py                     # load each in a browser, fail on 
 python3 tools/webcheck.py --backend=webgpu    # the same for WebGPU (web-webgpu)
 python3 tools/webstart.py                     # startup times per example: cold, warm and hot visits
 python3 tools/verify.py --web                  # all of the above web builds, checked
-tools/benchmarks.py --all                      # C and every sibling binding -> docs/benchmarks.md
+tools/benchmarks.py --all                      # C and every binding -> docs/benchmarks.md
 ```
 
 The web presets are `web-webgl2`, `web-webgpu`, their `-nothreads` builds, and

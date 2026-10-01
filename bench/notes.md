@@ -9,7 +9,7 @@ thousands of calls, and in string-heavy code (text) first; `simple`'s count abov
 nowhere near that, and the stress scene, at one call per entity plus 49 text lines, is
 where it can show.
 
-**The pages differ.** C, Nim, Beef and hxcpp are served in wgrender's example shell, a
+**The pages differ.** C and hxcpp are served in wgrender's example shell, a
 page with an example picker and a console that also fetches `examples.json`; the Haxe
 guest's is `wgr.macros.WebHost`'s minimal page (its `boot.js` counts in the JS column).
 Both are counted because both are downloaded; a program shipped in a page of its own

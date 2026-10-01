@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Every way a wgrender call can return false, read from the C with clang.
 
-    tools/refusals.py [WGRENDER_DIR]        the report
-    tools/refusals.py --check [WGRENDER_DIR] the gate: a refusal a header names and
+    tools/refusals.py                       the report
+    tools/refusals.py --check               the gate: a refusal a header names and
                                              the binding's docs do not
-    tools/refusals.py --json [WGRENDER_DIR] the report, as JSON on stdout
+    tools/refusals.py --json                the report, as JSON on stdout
     tools/refusals.py --require-clang       fail rather than skip when clang is missing
 
 Two halves, both about refusals. The report reads the C. The check reads prose
@@ -48,12 +48,12 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from wgrpath import find  # noqa: E402
+from wgrpath import WGRENDER  # noqa: E402
 import members  # noqa: E402
 import cli  # noqa: E402
 
 if __name__ == '__main__':
-    cli.parse(__doc__, ('--check', '--json', '--require-clang'), positional=1)
+    cli.parse(__doc__, ('--check', '--json', '--require-clang'), positional=0)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -395,11 +395,10 @@ def collect(clang, wgrender):
 
 
 def main():
-    argv = [a for a in sys.argv[1:] if not a.startswith('--')]
     clang = find_clang()
     if clang is None and '--check' in sys.argv:
         # The check reads headers and doc comments, not the C, so it runs anywhere.
-        return check(ROOT, find(argv[0] if argv else None))
+        return check(ROOT, WGRENDER)
     if clang is None:
         if '--require-clang' in sys.argv:
             # What CI passes. A skip that can happen everywhere is not a gate, so the
@@ -409,7 +408,7 @@ def main():
         print('refusals: no clang found (emsdk provides one; `emcc` on PATH leads to it)')
         print('          skipping -- CI builds the web target, so it runs there')
         return 0
-    wgrender = find(argv[0] if argv else None)
+    wgrender = WGRENDER
     if '--check' in sys.argv:
         return check(ROOT, wgrender)
     api = collect(clang, wgrender)

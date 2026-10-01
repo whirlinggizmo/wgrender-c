@@ -22,7 +22,7 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from wgrpath import find  # noqa: E402
+from wgrpath import WGRENDER  # noqa: E402
 import cli  # noqa: E402
 
 if __name__ == '__main__':
@@ -30,7 +30,6 @@ if __name__ == '__main__':
 LIB = pathlib.Path(__file__).resolve().parent.parent
 # argv here is example directories, so wgrender comes from the environment or
 # the usual places -- not from a positional that means something else.
-WGRENDER = find(argv=[])
 GUEST = 'js-webgl2-nothreads'  # the guest builds compared: tools/guestbuild.py's default
 C_BUILD = WGRENDER / 'out/web/webgl2-nothreads'
 

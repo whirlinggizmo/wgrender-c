@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """What of wgrender this binding reaches, and what it would take to reach more.
 
-    tools/coverage.py [WGRENDER_DIR]     the report
+    tools/coverage.py                    the report
     tools/coverage.py --check            fail if OMISSIONS has rotted, or a C call has
                                          more than one name
 
@@ -32,15 +32,14 @@ import subprocess
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from wgrpath import find  # noqa: E402
+from wgrpath import WGRENDER  # noqa: E402
 import members  # noqa: E402
 import cli  # noqa: E402
 
 if __name__ == '__main__':
-    cli.parse(__doc__, ('--check',), positional=1)
+    cli.parse(__doc__, ('--check',), positional=0)
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-WGRENDER = find()
 
 # Reachable on hxcpp but deliberately not on js, and why: every one takes a C function
 # pointer or a void *, which the guest ABI replaces there, or returns something too big

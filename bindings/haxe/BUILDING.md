@@ -16,7 +16,7 @@ build is `haxe <file>.hxml`, on Windows, Linux or macOS.
 - for the web: Emscripten (emsdk), with `emcc` on `PATH`. wgrender's web library is
   built by its `tools/buildweb.py`, on the Python emsdk brings.
 - on Linux, the system's GL, X11 and ALSA dev packages, which sokol links:
-  `python3 project/lib/wgrender-c/tools/deps.py install` (apt, dnf or pacman)
+  `python3 tools/deps.py install` from the repository root (apt, dnf or pacman)
 - Python 3 for the tools here (`examples/build.py`, `test/check.py`, the generators)
 - a Chromium-based browser (Brave, Chrome, Chromium or Edge) for `examples/build.py drive`
   (`tools/drive.py`, Python like the rest: there is no Node to install)
@@ -24,17 +24,12 @@ build is `haxe <file>.hxml`, on Windows, Linux or macOS.
 ## Install
 
 ```sh
-haxelib git wgrender-hx https://github.com/whirlinggizmo/wgrender-hx
+haxelib git wgrender-hx https://github.com/whirlinggizmo/wgrender-c main bindings/haxe
 ```
 
-`haxelib git` clones the wgrender submodule too, under `project/lib/wgrender-c`. After
-every `haxelib update wgrender-hx`, run `haxelib run wgrender-hx setup`: it moves the
-submodule to the commit this library pins (the binding is generated from wgrender's
-headers, and refuses to build against others). `setup web` also builds wgrender's web
-library, which the web build does anyway when it needs it. `haxelib run wgrender-hx
-where` says what is present.
-
-Working on the binding itself: `haxelib dev wgrender-hx /path/to/wgrender-hx`.
+That clones wgrender-c and makes `bindings/haxe` the library's root; wgrender is two
+directories up. Working on the binding itself, from a checkout:
+`haxelib dev wgrender-hx bindings/haxe`.
 
 ## Build a program
 
@@ -71,9 +66,6 @@ build is chosen by the environment, spelled as wgrender's own tools spell it:
 `BACKEND=webgl2|webgpu`, `WEB_THREADS=0|1` (0 by default here: a threaded page needs
 COOP/COEP headers), `WEB_DEBUG=0|1`.
 
-`-D WGRENDER_DIR=<path>` builds against a wgrender of your own instead of the pinned
-submodule, for the native and web builds alike.
-
 ## The examples
 
 ```sh
@@ -85,9 +77,8 @@ examples/build.py site           every web build and the assets, one site for an
 examples/build.py compare        sizes against wgrender's own C build of each
 ```
 
-`examples/build.py` builds against this checkout's wgrender (a `../wgrender-c` beside
-this repository, else the submodule; `WGRENDER_DIR` overrides) and puts wgrender's
-sample assets beside each desktop binary.
+`examples/build.py` builds against the wgrender this binding sits in and puts
+wgrender's sample assets beside each desktop binary.
 
 Builds follow the wg* layout (whirlinggizmo/.github CONVENTIONS.md, "Build
 directories"): what they make in `out/<platform>/<variant>/`, their work in

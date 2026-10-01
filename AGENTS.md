@@ -107,8 +107,8 @@ make and no shell script: everything below works the same on Windows, Linux and 
 - `tools/benchmarks.py [--doc | --all]` — the C `simple` against every binding
   (docs/benchmarks.md): download size, frame cost, JS heap and GC, and what a call from a
   JS guest costs. Measures the C baseline into `bench/results.json` and collects each
-  sibling binding's own `bench/results.json`; `--doc` only regenerates the page, `--all`
-  also runs each sibling binding's own `tools/benchmarks.py` in between. The
+  binding's own `bench/results.json` (`bindings/haxe/`); `--doc` only regenerates the
+  page, `--all` also runs each binding's own `tools/benchmarks.py` in between. The
   harness is `tools/bench/` (`measure.py`, which bindings import, plus `pagebench.py`:
   frame cost, GC and call counts in the browser; `callbench/`, a page; and `stress.c`, the scene the bindings
   port: `/bench/?ex=stress&n=5000`). The stress runs need Xvfb and a GPU. By hand, not
@@ -128,10 +128,12 @@ make and no shell script: everything below works the same on Windows, Linux and 
 - `gen-brdf-lut` (a target of a Linux, macOS or Windows preset) — regenerate the baked BRDF table
   (`src/data/wgr_brdf_lut.h`) after changing `wgri_environment_brdf_lut` or its size (a
   unit test fails until you do).
-- Run `python3 tools/verify.py` (this machine's release, headless and tsan presets, and
-  `windows-mingw` / `windows-mingw-headless` when MinGW and Wine are installed) before calling a
+- Run `python3 tools/verify.py` (this machine's release, headless and tsan presets,
+  `windows-mingw` / `windows-mingw-headless` when MinGW and Wine are installed, and the
+  Haxe binding's suite, `bindings/haxe/test/check.py`, when Haxe is) before calling a
   change done; add `--web` (every example on `web-webgl2`, `-nothreads` and
-  `web-webgpu`, loaded in the browser) when touching rendering, assets or web code.
+  `web-webgpu`, loaded in the browser, and the Haxe examples built for the web and
+  driven) when touching rendering, assets or web code.
   Without `--web` nothing links a web example, so **EM_JS changes are unverified until
   an example links** — closure runs then, not when the library is built, and it is what
   catches a typo in the JS body (`$0` is EM_ASM syntax; EM_JS takes named parameters).
@@ -152,9 +154,12 @@ make and no shell script: everything below works the same on Windows, Linux and 
   changing public API or observable behavior (above), but recommend the correct
   option.
 - Read-only tasks (questions, reviews) need no approval.
-- **Keep the core a plain C library.** Scripting hosts, language bindings and
-  networking beyond asset downloads (WebSockets, HTTP APIs, multiplayer) are separate
-  modules/repos built on the public API; don't add them here.
+- **Keep the core a plain C library.** Language bindings live here, under `bindings/`
+  (`bindings/haxe`), built only on the public API, so a public API change updates them
+  in the same commit (`tools/verify.py` runs the Haxe binding's suite when Haxe is
+  installed). Scripting hosts and networking beyond asset downloads (WebSockets, HTTP
+  APIs, multiplayer) are separate modules/repos built on the public API; don't add
+  them here.
 
 ## Docs: which one is true
 

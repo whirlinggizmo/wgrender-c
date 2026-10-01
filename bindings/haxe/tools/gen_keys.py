@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Write src/wgr/Key.hx from wgrender's include/wgr_keys.h.
 
-    tools/gen_keys.py [WGRENDER_DIR]         write it
-    tools/gen_keys.py --check [WGRENDER_DIR]  fail if it has drifted
+    tools/gen_keys.py          write it
+    tools/gen_keys.py --check  fail if it has drifted
 
 The whole file, not a region of one: it is the `Key` enum abstract and a `KeyCheck`
 class whose static_asserts fail the C++ build if the header's numbers ever move.
@@ -17,16 +17,12 @@ import os
 import pathlib, re, sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from wgrpath import find  # noqa: E402
+from wgrpath import WGRENDER  # noqa: E402
 import cli  # noqa: E402
 
 if __name__ == '__main__':
-    cli.parse(__doc__, ('--check',), positional=1)
+    cli.parse(__doc__, ('--check',), positional=0)
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-# Same default as the other generators: the sibling checkout. This used to say
-# ../../github/whirlinggizmo/wgrender-c, which resolved to .../github/github/... once
-# the repo moved under github/whirlinggizmo itself.
-WGRENDER = find()
 SOURCE = ROOT / 'src/wgr/Key.hx'
 
 
