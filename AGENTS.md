@@ -65,7 +65,9 @@ make and no shell script: everything below works the same on Windows, Linux and 
 - **No tool reads source as text.** What a tool needs to know about code comes from
   something that parses it: the public headers from clang (`tools/headers.py`, which
   `check_rules.py` and the binding's generators use), the binding's Haxe from the Haxe
-  compiler (`wgr.macros.Members`). Matching a program's *output* is fine. Where nothing
+  compiler (`wgr.macros.Members`), a custom shader from sokol-shdc (its parse, `--dump`,
+  for the sections; the SPIR-V it compiles through, `tools/spirv.py`, for the
+  parameters' names, types and offsets). Matching a program's *output* is fine. Where nothing
   parses it, raise it rather than scan. clang is emsdk's, or one on PATH.
 - `tools/setup_deps.py [check|install]` — the Linux desktop build's system packages (GL, X11,
   ALSA); a Linux desktop configure runs the check.

@@ -163,7 +163,7 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
       binding's `cli.py`, now `tools/cli.py` (`buildweb.py --help` ran a build).
       `check_rules.py` holds both: names, and every tool run both ways. The binding
       runs the root's web tools instead of its copies of them.
-- [ ] No tool reads source as text. One module reads the public headers with clang's
+- [x] No tool reads source as text. One module reads the public headers with clang's
       JSON AST (functions, enums, structs, defines, doc comments), and every tool that
       needs to know what's in them uses it: `tools/check_rules.py` (with libwgt's
       self-test: a header that breaks every rule), the binding's `gen_raw.py` (its whole
@@ -174,6 +174,12 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
       `tools/pack_shader.py` from sokol-shdc's reflection; `build_hxcpp_web.py` takes
       `--main` as data instead of reading the hxml. Regenerated binding files must come
       out the same. Where nothing parses it, raise it rather than scan.
+      Done that way, with two choices of the user's: the _ptr rule covers wgr_/wgri_
+      functions (clang's name filter keeps src/ to seconds; file-local helpers are
+      outside it), and pack_shader.py reads SPIR-V for the parameters (shdc reports
+      no block members) and shdc's --dump for the sections; if those prove flaky,
+      fork sokol-tools to put both in its reflection. New check it brought: public
+      macros carry the prefix (wgr_logger.h's log_* are MACROS_TODO).
 - [ ] `docs/HISTORY.md`: what's done moves out of TASKS.md and the PLAN files, so they
       show only what's current.
 - [x] Build names as libwgt's: platform is what a program links against, with the

@@ -1,6 +1,6 @@
 /* libwgrender's surface shading, shared by models (wgr_model.glsl) and lit sprites
  * (wgr_sprite.glsl): the glTF metallic-roughness BRDF, the scene's lights and
- * environment, tone mapping. Regen both with `make shaders`.
+ * environment, tone mapping. Regen both with `tools/gen_shaders.py`.
  *
  * A shader that includes wgr_pbr_surface and wgr_pbr_main needs a vertex shader writing
  * v_world_pos, v_normal, v_tangent, v_uv0, v_uv1, v_color and v_alpha_mode (a sprite's

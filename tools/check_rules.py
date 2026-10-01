@@ -305,7 +305,7 @@ def check_modules(r, lib):
 # file is a tool.
 TOOL_FILES = ['tools/*.py', 'tools/bench/*.py', 'bindings/haxe/tools/*.py', 'bindings/haxe/test/check.py',
               'bindings/haxe/examples/build.py', 'bindings/haxe/examples/simple-hxcpp/build.py']
-TOOL_MODULES = {'tools/builds.py', 'tools/cli.py', 'tools/headers.py', 'tools/hostcache.py', 'tools/weblib.py', 'tools/bench/measure.py',
+TOOL_MODULES = {'tools/builds.py', 'tools/cli.py', 'tools/headers.py', 'tools/hostcache.py', 'tools/spirv.py', 'tools/weblib.py', 'tools/bench/measure.py',
                 'bindings/haxe/tools/guestbuild.py', 'bindings/haxe/tools/members.py',
                 'bindings/haxe/tools/wgrpath.py', 'bindings/haxe/tools/wgrweb.py'}
 # What a tool's name may start with: what it does. A bare verb is a name too (serve.py).

@@ -1,6 +1,6 @@
 /* wgr_model shaders — static + GPU-skinned, glTF metallic-roughness materials.
  * Authored once in annotated (Vulkan-style) GLSL; sokol-shdc generates
- * wgr_model.glsl.h with GL core / WebGL2 / WebGPU variants. Regen: `make shaders`.
+ * wgr_model.glsl.h with GL core / WebGL2 / WebGPU variants. Regen: `tools/gen_shaders.py`.
  *
  * Vertex colors (glTF COLOR_0, linear rgba; white when absent) multiply the base color.
  *

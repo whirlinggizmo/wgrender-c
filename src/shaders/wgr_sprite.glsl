@@ -1,6 +1,6 @@
 /* wgr_sprite shaders — instanced sprite quads (docs/PLAN-sprites.md). Authored once in
  * annotated GLSL; sokol-shdc generates wgr_sprite.glsl.h with GL core / WebGL2 / WebGPU
- * variants. Regen: `make shaders`.
+ * variants. Regen: `tools/gen_shaders.py`.
  *
  * One quad (6 corners) drawn once per sprite. Each sprite carries where it is and how
  * big, its source rectangle, its tint, and how it faces:

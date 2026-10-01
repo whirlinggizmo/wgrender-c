@@ -24,6 +24,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # an embedded Python (Windows) doesn't add it
 import gen_shaders  # noqa: E402
+import spirv  # noqa: E402  (a SPIR-V module's uniform blocks)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INTERFACE = os.path.join(ROOT, "shaders", "wgr.glsl")
@@ -86,32 +87,70 @@ def parse_yaml(text):
     return block(0)
 
 
-def sections(source):
-    """The text of each @fs/@vs/@block section, by (kind, name)."""
-    found = {}
-    for m in re.finditer(r"^@(fs|vs|block)\s+(\w+)\s*$(.*?)^@end", source, re.M | re.S):
-        found[(m.group(1), m.group(2))] = m.group(3)
-    return found
+def shdc_errors(output, temp_path, user_path, user_first_line):
+    """sokol-shdc's errors and warnings, once each, with the temporary file's line numbers
+    turned back into the user's (or a word that the line is libwgrender's)."""
+    def remap(m):
+        line = int(m.group(1))
+        if line >= user_first_line:
+            return f"{user_path}:{line - user_first_line + 1}"
+        return f"shaders/wgr.glsl or the generated vertex shaders (line {line})"
+    lines = [re.sub(re.escape(temp_path) + r":(\d+)", remap, l.strip()) for l in output.splitlines()
+             if ": error" in l or ": warning" in l]
+    return "\n".join(dict.fromkeys(lines)) or "shaderpack: sokol-shdc failed"
 
 
-def params_block(text, binding, where):
-    """The members of `layout(binding=N) uniform name { ... }` in `text`, with their
-    std140 offsets; [] when there's no such block."""
-    m = re.search(r"layout\s*\(\s*binding\s*=\s*%d\s*\)\s*uniform\s+(\w+)\s*\{(.*?)\}" % binding, text, re.S)
-    if m is None:
-        return None, []
-    members, offset = [], 0
-    body = re.sub(r"/\*.*?\*/|//[^\n]*", "", m.group(2), flags=re.S)
-    for decl in [d.strip() for d in body.split(";") if d.strip()]:
-        dm = re.fullmatch(r"(\w+)\s+(\w+)", decl)
-        if dm is None or dm.group(1) not in PARAM_TYPES:
-            fail(f"{where} parameter '{decl}': parameters are float, int, vec2, vec3 or vec4, one per line")
-        kind, name = dm.group(1), dm.group(2)
-        size, align = PARAM_TYPES[kind]
-        offset = (offset + align - 1) // align * align
-        members.append((name, kind, offset))
-        offset += size
-    return m.group(1), members
+def structure(shdc, path, work, report):
+    """How sokol-shdc parses `path`: {block name: input lines}, {fragment shader name: input
+    lines}, the lines being where each came from in the input, with every block it
+    includes expanded in. From shdc's own parse (its --dump); nothing is compiled."""
+    done = subprocess.run([shdc, "-i", path, "-o", os.path.join(work, "parse"), "-t", work, "-l", "glsl410",
+                           "-f", "bare_yaml", "-d"], capture_output=True, text=True)
+    if done.returncode != 0:
+        sys.exit(report(done.stdout + done.stderr))  # the dump is on stderr too: report picks the errors
+    snippets, maps, current, section = {}, {}, None, None
+    for line in done.stderr.splitlines():
+        if line.startswith("  ") and not line.startswith("   ") and line.strip().endswith(":"):
+            section = line.strip()[:-1]  # snippets, block_map, fs_map, ...
+        elif section == "snippets":
+            text = line.strip()
+            if text.startswith("snippet ") and text.endswith(":"):
+                current = snippets.setdefault(int(text[len("snippet "):-1]), {"lines": set()})
+            elif current is not None and text.startswith("name: "):
+                current["name"] = text[len("name: "):]
+            elif current is not None and "(" in text and text.split("(", 1)[0].isdigit():
+                current["lines"].add(int(text.split("(", 1)[1].split(")", 1)[0]))
+        elif section in ("block_map", "fs_map") and " => snippet " in line:
+            name, index = line.strip().split(" => snippet ")
+            maps.setdefault(section, {})[name] = snippets[int(index)]["lines"]
+    return maps.get("block_map", {}), maps.get("fs_map", {})
+
+
+def own_lines(blocks, name):
+    """A block's own lines: its lines, less those of each block it includes (any block
+    whose lines it wholly contains)."""
+    mine = set(blocks.get(name, ()))
+    for other, lines in blocks.items():
+        if other != name and lines and lines < blocks.get(name, set()):
+            mine -= lines
+    return mine
+
+
+def parameters(work, binding, where):
+    """The parameter block at `binding`, as the compiler laid it out: its name, and each
+    member's (name, type, offset), from the SPIR-V sokol-shdc saved
+    (--save-intermediate-spirv; tools/spirv.py). (None, []) when no shader has one."""
+    for leaf in sorted(os.listdir(work)):
+        if leaf.endswith(".spv"):
+            with open(os.path.join(work, leaf), "rb") as f:
+                found = spirv.uniform_blocks(f.read()).get(binding)
+            if found:
+                name, members = found
+                for member, kind, _ in members:
+                    if kind not in PARAM_TYPES:
+                        fail(f"{where} parameter '{member}' is {kind}: parameters are float, int, vec2, vec3 or vec4")
+                return name, members
+    return None, []
 
 
 def main():
@@ -129,24 +168,22 @@ def main():
 
     user = open(path, encoding="utf-8").read()
     interface = open(INTERFACE, encoding="utf-8").read()
-    user_sections = sections(user)
-    if ("fs", "fs") not in user_sections:
+    # What the file holds, as sokol-shdc parses it: whether it has a vertex hook, and
+    # whether its fragment shader includes wgr_screen (a screen effect, not a surface).
+    with tempfile.TemporaryDirectory(prefix="shaderpack-parse.") as parse_dir:
+        parse_path = os.path.join(parse_dir, os.path.basename(path))
+        with open(parse_path, "w", encoding="utf-8") as f:
+            f.write(interface + "\n" + user)
+        first = interface.count("\n") + 2  # the user's line 1 in this file
+        blocks, fragments = structure(shdc, parse_path, parse_dir,
+                                      lambda output: shdc_errors(output, parse_path, path, first))
+    if "fs" not in fragments:
         fail(f"{path}: needs a fragment shader `@fs fs` (see shaders/wgr.glsl)")
-    hook = "vertex" if ("block", "vertex") in user_sections else "wgr_vertex_default"
-    # a fragment shader that includes wgr_screen is a screen effect, not a surface
-    screen = re.search(r"@include_block\s+wgr_screen\s*$", user_sections[("fs", "fs")], re.M) is not None
-    if screen and ("block", "vertex") in user_sections:
+    vertex_hook = "vertex" in blocks
+    hook = "vertex" if vertex_hook else "wgr_vertex_default"
+    screen = bool(own_lines(blocks, "wgr_screen") & fragments["fs"])
+    if screen and vertex_hook:
         fail(f"{path}: a screen effect has no vertex hook (it draws over the finished frame)")
-
-    fs_block, fs_params = params_block(user_sections[("fs", "fs")], FS_PARAMS_BINDING, "fragment")
-    vs_block, vs_params = params_block(user_sections.get(("block", "vertex"), ""), VS_PARAMS_BINDING, "vertex")
-    names = [p[0] for p in fs_params + vs_params]
-    if any(len(n) >= NAME_MAX for n in names):
-        fail(f"parameter names are at most {NAME_MAX - 1} characters")
-    if len(names) > MAX_PARAMS:
-        fail(f"at most {MAX_PARAMS} parameters")
-    if len(set(names)) != len(names):
-        fail("parameter names must differ between the vertex and fragment blocks")
 
     if screen:
         generated = """
@@ -190,17 +227,23 @@ def main():
         combined_path = os.path.join(work, os.path.basename(path))
         with open(combined_path, "w", encoding="utf-8") as f:
             f.write(combined)
-        result = subprocess.run([shdc, "-i", combined_path, "-o", os.path.join(work, "out"), "-l", ":".join(SLANGS),
-                                 "-f", "bare_yaml"], capture_output=True, text=True)
+        result = subprocess.run([shdc, "-i", combined_path, "-o", os.path.join(work, "out"), "-t", work,
+                                 "-l", ":".join(SLANGS), "-f", "bare_yaml", "--save-intermediate-spirv"],
+                                capture_output=True, text=True)
         if result.returncode != 0:
-            def remap(m):
-                line = int(m.group(1))
-                if line >= user_first_line:
-                    return f"{path}:{line - user_first_line + 1}"
-                return f"shaders/wgr.glsl or the generated vertex shaders (line {line})"
-            message = re.sub(re.escape(combined_path) + r":(\d+)", remap, result.stdout + result.stderr)
-            sys.exit(message.strip() or "shaderpack: sokol-shdc failed")
+            sys.exit(shdc_errors(result.stdout + result.stderr, combined_path, path, user_first_line))
         reflection = parse_yaml(open(os.path.join(work, "out_reflection.yaml"), encoding="utf-8").read())
+
+        # The parameters, as the compiler laid them out
+        fs_block, fs_params = parameters(work, FS_PARAMS_BINDING, "fragment")
+        vs_block, vs_params = parameters(work, VS_PARAMS_BINDING, "vertex")
+        names = [p[0] for p in fs_params + vs_params]
+        if any(len(n) >= NAME_MAX for n in names):
+            fail(f"parameter names are at most {NAME_MAX - 1} characters")
+        if len(names) > MAX_PARAMS:
+            fail(f"at most {MAX_PARAMS} parameters")
+        if len(set(names)) != len(names):
+            fail("parameter names must differ between the vertex and fragment blocks")
 
         lines = [f"wgrshader {FORMAT_VERSION}", f"kind {'screen' if screen else 'surface'}"]
         for name, kind, offset in fs_params:

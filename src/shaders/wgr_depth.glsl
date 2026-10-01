@@ -14,7 +14,7 @@
  *   vs_depth_skin_params = the same
  *   fs_depth_params      = x alpha cutoff (0 = no alpha test)
  *
- * Regen: `make shaders`. */
+ * Regen: `tools/gen_shaders.py`. */
 @ctype mat4 wgri_mat4_t
 
 @include wgr_instance.glsl

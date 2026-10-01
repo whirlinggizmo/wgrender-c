@@ -1,6 +1,6 @@
 /* Vignette (examples/postprocess.c): the finished frame darkened toward the corners,
  * with a little warmth left in the middle. A screen effect — it includes wgr_screen, so
- * shaderpack builds one program that draws over the frame (make example-shaders). */
+ * shaderpack builds one program that draws over the frame (tools/gen_shaders.py --examples). */
 @fs fs
 @include_block wgr_screen
 layout(binding=2) uniform params {
