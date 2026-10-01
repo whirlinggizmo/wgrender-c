@@ -139,4 +139,8 @@ def main():
 
 
 if __name__ == '__main__':
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    import wgrpath  # noqa: E402,F401  (puts wgrender's tools/ on the path, for cli)
+    import cli  # noqa: E402  (tools/cli.py: --help, and no argument it doesn't take)
+    cli.parse(__doc__, ('--entry', '--title', '--background'), positional=None)
     sys.exit(main())

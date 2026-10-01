@@ -19,6 +19,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 EXTENSION = "WGR_texture_ktx"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -92,4 +93,7 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
+    import cli  # noqa: E402  (tools/cli.py: --help, and no argument it doesn't take)
+    cli.parse(__doc__, (), positional=1)
     main()

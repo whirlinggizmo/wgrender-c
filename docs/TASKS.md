@@ -157,10 +157,12 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
 - [ ] The Haxe binding moves in as `bindings/haxe` (history kept); its CI and Pages
       join the root's, `tools/verify.py` runs its suite. wgrender-beef is dropped and
       wgrender-nim set aside.
-- [ ] Tools named verb-first (`run_`, `check_`, `build_`, `measure_`...); modules that
+- [x] Tools named verb-first (`run_`, `check_`, `build_`, `measure_`...); modules that
       tools import keep nouns. Every tool takes `--help` (prints its usage and does
-      nothing else) and stops on an argument it doesn't take, as the Haxe binding's
-      `tools/cli.py` does (`build_web.py --help` ran a build).
+      nothing else) and stops on an argument it doesn't take, through the Haxe
+      binding's `cli.py`, now `tools/cli.py` (`buildweb.py --help` ran a build).
+      `check_rules.py` holds both: names, and every tool run both ways. The binding
+      runs the root's web tools instead of its copies of them.
 - [ ] No tool reads source as text. One module reads the public headers with clang's
       JSON AST (functions, enums, structs, defines, doc comments), and every tool that
       needs to know what's in them uses it: `tools/check_rules.py` (with libwgt's

@@ -6,6 +6,8 @@ their radius at any size. Needs nothing but the standard library. Run from anywh
 
     tools/gen_ui_panel.py
 """
+import sys
+from pathlib import Path
 import math
 import os
 import struct
@@ -68,4 +70,7 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
+    import cli  # noqa: E402  (tools/cli.py: --help, and no argument it doesn't take)
+    cli.parse(__doc__, (), positional=0)
     main()

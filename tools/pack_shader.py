@@ -19,6 +19,7 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # an embedded Python (Windows) doesn't add it
@@ -281,4 +282,7 @@ def describe(slang, program):
 
 
 if __name__ == "__main__":
+    sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
+    import cli  # noqa: E402  (tools/cli.py: --help, and no argument it doesn't take)
+    cli.parse(__doc__, ('-o',), positional=None)
     main()

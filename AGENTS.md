@@ -357,7 +357,10 @@ What they come to here:
   `check_` fails on what's wrong, `run_`, `build_`, `measure_`, `setup_`, `update_`,
   `compress_`... (`check_web.py`, `measure_web_size.py`, `run_smoke.py`). A module that
   tools import, and that isn't run, is a noun (`builds.py`, `weblib.py`,
-  `hostcache.py`). The same in `bindings/`.
+  `hostcache.py`). The same in `bindings/`. Every tool takes `--help` (its docstring,
+  and nothing else done) and stops on an argument it doesn't take: `tools/cli.py`'s
+  `parse`, first thing in its `__main__` block. `tools/check_rules.py` runs them all
+  both ways; a new module goes in its `TOOL_MODULES`.
 - **Tooling environment variables:** `WGRENDER_` (`WGRENDER_WEB_PROFILE`). They aren't
   library symbols, and three letters collide too easily in a process environment. A
   variable naming another project takes *that* project's name (`SOKOL_DIR` for a sokol checkout, because

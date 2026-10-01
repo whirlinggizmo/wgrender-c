@@ -57,6 +57,8 @@ def main():
 
 
 if __name__ == '__main__':
+    import cli  # noqa: E402  (tools/cli.py: --help, and no argument it doesn't take)
+    cli.parse(__doc__, (), positional=1)
     try:
         sys.exit(main())
     except RuntimeError as e:

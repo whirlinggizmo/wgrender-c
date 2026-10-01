@@ -5,6 +5,7 @@ FlightHelmet: CC0. See https://github.com/KhronosGroup/glTF-Sample-Assets.
 
     tools/bench/fetch_assets.py
 """
+import sys
 import json
 import time
 import urllib.request
@@ -44,4 +45,7 @@ def main():
 
 
 if __name__ == '__main__':
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools/, for cli
+    import cli  # noqa: E402  (tools/cli.py: --help, and no argument it doesn't take)
+    cli.parse(__doc__, (), positional=0)
     main()

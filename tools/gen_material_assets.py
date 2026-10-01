@@ -10,6 +10,8 @@
 
 Usage: tools/gen_material_assets.py   (from the repository root)
 """
+import sys
+from pathlib import Path
 import json
 import math
 import struct
@@ -112,6 +114,9 @@ def normal_png(path):
 
 
 if __name__ == "__main__":
+    sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
+    import cli  # noqa: E402  (tools/cli.py: --help, and no argument it doesn't take)
+    cli.parse(__doc__, (), positional=0)
     sphere_glb("examples/assets/models/sphere/sphere.glb")
     normal_png("examples/assets/textures/tiles_normal.png")
     print("wrote examples/assets/models/sphere/sphere.glb, examples/assets/textures/tiles_normal.png")

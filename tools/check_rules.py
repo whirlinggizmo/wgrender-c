@@ -16,6 +16,10 @@
   modules   the core never calls an optional subsystem by name (src/internal/
             wgri_module.h), read from the library's symbol table: needs --lib and nm,
             and is skipped without them. ctest's `check` passes the headless library.
+  tools     AGENTS.md § Naming: every tool is named verb first (TOOL_VERBS), and run
+            with --help prints its usage and exits 0 having done nothing, and with an
+            argument it doesn't take exits non-zero. A tool is every .py in the tool
+            folders (TOOL_FILES) but the modules tools import (TOOL_MODULES).
 
 Exits non-zero on any violation. ctest runs it as the test `check`.
 """
@@ -252,6 +256,47 @@ def check_modules(r, lib):
              'core code calls optional subsystems by name (go through wgri_module.h and the hooks):')
 
 
+# Where tools live, and the modules among them: imported by tools, never run. Every other
+# file is a tool.
+TOOL_FILES = ['tools/*.py', 'tools/bench/*.py', 'bindings/haxe/tools/*.py', 'bindings/haxe/test/check.py',
+              'bindings/haxe/examples/build.py', 'bindings/haxe/examples/simple-hxcpp/build.py']
+TOOL_MODULES = {'tools/builds.py', 'tools/cli.py', 'tools/hostcache.py', 'tools/weblib.py', 'tools/bench/measure.py',
+                'bindings/haxe/tools/guestbuild.py', 'bindings/haxe/tools/members.py',
+                'bindings/haxe/tools/wgrpath.py', 'bindings/haxe/tools/wgrweb.py'}
+# What a tool's name may start with: what it does. A bare verb is a name too (serve.py).
+TOOL_VERBS = ('build', 'check', 'compare', 'compress', 'create', 'drive', 'fetch', 'finish', 'gen', 'measure',
+              'pack', 'run', 'serve', 'setup', 'show', 'update', 'verify', 'watch')
+# Tools whose name is fixed by what runs them: a project's build script, a test suite.
+TOOL_NAMES_FIXED = {'bindings/haxe/test/check.py', 'bindings/haxe/examples/build.py',
+                    'bindings/haxe/examples/simple-hxcpp/build.py'}
+
+
+def check_tools(r):
+    from concurrent.futures import ThreadPoolExecutor
+    tools = sorted({p.relative_to(ROOT).as_posix() for pattern in TOOL_FILES for p in ROOT.glob(pattern)}
+                   - TOOL_MODULES)
+    names = [t for t in tools if t not in TOOL_NAMES_FIXED
+             and Path(t).stem.split('_')[0] not in TOOL_VERBS]
+    r.result([f'{t}: not named verb first ({", ".join(TOOL_VERBS)})' for t in names],
+             f'{len(tools)} tools named verb first', 'tools named for what they do')
+
+    def answers(tool):
+        def run(arg):
+            return subprocess.run([sys.executable, str(ROOT / tool), arg], cwd=ROOT, capture_output=True,
+                                  timeout=60).returncode
+        problems = []
+        if run('--help') != 0:
+            problems.append(f'{tool}: --help exits non-zero')
+        if run('--no-such-argument') == 0:
+            problems.append(f'{tool}: an argument it does not take is accepted')
+        return problems
+
+    with ThreadPoolExecutor(8) as pool:
+        hits = [p for problems in pool.map(answers, tools) for p in problems]
+    r.result(hits, f'{len(tools)} tools answer --help and refuse an unknown argument',
+             'every tool answers --help (exit 0, nothing done) and refuses what it does not take')
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--lib', help='the library whose symbols the modules check reads')
@@ -263,6 +308,7 @@ def main():
     check_values(r)
     check_getters(r)
     check_modules(r, args.lib)
+    check_tools(r)
     if r.failed:
         sys.exit(1)
     print('PASS')

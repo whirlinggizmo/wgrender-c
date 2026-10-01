@@ -10,6 +10,7 @@ checkout: one copy per user, safe to delete, made again on first use.
 $WGR_CACHE_DIR if set, else the OS's per-user cache: $XDG_CACHE_HOME or ~/.cache on
 Linux, ~/Library/Caches on macOS, %LOCALAPPDATA% on Windows; in a wgrender folder there.
 """
+import sys
 import os
 import platform
 from pathlib import Path
@@ -36,4 +37,7 @@ def cache_dir(*parts):
 
 
 if __name__ == '__main__':
+    sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
+    import cli  # noqa: E402  (tools/cli.py: --help, and no argument it doesn't take)
+    cli.parse(__doc__, (), positional=0)
     print(cache_root())

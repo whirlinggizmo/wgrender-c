@@ -32,8 +32,13 @@ import os
 import posixpath
 import ssl
 import sys
+from pathlib import Path
 import urllib.parse
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
+import cli  # noqa: E402  (tools/cli.py: --help, and no argument it doesn't take)
+if __name__ == "__main__":
+    cli.parse(__doc__, ('--tls', '--cache', '--gzip', '--assets'), positional=None)
 ARGS = sys.argv[1:]
 TLS = None
 if "--tls" in ARGS:
