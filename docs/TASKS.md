@@ -4,7 +4,7 @@ Working checklist. Order and reasoning live in [ROADMAP.md](ROADMAP.md); this fi
 is what's done and what's next.
 
 Workflow: pick the top unchecked item, outline a plan (AGENTS.md), implement with
-tests, keep `make verify` passing, and tick the box in the same commit.
+tests, keep `python3 tools/verify.py` passing, and tick the box in the same commit.
 
 ## Bugs and measurements
 
@@ -143,6 +143,46 @@ tests, keep `make verify` passing, and tick the box in the same commit.
       and selected with `mix`/`step`, which shdc keeps branch-free. `params[i + 17]` and
       the dynamic component `q[i % 4]` were never the problem. All ten glsl300es programs
       link on that phone and `particles` draws at 60 FPS
+
+## From libwgt
+
+libwgt (`whirlinggizmo/libwgt`) is a layered port of wgrender; where it found something
+better, wgrender adopts it, and where wgrender's is better it stays. Branch
+`from-libwgt` first, then the API items, each on a branch of its own.
+
+- [x] WebGPU clips depth 0..1: the 3D camera's projection goes through
+      `wgri_render_clip_depth` where it reaches the GPU; CPU math keeps GL's -1..1.
+- [x] Shadows on the same rule: light matrices -1..1 on the CPU (caster culling was
+      wrong on WebGPU), converted only for the depth pass.
+- [ ] The Haxe binding moves in as `bindings/haxe` (history kept); its CI and Pages
+      join the root's, `tools/verify.py` runs its suite. wgrender-beef is dropped and
+      wgrender-nim set aside.
+- [ ] Tools named verb-first (`run_`, `check_`, `build_`, `measure_`...); modules that
+      tools import keep nouns.
+- [ ] No tool reads source as text: `tools/check.py` on clang's AST (libwgt's
+      `check_api.py`, with its self-test), backend-free headers and examples by
+      compiling them without `deps/`, `tools/shaderpack.py` from sokol-shdc's
+      reflection. Where nothing parses it, raise it rather than scan.
+- [ ] `docs/HISTORY.md`: what's done moves out of TASKS.md and the PLAN files, so they
+      show only what's current.
+- [ ] Hidden symbol visibility: only `wgr_*` exported.
+- [ ] Pixel tests: frames read back in headless Chrome and in a GL window on Xvfb; a
+      desktop check of every example with screenshots.
+- [ ] `run_remote_windows.py`: build and test the working tree on the Windows machine
+      over ssh.
+- [ ] Public math (own branch): vec2/3/4, quat, mat4 operations `inline` in public
+      headers with one exported copy each for bindings; types `wgr_vec3_t`,
+      `wgr_quat_t`, `wgr_mat4_t` (column-major `float m[16]`; `matrix_t` goes); the
+      internal `wgri_mat4_*` / `wgri_v3_*` replaced by it; AGENTS.md allows mat4.
+- [ ] Public fs and byte spans (own branch, with the next item): `wgr_fs.h` as polled
+      tasks (read, write, exists, remove, mkdir, rmdir), paths confined under the
+      root, `wgr_fs.c` split into `_native` / `_web`; AGENTS.md allows
+      `const unsigned char *data, int size` (copied in; owned by the task out).
+- [ ] Polled status instead of callbacks: resources answer PENDING / READY / FAILED,
+      slow work is a task handle; replaces the `void *` callbacks in `wgr_asset.h`
+      and `wgr_event.h`.
+- [ ] Maybe: a node tree (parenting, cached transforms, enabled / visible / pickable
+      as separate flags). Biggest API change here; only if a hierarchy is wanted.
 
 ## Core runtime
 
