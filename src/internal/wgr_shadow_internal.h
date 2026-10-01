@@ -36,7 +36,6 @@ typedef struct {
     sg_sampler sampler; /* comparison: sampling it returns "how lit", not a depth */
     int count;          /* casting lights, 0..WGRI_MAX_SHADOW_LIGHTS */
     wgri_shadow_light_t lights[WGRI_MAX_SHADOW_LIGHTS];
-    float depth_scale, depth_offset; /* clip z -> the depth the map holds (per backend) */
     bool flipped;                    /* the map's first row is its top, not its bottom */
 } wgri_shadow_binding_t;
 
@@ -82,15 +81,8 @@ static inline void wgri_shadow_fill_uniforms(const wgri_shadow_binding_t *bindin
         tint[i][3] = light->bias_scale;
         extra[i][0] = light->strength;
     }
-    map[0] = binding->depth_scale;
-    map[1] = binding->depth_offset;
-    map[2] = binding->flipped ? 1.0f : 0.0f;
+    map[0] = binding->flipped ? 1.0f : 0.0f;
 }
-
-/* An orthographic projection for a light, in the depth range the backend clips to:
- * -1..1 for GL and WebGL2, 0..1 for WebGPU. `zero_to_one` picks it (pure; exposed for
- * tests, where the backend is the dummy one). */
-wgri_mat4_t wgri_shadow_ortho(float l, float r, float b, float t, float n, float f, bool zero_to_one);
 
 /* A directional light's view of what the camera can see, out to `distance`: the
  * world -> light clip matrix and the world size of one shadow texel. The fit is
@@ -98,18 +90,18 @@ wgri_mat4_t wgri_shadow_ortho(float l, float r, float b, float t, float n, float
  * near plane is pulled back by `pullback` so casters behind the camera still cast.
  * Pure; exposed for tests. */
 typedef struct {
-    wgri_mat4_t view_proj;
+    wgri_mat4_t view_proj; /* GL's -1..1 depth, as all CPU math (wgri_render_clip_depth) */
     float texel_world; /* world units one shadow texel covers */
     float depth_range; /* world units the map's 0..1 depth spans */
 } wgri_shadow_fit_t;
 
 wgri_shadow_fit_t wgri_shadow_fit_directional(const wgri_camera3d_t *cam, float aspect, vec3_t light_direction,
-                                          float distance, int map_size, float pullback, bool zero_to_one);
+                                          float distance, int map_size, float pullback);
 
 /* A spot light's view of its own cone: a perspective frustum from `position` along
  * `direction`, wide enough for the outer cone angle, reaching `distance`. `near_plane`
  * keeps the projection sane close to the lamp. Pure; exposed for tests. */
 wgri_shadow_fit_t wgri_shadow_fit_spot(vec3_t position, vec3_t direction, float cos_outer, float distance,
-                                   float near_plane, int map_size, bool zero_to_one);
+                                   float near_plane, int map_size);
 
 #endif // WGRI_INTERNAL_SHADOW_H

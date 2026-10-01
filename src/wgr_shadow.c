@@ -35,24 +35,6 @@ static struct {
 
 /* --------------------------------------------------------------- fitting ---- */
 
-wgri_mat4_t wgri_shadow_ortho(float l, float r, float b, float t, float n, float f, bool zero_to_one)
-{
-    wgri_mat4_t m = {{0}};
-    m.m[0] = 2.0f / (r - l);
-    m.m[5] = 2.0f / (t - b);
-    m.m[12] = -(r + l) / (r - l);
-    m.m[13] = -(t + b) / (t - b);
-    m.m[15] = 1.0f;
-    if (zero_to_one) { /* WebGPU clips 0 <= z <= w */
-        m.m[10] = -1.0f / (f - n);
-        m.m[14] = -n / (f - n);
-    } else { /* GL and WebGL2 clip -w <= z <= w */
-        m.m[10] = -2.0f / (f - n);
-        m.m[14] = -(f + n) / (f - n);
-    }
-    return m;
-}
-
 /* The eight corners of what the camera sees between its near plane and `distance`. */
 static void view_corners(const wgri_camera3d_t *cam, float aspect, float distance, vec3_t out[8])
 {
@@ -77,7 +59,7 @@ static void view_corners(const wgri_camera3d_t *cam, float aspect, float distanc
 }
 
 wgri_shadow_fit_t wgri_shadow_fit_directional(const wgri_camera3d_t *cam, float aspect, vec3_t light_direction,
-                                          float distance, int map_size, float pullback, bool zero_to_one)
+                                          float distance, int map_size, float pullback)
 {
     vec3_t corners[8];
     vec3_t centre = {0, 0, 0};
@@ -139,32 +121,13 @@ wgri_shadow_fit_t wgri_shadow_fit_directional(const wgri_camera3d_t *cam, float 
         fit.texel_world = texel;
     }
     fit.depth_range = max_z + pullback;
-    fit.view_proj = wgri_mat4_mul(wgri_shadow_ortho(min_x, max_x, min_y, max_y, 0.0f, fit.depth_range, zero_to_one),
+    fit.view_proj = wgri_mat4_mul(wgri_mat4_ortho(min_x, max_x, min_y, max_y, 0.0f, fit.depth_range),
                                 light_view);
     return fit;
 }
 
-/* A perspective projection in the depth range the backend clips to, like
- * wgri_shadow_ortho but for a spot light's cone. */
-static wgri_mat4_t shadow_perspective(float fovy, float aspect, float n, float f, bool zero_to_one)
-{
-    const float t = tanf(fovy * 0.5f);
-    wgri_mat4_t m = {{0}};
-    m.m[0] = 1.0f / (aspect * t);
-    m.m[5] = 1.0f / t;
-    m.m[11] = -1.0f;
-    if (zero_to_one) { /* WebGPU clips 0 <= z <= w */
-        m.m[10] = f / (n - f);
-        m.m[14] = (f * n) / (n - f);
-    } else { /* GL and WebGL2 clip -w <= z <= w */
-        m.m[10] = (f + n) / (n - f);
-        m.m[14] = (2.0f * f * n) / (n - f);
-    }
-    return m;
-}
-
 wgri_shadow_fit_t wgri_shadow_fit_spot(vec3_t position, vec3_t direction, float cos_outer, float distance,
-                                   float near_plane, int map_size, bool zero_to_one)
+                                   float near_plane, int map_size)
 {
     vec3_t dir = wgri_v3_norm(direction);
     wgri_camera3d_t light_cam;
@@ -203,7 +166,7 @@ wgri_shadow_fit_t wgri_shadow_fit_spot(vec3_t position, vec3_t direction, float 
     /* a spot's texels grow with distance; this is the size at the far end, which is
        where its shadow usually lands */
     fit.texel_world = 2.0f * tanf(fovy * 0.5f) * distance / (float)map_size;
-    fit.view_proj = wgri_mat4_mul(shadow_perspective(fovy, 1.0f, near_plane, distance, zero_to_one),
+    fit.view_proj = wgri_mat4_mul(wgri_mat4_perspective(fovy, 1.0f, near_plane, distance),
                                 wgri_camera3d_view(&light_cam));
     return fit;
 }
@@ -285,18 +248,17 @@ static int casting_env(void)
 }
 
 /* Where one casting light looks, and how big its texels are there. */
-static wgri_shadow_fit_t fit_light(const wgri_scene_light_t *light, const wgri_camera3d_t *cam, float aspect,
-                                 bool zero_to_one)
+static wgri_shadow_fit_t fit_light(const wgri_scene_light_t *light, const wgri_camera3d_t *cam, float aspect)
 {
     if (light->type == WGR_LIGHT_SPOT) {
         /* a spot only lights its own cone, and only as far as its range reaches */
         const float reach = light->range > 0.0f && light->range < light->shadow_distance ? light->range
                                                                                          : light->shadow_distance;
         return wgri_shadow_fit_spot(light->position, light->direction, light->cos_outer, reach, reach * 0.01f,
-                                  wgr_sm.size, zero_to_one);
+                                  wgr_sm.size);
     }
     return wgri_shadow_fit_directional(cam, aspect, light->direction, light->shadow_distance, wgr_sm.size,
-                                     WGR_SHADOW_PULLBACK, zero_to_one);
+                                     WGR_SHADOW_PULLBACK);
 }
 
 /* wgri_render_hooks: draw the casters into each casting light's layer, before anything
@@ -305,7 +267,6 @@ static void shadows_draw(void)
 {
     const int env_index = casting_env();
     const wgri_light_env_t *env = env_index >= 0 ? wgri_light_env_get(env_index) : NULL;
-    const bool zero_to_one = sg_query_backend() == SG_BACKEND_WGPU;
     wgri_camera3d_t cam;
     vec2_t screen;
     float aspect;
@@ -340,13 +301,11 @@ static void shadows_draw(void)
     wgr_sm.binding.map = wgr_sm.map_view;
     wgr_sm.binding.sampler = wgr_sm.sampler;
     wgr_sm.binding.count = env->shadow_count;
-    wgr_sm.binding.depth_scale = zero_to_one ? 1.0f : 0.5f; /* clip z -> the 0..1 depth stored */
-    wgr_sm.binding.depth_offset = zero_to_one ? 0.0f : 0.5f;
     wgr_sm.binding.flipped = sg_query_features().origin_top_left;
 
     for (int i = 0; i < env->shadow_count; i++) {
         const wgri_scene_light_t *light = &env->lights[env->shadow_lights[i]];
-        const wgri_shadow_fit_t fit = fit_light(light, &cam, aspect, zero_to_one);
+        const wgri_shadow_fit_t fit = fit_light(light, &cam, aspect);
 
         /* the depth buffer is the whole point here, so say it must be kept: sokol's
            default for depth is DONTCARE, which WebGPU takes at its word and discards

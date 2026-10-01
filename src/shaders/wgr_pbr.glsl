@@ -91,7 +91,7 @@ layout(binding=2) uniform fs_scene {
     vec4 u_shadow_params[4]; /* x 1/map size, y texel in world units, z/w bias constant, slope */
     vec4 u_shadow_tint[4];   /* rgb what a shadow leaves behind (linear), w bias texels -> depth */
     vec4 u_shadow_extra[4];  /* x strength (how much light a shadow takes) */
-    vec4 u_shadow_map;       /* x/y clip z -> stored depth (scale, offset), z 1 = stored top-down */
+    vec4 u_shadow_map;       /* x 1 = stored top-down (yzw unused) */
 };
 layout(binding=3) uniform fs_lights {
     vec4 u_light_pos_range[8];
@@ -141,12 +141,14 @@ float shadow_factor(int slot, vec3 world_pos, vec3 n, float n_dot_l) {
     vec4 clip = u_shadow_mat[slot] * vec4(world_pos + n * (u_shadow_params[slot].y * (1.0 + 2.0 * slant)), 1.0);
     vec3 ndc = clip.xyz / max(abs(clip.w), 1e-6) * sign(clip.w);
     vec2 uv = ndc.xy * 0.5 + 0.5;
-    if (u_shadow_map.z > 0.5) {
+    if (u_shadow_map.x > 0.5) {
         uv.y = 1.0 - uv.y; /* where the map's first row is its top, not its bottom */
     }
     /* a little depth slack on top, in texels (what acne is made of) */
     float bias = (u_shadow_params[slot].z + u_shadow_params[slot].w * slant) * u_shadow_tint[slot].w;
-    float depth = ndc.z * u_shadow_map.x + u_shadow_map.y - bias;
+    /* the matrices are GL's -1..1 on every backend, and the map holds that as 0..1
+       (WebGPU's depth pass draws through the same matrix remapped to 0..1) */
+    float depth = ndc.z * 0.5 + 0.5 - bias;
 
     /* Inside the map at all? Past its sides or its far end, everything is lit, and it
      * fades out over the last tenth so a shadow running off the edge dissolves instead

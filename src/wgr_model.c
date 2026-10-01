@@ -3236,12 +3236,14 @@ void wgri_model_draw_shadow_casters(int light_env, const wgri_mat4_t *light_view
     /* a light's map covers only what its fit reaches; a caster outside it draws
        nothing but costs a draw call, so test each placement against the fit */
     wgri_plane_t light_planes[6];
+    wgri_mat4_t clip_view_proj; /* what the depth pass draws through */
     int i = 0;
 
     if (light_view_proj == NULL) {
         return;
     }
     wgri_frustum_from_view_proj(*light_view_proj, light_planes);
+    clip_view_proj = wgri_render_clip_depth(*light_view_proj);
     while (i < wgr_model_item_count) {
         const wgr_primitive_t *prim = NULL;
         const wgri_material_t *material = NULL;
@@ -3272,7 +3274,7 @@ void wgri_model_draw_shadow_casters(int light_env, const wgri_mat4_t *light_view
             struct {
                 float view_proj[16], instance_base[4];
             } vsp;
-            memcpy(vsp.view_proj, light_view_proj->m, sizeof(vsp.view_proj));
+            memcpy(vsp.view_proj, clip_view_proj.m, sizeof(vsp.view_proj));
             vsp.instance_base[0] = (float)i;
             vsp.instance_base[1] = vsp.instance_base[2] = vsp.instance_base[3] = 0.0f;
             sg_apply_uniforms(skinned ? UB_vs_depth_skin_params : UB_vs_depth_params,

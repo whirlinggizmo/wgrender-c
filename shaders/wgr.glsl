@@ -396,7 +396,7 @@ layout(binding=1) uniform wgr_frame {
     vec4 wgr_shadow_params[4];    /* x 1/map size, y texel in world units, z/w bias constant, slope */
     vec4 wgr_shadow_tint[4];      /* rgb what a shadow keeps (linear), w bias texels -> depth */
     vec4 wgr_shadow_extra[4];     /* x strength */
-    vec4 wgr_shadow_map;          /* x/y clip z -> stored depth, z 1 = stored top-down */
+    vec4 wgr_shadow_map;          /* x 1 = stored top-down (yzw unused) */
 };
 layout(binding=8) uniform textureCube wgr_env_tex;
 layout(binding=8) uniform sampler wgr_env_smp; /* the BRDF table shares it: both are linear, clamped */
@@ -496,11 +496,11 @@ float wgr_shadow(int i, vec3 pos, vec3 n) {
     vec4 clip = wgr_shadow_mat[slot] * vec4(pos + normal * (wgr_shadow_params[slot].y * (1.0 + 2.0 * slant)), 1.0);
     vec3 ndc = clip.xyz / max(abs(clip.w), 1e-6) * sign(clip.w);
     vec2 uv = ndc.xy * 0.5 + 0.5;
-    if (wgr_shadow_map.z > 0.5) {
+    if (wgr_shadow_map.x > 0.5) {
         uv.y = 1.0 - uv.y;
     }
     float bias = (wgr_shadow_params[slot].z + wgr_shadow_params[slot].w * slant) * wgr_shadow_tint[slot].w;
-    float depth = ndc.z * wgr_shadow_map.x + wgr_shadow_map.y - bias;
+    float depth = ndc.z * 0.5 + 0.5 - bias; /* GL's -1..1 on every backend, held as 0..1 */
     /* a weight, not an early return: the comparison below runs for every pixel */
     vec2 to_edge = 1.0 - abs(ndc.xy);
     float inside = step(0.0, min(to_edge.x, to_edge.y)) * step(depth, 1.0) * step(0.0, clip.w);

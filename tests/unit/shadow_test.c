@@ -160,16 +160,8 @@ void test_shadow_fit(void)
     };
     const vec3_t straight_down = {0.0f, -1.0f, 0.0f};
 
-    /* the depth range follows the backend: GL clips -1..1, WebGPU 0..1 */
-    const wgri_mat4_t gl = wgri_shadow_ortho(-1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 10.0f, false);
-    const wgri_mat4_t wgpu = wgri_shadow_ortho(-1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 10.0f, true);
-    CHECK_NEAR(to_light_clip(&gl, (vec3_t){0, 0, 0}).z, -1.0f, EPS);   /* the near plane */
-    CHECK_NEAR(to_light_clip(&gl, (vec3_t){0, 0, -10}).z, 1.0f, EPS);  /* and the far one */
-    CHECK_NEAR(to_light_clip(&wgpu, (vec3_t){0, 0, 0}).z, 0.0f, EPS);
-    CHECK_NEAR(to_light_clip(&wgpu, (vec3_t){0, 0, -10}).z, 1.0f, EPS);
-
     /* what the camera looks at is inside what the light's map covers */
-    const wgri_shadow_fit_t fit = wgri_shadow_fit_directional(&cam, 16.0f / 9.0f, straight_down, 30.0f, 1024, 50.0f, false);
+    const wgri_shadow_fit_t fit = wgri_shadow_fit_directional(&cam, 16.0f / 9.0f, straight_down, 30.0f, 1024, 50.0f);
     const vec3_t middle = to_light_clip(&fit.view_proj, (vec3_t){0.0f, 0.0f, 0.0f});
     CHECK(middle.x > -1.0f && middle.x < 1.0f);
     CHECK(middle.y > -1.0f && middle.y < 1.0f);
@@ -182,14 +174,13 @@ void test_shadow_fit(void)
     CHECK(far_away.x < -1.0f || far_away.x > 1.0f);
 
     /* a bigger map over the same ground means smaller texels */
-    const wgri_shadow_fit_t coarse = wgri_shadow_fit_directional(&cam, 16.0f / 9.0f, straight_down, 30.0f, 512, 50.0f, false);
-    const wgri_shadow_fit_t fine = wgri_shadow_fit_directional(&cam, 16.0f / 9.0f, straight_down, 30.0f, 4096, 50.0f, false);
+    const wgri_shadow_fit_t coarse = wgri_shadow_fit_directional(&cam, 16.0f / 9.0f, straight_down, 30.0f, 512, 50.0f);
+    const wgri_shadow_fit_t fine = wgri_shadow_fit_directional(&cam, 16.0f / 9.0f, straight_down, 30.0f, 4096, 50.0f);
     CHECK(fine.texel_world < coarse.texel_world);
     CHECK_NEAR(coarse.texel_world / fine.texel_world, 8.0f, 0.001f);
 
     /* less distance covers less ground, so its texels are smaller again */
-    const wgri_shadow_fit_t near_fit = wgri_shadow_fit_directional(&cam, 16.0f / 9.0f, straight_down, 10.0f, 1024, 50.0f,
-                                                               false);
+    const wgri_shadow_fit_t near_fit = wgri_shadow_fit_directional(&cam, 16.0f / 9.0f, straight_down, 10.0f, 1024, 50.0f);
     CHECK(near_fit.texel_world < fit.texel_world);
 
     /* the fit is snapped to whole texels: nudging the camera by less than one doesn't
@@ -197,8 +188,7 @@ void test_shadow_fit(void)
     wgri_camera3d_t nudged = cam;
     nudged.position.x += fit.texel_world * 0.1f;
     nudged.target.x += fit.texel_world * 0.1f;
-    const wgri_shadow_fit_t shifted = wgri_shadow_fit_directional(&nudged, 16.0f / 9.0f, straight_down, 30.0f, 1024, 50.0f,
-                                                              false);
+    const wgri_shadow_fit_t shifted = wgri_shadow_fit_directional(&nudged, 16.0f / 9.0f, straight_down, 30.0f, 1024, 50.0f);
     const vec3_t before = to_light_clip(&fit.view_proj, (vec3_t){1.0f, 0.0f, 1.0f});
     const vec3_t after = to_light_clip(&shifted.view_proj, (vec3_t){1.0f, 0.0f, 1.0f});
     CHECK_NEAR(after.x, before.x, 1e-3f);
@@ -206,12 +196,12 @@ void test_shadow_fit(void)
 
     /* a light pointing straight down has no obvious "up": the fit still works */
     const wgri_shadow_fit_t sideways = wgri_shadow_fit_directional(&cam, 1.0f, (vec3_t){1.0f, -0.2f, 0.3f}, 20.0f, 1024,
-                                                               50.0f, false);
+                                                               50.0f);
     const vec3_t seen = to_light_clip(&sideways.view_proj, (vec3_t){0.0f, 0.0f, 0.0f});
     CHECK(seen.x > -1.0f && seen.x < 1.0f && seen.y > -1.0f && seen.y < 1.0f);
 
     /* nonsense in, something sane out */
-    const wgri_shadow_fit_t degenerate = wgri_shadow_fit_directional(&cam, 1.0f, (vec3_t){0, 0, 0}, -5.0f, 0, 0.0f, false);
+    const wgri_shadow_fit_t degenerate = wgri_shadow_fit_directional(&cam, 1.0f, (vec3_t){0, 0, 0}, -5.0f, 0, 0.0f);
     CHECK(degenerate.texel_world > 0.0f);
     CHECK(degenerate.depth_range > 0.0f);
 }
@@ -223,7 +213,7 @@ void test_shadow_fit_spot(void)
     const vec3_t down = {0.0f, -1.0f, 0.0f};
     const float cos_outer = cosf(0.5f); /* a 0.5 rad half-angle cone */
 
-    const wgri_shadow_fit_t fit = wgri_shadow_fit_spot(at, down, cos_outer, 20.0f, 0.2f, 1024, false);
+    const wgri_shadow_fit_t fit = wgri_shadow_fit_spot(at, down, cos_outer, 20.0f, 0.2f, 1024);
     /* straight below the lamp is the middle of its map */
     const vec3_t under = to_light_clip(&fit.view_proj, (vec3_t){0.0f, 0.0f, 0.0f});
     CHECK_NEAR(under.x, 0.0f, 1e-3f);
@@ -238,20 +228,17 @@ void test_shadow_fit_spot(void)
 
     /* behind the lamp is behind the projection, which the shader treats as unlit */
     const vec3_t behind = to_light_clip(&fit.view_proj, (vec3_t){0.0f, 12.0f, 0.0f});
-    CHECK(behind.z < 0.0f || behind.z > 1.0f);
+    CHECK(behind.z < -1.0f || behind.z > 1.0f);
 
     /* the depth range is how far it reaches, and its texels grow with the cone */
     CHECK_NEAR(fit.depth_range, 20.0f, 1e-3f);
-    const wgri_shadow_fit_t wide = wgri_shadow_fit_spot(at, down, cosf(0.9f), 20.0f, 0.2f, 1024, false);
+    const wgri_shadow_fit_t wide = wgri_shadow_fit_spot(at, down, cosf(0.9f), 20.0f, 0.2f, 1024);
     CHECK(wide.texel_world > fit.texel_world);
-    const wgri_shadow_fit_t sharper = wgri_shadow_fit_spot(at, down, cos_outer, 20.0f, 0.2f, 4096, false);
+    const wgri_shadow_fit_t sharper = wgri_shadow_fit_spot(at, down, cos_outer, 20.0f, 0.2f, 4096);
     CHECK(sharper.texel_world < fit.texel_world);
 
-    /* WebGPU's depth range, and nonsense in, something sane out */
-    const wgri_shadow_fit_t wgpu = wgri_shadow_fit_spot(at, down, cos_outer, 20.0f, 0.2f, 1024, true);
-    const vec3_t near_wgpu = to_light_clip(&wgpu.view_proj, (vec3_t){0.0f, 5.0f, 0.0f});
-    CHECK(near_wgpu.z >= 0.0f && near_wgpu.z <= 1.0f);
-    const wgri_shadow_fit_t silly = wgri_shadow_fit_spot(at, (vec3_t){0, 0, 0}, 2.0f, -1.0f, -1.0f, 0, false);
+    /* nonsense in, something sane out */
+    const wgri_shadow_fit_t silly = wgri_shadow_fit_spot(at, (vec3_t){0, 0, 0}, 2.0f, -1.0f, -1.0f, 0);
     CHECK(silly.texel_world > 0.0f && silly.depth_range > 0.0f);
 }
 
@@ -268,7 +255,7 @@ void test_shadow_caster_cull(void)
         .projection = WGR_CAMERA3D_PERSPECTIVE,
     };
     const vec3_t down = {-0.3f, -1.0f, -0.2f};
-    const wgri_shadow_fit_t fit = wgri_shadow_fit_directional(&cam, 1.0f, down, 30.0f, 1024, 50.0f, false);
+    const wgri_shadow_fit_t fit = wgri_shadow_fit_directional(&cam, 1.0f, down, 30.0f, 1024, 50.0f);
     wgri_plane_t planes[6];
     wgri_frustum_from_view_proj(fit.view_proj, planes);
 
@@ -283,7 +270,7 @@ void test_shadow_caster_cull(void)
 
     /* a spot reaches only as far as its range */
     const wgri_shadow_fit_t spot = wgri_shadow_fit_spot((vec3_t){0, 10, 0}, (vec3_t){0, -1, 0}, cosf(0.4f), 20.0f,
-                                                    0.2f, 1024, false);
+                                                    0.2f, 1024);
     wgri_frustum_from_view_proj(spot.view_proj, planes);
     CHECK(wgri_frustum_test_aabb(planes, (vec3_t){-1, 4, -1}, (vec3_t){1, 6, 1}));     /* under it */
     CHECK(!wgri_frustum_test_aabb(planes, (vec3_t){39, 4, -1}, (vec3_t){41, 6, 1}));   /* outside the cone */
