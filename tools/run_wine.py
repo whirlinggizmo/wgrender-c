@@ -2,7 +2,7 @@
 """Run a Windows program under Wine: the windows-x64-mingw-* presets' tests and smoke runs use it
 (it is their CMAKE_CROSSCOMPILING_EMULATOR).
 
-    tools/wine.py program.exe [args...]
+    tools/run_wine.py program.exe [args...]
 
 Which Wine: $WINE if set, else wine64 or wine on PATH, else the newest Proton in a
 Steam library (its files/bin/wine; Proton is Valve's Wine, installed from Steam's
@@ -51,7 +51,7 @@ def main():
         sys.exit(__doc__)
     wine = find_wine()
     if not wine:
-        print('wine.py: no Wine found (install wine64, or Proton from Steam\'s Library > Tools, '
+        print('run_wine.py: no Wine found (install wine64, or Proton from Steam\'s Library > Tools, '
               'or set WINE)', file=sys.stderr)
         sys.exit(127)
     env = dict(os.environ)

@@ -102,7 +102,7 @@
     document.getElementById("src").href = SOURCE.replaceAll("{name}", current);
 
     // Each program's version (a hash of its .js and .wasm), written in when the site is
-    // built (tools/webdeploy.py): files are loaded as name.js?v=<hash>, so a host can
+    // built (tools/finish_site.py): files are loaded as name.js?v=<hash>, so a host can
     // keep them for good and a returning visit fetches no code. Empty: unversioned.
     const VERSIONS = /*wgr:versions*/{};
     const version = VERSIONS[current] || {};

@@ -1,10 +1,10 @@
 """The API layer's members, and which C calls each one makes.
 
-Shared by tools/coverage.py (the one-name rule) and tools/refusals.py (a refusal is
+Shared by tools/check_coverage.py (the one-name rule) and tools/check_refusals.py (a refusal is
 repeated in the member's doc). It reads function bodies, not first lines: an index
 that only saw a member whose body was one `Raw` call lost `Camera3D.setView`,
 `Input.getTouch` and every other wrapper with a default, a `#if` or a second line,
-silently -- the same failure the tool before refusals.py was replaced for.
+silently -- the same failure the tool before check_refusals.py was replaced for.
 
 A body runs from its `function` to the next one in the file. That is coarse, and
 enough: what lies between is a doc comment or a field, and neither calls `Raw`.

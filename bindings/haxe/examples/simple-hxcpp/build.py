@@ -47,7 +47,7 @@ if not (LIB / 'tools/wgrpath.py').exists():
 sys.path.insert(0, str(LIB / 'tools'))
 from wgrpath import WGRENDER, builds, exe, native_preset, web_variant  # noqa: E402  # examples/simple-hxcpp -> the library
 from guestbuild import check_library  # noqa: E402
-from hxcppweb import finish_site  # noqa: E402
+from build_hxcpp_web import finish_site  # noqa: E402
 HAXE = os.environ.get('HAXE', 'haxe')
 # The wgr binding, its generator and its host glue are the wgrender-hx haxelib.
 

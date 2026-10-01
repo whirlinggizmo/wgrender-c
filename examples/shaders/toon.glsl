@@ -1,5 +1,5 @@
 /* Toon shading (examples/shaders.c): the scene's lights in a few flat bands, plus a
- * rim of light around the silhouette. Built with tools/shaderpack.py (make example-shaders). */
+ * rim of light around the silhouette. Built with tools/pack_shader.py (make example-shaders). */
 @fs fs
 @include_block wgr_surface
 layout(binding=2) uniform params {

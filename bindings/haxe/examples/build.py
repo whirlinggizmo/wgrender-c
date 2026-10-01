@@ -174,7 +174,7 @@ def bench(chosen=()):
         for args in ([f'--site={C_BUILD}', f'--url=/?ex={name}', '--probe=examples.json',
                       f'--label={name}-c'],
                      [f'--site={HERE / name / site_dir(web_variant())}', f'--label={name}-haxe']):
-            subprocess.run([sys.executable, str(WGRENDER / 'tools/bench/pagebench.py'), 'frame', *args], check=True)
+            subprocess.run([sys.executable, str(WGRENDER / 'tools/bench/measure_page.py'), 'frame', *args], check=True)
 
 
 SITE_INDEX = """<!doctype html>
@@ -475,9 +475,9 @@ def main():
     elif command == 'serve':
         serve(rest, chosen)
     elif command == 'compare':
-        # compare.py prints what is missing and why; a traceback on top of that adds
+        # compare_sizes.py prints what is missing and why; a traceback on top of that adds
         # a stack trace to a message that was already the answer.
-        return subprocess.run([sys.executable, str(LIB / 'tools/compare.py')]
+        return subprocess.run([sys.executable, str(LIB / 'tools/compare_sizes.py')]
                               + [str(HERE / n) for n in chosen]).returncode
     elif command == 'bench':
         bench(chosen)

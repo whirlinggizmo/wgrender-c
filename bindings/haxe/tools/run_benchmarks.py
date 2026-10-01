@@ -2,12 +2,12 @@
 """wgrender-hx against the C: the `simple` example as a Haxe -> JS guest and as
 Haxe -> hxcpp in one wasm, beside wgrender's own C build of it.
 
-    tools/benchmarks.py          build both, measure them, write bench/results.json
+    tools/run_benchmarks.py          build both, measure them, write bench/results.json
                                  and docs/benchmarks.md
-    tools/benchmarks.py --doc    only regenerate docs/benchmarks.md
+    tools/run_benchmarks.py --doc    only regenerate docs/benchmarks.md
 
 The harness is wgrender's (tools/bench/measure.py, in the repository this binding
-lives in), and so is the C baseline: run wgrender's tools/benchmarks.py first, on the
+lives in), and so is the C baseline: run wgrender's tools/run_benchmarks.py first, on the
 same machine, so its bench/results.json is there to compare against. wgrender's
 docs/benchmarks.md collects this binding's results from bindings/haxe.
 
@@ -46,7 +46,7 @@ def measure_all():
     measure.run([sys.executable, 'build.py', 'web'], cwd=EXAMPLES / 'simple-hxcpp', env=env)
     # the stress scene all-in-one through hxcpp: the Haxe GC inside the wasm, which
     # gcbench cannot trace but a late frame shows
-    measure.run([sys.executable, ROOT / 'tools/hxcppweb.py', 'stress'], cwd=ROOT, env=env)
+    measure.run([sys.executable, ROOT / 'tools/build_hxcpp_web.py', 'stress'], cwd=ROOT, env=env)
 
     haxe = f'Haxe {version(["haxe", "--version"])}'
     hxcpp = version(['haxelib', 'list', 'hxcpp']).split('[')[0].replace(':', '').strip()
@@ -82,7 +82,7 @@ def measure_all():
 def main():
     baseline_path = WGRENDER / 'bench/results.json'
     if not baseline_path.is_file():
-        sys.exit(f'no C baseline at {baseline_path}: run {WGRENDER / "tools/benchmarks.py"} first')
+        sys.exit(f'no C baseline at {baseline_path}: run {WGRENDER / "tools/run_benchmarks.py"} first')
     baseline = measure.load_results(baseline_path)
     ours = measure.load_results(RESULTS) if '--doc' in sys.argv[1:] else measure_all()
     lead = ('`simple` as a Haxe guest running as JS against wgrender\'s wasm, and as Haxe '
@@ -90,7 +90,7 @@ def main():
             'costs are wgrender\'s baseline (its `bench/results.json`); every binding is '
             'collected in wgrender\'s `docs/benchmarks.md`.')
     DOC.write_text(measure.render_doc('wgrender-hx benchmarks', lead, [baseline, ours], baseline,
-                                      'tools/benchmarks.py', measure.read_notes(ROOT)), encoding='utf-8')
+                                      'tools/run_benchmarks.py', measure.read_notes(ROOT)), encoding='utf-8')
     print(f'wrote {DOC}')
 
 

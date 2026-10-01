@@ -1,6 +1,6 @@
 /* CRT scanlines (examples/postprocess.c): dark lines across the frame, a slight color
  * shift left and right, and a slow flicker — a second screen effect, to show a chain.
- * Built with tools/shaderpack.py (make example-shaders). */
+ * Built with tools/pack_shader.py (make example-shaders). */
 @fs fs
 @include_block wgr_screen
 layout(binding=2) uniform params {

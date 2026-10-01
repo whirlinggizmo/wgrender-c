@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Finish a web build's site (out/wasm32/<variant>/site; the web presets run this): the page and the manifest.
 
-    tools/webdeploy.py SITE SHELL
+    tools/finish_site.py SITE SHELL
 
 Writes SITE/index.html from SHELL with every program's version written in: a short
 hash of its .js and .wasm, so the page loads `name.js?v=<hash>` and
@@ -28,7 +28,7 @@ def version(path):
 
 def main():
     if len(sys.argv) != 3:
-        sys.exit("usage: webdeploy.py SITE SHELL")
+        sys.exit("usage: finish_site.py SITE SHELL")
     site, shell = sys.argv[1], sys.argv[2]
     names = sorted(f[:-3] for f in os.listdir(site) if f.endswith(".js"))
     versions = {}
@@ -41,7 +41,7 @@ def main():
     with open(shell, encoding="utf-8") as f:
         page = f.read()
     if MARK not in page:
-        sys.exit(f"webdeploy.py: {shell} has no {MARK} to fill in")
+        sys.exit(f"finish_site.py: {shell} has no {MARK} to fill in")
     page = page.replace(MARK, json.dumps(versions, separators=(",", ":")))
     with open(os.path.join(site, "index.html"), "w", encoding="utf-8") as f:
         f.write(page)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Web startup: how long each example takes to start, the first time and after.
 
-    tools/webstart.py [options] [example ...]     (after building the web preset)
+    tools/measure_web_startup.py [options] [example ...]     (after building the web preset)
 
 Each example is opened three times in a fresh browser profile, served the way a
 typical host serves it (tools/serve.py --cache --gzip: files kept and revalidated,

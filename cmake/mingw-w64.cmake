@@ -28,7 +28,7 @@ else()
   set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
   set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 
-  # ctest runs the tests and examples under Wine (tools/wine.py runs by its #! line: the
+  # ctest runs the tests and examples under Wine (tools/run_wine.py runs by its #! line: the
   # host here is Linux or macOS)
-  set(CMAKE_CROSSCOMPILING_EMULATOR "${CMAKE_CURRENT_LIST_DIR}/../tools/wine.py")
+  set(CMAKE_CROSSCOMPILING_EMULATOR "${CMAKE_CURRENT_LIST_DIR}/../tools/run_wine.py")
 endif()

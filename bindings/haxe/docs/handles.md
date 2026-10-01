@@ -161,7 +161,7 @@ each C call in exactly one member's body deleted the inference, and with it the
 `DELEGATED` table of hand-written verdicts and the regex reader of C control flow that
 needed it.
 
-What survived moved into `tools/refusals.py --check`: a refusal a header names must be
+What survived moved into `tools/check_refusals.py --check`: a refusal a header names must be
 repeated in the binding's doc comment. That half was always the trustworthy one -- prose
 against prose, safe to fail a build on, as against the C reading that only warned and had
 produced one false clean and two false positives. The member index it needs is

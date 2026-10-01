@@ -1,5 +1,5 @@
 /* libwgrender custom shaders: what libwgrender gives a material's shader (docs/PLAN-materials.md,
- * "Custom shaders"). tools/shaderpack.py puts this file in front of yours, adds libwgrender's
+ * "Custom shaders"). tools/pack_shader.py puts this file in front of yours, adds libwgrender's
  * vertex shaders (static and skinned models, and sprites) and compiles the result for
  * every backend into a .wgrshader file (wgr_shader_create). One shader draws models and
  * sprites (wgr_sprite3d_set_material, wgr_sprite2d_set_material) alike.

@@ -2,11 +2,11 @@
 """An example built all-in-one through hxcpp for the web: the Haxe program and
 wgrender in one wasm, the way examples/simple-hxcpp is, but for any example here.
 
-    tools/hxcppweb.py <example>        examples/<example>/out/wasm32/release-hxcpp/site/<name>.js/.wasm
+    tools/build_hxcpp_web.py <example>        examples/<example>/out/wasm32/release-hxcpp/site/<name>.js/.wasm
 
 The examples are guests: on the web they normally run as JS against a wasm host. This
 builds the same source the other way, through hxcpp, which is what a desktop build
-does, only targeting Emscripten. It exists for tools/benchmarks.py, to measure the
+does, only targeting Emscripten. It exists for tools/run_benchmarks.py, to measure the
 Haxe runtime and its garbage collector inside the wasm on the same scene the JS guest
 runs; it is not how an example is meant to ship to the web.
 
@@ -39,7 +39,7 @@ def run(cmd, **kw):
 
 def finish_site(site, work, name, source):
     """The page for an all-in-one build in SITE: web/index.html opening NAME, its source
-    link to SOURCE (a path in this repository), finished by tools/webdeploy.py with
+    link to SOURCE (a path in this repository), finished by tools/finish_site.py with
     the versioned file names and examples.json. The page is written in WORK first."""
     page = (LIB / 'web/index.html').read_text(encoding='utf-8')
     for mark in ('/*wgr:first*/"simple-hxcpp"', '/*wgr:source*/"'):
@@ -50,7 +50,7 @@ def finish_site(site, work, name, source):
                   f'/*wgr:source*/"https://github.com/whirlinggizmo/wgrender-c/blob/main/bindings/haxe/{source}"', page)
     shell = work / 'index.html'
     shell.write_text(page, encoding='utf-8')
-    run([sys.executable, WGRENDER / 'tools/webdeploy.py', site, shell])
+    run([sys.executable, WGRENDER / 'tools/finish_site.py', site, shell])
     shell.unlink()
 
 

@@ -18,7 +18,7 @@
 //   ESC      quit
 //
 // The shaders are `.wgrshader` files, compiled from examples/shaders/*.glsl by
-// wgrender's tools/shaderpack.py (`tools/gen_shaders.py --examples`) and shipped in its assets.
+// wgrender's tools/pack_shader.py (`tools/gen_shaders.py --examples`) and shipped in its assets.
 import wgr.*;
 
 @:expose("WgrGuest")

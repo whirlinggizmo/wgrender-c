@@ -68,7 +68,7 @@ class Stress {
 		#if js
 		final given = Std.parseInt(new js.html.URLSearchParams(js.Browser.location.search).get("n"));
 		#elseif emscripten
-		// all-in-one through hxcpp (tools/hxcppweb.py): C++ in the page, no argv
+		// all-in-one through hxcpp (tools/build_hxcpp_web.py): C++ in the page, no argv
 		final given:Null<Int> = untyped __cpp__('emscripten_run_script_int("+(new URLSearchParams(location.search).get(\'n\')) || 0")');
 		#else
 		final args = Sys.args();

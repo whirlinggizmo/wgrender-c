@@ -42,9 +42,9 @@ make and no shell script: everything below works the same on Windows, Linux and 
 - `build.json` — the build as data: the sources, include paths, and per desktop OS and
   web target the defines, flags and link libraries. `CMakeLists.txt` lists none of its
   own, and the bindings read the same file to compile wgrender with their own
-  toolchains. Edit it by hand: a new `src/*.c` goes in `sources` (`tools/check.py` fails
+  toolchains. Edit it by hand: a new `src/*.c` goes in `sources` (`tools/check_rules.py` fails
   until it does).
-- `tools/buildweb.py [BACKEND=webgpu] [WEB_THREADS=1] [WEB_DEBUG=1]` — the web library
+- `tools/build_web.py [BACKEND=webgpu] [WEB_THREADS=1] [WEB_DEBUG=1]` — the web library
   alone, from `build.json` with emcc and Python only, into the same
   `out/wasm32/<variant>/lib/libwgrender.a` the preset `wasm32-<variant>` makes:
   how a binding builds it with nothing but emsdk. Web builds link at `-O3` unless
@@ -52,15 +52,15 @@ make and no shell script: everything below works the same on Windows, Linux and 
 - The headless preset's tests (`ctest --preset linux-x64-debug-headless`): `unit` (`tests/unit/`,
   no stubs, no display or GPU; new tests go in `tests/unit/tests.h` and the table in
   `tests/unit/main.c`; add or update tests alongside code changes), `check`
-  (`tools/check.py`: include/ and examples/ stay **backend-free**, the naming rules
+  (`tools/check_rules.py`: include/ and examples/ stay **backend-free**, the naming rules
   below, the module boundary, `build.json`'s sources), and `smoke.<example>`: every
   example run headless for 180 frames, failing on crashes, timeouts or error logs
-  (`tools/smoke.py`). `tsan` (or `asan`, `ubsan`) runs the unit tests under a
+  (`tools/run_smoke.py`). `tsan` (or `asan`, `ubsan`) runs the unit tests under a
   sanitizer: run `linux-x64-debug-tsan` when touching audio or other code shared with
   the mixer thread.
-- `tools/deps.py [check|install]` — the Linux desktop build's system packages (GL, X11,
+- `tools/setup_deps.py [check|install]` — the Linux desktop build's system packages (GL, X11,
   ALSA); a Linux desktop configure runs the check.
-- `tools/wine.py program.exe` — run a Windows build under Wine (wine64/wine, or Steam's
+- `tools/run_wine.py program.exe` — run a Windows build under Wine (wine64/wine, or Steam's
   Proton); the `windows-x64-mingw-debug-headless` preset's tests go through it.
 - `tools/setup_mingw.py` — the pinned MinGW-w64 (a WinLibs GCC) the `windows-x64-mingw`
   presets build with on a Windows host: `cmake/mingw-w64.cmake` runs it, and it
@@ -94,38 +94,38 @@ make and no shell script: everything below works the same on Windows, Linux and 
 - The benchmarks are targets of the web presets too (`loadbench`, `shadowbench`,
   `spritebench`, `stress`; `benches` for all): pages of their own under `bench/` in the
   site, `/bench/?ex=spritebench` (results in the browser console).
-- `python3 tools/webcheck.py [--backend=webgpu] [--threads]` — the web build's smoke
+- `python3 tools/check_web.py [--backend=webgpu] [--threads]` — the web build's smoke
   test in a browser, on the matching web preset's site (needs a Chromium-based
   browser: Brave, Chrome, Chromium or Edge, and Python's standard library; WebGPU runs on a virtual X display when Xvfb is installed,
   else in a visible window). Web builds have no threads unless their variant adds
   `-threads`; a threaded build needs cross-origin isolation (`tools/serve.py` sends the
   headers).
-- `python3 tools/cachecheck.py [--manifest] [--backend=webgpu] [--threads]` — the web
+- `python3 tools/check_cache.py [--manifest] [--backend=webgpu] [--threads]` — the web
   asset cache across visits: tilemap in one browser context while its sheet is kept,
   changed and deleted on the server, and the network blocked; each visit judged by its
   requests' statuses and the screen. `--manifest` does it with manifests. Run both when
   touching `wgr_fs` or the asset fetch.
 - `tools/gen_manifest.py DIR` — the asset manifests (`manifest.json` in DIR and every
-  directory under it) that `wgr_asset_set_manifest` reads; `tools/site.py` runs it.
+  directory under it) that `wgr_asset_set_manifest` reads; `tools/build_site.py` runs it.
 - `python3 tools/serve.py [port] [out/wasm32/<variant>/site]` — the dev server (COOP/COEP headers,
   `/assets/` mounted) on http://localhost:8000. `--tls CERT KEY` serves HTTPS for other
   devices on the LAN (a phone), which need a secure page for threaded builds.
   `--cache --gzip` serves as a real host should (versioned code cached for good; see
   README "Startup and hosting"). `--assets DIR` mounts DIR at `/assets/` instead.
-- `tools/site.py [out/wasm32/<variant>/site]` — a self-contained copy of a web build,
+- `tools/build_site.py [out/wasm32/<variant>/site]` — a self-contained copy of a web build,
   assets included, for a static host (the Pages workflow publishes `wasm32-release`'s).
-- `python3 tools/webstart.py [--backend=webgpu] [--threads]` — startup times per web
+- `python3 tools/measure_web_startup.py [--backend=webgpu] [--threads]` — startup times per web
   example: cold, warm and hot visits, locally and on emulated 4G, from libwgrender's
   `wgr:*` performance marks; `--devtools=PORT --url=URL` measures a phone. Run it when
   touching init, the page shell or web build flags.
-- `tools/websize.py [out/wasm32/<variant>/site]` — wasm/JS sizes per web example (raw and gzip;
+- `tools/measure_web_size.py [out/wasm32/<variant>/site]` — wasm/JS sizes per web example (raw and gzip;
   brotli if installed).
-- `tools/benchmarks.py [--doc | --all]` — the C `simple` against every binding
+- `tools/run_benchmarks.py [--doc | --all]` — the C `simple` against every binding
   (docs/benchmarks.md): download size, frame cost, JS heap and GC, and what a call from a
   JS guest costs. Measures the C baseline into `bench/results.json` and collects each
   binding's own `bench/results.json` (`bindings/haxe/`); `--doc` only regenerates the
-  page, `--all` also runs each binding's own `tools/benchmarks.py` in between. The
-  harness is `tools/bench/` (`measure.py`, which bindings import, plus `pagebench.py`:
+  page, `--all` also runs each binding's own `tools/run_benchmarks.py` in between. The
+  harness is `tools/bench/` (`measure.py`, which bindings import, plus `measure_page.py`:
   frame cost, GC and call counts in the browser; `callbench/`, a page; and `stress.c`, the scene the bindings
   port: `/bench/?ex=stress&n=5000`). The stress runs need Xvfb and a GPU. By hand, not
   CI; commit both files.
@@ -134,7 +134,7 @@ make and no shell script: everything below works the same on Windows, Linux and 
   (docs/PLAN-textures.md); builds a pinned Basis Universal encoder into the per-user
   cache (`tools/hostcache.py`) the first time. `--gltf model.gltf` does a model's textures and writes
   `model.ktx.gltf`.
-- `tools/shaderpack.py name.glsl` — compile a custom material shader (written against
+- `tools/pack_shader.py name.glsl` — compile a custom material shader (written against
   `shaders/wgr.glsl`) into `name.wgrshader` for every backend. The generators, each a
   CMake target too: `tools/gen_shaders.py --examples` (`gen-example-shaders`) repacks
   `examples/shaders/*.glsl` into the committed `examples/assets/shaders/`; run it after
@@ -234,7 +234,7 @@ parameter and return value is a **handle (`wgr_handle_t`)**, an **integral / flo
 value: `vec2_t`, `vec3_t`, `vec4_t`, `quat_t`** (a quaternion is laid out as a
 `vec4_t`). **No other pointers in user code** — never `unsigned char *data` /
 `int size`, never struct pointers — **and never a record.** This is enforced by
-`tools/check.py` (the `check` test), not just convention.
+`tools/check_rules.py` (the `check` test), not just convention.
 
 Why the math values and nothing else: a struct returned by value puts its layout in
 the contract, which every binding mirrors and every FFI must get right (SysV returns a
@@ -248,7 +248,7 @@ day one needs to. Handles are unaffected either way: a value copied out has no
 lifetime, so it can't dangle, alias or outlive anything. Records returned today
 (`wgr_pick_result_t`, `wgr_pick_stats_t`, `wgr_touch_t`, `wgr_touch_gesture_t`,
 `wgr_mouse_state_t`, `wgr_keyboard_state_t`) are known gaps, listed in
-`tools/check.py`'s `RECORDS_TODO`: each becomes per-field getters, or a handle to the
+`tools/check_rules.py`'s `RECORDS_TODO`: each becomes per-field getters, or a handle to the
 result, as its subsystem is next worked on.
 
 Creation follows one pattern, no exceptions:
@@ -275,7 +275,7 @@ takes several (`set_spot_cone` -> `get_spot_inner_angle`, `get_spot_outer_angle`
 as that vector: `set_pivot(x, y)` -> `vec2_t get_pivot`. It is what makes a clamp observable: the
 light getters came from `set_shadow_map_size(64)` answering true while nothing outside
 could learn the map was 256. The transform rule under Naming is this rule applied to a
-transform's parts. `tools/check.py` holds it, with two lists beside it:
+transform's parts. `tools/check_rules.py` holds it, with two lists beside it:
 `GETTERS_EXEMPT`, a setter with no getter on purpose and why (a callback, an action like
 `set_manifest`, a shape's geometry maker), and `GETTERS_TODO`, the gaps known when the
 rule was written. A new setter needs its getter or an entry in the first; the second
@@ -309,7 +309,7 @@ What every binding keeps is the correspondence:
 Why: a C call's doc -- above all its "false for ..." refusal sentence (see "Say clamp
 or refuse") -- then has exactly one home in each binding, a binding can be audited for
 coverage call by call, and a second path to C can't quietly skip a check the first one
-makes. Each binding's `tools/coverage.py --check` enforces rules 1 and 2.
+makes. Each binding's `tools/check_coverage.py --check` enforces rules 1 and 2.
 
 ## Core and optional subsystems
 
@@ -317,7 +317,7 @@ makes. Each binding's `tools/coverage.py --check` enforces rules 1 and 2.
   `WGRI_MODULE` (`src/internal/wgr_module_internal.h`), so a program links only what it uses. The
   core (`wgr.c`, `wgr_render`, `wgr_scene`, ...) never calls them by name: add a module
   callback or a hook (`wgri_render_hooks`, `wgri_scene_hooks`) instead.
-  `tools/check.py` enforces it. Details: ARCHITECTURE.md §7b.
+  `tools/check_rules.py` enforces it. Details: ARCHITECTURE.md §7b.
 
 ## Shaders
 
@@ -353,6 +353,11 @@ What they come to here:
   **build flag** the build system also passes: `-DWGR_HEADLESS` and `#ifdef
   WGR_HEADLESS` have to spell it the same, so build flags stay `WGR_` wherever they
   are used.
+- **Tools are named for what they do, verb first:** `gen_` writes committed files,
+  `check_` fails on what's wrong, `run_`, `build_`, `measure_`, `setup_`, `update_`,
+  `compress_`... (`check_web.py`, `measure_web_size.py`, `run_smoke.py`). A module that
+  tools import, and that isn't run, is a noun (`builds.py`, `weblib.py`,
+  `hostcache.py`). The same in `bindings/`.
 - **Tooling environment variables:** `WGRENDER_` (`WGRENDER_WEB_PROFILE`). They aren't
   library symbols, and three letters collide too easily in a process environment. A
   variable naming another project takes *that* project's name (`SOKOL_DIR` for a sokol checkout, because
@@ -360,7 +365,7 @@ What they come to here:
 - **Sibling repos:** `wgutils-c` and friends follow the same pattern — see CONVENTIONS.md
   before naming anything new.
 - **Prefix says which surface it is:** `wgr_` is public, `wgri_` is internal. A call
-  site reads as what it is without looking anything up, and `tools/check.py` can enforce
+  site reads as what it is without looking anything up, and `tools/check_rules.py` can enforce
   it, which it can't when one prefix covers both.
 - **Public API** (`include/*.h`): subsystem-first `wgr_<section>_<action>`.
 - **Predicates say which kind of question they answer.** `is_<state>` is what it is
@@ -373,7 +378,7 @@ What they come to here:
   `wgr_window_is_fullscreen` is `Window.isFullscreen` in wgrender-hx and `isFullscreen`
   in wgrender-nim.
   The verb is the name in every language, not a hint someone translates, which is why
-  it is worth getting right. `tools/check.py` doesn't enforce verbs (it checks
+  it is worth getting right. `tools/check_rules.py` doesn't enforce verbs (it checks
   types, `_ptr` and the prefix per surface), so this is convention.
 - **Every kind with a transform has the same calls for it.** For each part it has
   (position, rotation, scale): `set_<part>`, which leaves the other parts as they are,

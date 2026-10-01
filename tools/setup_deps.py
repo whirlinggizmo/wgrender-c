@@ -4,8 +4,8 @@
 sokol links against the platform's audio, GL and windowing libraries, which can't be
 vendored under deps/: they come from the system package manager.
 
-    tools/deps.py check     report missing dev packages; exit non-zero if any
-    tools/deps.py install   install them with apt, dnf or pacman (uses sudo)
+    tools/setup_deps.py check     report missing dev packages; exit non-zero if any
+    tools/setup_deps.py install   install them with apt, dnf or pacman (uses sudo)
 
 A Linux desktop configure runs the check. Windows and macOS need nothing beyond their
 compiler (system libraries and frameworks), so both modes do nothing there; nor does a
@@ -69,7 +69,7 @@ def main():
             print(f'  install: {HINT[pm]} {" ".join(packages)}', file=sys.stderr)
         else:
             print(f'  install the development packages for: {" ".join(absent)}', file=sys.stderr)
-        print('  or run: python3 tools/deps.py install', file=sys.stderr)
+        print('  or run: python3 tools/setup_deps.py install', file=sys.stderr)
         sys.exit(1)
     if not pm:
         sys.exit(f'wgrender: unsupported package manager; install dev packages for: {" ".join(absent)}')

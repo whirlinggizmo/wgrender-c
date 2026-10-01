@@ -18,7 +18,7 @@
 #endif
 
 /* The manifest of the asset host (docs/PLAN-asset-cache.md): the published site's
- * assets have one (tools/site.py writes it with tools/gen_manifest.py), so a returning
+ * assets have one (tools/build_site.py writes it with tools/gen_manifest.py), so a returning
  * visitor fetches only what changed. Where there is none, as under tools/serve.py, the
  * cache asks the host about each file instead; on desktop the host is a directory
  * and it's ignored. Pass it to wgr_asset_set_manifest() after wgr_asset_set_host(). */

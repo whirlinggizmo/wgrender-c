@@ -49,7 +49,7 @@ using StringTools;
 
 	Environment: `WEB_THREADS` (default 0), `BACKEND` and `WEB_DEBUG`, as for wgrender's
 	own web build. Needs Emscripten (`emcc`) on the path, and nothing else: wgrender's
-	web library is built by its `tools/buildweb.py`, on the Python emsdk brings
+	web library is built by its `tools/build_web.py`, on the Python emsdk brings
 	(`EMSDK_PYTHON`), from its `build.json`. No make, no shell, so the same on Windows.
 
 	A reflection-only call into wgrender (`Reflect.callMethod` on `Raw`) is invisible to
@@ -98,7 +98,7 @@ class WebHost {
 		final web = webSettings();
 		final state = define("wgr-build-dir", 'build/wasm32-${webVariant(web)}/webhost');
 
-		run(python(), [Path.join([wgrender, "tools/buildweb.py"])].concat([for (k => v in web) '$k=$v']));
+		run(python(), [Path.join([wgrender, "tools/build_web.py"])].concat([for (k => v in web) '$k=$v']));
 		final flags = webFlags(wgrender, web);
 
 		final full = define("wgr-host", "") == "full";
@@ -268,7 +268,7 @@ class WebHost {
 		final target:Dynamic = Reflect.field(Reflect.field(haxe.Json.parse(File.getContent(manifest)), "web"), dir);
 		if (target == null)
 			fail('WebHost: $manifest has no web target $dir');
-		// what buildweb.py (and the wasm32 preset of the same name) makes
+		// what build_web.py (and the wasm32 preset of the same name) makes
 		return {lib: 'out/wasm32/$dir/lib/libwgrender.a', cflags: target.program_cflags, ldflags: target.ldflags};
 	}
 

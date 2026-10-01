@@ -160,11 +160,18 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
 - [ ] Tools named verb-first (`run_`, `check_`, `build_`, `measure_`...); modules that
       tools import keep nouns. Every tool takes `--help` (prints its usage and does
       nothing else) and stops on an argument it doesn't take, as the Haxe binding's
-      `tools/cli.py` does (`buildweb.py --help` ran a build).
-- [ ] No tool reads source as text: `tools/check.py` on clang's AST (libwgt's
-      `check_api.py`, with its self-test), backend-free headers and examples by
-      compiling them without `deps/`, `tools/shaderpack.py` from sokol-shdc's
-      reflection. Where nothing parses it, raise it rather than scan.
+      `tools/cli.py` does (`build_web.py --help` ran a build).
+- [ ] No tool reads source as text. One module reads the public headers with clang's
+      JSON AST (functions, enums, structs, defines, doc comments), and every tool that
+      needs to know what's in them uses it: `tools/check_rules.py` (with libwgt's
+      self-test: a header that breaks every rule), the binding's `gen_raw.py` (its whole
+      C surface comes from regexes over the headers today), `gen_keys.py` and
+      `check_refusals.py` (its C half already uses clang). The binding's own members
+      (`check_coverage.py`, `members.py`) from the Haxe compiler: a macro writes them as
+      JSON. Backend-free headers and examples by compiling them without `deps/`;
+      `tools/pack_shader.py` from sokol-shdc's reflection; `build_hxcpp_web.py` takes
+      `--main` as data instead of reading the hxml. Regenerated binding files must come
+      out the same. Where nothing parses it, raise it rather than scan.
 - [ ] `docs/HISTORY.md`: what's done moves out of TASKS.md and the PLAN files, so they
       show only what's current.
 - [x] Build names as libwgt's: platform is what a program links against, with the

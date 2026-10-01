@@ -1,7 +1,7 @@
 /* Sprite effects (examples/shaders.c): an outline around the sprite's shape, and a
  * pulsing white flash (a hit, say). wgr_sprite_color() is the sprite's own texture and
  * tint; the outline samples wgr_sprite_tex itself, around each pixel. The same material
- * draws a 3D and a 2D sprite. Built with tools/shaderpack.py (make example-shaders). */
+ * draws a 3D and a 2D sprite. Built with tools/pack_shader.py (make example-shaders). */
 @fs fs
 @include_block wgr_surface
 layout(binding=2) uniform params {

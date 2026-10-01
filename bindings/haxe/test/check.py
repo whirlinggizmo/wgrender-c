@@ -63,7 +63,7 @@ def run(cmd, **kw):
 
 
 def main():
-    for tool in ('gen_raw.py', 'gen_keys.py', 'coverage.py', 'refusals.py', 'gen_sources.py'):
+    for tool in ('gen_raw.py', 'gen_keys.py', 'check_coverage.py', 'check_refusals.py', 'gen_sources.py'):
         run([sys.executable, ROOT / 'tools' / tool, '--check'])
 
     # wgrender's sources compiled in, as every build of the binding does

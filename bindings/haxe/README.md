@@ -49,18 +49,18 @@ test/Cppia{Host,Module}.hx  check-cppia: every public function, called from cppi
 
 tools/gen_raw.py      writes BOTH impl/Raw.*.hx whole, from wgrender's include/*.h
 tools/gen_keys.py     regenerates wgr.Key from wgrender's wgr_keys.h
-tools/coverage.py     what the binding reaches, and what wrapping next buys;
+tools/check_coverage.py     what the binding reaches, and what wrapping next buys;
                       --check fails if a C call has two names (tools/members.py
-                      is the member index it and refusals.py share)
-tools/refusals.py     every way a wgrender call can return false, read from the C
+                      is the member index it and check_refusals.py share)
+tools/check_refusals.py     every way a wgrender call can return false, read from the C
                       with clang; --check fails if a documented refusal is not
                       repeated in these docs
 tools/guestbuild.py   the examples' suite runner: checks, desktop assets, sizes, serve
-tools/compare.py      each example's size against wgrender's own C build of it
-tools/benchmarks.py   size, frame cost, GC and call cost against the C -> docs/benchmarks.md
-tools/hxcppweb.py     an example all-in-one through hxcpp for the web, for the benchmarks
+tools/compare_sizes.py      each example's size against wgrender's own C build of it
+tools/run_benchmarks.py   size, frame cost, GC and call cost against the C -> docs/benchmarks.md
+tools/build_hxcpp_web.py     an example all-in-one through hxcpp for the web, for the benchmarks
 tools/drive.py        run a built example and fail on anything the console calls an error
-tools/webstart.py     startup timing of any web build (--site=DIR); tools/waterfall.py, its requests
+tools/measure_web_startup.py     startup timing of any web build (--site=DIR); tools/show_waterfall.py, its requests
 tools/wgrweb.py       what the browser checks share: weblib, the wgrender they run against, serving
 web/index.html        the page for the all-in-one hxcpp builds (the JS guests' pages are WebHost's)
 ```
@@ -71,7 +71,7 @@ Every operation is a static named after the C call it makes, taking the handle f
 than C's — `Mesh.cube` for `wgr_mesh_create_cube`, `Font.draw` for `wgr_text_draw_ex`
 — but every C call has exactly one member, and a member that calls C calls one C
 function. That is what lets the binding be audited mechanically
-(`tools/coverage.py --check` holds the rule, `tools/refusals.py --check` reads each
+(`tools/check_coverage.py --check` holds the rule, `tools/check_refusals.py --check` reads each
 member's docs) and what keeps a second binding in step — a property has no counterpart
 in Lua or Nim, and it cannot return the `Bool` a wgrender setter uses to refuse.
 
@@ -325,7 +325,7 @@ are all unchanged.
   wgrender's own web build.
 
 It needs Emscripten's `emcc` on the path, and nothing else: wgrender's web library is
-built by its own `tools/buildweb.py`, on the Python emsdk brings, from its
+built by its own `tools/build_web.py`, on the Python emsdk brings, from its
 `build.json`, so there is no build tool or shell to install, on Windows either. A call into wgrender made only
 through reflection is invisible to dead-code elimination and will not be listed; mark
 its caller `@:keep`. On a native target the line does nothing, so a shared hxml can
@@ -355,7 +355,7 @@ macros over a C layout library that a JS guest cannot reach — each named after
 file it ports and keeping its numbers, keys and on-screen text. `examples/build.py list` prints them
 with a line each. One more, [`stress`](examples/stress), ports wgrender's benchmark scene
 (`tools/bench/stress.c`) rather than an example: thousands of entities for
-`tools/benchmarks.py` to measure. The ones to read first:
+`tools/run_benchmarks.py` to measure. The ones to read first:
 
 - [`hello`](examples/hello) and [`hello3d`](examples/hello3d) — the smallest; hello3d
   loads nothing at all, which makes it the size floor
@@ -388,12 +388,12 @@ written against it without a gap.
 The two it leaves alone are a decision, not a backlog: `wgr_text_draw_n` and
 `wgr_text_measure_n` take a length in *bytes*, and a Haxe string measures in UTF-16
 units, so the two disagree for anything non-ASCII — passing a substring to `draw()` is
-correct and these would not be. `tools/coverage.py --check` fails if either is ever
+correct and these would not be. `tools/check_coverage.py --check` fails if either is ever
 wrapped after all, so a decision and a to-do stay distinguishable. It holds the js
 omissions the same way: six calls that take a C function pointer, which the guest ABI
 replaces there.
 
-`tools/refusals.py --check` guards the other direction. wgrender's headers name every value a
+`tools/check_refusals.py --check` guards the other direction. wgrender's headers name every value a
 setter refuses, and this fails the build when one of those sentences is not repeated
 in the binding's docs — the link that broke once already, when a header's "capped at
 65536" was copied into a doc comment and the API shape followed the doc rather than
@@ -411,7 +411,7 @@ Same wgrender, same backend, same threading, so the only difference is the langu
 
 The wasm is the same wgrender either way; the difference is the guest JS. Frame cost,
 JS heap and GC, and what a call across the boundary costs are in
-[docs/benchmarks.md](docs/benchmarks.md), which `tools/benchmarks.py` measures with
+[docs/benchmarks.md](docs/benchmarks.md), which `tools/run_benchmarks.py` measures with
 wgrender's harness against wgrender's C baseline. On `simple`, 16 calls a frame cross
 into the wasm; what they cost is lost in the noise of the frame.
 

@@ -6,7 +6,7 @@ package wgr;
 	A custom material shader: reference counted and shared, like any resource.
 
 	Write a fragment shader (and optionally a vertex hook) against wgrender's
-	`shaders/wgr.glsl`, compile it for every backend with `tools/shaderpack.py
+	`shaders/wgr.glsl`, compile it for every backend with `tools/pack_shader.py
 	name.glsl`, and load the `.wgrshader` it writes. Use it with `Material.custom`;
 	its parameters and textures are then set by the names your shader gives them.
 **/

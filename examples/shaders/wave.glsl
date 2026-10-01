@@ -1,6 +1,6 @@
 /* Water (examples/shaders.c): a vertex hook moves the surface along its normals in
  * travelling waves; the fragment shader colors it by height and reflects the scene's
- * environment, strongest at grazing angles. Built with tools/shaderpack.py
+ * environment, strongest at grazing angles. Built with tools/pack_shader.py
  * (make example-shaders). */
 @block vertex
 layout(binding=3) uniform wave_params {

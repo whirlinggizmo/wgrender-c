@@ -3,7 +3,7 @@
 and the assets they load, so nothing has to be mounted beside it (tools/serve.py does
 that locally).
 
-    tools/site.py [BUILD] [--out DIR]
+    tools/build_site.py [BUILD] [--out DIR]
 
 BUILD is a web preset's site (default out/wasm32/release/site); the copy goes to the
 preset's work directory, build/<preset>/site, unless --out says otherwise, so the

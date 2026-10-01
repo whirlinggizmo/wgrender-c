@@ -49,7 +49,7 @@ sokol API identifiers (`sapp_`/`sgl_`/`sg_`/`sdtx_`/`saudio_`/`sfetch_`/
 `SOKOL_`/`SAPP_`). Consumers see only `wgr_*` / `WGR_*`. All sokol usage lives in
 `src/` and the vendored headers; all backend linkage lives in `build.json`.
 
-`tools/check.py` (the `check` test) enforces this. The word
+`tools/check_rules.py` (the `check` test) enforces this. The word
 "sokol" in a prose comment is fine — only API symbols are flagged.
 
 A note on key codes: `WGR_KEY_*` values currently mirror the GLFW/sokol layout
@@ -109,7 +109,7 @@ compiled with `SOKOL_NO_ENTRY` so sokol does not generate its own entry point.
 
 ```
 include/        public wgr_*.h headers
-shaders/wgr.glsl what custom material shaders get from wgrender (tools/shaderpack.py)
+shaders/wgr.glsl what custom material shaders get from wgrender (tools/pack_shader.py)
 src/            implementation (one TU per subsystem)
 src/internal/   shared, non-public declarations (handle pool, lifecycle hooks)
 src/wgr_sokol_impl.c   single TU that compiles the sokol headers (SOKOL_IMPL)
@@ -196,7 +196,7 @@ docs/           ARCHITECTURE.md, ROADMAP.md, TASKS.md and one PLAN-*.md per feat
   its textures the same way (and stays a valid glTF for other viewers).
 - Custom shaders: write a fragment shader (and optionally a vertex hook) against
   `shaders/wgr.glsl`, which gives it the surface, time, camera, the scene's lights and
-  environment, and `wgr_output` (tint, alpha cutoff, tone mapping, sRGB). `tools/shaderpack.py name.glsl`
+  environment, and `wgr_output` (tint, alpha cutoff, tone mapping, sRGB). `tools/pack_shader.py name.glsl`
   compiles it for GL, WebGL2 and WebGPU into `name.wgrshader`; load that with
   `wgr_shader_create` (or through `wgr_asset`) and use it with
   `wgr_material_create_custom`. Its parameters and textures are set by the names in
@@ -215,7 +215,7 @@ docs/           ARCHITECTURE.md, ROADMAP.md, TASKS.md and one PLAN-*.md per feat
 wgrender is a plain C library, and its bindings live beside it under `bindings/`, built
 only on the public API, so a change to the API and to each binding land in one commit.
 The handle-only surface (every parameter a handle, a number, an enum or a `const char
-*`; `tools/check.py` enforces it) is what keeps one cheap to write and to keep in step.
+*`; `tools/check_rules.py` enforces it) is what keeps one cheap to write and to keep in step.
 
 | Language | Where | State |
 |---|---|---|

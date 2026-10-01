@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>wgrender-hx, through hxcpp</title>
-<!-- The page shell for the examples built through hxcpp into one wasm (tools/hxcppweb.py finishes it with tools/webdeploy.py); the JS guests' pages are wgr.macros.WebHost's. Started from wgrender's examples/web/index.html; this repository's own now. -->
+<!-- The page shell for the examples built through hxcpp into one wasm (tools/build_hxcpp_web.py finishes it with tools/finish_site.py); the JS guests' pages are wgr.macros.WebHost's. Started from wgrender's examples/web/index.html; this repository's own now. -->
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #15171c;
     color: #cdd3de; font: 14px/1.4 system-ui, sans-serif; }
@@ -102,7 +102,7 @@
     document.getElementById("src").href = SOURCE.replaceAll("{name}", current);
 
     // Each program's version (a hash of its .js and .wasm), written in when the site is
-    // built (tools/webdeploy.py): files are loaded as name.js?v=<hash>, so a host can
+    // built (tools/finish_site.py): files are loaded as name.js?v=<hash>, so a host can
     // keep them for good and a returning visit fetches no code. Empty: unversioned.
     const VERSIONS = /*wgr:versions*/{};
     const version = VERSIONS[current] || {};

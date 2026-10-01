@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Start an example: everything around the source, so only the source is written.
 
-    tools/new_example.py <name> [--entry Class] [--title "..."] [--background "#rgb"]
+    tools/create_example.py <name> [--entry Class] [--title "..."] [--background "#rgb"]
 
 Writes examples/<name>/ with build.web.hxml and build.desktop.hxml -- the build, and
 what a user copies -- a .gitignore, and a src/<Entry>.hx stub that starts and clears

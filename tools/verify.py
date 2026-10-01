@@ -5,7 +5,7 @@
 
 This machine's own presets (linux-x64-*, macos-arm64-*, or windows-x64-msvc-* on Windows):
   release         the library and examples with a window, GPU and audio (built, not run)
-  debug-headless  unit tests, guardrails (tools/check.py) and a smoke run of every example
+  debug-headless  unit tests, guardrails (tools/check_rules.py) and a smoke run of every example
   debug-tsan      the unit tests under ThreadSanitizer (Linux and macOS)
 and on Linux and macOS:
   windows-x64-mingw-release         the Windows build cross-built with MinGW-w64, when
@@ -19,7 +19,7 @@ With --web, also (needs Emscripten, and a Chromium-based browser: Brave, Chrome,
 Chromium or Edge):
   wasm32-release, wasm32-release-threads, wasm32-release-webgpu-threads
                     every example built for the web and loaded in the browser
-                    (tools/webcheck.py)
+                    (tools/check_web.py)
   haxe-web  the Haxe examples built for the web and driven in the browser, when Haxe
             is installed
 With --windows HOST, also, on that Windows machine over ssh (tools/run_remote_windows.py:
@@ -58,8 +58,8 @@ def steps(web, windows):
         yield builds.native('debug-tsan'), True
         if shutil.which('x86_64-w64-mingw32-gcc'):
             yield 'windows-x64-mingw-release', False
-            import wine
-            if wine.find_wine():
+            import run_wine
+            if run_wine.find_wine():
                 yield 'windows-x64-mingw-debug-headless', True
             else:
                 print('verify: no Wine, so the Windows build is built but not run')
@@ -106,7 +106,7 @@ def main():
         else:
             ok = (run('cmake', '--preset', preset) and run('cmake', '--build', '--preset', preset)
                   and (not test or run('ctest', '--preset', preset))
-                  and (preset not in WEB or run(sys.executable, 'tools/webcheck.py', *WEB[preset])))
+                  and (preset not in WEB or run(sys.executable, 'tools/check_web.py', *WEB[preset])))
         if not ok:
             sys.exit(f'verify: FAIL at {preset}')
         print(f'== {preset}: ok ({time.monotonic() - start:.0f}s)', flush=True)

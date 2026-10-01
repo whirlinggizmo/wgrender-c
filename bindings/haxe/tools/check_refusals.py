@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Every way a wgrender call can return false, read from the C with clang.
 
-    tools/refusals.py                       the report
-    tools/refusals.py --check               the gate: a refusal a header names and
+    tools/check_refusals.py                       the report
+    tools/check_refusals.py --check               the gate: a refusal a header names and
                                              the binding's docs do not
-    tools/refusals.py --json                the report, as JSON on stdout
-    tools/refusals.py --require-clang       fail rather than skip when clang is missing
+    tools/check_refusals.py --json                the report, as JSON on stdout
+    tools/check_refusals.py --require-clang       fail rather than skip when clang is missing
 
 Two halves, both about refusals. The report reads the C. The check reads prose
 against prose: AGENTS.md makes a header's "false for ..." a contract, so a binding
@@ -17,7 +17,7 @@ logs, and a method returning Bool is right when it can fail silently" -- which o
 matters while there are properties. There is one left, and it has no C call behind
 it. What made that tool 388 lines was inferring which C call a member wrapped, since
 `wgr_model_set_tint -> Model.tint` cannot be read off a name; flattening put each C
-call in the body of exactly one member (tools/coverage.py --check holds that), so the
+call in the body of exactly one member (tools/check_coverage.py --check holds that), so the
 call is read off the body, and the inference, the DELEGATED table of hand-written
 verdicts and the regex reader of C control flow all went with it.
 
@@ -100,7 +100,7 @@ def documented_refusals(wgrender):
 def binding(root):
     """{c_name: "Module.member"}, and each member's doc -- from tools/members.py.
 
-    The one-name rule (tools/coverage.py --check) makes this a function: each C call has
+    The one-name rule (tools/check_coverage.py --check) makes this a function: each C call has
     one public member, so its doc is the one place a refusal has to be repeated. Overloads
     share a name, so their docs are read together. The index follows bodies, not first
     lines: the one-line regex this used before missed every wrapper with a default or a
@@ -124,7 +124,7 @@ def check(root, wgrender):
     for c_name, sentence in sorted(documented.items()):
         member = where.get(c_name)
         if member is None:
-            continue  # not wrapped; coverage.py answers for that
+            continue  # not wrapped; check_coverage.py answers for that
         if c_name in UNREACHABLE:
             continue
         if not SAYS_SO.search(docs.get(member, '')):

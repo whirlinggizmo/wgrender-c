@@ -2,7 +2,7 @@
 """Per-resource timings for one cold visit on emulated 4G: which requests happen when,
 and what waits on what.
 
-    tools/waterfall.py SITE          (e.g. examples/simple/out/wasm32/release/site)
+    tools/show_waterfall.py SITE          (e.g. examples/simple/out/wasm32/release/site)
 
 The site is served the way a host should (tools/serve.py --cache --gzip) and loaded in
 a fresh headless browser; after 12 s it prints every request with its start, end and

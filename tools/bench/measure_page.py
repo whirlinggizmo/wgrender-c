@@ -6,7 +6,7 @@ measurements (measure.py calls these; a binding's tools can too).
     gc(site, label, ...)      JS heap allocation per frame, and the collections V8 traced
     calls(site, label, ...)   wgr calls per frame made by a guest that runs as JS
 
-    tools/bench/pagebench.py frame|gc|calls --site=DIR [--url=PATH] [--probe=FILE] ...
+    tools/bench/measure_page.py frame|gc|calls --site=DIR [--url=PATH] [--probe=FILE] ...
                                              (prints the result as one line of JSON)
 
 Each serves `site` with tools/serve.py, waits for `probe` to be served, loads `url` in

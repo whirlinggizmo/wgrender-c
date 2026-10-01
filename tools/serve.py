@@ -9,7 +9,7 @@ web asset host "/assets/" (the same logical path the desktop fs resolves locally
     python3 tools/serve.py [port] [site] [--tls CERT KEY] [--cache] [--gzip] [--assets DIR]
                                                             # default 8000, out/wasm32/release/site
 
---assets mounts DIR at /assets/ instead of examples/assets/ (tools/cachecheck.py
+--assets mounts DIR at /assets/ instead of examples/assets/ (tools/check_cache.py
 serves a copy it can change).
 
 --tls serves HTTPS with that certificate and key (PEM), e.g. a locally trusted dev
@@ -18,8 +18,8 @@ builds need one for SharedArrayBuffer. localhost is secure without it.
 
 By default nothing is cached (no-store: a reload always gets the latest build).
 --cache and --gzip serve the way a host should, for measuring startup
-(tools/webstart.py): --cache lets the browser keep versioned files (name?v=<hash>,
-as the page loads code: tools/webdeploy.py) for good (immutable, a year) and
+(tools/measure_web_startup.py): --cache lets the browser keep versioned files (name?v=<hash>,
+as the page loads code: tools/finish_site.py) for good (immutable, a year) and
 revalidate the rest every visit (no-cache, answered 304 while unchanged); --gzip
 compresses the page, JS, wasm and JSON (not Range requests: assets stream through
 them).

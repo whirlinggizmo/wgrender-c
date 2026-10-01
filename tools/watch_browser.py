@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The web tools' watchdog: stops what a run started if the run itself can't.
 
-    tools/webwatch.py TOOL_PID PROFILE
+    tools/watch_browser.py TOOL_PID PROFILE
 
 tools/weblib.py starts one per run, detached. It waits for the process TOOL_PID (the tool) to
 exit, however it went (a crash, a kill), then kills every process the run recorded in

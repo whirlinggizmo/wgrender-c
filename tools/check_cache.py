@@ -2,7 +2,7 @@
 """The web asset cache, end to end (docs/PLAN-asset-cache.md): the bug of 2026-09-25,
 reproduced and shown fixed.
 
-    tools/cachecheck.py [--manifest] [--backend=webgl2|webgpu] [--threads] [--browser=PATH]
+    tools/check_cache.py [--manifest] [--backend=webgl2|webgpu] [--threads] [--browser=PATH]
                         [--verbose]
 
 Serves a web build with tools/serve.py, with /assets/ mounted from a scratch copy of

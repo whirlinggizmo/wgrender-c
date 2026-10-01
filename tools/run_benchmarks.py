@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """wgrender's benchmarks: the C baseline, and every binding's numbers beside it.
 
-    tools/benchmarks.py          build the web examples, measure the C `simple`,
+    tools/run_benchmarks.py          build the web examples, measure the C `simple`,
                                  write bench/results.json and docs/benchmarks.md
-    tools/benchmarks.py --doc    only regenerate docs/benchmarks.md from the results
+    tools/run_benchmarks.py --doc    only regenerate docs/benchmarks.md from the results
                                  files already there
-    tools/benchmarks.py --all    the whole refresh: the C baseline, then every
-                                 binding's own tools/benchmarks.py, then this page
+    tools/run_benchmarks.py --all    the whole refresh: the C baseline, then every
+                                 binding's own tools/run_benchmarks.py, then this page
 
 Run by hand, not in CI: it drives a browser for about a minute (--all: several).
 Commit bench/results.json and docs/benchmarks.md afterwards, and with --all each
@@ -14,7 +14,7 @@ binding's too. bench/notes.md is the
 hand-written part of the page (what the numbers mean, what is not measured); edit
 it, then --doc.
 
-A binding measures itself with its own tools/benchmarks.py, which uses this
+A binding measures itself with its own tools/run_benchmarks.py, which uses this
 repository's tools/bench/ (measure.py) and writes the binding's bench/results.json.
 The bindings live under bindings/ (BINDINGS); the doc reads each one's results and
 lists any that has none. It builds none of them: --all only runs each one's own
@@ -70,21 +70,21 @@ def write_doc(baseline):
         else:
             missing.append(name)
     lead = ('Every binding against the C, on the same example. Each project measures itself '
-            '(its `tools/benchmarks.py`) with the harness in `tools/bench/`, and this page '
+            '(its `tools/run_benchmarks.py`) with the harness in `tools/bench/`, and this page '
             'collects what they recorded.')
     if missing:
         lead += ' Not collected, no results found: ' + ', '.join(missing) + '.'
     DOC.write_text(measure.render_doc('wgrender benchmarks', lead, results, baseline,
-                                      'tools/benchmarks.py', measure.read_notes(ROOT)))
+                                      'tools/run_benchmarks.py', measure.read_notes(ROOT)))
     print(f'wrote {DOC}')
 
 
 def measure_bindings():
-    """Each binding's own tools/benchmarks.py, in turn. One that fails is reported
+    """Each binding's own tools/run_benchmarks.py, in turn. One that fails is reported
     and the rest still run; the page then collects whatever results exist."""
     failed = []
     for name, where in BINDINGS.items():
-        script = where / 'tools/benchmarks.py'
+        script = where / 'tools/run_benchmarks.py'
         print(f'== {name}', flush=True)
         if subprocess.run([sys.executable, script], cwd=script.parents[1]).returncode != 0:
             failed.append(name)

@@ -34,7 +34,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          python3 tools/deps.py install
+          python3 tools/setup_deps.py install
       - name: Build library and examples (GL)
         run: python3 tools/verify.py --only linux-x64-release
       - name: Unit tests, guardrails, and every example headless
@@ -82,7 +82,7 @@ jobs:
         # and twice the deadline. Four at a time starved a model's decode past 20 s.
         run: |
           cmake --preset wasm32-release-threads && cmake --build --preset wasm32-release-threads
-          python3 tools/webcheck.py --backend=webgl2 --threads --jobs=2 --settle=40000
+          python3 tools/check_web.py --backend=webgl2 --threads --jobs=2 --settle=40000
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v7
@@ -106,7 +106,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          python3 tools/deps.py install
+          python3 tools/setup_deps.py install
       - uses: actions/cache@v6
         with:
           path: emsdk-cache
@@ -123,6 +123,6 @@ jobs:
           haxelib install hxcpp --always
           haxelib dev wgrender-hx bindings/haxe
       - name: Refusals read from the C with clang
-        run: python3 bindings/haxe/tools/refusals.py --require-clang
+        run: python3 bindings/haxe/tools/check_refusals.py --require-clang
       - name: The binding's suite
         run: python3 bindings/haxe/test/check.py

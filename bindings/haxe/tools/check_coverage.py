@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """What of wgrender this binding reaches, and what it would take to reach more.
 
-    tools/coverage.py                    the report
-    tools/coverage.py --check            fail if OMISSIONS has rotted, or a C call has
+    tools/check_coverage.py                    the report
+    tools/check_coverage.py --check            fail if OMISSIONS has rotted, or a C call has
                                          more than one name
 
 Two layers answer separately. `wgr.impl.Raw` is generated and covers the C surface;

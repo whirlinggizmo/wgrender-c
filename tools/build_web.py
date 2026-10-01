@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """wgrender's web library, built with emcc alone: no make, no shell, on any OS.
 
-    tools/buildweb.py [BACKEND=webgl2|webgpu] [WEB_THREADS=0|1] [WEB_DEBUG=0|1] [-j N]
+    tools/build_web.py [BACKEND=webgl2|webgpu] [WEB_THREADS=0|1] [WEB_DEBUG=0|1] [-j N]
 
 The settings also come from the environment, else default to a WebGL2 release build
 without threads. The result is out/wasm32/<variant>/lib/libwgrender.a, <variant> being

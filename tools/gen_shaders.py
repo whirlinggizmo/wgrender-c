@@ -10,7 +10,7 @@ them through src/internal/wgr_shaders.h. sokol-shdc is downloaded the first time
 this OS, at the sokol-tools-bin commit deps/sokol/VERSION pins, into the per-user
 cache (tools/hostcache.py: ~/.cache/wgrender/tools on Linux).
 
-The custom material shaders of examples/shaders.c are packed by tools/shaderpack.py;
+The custom material shaders of examples/shaders.c are packed by tools/pack_shader.py;
 rebuild them after changing one, or shaders/wgr.glsl.
 
 CMake has the targets `gen-shaders` and `gen-example-shaders` for these.
@@ -53,7 +53,7 @@ def main():
     if sys.argv[1:] == ['--examples']:
         for glsl in sorted((ROOT / 'examples/shaders').glob('*.glsl')):
             out = ROOT / 'examples/assets/shaders' / f'{glsl.stem}.wgrshader'
-            subprocess.run([sys.executable, str(ROOT / 'tools/shaderpack.py'), str(glsl), '-o', str(out)],
+            subprocess.run([sys.executable, str(ROOT / 'tools/pack_shader.py'), str(glsl), '-o', str(out)],
                            check=True)
         return
     if sys.argv[1:]:

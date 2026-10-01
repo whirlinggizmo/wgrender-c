@@ -11,7 +11,7 @@
 #include "internal/wgr_shader_internal.h"
 #include "wgr_logger.h"
 
-/* Custom material shaders: .wgrshader files from tools/shaderpack.py (the format is
+/* Custom material shaders: .wgrshader files from tools/pack_shader.py (the format is
  * written there). Loading reads the file on a worker; finishing picks the running
  * backend's sources and makes its programs: a surface shader's four (models and
  * sprites), or a screen effect's one. */
@@ -248,7 +248,7 @@ static bool parse(const unsigned char *bytes, size_t size, const char *slang, wg
         return false;
     }
     if (version != FORMAT_VERSION) {
-        *error = "made by a different version of tools/shaderpack.py (rebuild it)";
+        *error = "made by a different version of tools/pack_shader.py (rebuild it)";
         return false;
     }
     while (next_line(&r, line, sizeof(line))) {

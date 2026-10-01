@@ -1,4 +1,4 @@
-/* Stress scene: game logic at scale, for comparing the bindings (tools/benchmarks.py).
+/* Stress scene: game logic at scale, for comparing the bindings (tools/run_benchmarks.py).
  *
  * `simple` measures what a binding costs; this measures what a game's own frame costs
  * in each language: N entities updated every frame, each one wgr call, a steady churn

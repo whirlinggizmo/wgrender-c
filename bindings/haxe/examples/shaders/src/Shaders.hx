@@ -14,7 +14,7 @@
 //               texture the sprite carries
 //
 // The `.wgrshader` files are compiled from examples/shaders/*.glsl for every backend
-// by wgrender's tools/shaderpack.py (`tools/gen_shaders.py --examples`) and ship in its assets,
+// by wgrender's tools/pack_shader.py (`tools/gen_shaders.py --examples`) and ship in its assets,
 // so they load through the asset system like any other file. This example was parked
 // on the assumption they needed generating first; they did not.
 //

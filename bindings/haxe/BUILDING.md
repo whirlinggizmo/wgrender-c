@@ -14,9 +14,9 @@ build is `haxe <file>.hxml`, on Windows, Linux or macOS.
   - Windows: MSVC (Visual Studio; hxcpp's default), or MinGW. Always add
     `-D HXCPP_M64`: hxcpp builds 32-bit on Windows unless told otherwise.
 - for the web: Emscripten (emsdk), with `emcc` on `PATH`. wgrender's web library is
-  built by its `tools/buildweb.py`, on the Python emsdk brings.
+  built by its `tools/build_web.py`, on the Python emsdk brings.
 - on Linux, the system's GL, X11 and ALSA dev packages, which sokol links:
-  `python3 tools/deps.py install` from the repository root (apt, dnf or pacman)
+  `python3 tools/setup_deps.py install` from the repository root (apt, dnf or pacman)
 - Python 3 for the tools here (`examples/build.py`, `test/check.py`, the generators)
 - a Chromium-based browser (Brave, Chrome, Chromium or Edge) for `examples/build.py drive`
   (`tools/drive.py`, Python like the rest: there is no Node to install)
@@ -98,7 +98,7 @@ Like every build of the binding it compiles wgrender in from its sources
 (`project/Build.xml`, with the flags `project/wgrender.xml` carries from wgrender's
 `build.json`), by whichever compiler hxcpp uses: MSVC or MinGW on Windows, emcc for the
 web. On Windows, `wgr.macros.NativeOut` tells hxcpp's emscripten target where emcc and
-emsdk's Python are. `tools/hxcppweb.py <example>` builds any example that way for the
+emsdk's Python are. `tools/build_hxcpp_web.py <example>` builds any example that way for the
 web (`out/wasm32/release-hxcpp/site/`), for the benchmarks.
 
 ## Checks
@@ -107,7 +107,7 @@ web (`out/wasm32/release-hxcpp/site/`), for the benchmarks.
 python3 test/check.py            # generators in --check mode, then the binding against
                                  # headless wgrender (-D wgr-headless, compiled in),
                                  # native and js
-python3 tools/refusals.py --check --require-clang   # (CI) every refusal documented
+python3 tools/check_refusals.py --check --require-clang   # (CI) every refusal documented
 ```
 
 `test/check.py` builds in `build/<os>/headless/` and needs only Haxe, hxcpp and a C
@@ -117,8 +117,8 @@ says which is stale.
 
 ## Benchmarks
 
-`python3 tools/benchmarks.py` builds `simple` and `stress` for the web (as a guest, and
+`python3 tools/run_benchmarks.py` builds `simple` and `stress` for the web (as a guest, and
 through hxcpp) and measures them with wgrender's harness against its C baseline (run
-wgrender's `tools/benchmarks.py` first), into `bench/results.json` and
+wgrender's `tools/run_benchmarks.py` first), into `bench/results.json` and
 [docs/benchmarks.md](docs/benchmarks.md). By hand, not in CI; the stress scene needs
 Xvfb and a GPU.

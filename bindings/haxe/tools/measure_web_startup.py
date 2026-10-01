@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Startup timing for any wgrender web build, for sites wgrender's own
-tools/webstart.py can't point at (it takes a web preset's site, with its
+tools/measure_web_startup.py can't point at (it takes a web preset's site, with its
 examples.json). The same idea, fewer options.
 
-    tools/webstart.py --site=DIR [--site=DIR ...] [--net=local|4g|both] [--runs=N]
+    tools/measure_web_startup.py --site=DIR [--site=DIR ...] [--net=local|4g|both] [--runs=N]
 
 Each site is opened in a fresh profile, served the way a host should (tools/serve.py
 --cache --gzip), and timed from navigation to libwgrender's own performance marks:

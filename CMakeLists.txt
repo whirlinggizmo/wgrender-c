@@ -21,7 +21,7 @@
 #
 # What is built, and with what, is build.json: the sources, and per target the
 # defines, flags and libraries. The bindings read the same file to build wgrender with
-# their own toolchains (wgrender-nim's build.nim, tools/buildweb.py), so this file
+# their own toolchains (wgrender-nim's build.nim, tools/build_web.py), so this file
 # lists no source, flag or library of its own.
 #
 # Options:
@@ -222,7 +222,7 @@ else()
   if(WGR_TARGET STREQUAL "linux" AND Python3_FOUND)
     # the system's GL, X11 and ALSA dev packages: stop here, with the command that
     # installs them, rather than at the link
-    execute_process(COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/deps.py" check
+    execute_process(COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/setup_deps.py" check
                     RESULT_VARIABLE deps_missing)
     if(deps_missing)
       message(FATAL_ERROR "wgrender: missing system build dependencies (above)")
@@ -244,14 +244,14 @@ endif()
 message(STATUS "wgrender: ${WGR_TARGET}")
 
 # What wgrender's own web programs (the examples and benchmarks) export for its tools to
-# call from JS: the asset queue webcheck.py and webstart.py wait on, and the cache
-# cachecheck.py clears. Nothing in wgrender forces an export (src/internal/
+# call from JS: the asset queue check_web.py and measure_web_startup.py wait on, and the cache
+# check_cache.py clears. Nothing in wgrender forces an export (src/internal/
 # exports_internal.h), so a program of anyone else's carries none of these.
 set(WGR_TOOL_EXPORTS
     "-sEXPORTED_FUNCTIONS=_main,_wgri_asset_pending_count,_wgri_asset_pending_log,_wgr_asset_clear_cache")
 
 # How a program here runs: directly, or under CMAKE_CROSSCOMPILING_EMULATOR (Wine for
-# a Windows build made on Linux: tools/wine.py)
+# a Windows build made on Linux: tools/run_wine.py)
 set(WGR_RUNNER ${CMAKE_CROSSCOMPILING_EMULATOR})
 
 if(WGR_EXAMPLES)
@@ -278,16 +278,16 @@ if(WGR_EXAMPLES)
   endforeach()
 
   # On the web, site/ is the site: <example>.js and .wasm, and the page and
-  # examples.json that tools/webdeploy.py writes once they're linked, as outputs the
+  # examples.json that tools/finish_site.py writes once they're linked, as outputs the
   # build knows, so it writes them again when an example or the shell changes, or when
-  # they're gone. Serve it with tools/serve.py; tools/site.py makes a copy to hand a
+  # they're gone. Serve it with tools/serve.py; tools/build_site.py makes a copy to hand a
   # static host.
   if(EMSCRIPTEN AND Python3_FOUND)
     add_custom_command(
       OUTPUT "${WGR_PROGRAMS}/index.html" "${WGR_PROGRAMS}/examples.json"
-      COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/webdeploy.py" "${WGR_PROGRAMS}"
+      COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/finish_site.py" "${WGR_PROGRAMS}"
               "${WGR_ROOT}/examples/web/index.html"
-      DEPENDS ${WGR_EXAMPLE_TARGETS} "${WGR_ROOT}/examples/web/index.html" "${WGR_ROOT}/tools/webdeploy.py"
+      DEPENDS ${WGR_EXAMPLE_TARGETS} "${WGR_ROOT}/examples/web/index.html" "${WGR_ROOT}/tools/finish_site.py"
       COMMENT "webdeploy: index.html and examples.json")
     add_custom_target(webdeploy ALL DEPENDS "${WGR_PROGRAMS}/index.html" "${WGR_PROGRAMS}/examples.json")
   endif()
@@ -323,7 +323,7 @@ if(PROJECT_IS_TOP_LEVEL)
     if(EMSCRIPTEN)
       set_target_properties(${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${WGR_PROGRAMS}/bench")
       add_custom_command(TARGET ${name} POST_BUILD
-        COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/webdeploy.py" "${WGR_PROGRAMS}/bench"
+        COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/finish_site.py" "${WGR_PROGRAMS}/bench"
                 "${WGR_ROOT}/examples/web/index.html")
     endif()
   endforeach()
@@ -333,7 +333,7 @@ if(PROJECT_IS_TOP_LEVEL)
   # Generated files, committed; rebuild them after changing what they come from.
   #   gen-brdf-lut          src/data/wgr_brdf_lut.h, baked by the library's own function
   #   gen-shaders           src/shaders/*.glsl.h (tools/gen_shaders.py: sokol-shdc)
-  #   gen-example-shaders   examples/assets/shaders/*.wgrshader (tools/shaderpack.py)
+  #   gen-example-shaders   examples/assets/shaders/*.wgrshader (tools/pack_shader.py)
   if(NOT EMSCRIPTEN AND NOT CMAKE_CROSSCOMPILING)
     wgr_program(gen_brdf_lut "${WGR_ROOT}/tools/gen_brdf_lut.c")
     add_custom_target(gen-brdf-lut COMMAND gen_brdf_lut "${WGR_ROOT}/src/data/wgr_brdf_lut.h"
@@ -373,12 +373,12 @@ if(WGR_TESTS)
   add_test(NAME unit COMMAND ${unit_command} WORKING_DIRECTORY "${WGR_ROOT}")
 
   if(Python3_FOUND AND NOT CMAKE_CROSSCOMPILING) # the modules check reads the library with the host's nm
-    add_test(NAME check COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/check.py"
+    add_test(NAME check COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/check_rules.py"
                                 --lib $<TARGET_FILE:wgrender>)
   endif()
 
   # Every example, headless for 180 frames (3 s at the paced 60 fps): fails on a bad
-  # exit, a timeout, or an error in its log (tools/smoke.py). Python by its path, not
+  # exit, a timeout, or an error in its log (tools/run_smoke.py). Python by its path, not
   # the imported Python3::Interpreter, which a cross build would run under the emulator.
   if(WGR_EXAMPLES AND Python3_FOUND)
     set(runner_arg)
@@ -388,7 +388,7 @@ if(WGR_TESTS)
     endif()
     foreach(name IN LISTS WGR_EXAMPLE_TARGETS)
       add_test(NAME smoke.${name}
-               COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/smoke.py" --frames 180
+               COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/run_smoke.py" --frames 180
                        ${runner_arg} $<TARGET_FILE:${name}>
                WORKING_DIRECTORY "${WGR_ROOT}")
     endforeach()

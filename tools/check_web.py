@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Web smoke check for the libwgrender examples (tools/verify.py --web runs it).
 
-    tools/webcheck.py [options] [example ...]     (default: all built examples)
+    tools/check_web.py [options] [example ...]     (default: all built examples)
 
 Serves a web preset's site (out/wasm32/<variant>/site) with tools/serve.py, loads each built example in a
 Chromium-based browser (Brave, Chrome, Chromium, Edge) through the DevTools protocol,
@@ -127,7 +127,7 @@ def check_example(browser, debug_base, base_url, example, opts):
                     state['activity'] = time.monotonic()
                     result['backend_ok'] = result['backend_ok'] or BACKEND_LOG[opts.backend] in text
                 # libwgrender logs go to the console as plain messages: fail on error-level
-                # ones like tools/smoke.py does ([ERROR], [FATAL])
+                # ones like tools/run_smoke.py does ([ERROR], [FATAL])
                 if params.get('type') == 'error' or '[panic]' in text or ERROR_LINE.search(text):
                     result['errors'].append(first_line(text))
             elif method == 'Runtime.exceptionThrown':

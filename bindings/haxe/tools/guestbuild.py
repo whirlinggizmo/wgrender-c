@@ -37,7 +37,7 @@ LIB = pathlib.Path(__file__).resolve().parent.parent
 # The examples' own builds are named as wgrender's (tools/wgrpath.py): what they make
 # in out/<platform>/<variant>/, their work in build/<preset>/. A guest's web site is
 # out/wasm32/<variant>/site: release, the default every build.web.hxml names, or what
-# BACKEND, WEB_THREADS and WEB_DEBUG choose. hxcpp's web build (tools/hxcppweb.py) adds
+# BACKEND, WEB_THREADS and WEB_DEBUG choose. hxcpp's web build (tools/build_hxcpp_web.py) adds
 # -hxcpp to the variant.
 DEFAULT_WEB = 'release'
 
@@ -104,8 +104,8 @@ class Project:
         Project._checked = True
         self.check_library()
         self.run([sys.executable, LIB / 'tools/gen_raw.py', '--check'])
-        self.run([sys.executable, LIB / 'tools/coverage.py', '--check'])
-        self.run([sys.executable, LIB / 'tools/refusals.py', '--check'])
+        self.run([sys.executable, LIB / 'tools/check_coverage.py', '--check'])
+        self.run([sys.executable, LIB / 'tools/check_refusals.py', '--check'])
 
     # ---------------------------------------------------------------- build ---
 

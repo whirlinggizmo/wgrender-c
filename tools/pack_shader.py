@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compile a custom material shader into a .wgrshader file (docs/PLAN-materials.md).
 
-    tools/shaderpack.py name.glsl [-o name.wgrshader]
+    tools/pack_shader.py name.glsl [-o name.wgrshader]
 
 Your file has a fragment shader `@fs fs` and may have a vertex hook `@block vertex`;
 shaders/wgr.glsl says what libwgrender gives them. This puts shaders/wgr.glsl in front of the

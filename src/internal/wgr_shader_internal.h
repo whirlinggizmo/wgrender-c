@@ -7,7 +7,7 @@
 #include "wgr_types.h"
 #include "sokol_gfx.h"
 
-/* A custom material shader (.wgrshader, written by tools/shaderpack.py): the running
+/* A custom material shader (.wgrshader, written by tools/pack_shader.py): the running
  * backend's programs, and its parameters and textures by name. A surface shader has
  * the model and sprite programs and draws through wgr_model / wgr_sprite_batch; a screen
  * shader (its fragment shader includes wgr_screen) has one program and redraws the

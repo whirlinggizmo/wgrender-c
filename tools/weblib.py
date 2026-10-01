@@ -1,4 +1,4 @@
-"""Shared by the web tools (webcheck.py, webstart.py, the benchmark harness): finding and
+"""Shared by the web tools (check_web.py, measure_web_startup.py, the benchmark harness): finding and
 launching a Chromium-based browser (headless, on a virtual X display, or on the
 screen), a minimal DevTools-protocol session, and a record of every process a run
 starts so all of it is stopped, whatever happens to the run. Standard library only.
@@ -278,7 +278,7 @@ class RunProcesses:
         in, on Linux and macOS, and its process tree (taskkill /T) on Windows;
       - every run has a unique profile directory, and any process whose command line
         names it belongs to this run and is swept up afterwards;
-      - a detached watchdog (tools/webwatch.py) waits for this process to disappear (a
+      - a detached watchdog (tools/watch_browser.py) waits for this process to disappear (a
         crash, a kill) and then does the same, so nothing leaks even if this never gets
         to run its cleanup. It is harmless when cleanup already ran.
     """
@@ -289,7 +289,7 @@ class RunProcesses:
         self.stopped = False
         self.lock = threading.Lock()
         flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS if WINDOWS else 0
-        subprocess.Popen([PYTHON, str(ROOT / 'tools' / 'webwatch.py'), str(os.getpid()), self.profile],
+        subprocess.Popen([PYTHON, str(ROOT / 'tools' / 'watch_browser.py'), str(os.getpid()), self.profile],
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                          start_new_session=not WINDOWS, creationflags=flags)
 

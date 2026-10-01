@@ -1,6 +1,6 @@
 /* Dissolve (examples/shaders.c): the surface burns away and back where a noise
  * texture is below a moving threshold, with a glowing edge. Built with
- * tools/shaderpack.py (make example-shaders). */
+ * tools/pack_shader.py (make example-shaders). */
 @fs fs
 @include_block wgr_surface
 layout(binding=2) uniform params {

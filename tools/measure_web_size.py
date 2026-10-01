@@ -2,7 +2,7 @@
 """Web build sizes per example: wasm and JS glue, raw and compressed (gzip -9, and
 brotli when Python's brotli module or the brotli tool is installed), sorted by total download size.
 
-    tools/websize.py [BUILD] [--summary]
+    tools/measure_web_size.py [BUILD] [--summary]
 
 BUILD is a web preset's site (default out/wasm32/release/site). Writes the table to the
 preset's work directory as well (build/<preset>/sizes.txt, not in the site);

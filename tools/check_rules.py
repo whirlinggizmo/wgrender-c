@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """wgrender's guardrails: the conventions a compiler doesn't check.
 
-    tools/check.py [--lib path/to/libwgrender.a]
+    tools/check_rules.py [--lib path/to/libwgrender.a]
 
   backend   include/ and examples/ don't depend on sokol: no sokol #includes, no sokol
             API identifiers (the prose word "sokol" is fine)

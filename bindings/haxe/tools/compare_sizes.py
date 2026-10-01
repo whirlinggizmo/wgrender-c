@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """What the Haxe guest ports cost against wgrender's own C builds of the same example.
 
-    tools/compare.py [DIR ...]      default: the sibling example directories
+    tools/compare_sizes.py [DIR ...]      default: the sibling example directories
 
 Like against like: both sides are the same wgrender, the same backend and the same
 threading (WEB_THREADS=0), so the only difference is the language the game is written
