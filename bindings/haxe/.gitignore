@@ -1,0 +1,8 @@
+/test/out/
+__pycache__/
+*.pyc
+/build/
+examples/*/out/
+examples/*/build/
+project/lib/*/build/
+examples/out/

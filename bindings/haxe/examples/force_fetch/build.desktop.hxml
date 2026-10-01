@@ -1,0 +1,15 @@
+# force_fetch, native: the same guest source through hxcpp, with wgrender compiled into
+# the binary. `haxe build.desktop.hxml`; the program looks for assets/ beside itself.
+-cp src
+-lib wgrender-hx
+--main ForceFetch
+--cpp build/cpp
+# the C++ goes to build/<os>/<variant>/cpp (build/linux/release/cpp, ...)
+--macro wgr.macros.NativeOut.build()
+
+-D HAXE_OUTPUT_FILE=force_fetch-guest
+# 64-bit on every OS: hxcpp builds 32-bit on Windows unless told otherwise
+-D HXCPP_M64
+-dce full
+-D analyzer-optimize
+-D WGR_INCLUDE_FETCHER

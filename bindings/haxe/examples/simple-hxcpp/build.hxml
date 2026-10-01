@@ -1,0 +1,19 @@
+# Desktop build of the wgrender simple example: wgrender compiled in from its sources.
+#
+# `./build.py desktop` runs this with -D WGRENDER_DIR (the wgrender this checkout works
+# against) and installs the binary in out/<os>/<variant>/. `haxe build.hxml` on its own
+# builds against the binding's own wgrender.
+
+-cp src
+-lib wgrender-hx
+--main Simple
+--cpp build/cpp
+# the C++ goes to build/<os>/<variant>/cpp (build/linux/release/cpp, ...)
+--macro wgr.macros.NativeOut.build()
+# hxcpp names the binary after this (default: the main class).
+-D HAXE_OUTPUT_FILE=simple
+# 64-bit on every OS: hxcpp builds 32-bit on Windows unless told otherwise
+-D HXCPP_M64
+
+-dce full
+-D analyzer-optimize

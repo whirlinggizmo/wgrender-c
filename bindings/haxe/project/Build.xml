@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  How wgrender-hx builds wgrender, for every native build (and hxcpp's web one).
+
+  Pulled in by the @:buildXml on wgr.impl.Raw. wgrender comes from the submodule under
+  project/lib, or -D WGRENDER_DIR, and its C sources are compiled here, by whichever
+  toolchain hxcpp chose (gcc or clang, MinGW, MSVC, hxcpp's default on Windows, or emcc
+  for its emscripten target), rather than linked from a prebuilt library: MinGW objects
+  and MSVC's linker don't mix, and compiling from source means both halves come from
+  one toolchain everywhere, with nothing to build first.
+
+  wgrender allows this by asking for nothing at build time: its shader headers are
+  committed, its dependencies are vendored, and Python regenerates shaders rather
+  than building. project/wgrender.xml lists the sources and the flags wgrender's own
+  builds use (native, headless with -D wgr-headless, the web), from wgrender's
+  build.json; tools/gen_sources.py writes it, and its check mode fails when it drifts.
+
+  hxcpp defaults to a 32-bit build on Windows, so add -D HXCPP_M64 for x64.
+-->
+<xml>
+    <pragma once="true" />
+
+    <!-- Which wgrender. -D WGRENDER_DIR names one; without it, the submodule that
+         came with this library. That define is the whole of what a build has to say. -->
+    <set name="WGRENDER" value="${WGRENDER_DIR}" if="WGRENDER_DIR" />
+    <set name="WGRENDER" value="${haxelib:wgrender-hx}/project/lib/wgrender-c" unless="WGRENDER_DIR" />
+    <set name="WGRHX" value="${haxelib:wgrender-hx}" />
+
+    <include name="${haxelib:wgrender-hx}/project/wgrender.xml" />
+
+    <files id="haxe">
+        <compilerflag value="-I${WGRENDER}/include" />
+        <compilerflag value="-I${WGRHX}/host" />
+    </files>
+
+    <!-- The same flags again, because hxcpp compiles the entry class's __main__.cpp as
+         its own group rather than as part of `haxe`, and a group gets only the flags
+         named for it. It matters as soon as an app's own class names a type the
+         binding maps to a wgrender struct: `KeyboardState` is one, so a `static
+         function f(keys:KeyboardState)` puts `#include "wgr.h"` in that class's
+         generated header, which __main__.cpp then includes. The examples/2d port is
+         where that first happened; before it, every entry class happened to use only
+         types that are Int underneath. -->
+    <files id="__main__">
+        <compilerflag value="-I${WGRENDER}/include" />
+        <compilerflag value="-I${WGRHX}/host" />
+    </files>
+
+    <!-- The guest ABI glue. hxcpp compiles it, so a native build needs no separate
+         C step of its own. On the web, hxcpp's program brings its own main(), so the
+         glue leaves its out (host/wgr_guest.c). -->
+    <files id="wgrguest">
+        <compilerflag value="-I${WGRENDER}/include" />
+        <compilerflag value="-I${WGRHX}/host" />
+        <compilerflag value="-DWGR_GUEST_NO_MAIN" if="emscripten" />
+        <file name="${WGRHX}/host/wgr_guest.c" />
+    </files>
+
+    <target id="haxe">
+        <files id="wgrguest" />
+
+        <!-- wgrender's EM_JS glue makes emscripten's JS $stackSave/$stackRestore live,
+             but under hxcpp's -fwasm-exceptions nothing native references the wasm
+             stack ops, so emcc leaves them out and the link fails on them. Exporting
+             them pulls them in. (-sEXPORTED_FUNCTIONS replaces the default list, so
+             _main has to be named too.) -->
+        <flag value="-sEXPORTED_FUNCTIONS=_main,_emscripten_stack_get_current,__emscripten_stack_restore" if="emscripten" />
+
+        <!-- wgrender itself, and the platform libraries and link flags: project/wgrender.xml. -->
+    </target>
+</xml>

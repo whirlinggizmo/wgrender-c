@@ -1,0 +1,20 @@
+# Web (Emscripten) build of the wgrender simple example: simple.js + simple.wasm, with
+# wgrender compiled in from its sources by emcc, with wgrender's own web flags.
+#
+# `./build.py web` runs this with -D WGRENDER_DIR (the wgrender this checkout works
+# against), -D wgr-webgpu for BACKEND=webgpu and --debug for WEB_DEBUG=1, and puts the
+# site in out/web/<variant>/.
+
+-cp src
+-lib wgrender-hx
+--main Simple
+--cpp build/cpp
+# the C++ goes to build/web/<variant>/cpp (build/web/webgl2-nothreads/cpp, ...)
+--macro wgr.macros.NativeOut.build()
+# hxcpp's emscripten toolchain: emcc for everything, wasm out, single-threaded
+# (which also lets its GC take some shortcuts).
+-D emscripten
+-D HAXE_OUTPUT_FILE=simple
+
+-dce full
+-D analyzer-optimize

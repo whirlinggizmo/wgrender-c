@@ -1,0 +1,72 @@
+# Publish the Haxe examples to GitHub Pages: https://whirlinggizmo.github.io/wgrender-hx/
+#
+# Every example as a JS guest on a wgrender wasm host (examples/build.py web), gathered
+# with wgrender's assets into one site (examples/build.py site) whose index compares
+# each one's size with wgrender's own C build of it: that is built here too, from the
+# submodule, and published at https://whirlinggizmo.github.io/wgrender-c/.
+#
+# WEB_THREADS=0 (the guests' default), because Pages sends no COOP/COEP headers and a
+# threaded build needs cross-origin isolation; WebGL2, which runs everywhere.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "**/*.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; let a running one finish rather than publishing a half-site.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build the site
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: actions/cache@v6
+        with:
+          path: emsdk-cache
+          key: emsdk-5.0.7-${{ runner.os }}
+      - uses: mymindstorm/setup-emsdk@v16
+        with:
+          version: 5.0.7
+          actions-cache-folder: emsdk-cache
+      - uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: 4.3.6
+      - name: The binding from this checkout (and hxcpp, which -lib wgrender-hx requires)
+        run: |
+          haxelib install hxcpp --always
+          haxelib dev wgrender-hx .
+      - name: wgrender's own C build of each example, for the size comparison
+        working-directory: project/lib/wgrender-c
+        run: cmake --preset web-webgl2-nothreads && cmake --build --preset web-webgl2-nothreads
+      - name: Build every example for the web and assemble the site
+        run: |
+          python3 examples/build.py web
+          python3 examples/build.py site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: examples/out/web/js-webgl2-nothreads
+
+  deploy:
+    name: deploy
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
