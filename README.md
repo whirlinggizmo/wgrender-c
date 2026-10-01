@@ -1,6 +1,6 @@
 # wgrender
 
-A small game/graphics runtime built on [sokol](https://github.com/floooh/sokol),
+A small game/graphics library built on [sokol](https://github.com/floooh/sokol),
 evolving the ideas from `librl` (the raylib-backed `rl_*` library) rather than
 porting it 1:1. Public symbols use the `wgr_` prefix; the library it builds is
 `libwgrender.a`.
