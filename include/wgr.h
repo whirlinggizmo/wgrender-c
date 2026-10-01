@@ -106,9 +106,9 @@ const char *wgr_get_renderer(void);
  * instead of quietly behaving differently.
  *
  * Threads decode and upload assets off the main thread. A web build has them only if
- * it was built with them (WEB_THREADS=1, the default) *and* the page is cross-origin
- * isolated, which needs COOP/COEP headers from the host — a static host that can't
- * send them (GitHub Pages) serves the WEB_THREADS=0 build instead, where loading
+ * it was built with them (a -threads variant, such as wasm32-release-threads) *and*
+ * the page is cross-origin isolated, which needs COOP/COEP headers from the host. A
+ * build without them, the default, runs on any static host (GitHub Pages), and loading
  * blocks the frame it happens on. */
 bool wgr_has_threads(void);
 

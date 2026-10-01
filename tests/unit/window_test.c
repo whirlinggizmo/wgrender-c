@@ -56,7 +56,7 @@ void test_runtime_capabilities(void)
     CHECK(strcmp(renderer, "headless") == 0);
 
     /* a bool, and on desktop threads are always there; the web build decides at
-       compile time (WEB_THREADS) and the host decides whether they can start */
+       compile time (a -threads web variant) and the host decides whether they can start */
     const bool threads = wgr_has_threads();
     CHECK(threads == true || threads == false);
 #ifndef __EMSCRIPTEN__

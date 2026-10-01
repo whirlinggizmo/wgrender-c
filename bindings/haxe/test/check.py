@@ -7,7 +7,7 @@
 Headless is wgrender's own test build (-D wgr-headless: its headless flags, compiled in
 by project/Build.xml as any build of the binding is): no window, GPU or audio, and
 WGR_HEADLESS_FRAMES runs a fixed number of frames and returns, so the checks can assert
-values rather than only compile. The work is in build/<os>/headless/.
+values rather than only compile. The work is in build/<platform>-release-headless/.
 
 This is the library's own test suite, not an example's. It lived in examples/simple-
 hxcpp while the binding and that port grew together, which meant the thing that
@@ -43,17 +43,17 @@ import subprocess
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / 'tools'))
-from wgrpath import WGRENDER, host_os  # noqa: E402
+from wgrpath import WGRENDER, native_preset  # noqa: E402
 import cli  # noqa: E402
 
 if __name__ == '__main__':
     cli.parse(__doc__, ('--lists',), positional=0)
-from guestbuild import check_library, desktop_variant  # noqa: E402
+from guestbuild import check_library  # noqa: E402
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 HAXE = os.environ.get('HAXE', 'haxe')
-# the repo's build/<os>/<variant>/ (the wg* layout): the headless variant of this host's
-# native build, build/linux/headless or build/windows/msvc-headless
-BUILD = ROOT / 'build' / host_os() / (desktop_variant().replace('release', '') + '-headless').lstrip('-')
+# the binding's build/<preset>/, named as wgrender's: the headless variant of this host's
+# native build, build/linux-x64-release-headless or build/windows-x64-msvc-release-headless
+BUILD = ROOT / 'build' / native_preset('release-headless')
 FRAMES = os.environ.get('WGR_HEADLESS_FRAMES', '5')
 
 

@@ -3,7 +3,7 @@
 
 Each example is what a user would write: its src/, a build.web.hxml, and a
 build.desktop.hxml. Those are the build -- `haxe build.web.hxml` from the example's
-directory produces the same out/web this script does, host and all, because the wasm
+directory produces the same site this script does, host and all, because the wasm
 host is linked by wgr.macros.WebHost from a line in that file. So this is not a build
 system, and there is no script in each example to run it: examples/build.py imports it
 and names the example. It is the things a copy of an example does not need and the
@@ -29,32 +29,22 @@ import subprocess
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from wgrpath import WGRENDER, host_os  # noqa: E402
+from wgrpath import WGRENDER, exe, native_preset, web_variant  # noqa: E402
+import builds  # noqa: E402  (wgrender's)
 
 LIB = pathlib.Path(__file__).resolve().parent.parent
 
-# The examples' own builds follow the wg* layout (whirlinggizmo/.github CONVENTIONS.md,
-# "Build directories"): what they make in out/<platform>/<variant>/, their work in
-# build/. The web has two toolchains here, a JS guest (this) and hxcpp
-# (tools/hxcppweb.py), so a guest's variant names it: js-webgl2-nothreads, the default
-# every build.web.hxml names, or what BACKEND, WEB_THREADS and WEB_DEBUG choose.
-DEFAULT_WEB = 'js-webgl2-nothreads'
+# The examples' own builds are named as wgrender's (tools/wgrpath.py): what they make
+# in out/<platform>/<variant>/, their work in build/<preset>/. A guest's web site is
+# out/wasm32/<variant>/site: release, the default every build.web.hxml names, or what
+# BACKEND, WEB_THREADS and WEB_DEBUG choose. hxcpp's web build (tools/hxcppweb.py) adds
+# -hxcpp to the variant.
+DEFAULT_WEB = 'release'
 
 
-def web_variant():
-    """The guest web build's variant, from the settings WebHost builds the host with."""
-    backend = os.environ.get('BACKEND') or 'webgl2'
-    threads = (os.environ.get('WEB_THREADS') or '0') == '1'
-    debug = (os.environ.get('WEB_DEBUG') or '0') == '1'
-    return f'js-{backend}' + ('' if threads else '-nothreads') + ('-debug' if debug else '')
-
-
-def desktop_variant():
-    """hxcpp's native build: release, or on Windows the toolchain it used (MSVC by
-    default, MinGW with HXCPP_MINGW or -D mingw)."""
-    if host_os() != 'windows':
-        return 'release'
-    return 'mingw' if os.environ.get('HXCPP_MINGW') else 'msvc'
+def site_dir(variant):
+    """Where an example's web build goes, relative to the example."""
+    return f'out/wasm32/{variant}/site'
 
 
 def check_library():
@@ -85,7 +75,7 @@ class Project:
         self.root = pathlib.Path(root).resolve()
         self.name = name
         self.variant = web_variant()
-        self.site = self.root / 'out/web' / self.variant
+        self.site = self.root / site_dir(self.variant)
         self.wgrender = WGRENDER
         self.haxe = os.environ.get('HAXE', 'haxe')
 
@@ -121,14 +111,14 @@ class Project:
 
     def build_web(self):
         self.check_binding()
-        print(f'web -> out/web/{self.variant} ({self.name}.js and the host it calls)')
+        print(f'web -> {site_dir(self.variant)} ({self.name}.js and the host it calls)')
         hxml = (self.root / 'build.web.hxml').read_text(encoding='utf-8')
         if self.variant != DEFAULT_WEB:
             # the committed hxml names the default variant; the web settings chose another
-            hxml = hxml.replace(f'out/web/{DEFAULT_WEB}/', f'out/web/{self.variant}/')
-            if f'out/web/{self.variant}/' not in hxml:
-                sys.exit(f'{self.root}/build.web.hxml: no --js out/web/{DEFAULT_WEB}/ to redirect')
-            variant_hxml = self.root / 'build/web' / self.variant / 'build.web.hxml'
+            hxml = hxml.replace(f'{site_dir(DEFAULT_WEB)}/', f'{site_dir(self.variant)}/')
+            if f'{site_dir(self.variant)}/' not in hxml:
+                sys.exit(f'{self.root}/build.web.hxml: no --js {site_dir(DEFAULT_WEB)}/ to redirect')
+            variant_hxml = self.root / 'build' / f'wasm32-{self.variant}' / 'build.web.hxml'
             variant_hxml.parent.mkdir(parents=True, exist_ok=True)
             variant_hxml.write_text(hxml, encoding='utf-8')
             self.haxe_build(variant_hxml.relative_to(self.root))
@@ -138,21 +128,22 @@ class Project:
 
     def build_desktop(self):
         self.check_binding()
-        print(f'desktop -> out/{host_os()}/{desktop_variant()}/{self.name}-guest')
+        print(f'desktop -> {builds.split(native_preset())[0]}: out/.../bin/{self.name}-guest')
         self.haxe_build('build.desktop.hxml')
         self.install_desktop()
 
     def install_desktop(self):
-        # out/<platform>/<variant>/, as wgrender's own builds are (the wg* layout). The
-        # *command* stays `desktop`, which means native-not-web whichever OS it is.
-        # hxcpp's work is in build/<platform>/<variant>/cpp, where wgr.macros.NativeOut
-        # puts it: the committed hxml cannot know the host.
-        variant = desktop_variant()
-        cpp = self.root / 'build' / host_os() / variant / 'cpp'
-        out = self.root / 'out' / host_os() / variant
+        # out/<platform>/<variant>/bin, as wgrender's own builds are. The *command* stays
+        # `desktop`, which means native-not-web whichever OS it is. hxcpp's work is in
+        # build/<preset>/cpp, where wgr.macros.NativeOut puts it: the committed hxml
+        # cannot know the host.
+        preset = native_preset()
+        platform_name, variant = builds.split(preset)
+        cpp = self.root / 'build' / preset / 'cpp'
+        out = self.root / 'out' / platform_name / variant / 'bin'
         out.mkdir(parents=True, exist_ok=True)
-        exe = f'{self.name}-guest' + ('.exe' if host_os() == 'windows' else '')
-        shutil.copy2(cpp / exe, out / exe)
+        program = exe(f'{self.name}-guest')
+        shutil.copy2(cpp / program, out / program)
         # wgr.Assets looks for `assets` beside the executable, so a development build
         # gets one pointing at wgrender's tree -- the same lookup a shipped program
         # uses, rather than a path baked in at compile time.

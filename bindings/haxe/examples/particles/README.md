@@ -25,9 +25,9 @@ out of the headers by parser rather than by hand — 72 of 76 unattended.
 ## Build
 
 ```sh
-haxe build.web.hxml                   # the JS guest and its host wasm, into out/web/js-webgl2-nothreads
+haxe build.web.hxml                   # the JS guest and its host wasm, into out/wasm32/release/site
 examples/build.py all particles       # that, plus the native guest
-examples/build.py desktop particles   # out/linux/release/particles-guest, with assets linked beside it
+examples/build.py desktop particles   # out/linux-x64/release/bin/particles-guest, with assets linked beside it
 examples/build.py sizes particles
 examples/build.py drive particles     # headless smoke test; clicks once for the confetti
 ```

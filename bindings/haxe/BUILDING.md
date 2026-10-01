@@ -44,9 +44,9 @@ Native, from an hxml like `examples/hello/build.desktop.hxml`:
 -D HXCPP_M64
 ```
 
-The `--macro` line is optional: it moves the C++ to `build/<os>/<variant>/cpp`
-(`build/linux/release/cpp`, `build/windows/msvc/cpp`, ...), which an hxml shared
-between OSes can't name itself.
+The `--macro` line is optional: it moves the C++ to `build/<preset>/cpp`
+(`build/linux-x64-release/cpp`, `build/windows-x64-msvc-release/cpp`, ...), which an
+hxml shared between OSes can't name itself.
 
 For the web, from one like `examples/hello/build.web.hxml`: the guest compiled to JS,
 and one line that makes its host (`wgrender-host.js` and `.wasm`), `boot.js` and an
@@ -56,7 +56,7 @@ and one line that makes its host (`wgrender-host.js` and `.wasm`), `boot.js` and
 -cp src
 -lib wgrender-hx
 --main Hello
---js out/web/js-webgl2-nothreads/hello.js
+--js out/wasm32/release/site/hello.js
 --macro wgr.macros.WebHost.build()
 ```
 
@@ -80,26 +80,26 @@ examples/build.py compare        sizes against wgrender's own C build of each
 `examples/build.py` builds against the wgrender this binding sits in and puts
 wgrender's sample assets beside each desktop binary.
 
-Builds follow the wg* layout (whirlinggizmo/.github CONVENTIONS.md, "Build
-directories"): what they make in `out/<platform>/<variant>/`, their work in
-`build/<platform>/<variant>/` (hxcpp's C++ and objects in `build/linux/release/cpp/`,
-WebHost's host cache in `build/web/js-webgl2-nothreads/webhost/`, the drive's
-screenshot beside it). An example's guest web build is `out/web/js-webgl2-nothreads/`
-(`js-` because the web has two toolchains here; the web settings pick another variant,
-such as `js-webgl2` with `WEB_THREADS=1`), its desktop binary `out/linux/release/`
-(`out/windows/msvc/`, ...), and `site` gathers every guest into
-`examples/out/web/js-webgl2-nothreads/`. `compare` needs wgrender's C web examples
-built: `cmake --preset web-webgl2-nothreads && cmake --build --preset
-web-webgl2-nothreads` in wgrender-c.
+Builds are named as wgrender's are (its `tools/builds.py`): a preset
+`<platform>-<variant>`, what it makes in `out/<platform>/<variant>/`, its work in
+`build/<preset>/` (hxcpp's C++ and objects in `build/linux-x64-release/cpp/`,
+WebHost's host cache in `build/wasm32-release/webhost/`, the drive's screenshot
+beside it). An example's guest web build is `out/wasm32/release/site/` (the web
+settings pick another variant, such as `release-threads` with `WEB_THREADS=1`), its
+desktop binary `out/linux-x64/release/bin/` (`out/windows-x64-msvc/release/bin/`,
+...), and `site` gathers every guest into `examples/out/wasm32/release/site/`.
+`compare` needs wgrender's C web examples built: `cmake --preset wasm32-release &&
+cmake --build --preset wasm32-release` in wgrender-c.
 
 `examples/simple-hxcpp` is `simple` built all-in-one through hxcpp, for the web too:
-`./build.py desktop` or `./build.py web` (`out/linux/release/`, `out/web/webgl2-nothreads/`).
+`./build.py desktop` or `./build.py web` (`out/linux-x64/release/bin/`,
+`out/wasm32/release-hxcpp/site/`: hxcpp's web build adds `-hxcpp` to the variant).
 Like every build of the binding it compiles wgrender in from its sources
 (`project/Build.xml`, with the flags `project/wgrender.xml` carries from wgrender's
 `build.json`), by whichever compiler hxcpp uses: MSVC or MinGW on Windows, emcc for the
 web. On Windows, `wgr.macros.NativeOut` tells hxcpp's emscripten target where emcc and
 emsdk's Python are. `tools/hxcppweb.py <example>` builds any example that way for the
-web (`out/web/hxcpp-webgl2-nothreads/`), for the benchmarks.
+web (`out/wasm32/release-hxcpp/site/`), for the benchmarks.
 
 ## Checks
 

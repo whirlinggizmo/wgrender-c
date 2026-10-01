@@ -56,7 +56,7 @@ class Fetch {
 	static inline final TEXTURE_PATH = "sprites/logo/wg-logo-white-alpha.png";
 	static inline final ASSET_TEXTURE = 1;
 	static inline final LAYER_CONTROL = 1; // a button's label goes on the layer above
-	// the build's work directory, build/<os>/<variant> (wgr.macros.NativeOut); on the
+	// the build's work directory, build/<preset> (wgr.macros.NativeOut); on the
 	// web the browser caches
 	static final CACHE_DIR = (haxe.macro.Compiler.getDefine("wgr-work-dir") ?? "build") + "/asset-cache";
 	static inline final DEFAULT_HOST =

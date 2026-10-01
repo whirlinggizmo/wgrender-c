@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Dev server for the libwgrender web build (stdlib only; cross-platform).
 
-Serves a built site (out/web/webgl2/, out/web/webgpu/, ...: what the web presets make) at / and *mounts* the shared asset
+Serves a built site (out/wasm32/release/site, out/wasm32/release-webgpu-threads/site, ...: what the web presets make) at / and *mounts* the shared asset
 tree (examples/assets/) at /assets/ — so assets are never copied or symlinked into
 the site. Single source of truth, works on Windows/macOS/Linux. This mirrors the
 web asset host "/assets/" (the same logical path the desktop fs resolves locally).
 
     python3 tools/serve.py [port] [site] [--tls CERT KEY] [--cache] [--gzip] [--assets DIR]
-                                                            # default 8000, out/web/webgl2
+                                                            # default 8000, out/wasm32/release/site
 
 --assets mounts DIR at /assets/ instead of examples/assets/ (tools/cachecheck.py
 serves a copy it can change).
@@ -59,7 +59,7 @@ ARGS = [a for a in ARGS if a not in ("--cache", "--gzip")]
 GZIP_TYPES = (".html", ".js", ".wasm", ".json", ".css", ".txt", ".glb", ".gltf", ".ttf")
 
 ROOT   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SITE   = os.path.abspath(ARGS[1]) if len(ARGS) > 1 else os.path.join(ROOT, "out", "web", "webgl2")
+SITE   = os.path.abspath(ARGS[1]) if len(ARGS) > 1 else os.path.join(ROOT, "out", "wasm32", "release", "site")
 ASSETS = os.path.abspath(ASSETS_DIR) if ASSETS_DIR else os.path.join(ROOT, "examples", "assets")
 PORT   = int(ARGS[0]) if len(ARGS) > 0 else 8000
 

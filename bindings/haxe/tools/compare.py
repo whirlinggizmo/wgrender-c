@@ -7,7 +7,7 @@ Like against like: both sides are the same wgrender, the same backend and the sa
 threading (WEB_THREADS=0), so the only difference is the language the game is written
 in. Build the C side first:
 
-    cmake --preset web-webgl2-nothreads && cmake --build --preset web-webgl2-nothreads   (in wgrender-c)
+    cmake --preset wasm32-release && cmake --build --preset wasm32-release   (in wgrender-c)
 
 What a visitor downloads is what is measured -- wasm plus JS, and the gzipped total,
 since that is what crosses the wire. The Haxe side has a third file: the host wasm is
@@ -30,8 +30,8 @@ if __name__ == '__main__':
 LIB = pathlib.Path(__file__).resolve().parent.parent
 # argv here is example directories, so wgrender comes from the environment or
 # the usual places -- not from a positional that means something else.
-GUEST = 'js-webgl2-nothreads'  # the guest builds compared: tools/guestbuild.py's default
-C_BUILD = WGRENDER / 'out/web/webgl2-nothreads'
+GUEST = 'out/wasm32/release/site'  # the guest builds compared: tools/guestbuild.py's default
+C_BUILD = WGRENDER / 'out/wasm32/release/site'
 
 
 def measure(*paths):
@@ -49,15 +49,15 @@ def main():
     dirs = [pathlib.Path(a).resolve() for a in sys.argv[1:]]
     if not dirs:
         dirs = sorted(d for d in (LIB / 'examples').iterdir()
-                      if (d / 'build.py').exists() and (d / 'out/web' / GUEST).exists())
+                      if (d / 'build.py').exists() and (d / GUEST).exists())
     if not C_BUILD.exists():
         sys.exit(f'no C builds to compare against at {C_BUILD}\n'
-                 f'  cd {WGRENDER} && cmake --preset web-webgl2-nothreads && '
-                 'cmake --build --preset web-webgl2-nothreads')
+                 f'  cd {WGRENDER} && cmake --preset wasm32-release && '
+                 'cmake --build --preset wasm32-release')
     rows = []
     for d in dirs:
         name = d.name
-        site = d / 'out/web' / GUEST
+        site = d / GUEST
         hx = measure(site / 'wgrender-host.wasm', site / 'wgrender-host.js', site / f'{name}.js')
         c = measure(C_BUILD / f'{name}.wasm', C_BUILD / f'{name}.js')
         if hx is None:

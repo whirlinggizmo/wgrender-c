@@ -51,7 +51,7 @@ def measure_all():
     haxe = f'Haxe {version(["haxe", "--version"])}'
     hxcpp = version(['haxelib', 'list', 'hxcpp']).split('[')[0].replace(':', '').strip()
 
-    guest = EXAMPLES / 'simple/out/web/js-webgl2-nothreads'  # measure.WEB_VARS: no threads
+    guest = EXAMPLES / 'simple/out/wasm32/release/site'  # measure.WEB_VARS: no threads
     js = {
         'id': 'haxe-js', 'label': 'Haxe -> JS guest', 'project': 'wgrender-hx', 'example': 'simple',
         'toolchain': haxe,
@@ -61,9 +61,9 @@ def measure_all():
         'frame': measure.frame(guest, 'haxe-js'),
         'gc': measure.gc(guest, 'haxe-js'),
         'calls': measure.calls(guest, 'haxe-js'),
-        'stress': measure.stress(EXAMPLES / 'stress/out/web/js-webgl2-nothreads', 'haxe-js', '/?n={n}'),
+        'stress': measure.stress(EXAMPLES / 'stress/out/wasm32/release/site', 'haxe-js', '/?n={n}'),
     }
-    native = EXAMPLES / 'simple-hxcpp/out/web/webgl2-nothreads'
+    native = EXAMPLES / 'simple-hxcpp/out/wasm32/release-hxcpp/site'
     page = {'probe': 'simple.js'}
     cpp = {
         'id': 'haxe-hxcpp', 'label': 'Haxe -> hxcpp', 'project': 'wgrender-hx', 'example': 'simple',
@@ -73,7 +73,7 @@ def measure_all():
                                 native / 'index.html', native / 'examples.json']),
         'frame': measure.frame(native, 'haxe-hxcpp', **page),
         'gc': measure.gc(native, 'haxe-hxcpp', **page),
-        'stress': measure.stress(EXAMPLES / 'stress/out/web/hxcpp-webgl2-nothreads', 'haxe-hxcpp', '/?n={n}', 'stress.js'),
+        'stress': measure.stress(EXAMPLES / 'stress/out/wasm32/release-hxcpp/site', 'haxe-hxcpp', '/?n={n}', 'stress.js'),
     }
     return measure.write_results(RESULTS, 'wgrender-hx', measure.wgrender_info(WGRENDER, 'self'),
                                  [js, cpp])

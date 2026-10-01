@@ -14,21 +14,21 @@ Haxe, and what does Haxe cost in wasm.
 ## Build
 
 ```sh
-./build.py desktop     # out/linux/release/simple (out/windows/mingw/ on Windows)
-./build.py web         # out/web/webgl2-nothreads/ (simple.js + simple.wasm + the library's page)
+./build.py desktop     # out/linux-x64/release/bin/simple (out/windows-x64-msvc/release/bin/ on Windows)
+./build.py web         # out/wasm32/release-hxcpp/site/ (simple.js + simple.wasm + the library's page)
 ./build.py all
 ./build.py serve       # http://localhost:8000/
 ./build.py check       # compile the whole binding surface, not just what Simple.hx uses
-./build.py compare     # this port's wasm next to the C, Nim and Beef ones
+./build.py compare     # this port's wasm next to the C one
 ./build.py clean
-../build.py drive simple-hxcpp   # headless-browser smoke test of the web build; writes build/web/webgl2-nothreads/check.png
+../build.py drive simple-hxcpp   # headless-browser smoke test of the web build; writes build/wasm32-release-hxcpp/check.png
 ```
 
 `./build.py` runs `haxe build.hxml` or `haxe web.hxml`, and hxcpp compiles wgrender in
 from its sources, as every build of the binding does (the binding's
 `project/Build.xml`), with whichever compiler it uses: MSVC or MinGW on
-Windows, emcc for the web. The C++ and objects are in `build/<platform>/<variant>/cpp`
-(`build/linux/release`, `build/web/webgl2-nothreads`), where `wgr.macros.NativeOut`
+Windows, emcc for the web. The C++ and objects are in `build/<preset>/cpp`
+(`build/linux-x64-release`, `build/wasm32-release-hxcpp`), where `wgr.macros.NativeOut`
 puts them. `haxe build.hxml` works on its own too.
 
 Web options are wgrender's own web build settings, read from the environment

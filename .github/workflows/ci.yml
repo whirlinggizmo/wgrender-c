@@ -36,11 +36,11 @@ jobs:
           sudo apt-get update
           python3 tools/deps.py install
       - name: Build library and examples (GL)
-        run: python3 tools/verify.py --only linux-release
+        run: python3 tools/verify.py --only linux-x64-release
       - name: Unit tests, guardrails, and every example headless
-        run: python3 tools/verify.py --only linux-headless
+        run: python3 tools/verify.py --only linux-x64-debug-headless
       - name: Unit tests under ThreadSanitizer
-        run: python3 tools/verify.py --only linux-tsan
+        run: python3 tools/verify.py --only linux-x64-debug-tsan
 
   # An EM_JS body is carried through the library as text and only compiled when an
   # example *links* -- closure runs then. So the desktop job above and a library
@@ -61,7 +61,7 @@ jobs:
           version: 5.0.7
           actions-cache-folder: emsdk-cache
       - name: Link a web example (compiles every EM_JS body)
-        run: cmake --preset web-webgl2 && cmake --build --preset web-webgl2 --target hello
+        run: cmake --preset wasm32-release-threads && cmake --build --preset wasm32-release-threads --target hello
 
   web:
     name: web (WebGL2 build + browser check)
@@ -81,14 +81,14 @@ jobs:
         # Two vCPUs: two examples at a time (each spins up decode workers of its own),
         # and twice the deadline. Four at a time starved a model's decode past 20 s.
         run: |
-          cmake --preset web-webgl2 && cmake --build --preset web-webgl2
-          python3 tools/webcheck.py --backend=webgl2 --jobs=2 --settle=40000
+          cmake --preset wasm32-release-threads && cmake --build --preset wasm32-release-threads
+          python3 tools/webcheck.py --backend=webgl2 --threads --jobs=2 --settle=40000
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: webcheck-screenshots
-          path: build/web/webgl2/webcheck
+          path: build/wasm32-release-threads/webcheck
           if-no-files-found: ignore
 
   # The Haxe binding: its audit, then its whole suite (bindings/haxe/test/check.py:

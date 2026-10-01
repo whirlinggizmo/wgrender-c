@@ -2,10 +2,10 @@
 # and the Haxe binding's under /haxe/: each a JS guest on a wgrender wasm host, whose
 # index compares its size with the C build of the same example above it.
 #
-# WEB_THREADS=0, because Pages sends no COOP/COEP headers and a threaded build needs
-# cross-origin isolation to get SharedArrayBuffer. Nothing requires threads (every
-# example passes webcheck on the web-webgl2-nothreads preset); asset decoding just runs on the main
-# thread, which examples/loading.c says out loud rather than claiming otherwise.
+# wasm32-release, without threads, because Pages sends no COOP/COEP headers and a
+# threaded build needs cross-origin isolation to get SharedArrayBuffer. Nothing requires
+# threads (every example passes webcheck on wasm32-release); asset decoding just runs on
+# the main thread, which examples/loading.c says out loud rather than claiming otherwise.
 #
 # WebGL2 only: it runs everywhere, and it is what CI's browser check gates on, so the
 # published site is the one that was tested.
@@ -46,19 +46,19 @@ jobs:
           haxe-version: 4.3.6
       - name: Build every example and assemble the site
         run: |
-          cmake --preset web-webgl2-nothreads && cmake --build --preset web-webgl2-nothreads
-          python3 tools/site.py out/web/webgl2-nothreads
+          cmake --preset wasm32-release && cmake --build --preset wasm32-release
+          python3 tools/site.py out/wasm32/release/site
       - name: The Haxe examples, under /haxe/
         run: |
           haxelib install hxcpp --always
           haxelib dev wgrender-hx bindings/haxe
           python3 bindings/haxe/examples/build.py web
           python3 bindings/haxe/examples/build.py site
-          cp -r bindings/haxe/examples/out/web/js-webgl2-nothreads build/web/webgl2-nothreads/site/haxe
+          cp -r bindings/haxe/examples/out/wasm32/release/site build/wasm32-release/site/haxe
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: build/web/webgl2-nothreads/site
+          path: build/wasm32-release/site
 
   deploy:
     name: deploy

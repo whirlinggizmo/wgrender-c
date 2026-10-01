@@ -25,8 +25,8 @@ and each is timed from navigation to:
 (the wgr:* points are performance marks libwgrender makes in web builds).
 
 Options:
-  --backend=webgl2|webgpu   (default webgl2); the site is out/web/<backend>
-  --threads=0               the -nothreads build
+  --backend=webgl2|webgpu   (default webgl2); the site is out/wasm32/release[-webgpu]/site
+  --threads                 the threaded build
   --net=none|4g|both        network: the local machine as is, emulated 4G (9 Mbit/s
                             down, 150 ms round trips), or both (default both)
   --headless                WebGL2 on SwiftShader (a CPU renderer) instead of the GPU
@@ -108,7 +108,7 @@ TIMINGS = """(() => {
 def parse_args():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--backend', default='webgl2', choices=['webgl2', 'webgpu'])
-    ap.add_argument('--threads', default='1', choices=['0', '1'])
+    ap.add_argument('--threads', action='store_true', help='the threaded build')
     ap.add_argument('--net', default='both', choices=['none', '4g', 'both'])
     ap.add_argument('--headless', action='store_true')
     ap.add_argument('--browser')
@@ -127,7 +127,7 @@ def parse_args():
     opts.tls = opts.tls.split(',') if opts.tls else None
     opts.display = ('remote' if opts.devtools is not None else 'headless' if opts.headless
                     else 'xvfb' if find_xvfb() else 'screen')
-    opts.site = builds.out(builds.web(opts.backend, opts.threads == '1'))
+    opts.site = builds.programs(builds.web(opts.backend, opts.threads))
     return opts
 
 
@@ -235,7 +235,7 @@ def main():
             wait_for(f'{base_url}/examples.json', 'tools/serve.py')
         where = {'headless': 'headless (SwiftShader)', 'xvfb': 'GPU, virtual display (Xvfb)',
                  'screen': 'GPU, on the screen', 'remote': f'the browser at DevTools port {opts.devtools}'}
-        print(f'webstart: {len(examples)} example(s), {opts.backend}{"" if opts.threads == "1" else " no threads"}, '
+        print(f'webstart: {len(examples)} example(s), {opts.backend}{" threads" if opts.threads else ""}, '
               f'{where[opts.display]}{f", {browser_path}" if browser_path else ""}')
         print('ms from navigation; js and wasm show the bytes transferred (gzip)\n', flush=True)
         for net in opts.nets:
@@ -259,7 +259,7 @@ def main():
                           f'{ms(t.get("user")):>6} {ms(t.get("fs")):>6} {ms(t.get("frame")):>6} {ready:>6}', flush=True)
             print()
         if opts.json:
-            Path(opts.json).write_text(json.dumps({'backend': opts.backend, 'threads': opts.threads == '1',
+            Path(opts.json).write_text(json.dumps({'backend': opts.backend, 'threads': opts.threads,
                                                    'results': results}, indent=2))
         return 0
     finally:

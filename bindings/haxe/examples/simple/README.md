@@ -233,7 +233,7 @@ goes with it. Whatever carries the build config has to be something the build ke
 ## Build
 
 ```sh
-haxe build.web.hxml                 # out/web/js-webgl2-nothreads: the guest, its host (.js + .wasm), the page
+haxe build.web.hxml                 # out/wasm32/release/site: the guest, its host (.js + .wasm), the page
 examples/build.py web simple        # the same, with the suite's checks first
 examples/build.py sizes simple
 examples/build.py drive simple      # headless browser smoke test; writes out/check.png

@@ -2,7 +2,7 @@
 """The web asset cache, end to end (docs/PLAN-asset-cache.md): the bug of 2026-09-25,
 reproduced and shown fixed.
 
-    tools/cachecheck.py [--manifest] [--backend=webgl2|webgpu] [--threads=0] [--browser=PATH]
+    tools/cachecheck.py [--manifest] [--backend=webgl2|webgpu] [--threads] [--browser=PATH]
                         [--verbose]
 
 Serves a web build with tools/serve.py, with /assets/ mounted from a scratch copy of
@@ -66,13 +66,13 @@ def parse_args():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--manifest', action='store_true', help='with manifests (tools/gen_manifest.py)')
     ap.add_argument('--backend', default='webgl2', choices=('webgl2', 'webgpu'))
-    ap.add_argument('--threads', default='1', choices=('0', '1'))
+    ap.add_argument('--threads', action='store_true', help='the threaded build')
     ap.add_argument('--browser')
     ap.add_argument('--verbose', action='store_true')
     ap.add_argument('--settle', type=int, default=20000, help='longest a visit runs, ms')
     ap.add_argument('--quiet', type=int, default=1500, help='quiet time that ends a visit, ms')
     opts = ap.parse_args()
-    opts.site = builds.out(builds.web(opts.backend, opts.threads == '1'))
+    opts.site = builds.programs(builds.web(opts.backend, opts.threads))
     opts.display = 'headless' if opts.backend == 'webgl2' else ('xvfb' if find_xvfb() else 'screen')
     return opts
 

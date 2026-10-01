@@ -15,16 +15,16 @@ import sys.FileSystem;
 	--macro wgr.macros.NativeOut.build()
 	```
 
-	moves hxcpp's output to `build/<platform>/<variant>/cpp`, the wg* family layout
-	(whirlinggizmo/.github CONVENTIONS.md, "Build directories"): `build/linux/release/cpp`,
-	`build/macos/release/cpp`, and on Windows `build/windows/msvc/cpp` or, with MinGW
-	(`-D mingw` or `HXCPP_MINGW`), `build/windows/mingw/cpp`. hxcpp's emscripten target
-	(`-D emscripten`) is `build/web/webgl2-nothreads/cpp` (`webgpu` with `-D wgr-webgpu`,
-	`-debug` with `--debug`). A committed hxml can't name the OS it's built on; this
-	does it at compile time. Optional: leave the line out and `--cpp` is where the
-	output goes.
+	moves hxcpp's output to `build/<preset>/cpp`, named as wgrender's builds are
+	(<platform>-<variant>): `build/linux-x64-release/cpp`, `build/macos-arm64-release/cpp`,
+	and on Windows `build/windows-x64-msvc-release/cpp` or, with MinGW (`-D mingw` or
+	`HXCPP_MINGW`), `build/windows-x64-mingw-release/cpp`. hxcpp's emscripten target
+	(`-D emscripten`) is `build/wasm32-release-hxcpp/cpp` (`release-webgpu-hxcpp` with
+	`-D wgr-webgpu`, `debug-...` with `--debug`). A committed hxml can't name the OS it's
+	built on; this does it at compile time. Optional: leave the line out and `--cpp` is
+	where the output goes.
 
-	It also defines `wgr-work-dir` as that build's work directory (`build/linux/release`),
+	It also defines `wgr-work-dir` as that build's work directory (`build/linux-x64-release`),
 	for a program that keeps files of its own there, such as a download cache:
 	`haxe.macro.Compiler.getDefine("wgr-work-dir")`.
 
@@ -36,14 +36,14 @@ class NativeOut {
 		if (!Context.defined("cpp"))
 			return;
 		final dir = if (Context.defined("emscripten")) {
-			'web/' + (Context.defined("wgr-webgpu") ? "webgpu" : "webgl2") + "-nothreads" + (Context.defined("debug") ? "-debug" : "");
+			'wasm32-' + (Context.defined("debug") ? "debug" : "release") + (Context.defined("wgr-webgpu") ? "-webgpu" : "") + "-hxcpp";
 		} else {
-			final os = switch (Sys.systemName()) {
-				case "Windows": "windows";
-				case "Mac": "macos";
-				case other: other.toLowerCase();
+			final platform = switch (Sys.systemName()) {
+				case "Windows": (Context.defined("mingw") || Sys.getEnv("HXCPP_MINGW") != null) ? "windows-x64-mingw" : "windows-x64-msvc";
+				case "Mac": "macos-arm64";
+				case _: "linux-x64";
 			}
-			'$os/' + (os != "windows" ? "release" : (Context.defined("mingw") || Sys.getEnv("HXCPP_MINGW") != null) ? "mingw" : "msvc");
+			'$platform-release';
 		}
 		Compiler.define("wgr-work-dir", 'build/$dir');
 		Compiler.setOutput('build/$dir/cpp');

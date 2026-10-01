@@ -158,21 +158,26 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
       join the root's, `tools/verify.py` runs its suite. wgrender-beef is dropped and
       wgrender-nim set aside.
 - [ ] Tools named verb-first (`run_`, `check_`, `build_`, `measure_`...); modules that
-      tools import keep nouns.
+      tools import keep nouns. Every tool takes `--help` (prints its usage and does
+      nothing else) and stops on an argument it doesn't take, as the Haxe binding's
+      `tools/cli.py` does (`buildweb.py --help` ran a build).
 - [ ] No tool reads source as text: `tools/check.py` on clang's AST (libwgt's
       `check_api.py`, with its self-test), backend-free headers and examples by
       compiling them without `deps/`, `tools/shaderpack.py` from sokol-shdc's
       reflection. Where nothing parses it, raise it rather than scan.
 - [ ] `docs/HISTORY.md`: what's done moves out of TASKS.md and the PLAN files, so they
       show only what's current.
-- [ ] Build names as libwgt's: platform is what a consumer links against, with the
-      architecture (`linux-x64`, `macos-arm64`, `windows-x64-msvc`,
-      `windows-x64-mingw`, `wasm32`); the variant names its config always, then
-      features (`debug-headless`, `release-threads`, `debug-webgpu`); presets
-      `<platform>-<variant>`; `out/<platform>/<variant>/` an install prefix
-      (`include/`, `lib/`, staged by `cmake --install`, emptied first); work in
-      `build/<preset>/`. A feature adds something, so the web build's default becomes
-      no threads, with `-threads` to opt in. The org's CONVENTIONS.md to match.
+- [x] Build names as libwgt's: platform is what a program links against, with the
+      architecture (`linux-x64`, `macos-arm64` only, `windows-x64-msvc`,
+      `windows-x64-mingw`, `wasm32`); the variant names its config always, then what it
+      adds (`debug-headless`, `release-threads`, `release-webgpu`), never `-nothreads`:
+      the web default is now no threads. Tests run on debug builds.
+      `out/<platform>/<variant>/` holds `lib/` and `bin/` (or `site/` on the web),
+      written by the build itself -- no install step, no copies of the headers -- so
+      deleting `out/` is a clean; work in `build/<preset>/`. `webdeploy` is a tracked
+      custom command. The Haxe binding's builds follow it (`-hxcpp` for its hxcpp web
+      build).
+- [ ] The org's CONVENTIONS.md takes the same names (another repo: the user's call).
 - [ ] Hidden symbol visibility: only `wgr_*` exported.
 - [ ] Pixel tests: frames read back in headless Chrome and in a GL window on Xvfb; a
       desktop check of every example with screenshots.

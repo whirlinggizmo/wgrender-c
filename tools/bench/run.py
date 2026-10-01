@@ -11,11 +11,11 @@
                 sizes, two lights, one where nothing receives
 
 Headless by default (CPU work only; no GPU at all), with this machine's headless preset
-(linux-headless, ...); --desktop uses its release preset (linux-release, ...), with real GPU work in a window (vsync off). --ktx
+(linux-x64-debug-headless, ...); --desktop uses its release preset (linux-x64-release, ...), with real GPU work in a window (vsync off). --ktx
 has loadbench load the models' compressed textures (made the first time:
 tools/compress_textures.py --gltf).
 
-The web versions are targets of the web presets: cmake --build --preset web-webgl2
+The web versions are targets of the web presets: cmake --build --preset wasm32-release
 --target spritebench, then serve the site and open /bench/?ex=spritebench.
 """
 import argparse
@@ -43,7 +43,7 @@ def main():
     ap.add_argument('--desktop', action='store_true')
     ap.add_argument('--ktx', action='store_true')
     args = ap.parse_args()
-    preset = builds.native('release' if args.desktop else 'headless')
+    preset = builds.native('release' if args.desktop else 'debug-headless')
 
     env = dict(os.environ)
     if args.name == 'loadbench':
@@ -57,7 +57,7 @@ def main():
 
     run('cmake', '--preset', preset, stdout=subprocess.DEVNULL)
     run('cmake', '--build', '--preset', preset, '--target', args.name)
-    exe = builds.out(preset) / (args.name + ('.exe' if os.name == 'nt' else ''))
+    exe = builds.programs(preset) / (args.name + ('.exe' if os.name == 'nt' else ''))
     # the benchmarks report on stdout; wgrender's log goes to stderr
     sys.exit(subprocess.run([str(exe)], cwd=ROOT, env=env, stderr=subprocess.DEVNULL).returncode)
 

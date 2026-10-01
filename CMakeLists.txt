@@ -1,14 +1,17 @@
 # wgrender's build: the library, its examples and its tests, on Windows (MSVC in
 # Visual Studio, or MinGW), Linux, macOS and the web (Emscripten).
 #
-#   cmake --preset linux-release && cmake --build --preset linux-release   (CMakePresets.json)
-#   ctest --preset linux-headless                                          unit tests + smoke run
+#   cmake --preset linux-x64-release && cmake --build --preset linux-x64-release   (CMakePresets.json)
+#   ctest --preset linux-x64-debug-headless                                        unit tests + smoke run
 #
-# or open this folder in Visual Studio or VS Code, which read the presets. What a build
-# makes is in out/<platform>/<variant>/, from the preset <platform>-<variant> (the wg*
-# family's layout: linux/release, windows/msvc, web/webgl2-nothreads, ...): the library
-# at the top, the programs beside it, and for the web the site. CMake's own work (its
-# cache, the objects) is in build/<platform>/<variant>/. A program of your own:
+# or open this folder in Visual Studio or VS Code, which read the presets. A preset is
+# <platform>-<variant>: the platform is what a program links against (linux-x64,
+# macos-arm64, windows-x64-msvc, windows-x64-mingw, wasm32), the variant its
+# configuration and then what it adds (release, debug-headless, release-webgpu-threads).
+# What a build makes is in out/<platform>/<variant>/ (WGR_OUT, which the presets set):
+# the library in lib/, the programs in bin/, and on the web the site in site/. All of it
+# is written by the build, so deleting out/ is a clean. CMake's own work (its cache, the
+# objects) is in build/<preset>/. A program of your own:
 #
 #   add_subdirectory(wgrender-c)
 #   target_link_libraries(my_game PRIVATE wgrender)
@@ -32,7 +35,7 @@
 #                  policy, not how wgrender is built, so it isn't in build.json and the
 #                  bindings' builds don't take it
 # Under Emscripten (the web presets, or emcmake):
-#   WGR_WEB_BACKEND webgl2 | webgpu     WGR_WEB_THREADS ON | OFF     WGR_WEB_DEBUG OFF | ON
+#   WGR_WEB_BACKEND webgl2 | webgpu     WGR_WEB_THREADS OFF | ON     WGR_WEB_DEBUG OFF | ON
 
 cmake_minimum_required(VERSION 3.21) # string(JSON), and C_STANDARD 11 on MSVC
 
@@ -108,21 +111,32 @@ find_package(Python3 COMPONENTS Interpreter) # the smoke tests' runner
 
 set(WGR_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
 
-# What a build makes goes to out/<platform>/<variant>/, and its work stays in
-# build/<platform>/<variant>/ (CONVENTIONS.md, "Build directories"): the preset's build
-# directory with build/ for out/. Only for a build directory under wgrender's own build/;
-# a project that add_subdirectory()s wgrender keeps CMake's defaults. Every
-# configuration's too, or a multi-config generator (Visual Studio) adds Release/.
-file(RELATIVE_PATH WGR_BUILD_REL "${WGR_ROOT}/build" "${CMAKE_BINARY_DIR}")
-if(PROJECT_IS_TOP_LEVEL AND NOT IS_ABSOLUTE "${WGR_BUILD_REL}" AND NOT WGR_BUILD_REL MATCHES "^\\.\\.")
-  set(WGR_OUT "${WGR_ROOT}/out/${WGR_BUILD_REL}")
+# What a build makes goes to out/<platform>/<variant>/ (WGR_OUT; the presets set it,
+# CONVENTIONS.md "Build directories"): the library in lib/, programs in bin/, or on the
+# web in site/, which is the whole site. A project that add_subdirectory()s wgrender,
+# or a build with no WGR_OUT, keeps CMake's defaults. Every configuration's too, or a
+# multi-config generator (Visual Studio) adds Release/.
+set(WGR_OUT "" CACHE PATH "Where the build's results go: out/<platform>/<variant>")
+if(PROJECT_IS_TOP_LEVEL AND WGR_OUT)
+  if(EMSCRIPTEN)
+    set(WGR_PROGRAMS "${WGR_OUT}/site")
+  else()
+    set(WGR_PROGRAMS "${WGR_OUT}/bin")
+  endif()
+  set(WGR_LIB "${WGR_OUT}/lib")
 else()
-  set(WGR_OUT "${CMAKE_BINARY_DIR}")
+  set(WGR_PROGRAMS "${CMAKE_BINARY_DIR}")
+  set(WGR_LIB "${CMAKE_BINARY_DIR}")
 endif()
 foreach(kind ARCHIVE LIBRARY RUNTIME)
-  set(CMAKE_${kind}_OUTPUT_DIRECTORY "${WGR_OUT}")
+  if(kind STREQUAL "RUNTIME")
+    set(dir "${WGR_PROGRAMS}")
+  else()
+    set(dir "${WGR_LIB}")
+  endif()
+  set(CMAKE_${kind}_OUTPUT_DIRECTORY "${dir}")
   foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
-    set(CMAKE_${kind}_OUTPUT_DIRECTORY_${config} "${WGR_OUT}")
+    set(CMAKE_${kind}_OUTPUT_DIRECTORY_${config} "${dir}")
   endforeach()
 endforeach()
 wgr_manifest_list(WGR_SOURCES sources)
@@ -171,14 +185,19 @@ target_include_directories(wgrender SYSTEM PRIVATE ${WGR_SYSTEM_INCLUDE})
 
 if(EMSCRIPTEN)
   set(WGR_WEB_BACKEND webgl2 CACHE STRING "webgl2 or webgpu")
-  option(WGR_WEB_THREADS "Asset decoding on worker threads (needs COOP/COEP headers)" ON)
+  option(WGR_WEB_THREADS "Asset decoding on worker threads (needs COOP/COEP headers)" OFF)
   option(WGR_WEB_DEBUG "No optimization, debug info and assertions" OFF)
-  set(WGR_TARGET "${WGR_WEB_BACKEND}")
-  if(NOT WGR_WEB_THREADS)
-    string(APPEND WGR_TARGET "-nothreads")
-  endif()
+  # build.json's web target: the variant's name, config then what it adds
   if(WGR_WEB_DEBUG)
-    string(APPEND WGR_TARGET "-debug")
+    set(WGR_TARGET debug)
+  else()
+    set(WGR_TARGET release)
+  endif()
+  if(NOT WGR_WEB_BACKEND STREQUAL "webgl2")
+    string(APPEND WGR_TARGET "-${WGR_WEB_BACKEND}")
+  endif()
+  if(WGR_WEB_THREADS)
+    string(APPEND WGR_TARGET "-threads")
   endif()
   wgr_manifest_list(WGR_CFLAGS web ${WGR_TARGET} cflags)
   wgr_manifest_list(WGR_PROGRAM_CFLAGS web ${WGR_TARGET} program_cflags)
@@ -264,15 +283,19 @@ if(WGR_EXAMPLES)
     list(APPEND WGR_EXAMPLE_TARGETS ${name})
   endforeach()
 
-  # On the web, the build directory is the site: <example>.js and .wasm, and the page
-  # and examples.json that tools/webdeploy.py writes once they're linked. Serve it with
-  # tools/serve.py; tools/site.py makes a copy to hand a static host.
+  # On the web, site/ is the site: <example>.js and .wasm, and the page and
+  # examples.json that tools/webdeploy.py writes once they're linked, as outputs the
+  # build knows, so it writes them again when an example or the shell changes, or when
+  # they're gone. Serve it with tools/serve.py; tools/site.py makes a copy to hand a
+  # static host.
   if(EMSCRIPTEN AND Python3_FOUND)
-    add_custom_target(webdeploy ALL
-      COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/webdeploy.py" "${WGR_OUT}"
+    add_custom_command(
+      OUTPUT "${WGR_PROGRAMS}/index.html" "${WGR_PROGRAMS}/examples.json"
+      COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/webdeploy.py" "${WGR_PROGRAMS}"
               "${WGR_ROOT}/examples/web/index.html"
-      DEPENDS ${WGR_EXAMPLE_TARGETS} "${WGR_ROOT}/examples/web/index.html"
+      DEPENDS ${WGR_EXAMPLE_TARGETS} "${WGR_ROOT}/examples/web/index.html" "${WGR_ROOT}/tools/webdeploy.py"
       COMMENT "webdeploy: index.html and examples.json")
+    add_custom_target(webdeploy ALL DEPENDS "${WGR_PROGRAMS}/index.html" "${WGR_PROGRAMS}/examples.json")
   endif()
 endif()
 
@@ -304,9 +327,9 @@ if(PROJECT_IS_TOP_LEVEL)
     wgr_program(${name} "${WGR_ROOT}/tools/bench/${name}.c")
     list(APPEND WGR_BENCH_TARGETS ${name})
     if(EMSCRIPTEN)
-      set_target_properties(${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${WGR_OUT}/bench")
+      set_target_properties(${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${WGR_PROGRAMS}/bench")
       add_custom_command(TARGET ${name} POST_BUILD
-        COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/webdeploy.py" "${WGR_OUT}/bench"
+        COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/webdeploy.py" "${WGR_PROGRAMS}/bench"
                 "${WGR_ROOT}/examples/web/index.html")
     endif()
   endforeach()

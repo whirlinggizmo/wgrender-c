@@ -158,8 +158,8 @@ def callbench():
     """The per-call cost of JS -> wasm against the same call inside the wasm, in the
     browser the rest is measured in (tools/bench/callbench: its page runs the loops)."""
     # a tool's byproduct beside the web build it measures alongside (WEB_VARS), in its
-    # work directory: build/web/webgl2-nothreads/callbench
-    out = WGRENDER / 'build/web/webgl2-nothreads/callbench'
+    # work directory: build/wasm32-release/callbench
+    out = WGRENDER / 'build/wasm32-release/callbench'
     out.mkdir(parents=True, exist_ok=True)
     src = HERE / 'callbench'
     run([shutil.which('emcc') or 'emcc', '-O2', src / 'shapes.c', src / 'loops.c', '-o', out / 'callbench.js',

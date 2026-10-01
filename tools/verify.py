@@ -3,19 +3,21 @@
 
     tools/verify.py [--web] [--only STEP[,STEP...]]
 
-This machine's own presets (linux-*, macos-*, or windows-msvc* on Windows):
-  release   the library and examples with a window, GPU and audio (built, not run)
-  headless  unit tests, guardrails (tools/check.py) and a smoke run of every example
-  tsan      the unit tests under ThreadSanitizer (Linux and macOS)
+This machine's own presets (linux-x64-*, macos-arm64-*, or windows-x64-msvc-* on Windows):
+  release         the library and examples with a window, GPU and audio (built, not run)
+  debug-headless  unit tests, guardrails (tools/check.py) and a smoke run of every example
+  debug-tsan      the unit tests under ThreadSanitizer (Linux and macOS)
 and on Linux and macOS:
-  windows-mingw           the Windows build cross-built with MinGW-w64, when it's installed
-  windows-mingw-headless  its unit tests and smoke run under Wine, when there's a Wine too
+  windows-x64-mingw-release         the Windows build cross-built with MinGW-w64, when
+                                    it's installed
+  windows-x64-mingw-debug-headless  its unit tests and smoke run under Wine, when there's
+                                    a Wine too
 and when Haxe is installed:
   haxe      the Haxe binding's suite (bindings/haxe/test/check.py: its generators
             current, headless hxcpp, JS, cppia, its C)
 With --web, also (needs Emscripten, and a Chromium-based browser: Brave, Chrome,
 Chromium or Edge):
-  web-webgl2, web-webgl2-nothreads, web-webgpu
+  wasm32-release, wasm32-release-threads, wasm32-release-webgpu-threads
                     every example built for the web and loaded in the browser
                     (tools/webcheck.py)
   haxe-web  the Haxe examples built for the web and driven in the browser, when Haxe
@@ -23,8 +25,8 @@ Chromium or Edge):
 
 Each step is a CMake preset (CMakePresets.json), configured, built and tested: its work
 in build/<platform>/<variant>/, what it makes in out/<platform>/<variant>/; the haxe
-steps are the binding's own scripts. --only takes step names (linux-headless,
-web-webgl2, haxe, ...). Stops at the first step that fails.
+steps are the binding's own scripts. --only takes step names (linux-x64-debug-headless,
+wasm32-release, haxe, ...). Stops at the first step that fails.
 """
 import argparse
 import shutil
@@ -38,22 +40,22 @@ sys.path.insert(0, str(ROOT / 'tools'))
 import builds  # noqa: E402
 
 
-WEB = {'web-webgl2': ['--backend=webgl2'], 'web-webgl2-nothreads': ['--backend=webgl2', '--threads=0'],
-       'web-webgpu': ['--backend=webgpu']}
+WEB = {'wasm32-release': ['--backend=webgl2'], 'wasm32-release-threads': ['--backend=webgl2', '--threads'],
+       'wasm32-release-webgpu-threads': ['--backend=webgpu', '--threads']}
 HAXE = {'haxe': [['bindings/haxe/test/check.py']],
         'haxe-web': [['bindings/haxe/examples/build.py', 'web'], ['bindings/haxe/examples/build.py', 'drive']]}
 
 
 def steps(web):
     yield builds.native('release'), False
-    yield builds.native('headless'), True
-    if builds.HOST in ('linux', 'macos'):
-        yield builds.native('tsan'), True
+    yield builds.native('debug-headless'), True
+    if builds.HOST in ('linux-x64', 'macos-arm64'):
+        yield builds.native('debug-tsan'), True
         if shutil.which('x86_64-w64-mingw32-gcc'):
-            yield 'windows-mingw', False
+            yield 'windows-x64-mingw-release', False
             import wine
             if wine.find_wine():
-                yield 'windows-mingw-headless', True
+                yield 'windows-x64-mingw-debug-headless', True
             else:
                 print('verify: no Wine, so the Windows build is built but not run')
     has_haxe = shutil.which('haxe') is not None

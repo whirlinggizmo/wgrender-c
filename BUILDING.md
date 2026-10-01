@@ -27,31 +27,40 @@ with their own toolchains; each has a BUILDING.md of its own
 
 CMake (3.21 or newer) and Python 3, on Windows, Linux or macOS; Ninja, or Visual Studio
 on Windows (open this folder: it reads the presets). Every build is a preset in
-`CMakePresets.json`, named `<platform>-<variant>`. What it makes goes to
-`out/<platform>/<variant>/`: the library at the top (`libwgrender.a`; MSVC's
-`wgrender.lib`), the programs beside it, and for the web the site. CMake's own work (its
-cache, the objects) stays in `build/<platform>/<variant>/`, so `out/` is only results. The platform is where the build runs: `linux`, `macos`, `windows` or
-`web`. That's the layout every wg* project shares (whirlinggizmo/.github's
-CONVENTIONS.md, "Build directories"), so a binding finds a library by rule. On Linux:
+`CMakePresets.json`, named `<platform>-<variant>`. The platform is what a program links
+against: `linux-x64`, `macos-arm64`, `windows-x64-msvc`, `windows-x64-mingw` or
+`wasm32`. The variant is `release` or `debug`, then whatever the build adds, in order:
+a backend other than the default (`webgpu`), options (`headless`, `threads`), a
+sanitizer. A name only adds: a build without threads is plain `wasm32-release`, never
+`-nothreads`.
+
+What a preset makes goes to `out/<platform>/<variant>/`: the library in `lib/`
+(`libwgrender.a`; MSVC's `wgrender.lib`), the programs in `bin/`, and for the web the
+site in `site/`. The build writes all of it, so deleting `out/` is a clean. CMake's own
+work (its cache, the objects) stays in `build/<preset>/`, so `out/` is only results. On
+Linux:
 
 ```sh
-cmake --preset linux-release && cmake --build --preset linux-release   # library + every example
-out/linux/release/simple        # from this directory: examples load examples/assets from here
-cmake --preset linux-headless && cmake --build --preset linux-headless # no window, GPU or audio device
-ctest --preset linux-headless   # unit tests, guardrails, and every example headless for ~3 s
+cmake --preset linux-x64-release && cmake --build --preset linux-x64-release   # library + every example
+out/linux-x64/release/bin/simple        # from this directory: examples load examples/assets from here
+cmake --preset linux-x64-debug-headless && cmake --build --preset linux-x64-debug-headless   # no window, GPU or audio device
+ctest --preset linux-x64-debug-headless   # unit tests, guardrails, and every example headless for ~3 s
 python3 tools/verify.py         # release, headless, ThreadSanitizer (and Windows, below):
                                 # run before calling a change done
 ```
 
-On a Mac the same presets start `macos-`. Each machine lists only its own presets and
-the ones it can cross-build (`cmake --list-presets`):
+On a Mac the same presets start `macos-arm64-`. Each machine lists only its own presets
+and the ones it can cross-build (`cmake --list-presets`):
 
 | Platform | Presets |
 | --- | --- |
-| Linux, macOS | `-release`, `-debug`, `-headless`, and `-tsan`, `-asan`, `-ubsan` (the unit tests under a sanitizer) |
-| Windows, MSVC | `windows-msvc`, `windows-msvc-debug`, `windows-msvc-headless` |
-| Windows, MinGW | `windows-mingw`, `windows-mingw-headless` |
-| Web | `web-webgl2`, `web-webgpu`, their `-nothreads` builds, `web-webgl2-debug`, `web-webgl2-nothreads-debug` |
+| Linux, macOS | `-release`, `-debug`, `-debug-headless`, and `-debug-tsan`, `-debug-asan`, `-debug-ubsan` (the unit tests under a sanitizer) |
+| Windows, MSVC | `windows-x64-msvc-release`, `windows-x64-msvc-debug`, `windows-x64-msvc-debug-headless` |
+| Windows, MinGW | `windows-x64-mingw-release`, `windows-x64-mingw-debug-headless` |
+| Web | `wasm32-release`, `wasm32-release-webgpu`, each also `-threads`; `wasm32-debug`, `wasm32-debug-threads` |
+
+The tests run on debug builds: assertions on, and sanitizer reports with their stack
+traces intact.
 
 `headless` builds use sokol's dummy GPU backend and no window or audio: they run frames
 at 60/s until `wgr_request_quit()`, or for `WGR_HEADLESS_FRAMES` frames when that
@@ -64,14 +73,14 @@ and ThreadSanitizer builds, as CI does). A project that builds wgrender as part 
 own (`add_subdirectory`) doesn't get this, so a newer compiler's new warning can't break
 it; `-DWGR_WERROR=ON` or `OFF` decides either way.
 
-On Windows, Visual Studio needs nothing more. From a command line, the `windows-msvc`
+On Windows, Visual Studio needs nothing more. From a command line, the `windows-x64-msvc`
 presets need an "x64 Native Tools Command Prompt" (or `vcvars64.bat`) first; they build
 with the static C runtime (`/MT`, `/MTd` for debug), as every wg* library does, so the
-`.lib` links into Beef and other static-runtime programs as it is. The `windows-mingw`
+`.lib` links into Beef and other static-runtime programs as it is. The `windows-x64-mingw`
 presets use the `gcc` on `PATH` from any shell, including the one choosenim installs
 for Nim, whose `gcc` shim has no binutils beside it (the build asks gcc where its `ar`
-is). There are no sanitizer presets on Windows, so `verify.py` runs `windows-msvc` and
-`windows-msvc-headless` there.
+is). There are no sanitizer presets on Windows, so `verify.py` runs
+`windows-x64-msvc-release` and `windows-x64-msvc-debug-headless` there.
 
 On Linux, sokol links the system's audio, GL and X11 libraries, so their dev packages
 must be installed; configuring checks and names any that are missing:
@@ -101,19 +110,21 @@ web library from it with nothing but emsdk). Checked on Windows 11 with Visual S
 Needs Emscripten: `$EMSDK` set, or `emcc` on `PATH` (`source <emsdk>/emsdk_env.sh`).
 
 ```sh
-cmake --preset web-webgl2 && cmake --build --preset web-webgl2   # every example -> out/web/webgl2/
-python3 tools/serve.py 8000 out/web/webgl2     # http://localhost:8000/ (assets mounted at /assets/)
+cmake --preset wasm32-release && cmake --build --preset wasm32-release   # every example -> out/wasm32/release/site/
+python3 tools/serve.py 8000 out/wasm32/release/site   # http://localhost:8000/ (assets mounted at /assets/)
 python3 tools/webcheck.py                     # load each in a browser, fail on errors
-python3 tools/webcheck.py --backend=webgpu    # the same for WebGPU (web-webgpu)
+python3 tools/webcheck.py --backend=webgpu    # the same for WebGPU (wasm32-release-webgpu)
 python3 tools/webstart.py                     # startup times per example: cold, warm and hot visits
 python3 tools/verify.py --web                  # all of the above web builds, checked
 tools/benchmarks.py --all                      # C and every binding -> docs/benchmarks.md
 ```
 
-The web presets are `web-webgl2`, `web-webgpu`, their `-nothreads` builds, and
-`web-webgl2-debug` and `web-webgl2-nothreads-debug`. `tools/buildweb.py` builds only
-the library, for any of the eight combinations, into the same `out/web/<variant>/`
-directory as the preset of that name (its objects in `build/web/<variant>/buildweb/`).
+The web presets are `wasm32-release` and `wasm32-release-webgpu`, each also with
+`-threads`, and `wasm32-debug` and `wasm32-debug-threads`. Without threads is the
+default: it runs on any static host. `tools/buildweb.py` builds only the library, for
+any of the eight combinations of backend, threads and debug, into the same
+`out/wasm32/<variant>/lib/` as the preset of that name (its objects in
+`build/wasm32-<variant>/buildweb/`).
 
 `tools/webcheck.py` needs a Chromium-based browser: Brave, Chrome, Chromium or Edge,
 found on PATH or where they install (override with `WEBCHECK_BROWSER`), and nothing
@@ -123,7 +134,7 @@ four examples at a time, each in its own browser context, waits until each has
 finished loading its assets, and fails an example on console errors, wgrender
 `[ERROR]`/`[FATAL]` logs, exceptions, sokol panics, a wrong/missing backend, or
 assets still loading after 20 s. It saves a screenshot of each to
-`build/web/<variant>/webcheck/`, beside the build rather than in the site. WebGL2
+`build/<preset>/webcheck/`, beside the build rather than in the site. WebGL2
 runs headless; WebGPU needs a GPU adapter, which headless browsers lack, so it runs on
 a virtual X display when Xvfb is installed (Linux), else in a visible window. It catches
 crashes, errors and unfinished loads, not wrong-looking output, so glance at the
@@ -134,15 +145,15 @@ a watchdog, `tools/webwatch.py`).
 
 ### Startup and hosting
 
-A built site (`out/web/<variant>/`) loads each program as `name.js?v=<hash>`
+A built site (`out/wasm32/<variant>/site/`) loads each program as `name.js?v=<hash>`
 and `name.wasm?v=<hash>`: `tools/webdeploy.py` writes every file's hash into
 `index.html`, so a file's URL changes when its content does. The page starts
 downloading the wasm alongside the JS, and it compiles as it streams. To start fast,
 a host should send:
 
 - `Cross-Origin-Opener-Policy: same-origin` and
-  `Cross-Origin-Embedder-Policy: require-corp` (threaded builds; the `-nothreads`
-  builds don't need them)
+  `Cross-Origin-Embedder-Policy: require-corp` (only the `-threads` builds need
+  them)
 - `Content-Type: application/wasm` for `.wasm` (else it can't compile while streaming)
 - `Cache-Control: public, max-age=31536000, immutable` for versioned requests
   (`?v=`), and `no-cache` for the page: a returning visit then revalidates only the
@@ -177,17 +188,17 @@ device's browser, such as a phone through `adb forward`.
 With MinGW-w64 (`sudo apt install mingw-w64`), Windows builds come from Linux:
 
 ```sh
-cmake --preset windows-mingw && cmake --build --preset windows-mingw   # out/windows/mingw/*.exe (OpenGL)
-cmake --preset windows-mingw-headless && cmake --build --preset windows-mingw-headless
-ctest --preset windows-mingw-headless   # unit tests and every example headless, under Wine
+cmake --preset windows-x64-mingw-release && cmake --build --preset windows-x64-mingw-release   # out/windows-x64-mingw/release/bin/*.exe (OpenGL)
+cmake --preset windows-x64-mingw-debug-headless && cmake --build --preset windows-x64-mingw-debug-headless
+ctest --preset windows-x64-mingw-debug-headless   # unit tests and every example headless, under Wine
 ```
 
 The tests go through `tools/wine.py`: `$WINE`, else `wine64` / `wine`
 on `PATH`, else the newest Proton in a Steam library (Library > Tools). Its prefix (a
 fake Windows install, shared by every build) is in the per-user cache,
 `~/.cache/wgrender/wine` (`tools/hostcache.py`; `WGR_CACHE_DIR` or `WINEPREFIX` move it). The `.exe` files are linked statically (no MinGW DLLs to ship).
-`tools/verify.py` builds `windows-mingw` when MinGW is installed, and tests
-`windows-mingw-headless` when there's a Wine, so Windows code keeps compiling. Wine runs the
+`tools/verify.py` builds `windows-x64-mingw-release` when MinGW is installed, and tests
+`windows-x64-mingw-debug-headless` when there's a Wine, so Windows code keeps compiling. Wine runs the
 windowed examples too (OpenGL through the host's driver), but their windows, audio and
 gamepads on real Windows are only checked by hand.
 
@@ -195,13 +206,13 @@ gamepads on real Windows are only checked by hand.
 
 ```sh
 python3 tools/verify.py         # release, headless (unit tests, guardrails, smoke), tsan,
-                                # and windows-mingw(-headless) when MinGW and Wine are there
-python3 tools/verify.py --web   # also every example on web-webgl2, -nothreads and web-webgpu,
+                                # and windows-x64-mingw-* when MinGW and Wine are there
+python3 tools/verify.py --web   # also every example on wasm32-release, -release-threads and -release-webgpu-threads,
                                 # loaded in the browser: for rendering, assets or web code
 ```
 
 A web example has to link for EM_JS bodies to be checked (closure runs then), so after
-touching one, build one: `cmake --build --preset web-webgl2 --target hello`.
+touching one, build one: `cmake --build --preset wasm32-release --target hello`.
 
 ## Generated files
 
@@ -221,6 +232,6 @@ sokol-shdc is fetched into the per-user cache (`tools/hostcache.py`) the first t
 
 ```sh
 python3 tools/bench/run.py spritebench [--desktop]   # also shadowbench, loadbench [--ktx]
-cmake --build --preset web-webgl2 --target benches   # the web pages: /bench/?ex=spritebench
+cmake --build --preset wasm32-release --target benches   # the web pages: /bench/?ex=spritebench
 python3 tools/benchmarks.py --all                    # C and every binding -> docs/benchmarks.md
 ```

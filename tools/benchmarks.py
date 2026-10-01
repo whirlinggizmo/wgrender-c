@@ -41,11 +41,11 @@ EXAMPLE = 'simple'
 def measure_c():
     # the preset measure.WEB_VARS names: the site (every example, the page and its
     # examples.json) and the stress page under bench/
-    preset = 'web-webgl2-nothreads'
+    preset = 'wasm32-release'
     measure.run(['cmake', '--preset', preset], cwd=ROOT)
     measure.run(['cmake', '--build', '--preset', preset], cwd=ROOT)
     measure.run(['cmake', '--build', '--preset', preset, '--target', 'stress'], cwd=ROOT)
-    site = builds.out(preset)
+    site = builds.programs(preset)
     page = {'url': f'/?ex={EXAMPLE}', 'probe': f'{EXAMPLE}.js'}
     c = {
         'id': 'c', 'label': 'C', 'project': 'wgrender-c', 'example': EXAMPLE,

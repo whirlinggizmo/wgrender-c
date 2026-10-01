@@ -4,7 +4,7 @@
 -lib wgrender-hx
 --main MeshesDemo
 --cpp build/cpp
-# the C++ goes to build/<os>/<variant>/cpp (build/linux/release/cpp, ...)
+# the C++ goes to build/<preset>/cpp (build/linux-x64-release/cpp, ...)
 --macro wgr.macros.NativeOut.build()
 
 -D HAXE_OUTPUT_FILE=meshes-guest

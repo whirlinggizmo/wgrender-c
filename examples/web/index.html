@@ -184,7 +184,7 @@
     s.src = versioned(current + ".js", version.js);
     s.onerror = () => {
       statusEl.textContent = "not built: " + current +
-        "  (cmake --build --preset web-webgl2 --target " + current + ", or its site's preset)";
+        "  (cmake --build --preset wasm32-release --target " + current + ", or its site's preset)";
     };
     document.body.appendChild(s);
   </script>

@@ -1,11 +1,11 @@
 # render_target, for the web: the Haxe guest compiled to JS, and a wasm host linked to
 # exactly the wgrender calls it makes. `haxe build.web.hxml`, then serve
-# out/web/js-webgl2-nothreads; the page loads its assets from assets/ beside it (which
+# out/wasm32/release/site; the page loads its assets from assets/ beside it (which
 # tools/serve.py provides).
 -cp src
 -lib wgrender-hx
 --main RenderTarget
---js out/web/js-webgl2-nothreads/render_target.js
+--js out/wasm32/release/site/render_target.js
 
 -D js-es=6
 -dce full

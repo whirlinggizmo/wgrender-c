@@ -276,7 +276,7 @@ def calls(site, label='callcount', url='/', probe='wgrender-host.js', display='h
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('what', choices=['frame', 'gc', 'calls'])
-    ap.add_argument('--site', default='out/web')
+    ap.add_argument('--site', default='out/wasm32/release/site')
     ap.add_argument('--label')
     ap.add_argument('--url', default='/')
     ap.add_argument('--probe', default='wgrender-host.js')

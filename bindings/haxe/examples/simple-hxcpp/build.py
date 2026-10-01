@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Build the wgrender simple example in Haxe (Haxe -> hxcpp -> C++ -> native/wasm).
 
-    ./build.py desktop     out/<os>/<variant>/simple (builds wgrender's native lib first)
-    ./build.py web         out/web/webgl2-nothreads/: simple.js/.wasm + the library's page (web/index.html)
+    ./build.py desktop     out/<platform>/release/bin/simple
+    ./build.py web         out/wasm32/release-hxcpp/site/: simple.js/.wasm + the library's page (web/index.html)
     ./build.py all         both
 
     ./build.py serve       serve the web build on http://localhost:8000 (the library's tools/serve.py:
                            COOP/COEP headers for threads, wgrender's examples/assets at /assets,
                            gzip-compressed responses)
     ./build.py sizes       wasm/JS sizes of the web build, raw and gzipped
-    ./build.py compare     the same, next to wgrender's C example and the Nim and Beef ports
+    ./build.py compare     the same, next to wgrender's C example
     ./build.py clean       remove out/ (what the builds made) and build/ (their work)
 
 The binding's own checks are the library's, not this example's: run test/check.py
@@ -21,9 +21,8 @@ with the guest ports; this project only carries the example and its build.
 wgrender is compiled in from its sources, as every build of the binding is
 (project/Build.xml in the binding, by whichever compiler hxcpp uses), from the
 repository the binding lives in. The work is in
-build/<platform>/<variant>/ (build/linux/release, build/web/webgl2-nothreads, ...: the
-wg* layout, whirlinggizmo/.github CONVENTIONS.md), where wgr.macros.NativeOut puts
-hxcpp's output. `haxe build.hxml` and `haxe web.hxml` work on their own too.
+build/<preset>/ (build/linux-x64-release, build/wasm32-release-hxcpp, ...: named as
+wgrender's builds are), where wgr.macros.NativeOut puts hxcpp's output. `haxe build.hxml` and `haxe web.hxml` work on their own too.
 
 Web options are wgrender's web build settings, read from the environment:
   BACKEND=webgl2|webgpu   WEB_DEBUG=0|1   (e.g. BACKEND=webgpu ./build.py web)
@@ -46,8 +45,8 @@ if not (LIB / 'tools/wgrpath.py').exists():
                  '  haxelib git wgrender-hx https://github.com/whirlinggizmo/wgrender-c main bindings/haxe')
     LIB = pathlib.Path(_found)
 sys.path.insert(0, str(LIB / 'tools'))
-from wgrpath import WGRENDER, host_os  # noqa: E402  # examples/simple-hxcpp -> the library
-from guestbuild import check_library, desktop_variant as guest_desktop_variant  # noqa: E402
+from wgrpath import WGRENDER, builds, exe, native_preset, web_variant  # noqa: E402  # examples/simple-hxcpp -> the library
+from guestbuild import check_library  # noqa: E402
 from hxcppweb import finish_site  # noqa: E402
 HAXE = os.environ.get('HAXE', 'haxe')
 # The wgr binding, its generator and its host glue are the wgrender-hx haxelib.
@@ -55,17 +54,6 @@ HAXE = os.environ.get('HAXE', 'haxe')
 def run(cmd, **kwargs):
     print('+', ' '.join(str(c) for c in cmd), flush=True)
     subprocess.run([str(c) for c in cmd], check=True, **kwargs)
-
-
-def desktop_variant():
-    """<platform>/<variant> (the wg* layout), as wgr.macros.NativeOut names it: the
-    toolchain hxcpp uses on Windows, MSVC unless HXCPP_MINGW."""
-    return f'{host_os()}/{guest_desktop_variant()}'
-
-
-def web_variant():
-    """web/<variant>: wgrender's web settings, always without threads here."""
-    return 'web/' + f'{web_backend()}-nothreads' + ('-debug' if web_debug() else '')
 
 
 def web_backend():
@@ -83,11 +71,14 @@ def haxe(hxml, *extra):
 
 
 def desktop_out():
-    return ROOT / 'out' / desktop_variant()
+    """out/<platform>/<variant>/bin, the preset as wgr.macros.NativeOut names it."""
+    platform_name, variant = builds.split(native_preset())
+    return ROOT / 'out' / platform_name / variant / 'bin'
 
 
 def web_out():
-    return ROOT / 'out' / web_variant()
+    """out/wasm32/<variant>/site: wgrender's web settings, never threads, plus -hxcpp."""
+    return ROOT / 'out/wasm32' / web_variant(hxcpp=True) / 'site'
 
 
 def build_desktop():
@@ -95,8 +86,8 @@ def build_desktop():
     print(f'simple (desktop) -> {out.relative_to(ROOT)}/simple')
     haxe('build.hxml')
     out.mkdir(parents=True, exist_ok=True)
-    exe = 'simple' + ('.exe' if host_os() == 'windows' else '')
-    shutil.copy2(ROOT / 'build' / desktop_variant() / 'cpp' / exe, out / exe)
+    program = exe('simple')
+    shutil.copy2(ROOT / 'build' / native_preset() / 'cpp' / program, out / program)
     # wgr.Assets looks for `assets` beside the executable, the same lookup a shipped
     # program uses. (A Windows build would copy or junction instead of linking.)
     link = out / 'assets'
@@ -108,7 +99,7 @@ def build_desktop():
 
 def build_web():
     site = web_out()
-    work = ROOT / 'build' / web_variant()
+    work = ROOT / 'build' / f'wasm32-{web_variant(hxcpp=True)}'
     print(f'simple (web) -> {site.relative_to(ROOT)}/')
     haxe('web.hxml', *(['-D', 'wgr-webgpu'] if web_backend() == 'webgpu' else []),
          *(['--debug'] if web_debug() else []))
@@ -137,16 +128,10 @@ def sizes():
 
 
 def compare():
-    """Every port of this example that is built, side by side.
-
-    Only comparable when each was built with the same wgrender web flags —
-    BACKEND=webgl2 WEB_THREADS=0, which is what ./build.py web uses. The Nim port
-    defaults to WEB_THREADS=1; build it with WEB_THREADS=0 to line the numbers up.
-    """
+    """This example beside wgrender's C one, both built with the same web flags
+    (BACKEND=webgl2, no threads: wasm32-release)."""
     ports = [
-        ('C (wgrender example)', WGRENDER / 'out/web/webgl2-nothreads'),
-        ('Nim', LIB / '../wgrender-nim/examples/simple/out/web/webgl2-nothreads'),
-        ('Beef', LIB / '../wgrender-beef/examples/simple/out/web/webgl2-nothreads'),
+        ('C (wgrender example)', WGRENDER / 'out/wasm32/release/site'),
         ('Haxe (this)', web_out()),
     ]
     rows = [(label, measure(path)) for label, path in ports]

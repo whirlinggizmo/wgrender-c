@@ -2,14 +2,14 @@
 """Load a web build in a headless browser, run it, and fail on anything the console
 calls an error. examples/build.py drive runs it for every example:
 
-    tools/drive.py --site=out/web/<variant> [--label=NAME] [--settle=MS] [--click] [--min-colours=N]
+    tools/drive.py --site=out/wasm32/<variant>/site [--label=NAME] [--settle=MS] [--click] [--min-colours=N]
                    [--ready=FILE] [--shot=PATH]
 
 It serves the site with tools/serve.py (wgrender's assets at /assets), waits --settle
 ms (default 6000), moves the mouse over the middle of the canvas, a little low (over
 whatever the example puts there, which exercises picking and the hover state a scene
 keeps), with --click clicks there, and takes a screenshot (--shot, default the
-example's build/web/<variant>/check.png: the example's work, not its site). --ready is
+example's build/wasm32-<variant>/check.png: the example's work, not its site). --ready is
 the file whose serving means the server is up (default wgrender-host.js, a guest's
 host).
 
@@ -43,8 +43,9 @@ def main():
     ap.add_argument('--shot')
     args = ap.parse_args()
     site = Path(args.site).resolve()
-    # <example>/out/web/<variant> -> <example>/build/web/<variant>/check.png
-    shot_path = Path(args.shot).resolve() if args.shot else site.parents[2] / 'build/web' / site.name / 'check.png'
+    # <example>/out/wasm32/<variant>/site -> <example>/build/wasm32-<variant>/check.png
+    shot_path = (Path(args.shot).resolve() if args.shot
+                 else site.parents[3] / 'build' / f'{site.parents[1].name}-{site.parent.name}' / 'check.png')
 
     run = weblib.RunProcesses(args.label)
     run.install_handlers()

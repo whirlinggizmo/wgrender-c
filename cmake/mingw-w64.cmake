@@ -1,4 +1,4 @@
-# Windows programs built with MinGW-w64: the windows-mingw* presets. On Linux or macOS
+# Windows programs built with MinGW-w64: the windows-x64-mingw-* presets. On Linux or macOS
 # that's a cross build (x86_64-w64-mingw32-gcc), run under Wine; on Windows it's the gcc
 # on PATH (MSYS2's, or the one choosenim installs for Nim), run as it is.
 if(CMAKE_HOST_WIN32)

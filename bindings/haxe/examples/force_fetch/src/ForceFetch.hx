@@ -40,7 +40,7 @@ class ForceFetch {
 	/** Desktop's host, the same one examples/fetch downloads from. **/
 	static inline final REMOTE_HOST =
 		"https://raw.githubusercontent.com/whirlinggizmo/wgrender-c/main/examples/assets";
-	/** the build's work directory, build/<os>/<variant> (wgr.macros.NativeOut) **/
+	/** the build's work directory, build/<preset> (wgr.macros.NativeOut) **/
 	static final CACHE_DIR = (haxe.macro.Compiler.getDefine("wgr-work-dir") ?? "build") + "/asset-cache";
 
 	static var background:Color;

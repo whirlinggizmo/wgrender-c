@@ -11,10 +11,11 @@ models with GPU skinning, a scene graph with picking, audio, and async assets.
 
 **The examples run in a browser: https://whirlinggizmo.github.io/wgrender-c/** —
 every example, published from `main` by `.github/workflows/pages.yml`. It is the
-`web-webgl2-nothreads` build, because GitHub Pages can't send the COOP/COEP headers
-a threaded build needs; nothing needs threads, but asset decoding runs on the main
-thread there, which `loading` reports rather than hides. Locally, `tools/serve.py`
-sends those headers, so the same examples load on worker threads.
+`wasm32-release` build, without threads, because GitHub Pages can't send the COOP/COEP
+headers a threaded build needs; nothing needs threads, but asset decoding runs on the
+main thread there, which `loading` reports rather than hides. Locally, the
+`wasm32-release-threads` build served by `tools/serve.py`, which sends those headers,
+loads the same examples on worker threads.
 
 ## Where it comes from
 
@@ -30,12 +31,13 @@ and what was left out on purpose, is in [docs/ROADMAP.md](docs/ROADMAP.md).
 ## Build
 
 ```sh
-cmake --preset linux-release && cmake --build --preset linux-release   # library + every example
-out/linux/release/simple                                                # run from this directory
+cmake --preset linux-x64-release && cmake --build --preset linux-x64-release   # library + every example
+out/linux-x64/release/bin/simple                                                # run from this directory
 ```
 
-That's Linux; a Mac's preset is `macos-release`, and Windows' `windows-msvc`. Each builds
-into `out/<platform>/<variant>/` (CMake's own work stays in `build/`). CMake and Python 3, on Windows (Visual Studio opens
+That's Linux; a Mac's preset is `macos-arm64-release`, and Windows' `windows-x64-msvc-release`.
+Each builds into `out/<platform>/<variant>/`: `lib/`, and `bin/` (or on the web `site/`);
+CMake's own work stays in `build/`. CMake and Python 3, on Windows (Visual Studio opens
 this folder), Linux and macOS; the web builds (WebGL2, WebGPU) need Emscripten. Everything else — presets, tests, the web,
 Windows from Linux, generated files, benchmarks — is in [BUILDING.md](BUILDING.md).
 
@@ -113,9 +115,9 @@ src/internal/   shared, non-public declarations (handle pool, lifecycle hooks)
 src/wgr_sokol_impl.c   single TU that compiles the sokol headers (SOKOL_IMPL)
 deps/sokol/     vendored sokol headers
 examples/       example programs
-tests/unit/     unit tests (`ctest --preset linux-headless`; no display or GPU)
+tests/unit/     unit tests (`ctest --preset linux-x64-debug-headless`; no display or GPU)
 tools/          build, check and generator scripts (Python), benchmarks (tools/bench), the web dev server
-cmake/          the MinGW toolchain file (the windows-mingw presets)
+cmake/          the MinGW toolchain file (the windows-x64-mingw presets)
 build.json      the build as data: sources, and per target defines, flags and libraries
 docs/           ARCHITECTURE.md, ROADMAP.md, TASKS.md and one PLAN-*.md per feature
 ```

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Taken from wgrender's tools/webdeploy.py, and this repository's own now.
 
-Finish a web build's site (out/web/<variant>/): the page and the manifest.
+Finish a web build's site (out/wasm32/<variant>/site): the page and the manifest.
 
     tools/webdeploy.py SITE SHELL
 

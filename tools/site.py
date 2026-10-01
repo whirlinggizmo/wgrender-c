@@ -5,13 +5,13 @@ that locally).
 
     tools/site.py [BUILD] [--out DIR]
 
-BUILD is what a web preset made (default out/web/webgl2-nothreads); the copy goes to the
-preset's work directory, build/web/<variant>/site, unless --out says otherwise, so the
+BUILD is a web preset's site (default out/wasm32/release/site); the copy goes to the
+preset's work directory, build/<preset>/site, unless --out says otherwise, so the
 build's own out/ stays just the build. Not the benchmarks (bench/ in the build, and
 examples/assets/bench): a local tool, and loadbench's models are downloaded. The
 copied assets get their manifests (tools/gen_manifest.py).
 
-Use a -nothreads build for a host that can't send COOP/COEP headers (GitHub Pages): a
+Use a build without -threads for a host that can't send COOP/COEP headers (GitHub Pages): a
 threaded build doesn't start at all there.
 """
 import argparse
@@ -32,7 +32,7 @@ def size(path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('build', nargs='?', default=str(builds.out('web-webgl2-nothreads')))
+    ap.add_argument('build', nargs='?', default=str(builds.programs('wasm32-release')))
     ap.add_argument('--out')
     args = ap.parse_args()
     build = Path(args.build).resolve()

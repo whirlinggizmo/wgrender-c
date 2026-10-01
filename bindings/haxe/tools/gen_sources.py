@@ -47,6 +47,12 @@ OSES = ['linux', 'macos', 'windows']  # hxcpp's defines for them, and build.json
 WEB_BACKENDS = ['webgl2', 'webgpu']       # -D wgr-webgpu picks the second
 
 
+def web_target(config, backend):
+    """build.json's web target for a config and backend, without threads (hxcpp's
+    emscripten target is single-threaded): release, release-webgpu, debug, ..."""
+    return config + ('' if backend == 'webgl2' else f'-{backend}')
+
+
 def compile_flags(manifest):
     """wgrender's own compile flags for each build hxcpp can make, as nested sections:
     native (per OS, or headless with -D wgr-headless) and the web (hxcpp's emscripten
@@ -68,7 +74,7 @@ def compile_flags(manifest):
     webs = []
     for backend in WEB_BACKENDS:
         cond = 'if="wgr_webgpu"' if backend == 'webgpu' else 'unless="wgr_webgpu"'
-        release, debug = web[f'{backend}-nothreads']['cflags'], web[f'{backend}-nothreads-debug']['cflags']
+        release, debug = web[web_target('release', backend)]['cflags'], web[web_target('debug', backend)]['cflags']
         webs.append(f'''            <section {cond}>
                 <section unless="debug">
 {flags(release, " " * 20)}
@@ -109,10 +115,10 @@ def link_flags(manifest):
         each = lambda values: '\n'.join(f'                    <flag value="{v}" />' for v in values)
         webs.append(f'''            <section {cond}>
                 <section unless="debug">
-{each(web[f"{backend}-nothreads"]["ldflags"])}
+{each(web[web_target("release", backend)]["ldflags"])}
                 </section>
                 <section if="debug">
-{each(web[f"{backend}-nothreads-debug"]["ldflags"])}
+{each(web[web_target("debug", backend)]["ldflags"])}
                 </section>
             </section>''')
     return per_os(''), per_os('-headless'), '\n'.join(webs)

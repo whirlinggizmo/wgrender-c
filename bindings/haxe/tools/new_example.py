@@ -6,7 +6,7 @@
 Writes examples/<name>/ with build.web.hxml and build.desktop.hxml -- the build, and
 what a user copies -- a .gitignore, and a src/<Entry>.hx stub that starts and clears
 the screen. That is the whole example: examples/build.py runs the suite's chores for it
-by name, and wgr.macros.WebHost writes the page and its boot module into out/web/js-webgl2-nothreads when
+by name, and wgr.macros.WebHost writes the page and its boot module into out/wasm32/release/site when
 the web build runs.
 
 There is one of these per example and they differ only by name, which is exactly the
@@ -20,12 +20,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 WEB_HXML = '''# {name}, for the web: the Haxe guest compiled to JS, and a wasm host linked to
 # exactly the wgrender calls it makes. `haxe build.web.hxml`, then serve
-# out/web/js-webgl2-nothreads; the page loads its assets from assets/ beside it (which
+# out/wasm32/release/site; the page loads its assets from assets/ beside it (which
 # tools/serve.py provides).
 -cp src
 -lib wgrender-hx
 --main {entry}
---js out/web/js-webgl2-nothreads/{name}.js
+--js out/wasm32/release/site/{name}.js
 
 -D js-es=6
 -dce full
@@ -40,7 +40,7 @@ DESKTOP_HXML = '''# {name}, native: the same guest source through hxcpp, with wg
 -lib wgrender-hx
 --main {entry}
 --cpp build/cpp
-# the C++ goes to build/<os>/<variant>/cpp (build/linux/release/cpp, ...)
+# the C++ goes to build/<preset>/cpp (build/linux-x64-release/cpp, ...)
 --macro wgr.macros.NativeOut.build()
 
 -D HAXE_OUTPUT_FILE={name}-guest

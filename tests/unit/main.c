@@ -1,9 +1,9 @@
-/* libwgrender unit test runner (`ctest --preset linux-headless`, the test `unit`).
+/* libwgrender unit test runner (`ctest --preset linux-x64-debug-headless`, the test `unit`).
  *
  * From the repo root, where the assets are examples/assets:
  *
- *   out/linux/headless/unit_tests          run every test
- *   out/linux/headless/unit_tests pick_    run tests whose name starts with "pick_"
+ *   out/linux-x64/debug-headless/bin/unit_tests          run every test
+ *   out/linux-x64/debug-headless/bin/unit_tests pick_    run tests whose name starts with "pick_"
  *
  * Tests call library internals directly and link against the headless build's
  * libwgrender.a. Nothing here opens a window or touches the GPU. */

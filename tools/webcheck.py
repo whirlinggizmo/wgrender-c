@@ -3,7 +3,7 @@
 
     tools/webcheck.py [options] [example ...]     (default: all built examples)
 
-Serves out/web/<backend>[-nothreads] with tools/serve.py, loads each built example in a
+Serves a web preset's site (out/wasm32/<variant>/site) with tools/serve.py, loads each built example in a
 Chromium-based browser (Brave, Chrome, Chromium, Edge) through the DevTools protocol,
 and fails an example if it logs a console error or a libwgrender [ERROR]/[FATAL] line,
 throws, hits a sokol panic, never reports starting on the expected backend, or is
@@ -11,8 +11,8 @@ still loading assets when its time runs out. A screenshot of every example is sa
 for a visual check. Standard library only (tools/weblib.py).
 
   --backend=webgl2|webgpu  backend to check (default webgl2); the site is
-                      out/web/<backend> (what the CMake preset web-<backend> makes)
-  --threads=0         the -nothreads build
+                      out/wasm32/release[-webgpu]/site (what wasm32-release[-webgpu] makes)
+  --threads           the threaded build (wasm32-release[-webgpu]-threads)
   --headed            show the browser window on the real screen. Otherwise WebGL2 runs
                       headless, and WebGPU (which gets no working GPU device headless)
                       runs on a private virtual X display (Xvfb, ANGLE on Vulkan), so it
@@ -63,7 +63,7 @@ ERROR_LINE = re.compile(r'\[(ERROR|FATAL)')
 def parse_args():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--backend', default='webgl2', choices=sorted(BACKEND_LOG))
-    ap.add_argument('--threads', default='1', choices=['0', '1'])
+    ap.add_argument('--threads', action='store_true', help='the threaded build')
     ap.add_argument('--headed', action='store_true')
     ap.add_argument('--startup', type=int, default=60000)
     ap.add_argument('--settle', type=int, default=20000)
@@ -77,8 +77,8 @@ def parse_args():
     # where the browser shows its windows: headless, xvfb or screen
     opts.display = ('screen' if opts.headed else
                     ('xvfb' if find_xvfb() else 'screen') if opts.backend == 'webgpu' else 'headless')
-    preset = builds.web(opts.backend, opts.threads == '1')
-    opts.site = builds.out(preset)
+    preset = builds.web(opts.backend, opts.threads)
+    opts.site = builds.programs(preset)
     opts.jobs = max(1, opts.jobs)
     opts.out = Path(opts.out) if opts.out else builds.work(preset) / 'webcheck'  # not in the site
     return opts

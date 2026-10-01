@@ -50,274 +50,326 @@
       }
     },
     {
-      "name": "linux-release",
+      "name": "linux-x64-release",
       "displayName": "Linux: the library and examples, with a window, GPU and audio",
       "inherits": "base",
-      "binaryDir": "${sourceDir}/build/linux/release",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "WGR_OUT": "${sourceDir}/out/linux-x64/release"
       }
     },
     {
-      "name": "linux-debug",
+      "name": "linux-x64-debug",
       "displayName": "Linux, debug",
       "inherits": "base",
-      "binaryDir": "${sourceDir}/build/linux/debug",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
       },
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WGR_OUT": "${sourceDir}/out/linux-x64/debug"
       }
     },
     {
-      "name": "linux-headless",
-      "displayName": "Linux headless: unit tests, guardrails and a smoke run of every example",
+      "name": "linux-x64-debug-headless",
+      "displayName": "Linux headless, debug: unit tests, guardrails and a smoke run of every example",
       "inherits": "headless-base",
-      "binaryDir": "${sourceDir}/build/linux/headless",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      }
-    },
-    {
-      "name": "linux-tsan",
-      "displayName": "Linux headless under ThreadSanitizer",
-      "inherits": "headless-base",
-      "binaryDir": "${sourceDir}/build/linux/tsan",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
       },
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WGR_OUT": "${sourceDir}/out/linux-x64/debug-headless"
+      }
+    },
+    {
+      "name": "linux-x64-debug-tsan",
+      "displayName": "Linux headless, debug, under ThreadSanitizer",
+      "inherits": "headless-base",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
         "WGR_SANITIZE": "thread",
-        "WGR_EXAMPLES": "OFF"
+        "WGR_EXAMPLES": "OFF",
+        "WGR_OUT": "${sourceDir}/out/linux-x64/debug-tsan"
       }
     },
     {
-      "name": "linux-asan",
-      "displayName": "Linux headless under AddressSanitizer",
+      "name": "linux-x64-debug-asan",
+      "displayName": "Linux headless, debug, under AddressSanitizer",
       "inherits": "headless-base",
-      "binaryDir": "${sourceDir}/build/linux/asan",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
       },
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
         "WGR_SANITIZE": "address",
-        "WGR_EXAMPLES": "OFF"
+        "WGR_EXAMPLES": "OFF",
+        "WGR_OUT": "${sourceDir}/out/linux-x64/debug-asan"
       }
     },
     {
-      "name": "linux-ubsan",
-      "displayName": "Linux headless under UndefinedBehaviorSanitizer",
+      "name": "linux-x64-debug-ubsan",
+      "displayName": "Linux headless, debug, under UndefinedBehaviorSanitizer",
       "inherits": "headless-base",
-      "binaryDir": "${sourceDir}/build/linux/ubsan",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
       },
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
         "WGR_SANITIZE": "undefined",
-        "WGR_EXAMPLES": "OFF"
+        "WGR_EXAMPLES": "OFF",
+        "WGR_OUT": "${sourceDir}/out/linux-x64/debug-ubsan"
       }
     },
     {
-      "name": "macos-release",
+      "name": "macos-arm64-release",
       "displayName": "macOS: the library and examples, with a window, GPU and audio",
       "inherits": "base",
-      "binaryDir": "${sourceDir}/build/macos/release",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "WGR_OUT": "${sourceDir}/out/macos-arm64/release"
       }
     },
     {
-      "name": "macos-debug",
+      "name": "macos-arm64-debug",
       "displayName": "macOS, debug",
       "inherits": "base",
-      "binaryDir": "${sourceDir}/build/macos/debug",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Darwin"
       },
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WGR_OUT": "${sourceDir}/out/macos-arm64/debug"
       }
     },
     {
-      "name": "macos-headless",
-      "displayName": "macOS headless: unit tests, guardrails and a smoke run of every example",
+      "name": "macos-arm64-debug-headless",
+      "displayName": "macOS headless, debug: unit tests, guardrails and a smoke run of every example",
       "inherits": "headless-base",
-      "binaryDir": "${sourceDir}/build/macos/headless",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Darwin"
-      }
-    },
-    {
-      "name": "macos-tsan",
-      "displayName": "macOS headless under ThreadSanitizer",
-      "inherits": "headless-base",
-      "binaryDir": "${sourceDir}/build/macos/tsan",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Darwin"
       },
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WGR_OUT": "${sourceDir}/out/macos-arm64/debug-headless"
+      }
+    },
+    {
+      "name": "macos-arm64-debug-tsan",
+      "displayName": "macOS headless, debug, under ThreadSanitizer",
+      "inherits": "headless-base",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
         "WGR_SANITIZE": "thread",
-        "WGR_EXAMPLES": "OFF"
+        "WGR_EXAMPLES": "OFF",
+        "WGR_OUT": "${sourceDir}/out/macos-arm64/debug-tsan"
       }
     },
     {
-      "name": "macos-asan",
-      "displayName": "macOS headless under AddressSanitizer",
+      "name": "macos-arm64-debug-asan",
+      "displayName": "macOS headless, debug, under AddressSanitizer",
       "inherits": "headless-base",
-      "binaryDir": "${sourceDir}/build/macos/asan",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Darwin"
       },
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
         "WGR_SANITIZE": "address",
-        "WGR_EXAMPLES": "OFF"
+        "WGR_EXAMPLES": "OFF",
+        "WGR_OUT": "${sourceDir}/out/macos-arm64/debug-asan"
       }
     },
     {
-      "name": "macos-ubsan",
-      "displayName": "macOS headless under UndefinedBehaviorSanitizer",
+      "name": "macos-arm64-debug-ubsan",
+      "displayName": "macOS headless, debug, under UndefinedBehaviorSanitizer",
       "inherits": "headless-base",
-      "binaryDir": "${sourceDir}/build/macos/ubsan",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Darwin"
       },
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
         "WGR_SANITIZE": "undefined",
-        "WGR_EXAMPLES": "OFF"
+        "WGR_EXAMPLES": "OFF",
+        "WGR_OUT": "${sourceDir}/out/macos-arm64/debug-ubsan"
       }
     },
     {
-      "name": "windows-msvc",
+      "name": "windows-x64-msvc-release",
       "displayName": "Windows, MSVC (static runtime)",
       "inherits": [
         "msvc-base",
         "base"
       ],
-      "binaryDir": "${sourceDir}/build/windows/msvc"
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "WGR_OUT": "${sourceDir}/out/windows-x64-msvc/release"
+      }
     },
     {
-      "name": "windows-msvc-debug",
+      "name": "windows-x64-msvc-debug",
       "displayName": "Windows, MSVC, debug (static runtime)",
       "inherits": [
         "msvc-base",
         "base"
       ],
-      "binaryDir": "${sourceDir}/build/windows/msvc-debug",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDebug"
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDebug",
+        "WGR_OUT": "${sourceDir}/out/windows-x64-msvc/debug"
       }
     },
     {
-      "name": "windows-msvc-headless",
-      "displayName": "Windows headless, MSVC: unit tests, guardrails and a smoke run",
+      "name": "windows-x64-msvc-debug-headless",
+      "displayName": "Windows headless, MSVC, debug: unit tests, guardrails and a smoke run",
       "inherits": [
         "msvc-base",
         "headless-base"
       ],
-      "binaryDir": "${sourceDir}/build/windows/msvc-headless"
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDebug",
+        "WGR_OUT": "${sourceDir}/out/windows-x64-msvc/debug-headless"
+      }
     },
     {
-      "name": "windows-mingw",
+      "name": "windows-x64-mingw-release",
       "displayName": "Windows, MinGW-w64 (cross-built from Linux or macOS, or gcc on Windows)",
       "inherits": [
         "mingw-base",
         "base"
       ],
-      "binaryDir": "${sourceDir}/build/windows/mingw"
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "WGR_OUT": "${sourceDir}/out/windows-x64-mingw/release"
+      }
     },
     {
-      "name": "windows-mingw-headless",
-      "displayName": "Windows headless, MinGW-w64 (under Wine when cross-built)",
+      "name": "windows-x64-mingw-debug-headless",
+      "displayName": "Windows headless, MinGW-w64, debug (under Wine when cross-built)",
       "inherits": [
         "mingw-base",
         "headless-base"
       ],
-      "binaryDir": "${sourceDir}/build/windows/mingw-headless"
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WGR_OUT": "${sourceDir}/out/windows-x64-mingw/debug-headless"
+      }
     },
     {
-      "name": "web-webgl2",
-      "displayName": "Web, WebGL2, threaded (serve with COOP/COEP: tools/serve.py)",
-      "inherits": "web-base",
-      "binaryDir": "${sourceDir}/build/web/webgl2"
-    },
-    {
-      "name": "web-webgl2-nothreads",
+      "name": "wasm32-release",
       "displayName": "Web, WebGL2, no threads (any static host)",
       "inherits": "web-base",
-      "binaryDir": "${sourceDir}/build/web/webgl2-nothreads",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "WGR_WEB_THREADS": "OFF"
+        "WGR_OUT": "${sourceDir}/out/wasm32/release"
       }
     },
     {
-      "name": "web-webgpu",
-      "displayName": "Web, WebGPU, threaded (serve with COOP/COEP: tools/serve.py)",
+      "name": "wasm32-release-threads",
+      "displayName": "Web, WebGL2, threaded (serve with COOP/COEP: tools/serve.py)",
       "inherits": "web-base",
-      "binaryDir": "${sourceDir}/build/web/webgpu",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "WGR_WEB_BACKEND": "webgpu"
+        "WGR_WEB_THREADS": "ON",
+        "WGR_OUT": "${sourceDir}/out/wasm32/release-threads"
       }
     },
     {
-      "name": "web-webgpu-nothreads",
+      "name": "wasm32-release-webgpu",
       "displayName": "Web, WebGPU, no threads (any static host)",
       "inherits": "web-base",
-      "binaryDir": "${sourceDir}/build/web/webgpu-nothreads",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "WGR_WEB_BACKEND": "webgpu",
-        "WGR_WEB_THREADS": "OFF"
+        "WGR_OUT": "${sourceDir}/out/wasm32/release-webgpu"
       }
     },
     {
-      "name": "web-webgl2-debug",
-      "displayName": "Web, WebGL2, threaded, debug: no optimization, assertions",
+      "name": "wasm32-release-webgpu-threads",
+      "displayName": "Web, WebGPU, threaded (serve with COOP/COEP: tools/serve.py)",
       "inherits": "web-base",
-      "binaryDir": "${sourceDir}/build/web/webgl2-debug",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "WGR_WEB_DEBUG": "ON"
+        "WGR_WEB_BACKEND": "webgpu",
+        "WGR_WEB_THREADS": "ON",
+        "WGR_OUT": "${sourceDir}/out/wasm32/release-webgpu-threads"
       }
     },
     {
-      "name": "web-webgl2-nothreads-debug",
-      "displayName": "Web, WebGL2, no threads, debug: no optimization, assertions",
+      "name": "wasm32-debug",
+      "displayName": "Web, WebGL2, no threads (any static host), debug: no optimization, assertions",
       "inherits": "web-base",
-      "binaryDir": "${sourceDir}/build/web/webgl2-nothreads-debug",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "WGR_WEB_THREADS": "OFF",
-        "WGR_WEB_DEBUG": "ON"
+        "WGR_WEB_DEBUG": "ON",
+        "WGR_OUT": "${sourceDir}/out/wasm32/debug"
+      }
+    },
+    {
+      "name": "wasm32-debug-threads",
+      "displayName": "Web, WebGL2, threaded (serve with COOP/COEP: tools/serve.py), debug: no optimization, assertions",
+      "inherits": "web-base",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "WGR_WEB_THREADS": "ON",
+        "WGR_WEB_DEBUG": "ON",
+        "WGR_OUT": "${sourceDir}/out/wasm32/debug-threads"
       }
     }
   ],
   "buildPresets": [
     {
-      "name": "linux-release",
-      "configurePreset": "linux-release",
+      "name": "linux-x64-release",
+      "configurePreset": "linux-x64-release",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -325,8 +377,8 @@
       }
     },
     {
-      "name": "linux-debug",
-      "configurePreset": "linux-debug",
+      "name": "linux-x64-debug",
+      "configurePreset": "linux-x64-debug",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -334,8 +386,8 @@
       }
     },
     {
-      "name": "linux-headless",
-      "configurePreset": "linux-headless",
+      "name": "linux-x64-debug-headless",
+      "configurePreset": "linux-x64-debug-headless",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -343,8 +395,8 @@
       }
     },
     {
-      "name": "linux-tsan",
-      "configurePreset": "linux-tsan",
+      "name": "linux-x64-debug-tsan",
+      "configurePreset": "linux-x64-debug-tsan",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -352,8 +404,8 @@
       }
     },
     {
-      "name": "linux-asan",
-      "configurePreset": "linux-asan",
+      "name": "linux-x64-debug-asan",
+      "configurePreset": "linux-x64-debug-asan",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -361,8 +413,8 @@
       }
     },
     {
-      "name": "linux-ubsan",
-      "configurePreset": "linux-ubsan",
+      "name": "linux-x64-debug-ubsan",
+      "configurePreset": "linux-x64-debug-ubsan",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -370,8 +422,8 @@
       }
     },
     {
-      "name": "macos-release",
-      "configurePreset": "macos-release",
+      "name": "macos-arm64-release",
+      "configurePreset": "macos-arm64-release",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -379,8 +431,8 @@
       }
     },
     {
-      "name": "macos-debug",
-      "configurePreset": "macos-debug",
+      "name": "macos-arm64-debug",
+      "configurePreset": "macos-arm64-debug",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -388,8 +440,8 @@
       }
     },
     {
-      "name": "macos-headless",
-      "configurePreset": "macos-headless",
+      "name": "macos-arm64-debug-headless",
+      "configurePreset": "macos-arm64-debug-headless",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -397,8 +449,8 @@
       }
     },
     {
-      "name": "macos-tsan",
-      "configurePreset": "macos-tsan",
+      "name": "macos-arm64-debug-tsan",
+      "configurePreset": "macos-arm64-debug-tsan",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -406,8 +458,8 @@
       }
     },
     {
-      "name": "macos-asan",
-      "configurePreset": "macos-asan",
+      "name": "macos-arm64-debug-asan",
+      "configurePreset": "macos-arm64-debug-asan",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -415,8 +467,8 @@
       }
     },
     {
-      "name": "macos-ubsan",
-      "configurePreset": "macos-ubsan",
+      "name": "macos-arm64-debug-ubsan",
+      "configurePreset": "macos-arm64-debug-ubsan",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -424,63 +476,48 @@
       }
     },
     {
-      "name": "windows-msvc",
-      "configurePreset": "windows-msvc",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      }
+      "name": "windows-x64-msvc-release",
+      "configurePreset": "windows-x64-msvc-release"
     },
     {
-      "name": "windows-msvc-debug",
-      "configurePreset": "windows-msvc-debug",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      }
+      "name": "windows-x64-msvc-debug",
+      "configurePreset": "windows-x64-msvc-debug"
     },
     {
-      "name": "windows-msvc-headless",
-      "configurePreset": "windows-msvc-headless",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      }
+      "name": "windows-x64-msvc-debug-headless",
+      "configurePreset": "windows-x64-msvc-debug-headless"
     },
     {
-      "name": "windows-mingw",
-      "configurePreset": "windows-mingw"
+      "name": "windows-x64-mingw-release",
+      "configurePreset": "windows-x64-mingw-release"
     },
     {
-      "name": "windows-mingw-headless",
-      "configurePreset": "windows-mingw-headless"
+      "name": "windows-x64-mingw-debug-headless",
+      "configurePreset": "windows-x64-mingw-debug-headless"
     },
     {
-      "name": "web-webgl2",
-      "configurePreset": "web-webgl2"
+      "name": "wasm32-release",
+      "configurePreset": "wasm32-release"
     },
     {
-      "name": "web-webgl2-nothreads",
-      "configurePreset": "web-webgl2-nothreads"
+      "name": "wasm32-release-threads",
+      "configurePreset": "wasm32-release-threads"
     },
     {
-      "name": "web-webgpu",
-      "configurePreset": "web-webgpu"
+      "name": "wasm32-release-webgpu",
+      "configurePreset": "wasm32-release-webgpu"
     },
     {
-      "name": "web-webgpu-nothreads",
-      "configurePreset": "web-webgpu-nothreads"
+      "name": "wasm32-release-webgpu-threads",
+      "configurePreset": "wasm32-release-webgpu-threads"
     },
     {
-      "name": "web-webgl2-debug",
-      "configurePreset": "web-webgl2-debug"
+      "name": "wasm32-debug",
+      "configurePreset": "wasm32-debug"
     },
     {
-      "name": "web-webgl2-nothreads-debug",
-      "configurePreset": "web-webgl2-nothreads-debug"
+      "name": "wasm32-debug-threads",
+      "configurePreset": "wasm32-debug-threads"
     }
   ],
   "testPresets": [
@@ -495,9 +532,9 @@
       }
     },
     {
-      "name": "linux-headless",
+      "name": "linux-x64-debug-headless",
       "inherits": "base",
-      "configurePreset": "linux-headless",
+      "configurePreset": "linux-x64-debug-headless",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -505,9 +542,9 @@
       }
     },
     {
-      "name": "linux-tsan",
+      "name": "linux-x64-debug-tsan",
       "inherits": "base",
-      "configurePreset": "linux-tsan",
+      "configurePreset": "linux-x64-debug-tsan",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -515,9 +552,9 @@
       }
     },
     {
-      "name": "linux-asan",
+      "name": "linux-x64-debug-asan",
       "inherits": "base",
-      "configurePreset": "linux-asan",
+      "configurePreset": "linux-x64-debug-asan",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -525,9 +562,9 @@
       }
     },
     {
-      "name": "linux-ubsan",
+      "name": "linux-x64-debug-ubsan",
       "inherits": "base",
-      "configurePreset": "linux-ubsan",
+      "configurePreset": "linux-x64-debug-ubsan",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -535,9 +572,9 @@
       }
     },
     {
-      "name": "macos-headless",
+      "name": "macos-arm64-debug-headless",
       "inherits": "base",
-      "configurePreset": "macos-headless",
+      "configurePreset": "macos-arm64-debug-headless",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -545,9 +582,9 @@
       }
     },
     {
-      "name": "macos-tsan",
+      "name": "macos-arm64-debug-tsan",
       "inherits": "base",
-      "configurePreset": "macos-tsan",
+      "configurePreset": "macos-arm64-debug-tsan",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -555,9 +592,9 @@
       }
     },
     {
-      "name": "macos-asan",
+      "name": "macos-arm64-debug-asan",
       "inherits": "base",
-      "configurePreset": "macos-asan",
+      "configurePreset": "macos-arm64-debug-asan",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -565,9 +602,9 @@
       }
     },
     {
-      "name": "macos-ubsan",
+      "name": "macos-arm64-debug-ubsan",
       "inherits": "base",
-      "configurePreset": "macos-ubsan",
+      "configurePreset": "macos-arm64-debug-ubsan",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -575,19 +612,14 @@
       }
     },
     {
-      "name": "windows-msvc-headless",
+      "name": "windows-x64-msvc-debug-headless",
       "inherits": "base",
-      "configurePreset": "windows-msvc-headless",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      }
+      "configurePreset": "windows-x64-msvc-debug-headless"
     },
     {
-      "name": "windows-mingw-headless",
+      "name": "windows-x64-mingw-debug-headless",
       "inherits": "base",
-      "configurePreset": "windows-mingw-headless"
+      "configurePreset": "windows-x64-mingw-debug-headless"
     }
   ]
 }

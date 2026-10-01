@@ -297,7 +297,7 @@ calls the guest makes. One line in the section that builds your guest does that:
 ```
 -lib wgrender-hx
 --main Game
---js out/web/js-webgl2-nothreads/game.js
+--js out/wasm32/release/site/game.js
 --macro wgr.macros.WebHost.build()
 ```
 
@@ -322,7 +322,7 @@ are all unchanged.
   development, since the host then only relinks when wgrender changes, and the way to
   rule the listing out if something misbehaves.
 - `-D wgr-build-dir=<dir>` is where linked hosts are cached; by default
-  `build/web/js-<variant>/webhost` (`build/web/js-webgl2-nothreads/webhost`, ...).
+  `build/wasm32-<variant>/webhost` (`build/wasm32-release/webhost`, ...).
 - `-D wgr-title=<text>` and `-D wgr-background=<css colour>` shape the first `index.html`.
 - `WEB_THREADS`, `BACKEND` and `WEB_DEBUG` in the environment mean what they mean to
   wgrender's own web build.
@@ -346,7 +346,7 @@ test/check.py              the binding's own checks, against headless wgrender
 
 Each example is what you would write yourself: `src/`, a `build.web.hxml` and a
 `build.desktop.hxml`. Those files *are* the build — `haxe build.web.hxml` in an
-example's directory gives you its `out/web/js-webgl2-nothreads`, host and page included — so copying an
+example's directory gives you its `out/wasm32/release/site`, host and page included — so copying an
 example is how to start a project. There is nothing else in an example to copy or to
 ignore: `examples/build.py` does the suite's chores for each one by name — it checks the
 binding is the one you are working on and current, puts wgrender's sample assets beside a

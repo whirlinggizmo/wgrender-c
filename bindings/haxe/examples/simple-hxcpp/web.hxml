@@ -2,13 +2,13 @@
 # wgrender compiled in from its sources by emcc, with wgrender's own web flags.
 #
 # `./build.py web` runs this with -D wgr-webgpu for BACKEND=webgpu and --debug for
-# WEB_DEBUG=1, and puts the site in out/web/<variant>/.
+# WEB_DEBUG=1, and puts the site in out/wasm32/<variant>/site/.
 
 -cp src
 -lib wgrender-hx
 --main Simple
 --cpp build/cpp
-# the C++ goes to build/web/<variant>/cpp (build/web/webgl2-nothreads/cpp, ...)
+# the C++ goes to build/<preset>/cpp (build/wasm32-release-hxcpp/cpp, ...)
 --macro wgr.macros.NativeOut.build()
 # hxcpp's emscripten toolchain: emcc for everything, wasm out, single-threaded
 # (which also lets its GC take some shortcuts).
