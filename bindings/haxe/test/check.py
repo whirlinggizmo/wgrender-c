@@ -174,16 +174,20 @@ def check_webhost_lists():
     one is a runtime method the binding starts using that nobody adds, which fails in
     the browser as an undefined function.
     """
-    import re
-    web = (ROOT / 'src/wgr/macros/WebHost.hx').read_text(encoding='utf-8')
-
-    def listed(name):
-        m = re.search(name + r'\s*=\s*\[(.*?)\];', web, re.S)
-        return set(re.findall(r'"(\w+)"', m.group(1))) if m else set()
+    import json
+    import headers  # wgrender's tools/headers.py: wgr_guest.h as clang reads it
+    import members  # the binding's functions as the Haxe parser reads them
+    done = subprocess.run([HAXE, '-cp', 'src', '--macro', 'wgr.macros.Members.lists()', '--no-output'],
+                          cwd=ROOT, capture_output=True, text=True)
+    if done.returncode != 0:
+        print(f'  the Haxe compiler could not read WebHost\'s lists\n{done.stderr}')
+        return 1
+    lists = json.loads(done.stdout.strip().splitlines()[-1])
 
     failed = False
-    abi = set(re.findall(r'\b(wgr_guest_\w+)\s*\(', (ROOT / 'host/wgr_guest.h').read_text(encoding='utf-8')))
-    have = listed('GUEST_ABI')
+    abi = {n for n in headers.functions_in(ROOT / 'host/wgr_guest.h', WGRENDER, tool='check')
+           if n.startswith('wgr_guest_')}
+    have = set(lists['abi'])
     for n in sorted(abi - have):
         print(f'  GUEST_ABI is missing {n}, which host/wgr_guest.h declares')
         failed = True
@@ -191,11 +195,9 @@ def check_webhost_lists():
         print(f'  GUEST_ABI lists {n}, which host/wgr_guest.h does not declare')
         failed = True
 
-    reached = set()
-    for f in (ROOT / 'src/wgr').rglob('*.js.hx'):
-        reached |= {n for n in re.findall(r'\bhost\.([A-Za-z_]\w*)', f.read_text(encoding='utf-8'))
-                    if not n.startswith('_wgr_')}
-    runtime = listed('RUNTIME_METHODS')
+    reached = {n for r in members.by_target(ROOT)['js'] if r['file'].endswith('.js.hx')
+               for n in r['host'] if not n.startswith('_wgr_')}
+    runtime = set(lists['runtime'])
     for n in sorted(reached - runtime):
         print(f'  RUNTIME_METHODS is missing {n}, which src/wgr reaches on the host module')
         failed = True

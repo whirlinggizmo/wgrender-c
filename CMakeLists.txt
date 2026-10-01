@@ -260,9 +260,12 @@ if(WGR_EXAMPLES)
     get_filename_component(name "${source}" NAME_WE)
     add_executable(${name} "${source}")
     wgr_c_target(${name})
-    # the examples use wgrender's internals and vendored headers too (clay.c: deps/clay)
-    target_include_directories(${name} PRIVATE ${WGR_INCLUDE})
-    target_include_directories(${name} SYSTEM PRIVATE ${WGR_SYSTEM_INCLUDE} "${WGR_ROOT}/deps/clay")
+    # An example sees what a program of anyone's would: the public headers (wgrender's
+    # PUBLIC include), its own shared/, and Clay (clay.c, which includes its demo layout
+    # from the repository root). Not src/, and no backend: a sokol header or identifier
+    # in an example fails to compile, which is how examples stay backend-free.
+    target_include_directories(${name} PRIVATE "${WGR_ROOT}")
+    target_include_directories(${name} SYSTEM PRIVATE "${WGR_ROOT}/deps/clay")
     target_link_libraries(${name} PRIVATE wgrender)
     if(EMSCRIPTEN)
       target_compile_options(${name} PRIVATE ${WGR_CFLAGS}) # as the library: NDEBUG, backend
@@ -371,6 +374,21 @@ if(WGR_TESTS)
   file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
   target_compile_definitions(unit_tests PRIVATE "WGR_TEST_DIR=\"${test_dir}\"")
   add_test(NAME unit COMMAND ${unit_command} WORKING_DIRECTORY "${WGR_ROOT}")
+
+  # Every public header compiles on its own, with nothing but include/ on the path: one
+  # translation unit each. So a header includes what it uses, and none reaches a backend
+  # (a sokol header or identifier fails here).
+  file(GLOB WGR_PUBLIC_HEADERS CONFIGURE_DEPENDS "${WGR_ROOT}/include/*.h")
+  set(alone)
+  foreach(header IN LISTS WGR_PUBLIC_HEADERS)
+    get_filename_component(leaf "${header}" NAME)
+    get_filename_component(stem "${header}" NAME_WE)
+    file(CONFIGURE OUTPUT "${CMAKE_BINARY_DIR}/headers-alone/${stem}.c" CONTENT "#include \"${leaf}\"\n")
+    list(APPEND alone "${CMAKE_BINARY_DIR}/headers-alone/${stem}.c")
+  endforeach()
+  add_library(headers_alone OBJECT ${alone})
+  wgr_c_target(headers_alone)
+  target_include_directories(headers_alone PRIVATE "${WGR_ROOT}/include")
 
   if(Python3_FOUND AND NOT CMAKE_CROSSCOMPILING) # the modules check reads the library with the host's nm
     add_test(NAME check COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/check_rules.py"

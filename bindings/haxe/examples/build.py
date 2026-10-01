@@ -51,7 +51,7 @@ if not (LIB / 'tools/wgrpath.py').exists():
     LIB = pathlib.Path(_found)
 sys.path.insert(0, str(LIB / 'tools'))
 from wgrpath import WGRENDER  # noqa: E402
-from guestbuild import Project, site_dir, web_variant  # noqa: E402
+from guestbuild import Project, main_class as guest_main_class, site_dir, web_variant  # noqa: E402
 C_BUILD = WGRENDER / 'out/wasm32/release/site'  # wgrender's own C build of each example
 
 
@@ -305,12 +305,7 @@ SOURCE = 'https://github.com/whirlinggizmo/wgrender-c/blob/main/bindings/haxe/ex
 
 def main_class(name):
     """The example's main class, from its web hxml: the file its source link opens."""
-    import re
-    hxml = (HERE / name / 'build.web.hxml').read_text(encoding='utf-8')
-    found = re.search(r'^--main\s+(\S+)', hxml, re.MULTILINE)
-    if not found:
-        sys.exit(f'{name}/build.web.hxml: no --main')
-    return found.group(1).replace('.', '/')
+    return guest_main_class(HERE / name, 'build.web.hxml').replace('.', '/')
 
 
 def site_bar(name, names):

@@ -33,6 +33,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from wgrpath import WGRENDER  # noqa: E402
+import headers  # noqa: E402  (wgrender's tools/headers.py)
 import members  # noqa: E402
 import cli  # noqa: E402
 
@@ -69,23 +70,23 @@ API_OMISSIONS = {
 
 
 def c_functions():
+    """{header stem: {wgr_* function}}: the public headers as clang reads them."""
     out = {}
-    for h in sorted((WGRENDER / 'include').glob('*.h')):
-        text = re.sub(r'/\*.*?\*/', ' ', h.read_text(encoding='utf-8'), flags=re.S)
-        for m in re.finditer(r'^\s*(?:const\s+)?(?:unsigned\s+)?\w+\s*\*?\s*(wgr_[a-z0-9_]+)\s*\(', text, re.M):
-            out.setdefault(h.stem, set()).add(m.group(1))
+    for name, fn in headers.read(WGRENDER, tool='check_coverage').functions.items():
+        out.setdefault(fn.header.rsplit('.', 1)[0], set()).add(name)
     return out
 
 
 def reached():
-    """What the hand-written API layer calls, and what each generated Raw declares."""
-    api = set()
-    for f in list((ROOT / 'src/wgr').glob('*.hx')) + list((ROOT / 'src/wgr/impl').glob('GuestAbi*.hx')):
-        api |= set(re.findall(r'(?:Raw|GuestRaw)\.(wgr_[a-z0-9_]+)', f.read_text(encoding='utf-8')))
-    raw = {}
-    for target, name in (('hxcpp', 'Raw.cpp.hx'), ('js', 'Raw.js.hx')):
-        path = ROOT / 'src/wgr/impl' / name
-        raw[target] = set(re.findall(r'function (wgr_[a-z0-9_]+)\(', path.read_text(encoding='utf-8'))) if path.exists() else set()
+    """What the hand-written API layer calls (and the guest ABI's implementation beside
+    it), and what each target's generated Raw declares: wgr.macros.Members, per target."""
+    api, raw = set(), {}
+    for target, records in members.by_target(ROOT).items():
+        for r in records:
+            if not r['impl'] or r['module'] == 'GuestAbi':
+                api |= {c for c in r['calls'] if c.startswith('wgr_')}
+        raw['hxcpp' if target == 'cpp' else target] = {r['name'] for r in records if r['impl'] and r['module'] == 'Raw'
+                                                      and r['name'].startswith('wgr_')}
     return api, raw
 
 
@@ -106,8 +107,8 @@ def one_name(every):
 
 
 def macros():
-    joined = '\n'.join(p.read_text(encoding='utf-8') for p in (WGRENDER / 'include').glob('*.h'))
-    return set(re.findall(r'#\s*define\s+(wgr_\w+)\s*\(', joined))
+    """The headers' function-like macros (wgr_logger_debug, ...): C conveniences, not calls."""
+    return set(headers.read(WGRENDER, tool='check_coverage').macros)
 
 
 def main():
@@ -151,7 +152,8 @@ def main():
     skip = macros() | OMISSIONS.keys() | API_OMISSIONS.keys()
     rows = []
     for c in sorted((WGRENDER / 'examples').glob('*.c')):
-        need = set(re.findall(r'\b(wgr_[a-z0-9_]+)\s*\(', c.read_text(encoding='utf-8'))) - skip - api
+        need = headers.calls_in(c, WGRENDER, include=[WGRENDER / 'examples', WGRENDER / 'deps/clay'],
+                                tool='check_coverage') - skip - api
         rows.append((len(need), c.stem, sorted(need)))
     rows.sort()
     print(f'\nwgrender has {len(rows)} examples; what each still needs from the API layer:')

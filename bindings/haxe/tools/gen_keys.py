@@ -14,10 +14,11 @@ no markers, wrote the file back unchanged, and reported the key count it had par
 Whole files and a check mode is what the other generators do, for this reason.
 """
 import os
-import pathlib, re, sys
+import pathlib, sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from wgrpath import WGRENDER  # noqa: E402
+import headers  # noqa: E402  (wgrender's tools/headers.py)
 import cli  # noqa: E402
 
 if __name__ == '__main__':
@@ -34,11 +35,13 @@ def haxe_name(macro):
 
 
 def main():
-    header = (WGRENDER / 'include/wgr_keys.h').resolve()
-    keys = [(haxe_name(m), int(v), m) for m, v in
-            re.findall(r'^\s*(WGR_KEY_[A-Z0-9_]+)\s*=\s*(\d+)', header.read_text(encoding='utf-8'), re.M)]
+    # wgr_keycode_t's constants, as clang reads wgr_keys.h (tools/headers.py)
+    header = 'wgr_keys.h'
+    keycode = headers.read(WGRENDER, tool='gen_keys').enums.get('wgr_keycode_t')
+    keys = [(haxe_name(m), v, m) for m, v in (keycode.values.items() if keycode else ())
+            if m.startswith('WGR_KEY_')]
     if not keys:
-        sys.exit(f'no WGR_KEY_* found in {header}')
+        sys.exit('no WGR_KEY_* in wgr_keycode_t (include/wgr_keys.h)')
 
     enum = '\n'.join(f'\tvar {name} = {value};' for name, value, _ in keys)
     asserts = '\n'.join(

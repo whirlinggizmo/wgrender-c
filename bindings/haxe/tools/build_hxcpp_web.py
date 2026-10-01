@@ -27,7 +27,7 @@ import sys
 LIB = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(LIB / 'tools'))
 from wgrpath import WGRENDER, web_variant  # noqa: E402
-from guestbuild import check_library  # noqa: E402
+from guestbuild import check_library, main_class  # noqa: E402
 
 HAXE = os.environ.get('HAXE', 'haxe')
 
@@ -59,10 +59,7 @@ def main():
         sys.exit(__doc__)
     name = sys.argv[1]
     example = LIB / 'examples' / name
-    desktop = (example / 'build.desktop.hxml').read_text(encoding='utf-8')
-    entry = re.search(r'^--main\s+(\S+)', desktop, re.M)
-    if not entry:
-        sys.exit(f'{example}/build.desktop.hxml names no --main')
+    entry = main_class(example, 'build.desktop.hxml')
 
     # the web has two toolchains here (a JS guest, and this), so the variant names it:
     # release-hxcpp, release-webgpu-hxcpp, debug-hxcpp (never threads)
@@ -73,7 +70,7 @@ def main():
     build.mkdir(parents=True, exist_ok=True)
 
     check_library()  # project/Build.xml is found through haxelib: this copy's
-    run([HAXE, '-cp', 'src', '-lib', 'wgrender-hx', '--main', entry.group(1),
+    run([HAXE, '-cp', 'src', '-lib', 'wgrender-hx', '--main', entry,
          '--cpp', build / 'cpp', '-D', 'emscripten', '-D', f'HAXE_OUTPUT_FILE={name}',
          *(['-D', 'wgr-webgpu'] if backend == 'webgpu' else []),
          *(['--debug'] if debug else []), '--macro', 'wgr.macros.NativeOut.toolchain()',
@@ -84,7 +81,7 @@ def main():
     site.mkdir(parents=True, exist_ok=True)
     for f in (f'{name}.js', f'{name}.wasm'):
         shutil.copy2(build / 'cpp' / f, site / f)
-    finish_site(site, build, name, f'examples/{name}/src/{entry.group(1).replace(".", "/")}.hx')
+    finish_site(site, build, name, f'examples/{name}/src/{entry.replace(".", "/")}.hx')
     print(f'built {site}')
 
 

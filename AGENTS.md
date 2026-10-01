@@ -52,12 +52,21 @@ make and no shell script: everything below works the same on Windows, Linux and 
 - The headless preset's tests (`ctest --preset linux-x64-debug-headless`): `unit` (`tests/unit/`,
   no stubs, no display or GPU; new tests go in `tests/unit/tests.h` and the table in
   `tests/unit/main.c`; add or update tests alongside code changes), `check`
-  (`tools/check_rules.py`: include/ and examples/ stay **backend-free**, the naming rules
-  below, the module boundary, `build.json`'s sources), and `smoke.<example>`: every
+  (`tools/check_rules.py`, through clang: the naming rules below, the public API's shape,
+  the module boundary, `build.json`'s sources, the tools), and `smoke.<example>`: every
   example run headless for 180 frames, failing on crashes, timeouts or error logs
   (`tools/run_smoke.py`). `tsan` (or `asan`, `ubsan`) runs the unit tests under a
   sanitizer: run `linux-x64-debug-tsan` when touching audio or other code shared with
   the mixer thread.
+- **include/ and examples/ stay backend-free, and the compiler holds it:** each public
+  header is compiled alone with only `include/` on the path (the `headers_alone` target
+  of a test build), and the examples with only `include/`, `examples/` and `deps/clay`.
+  A sokol header or identifier in either fails the build.
+- **No tool reads source as text.** What a tool needs to know about code comes from
+  something that parses it: the public headers from clang (`tools/headers.py`, which
+  `check_rules.py` and the binding's generators use), the binding's Haxe from the Haxe
+  compiler (`wgr.macros.Members`). Matching a program's *output* is fine. Where nothing
+  parses it, raise it rather than scan. clang is emsdk's, or one on PATH.
 - `tools/setup_deps.py [check|install]` — the Linux desktop build's system packages (GL, X11,
   ALSA); a Linux desktop configure runs the check.
 - `tools/run_wine.py program.exe` — run a Windows build under Wine (wine64/wine, or Steam's

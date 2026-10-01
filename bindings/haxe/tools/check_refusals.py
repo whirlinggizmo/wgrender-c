@@ -41,14 +41,13 @@ library than you think is the exact failure this tool exists to end.
 """
 import json
 import re
-import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from wgrpath import WGRENDER  # noqa: E402
+import headers  # noqa: E402  (wgrender's tools/headers.py)
 import members  # noqa: E402
 import cli  # noqa: E402
 
@@ -84,17 +83,11 @@ UNREACHABLE = {
 
 
 def documented_refusals(wgrender):
-    """Every bool wgr_* whose header comment names a refusal, with that sentence."""
-    out = {}
-    for h in sorted((wgrender / 'include').glob('*.h')):
-        text = h.read_text(encoding='utf-8')
-        for m in re.finditer(
-                r'(/\*(?:[^*]|\*(?!/))*\*/)?\s*bool\s+(wgr_\w+)\s*\([^;]*?\);'
-                r'((?:[ \t]*/\*(?:[^*]|\*(?!/))*\*/)?)', text):
-            comment = (m.group(1) or '') + (m.group(3) or '')
-            if comment and REFUSAL.search(comment):
-                out[m.group(2)] = ' '.join(comment.split())
-    return out
+    """Every bool wgr_* whose header comment names a refusal, with that sentence: the
+    comment clang attaches to the declaration (tools/headers.py)."""
+    api = headers.read(wgrender, tool='check_refusals')
+    return {name: ' '.join(f.doc.split()) for name, f in api.functions.items()
+            if f.returns == 'bool' and f.doc and REFUSAL.search(f.doc)}
 
 
 def binding(root):
@@ -142,36 +135,8 @@ def check(root, wgrender):
 
 
 def find_clang():
-    """clang, or None. emsdk's is the one the web build already uses.
-
-    `clang` on Windows is `clang.exe`, and both emsdk lookups below build a path by
-    hand rather than going through PATH, so they have to try the suffix themselves --
-    otherwise this finds nothing on Windows, says it is skipping, and exits 0, which
-    looks exactly like a machine with no emsdk. shutil.which needs no help: it reads
-    PATHEXT.
-    """
-    def at(directory):
-        for leaf in ('clang', 'clang.exe'):
-            candidate = directory / leaf
-            if candidate.exists():
-                return str(candidate)
-        return None
-
-    emcc = shutil.which('emcc')
-    if emcc:
-        found = at(Path(emcc).resolve().parent.parent / 'bin')
-        if found:
-            return found
-    for name in ('clang', 'clang-23', 'clang-22', 'clang-21'):
-        found = shutil.which(name)
-        if found:
-            return found
-    emsdk = os.environ.get('EMSDK')
-    if emsdk:
-        found = at(Path(emsdk) / 'upstream' / 'bin')
-        if found:
-            return found
-    return None
+    """clang, or None: tools/headers.py's, which every tool that reads the C shares."""
+    return headers.find_clang()
 
 
 def flags(wgrender):
@@ -397,8 +362,8 @@ def collect(clang, wgrender):
 def main():
     clang = find_clang()
     if clang is None and '--check' in sys.argv:
-        # The check reads headers and doc comments, not the C, so it runs anywhere.
-        return check(ROOT, WGRENDER)
+        # The check reads the headers' doc comments, through clang too
+        headers.require_clang('check_refusals')
     if clang is None:
         if '--require-clang' in sys.argv:
             # What CI passes. A skip that can happen everywhere is not a gate, so the

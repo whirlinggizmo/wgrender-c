@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""wgrender's guardrails: the conventions a compiler doesn't check.
+"""wgrender's guardrails: the conventions a compiler doesn't check, checked through tools
+that parse what they check, never by scanning text.
 
     tools/check_rules.py [--lib path/to/libwgrender.a]
 
-  backend   include/ and examples/ don't depend on sokol: no sokol #includes, no sokol
-            API identifiers (the prose word "sokol" is fine)
-  naming    AGENTS.md § Naming: wgr_<noun>_t struct types; a pointer resolved from a
-            handle is <noun>_ptr; the public API is handle-only; wgr_ is public and
-            wgri_ internal
+  naming    AGENTS.md § Naming: wgr_<noun>_t struct types (no _data_t / _instance_t); a
+            pointer resolved from a handle is <noun>_ptr; the public API is handle-only;
+            wgr_ is public and wgri_ internal, and every public macro carries the prefix
   manifest  build.json's sources are src/*.c, no more and no fewer
   values    AGENTS.md § Public API shape: a struct in a public signature is one of the
             fixed-layout math values (VALUE_STRUCTS), or a record RECORDS_TODO lists
@@ -21,33 +20,68 @@
             argument it doesn't take exits non-zero. A tool is every .py in the tool
             folders (TOOL_FILES) but the modules tools import (TOOL_MODULES).
 
+The public headers come from clang (tools/headers.py); src/ from clang's AST of each
+source file, limited to the declarations named wgr*: every wgr_ and wgri_ function and
+type (-ast-dump-filter, which keeps all of src/ to a second or two). Backend-free
+headers and examples aren't here: the build compiles each public header alone, and the
+examples, with no backend on the path. Needs clang (emsdk's, or one on PATH).
+
 Exits non-zero on any violation. ctest runs it as the test `check`.
 """
 import argparse
 import collections
 import json
-import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'tools'))
+import headers  # noqa: E402  (the public headers as clang reads them)
 
 
 def files(pattern):
     return sorted(ROOT.glob(pattern))
 
 
-def grep(pattern, paths):
-    """`path:line: text` for every line of paths matching pattern."""
-    rx = re.compile(pattern)
-    hits = []
-    for path in paths:
-        for n, line in enumerate(path.read_text(errors='replace').splitlines(), 1):
-            if rx.search(line):
-                hits.append(f'{path.relative_to(ROOT).as_posix()}:{n}: {line.strip()}')
-    return hits
+def src_declarations(clang):
+    """Every declaration in src/ whose name has wgr in it, from clang's AST of each source
+    file, compiled as compile_flags.txt says (clangd's flags): [(node, file)], the file
+    each came from. -ast-dump-filter prints one JSON object per match."""
+    from concurrent.futures import ThreadPoolExecutor
+    flags = [line for line in (ROOT / 'compile_flags.txt').read_text(encoding='utf-8').splitlines() if line.strip()]
+
+    def dump(source):
+        done = subprocess.run([clang, '-fsyntax-only', '-Xclang', '-ast-dump=json', '-Xclang',
+                               '-ast-dump-filter=wgr', *flags, str(source.relative_to(ROOT))],
+                              cwd=ROOT, capture_output=True, text=True)
+        if done.returncode != 0:
+            first = next((line for line in done.stderr.splitlines() if 'error' in line), done.stderr.strip())
+            sys.exit(f'check_rules: clang could not parse {source}\n  {first}')
+        decoder, text, at, out = json.JSONDecoder(), done.stdout, 0, []
+        while at < len(text):
+            while at < len(text) and text[at].isspace():
+                at += 1
+            if at < len(text):
+                node, at = decoder.raw_decode(text, at)
+                headers._walk_files(node, str(source.relative_to(ROOT)))
+                out.append(node)
+        return out
+
+    with ThreadPoolExecutor(8) as pool:
+        return [node for nodes in pool.map(dump, files('src/*.c')) for node in nodes]
+
+
+def walk(node):
+    yield node
+    for kid in node.get('inner') or ():
+        yield from walk(kid)
+
+
+def under(node, folder):
+    f = node.get('_file') or ''
+    return Path(f).as_posix().startswith(folder)
 
 
 class Report:
@@ -64,54 +98,67 @@ class Report:
             print(f'ok: {ok}')
 
 
-def check_backend(r):
-    token = (r'\b(sapp_|sgl_|sdtx_|sglue_|stm_|saudio_|sfetch_|sg_[a-zA-Z])|\b(SOKOL_|SAPP_)'
-             r'|#\s*include\s*[<"]sokol')
-    for d, glob in (('include', '*.h'), ('examples', '*.c')):
-        r.result(grep(token, files(f'{d}/{glob}')), f'{d}/ is backend-free',
-                 f'backend (sokol) symbols leaked into {d}/:')
+# Build flags the build passes with -D (WGR_HEADLESS, WGR_EXPORT_FULL_API): -D and
+# #ifdef spell them alike, so they keep the public prefix wherever they're used.
+BUILD_FLAGS = {'WGR_HEADLESS', 'WGR_EXPORT_FULL_API'}
+
+# Public macros without the prefix, each a known gap: the check fails when one is gone
+# and still listed.
+MACROS_TODO = {'log_debug', 'log_error', 'log_fatal', 'log_info', 'log_trace', 'log_warn'}
 
 
-def stripped(paths):
-    """C headers without comments or #include lines: the names they declare and use."""
-    text = '\n'.join(p.read_text(errors='replace') for p in paths)
-    text = re.sub(r'/\*.*?\*/', ' ', text, flags=re.S)
-    text = re.sub(r'//[^\n]*', '', text)
-    return re.sub(r'^\s*#\s*include[^\n]*$', '', text, flags=re.M)
-
-
-def check_naming(r):
-    ours = files('src/**/*.c') + files('src/**/*.h') + files('include/**/*.h')
-    r.result(grep(r'\}\s*wgr_[a-z0-9_]+_(data|instance)_t\s*;', ours),
-             'no _data_t / _instance_t struct types',
+def check_naming(r, api, src):
+    types = sorted({n['name'] for d in src for n in walk(d)
+                    if n.get('kind') in ('RecordDecl', 'TypedefDecl') and n.get('name')
+                    and n['name'].endswith(('_data_t', '_instance_t'))}
+                   | {name for name in list(api.structs) + list(api.enums) + list(api.typedefs)
+                      if name.endswith(('_data_t', '_instance_t'))})
+    r.result(types, 'no _data_t / _instance_t struct types',
              'struct types must be wgr_<noun>_t (no _data_t / _instance_t):')
 
-    resolved = grep(r'\*[A-Za-z_]\w*\s*=.*\bresolve(_[a-z]+)?\(', files('src/*.c'))
-    r.result([h for h in resolved if not re.search(r'\*[A-Za-z_]\w*_ptr\s*=', h)],
-             'resolved instance pointers use _ptr',
+    # A variable of pointer type, initialized from resolve() or resolve_<x>(), in a wgr_ or
+    # wgri_ function of src/
+    resolved, bad = 0, []
+    for d in src:
+        for fn in walk(d):
+            if fn.get('kind') != 'FunctionDecl' or not under(fn, 'src/'):
+                continue
+            for v in walk(fn):
+                if v.get('kind') != 'VarDecl' or not v.get('type', {}).get('qualType', '').endswith('*'):
+                    continue
+                callees = {n['referencedDecl'].get('name', '') for n in walk(v)
+                           if n.get('kind') == 'DeclRefExpr' and n.get('referencedDecl', {}).get('kind') == 'FunctionDecl'}
+                if any(c == 'resolve' or c.startswith('resolve_') for c in callees):
+                    resolved += 1
+                    if not v['name'].endswith('_ptr'):
+                        bad.append(f'{fn["_file"]}: {fn["name"]}: {v["name"]}')
+    r.result(sorted(set(bad)), f'resolved instance pointers use _ptr ({resolved} in wgr_/wgri_ functions)',
              'a pointer resolved from a handle must be named <noun>_ptr:')
 
-    r.result(grep(r'_from_memory|\bunsigned char\s*\*', files('include/**/*.h')),
-             'public API is handle-only (no byte buffers / *_from_memory)',
+    buffers = [f'{f.header}: {name}' for name, f in api.functions.items()
+               if '_from_memory' in name or 'unsigned char *' in f.returns
+               or any('unsigned char *' in p.type for p in f.params)]
+    r.result(buffers, 'public API is handle-only (no byte buffers / *_from_memory)',
              'public API must be handle-only (no *_from_memory / raw byte buffers):')
 
-    # One prefix per surface. Telling a declaration from a use needs a parser, so check
-    # what doesn't: every wgr_ name an internal header mentions is one include/ declares
-    # (it is using the public API), and include/ never mentions wgri_. Build flags the
-    # build passes with -D (WGR_HEADLESS, WGR_EXPORT_FULL_API) are exempt: -D and #ifdef
-    # spell them alike.
-    build_flags = {'WGR_HEADLESS', 'WGR_EXPORT_FULL_API'}
-    public = stripped(files('include/*.h'))
-    internal = stripped(files('src/internal/*.h'))
-    public_names = set(re.findall(r'\b(?:wgr|WGR)_\w+\b', public))
-    internal_public = sorted(set(re.findall(r'\b(?:wgr|WGR)_\w+\b', internal))
-                             - public_names - build_flags)
-    public_internal = sorted(set(re.findall(r'\b(?:wgri|WGRI)_\w+\b', public)))
-    r.result(internal_public, 'src/internal/ names only wgr_ symbols include/ declares',
-             "src/internal/ names these wgr_ symbols, which include/ doesn't declare "
+    # One prefix per surface: include/ declares nothing wgri_, and src/internal/ declares
+    # nothing wgr_ that include/ doesn't (it uses the public API; its own names are wgri_)
+    public = (set(api.functions) | set(api.structs) | set(api.enums) | set(api.typedefs)
+              | {c for e in api.enums.values() for c in e.values} | set(api.defines) | set(api.macros))
+    r.result(sorted(n for n in public if n.lower().startswith('wgri_')), 'include/ declares no wgri_ symbol',
+             'include/ must not declare internal wgri_ symbols:')
+    internal = sorted({f'{n["_file"]}: {n["name"]}' for d in src for n in [d]
+                       if under(n, 'src/internal/') and n.get('name', '').lower().startswith('wgr_')
+                       and n['name'] not in public and n['name'] not in BUILD_FLAGS})
+    r.result(internal, 'src/internal/ declares only wgr_ symbols include/ declares',
+             "src/internal/ declares these wgr_ symbols, which include/ doesn't "
              '(internal symbols are wgri_; promote it to include/ if it should be public):')
-    r.result(public_internal, 'include/ mentions no wgri_ symbol',
-             'include/ must not mention internal wgri_ symbols:')
+    unprefixed = sorted(n for n in set(api.defines) | set(api.macros)
+                        if not n.lower().startswith('wgr_') and n not in MACROS_TODO)
+    gone = [f'{n}: on MACROS_TODO, but include/ defines no such macro now; take it off'
+            for n in sorted(MACROS_TODO - set(api.macros) - set(api.defines))]
+    r.result(unprefixed + gone, f'every public macro is WGR_/wgr_ ({len(MACROS_TODO)} known gaps)',
+             'a public macro without the prefix (every program that includes the header gets the name):')
 
 
 def check_manifest(r):
@@ -134,15 +181,14 @@ RECORDS_TODO = {'wgr_pick_result_t', 'wgr_pick_stats_t', 'wgr_touch_t', 'wgr_tou
                 'wgr_mouse_state_t', 'wgr_keyboard_state_t'}
 
 
-def check_values(r):
+def check_values(r, api):
     """No struct crosses the API except a math value, or a record already on the list."""
-    text = stripped(files('include/*.h'))
-    structs = set(re.findall(r'typedef\s+struct\s*\w*\s*\{[^{}]*\}\s*(\w+)\s*;', text, re.S))
     used = collections.defaultdict(set)
-    for m in re.finditer(r'^\s*((?:const\s+)?\w+\s*\**)\s*(wgr_[a-z0-9_]+)\s*\(([^)]*)\)\s*;', text, re.M):
-        for s in structs:
-            if re.search(rf'\b{s}\b', m.group(1) + ' ' + m.group(3)):
-                used[s].add(m.group(2))
+    for name, f in api.functions.items():
+        for t in [f.returns] + [p.type for p in f.params]:
+            base = t.replace('const ', '').replace('*', '').strip()
+            if base in api.structs:
+                used[base].add(name)
     bad = [f'{s}: in {", ".join(sorted(fns)[:3])}{" ..." if len(fns) > 3 else ""} -- a record; '
            'give it per-field getters or a handle' for s, fns in sorted(used.items())
            if s not in VALUE_STRUCTS and s not in RECORDS_TODO]
@@ -203,15 +249,14 @@ GETTERS_TODO = {
 }
 
 
-def check_getters(r):
+def check_getters(r, api):
     """Every value a setter stores has a getter (AGENTS.md § Public API shape)."""
-    public = set(re.findall(r'\b(wgr_[a-z0-9_]+)\s*\(', stripped(files('include/*.h'))))
+    public = set(api.functions)
     missing, rotted = [], []
     for setter in sorted(public):
-        m = re.fullmatch(r'(wgr_[a-z0-9]+)_set_([a-z0-9_]+)', setter)
-        if not m:
+        kind, sep, value = setter.partition('_set_')
+        if not sep or kind.count('_') != 1:
             continue
-        kind, value = m.groups()
         if value == 'transform':
             paired = (f'{kind}_get_position',)   # the transform rule: a getter per part
         else:
@@ -260,7 +305,7 @@ def check_modules(r, lib):
 # file is a tool.
 TOOL_FILES = ['tools/*.py', 'tools/bench/*.py', 'bindings/haxe/tools/*.py', 'bindings/haxe/test/check.py',
               'bindings/haxe/examples/build.py', 'bindings/haxe/examples/simple-hxcpp/build.py']
-TOOL_MODULES = {'tools/builds.py', 'tools/cli.py', 'tools/hostcache.py', 'tools/weblib.py', 'tools/bench/measure.py',
+TOOL_MODULES = {'tools/builds.py', 'tools/cli.py', 'tools/headers.py', 'tools/hostcache.py', 'tools/weblib.py', 'tools/bench/measure.py',
                 'bindings/haxe/tools/guestbuild.py', 'bindings/haxe/tools/members.py',
                 'bindings/haxe/tools/wgrpath.py', 'bindings/haxe/tools/wgrweb.py'}
 # What a tool's name may start with: what it does. A bare verb is a name too (serve.py).
@@ -302,11 +347,12 @@ def main():
     ap.add_argument('--lib', help='the library whose symbols the modules check reads')
     args = ap.parse_args()
     r = Report()
-    check_backend(r)
-    check_naming(r)
+    clang = headers.require_clang('check_rules')
+    api = headers.read(ROOT, clang, tool='check_rules')
+    check_naming(r, api, src_declarations(clang))
     check_manifest(r)
-    check_values(r)
-    check_getters(r)
+    check_values(r, api)
+    check_getters(r, api)
     check_modules(r, args.lib)
     check_tools(r)
     if r.failed:

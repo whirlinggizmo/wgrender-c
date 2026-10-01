@@ -35,6 +35,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from wgrpath import WGRENDER  # noqa: E402
+import headers  # noqa: E402  (wgrender's tools/headers.py: the headers as clang reads them)
 import cli  # noqa: E402
 
 if __name__ == '__main__':
@@ -178,67 +179,19 @@ SCALARS = {  # C type -> (hxcpp, js), size, how JS reads it out of the heap
 
 
 def read_headers():
-    text = {h.name: h.read_text(encoding='utf-8') for h in sorted((WGRENDER / 'include').glob('*.h'))}
-    if not text:
-        sys.exit(f'no headers under {WGRENDER}/include')
-    everything = '\n'.join(text.values())
-    # `int keys[WGR_KEYBOARD_MAX_KEYS]` — resolve the bound so the layout is truthful.
-    defines = {m.group(1): int(m.group(2))
-               for m in re.finditer(r'^#define\s+(WGR_\w+)\s+(\d+)\s*$', everything, re.M)}
-    enums = set(re.findall(r'\}\s*(wgr_\w+_t)\s*;', everything)) - set(re.findall(r'typedef struct[^{]*\{[^}]*\}\s*(\w+)\s*;', everything, re.S))
-    structs = {}
-    for m in re.finditer(r'typedef struct[^{]*\{(.*?)\}\s*(\w+)\s*;', everything, re.S):
-        body, name = m.group(1), m.group(2)
-        # Strip comments across the whole body: a trailing /* ... */ can run onto the
-        # next line, and stripping line by line then swallows the field it follows.
-        body = re.sub(r'/\*.*?\*/', ' ', body, flags=re.S)
-        body = re.sub(r'//[^\n]*', ' ', body)
-        fields = []
-        for line in body.split('\n'):
-            line = line.strip()
-            fm = re.match(r'^((?:unsigned |const )?[\w]+(?:\s*\*)?)\s+(.+);$', line)
-            if not fm:
-                continue
-            ctype = fm.group(1).strip()
-            # one line can declare several: `float x, y;`
-            for declarator in fm.group(2).split(','):
-                dm = re.match(r'^\s*(\w+)\s*(?:\[\s*(\w+)\s*\])?\s*$', declarator)
-                if not dm:
-                    continue
-                bound = dm.group(2)
-                count = (0 if not bound else int(bound) if bound.isdigit()
-                         else defines.get(bound, -1))
-                if count == -1:
-                    sys.exit(f'{name}.{dm.group(1)}: array bound {bound} is not a '
-                             f'#define this can resolve')
-                fields.append((ctype, dm.group(1), count))
-        if fields:
-            structs[name] = fields
-    functions = []
-    for header, body in text.items():
-        for m in re.finditer(r'^((?:const\s+)?(?:unsigned\s+)?[\w]+)\s*(\*?)\s*(wgr_\w+)\s*\(([^;]*?)\)\s*;',
-                             body, re.M):
-            ret = ' '.join(m.group(1).split()) + (' *' if m.group(2) else '')
-            name, params = m.group(3), ' '.join(m.group(4).split())
-            functions.append((header, ret, name, params))
+    """What the binding is generated from: wgrender's public headers as clang reads them
+    (tools/headers.py). Enums by name; each struct's fields as (type, name, array count);
+    each function as (header, return type, name, params), params a list of (type, name),
+    or None for what has no rendering here (a variadic call). In header order, and each
+    header's declarations in the order it makes them."""
+    api = headers.read(WGRENDER, tool='gen_raw')
+    order = {h: i for i, h in enumerate(api.headers)}
+    enums = {name for name in api.enums if name.startswith('wgr_') and name.endswith('_t')}
+    structs = {name: [(f.type, f.name, f.count) for f in s.fields]
+               for name, s in sorted(api.structs.items(), key=lambda kv: order[kv[1].header])}
+    functions = [(f.header, f.returns, f.name, None if f.variadic else [(p.type, p.name) for p in f.params])
+                 for f in sorted(api.functions.values(), key=lambda f: order[f.header])]
     return enums, structs, functions
-
-
-def parse_params(params):
-    params = re.sub(r'/\*.*?\*/', ' ', params).strip()  # `float rz, /* radians */ float sx`
-    params = ' '.join(params.split())
-    if params in ('void', ''):
-        return []
-    out = []
-    for part in re.split(r',(?![^()]*\))', params):
-        part = part.strip()
-        # `const char *path` binds the star to the name, so take it either way
-        pm = re.match(r'^((?:const\s+)?(?:unsigned\s+|signed\s+)?[\w]+)\s*(\*?)\s*(\w+)$', part)
-        if not pm:
-            return None  # a function pointer, an array, something unparsed
-        ctype = ' '.join(pm.group(1).split()) + (' *' if pm.group(2) else '')
-        out.append((ctype, pm.group(3)))
-    return out
 
 
 def layout(structs, name):
@@ -274,8 +227,9 @@ def header_digest(wgrender):
 def provenance():
     """What wgrender this was generated from, and a digest that moves when it does."""
     digest, count = header_digest(WGRENDER)
-    version = re.findall(r'#define WGR_VERSION_(?:MAJOR|MINOR|PATCH)\s+(\d+)',
-                         (WGRENDER / 'include/wgr_version.h').read_text(encoding='utf-8'))
+    defines = headers.read(WGRENDER, tool='gen_raw').defines
+    version = [defines[f'WGR_VERSION_{part}'][0] for part in ('MAJOR', 'MINOR', 'PATCH')
+               if f'WGR_VERSION_{part}' in defines]
     try:
         commit = subprocess.run(['git', '-C', str(WGRENDER), 'describe', '--always', '--dirty'],
                                 check=True, capture_output=True, text=True).stdout.strip()
@@ -349,7 +303,7 @@ def emit_cpp(enums, structs, functions):
     for header, ret, name, params in functions:
         if name in SKIP:
             skipped.append((name, 'spec: skipped')); continue
-        args = parse_params(params)
+        args = params
         if args is None:
             skipped.append((name, 'unparsed parameter list')); continue
         types = [ret] + [t for t, _ in args]
@@ -414,7 +368,7 @@ def emit_js(enums, structs, functions):
     for header, ret, name, params in functions:
         if name in SKIP:
             continue
-        args = parse_params(params)
+        args = params
         if args is None:
             continue
         types = [ret] + [t for t, _ in args]

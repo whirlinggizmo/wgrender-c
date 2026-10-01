@@ -42,6 +42,19 @@ LIB = pathlib.Path(__file__).resolve().parent.parent
 DEFAULT_WEB = 'release'
 
 
+def main_class(example, hxml):
+    """The main class an example's hxml names, as the Haxe compiler reads its command
+    line (wgr.macros.Members.mainClass): 'Hello', or 'pkg.Main'."""
+    # first on the command line, so it runs before the hxml's own init macros (WebHost's)
+    done = subprocess.run([os.environ.get('HAXE', 'haxe'), '--macro', 'wgr.macros.Members.mainClass()',
+                           hxml, '--no-output'],
+                          cwd=example, capture_output=True, text=True)
+    found = done.stdout.strip().splitlines()[-1] if done.stdout.strip() else ''
+    if done.returncode != 0 or not found:
+        sys.exit(f'{example}/{hxml}: no main class\n{done.stderr.strip()}')
+    return found
+
+
 def site_dir(variant):
     """Where an example's web build goes, relative to the example."""
     return f'out/wasm32/{variant}/site'
