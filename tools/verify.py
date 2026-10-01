@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run before calling a change done: every build and test this machine can run.
 
-    tools/verify.py [--web] [--only STEP[,STEP...]]
+    tools/verify.py [--web] [--windows HOST] [--only STEP[,STEP...]]
 
 This machine's own presets (linux-x64-*, macos-arm64-*, or windows-x64-msvc-* on Windows):
   release         the library and examples with a window, GPU and audio (built, not run)
@@ -22,6 +22,10 @@ Chromium or Edge):
                     (tools/webcheck.py)
   haxe-web  the Haxe examples built for the web and driven in the browser, when Haxe
             is installed
+With --windows HOST, also, on that Windows machine over ssh (tools/run_remote_windows.py:
+the working tree as it is, nothing left there):
+  windows-mingw  windows-x64-mingw-debug-headless and -release
+  windows-msvc   windows-x64-msvc-debug-headless and -release
 
 Each step is a CMake preset (CMakePresets.json), configured, built and tested: its work
 in build/<platform>/<variant>/, what it makes in out/<platform>/<variant>/; the haxe
@@ -42,11 +46,12 @@ import builds  # noqa: E402
 
 WEB = {'wasm32-release': ['--backend=webgl2'], 'wasm32-release-threads': ['--backend=webgl2', '--threads'],
        'wasm32-release-webgpu-threads': ['--backend=webgpu', '--threads']}
+REMOTE = {'windows-mingw': [], 'windows-msvc': ['--msvc']}
 HAXE = {'haxe': [['bindings/haxe/test/check.py']],
         'haxe-web': [['bindings/haxe/examples/build.py', 'web'], ['bindings/haxe/examples/build.py', 'drive']]}
 
 
-def steps(web):
+def steps(web, windows):
     yield builds.native('release'), False
     yield builds.native('debug-headless'), True
     if builds.HOST in ('linux-x64', 'macos-arm64'):
@@ -68,6 +73,9 @@ def steps(web):
             yield preset, False
         if has_haxe:
             yield 'haxe-web', False
+    if windows:
+        for step in REMOTE:
+            yield step, False
 
 
 def run(*cmd):
@@ -78,17 +86,22 @@ def run(*cmd):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--web', action='store_true', help='the web builds too, checked in a browser')
+    ap.add_argument('--windows', metavar='HOST', help='also build and test on this Windows machine over ssh')
     ap.add_argument('--only', help='comma-separated steps to run')
     args = ap.parse_args()
     only = set(args.only.split(',')) if args.only else None
 
     web = args.web or (only is not None and any(s in WEB or s == 'haxe-web' for s in only))
-    for preset, test in steps(web):
+    if only and any(s in REMOTE for s in only) and not args.windows:
+        sys.exit('verify: the windows-* steps need --windows HOST')
+    for preset, test in steps(web, args.windows):
         if only and preset not in only:
             continue
         print(f'== {preset}', flush=True)
         start = time.monotonic()
-        if preset in HAXE:
+        if preset in REMOTE:
+            ok = run(sys.executable, 'tools/run_remote_windows.py', args.windows, *REMOTE[preset])
+        elif preset in HAXE:
             ok = all(run(sys.executable, *cmd) for cmd in HAXE[preset])
         else:
             ok = (run('cmake', '--preset', preset) and run('cmake', '--build', '--preset', preset)

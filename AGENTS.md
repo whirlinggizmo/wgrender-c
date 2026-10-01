@@ -62,6 +62,14 @@ make and no shell script: everything below works the same on Windows, Linux and 
   ALSA); a Linux desktop configure runs the check.
 - `tools/wine.py program.exe` — run a Windows build under Wine (wine64/wine, or Steam's
   Proton); the `windows-x64-mingw-debug-headless` preset's tests go through it.
+- `tools/setup_mingw.py` — the pinned MinGW-w64 (a WinLibs GCC) the `windows-x64-mingw`
+  presets build with on a Windows host: `cmake/mingw-w64.cmake` runs it, and it
+  downloads into the per-user cache once. Never the `gcc` on PATH. To move to a newer
+  GCC, change its release, URL and SHA-256 together.
+- `tools/run_remote_windows.py HOST [--msvc] [--variant PRESET]` — build and test the
+  working tree, committed or not, on a real Windows machine over ssh (cmd.exe as its
+  shell): copies it to a scratch folder there, runs the presets (MinGW by default,
+  `--msvc` for Visual Studio's compiler), and deletes everything after.
 - `tools/update_sokol.py [ref]` — update the vendored sokol headers from libwgrender's sokol
   fork (github.com/robknopf/sokol: upstream plus fixes libwgrender needs; sync the fork
   with floooh/sokol there first). Records the fork and upstream commits in
@@ -142,13 +150,15 @@ make and no shell script: everything below works the same on Windows, Linux and 
   when Haxe is) before calling a change done; add `--web` (every example on
   `wasm32-release`, `wasm32-release-threads` and `wasm32-release-webgpu-threads`, loaded
   in the browser, and the Haxe examples built for the web and driven) when touching
-  rendering, assets or web code.
+  rendering, assets or web code, and `--windows HOST` (MinGW and MSVC built and tested
+  on a real Windows machine over ssh, `tools/run_remote_windows.py`) when touching
+  threads, files and paths, the platform layer (`wgr_platform.c`, `deps/sokol_utils`) or
+  the build.
   Without `--web` nothing links a web example, so **EM_JS changes are unverified until
   an example links** — closure runs then, not when the library is built, and it is what
   catches a typo in the JS body (`$0` is EM_ASM syntax; EM_JS takes named parameters).
   After touching EM_JS link at least one (`cmake --build --preset wasm32-release --target
-  hello`). The Windows presets matter when touching threads, files and paths, the
-  platform layer (`wgr_platform.c`, `deps/sokol_utils`) or the build.
+  hello`).
 
 ## Process
 

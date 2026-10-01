@@ -181,8 +181,13 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
 - [ ] Hidden symbol visibility: only `wgr_*` exported.
 - [ ] Pixel tests: frames read back in headless Chrome and in a GL window on Xvfb; a
       desktop check of every example with screenshots.
-- [ ] `run_remote_windows.py`: build and test the working tree on the Windows machine
-      over ssh.
+- [x] `tools/run_remote_windows.py`: build and test the working tree on a Windows
+      machine over ssh, MinGW or `--msvc`, leaving nothing there (ported from libwgt's;
+      MinGW builds there use the pinned compiler below).
+- [x] A pinned MinGW-w64 on Windows hosts (`tools/setup_mingw.py`, libwgt's): the
+      toolchain file sets up a WinLibs GCC in the per-user cache and builds with it,
+      instead of the `gcc` on PATH (which was choosenim's, Nim's); the build's
+      workaround for that shim's missing `ar` is gone.
 - [ ] Public math (own branch): vec2/3/4, quat, mat4 operations `inline` in public
       headers with one exported copy each for bindings; types `wgr_vec3_t`,
       `wgr_quat_t`, `wgr_mat4_t` (column-major `float m[16]`; `matrix_t` goes); the

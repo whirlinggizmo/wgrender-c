@@ -57,25 +57,6 @@ endif()
 
 project(wgrender LANGUAGES C)
 
-# A gcc on PATH may come without its binutils beside it: choosenim's MinGW puts only a
-# gcc.exe shim in .nimble/bin. CMake then finds no ar and fails at the first archive;
-# the compiler knows where its own are, so ask it.
-if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
-  foreach(tool ar ranlib)
-    string(TOUPPER "${tool}" var)
-    if(NOT CMAKE_${var} OR CMAKE_${var} MATCHES "NOTFOUND")
-      execute_process(COMMAND "${CMAKE_C_COMPILER}" -print-prog-name=${tool}
-                      OUTPUT_VARIABLE found OUTPUT_STRIP_TRAILING_WHITESPACE)
-      if(IS_ABSOLUTE "${found}" AND EXISTS "${found}")
-        # both: the compiler's generated settings define it as a normal variable too,
-        # which would hide the cache entry
-        set(CMAKE_${var} "${found}" CACHE FILEPATH "${tool}, from ${CMAKE_C_COMPILER}" FORCE)
-        set(CMAKE_${var} "${found}")
-      endif()
-    endif()
-  endforeach()
-endif()
-
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/build.json" WGR_MANIFEST)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS build.json)
 
@@ -148,11 +129,22 @@ list(TRANSFORM WGR_SYSTEM_INCLUDE PREPEND "${WGR_ROOT}/")
 wgr_manifest_list(WGR_WARN warn)
 wgr_manifest_list(WGR_OPT opt)
 
+# A multi-config generator (Visual Studio: the MSVC presets) builds Debug or Release, and
+# its Release means what a release preset means everywhere else: the manifest's
+# optimization, asserts kept. CMake's own Release flags (/O2 /Ob2 /DNDEBUG) would drop
+# them in these builds alone.
+get_property(WGR_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if(WGR_MULTI_CONFIG AND PROJECT_IS_TOP_LEVEL)
+  set(CMAKE_CONFIGURATION_TYPES Debug Release)
+  set(CMAKE_C_FLAGS_RELEASE "")
+endif()
+
 # Our code, compiled as wgrender compiles: gnu11 where there is one, the manifest's
 # warnings where the compiler speaks gcc's dialect, the sanitizer when asked for. With
-# no build type (the presets but debug), the manifest's optimization and no NDEBUG:
-# wgrender's desktop builds keep their asserts, where CMake's Release would drop them.
-# A sanitizer build is -O1 -g, which keeps its reports readable.
+# no build type (the release presets), or Release under a multi-config generator, the
+# manifest's optimization and no NDEBUG: wgrender's desktop builds keep their asserts,
+# where CMake's Release would drop them. A sanitizer build is -O1 -g, which keeps its
+# reports readable.
 function(wgr_c_target target)
   set_target_properties(${target} PROPERTIES C_STANDARD 11 C_EXTENSIONS ON)
   if(NOT MSVC)
@@ -172,6 +164,8 @@ function(wgr_c_target target)
   if(WGR_SANITIZE)
     target_compile_options(${target} PRIVATE -fsanitize=${WGR_SANITIZE} -fno-omit-frame-pointer -O1 -g)
     target_link_options(${target} PRIVATE -fsanitize=${WGR_SANITIZE})
+  elseif(WGR_MULTI_CONFIG AND PROJECT_IS_TOP_LEVEL)
+    target_compile_options(${target} PRIVATE $<$<CONFIG:Release>:${WGR_OPT}>)
   elseif(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES AND NOT EMSCRIPTEN)
     target_compile_options(${target} PRIVATE ${WGR_OPT})
   endif()

@@ -7,21 +7,34 @@
   },
   "configurePresets": [
     {
-      "name": "base",
+      "name": "common",
       "hidden": true,
-      "generator": "Ninja",
       "cacheVariables": {
         "WGR_EXAMPLES": "ON"
       }
     },
     {
-      "name": "headless-base",
+      "name": "headless-common",
       "hidden": true,
-      "inherits": "base",
+      "inherits": "common",
       "cacheVariables": {
         "WGR_HEADLESS": "ON",
         "WGR_TESTS": "ON"
       }
+    },
+    {
+      "name": "base",
+      "hidden": true,
+      "inherits": "common",
+      "generator": "Ninja"
+    },
+    {
+      "name": "headless-base",
+      "hidden": true,
+      "inherits": [
+        "headless-common",
+        "base"
+      ]
     },
     {
       "name": "msvc-base",
@@ -31,9 +44,12 @@
         "lhs": "${hostSystemName}",
         "rhs": "Windows"
       },
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      },
       "cacheVariables": {
-        "CMAKE_C_COMPILER": "cl",
-        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded"
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>"
       }
     },
     {
@@ -241,10 +257,10 @@
     },
     {
       "name": "windows-x64-msvc-release",
-      "displayName": "Windows, MSVC (static runtime)",
+      "displayName": "Windows x64, MSVC (Visual Studio; static runtime; no developer prompt needed)",
       "inherits": [
         "msvc-base",
-        "base"
+        "common"
       ],
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
@@ -253,35 +269,31 @@
     },
     {
       "name": "windows-x64-msvc-debug",
-      "displayName": "Windows, MSVC, debug (static runtime)",
+      "displayName": "Windows x64, MSVC, debug (Visual Studio; static runtime; no developer prompt needed)",
       "inherits": [
         "msvc-base",
-        "base"
+        "common"
       ],
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDebug",
         "WGR_OUT": "${sourceDir}/out/windows-x64-msvc/debug"
       }
     },
     {
       "name": "windows-x64-msvc-debug-headless",
-      "displayName": "Windows headless, MSVC, debug: unit tests, guardrails and a smoke run",
+      "displayName": "Windows x64 headless, MSVC, debug: unit tests, guardrails and a smoke run (Visual Studio; no developer prompt needed)",
       "inherits": [
         "msvc-base",
-        "headless-base"
+        "headless-common"
       ],
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDebug",
         "WGR_OUT": "${sourceDir}/out/windows-x64-msvc/debug-headless"
       }
     },
     {
       "name": "windows-x64-mingw-release",
-      "displayName": "Windows, MinGW-w64 (cross-built from Linux or macOS, or gcc on Windows)",
+      "displayName": "Windows, MinGW-w64 (cross-built from Linux or macOS; on Windows the pinned MinGW-w64, tools/setup_mingw.py)",
       "inherits": [
         "mingw-base",
         "base"
@@ -477,15 +489,18 @@
     },
     {
       "name": "windows-x64-msvc-release",
-      "configurePreset": "windows-x64-msvc-release"
+      "configurePreset": "windows-x64-msvc-release",
+      "configuration": "Release"
     },
     {
       "name": "windows-x64-msvc-debug",
-      "configurePreset": "windows-x64-msvc-debug"
+      "configurePreset": "windows-x64-msvc-debug",
+      "configuration": "Debug"
     },
     {
       "name": "windows-x64-msvc-debug-headless",
-      "configurePreset": "windows-x64-msvc-debug-headless"
+      "configurePreset": "windows-x64-msvc-debug-headless",
+      "configuration": "Debug"
     },
     {
       "name": "windows-x64-mingw-release",
@@ -614,7 +629,8 @@
     {
       "name": "windows-x64-msvc-debug-headless",
       "inherits": "base",
-      "configurePreset": "windows-x64-msvc-debug-headless"
+      "configurePreset": "windows-x64-msvc-debug-headless",
+      "configuration": "Debug"
     },
     {
       "name": "windows-x64-mingw-debug-headless",

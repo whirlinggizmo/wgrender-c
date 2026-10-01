@@ -76,10 +76,11 @@ it; `-DWGR_WERROR=ON` or `OFF` decides either way.
 On Windows, Visual Studio needs nothing more. From a command line, the `windows-x64-msvc`
 presets need an "x64 Native Tools Command Prompt" (or `vcvars64.bat`) first; they build
 with the static C runtime (`/MT`, `/MTd` for debug), as every wg* library does, so the
-`.lib` links into Beef and other static-runtime programs as it is. The `windows-x64-mingw`
-presets use the `gcc` on `PATH` from any shell, including the one choosenim installs
-for Nim, whose `gcc` shim has no binutils beside it (the build asks gcc where its `ar`
-is). There are no sanitizer presets on Windows, so `verify.py` runs
+`.lib` links into Beef and other static-runtime programs as it is. The
+`windows-x64-mingw` presets work from any shell: they build with a pinned MinGW-w64 (a
+WinLibs GCC), which `tools/setup_mingw.py` downloads, checks against its SHA-256 and
+unpacks into the per-user cache the first time they configure, never with whichever
+`gcc` is on `PATH`. There are no sanitizer presets on Windows, so `verify.py` runs
 `windows-x64-msvc-release` and `windows-x64-msvc-debug-headless` there.
 
 On Linux, sokol links the system's audio, GL and X11 libraries, so their dev packages
@@ -200,7 +201,9 @@ fake Windows install, shared by every build) is in the per-user cache,
 `tools/verify.py` builds `windows-x64-mingw-release` when MinGW is installed, and tests
 `windows-x64-mingw-debug-headless` when there's a Wine, so Windows code keeps compiling. Wine runs the
 windowed examples too (OpenGL through the host's driver), but their windows, audio and
-gamepads on real Windows are only checked by hand.
+gamepads on real Windows are only checked by hand. To build and test on a real Windows
+machine without pushing, `tools/run_remote_windows.py HOST [--msvc]` copies the working
+tree there over ssh, runs the presets, and deletes it all after.
 
 ## Before calling a change done
 
