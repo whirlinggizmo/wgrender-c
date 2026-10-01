@@ -183,6 +183,11 @@ int wgri_render_current_pass(void)
     return wgr_render_current_pass_index;
 }
 
+wgri_mat4_t wgri_render_clip_depth(wgri_mat4_t projection)
+{
+    return sg_query_backend() == SG_BACKEND_WGPU ? wgri_mat4_depth_zero_to_one(projection) : projection;
+}
+
 vec2_t wgri_render_target_size(void)
 {
     const wgr_handle_t target = wgr_render_passes[wgr_render_current_pass_index].target;
@@ -804,9 +809,10 @@ void wgr_render_begin_mode_3d(void)
     sgl_load_pipeline(wgr_pip_3d);
     wgr_render_transparent_3d = false;
 
-    /* same matrices as models and picking (wgri_camera3d_projection / _view) */
+    /* same matrices as models and picking (wgri_camera3d_projection / _view), in the
+       depth range the backend clips to */
     sgl_matrix_mode_projection();
-    sgl_load_matrix(wgri_camera3d_projection(&cam, aspect).m);
+    sgl_load_matrix(wgri_camera3d_clip_projection(&cam, aspect).m);
     sgl_matrix_mode_modelview();
     sgl_load_matrix(wgri_camera3d_view(&cam).m);
 }

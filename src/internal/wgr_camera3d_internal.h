@@ -39,9 +39,16 @@ unsigned wgri_camera3d_revision(void);
 bool wgri_camera3d_get_data(wgr_handle_t camera, wgri_camera3d_t *out);
 
 /* The single source of truth for camera matrices: sokol_gl 3D mode, models and
- * picking all use these, so they can't disagree about projection or view.
+ * picking all use these, so they can't disagree about projection or view (the
+ * GPU's copy differs only in depth range: wgri_camera3d_clip_projection).
  * Perspective uses fov (radians); orthographic uses ortho_height (world units). */
 wgri_mat4_t wgri_camera3d_projection(const wgri_camera3d_t *cam, float aspect);
+/* The projection as the backend clips depth (wgri_render_clip_depth): on WebGPU,
+ * without it, everything nearer than about twice the near plane, and an orthographic
+ * camera's half behind its position, would be clipped. Whatever hands the camera to a
+ * shader or to sokol_gl uses this; CPU math (picking, frustum planes, the
+ * background's inverse) keeps wgri_camera3d_projection. */
+wgri_mat4_t wgri_camera3d_clip_projection(const wgri_camera3d_t *cam, float aspect);
 wgri_mat4_t wgri_camera3d_view(const wgri_camera3d_t *cam);
 
 #endif // WGRI_INTERNAL_CAMERA3D_H

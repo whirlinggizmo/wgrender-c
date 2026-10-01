@@ -334,7 +334,7 @@ static int current_camera(void)
     c = &wgr_sb.cameras[wgr_sb.camera_count];
     c->source = cam;
     c->aspect = aspect;
-    const wgri_mat4_t view_proj = wgri_mat4_mul(wgri_camera3d_projection(&cam, aspect), wgri_camera3d_view(&cam));
+    const wgri_mat4_t view_proj = wgri_mat4_mul(wgri_camera3d_clip_projection(&cam, aspect), wgri_camera3d_view(&cam));
     memcpy(c->params.view_proj, view_proj.m, sizeof(c->params.view_proj));
     /* the billboard axes, exactly as picking works them out */
     wgri_sprite3d_facing_basis(WGR_SPRITE3D_FACING_CAMERA, (vec3_t){0, 0, 0}, &cam, &right, &up);

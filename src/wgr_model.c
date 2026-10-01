@@ -2431,7 +2431,7 @@ static int begin_draw(wgr_handle_t handle, wgr_model_t *model_ptr)
     aspect = target_size.y > 0.0f ? target_size.x / target_size.y : 1.0f;
     model_mat = model_world(model_ptr);
     view = wgri_camera3d_view(&cam);
-    proj = wgri_camera3d_projection(&cam, aspect);
+    proj = wgri_camera3d_clip_projection(&cam, aspect);
 
     e = &wgr_model_draws[wgr_model_draw_count];
     e->model = handle;

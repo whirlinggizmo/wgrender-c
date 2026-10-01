@@ -385,7 +385,7 @@ static void draw_emitter(wgr_handle_t handle)
         const vec2_t size = wgri_render_target_size();
         vec3_t right, up;
         if (!wgri_camera3d_get_active_data(&cam)) return;
-        const wgri_mat4_t view_proj = wgri_mat4_mul(wgri_camera3d_projection(&cam, size.y > 0 ? size.x / size.y : 1.0f),
+        const wgri_mat4_t view_proj = wgri_mat4_mul(wgri_camera3d_clip_projection(&cam, size.y > 0 ? size.x / size.y : 1.0f),
                                                 wgri_camera3d_view(&cam));
         memcpy(d->params.view_proj, view_proj.m, sizeof(d->params.view_proj));
         wgri_sprite3d_facing_basis(WGR_SPRITE3D_FACING_CAMERA, (vec3_t){0, 0, 0}, &cam, &right, &up);

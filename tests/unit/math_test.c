@@ -25,6 +25,30 @@ void test_math_inverse(void)
     }
 }
 
+/* WebGPU's depth range: near on 0, far on 1, and for a perspective exactly the
+ * terms wgr_shadow.c builds directly. */
+void test_math_depth_zero_to_one(void)
+{
+    const float n = 0.01f, f = 1000.0f;
+    const wgri_mat4_t persp = wgri_mat4_depth_zero_to_one(wgri_mat4_perspective(1.0f, 1.5f, n, f));
+    const wgri_mat4_t ortho = wgri_mat4_depth_zero_to_one(wgri_mat4_ortho(-2, 2, -1, 1, -1000.0f, 1000.0f));
+    const wgri_mat4_t gl = wgri_mat4_perspective(1.0f, 1.5f, n, f);
+
+    CHECK_NEAR(persp.m[10], f / (n - f), EPS);
+    CHECK_NEAR(persp.m[14], (f * n) / (n - f), EPS);
+    for (int i = 0; i < 16; i++) { /* x, y and w are untouched */
+        if (i % 4 != 2) {
+            CHECK_NEAR(persp.m[i], gl.m[i], EPS);
+        }
+    }
+    /* view space looks down -z: depth d is the point (0, 0, -d) */
+    CHECK_NEAR(wgri_mat4_mul_point(persp, (vec3_t){0, 0, -n}).z, 0.0f, EPS);
+    CHECK_NEAR(wgri_mat4_mul_point(persp, (vec3_t){0, 0, -f}).z, 1.0f, EPS);
+    CHECK_NEAR(wgri_mat4_mul_point(ortho, (vec3_t){0, 0, 1000.0f}).z, 0.0f, EPS);
+    CHECK_NEAR(wgri_mat4_mul_point(ortho, (vec3_t){0, 0, 0.0f}).z, 0.5f, EPS);
+    CHECK_NEAR(wgri_mat4_mul_point(ortho, (vec3_t){0, 0, -1000.0f}).z, 1.0f, EPS);
+}
+
 void test_math_trs(void)
 {
     const vec3_t origin = {0, 0, 0}, unit = {1, 1, 1};

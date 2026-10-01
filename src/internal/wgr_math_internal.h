@@ -49,6 +49,17 @@ static inline wgri_mat4_t wgri_mat4_perspective(float fovy_rad, float aspect, fl
     return r;
 }
 
+/* A projection that clips -w <= z <= w (GL, WebGL2) remapped to clip 0 <= z <= w
+ * (WebGPU): z' = (z + w) / 2, so near lands on 0 and far on 1, x and y unchanged.
+ * For a perspective this is the 0..1 form wgr_shadow.c builds directly. */
+static inline wgri_mat4_t wgri_mat4_depth_zero_to_one(wgri_mat4_t m)
+{
+    for (int col = 0; col < 4; col++) {
+        m.m[col * 4 + 2] = 0.5f * (m.m[col * 4 + 2] + m.m[col * 4 + 3]);
+    }
+    return m;
+}
+
 /* glOrtho / sgl_ortho convention (column-major). */
 static inline wgri_mat4_t wgri_mat4_ortho(float l, float r, float b, float t, float n, float f)
 {

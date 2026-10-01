@@ -5,6 +5,7 @@
 #include "internal/exports_internal.h"
 #include "internal/wgr_camera3d_internal.h"
 #include "internal/wgr_handle_pool_internal.h"
+#include "internal/wgr_render_internal.h"
 #include "internal/wgr_scene_internal.h"
 #include "wgr_logger.h"
 
@@ -211,6 +212,11 @@ wgri_mat4_t wgri_camera3d_projection(const wgri_camera3d_t *cam, float aspect)
     }
     return wgri_mat4_perspective(cam->fov, aspect, WGRI_CAMERA3D_PERSPECTIVE_NEAR,
                                WGRI_CAMERA3D_PERSPECTIVE_FAR);
+}
+
+wgri_mat4_t wgri_camera3d_clip_projection(const wgri_camera3d_t *cam, float aspect)
+{
+    return wgri_render_clip_depth(wgri_camera3d_projection(cam, aspect));
 }
 
 wgri_mat4_t wgri_camera3d_view(const wgri_camera3d_t *cam)

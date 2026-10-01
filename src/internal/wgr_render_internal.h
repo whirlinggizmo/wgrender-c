@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 
+#include "internal/wgr_math_internal.h"
 #include "wgr_types.h"
 #include "sokol_gfx.h"
 
@@ -83,6 +84,12 @@ int wgri_render_current_pass(void);
 /* Size of what's being drawn into, in framebuffer pixels: the current render
  * target, else the screen. For aspect ratios. */
 vec2_t wgri_render_target_size(void);
+/* A projection (or view-projection) as the backend clips depth. CPU math -- picking,
+ * frustum planes, shadow lookups -- keeps GL's -w <= z <= w; a matrix that positions
+ * vertices goes through this: unchanged on GL and WebGL2, remapped to 0 <= z <= w on
+ * WebGPU (wgri_mat4_depth_zero_to_one), which would otherwise clip everything nearer
+ * than about twice the near plane. */
+wgri_mat4_t wgri_render_clip_depth(wgri_mat4_t projection);
 
 /* The current clip in logical pixels (the whole target when nothing is pushed);
  * false when nothing is pushed in this pass. For tests. */

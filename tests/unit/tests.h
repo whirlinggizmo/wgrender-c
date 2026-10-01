@@ -102,6 +102,7 @@ void test_manifest_parse(void);
 
 void test_math_angles(void);
 void test_math_inverse(void);
+void test_math_depth_zero_to_one(void);
 void test_math_trs(void);
 
 void test_model_skin_position(void);

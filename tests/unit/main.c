@@ -97,6 +97,7 @@ static const test_case_t TESTS[] = {
     {"manifest_parse", test_manifest_parse},
     {"math_angles", test_math_angles},
     {"math_inverse", test_math_inverse},
+    {"math_depth_zero_to_one", test_math_depth_zero_to_one},
     {"math_trs", test_math_trs},
     {"model_skin_position", test_model_skin_position},
     {"model_sample_alpha", test_model_sample_alpha},
