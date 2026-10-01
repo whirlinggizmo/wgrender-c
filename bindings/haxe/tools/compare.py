@@ -49,7 +49,7 @@ def main():
     dirs = [pathlib.Path(a).resolve() for a in sys.argv[1:]]
     if not dirs:
         dirs = sorted(d for d in (LIB / 'examples').iterdir()
-                      if (d / 'build.py').exists() and (d / GUEST).exists())
+                      if (d / 'build.web.hxml').exists() and (d / GUEST).exists())
     if not C_BUILD.exists():
         sys.exit(f'no C builds to compare against at {C_BUILD}\n'
                  f'  cd {WGRENDER} && cmake --preset wasm32-release && '

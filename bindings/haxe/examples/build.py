@@ -373,7 +373,7 @@ def site(chosen=()):
     shutil.copytree(WGRENDER / 'examples/assets', out / 'assets', ignore=shutil.ignore_patterns('bench'))
     # the manifests the examples set (Assets.MANIFEST): a returning visitor then fetches
     # only the assets that changed since the last deploy
-    subprocess.run([sys.executable, str(LIB / 'tools/gen_manifest.py'), str(out / 'assets')], check=True)
+    subprocess.run([sys.executable, str(WGRENDER / 'tools/gen_manifest.py'), str(out / 'assets')], check=True)
     (out / 'index.html').write_text(SITE_INDEX.format(
         options='\n'.join(options),
         table=example_table(built)), encoding='utf-8')
@@ -393,8 +393,8 @@ def example_table(names):
 
     rows = []
     for name in names:
-        site_dir = HERE / site_dir(web_variant()) / name
-        hx = [site_dir / 'wgrender-host.wasm', site_dir / 'wgrender-host.js', site_dir / f'{name}.js']
+        example_site = HERE / site_dir(web_variant()) / name
+        hx = [example_site / 'wgrender-host.wasm', example_site / 'wgrender-host.js', example_site / f'{name}.js']
         c = [C_BUILD / f'{name}.wasm', C_BUILD / f'{name}.js']
         hraw, hgz = total(hx)
         if all(p.exists() for p in c):
@@ -434,7 +434,7 @@ def serve(args, chosen=()):
         sys.exit('TLS needs both a certificate and a key')
 
     out = site(chosen)
-    cmd = [sys.executable, str(LIB / 'tools/serve.py'), port, str(out), '--assets', str(WGRENDER / 'examples/assets')]
+    cmd = [sys.executable, str(WGRENDER / 'tools/serve.py'), port, str(out), '--assets', str(WGRENDER / 'examples/assets')]
     if cert:
         cmd += ['--tls', cert, key]
     scheme = 'https' if cert else 'http'

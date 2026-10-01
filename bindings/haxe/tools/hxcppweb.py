@@ -50,7 +50,7 @@ def finish_site(site, work, name, source):
                   f'/*wgr:source*/"https://github.com/whirlinggizmo/wgrender-c/blob/main/bindings/haxe/{source}"', page)
     shell = work / 'index.html'
     shell.write_text(page, encoding='utf-8')
-    run([sys.executable, LIB / 'tools/webdeploy.py', site, shell])
+    run([sys.executable, WGRENDER / 'tools/webdeploy.py', site, shell])
     shell.unlink()
 
 

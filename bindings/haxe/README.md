@@ -62,9 +62,6 @@ tools/hxcppweb.py     an example all-in-one through hxcpp for the web, for the b
 tools/drive.py        run a built example and fail on anything the console calls an error
 tools/webstart.py     startup timing of any web build (--site=DIR); tools/waterfall.py, its requests
 tools/wgrweb.py       what the browser checks share: weblib, the wgrender they run against, serving
-tools/serve.py        the dev server (wgrender's assets at /assets); weblib.py, webwatch.py,
-                      webdeploy.py and gen_manifest.py (the site's asset manifests) beside it:
-                      taken from wgrender's tools, this library's own now
 web/index.html        the page for the all-in-one hxcpp builds (the JS guests' pages are WebHost's)
 ```
 

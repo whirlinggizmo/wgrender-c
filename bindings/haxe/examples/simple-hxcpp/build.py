@@ -148,7 +148,7 @@ def compare():
 
 
 def serve(port='8000'):
-    run([sys.executable, LIB / 'tools/serve.py', port, web_out(), '--assets', WGRENDER / 'examples/assets', '--gzip'])
+    run([sys.executable, WGRENDER / 'tools/serve.py', port, web_out(), '--assets', WGRENDER / 'examples/assets', '--gzip'])
 
 
 def clean():
