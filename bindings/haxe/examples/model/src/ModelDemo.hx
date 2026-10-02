@@ -1,14 +1,10 @@
 // wgrender's model example, as a Haxe guest: a glTF model, loaded async and animated.
 //
-// A port of examples/model.c. The order is the point: the Model is created empty and
-// added to the scene straight away, and the mesh is attached when it arrives -- so
-// nothing in the frame loop has to ask whether it is there yet, and the model simply
-// appears. Every animation setting is made before the mesh exists and is a no-op until
-// it does.
-//
-// The C carries the model handle through the callback's `void *`, since a local would
-// dangle by the time it fires. The guest ABI has no user pointer -- the asset op hands
-// back an id -- so here it is a static and the question does not arise.
+// A port of examples/model.c. The order is the point: the mesh loads on create, so the
+// Model is made from it and added to the scene straight away, while the mesh is still
+// `Pending` -- nothing in the frame loop has to ask whether it is there yet, and the
+// model simply appears once its mesh has loaded. Every animation setting is made before
+// the mesh has arrived and is kept until it does.
 //
 //   ESC  quit
 //
@@ -20,7 +16,6 @@ class ModelDemo {
 	static inline final SCREEN_WIDTH = 900;
 	static inline final SCREEN_HEIGHT = 700;
 	static inline final CHARACTER_PATH = "models/woman_casual/woman_casual.glb";
-	static inline final ASSET_MESH = 1;
 
 	static inline final ORBIT_SPEED = 0.4;
 	static inline final ORBIT_RADIUS = 9.0;
@@ -30,7 +25,6 @@ class ModelDemo {
 	static var camera:Camera3D;
 	static var model:Model;
 	static var target:Vec3;
-	static var loaded = false;
 	static var orbitCamera = true;
 	static var spinModel = false;
 
@@ -40,7 +34,7 @@ class ModelDemo {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "model (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -64,30 +58,21 @@ class ModelDemo {
 		scene.setAmbient(Color.WHITE, 0.3);
 		Debug.enableFps(12, 10, 16);
 
-		model = new Model(Handle.NONE); // empty: the mesh is attached when it loads
+		model = createModel(CHARACTER_PATH);
+		scene.add(model);
+	}
+
+	static function createModel(meshPath:String):Model {
+		final mesh = new Mesh(meshPath); // loads on create
+		final model = new Model(mesh); // drawn once its mesh has loaded
+		mesh.release(); // the model holds its own reference to the mesh
 		model.setPosition(0, 0, 0);
 		model.setTint(Color.RAYWHITE);
-		// Skeletal animation, if the glTF has any; a no-op until the mesh arrives.
+		// Skeletal animation, if the glTF has any; kept until the mesh arrives.
 		model.setAnimation(3);
 		model.setAnimationSpeed(1.0);
 		model.setAnimationLoop(true);
-		scene.add(model);
-
-		if (!GuestAbi.loadAsset(CHARACTER_PATH, ASSET_MESH))
-			Log.error('failed to queue asset: $CHARACTER_PATH');
-	}
-
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('model load failed: $path');
-			return;
-		}
-		if (id != ASSET_MESH)
-			return;
-		final mesh = new Mesh(path);
-		model.setMesh(mesh);
-		mesh.release(); // the model holds its own reference
-		loaded = true;
+		return model;
 	}
 
 	static function onFrame(dt:Float):Void {
@@ -110,7 +95,7 @@ class ModelDemo {
 		scene.draw();
 
 		Text.draw("wgrender + sokol — model (glTF/cgltf)", 12, 36, 22, Color.RAYWHITE);
-		Text.draw(loaded ? CHARACTER_PATH + " — skeletal animation (glTF skin)" : "loading model...", 12, 68, 16,
+		Text.draw(model.getMesh().getStatus() == Ready ? CHARACTER_PATH + " — skeletal animation (glTF skin)" : "loading model...", 12, 68, 16,
 			Color.LIGHTGRAY);
 		Render.endFrame();
 

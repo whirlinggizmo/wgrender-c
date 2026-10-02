@@ -9,6 +9,13 @@ tests, keep `python3 tools/verify_builds.py` passing, and move the item to
 
 ## Bugs and measurements
 
+- [ ] The normal-mapped sphere in `examples/loading.c` (and environment, materials)
+      shows a straight vertical cut on its left edge, where its outline is round.
+      On main too, and gone without the normal map: either a tile groove at a grazing
+      angle (expected: a normal map can't change the outline) or the sphere's UV seam
+      with tangent frames that don't match across it (a bug). Turning the sphere or
+      offsetting the texture tells them apart: a groove moves with the texture, a
+      seam stays on the mesh.
 - [ ] Bug (platform, XWayland): vsync doesn't hold under COSMIC/XWayland on NVIDIA
       (RTX 4080 laptop, driver 580) with sokol's GL backend. Not the driver: on the same
       machine, GPU and driver under XFCE on X11 (2026-09-21, a 300-frame probe with vsync

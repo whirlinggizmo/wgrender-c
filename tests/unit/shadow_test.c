@@ -294,7 +294,7 @@ void test_shadow_casters(void)
 
     const wgr_handle_t mesh = wgr_mesh_create_cube(1.0f, 1.0f, 1.0f);
     const wgr_handle_t model = wgr_model_create(mesh);
-    wgr_mesh_release(mesh);
+    wgr_resource_release(mesh);
     wgr_scene_add(scene, model, 0);
 
     /* nothing casts yet, so no environment asks for a map */
@@ -422,7 +422,7 @@ void test_shadow_instancing(void)
         wgr_model_set_transform(models[i], (float)i - 3.0f, 0.5f, 0, 0, 0, 0, 1, 1, 1);
         wgr_scene_add(scene, models[i], 0);
     }
-    wgr_mesh_release(mesh);
+    wgr_resource_release(mesh);
     wgr_material_release(material);
 
     /* six casters, one mesh, one material: one draw into the map */
@@ -445,7 +445,7 @@ void test_shadow_instancing(void)
     const wgr_handle_t sphere = wgr_mesh_create_sphere(0.5f, 8, 8);
     wgr_model_set_mesh(models[4], sphere);
     wgr_model_set_material(models[4], -1, material);
-    wgr_mesh_release(sphere);
+    wgr_resource_release(sphere);
     wgr_render_begin_frame();
     wgr_scene_draw(scene);
     wgr_render_end_frame();
@@ -468,7 +468,7 @@ void test_model_draw_queue(void)
        model twice in a row would share one */
     const wgr_handle_t a = wgr_model_create(mesh);
     const wgr_handle_t bb = wgr_model_create(mesh);
-    wgr_mesh_release(mesh);
+    wgr_resource_release(mesh);
     int placements = 0, primitives = 0, ceiling = 0;
 
     /* past where the queue used to stop, everything is still queued */

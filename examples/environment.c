@@ -56,28 +56,20 @@ static void apply_environment(void)
     wgr_scene_set_tonemap(g.scene, g.tonemap, g.exposure);
 }
 
-static void on_sphere_loaded(const char *path, void *user)
+static void make_sphere(void)
 {
-    wgr_handle_t mesh = wgr_mesh_create(path);
-    (void)user;
+    wgr_handle_t mesh = wgr_mesh_create(SPHERE_PATH);
     for (int i = 0; i < 2 * COLUMNS + 1; i++) {
         wgr_model_set_mesh(g.spheres[i], mesh);
     }
-    wgr_mesh_release(mesh);
+    wgr_resource_release(mesh);
 }
 
-static void on_character_loaded(const char *path, void *user)
+static void make_character(void)
 {
-    wgr_handle_t mesh = wgr_mesh_create(path);
-    (void)user;
+    wgr_handle_t mesh = wgr_mesh_create(CHARACTER_PATH);
     wgr_model_set_mesh(g.character, mesh);
-    wgr_mesh_release(mesh);
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("load failed: %s", path);
+    wgr_resource_release(mesh);
 }
 
 static wgr_handle_t create_sphere(float x, float y, float r, float gr, float b, float metallic, float roughness)
@@ -134,8 +126,8 @@ static void init(void *user_data)
         g.environments[i] = wgr_environment_create(ENVIRONMENT_PATHS[i]);
     }
     apply_environment();
-    wgr_asset_add_task(wgr_asset_ensure_async(SPHERE_PATH, NULL, WGR_ASSET_NONE), on_sphere_loaded, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_character_loaded, on_failed, NULL);
+    make_sphere(); /* loads on create: drawn once it has loaded */
+    make_character(); /* loads on create: drawn once it has loaded */
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)

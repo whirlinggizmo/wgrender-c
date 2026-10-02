@@ -17,6 +17,7 @@
 #include "internal/wgr_texture_internal.h"
 #include "wgr_model.h"
 #include "test.h"
+#include "test_assets.h"
 #include "tests.h"
 
 #include "sokol_gfx.h"
@@ -58,11 +59,13 @@ void test_animation_sampling(void)
     wgri_material_init();
     wgri_environment_init();
     wgri_model_init();
+    test_assets_start(0, ".");
 
     const wgr_handle_t mesh = wgr_mesh_create(CHARACTER);
     const wgr_handle_t model = wgr_model_create(mesh);
     CHECK(mesh != 0 && model != 0);
-    wgr_mesh_release(mesh); /* the model holds it */
+    CHECK(test_assets_run() > 0 && wgr_resource_get_status(mesh) == WGR_RESOURCE_READY);
+    wgr_resource_release(mesh); /* the model holds it */
 
     const int count = wgr_model_get_animation_count(model);
     CHECK(count > 0);
@@ -154,6 +157,7 @@ void test_animation_sampling(void)
     wgr_model_destroy(empty);
 
     wgr_model_destroy(model);
+    test_assets_stop();
     wgri_model_deinit();
     wgri_environment_deinit();
     wgri_material_deinit();

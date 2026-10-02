@@ -45,12 +45,11 @@ static void rebuild_effects(void)
     if (g.scanlines_on && g.scanlines != 0) wgr_render_add_effect(g.scanlines);
 }
 
-static void on_model_loaded(const char *path, void *user)
+static void make_character(void)
 {
-    wgr_handle_t mesh = wgr_mesh_create(path);
-    (void)user;
+    wgr_handle_t mesh = wgr_mesh_create(CHARACTER_PATH); /* drawn once it has loaded */
     wgr_model_set_mesh(g.character, mesh);
-    wgr_mesh_release(mesh); /* the model holds its own reference */
+    wgr_resource_release(mesh); /* the model holds its own reference */
     wgr_model_set_animation(g.character, 3);
     wgr_model_set_animation_loop(g.character, true);
 }
@@ -76,17 +75,6 @@ static void make_scanlines(void)
     wgr_material_set_float(g.scanlines, "darkness", 0.35f);
     wgr_material_set_float(g.scanlines, "offset", 1.5f);
     wgr_material_set_float(g.scanlines, "flicker", 1.0f);
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("load failed: %s", path);
-}
-
-static void load(const char *path, wgr_asset_callback_fn done)
-{
-    wgr_asset_add_task(wgr_asset_ensure_async(path, NULL, WGR_ASSET_NONE), done, on_failed, NULL);
 }
 
 static void init(void *user_data)
@@ -128,7 +116,7 @@ static void init(void *user_data)
 
     wgr_handle_t plane = wgr_mesh_create_plane(16.0f, 16.0f, 0);
     wgr_handle_t floor = wgr_model_create(plane);
-    wgr_mesh_release(plane);
+    wgr_resource_release(plane);
     wgr_handle_t ground = wgr_material_create(WGR_MATERIAL_PBR);
     wgr_material_set_vec4(ground, "base_color", 0.07f, 0.07f, 0.08f, 1.0f);
     wgr_material_set_float(ground, "roughness", 0.85f);
@@ -139,7 +127,7 @@ static void init(void *user_data)
     for (int i = 0; i < SHAPE_COUNT; i++) {
         wgr_handle_t material = wgr_material_create(WGR_MATERIAL_PBR);
         g.shapes[i] = wgr_model_create(shapes[i].mesh);
-        wgr_mesh_release(shapes[i].mesh);
+        wgr_resource_release(shapes[i].mesh);
         wgr_model_set_transform(g.shapes[i], shapes[i].x, shapes[i].y, -0.6f, 0, 0, 0, 1, 1, 1);
         wgr_material_set_vec4(material, "base_color", shapes[i].r, shapes[i].gr, shapes[i].b, 1.0f);
         wgr_material_set_float(material, "roughness", 0.4f);
@@ -152,7 +140,7 @@ static void init(void *user_data)
     wgr_model_set_transform(g.character, 0, 0, 0, 0, 0, 0, 1, 1, 1);
     wgr_scene_add(g.scene, g.character, 0);
 
-    load(CHARACTER_PATH, on_model_loaded);
+    make_character();
     make_vignette();
     make_scanlines();
     rebuild_effects();

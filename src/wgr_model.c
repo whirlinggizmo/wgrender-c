@@ -104,6 +104,8 @@ typedef struct {
  * pick data), GPU buffers, skeleton, and animation clips. Many Model objects may
  * reference one Mesh. */
 typedef struct {
+    wgri_resource_t resource; /* first: the resource core's part (internal/wgr_resource_internal.h); a
+                                 generated mesh's path is its parameters, after a ':' no asset path has */
     wgr_primitive_t *prims;
     int prim_count;
 
@@ -127,10 +129,6 @@ typedef struct {
     /* merged local-space AABB (for broadphase/picking) */
     vec3_t lmin, lmax;
 
-    int ref_count;
-    char path[256];
-    bool has_path;
-    bool generated; /* wgr_mesh_create_plane, ...: `path` is its parameters, never a file */
 } wgr_mesh_t;
 
 /* Model object: lightweight per-placement runtime state. References a Mesh
@@ -279,7 +277,6 @@ static bool model_bounds(wgr_handle_t handle, vec3_t *lmin, vec3_t *lmax, wgri_m
 static bool model_pick(wgr_handle_t handle, vec3_t origin, vec3_t dir, wgr_pick_result_t *out);
 static wgr_model_t *resolve(wgr_handle_t handle);
 static wgr_mesh_t *resolve_mesh(wgr_handle_t handle);
-static void release_mesh(wgr_handle_t mesh_handle);
 static void free_mesh_cpu(wgr_mesh_t *mesh);
 static unsigned char *read_file_bytes(const char *path, int *out_size);
 
@@ -1240,15 +1237,6 @@ float wgr_model_get_animation_duration(wgr_handle_t handle, int animation_index)
     return mesh_ptr->animations[animation_index].duration;
 }
 
-WGRI_KEEP
-bool wgr_model_is_ready(wgr_handle_t handle)
-{
-    wgr_model_t *model_ptr = resolve(handle);
-    uint16_t index = 0;
-    return model_ptr != NULL && model_ptr->mesh != 0 && wgri_handle_pool_resolve(&wgr_mesh_pool, model_ptr->mesh, &index) &&
-           wgr_meshes[index].prim_count > 0;
-}
-
 WGRI_KEEP int wgr_model_get_animation_count(wgr_handle_t handle)
 {
     wgr_model_t *model_ptr = resolve(handle);
@@ -1343,41 +1331,6 @@ static void free_mesh_data(wgr_mesh_t *mesh)
     }
     free(mesh->materials);
     free_mesh_cpu(mesh);
-}
-
-static void retain_mesh(wgr_handle_t mesh_handle)
-{
-    wgr_mesh_t *mesh_ptr = resolve_mesh(mesh_handle);
-    if (mesh_ptr != NULL) mesh_ptr->ref_count++;
-}
-
-static void release_mesh(wgr_handle_t mesh_handle)
-{
-    wgr_mesh_t *mesh_ptr = resolve_mesh(mesh_handle);
-    if (mesh_ptr == NULL) return;
-    if (mesh_ptr->ref_count > 0) mesh_ptr->ref_count--;
-    if (mesh_ptr->ref_count == 0) {
-        free_mesh_data(mesh_ptr);
-        memset(mesh_ptr, 0, sizeof(*mesh_ptr));
-        wgri_handle_pool_free(&wgr_mesh_pool, mesh_handle);
-    }
-}
-
-static wgr_handle_t find_mesh_by_key(const char *path, bool generated)
-{
-    if (path == NULL || path[0] == '\0') return 0;
-    for (uint16_t i = 1; i < wgr_mesh_pool.capacity; i++) {
-        if (wgr_mesh_pool.occupied[i] && wgr_meshes[i].has_path && wgr_meshes[i].generated == generated &&
-            strcmp(wgr_meshes[i].path, path) == 0) {
-            return wgri_handle_pool_handle_from_index(&wgr_mesh_pool, i);
-        }
-    }
-    return 0;
-}
-
-static wgr_handle_t find_mesh_by_path(const char *path)
-{
-    return find_mesh_by_key(path, false);
 }
 
 /* ------------------------------------------------------------ mesh loader */
@@ -1531,13 +1484,14 @@ static bool upload_primitive(wgr_primitive_t *prim)
     return true;
 }
 
-static wgri_loader_step_t finish_mesh(void *data, const char *path, wgr_handle_t *resource)
+/* Fill the PENDING `resource` in steps: the buffers, then one image per step, then the
+ * materials, when the finished mesh moves into it (the resource core makes it READY). */
+static wgri_loader_step_t fill(void *data, const char *path, wgr_handle_t resource)
 {
     wgr_mesh_prepared_t *prepared = (wgr_mesh_prepared_t *)data;
     wgr_mesh_t *mesh = &prepared->mesh;
     uint16_t index = 0;
 
-    *resource = 0;
     if (prepared->step == 0) {
         for (int p = 0; p < mesh->prim_count; p++) {
             if (!upload_primitive(&mesh->prims[p])) {
@@ -1570,20 +1524,12 @@ static wgri_loader_step_t finish_mesh(void *data, const char *path, wgr_handle_t
     prepared->textures.path = path;
     load_materials(mesh, prepared->gltf, &prepared->textures);
     prepared->textures.path = NULL;
-    const wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_mesh_pool);
-    if (handle == 0) {
-        wgr_logger_error("mesh: pool full (%u)", (unsigned)wgr_mesh_pool.max - 1u);
+    if (!wgri_handle_pool_resolve(&wgr_mesh_pool, resource, &index)) {
         return WGRI_LOADER_FAILED;
     }
-    if (path != NULL && path[0] != '\0') {
-        snprintf(mesh->path, sizeof(mesh->path), "%s", path);
-        mesh->has_path = true;
-    }
-    mesh->ref_count = 1;
-    wgri_handle_pool_resolve(&wgr_mesh_pool, handle, &index);
+    mesh->resource = wgr_meshes[index].resource; /* the core's part stays as it is */
     wgr_meshes[index] = *mesh;
     memset(mesh, 0, sizeof(*mesh));
-    *resource = handle;
     return WGRI_LOADER_DONE;
 }
 
@@ -1649,27 +1595,29 @@ static wgr_handle_t create_generated(const char *key, wgri_mesh_shape_t *shape)
     mesh.materials[0] = wgr_material_create(WGR_MATERIAL_PBR);
     wgr_material_set_float(mesh.materials[0], "metallic", 0.0f);
     wgr_material_set_float(mesh.materials[0], "roughness", 0.5f);
-    snprintf(mesh.path, sizeof(mesh.path), "%s", key);
-    mesh.has_path = true;
-    mesh.generated = true;
-    mesh.ref_count = 1;
-
-    handle = upload_primitive(prim) ? wgri_handle_pool_alloc(&wgr_mesh_pool) : 0;
+    handle = upload_primitive(prim) ? wgri_resource_add(WGR_HANDLE_KIND_MESH) : 0;
     if (handle == 0) {
         free_mesh_data(&mesh);
         return 0;
     }
     wgri_handle_pool_resolve(&wgr_mesh_pool, handle, &index);
+    mesh.resource = wgr_meshes[index].resource; /* READY, one reference */
+    snprintf(mesh.resource.path, sizeof(mesh.resource.path), "%s", key);
     wgr_meshes[index] = mesh;
     return handle;
 }
 
-/* The mesh made with these parameters, shared (one more reference), or 0. */
+/* The mesh made with these parameters (`key`), shared (one more reference), or 0. */
 static wgr_handle_t find_generated(const char *key)
 {
-    const wgr_handle_t mesh = find_mesh_by_key(key, true);
-    retain_mesh(mesh); /* no-op when 0 */
-    return mesh;
+    for (uint16_t i = 1; i < wgr_mesh_pool.capacity; i++) {
+        if (wgr_mesh_pool.occupied[i] && strcmp(wgr_meshes[i].resource.path, key) == 0) {
+            const wgr_handle_t mesh = wgri_handle_pool_handle_from_index(&wgr_mesh_pool, i);
+            wgri_resource_retain(mesh);
+            return mesh;
+        }
+    }
+    return 0;
 }
 
 #define GENERATE(key_format, build, ...)                                         \
@@ -1695,13 +1643,13 @@ WGRI_KEEP
 wgr_handle_t wgr_mesh_create_plane(float width, float length, int subdivisions)
 {
     subdivisions = clamp_count(subdivisions, 0, WGRI_MESH_MAX_SUBDIVISIONS);
-    GENERATE("plane %g %g %d", wgri_mesh_shape_plane(width, length, subdivisions, &shape), width, length, subdivisions);
+    GENERATE(":plane %g %g %d", wgri_mesh_shape_plane(width, length, subdivisions, &shape), width, length, subdivisions);
 }
 
 WGRI_KEEP
 wgr_handle_t wgr_mesh_create_cube(float width, float height, float length)
 {
-    GENERATE("cube %g %g %g", wgri_mesh_shape_cube(width, height, length, &shape), width, height, length);
+    GENERATE(":cube %g %g %g", wgri_mesh_shape_cube(width, height, length, &shape), width, height, length);
 }
 
 WGRI_KEEP
@@ -1709,21 +1657,21 @@ wgr_handle_t wgr_mesh_create_sphere(float radius, int rings, int segments)
 {
     rings = clamp_count(rings, WGRI_MESH_MIN_RINGS, WGRI_MESH_MAX_RINGS);
     segments = clamp_count(segments, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);
-    GENERATE("sphere %g %d %d", wgri_mesh_shape_sphere(radius, rings, segments, &shape), radius, rings, segments);
+    GENERATE(":sphere %g %d %d", wgri_mesh_shape_sphere(radius, rings, segments, &shape), radius, rings, segments);
 }
 
 WGRI_KEEP
 wgr_handle_t wgr_mesh_create_cylinder(float radius, float height, int segments)
 {
     segments = clamp_count(segments, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);
-    GENERATE("cylinder %g %g %d", wgri_mesh_shape_cylinder(radius, height, segments, &shape), radius, height, segments);
+    GENERATE(":cylinder %g %g %d", wgri_mesh_shape_cylinder(radius, height, segments, &shape), radius, height, segments);
 }
 
 WGRI_KEEP
 wgr_handle_t wgr_mesh_create_cone(float radius, float height, int segments)
 {
     segments = clamp_count(segments, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);
-    GENERATE("cone %g %g %d", wgri_mesh_shape_cone(radius, height, segments, &shape), radius, height, segments);
+    GENERATE(":cone %g %g %d", wgri_mesh_shape_cone(radius, height, segments, &shape), radius, height, segments);
 }
 
 WGRI_KEEP
@@ -1731,7 +1679,7 @@ wgr_handle_t wgr_mesh_create_capsule(float radius, float height, int rings, int 
 {
     rings = clamp_count(rings, WGRI_MESH_MIN_RINGS, WGRI_MESH_MAX_RINGS);
     segments = clamp_count(segments, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);
-    GENERATE("capsule %g %g %d %d", wgri_mesh_shape_capsule(radius, height, rings, segments, &shape), radius, height,
+    GENERATE(":capsule %g %g %d %d", wgri_mesh_shape_capsule(radius, height, rings, segments, &shape), radius, height,
              rings, segments);
 }
 
@@ -1740,24 +1688,27 @@ wgr_handle_t wgr_mesh_create_torus(float radius, float thickness, int rings, int
 {
     rings = clamp_count(rings, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);
     segments = clamp_count(segments, WGRI_MESH_MIN_SEGMENTS, WGRI_MESH_MAX_SEGMENTS);
-    GENERATE("torus %g %g %d %d", wgri_mesh_shape_torus(radius, thickness, rings, segments, &shape), radius,
+    GENERATE(":torus %g %g %d %d", wgri_mesh_shape_torus(radius, thickness, rings, segments, &shape), radius,
              thickness, rings, segments);
-}
-
-static wgr_handle_t find_mesh(const char *path)
-{
-    const wgr_handle_t mesh = find_mesh_by_path(path);
-    retain_mesh(mesh); /* no-op when 0 */
-    return mesh;
 }
 
 static const wgri_loader_t wgr_mesh_loader = {
     .name = "mesh",
     .prepare = prepare_mesh,
-    .finish = finish_mesh,
     .discard = discard_mesh,
-    .find = find_mesh,
-    .release = release_mesh,
+    .fill = fill,
+};
+
+/* Free what a record holds past its resource header. */
+static void free_record(void *record)
+{
+    free_mesh_data((wgr_mesh_t *)record);
+}
+
+static const wgri_resource_kind_t wgr_mesh_kind = {
+    .create = "wgr_mesh_create",
+    .loader = &wgr_mesh_loader,
+    .free = free_record,
 };
 
 static wgr_handle_t create_model(wgr_handle_t mesh_handle)
@@ -1786,7 +1737,7 @@ static wgr_handle_t create_model(wgr_handle_t mesh_handle)
     model.anim_speed = 1.0f;
     model.anim_loop = true;
     for (int j = 0; j < WGR_MAX_JOINTS; j++) model.joint_matrices[j] = wgri_mat4_identity();
-    retain_mesh(mesh_handle);
+    wgri_resource_retain(mesh_handle);
     wgri_handle_pool_resolve(&wgr_model_pool, handle, &index);
     wgr_models[index] = model;
     return handle;
@@ -1821,10 +1772,8 @@ static unsigned char *read_file_bytes(const char *path, int *out_size)
 WGRI_KEEP
 wgr_handle_t wgr_mesh_create(const char *path)
 {
-    return wgri_loader_create(&wgr_mesh_loader, path);
+    return wgri_resource_create(WGR_HANDLE_KIND_MESH, path);
 }
-
-WGRI_KEEP void wgr_mesh_release(wgr_handle_t mesh) { release_mesh(mesh); }
 
 WGRI_KEEP int wgr_mesh_get_material_count(wgr_handle_t mesh)
 {
@@ -1849,14 +1798,20 @@ WGRI_KEEP wgr_handle_t wgr_model_create(wgr_handle_t mesh) { return create_model
 /* Attach (or swap) the mesh resource on an existing model. Transform, tint,
  * visibility, and animation selection are retained, so a model created empty
  * picks them up the moment a mesh arrives. */
+WGRI_KEEP wgr_handle_t wgr_model_get_mesh(wgr_handle_t handle)
+{
+    const wgr_model_t *model_ptr = resolve(handle);
+    return model_ptr != NULL ? model_ptr->mesh : 0;
+}
+
 WGRI_KEEP bool wgr_model_set_mesh(wgr_handle_t handle, wgr_handle_t mesh)
 {
     wgr_model_t *model_ptr = resolve(handle);
     if (model_ptr == NULL) return false;
     if (model_ptr->mesh == mesh) return true;
-    release_mesh(model_ptr->mesh); /* no-op when 0 */
+    wgr_resource_release(model_ptr->mesh); /* no-op when 0 */
     model_ptr->mesh = mesh;
-    retain_mesh(mesh);             /* no-op when 0 */
+    wgri_resource_retain(mesh);             /* no-op when 0 */
     /* old skeleton no longer valid; animate() rebuilds these next tick */
     for (int j = 0; j < WGR_MAX_JOINTS; j++) model_ptr->joint_matrices[j] = wgri_mat4_identity();
     model_ptr->pose_version = 0; /* bind pose until animated */
@@ -3529,7 +3484,7 @@ WGRI_KEEP void wgr_model_destroy(wgr_handle_t handle)
     free(model_ptr->posed_positions);
     memset(model_ptr, 0, sizeof(*model_ptr));
     wgri_handle_pool_free(&wgr_model_pool, handle);
-    release_mesh(mesh); /* frees the mesh once its last model/owner is gone */
+    wgr_resource_release(mesh); /* frees the mesh once its last model/owner is gone */
 }
 
 /* wgr_asset: the buffer and image files a glTF file references. */
@@ -3595,6 +3550,7 @@ void wgri_model_init(void)
                              sizeof(wgr_mesh_t), MESHES_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         wgr_logger_error("mesh: out of memory");
     }
+    wgri_resource_register(&wgr_mesh_pool, &wgr_mesh_kind);
 
     wgr_model_white_img = sg_make_image(&(sg_image_desc){
         .width = 1, .height = 1, .pixel_format = SG_PIXELFORMAT_RGBA8,
@@ -3621,8 +3577,6 @@ void wgri_model_init(void)
     wgri_scene_register_enabled(WGR_HANDLE_KIND_MODEL, wgr_model_is_enabled);
     wgri_asset_register_dependencies(".gltf", wgri_model_list_gltf_dependencies);
     wgri_asset_register_dependencies(".glb", wgri_model_list_gltf_dependencies);
-    wgri_asset_register_loader(".gltf", &wgr_mesh_loader);
-    wgri_asset_register_loader(".glb", &wgr_mesh_loader);
 }
 
 void wgri_model_deinit(void)
@@ -3701,6 +3655,7 @@ void wgri_model_deinit(void)
         sg_destroy_shader(wgr_shd_skinned);
         wgr_model_pipelines_ready = false;
     }
+    wgri_resource_register(&wgr_mesh_pool, NULL);
     wgri_handle_pool_destroy(&wgr_model_pool);
     wgri_handle_pool_destroy(&wgr_mesh_pool);
 }

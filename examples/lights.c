@@ -48,20 +48,13 @@ static struct {
     float time;
 } g;
 
-static void on_mesh_loaded(const char *path, void *user)
+static void make_mesh(void)
 {
-    wgr_handle_t mesh = wgr_mesh_create(path);
-    (void)user;
+    wgr_handle_t mesh = wgr_mesh_create(CHARACTER_PATH);
     for (int i = 0; i < MODEL_COUNT; i++) {
         wgr_model_set_mesh(g.models[i], mesh);
     }
-    wgr_mesh_release(mesh); /* the models hold their own references */
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("load failed: %s", path);
+    wgr_resource_release(mesh); /* the models hold their own references */
 }
 
 static void toggle(wgr_handle_t light)
@@ -138,7 +131,7 @@ static void init(void *user_data)
     wgr_material_release(g.sprite_material); /* the sprites hold it */
     wgr_resource_release(sheet);              /* and the sheet */
 
-    wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_mesh_loaded, on_failed, NULL);
+    make_mesh(); /* loads on create: drawn once it has loaded */
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)

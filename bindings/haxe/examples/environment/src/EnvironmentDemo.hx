@@ -36,10 +36,6 @@ class EnvironmentDemo {
 	static final BLURS = [0.0, 0.35, 0.8];
 	static final BLUR_NAMES = ["sharp", "soft", "blurred", "off"];
 
-	// ids: 1..2 the environments, then the three scene assets
-	static inline final ASSET_SPHERE = 3;
-	static inline final ASSET_CHARACTER = 4;
-
 	static inline final COLUMNS = 5;
 	static inline final SPACING = 1.3;
 
@@ -65,7 +61,7 @@ class EnvironmentDemo {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "environment (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -91,13 +87,8 @@ class EnvironmentDemo {
 		for (i in 0...ENVIRONMENT_PATHS.length)
 			environments[i] = new Environment(ENVIRONMENT_PATHS[i]);
 		applyEnvironment();
-		load(SPHERE_PATH, ASSET_SPHERE);
-		load(CHARACTER_PATH, ASSET_CHARACTER);
-	}
-
-	static function load(path:String, id:Int):Void {
-		if (!GuestAbi.loadAsset(path, id))
-			Log.error('failed to queue asset: $path');
+		makeSphere(); // loads on create: drawn once it has loaded
+		makeCharacter(); // loads on create: drawn once it has loaded
 	}
 
 	static function sphere(x:Float, y:Float, r:Float, g:Float, b:Float, metallic:Float, roughness:Float):Model {
@@ -137,23 +128,17 @@ class EnvironmentDemo {
 		scene.setTonemap(TONEMAPS[tonemapIndex], exposure);
 	}
 
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('load failed: $path');
-			return;
-		}
-		switch id {
-			case ASSET_SPHERE:
-				final mesh = new Mesh(path);
-				for (model in spheres)
-					model.setMesh(mesh);
-				mesh.release();
+	static function makeSphere():Void {
+		final mesh = new Mesh(SPHERE_PATH);
+		for (model in spheres)
+			model.setMesh(mesh);
+		mesh.release();
+	}
 
-			case ASSET_CHARACTER:
-				final mesh = new Mesh(path);
-				character.setMesh(mesh);
-				mesh.release();
-		}
+	static function makeCharacter():Void {
+		final mesh = new Mesh(CHARACTER_PATH);
+		character.setMesh(mesh);
+		mesh.release();
 	}
 
 	static function handleKeys(dt:Float):Bool {

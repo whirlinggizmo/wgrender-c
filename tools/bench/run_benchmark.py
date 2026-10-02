@@ -3,8 +3,9 @@
 
     tools/bench/run_benchmark.py NAME [--desktop] [--ktx]
 
-  loadbench     the worst frame while loading Sponza and FlightHelmet, background vs
-                synchronous (downloads the models the first time: fetch_bench_models.py)
+  loadbench     the worst frame while loading Sponza and FlightHelmet on create, with an
+                upload budget vs without (downloads the models the first time:
+                fetch_bench_models.py)
   spritebench   sprite-heavy scenes: frame time, and CPU split into update / scene /
                 submit, with sokol_gl's vertex and command use
   shadowbench   what a casting light costs a frame: no shadows, one light at two map

@@ -189,7 +189,9 @@ class CheckBindings {
 		final missing = Texture.create("no/such/texture.png");
 		check(!Texture.isNone(missing) && missing.getStatus() == Pending, "a missing texture is pending at first");
 		missing.release();
-		check(Mesh.isNone(Mesh.create("no/such/mesh.glb")), "a missing mesh is none");
+		final noMesh = Mesh.create("no/such/mesh.glb"); // loads on create: pending, failing later
+		check(!Mesh.isNone(noMesh) && noMesh.getStatus() == Pending, "a missing mesh is pending at first");
+		noMesh.release();
 		final silence = Audio.create("no/such/sound.mp3");
 		check(!Audio.isNone(silence) && silence.getStatus() == Pending, "a missing sound is pending at first");
 		silence.release();
@@ -400,7 +402,7 @@ class CheckBindings {
 		// deduplicated: the same parameters give the same resource
 		final again = Mesh.cube(1, 1, 1);
 		eq((again : Int), (cube : Int), "the same parameters return the same mesh");
-		Mesh.release(again);
+		again.release();
 
 		check(!Mesh.isNone(Mesh.plane(2, 2, 4)), "a generated plane exists");
 		check(!Mesh.isNone(Mesh.sphere(1, 8, 16)), "a generated sphere exists");
@@ -411,7 +413,7 @@ class CheckBindings {
 		check(Mesh.isNone(Mesh.cube(0, 1, 1)), "a size of 0 is refused, not silently accepted");
 
 		final m = Model.create(cube);
-		check(Model.isReady(m), "a model on a generated mesh is ready at once");
+		check(m.getMesh().getStatus() == Ready, "a model on a generated mesh is ready at once");
 		eq(Model.getAnimationCount(m), 0, "a generated mesh brings no animations");
 		near(Model.getAnimationDuration(m, 0), 0, "no animation has no duration");
 
@@ -440,7 +442,7 @@ class CheckBindings {
 		eq((Mesh.getMaterial(cube, 0) : Int), (mesh0 : Int), "the mesh's own slot is untouched");
 		Material.release(custom);
 		Model.destroy(m);
-		Mesh.release(cube);
+		cube.release();
 	}
 
 	static function checkSprite3D():Void {

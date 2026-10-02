@@ -31,27 +31,19 @@ static struct {
     float time;
 } g;
 
-static void on_character_loaded(const char *path, void *user)
+static void make_character(void)
 {
-    wgr_handle_t mesh = wgr_mesh_create(path);
-    (void)user;
+    wgr_handle_t mesh = wgr_mesh_create(CHARACTER_PATH);
     wgr_model_set_mesh(g.character, mesh);
-    wgr_mesh_release(mesh);
+    wgr_resource_release(mesh);
 }
 
-static void on_sphere_loaded(const char *path, void *user)
+static void make_sphere(void)
 {
-    wgr_handle_t mesh = wgr_mesh_create(path);
-    (void)user;
+    wgr_handle_t mesh = wgr_mesh_create(SPHERE_PATH);
     wgr_model_set_mesh(g.globe, mesh);
     wgr_model_set_mesh(g.ground, mesh);
-    wgr_mesh_release(mesh);
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("load failed: %s", path);
+    wgr_resource_release(mesh);
 }
 
 static wgr_handle_t create_model(float x, float y, float z, float scale_y, float scale, wgr_handle_t material)
@@ -112,8 +104,8 @@ static void init(void *user_data)
     wgr_material_set_vec2(material, "base_color_texture_scale", 2.0f, 1.0f); /* twice around */
     g.globe = create_model(2.2f, 1.2f, 0, 1.6f, 1.6f, material);
 
-    wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_character_loaded, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(SPHERE_PATH, NULL, WGR_ASSET_NONE), on_sphere_loaded, on_failed, NULL);
+    make_character(); /* loads on create: drawn once it has loaded */
+    make_sphere(); /* loads on create: drawn once it has loaded */
     g.font = wgr_font_create(FONT_PATH); /* the built-in font until it has loaded */
 }
 

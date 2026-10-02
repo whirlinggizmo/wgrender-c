@@ -48,6 +48,13 @@ abstract Model(Handle) from Handle to Handle {
 	public static inline function setMesh(model:Model, mesh:Mesh):Bool
 		return Raw.wgr_model_set_mesh(model, mesh);
 
+	/**
+		The mesh it draws (the model holds the reference), or none. A model is ready
+		when its mesh is: `model.getMesh().getStatus() == Ready`.
+	**/
+	public static inline function getMesh(model:Model):Mesh
+		return (Raw.wgr_model_get_mesh(model) : Handle);
+
 	/** Position, rotation (radians) and scale in one call: the cheapest way to move it every frame. **/
 	public static inline function setTransform(model:Model, position:Vec3, rotation:Vec3, scale:Vec3):Bool
 		return Raw.wgr_model_set_transform(model, position.x, position.y, position.z, rotation.x, rotation.y, rotation.z, scale.x,
@@ -143,10 +150,6 @@ abstract Model(Handle) from Handle to Handle {
 
 	public static inline function setReceivesShadow(model:Model, value:Bool):Bool
 		return Raw.wgr_model_set_receives_shadow(model, value);
-
-	/** True once it has a loaded mesh to draw. **/
-	public static inline function isReady(model:Model):Bool
-		return Raw.wgr_model_is_ready(model);
 
 	// --- animation ---
 

@@ -29,8 +29,6 @@ class LightsDemo {
 	static inline final SPRITE_PATH = "textures/tiles.png";
 	static inline final NORMAL_PATH = "textures/tiles_sheet_normal.png"; // wgrender's tools/gen_tile_sheet.py
 
-	static inline final ASSET_MESH = 1;
-
 	static inline final MODEL_COUNT = 5;
 	static inline final SPRITE_COUNT = 4;
 
@@ -64,7 +62,7 @@ class LightsDemo {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "lights (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -86,17 +84,12 @@ class LightsDemo {
 		addLights();
 		addSprites();
 
-		load(CHARACTER_PATH, ASSET_MESH);
-	}
-
-	static function load(path:String, id:Int):Void {
-		if (!GuestAbi.loadAsset(path, id))
-			Log.error('failed to queue asset: $path');
+		makeMesh(); // loads on create: drawn once it has loaded
 	}
 
 	static function addModels():Void {
 		for (i in 0...MODEL_COUNT) {
-			final model = new Model(Handle.NONE); // the mesh is attached when it loads
+			final model = new Model(Handle.NONE); // makeMesh gives them all one mesh
 			model.setPosition(-4.0 + 2.0 * i, 0, i % 2 == 1 ? -0.8 : 0.8);
 			model.setAnimation(3);
 			model.setAnimationLoop(true);
@@ -159,18 +152,11 @@ class LightsDemo {
 		sheet.release(); // and the sheet
 	}
 
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('load failed: $path');
-			return;
-		}
-		switch id {
-			case ASSET_MESH:
-				final mesh = new Mesh(path);
-				for (model in models)
-					model.setMesh(mesh);
-				mesh.release(); // the models hold their own references
-		}
+	static function makeMesh():Void {
+		final mesh = new Mesh(CHARACTER_PATH);
+		for (model in models)
+			model.setMesh(mesh);
+		mesh.release(); // the models hold their own references
 	}
 
 	static function onFrame(dt:Float):Void {

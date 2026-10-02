@@ -51,24 +51,17 @@ static void make_logo(void)
     wgr_scene_add(g_scene, g_sprite, 1);
 }
 
-static void on_model_loaded(const char *path, void *user)
+static void make_model(void)
 {
-    wgr_handle_t mesh = wgr_mesh_create(path);
-    (void)user;
+    wgr_handle_t mesh = wgr_mesh_create(CHARACTER_PATH);
     g_model = wgr_model_create(mesh);
-    wgr_mesh_release(mesh); /* the model holds its own reference to the mesh */
+    wgr_resource_release(mesh); /* the model holds its own reference to the mesh */
     if (g_model == 0) {
         return;
     }
     wgr_model_set_transform(g_model, 0.0f, 0.0f, -4.0f, 0, 0, 0, 1, 1, 1);
     wgr_model_set_tint(g_model, WGR_COLOR_RAYWHITE);
     wgr_scene_add(g_scene, g_model, 0);
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("asset load failed: %s", path);
 }
 
 static void on_init(void *user_data)
@@ -104,7 +97,7 @@ static void on_init(void *user_data)
     wgr_scene_add(g_scene, g_sphere, 0);
 
     make_logo();
-    wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, 0), on_model_loaded, on_failed, NULL);
+    make_model(); /* loads on create: drawn once it has loaded */
 
     wgr_debug_enable_fps(12, 10, 16);
 }

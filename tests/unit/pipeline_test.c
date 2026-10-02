@@ -118,17 +118,22 @@ static int loaded_textures(wgr_handle_t mesh)
     return count;
 }
 
+static void start_assets(int workers, const char *host);
+static void stop_assets(void);
+static int run_until_done(void);
+
 /* A .glb's embedded images decode (their bytes live in the file's buffer). */
 void test_pipeline_mesh_textures(void)
 {
-    setup();
+    start_assets(0, ".");
     wgr_handle_t mesh = wgr_mesh_create(CHARACTER);
     CHECK(mesh != 0);
-    CHECK(loaded_textures(mesh) >= 2);
     CHECK(wgr_mesh_create(CHARACTER) == mesh); /* deduped */
-    wgr_mesh_release(mesh);
-    wgr_mesh_release(mesh);
-    teardown();
+    CHECK(run_until_done() > 0);
+    CHECK(loaded_textures(mesh) >= 2);
+    wgr_resource_release(mesh);
+    wgr_resource_release(mesh);
+    stop_assets();
 }
 
 /* ------------------------------------------------------ async loading ---- */
@@ -138,9 +143,8 @@ void test_pipeline_mesh_textures(void)
 
 static struct {
     int successes, failures;
-    wgr_handle_t texture, mesh, audio, group_mesh, scene_probe;
+    wgr_handle_t texture, mesh, audio, scene_probe;
     char path[512];
-    bool destroy_in_callback; /* create, then drop it again */
 } got;
 
 /* An ensure's success: the local path it made. */
@@ -149,22 +153,6 @@ static void on_path(const char *path, void *user)
     (void)user;
     got.successes++;
     snprintf(got.path, sizeof(got.path), "%s", path);
-}
-
-static void on_mesh(const char *path, void *user)
-{
-    (void)user;
-    got.successes++;
-    snprintf(got.path, sizeof(got.path), "%s", path);
-    got.mesh = wgr_mesh_create(path);
-    if (got.destroy_in_callback) wgr_mesh_release(got.mesh);
-}
-
-static void on_audio(const char *path, void *user)
-{
-    (void)user;
-    got.successes++;
-    got.audio = wgr_audio_create(path);
 }
 
 static void on_nothing(const char *path, void *user)
@@ -227,24 +215,22 @@ static void check_async_loads(int workers)
     CHECK(strcmp(wgr_resource_get_path(got.texture), "") == 0); /* not read yet */
     CHECK(wgr_texture_get_size(got.texture).x == 0.0f);
     CHECK(!wgri_texture_get_binding(got.texture, NULL, NULL, NULL, NULL)); /* not there yet: nothing drawn */
-    load(CHARACTER_PATH, WGR_ASSET_NONE, on_mesh);
-    load("sounds/click_004.ogg", WGR_ASSET_NONE, on_audio);
+    got.mesh = wgr_mesh_create(CHARACTER_PATH);
+    got.audio = wgr_audio_create("sounds/click_004.ogg");
     CHECK(run_until_done() > 0);
-    CHECK(got.successes == 2 && got.failures == 0);
     CHECK(wgr_resource_get_status(got.texture) == WGR_RESOURCE_READY);
     CHECK(strcmp(wgr_resource_get_path(got.texture), TEXTURE) == 0); /* the file it was read from */
     CHECK(wgr_texture_get_size(got.texture).x > 1.0f);
     CHECK(wgr_texture_create(TEXTURE) == got.texture); /* the same one, another reference */
     wgr_resource_release(got.texture);
-    /* the callbacks' creates return the prepared resources, with one reference */
-    CHECK(got.mesh != 0 && loaded_textures(got.mesh) >= 2);
-    CHECK(got.audio != 0);
+    CHECK(wgr_resource_get_status(got.mesh) == WGR_RESOURCE_READY && loaded_textures(got.mesh) >= 2);
+    CHECK(wgr_resource_get_status(got.audio) == WGR_RESOURCE_READY);
     CHECK(wgr_resource_release(got.texture));
     CHECK(texture_freed(got.texture)); /* the last reference is gone */
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
     CHECK(!wgr_resource_release(got.texture)); /* and it's no longer a resource */
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_mesh_release(got.mesh);
+    wgr_resource_release(got.mesh);
     wgr_resource_release(got.audio);
     stop_assets();
 }
@@ -335,14 +321,14 @@ void test_pipeline_budget(void)
 {
     start_assets(0, ASSETS);
     wgr_asset_set_upload_budget(0.0f);
-    load(CHARACTER_PATH, WGR_ASSET_NONE, on_mesh);
+    got.mesh = wgr_mesh_create(CHARACTER_PATH);
     const int frames = run_until_done();
     const int textures = got.mesh != 0 ? loaded_textures(got.mesh) : 0;
     /* frame 1 prepares and uploads the buffers; each texture (the character has at
      * least 2) and then the materials take a frame each */
     CHECK(textures >= 2);
     CHECK(frames == 1 + textures + 1);
-    wgr_mesh_release(got.mesh);
+    wgr_resource_release(got.mesh);
     wgr_asset_set_upload_budget(4.0f);
     stop_assets();
 }
@@ -354,13 +340,13 @@ void test_pipeline_shutdown(void)
     for (int round = 0; round < 3; round++) {
         start_assets(2, ASSETS);
         wgr_asset_set_upload_budget(0.0f);
-        load(CHARACTER_PATH, WGR_ASSET_NONE, on_mesh);
+        got.mesh = wgr_mesh_create(CHARACTER_PATH);
         got.texture = wgr_texture_create(TEXTURE);
-        load("sounds/click_004.ogg", WGR_ASSET_NONE, on_audio);
+        got.audio = wgr_audio_create("sounds/click_004.ogg");
         for (int frame = 0; frame < round * 3; frame++) {
             wgri_asset_tick();
         }
-        if (got.mesh != 0) wgr_mesh_release(got.mesh);
+        if (got.mesh != 0) wgr_resource_release(got.mesh);
         if (got.texture != 0) wgr_resource_release(got.texture);
         if (got.audio != 0) wgr_resource_release(got.audio);
         wgr_asset_set_upload_budget(4.0f);
@@ -372,13 +358,6 @@ static void on_group_done(const char *path, void *user)
 {
     CHECK(path != NULL && path[0] == '\0');
     (*(int *)user)++;
-}
-
-static void on_group_create(const char *path, void *user)
-{
-    (void)path;
-    (*(int *)user)++;
-    got.group_mesh = wgr_mesh_create(got.path);
 }
 
 /* A group completes after its members, fails if one does, and reports progress. */
@@ -423,21 +402,6 @@ void test_pipeline_group(void)
     CHECK(run_until_done() > 0);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     CHECK(group_failed == 1);
-
-    /* the group holds its members' resources for its own callback (a mesh: ensure
-       still loads those) */
-    group_ok = 0;
-    group = wgr_asset_group_create();
-    got.destroy_in_callback = true; /* the member's callback takes the handle and drops it again */
-    mesh = wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE);
-    CHECK(wgr_asset_add_task(mesh, on_mesh, on_failed, NULL) == WGR_ASSET_ADD_TASK_OK);
-    CHECK(wgr_asset_group_add(group, mesh));
-    CHECK(wgr_asset_add_task(group, on_group_create, on_failed, &group_ok) == WGR_ASSET_ADD_TASK_OK);
-    CHECK(run_until_done() > 0);
-    CHECK(group_ok == 1);
-    CHECK(got.group_mesh == got.mesh); /* the same resource, not a reload */
-    wgr_mesh_release(got.group_mesh);
-    got.destroy_in_callback = false;
 
     /* an empty group completes on the next tick */
     group_ok = 0;
@@ -594,12 +558,12 @@ void test_pipeline_gltf_ktx(void)
     wgri_texture_set_ktx_support(-1);
 
     /* loaded on sokol's dummy backend (no compressed formats): the texture's own image */
-    setup();
-    wgr_handle_t mesh = wgr_mesh_create(KTX_DIR "/m.gltf");
-    CHECK(mesh != 0);
+    start_assets(0, KTX_DIR);
+    wgr_handle_t mesh = wgr_mesh_create("m.gltf");
+    CHECK(mesh != 0 && run_until_done() > 0);
     CHECK(loaded_textures(mesh) == 1);
-    wgr_mesh_release(mesh);
-    teardown();
+    wgr_resource_release(mesh);
+    stop_assets();
 }
 
 /* A compressed texture whose variant for this GPU is missing loads its PNG instead,
@@ -728,18 +692,18 @@ void test_pipeline_redirects(void)
     wgr_resource_release(got.texture);
 
     /* the model is only in models/, its image is overridden in the mod */
-    load("models/m.gltf", WGR_ASSET_NONE, on_mesh);
+    got.mesh = wgr_mesh_create("models/m.gltf");
     CHECK(run_until_done() > 0);
-    CHECK(got.successes == 4 && got.mesh != 0);
+    CHECK(got.successes == 3 && wgr_resource_get_status(got.mesh) == WGR_RESOURCE_READY);
     const wgri_material_t *material = wgri_material_get(wgr_mesh_get_material(got.mesh, 0));
     CHECK(material != NULL && wgr_texture_get_size(material->textures[WGRI_MATERIAL_TEXTURE_BASE_COLOR].texture).x == 128.0f);
-    wgr_mesh_release(got.mesh);
+    wgr_resource_release(got.mesh);
 
     wgr_asset_clear_redirects();
     load("textures/top.png", WGR_ASSET_NONE, on_path);
     got.texture = wgr_texture_create("textures/top.png");
     CHECK(run_until_done() > 0);
-    CHECK(got.successes == 5 && strstr(got.path, "mods/") == NULL);
+    CHECK(got.successes == 4 && strstr(got.path, "mods/") == NULL);
     CHECK(wgr_texture_get_size(got.texture).x == 256.0f);
     wgr_resource_release(got.texture);
 
@@ -794,13 +758,13 @@ void test_pipeline_generated_meshes(void)
                                   wgr_mesh_create_capsule(0.5f, 2, 8, 16), wgr_mesh_create_torus(1, 0.25f, 24, 12)};
     for (size_t i = 0; i < sizeof(shapes) / sizeof(shapes[0]); i++) {
         CHECK(shapes[i] != 0);
-        wgr_mesh_release(shapes[i]);
+        wgr_resource_release(shapes[i]);
     }
 
     wgr_model_destroy(floor);
-    wgr_mesh_release(plane);
-    wgr_mesh_release(plane);
-    wgr_mesh_release(other);
+    wgr_resource_release(plane);
+    wgr_resource_release(plane);
+    wgr_resource_release(other);
     wgr_camera3d_destroy(camera);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     teardown();
@@ -814,10 +778,10 @@ void test_pipeline_skinned_joints(void)
     enum { MODELS = 3 };
     wgr_handle_t models[MODELS];
 
-    setup();
+    start_assets(0, ".");
     stm_setup(); /* the frame's time */
     const wgr_handle_t mesh = wgr_mesh_create(CHARACTER);
-    CHECK(mesh != 0);
+    CHECK(mesh != 0 && run_until_done() > 0);
     const wgr_handle_t camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
     wgr_camera3d_set_view(camera, 0, 2, 8, 0, 1, 0, 0, 1, 0);
     const wgr_handle_t scene = wgr_scene_create();
@@ -838,8 +802,8 @@ void test_pipeline_skinned_joints(void)
         wgr_render_end_frame();
     }
     for (int i = 0; i < MODELS; i++) wgr_model_destroy(models[i]);
-    wgr_mesh_release(mesh);
+    wgr_resource_release(mesh);
     wgr_scene_destroy(scene);
     wgr_camera3d_destroy(camera);
-    teardown();
+    stop_assets();
 }

@@ -36,13 +36,7 @@ class Simple {
 	static var message = "";
 	static var platformText = "";
 
-	// --- assets: the path is local and ready; create the resource, then the object ---
-
-	static function load(path:String, onReady:(path:String) -> Void):Void {
-		final onFailed = (path:String) -> Log.error('failed to import asset: $path');
-		if (!Asset.ensureAsync(path).then(onReady, onFailed))
-			onFailed(path);
-	}
+	// --- resources load on create: make the resource, then the object, in init ---
 
 	// A texture loads on create: the sprite exists at once and is drawn once it's loaded.
 	static function makeSprite():Void {
@@ -55,6 +49,19 @@ class Simple {
 		scene.add(sprite);
 	}
 
+	// A mesh loads on create: the model is drawn once it has loaded.
+	static function makeModel():Void {
+		final mesh = new Mesh(CHARACTER_PATH);
+		model = new Model(mesh);
+		mesh.release(); // the model holds its own reference
+		model.setAnimation(1);
+		model.setAnimationSpeed(1.0);
+		model.setAnimationLoop(true);
+		model.setPosition(0, 0, 0);
+		model.setTint(Color.RAYWHITE);
+		scene.add(model);
+	}
+
 	static function loadAssets():Void {
 		final audio = new Audio(MUSIC_PATH); // plays once it has loaded
 		bgm = new Sound(audio);
@@ -62,18 +69,7 @@ class Simple {
 		bgm.setLoop(true);
 		bgm.play();
 
-		load(CHARACTER_PATH, path -> {
-			final mesh = new Mesh(path);
-			model = new Model(mesh);
-			mesh.release(); // the model holds its own reference
-			model.setAnimation(1);
-			model.setAnimationSpeed(1.0);
-			model.setAnimationLoop(true);
-			model.setPosition(0, 0, 0);
-			model.setTint(Color.RAYWHITE);
-			scene.add(model);
-		});
-
+		makeModel();
 		makeSprite();
 
 		// Fonts are sized per draw call in wgrender, so one font handle serves any size.

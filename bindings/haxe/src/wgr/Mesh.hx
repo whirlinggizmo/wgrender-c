@@ -2,8 +2,11 @@ package wgr;
 
 // wgr_model.h — the geometry resource
 
-/** Loaded model geometry: reference counted, shared. **/
-@:using(wgr.Mesh)
+/**
+	Model geometry, loaded on create (a glTF or GLB file) or generated, and released
+	like any resource (`Resource`): `mesh.getStatus()`, `mesh.release()`.
+**/
+@:using(wgr.Mesh, wgr.Resource)
 abstract Mesh(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -16,6 +19,15 @@ abstract Mesh(Handle) from Handle to Handle {
 	public inline function new(path:String)
 		this = create(path);
 
+	/**
+		The glTF or GLB file at an asset path, loading on create: `Pending` at once, then
+		`Ready`, or `Failed` in a later frame for a file that is missing, fails to
+		download or won't parse, or whose buffers are missing; `Failed` at once for a
+		path outside the asset root or before the asset layer runs. The files it names
+		load with it (a missing image warns and draws the placeholder). `Handle.NONE`
+		only when there's no room for another. A model using it isn't drawn or picked
+		until it's `Ready`, and keeps its animation and material overrides for then.
+	**/
 	public static inline function create(path:String):Mesh
 		return (Raw.wgr_mesh_create(path) : Handle);
 
@@ -30,10 +42,6 @@ abstract Mesh(Handle) from Handle to Handle {
 	**/
 	public static inline function getMaterial(mesh:Mesh, slot:Int):Material
 		return (Raw.wgr_mesh_get_material(mesh, slot) : Handle);
-
-	/** Drop this reference; the data goes when the last one does. **/
-	public static inline function release(mesh:Mesh):Void
-		Raw.wgr_mesh_release(mesh);
 
 	// --- generated meshes ---------------------------------------------------
 	//

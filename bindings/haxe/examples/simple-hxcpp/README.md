@@ -209,7 +209,7 @@ Haxe's:
 ```haxe
 // one abstract per handle kind — a Mesh where a Texture belongs is a compile error,
 // and so is a bare literal 0 where Handle.NONE is accepted
-final mesh = new Mesh(path);
+final mesh = new Mesh(CHARACTER_PATH); // loads on create; Pending until it has
 model = new Model(mesh);      // wgrender's rule: object from resource, resource from path
 mesh.release();               // the model holds its own reference
 model.setAnimationLoop(true);

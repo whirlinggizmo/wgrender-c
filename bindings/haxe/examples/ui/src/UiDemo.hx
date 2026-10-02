@@ -21,9 +21,6 @@
 //     nine-slice texture drawn directly, and a rounded, bordered status pill
 //
 // Touch works like the mouse. ESC quits.
-//
-// The C hangs its two per-file callbacks off `wgr_asset_add_task`, one of the calls the
-// guest ABI replaces; here the asset op reports each file by the id its load was given.
 import UiWidgets;
 import wgr.*;
 
@@ -33,7 +30,6 @@ class UiDemo {
 	static inline final SCREEN_HEIGHT = 600;
 	static inline final CHARACTER_PATH = "models/woman_casual/woman_casual.glb";
 	static inline final PANEL_PATH = "textures/ui_panel.png";
-	static inline final CHARACTER_ID = 1;
 
 	// Layers, bottom to top. Each widget puts its labels on the layer above the one
 	// it's given (UiWidgets.hx), so a control on CONTROL labels on LABEL, and the
@@ -84,7 +80,7 @@ class UiDemo {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "ui (wgrender host, Haxe guest)", Msaa4x | Resizable);
 	}
 
@@ -148,20 +144,13 @@ class UiDemo {
 		// the list clips its rows and their labels to its box (LAYER_ROW, LAYER_ROW + 1)
 		list = new UiList(scene, LAYER_ROW, ROW_NAMES, LIST_X, LIST_Y, LIST_WIDTH, LIST_HEIGHT, ROW_HEIGHT, 15);
 
-		GuestAbi.loadAsset(CHARACTER_PATH, CHARACTER_ID);
+		makeCharacter(); // loads on create: drawn once it has loaded
 	}
 
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('load failed: $path');
-			return;
-		}
-		switch (id) {
-			case CHARACTER_ID:
-				final mesh = new Mesh(path);
-				character.setMesh(mesh);
-				mesh.release();
-		}
+	static function makeCharacter():Void {
+		final mesh = new Mesh(CHARACTER_PATH);
+		character.setMesh(mesh);
+		mesh.release();
 	}
 
 	static function onFrame(dt:Float):Void {

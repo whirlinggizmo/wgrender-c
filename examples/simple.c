@@ -46,7 +46,7 @@ static struct {
     char platform_text[TEXT_CAPACITY];
 } g;
 
-/* --- asset callbacks: path is local and ready; create the resource, then the object --- */
+/* --- resources load on create: make the resource, then the object, in init --- */
 
 /* Audio loads on create: the music plays once it has loaded. */
 static void make_bgm(void)
@@ -58,12 +58,12 @@ static void make_bgm(void)
     wgr_sound_play(g.bgm);
 }
 
-static void on_model_ready(const char *path, void *user)
+/* A mesh loads on create: the model is drawn once it has loaded. */
+static void make_model(void)
 {
-    wgr_handle_t mesh = wgr_mesh_create(path);
-    (void)user;
+    wgr_handle_t mesh = wgr_mesh_create(CHARACTER_PATH);
     g.model = wgr_model_create(mesh);
-    wgr_mesh_release(mesh); /* the model holds its own reference */
+    wgr_resource_release(mesh); /* the model holds its own reference */
     wgr_model_set_animation(g.model, 1);
     wgr_model_set_animation_speed(g.model, 1.0f);
     wgr_model_set_animation_loop(g.model, true);
@@ -82,20 +82,6 @@ static void make_sprite(void)
     wgr_sprite3d_set_position(g.sprite, 0, SPRITE_Y_OFFSET, 0);
     wgr_sprite3d_set_tint(g.sprite, WGR_COLOR_RAYWHITE);
     wgr_scene_add(g.scene, g.sprite, 0);
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("failed to import asset: %s", path);
-}
-
-static void load(const char *path, wgr_asset_callback_fn on_ready)
-{
-    wgr_handle_t task = wgr_asset_ensure_async(path, NULL, WGR_ASSET_NONE);
-    if (wgr_asset_add_task(task, on_ready, on_failed, NULL) != WGR_ASSET_ADD_TASK_OK) {
-        on_failed(path, NULL);
-    }
 }
 
 /* --- lifecycle --- */
@@ -127,7 +113,7 @@ static void on_init(void *user_data)
     g.grey_alpha = wgr_color_rgba(0, 0, 0, 128);
 
     make_bgm();
-    load(CHARACTER_PATH, on_model_ready);
+    make_model();
     make_sprite();
     /* fonts are sized per draw call, so one font handle serves any size; text is in
        the built-in font until they've loaded */

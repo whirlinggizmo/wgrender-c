@@ -29,8 +29,6 @@ class Postprocess {
 	static inline final VIGNETTE_PATH = "shaders/vignette.wgrshader";
 	static inline final SCANLINES_PATH = "shaders/scanlines.wgrshader";
 
-	static inline final ASSET_CHARACTER = 1;
-
 	static var scene:Scene;
 	static var camera:Camera3D;
 	static var target:Vec3;
@@ -55,7 +53,7 @@ class Postprocess {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "postprocess (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -91,14 +89,9 @@ class Postprocess {
 		character.setPosition(0, 0, 0);
 		scene.add(character);
 
-		load(CHARACTER_PATH, ASSET_CHARACTER);
+		makeCharacter();
 		makeEffects();
 		Debug.enableFps(12, 10, 16);
-	}
-
-	static function load(path:String, id:Int):Void {
-		if (!GuestAbi.loadAsset(path, id))
-			Log.error('failed to queue asset: $path');
 	}
 
 	static function addScenery():Void {
@@ -133,19 +126,12 @@ class Postprocess {
 		}
 	}
 
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('load failed: $path');
-			return;
-		}
-		switch id {
-			case ASSET_CHARACTER:
-				final mesh = new Mesh(path);
-				character.setMesh(mesh);
-				mesh.release();
-				character.setAnimation(3);
-				character.setAnimationLoop(true);
-		}
+	static function makeCharacter():Void {
+		final mesh = new Mesh(CHARACTER_PATH); // drawn once it has loaded
+		character.setMesh(mesh);
+		mesh.release(); // the model holds its own reference
+		character.setAnimation(3);
+		character.setAnimationLoop(true);
 	}
 
 	/**

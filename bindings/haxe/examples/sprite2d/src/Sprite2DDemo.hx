@@ -30,8 +30,6 @@ class Sprite2DDemo {
 	static inline final WHITE_LOGO_PATH = "sprites/logo/wg-logo-white-alpha.png";
 	static inline final CHARACTER_PATH = "models/woman_casual/woman_casual.glb";
 
-	static inline final ASSET_MESH = 1;
-
 	static inline final SPRITE_COUNT = 5;
 	static inline final TINT_SPRITE = 4;
 	static inline final FLIP_SPRITE = 3;
@@ -56,7 +54,7 @@ class Sprite2DDemo {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "sprite2d (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -84,7 +82,7 @@ class Sprite2DDemo {
 		scene.add(sun);
 		scene.setAmbient(Color.WHITE, 0.35);
 
-		model = new Model(Handle.NONE); // the mesh is attached when it loads
+		model = new Model(Handle.NONE); // makeMesh gives it its mesh
 		model.setAnimation(3);
 		model.setAnimationLoop(true);
 		scene.add(model);
@@ -111,25 +109,13 @@ class Sprite2DDemo {
 		sprites[TINT_SPRITE].setSize(96, 96);
 		whiteLogo.release(); // the sprite holds its own reference
 
-		load(CHARACTER_PATH, ASSET_MESH);
+		makeMesh(); // loads on create: drawn once it has loaded
 	}
 
-	static function load(path:String, id:Int):Void {
-		if (!GuestAbi.loadAsset(path, id))
-			Log.error('failed to queue asset: $path');
-	}
-
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('load failed: $path');
-			return;
-		}
-		switch id {
-			case ASSET_MESH:
-				final mesh = new Mesh(path);
-				model.setMesh(mesh);
-				mesh.release();
-		}
+	static function makeMesh():Void {
+		final mesh = new Mesh(CHARACTER_PATH);
+		model.setMesh(mesh);
+		mesh.release();
 	}
 
 	static function animate(dt:Float):Void {

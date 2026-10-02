@@ -34,28 +34,20 @@ static struct {
     float time;
 } g;
 
-static void on_sphere_loaded(const char *path, void *user)
+static void make_sphere(void)
 {
-    wgr_handle_t mesh = wgr_mesh_create(path);
-    (void)user;
+    wgr_handle_t mesh = wgr_mesh_create(SPHERE_PATH);
     for (int i = 0; i < SPHERE_COUNT; i++) {
         wgr_model_set_mesh(g.spheres[i], mesh);
     }
-    wgr_mesh_release(mesh); /* the models hold their own references */
+    wgr_resource_release(mesh); /* the models hold their own references */
 }
 
-static void on_character_loaded(const char *path, void *user)
+static void make_character(void)
 {
-    wgr_handle_t mesh = wgr_mesh_create(path);
-    (void)user;
+    wgr_handle_t mesh = wgr_mesh_create(CHARACTER_PATH);
     wgr_model_set_mesh(g.character, mesh);
-    wgr_mesh_release(mesh);
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("load failed: %s", path);
+    wgr_resource_release(mesh);
 }
 
 /* Place a sphere and give it `material`; the model keeps its own reference. */
@@ -154,8 +146,8 @@ static void init(void *user_data)
     wgr_material_release(material);
     wgr_scene_add(g.scene, g.character, 0);
 
-    wgr_asset_add_task(wgr_asset_ensure_async(SPHERE_PATH, NULL, WGR_ASSET_NONE), on_sphere_loaded, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_character_loaded, on_failed, NULL);
+    make_sphere(); /* loads on create: drawn once it has loaded */
+    make_character(); /* loads on create: drawn once it has loaded */
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)

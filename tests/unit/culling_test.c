@@ -24,6 +24,7 @@
 #include "wgr_render.h"
 #include "wgr_scene.h"
 #include "test.h"
+#include "test_assets.h"
 #include "tests.h"
 
 #include "sokol_gfx.h"
@@ -93,7 +94,7 @@ void test_model_instance_record(void)
 
     const wgr_handle_t mesh = wgr_mesh_create_cube(1.0f, 1.0f, 1.0f);
     const wgr_handle_t model = wgr_model_create(mesh);
-    wgr_mesh_release(mesh);
+    wgr_resource_release(mesh);
     wgr_model_set_transform(model, 3.0f, 4.0f, 5.0f, 0, 0, 0, 1, 1, 1);
     wgr_model_set_tint(model, wgr_color_rgba(255, 128, 0, 128));
 
@@ -147,6 +148,7 @@ void test_model_instancing(void)
     wgri_environment_init();
     wgri_shader_init();
     wgri_model_init();
+    test_assets_start(0, "."); /* the character and the toon shader load on create */
     stm_setup(); /* custom shaders read the time (wgr_get_time), which wgr_run starts */
 
     const wgr_handle_t scene = wgr_scene_create();
@@ -163,7 +165,7 @@ void test_model_instancing(void)
         wgr_model_set_transform(models[i], (float)i - 4.0f, 0, 0, 0, 0, 0, 1, 1, 1);
         wgr_scene_add(scene, models[i], 0);
     }
-    wgr_mesh_release(mesh);
+    wgr_resource_release(mesh);
     wgr_material_release(material);
 
     /* one mesh, one material, eight placements: one draw */
@@ -186,7 +188,7 @@ void test_model_instancing(void)
     const wgr_handle_t sphere = wgr_mesh_create_sphere(0.5f, 8, 8);
     wgr_model_set_mesh(models[5], sphere);
     wgr_model_set_material(models[5], -1, material);
-    wgr_mesh_release(sphere);
+    wgr_resource_release(sphere);
     wgr_render_begin_frame();
     wgr_scene_draw(scene);
     wgr_render_end_frame();
@@ -205,8 +207,10 @@ void test_model_instancing(void)
 
     /* a custom material shader batches like the built-in one: it reads each placement
        from the same records (docs/PLAN-instancing.md, phase 4) */
-    const wgr_handle_t custom = wgr_material_create_custom(wgr_shader_create("examples/assets/shaders/toon.wgrshader"));
-    CHECK(custom != 0);
+    const wgr_handle_t toon = wgr_shader_create("examples/assets/shaders/toon.wgrshader");
+    const wgr_handle_t custom = wgr_material_create_custom(toon);
+    wgr_resource_release(toon); /* the material holds it */
+    CHECK(custom != 0 && test_assets_run() > 0 && wgr_resource_get_status(toon) == WGR_RESOURCE_READY);
     for (int i = 0; i < 8; i++) {
         wgr_model_set_material(models[i], -1, custom);
     }
@@ -225,7 +229,8 @@ void test_model_instancing(void)
     const wgr_handle_t character = wgr_mesh_create("examples/assets/" CHARACTER_PATH);
     const wgr_handle_t walker_a = wgr_model_create(character), walker_b = wgr_model_create(character);
     CHECK(character != 0 && walker_a != 0 && walker_b != 0);
-    wgr_mesh_release(character);
+    CHECK(test_assets_run() > 0 && wgr_resource_get_status(character) == WGR_RESOURCE_READY);
+    wgr_resource_release(character);
     wgr_model_set_transform(walker_a, -1.0f, 0, 2.0f, 0, 0, 0, 1, 1, 1);
     wgr_model_set_transform(walker_b, 1.0f, 0, 2.0f, 0, 0, 0, 1, 1, 1);
     wgr_model_set_animation(walker_a, 0);
@@ -266,6 +271,7 @@ void test_model_instancing(void)
         wgr_model_destroy(models[i]);
     }
     wgr_scene_destroy(scene);
+    test_assets_stop();
     wgri_model_deinit();
     wgri_shader_deinit();
     wgri_environment_deinit();
@@ -310,7 +316,7 @@ void test_cull_scene(void)
     const wgr_handle_t mesh = wgr_mesh_create_cube(1.0f, 1.0f, 1.0f);
     const wgr_handle_t seen = wgr_model_create(mesh);
     const wgr_handle_t away = wgr_model_create(mesh);
-    wgr_mesh_release(mesh);
+    wgr_resource_release(mesh);
     wgr_scene_add(scene, seen, 0);
     wgr_scene_add(scene, away, 0);
     wgr_model_set_transform(seen, 0, 0, 0, 0, 0, 0, 1, 1, 1);

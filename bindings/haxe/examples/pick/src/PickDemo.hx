@@ -21,7 +21,6 @@ class PickDemo {
 	static inline final SCREEN_HEIGHT = 700;
 	static inline final LOGO_PATH = "sprites/logo/wg-logo-bw-alpha.png";
 	static inline final CHARACTER_PATH = "models/woman_casual/woman_casual.glb";
-	static inline final ASSET_MODEL = 1;
 
 	static var background:Color;
 	static var scene:Scene;
@@ -39,7 +38,7 @@ class PickDemo {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "pick (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -74,7 +73,7 @@ class PickDemo {
 		scene.add(sphere);
 
 		makeLogo();
-		load(CHARACTER_PATH, ASSET_MODEL);
+		makeModel(); // loads on create: drawn once it has loaded
 		Debug.enableFps(12, 10, 16);
 	}
 
@@ -92,27 +91,15 @@ class PickDemo {
 		scene.add(sprite, 1);
 	}
 
-	static function load(path:String, id:Int):Void {
-		if (!GuestAbi.loadAsset(path, id))
-			Log.error('failed to queue asset: $path');
-	}
-
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('asset load failed: $path');
+	static function makeModel():Void {
+		final mesh = new Mesh(CHARACTER_PATH);
+		model = new Model(mesh);
+		mesh.release(); // the model holds its own reference to the mesh
+		if (model.isNone())
 			return;
-		}
-		switch id {
-			case ASSET_MODEL:
-				final mesh = new Mesh(path);
-				model = new Model(mesh);
-				mesh.release(); // the model holds its own reference
-				if (model.isNone())
-					return;
-				model.setPosition(0, 0, -4.0);
-				model.setTint(Color.RAYWHITE);
-				scene.add(model);
-		}
+		model.setPosition(0, 0, -4.0);
+		model.setTint(Color.RAYWHITE);
+		scene.add(model);
 	}
 
 	static function kindName(handle:Handle):String {

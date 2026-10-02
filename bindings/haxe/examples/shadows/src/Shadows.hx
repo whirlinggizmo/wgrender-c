@@ -27,7 +27,6 @@ class Shadows {
 	static inline final SCREEN_WIDTH = 1000;
 	static inline final SCREEN_HEIGHT = 600;
 	static inline final CHARACTER_PATH = "models/woman_casual/woman_casual.glb";
-	static inline final ASSET_CHARACTER = 1;
 
 	static final MAP_SIZES = [512, 1024, 2048, 4096];
 	/**
@@ -66,7 +65,7 @@ class Shadows {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "shadows (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -87,8 +86,7 @@ class Shadows {
 		character = new Model(Handle.NONE);
 		character.setPosition(0, 0, 0);
 		scene.add(character);
-		if (!GuestAbi.loadAsset(CHARACTER_PATH, ASSET_CHARACTER))
-			Log.error('failed to queue asset: $CHARACTER_PATH');
+		makeModel(); // loads on create: drawn once it has loaded
 		Debug.enableFps(12, 10, 16);
 	}
 
@@ -150,14 +148,8 @@ class Shadows {
 		place(Mesh.sphere(0.6, 24, 48), new Vec3(-2.6, 0.6, -1.2), 0.9, 0.3, 0.5, 0.35).setReceivesShadow(false);
 	}
 
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('load failed: $path');
-			return;
-		}
-		if (id != ASSET_CHARACTER)
-			return;
-		final mesh = new Mesh(path);
+	static function makeModel():Void {
+		final mesh = new Mesh(CHARACTER_PATH);
 		character.setMesh(mesh);
 		mesh.release();
 		character.setAnimation(3);

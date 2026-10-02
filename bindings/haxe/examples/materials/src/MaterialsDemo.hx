@@ -25,9 +25,6 @@ class MaterialsDemo {
 	static inline final CHARACTER_PATH = "models/woman_casual/woman_casual.glb";
 	static inline final NORMAL_MAP_PATH = "textures/tiles_normal.png";
 
-	static inline final ASSET_SPHERE = 1;
-	static inline final ASSET_CHARACTER = 2;
-
 	static inline final COLUMNS = 5;
 	static inline final SPACING = 1.35;
 	/** Slot 1 is the character's body; slot 0 is its blob shadow, which is left alone. **/
@@ -50,7 +47,7 @@ class MaterialsDemo {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "materials (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -71,13 +68,8 @@ class MaterialsDemo {
 		addBottomRow();
 		addCharacter();
 
-		load(SPHERE_PATH, ASSET_SPHERE);
-		load(CHARACTER_PATH, ASSET_CHARACTER);
-	}
-
-	static function load(path:String, id:Int):Void {
-		if (!GuestAbi.loadAsset(path, id))
-			Log.error('failed to queue asset: $path');
+		makeSphere(); // loads on create: drawn once it has loaded
+		makeCharacter(); // loads on create: drawn once it has loaded
 	}
 
 	static function addLights():Void {
@@ -111,7 +103,7 @@ class MaterialsDemo {
 
 	/** Place a sphere and give it `material`; the model keeps its own reference. **/
 	static function sphere(x:Float, y:Float, material:Material):Model {
-		final model = new Model(Handle.NONE); // the mesh is attached when it loads
+		final model = new Model(Handle.NONE); // makeSphere gives them all one mesh
 		model.setPosition(x, y, 0);
 		model.setMaterial(0, material);
 		material.release();
@@ -165,23 +157,17 @@ class MaterialsDemo {
 		scene.add(character);
 	}
 
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('load failed: $path');
-			return;
-		}
-		switch id {
-			case ASSET_SPHERE:
-				final mesh = new Mesh(path);
-				for (model in spheres)
-					model.setMesh(mesh);
-				mesh.release(); // the models hold their own references
+	static function makeSphere():Void {
+		final mesh = new Mesh(SPHERE_PATH);
+		for (model in spheres)
+			model.setMesh(mesh);
+		mesh.release(); // the models hold their own references
+	}
 
-			case ASSET_CHARACTER:
-				final mesh = new Mesh(path);
-				character.setMesh(mesh);
-				mesh.release();
-		}
+	static function makeCharacter():Void {
+		final mesh = new Mesh(CHARACTER_PATH);
+		character.setMesh(mesh);
+		mesh.release();
 	}
 
 	static function onFrame(dt:Float):Void {

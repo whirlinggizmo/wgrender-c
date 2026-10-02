@@ -41,7 +41,6 @@ class Shaders {
 	static inline final SHADER_DISSOLVE = 2;
 	static inline final SHADER_WAVE = 3;
 	static inline final SHADER_SPRITE_FX = 4;
-	static inline final ASSET_CHARACTER = 6;
 
 	static inline final FLOOR_Y = -0.3;
 	static inline final SPHERE_Y = FLOOR_Y + 0.5; // spheres 1 m across, resting on the floor
@@ -67,7 +66,7 @@ class Shaders {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "shaders (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -92,12 +91,7 @@ class Shaders {
 		final environment = new Environment(ENVIRONMENT_PATH); // lights the scene once loaded
 		scene.setEnvironment(environment, 1.0, 0.0); // lighting only: the background stays dark
 		environment.release(); // the scene holds its own reference
-		load(CHARACTER_PATH, ASSET_CHARACTER);
-	}
-
-	static function load(path:String, id:Int):Void {
-		if (!GuestAbi.loadAsset(path, id))
-			Log.error('failed to queue asset: $path');
+		makeCharacter(); // loads on create: drawn once it has loaded
 	}
 
 	static function addLights():Void {
@@ -136,7 +130,7 @@ class Shaders {
 		ground.release();
 		scene.add(floor);
 
-		character = new Model(Handle.NONE); // the mesh attaches when it loads
+		character = new Model(Handle.NONE); // makeCharacter gives it its mesh
 		character.setTransform(new Vec3(-1.9, FLOOR_Y, 0), new Vec3(0, 0.4, 0),
 			new Vec3(0.5, 0.5, 0.5)); // feet at its origin
 		character.setAnimation(3);
@@ -220,17 +214,10 @@ class Shaders {
 		material.release(); // whatever wears it holds its own reference
 	}
 
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('load failed: $path');
-			return;
-		}
-		switch id {
-			case ASSET_CHARACTER:
-				final mesh = new Mesh(path);
-				character.setMesh(mesh);
-				mesh.release();
-		}
+	static function makeCharacter():Void {
+		final mesh = new Mesh(CHARACTER_PATH);
+		character.setMesh(mesh);
+		mesh.release();
 	}
 
 	static function onFrame(dt:Float):Void {

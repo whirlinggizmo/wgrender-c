@@ -5,7 +5,6 @@
  */
 #include <math.h>
 #include <stddef.h>
-#include <stdint.h>
 
 #include "shared/example_assets.h"
 #include "wgr.h"
@@ -18,31 +17,16 @@ static wgr_handle_t g_model;
 static bool g_orbit_camera = true;
 static bool g_spin_model = false;
 
-static void on_mesh_asset_loaded(const char *path, void *user) {
-  wgr_handle_t model = (wgr_handle_t)(uintptr_t)user; /* handle passed by value */
-  wgr_handle_t mesh = wgr_mesh_create(path);
-  wgr_model_set_mesh(model, mesh);
-  wgr_mesh_release(mesh); /* the model holds its own reference to the mesh */
-}
-
-static void on_failed(const char *p, void *u) {
-  (void)u;
-  wgr_logger_error("model load failed: %s", p);
-}
-
 static wgr_handle_t create_model(const char *mesh_path) {
-  wgr_handle_t model = wgr_model_create(0); /* empty: mesh attached when it loads */
+  wgr_handle_t mesh = wgr_mesh_create(mesh_path); /* loads on create */
+  wgr_handle_t model = wgr_model_create(mesh);    /* drawn once its mesh has loaded */
+  wgr_resource_release(mesh); /* the model holds its own reference to the mesh */
   wgr_model_set_transform(model, 0, 0, 0, 0, 0, 0, 1, 1, 1);
   wgr_model_set_tint(model, WGR_COLOR_RAYWHITE);
-  /* drive skeletal animation if the glTF has any (no-op until the mesh arrives) */
+  /* drive skeletal animation if the glTF has any (kept until the mesh arrives) */
   wgr_model_set_animation(model, 3);
   wgr_model_set_animation_speed(model, 1.0f);
   wgr_model_set_animation_loop(model, true);
-
-  /* pass the handle by value through user_data — `model` is a local, so &model
-   * would dangle by the time the async callback fires */
-  wgr_asset_add_task(wgr_asset_ensure_async(mesh_path, NULL, 0),
-                    on_mesh_asset_loaded, on_failed, (void *)(uintptr_t)model);
   return model;
 }
 
@@ -96,8 +80,9 @@ static void frame(float dt, float tick_fraction, void *user_data) {
 
   wgr_text_draw("libwgrender + sokol — model (glTF/cgltf)", 12, 36, 22,
                WGR_COLOR_RAYWHITE);
-  wgr_text_draw(g_model ? CHARACTER_PATH " — skeletal animation (glTF skin)"
-                        : "loading model...",
+  wgr_text_draw(wgr_resource_get_status(wgr_model_get_mesh(g_model)) == WGR_RESOURCE_READY
+                    ? CHARACTER_PATH " — skeletal animation (glTF skin)"
+                    : "loading model...",
                12, 68, 16, WGR_COLOR_LIGHTGRAY);
 
   wgr_render_end_frame();

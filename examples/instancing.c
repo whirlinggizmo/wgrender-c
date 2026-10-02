@@ -10,7 +10,6 @@
  * Press SPACE to give every cube its own material instead, which is the same picture
  * drawn one cube at a time. */
 #include <math.h>
-#include <stdint.h>
 #include <stdio.h>
 
 #include "shared/example_assets.h"
@@ -27,20 +26,6 @@ static wgr_handle_t g_walkers[WALKERS];
 static wgr_handle_t g_glass[GLASS];
 static wgr_handle_t g_shared_material;
 static bool g_own_materials;
-
-static void on_mesh_loaded(const char *path, void *user)
-{
-    const wgr_handle_t model = (wgr_handle_t)(uintptr_t)user;
-    const wgr_handle_t mesh = wgr_mesh_create(path); /* the same resource for every walker */
-    wgr_model_set_mesh(model, mesh);
-    wgr_mesh_release(mesh);
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("load failed: %s", path);
-}
 
 static wgr_color_t field_tint(int i, unsigned char alpha)
 {
@@ -92,7 +77,7 @@ static void on_init(void *user)
     wgr_model_set_material(floor, -1, floor_material);
     wgr_model_set_transform(floor, 0, -0.6f, 0, 0, 0, 0, 1, 1, 1);
     wgr_scene_add(g_scene, floor, 0);
-    wgr_mesh_release(floor_mesh);
+    wgr_resource_release(floor_mesh);
     wgr_material_release(floor_material);
 
     /* the field: one mesh, one material, a tint each */
@@ -114,22 +99,18 @@ static void on_init(void *user)
         wgr_model_set_transform(g_glass[i], (float)i * 2.0f - 4.0f, 5.2f, 5.0f, 0, 0, 0, 2, 2, 2);
         wgr_scene_add(g_scene, g_glass[i], 0);
     }
-    wgr_mesh_release(cube);
+    wgr_resource_release(cube);
 
     /* six walkers sharing one skinned mesh, each at its own point in the walk */
+    const wgr_handle_t walker = wgr_mesh_create(CHARACTER_PATH); /* the same resource for every walker */
     for (int i = 0; i < WALKERS; i++) {
-        g_walkers[i] = wgr_model_create(0);
+        g_walkers[i] = wgr_model_create(walker);
         wgr_model_set_transform(g_walkers[i], (float)i * 2.4f - 6.0f, 0.0f, -2.0f, 0, 3.14159f, 0, 1, 1, 1);
         wgr_model_set_animation(g_walkers[i], 3);
         wgr_model_set_animation_loop(g_walkers[i], true);
         wgr_scene_add(g_scene, g_walkers[i], 0);
     }
-    wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, 0), on_mesh_loaded, on_failed,
-                      (void *)(uintptr_t)g_walkers[0]);
-    for (int i = 1; i < WALKERS; i++) {
-        wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, 0), on_mesh_loaded, on_failed,
-                          (void *)(uintptr_t)g_walkers[i]);
-    }
+    wgr_resource_release(walker); /* the walkers hold their own references */
 }
 
 static void frame(float dt, float fraction, void *user)

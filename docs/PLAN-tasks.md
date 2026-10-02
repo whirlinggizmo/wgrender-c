@@ -242,5 +242,5 @@ or a `_get_data` beside a `_get_size`.
 Every phase: `tools/verify_builds.py --web --windows HOST` (fetching and storage differ
 by platform), `tools/check_asset_cache.py` with and without `--manifest` (the asset fetch
 moves behind create), the binding's suite and its web examples, and `tools/bench/run_benchmark.py
-loadbench`: loading in the background against synchronously, which is the number load
-on create should improve.
+loadbench`: loading on create with an upload budget against without (nothing loads
+synchronously any more, so that's the comparison left).

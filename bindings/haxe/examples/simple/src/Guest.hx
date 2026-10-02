@@ -2,8 +2,7 @@
 // compiled to JS and run on top of the wgrender wasm host rather than inside it.
 //
 // The differences from the hxcpp port are all at the edges — how the lifecycle is
-// entered (the guest ABI, not wgr_set_init/wgr_set_frame), and how assets are
-// requested (an id the host hands back, not a closure). The scene code between those
+// entered (the guest ABI, not wgr_set_init/wgr_set_frame). The scene code between those
 // edges is the same, against the same wgr.Wgr layer.
 import wgr.*;
 
@@ -14,9 +13,6 @@ class Guest {
 	static inline final CHARACTER_PATH = "models/woman_casual/woman_casual.glb";
 	static inline final SPRITE_PATH = "sprites/logo/wg-logo-bw-alpha.png";
 	static inline final MUSIC_PATH = "music/a_hero_is_born.mp3";
-
-	// The host hands these back on the asset op, in place of a callback.
-	static inline final ASSET_MODEL = 2;
 
 	static inline final SCREEN_WIDTH = 1024;
 	static inline final SCREEN_HEIGHT = 1280;
@@ -59,14 +55,9 @@ class Guest {
 	**/
 	public static function start(host:Dynamic):Void {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "simple (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
-	}
-
-	static function load(path:String, id:Int):Void {
-		if (!GuestAbi.loadAsset(path, id))
-			Log.error('failed to queue asset: $path');
 	}
 
 	// --- lifecycle ---
@@ -95,7 +86,7 @@ class Guest {
 		greyAlpha = Color.rgba(0, 0, 0, 128);
 
 		makeBgm();
-		load(CHARACTER_PATH, ASSET_MODEL);
+		makeModel();
 		makeSprite();
 		// fonts are sized per draw call, so one handle serves any size; text is in the
 		// built-in font until they've loaded
@@ -123,24 +114,17 @@ class Guest {
 		bgm.play();
 	}
 
-	// The path is local and ready; create the resource, then the object.
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('failed to import asset: $path');
-			return;
-		}
-		switch id {
-			case ASSET_MODEL:
-				final mesh = new Mesh(path);
-				model = new Model(mesh);
-				mesh.release(); // the model holds its own reference
-				model.setAnimation(1);
-				model.setAnimationSpeed(1.0);
-				model.setAnimationLoop(true);
-				model.setPosition(0, 0, 0);
-				model.setTint(Color.RAYWHITE);
-				scene.add(model);
-		}
+	// A mesh loads on create: the model is drawn once it has loaded.
+	static function makeModel():Void {
+		final mesh = new Mesh(CHARACTER_PATH);
+		model = new Model(mesh);
+		mesh.release(); // the model holds its own reference
+		model.setAnimation(1);
+		model.setAnimationSpeed(1.0);
+		model.setAnimationLoop(true);
+		model.setPosition(0, 0, 0);
+		model.setTint(Color.RAYWHITE);
+		scene.add(model);
 	}
 
 	static function update(dt:Float):Void {

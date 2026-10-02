@@ -45,18 +45,11 @@ static struct {
     float time;
 } g;
 
-static void on_failed(const char *path, void *user)
+static void make_character(void)
 {
-    (void)user;
-    wgr_logger_error("load failed: %s", path);
-}
-
-static void on_character_loaded(const char *path, void *user)
-{
-    wgr_handle_t mesh = wgr_mesh_create(path);
-    (void)user;
+    wgr_handle_t mesh = wgr_mesh_create(CHARACTER_PATH);
     wgr_model_set_mesh(g.character, mesh);
-    wgr_mesh_release(mesh);
+    wgr_resource_release(mesh);
 }
 
 /* A shader's material, given to its model or sprites. The shader loads on create: its
@@ -164,9 +157,9 @@ static void init(void *user_data)
     g.rippling = wgr_model_create(fine_sphere);
     wgr_model_set_transform(g.rippling, 1.9f, SPHERE_Y, 0, 0, 0, 0, 1, 1, 1);
     wgr_scene_add(g.scene, g.rippling, 0);
-    wgr_mesh_release(plane); /* the models hold their own references */
-    wgr_mesh_release(sphere);
-    wgr_mesh_release(fine_sphere);
+    wgr_resource_release(plane); /* the models hold their own references */
+    wgr_resource_release(sphere);
+    wgr_resource_release(fine_sphere);
 
     /* the logo, in the world above the middle and in the screen's corner */
     const wgr_handle_t logo = wgr_texture_create(LOGO_PATH);
@@ -189,7 +182,7 @@ static void init(void *user_data)
         wgr_scene_set_environment(g.scene, environment, 1.0f, 0.0f); /* lighting only: the background stays dark */
         wgr_resource_release(environment); /* the scene holds its own reference */
     }
-    wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_character_loaded, on_failed, NULL);
+    make_character(); /* loads on create: drawn once it has loaded */
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)

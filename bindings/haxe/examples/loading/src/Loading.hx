@@ -1,24 +1,22 @@
 // wgrender's loading example, as a Haxe guest: loading during play without stalling.
 //
-// A port of examples/loading.c. Six files — two environments at roughly 330 ms of CPU
-// work each, two models and two textures — load while a cube spins and a graph shows
-// every frame's real duration. The graph is the point: a background load should leave
-// it flat.
+// A port of examples/loading.c. Two environments at roughly 330 ms of CPU work each,
+// two models and two textures are created while a cube spins and a graph shows every
+// frame's real duration. Resources load on create: each comes back `Pending` at once
+// and is `Ready` or `Failed` a few frames later, so this program creates them all, uses
+// them at once, and only reads their statuses, for the progress bar and a row per file.
+// Nothing is called back, and nothing waits.
 //
-//   A    in the background: files are decoded on worker threads and uploaded a few
-//        milliseconds per frame, so creating them at the end is cheap
-//   S    synchronously, for comparison: the files are only *fetched* (`FileOnly`) and
-//        every one is created in a single frame, which the graph shows as one spike
+//   A    load spread out: files are decoded on worker threads, and the GPU uploads
+//        are given a few milliseconds a frame (`Asset.setUploadBudget`, 4 ms)
+//   S    load at once: no upload budget, so everything decoded is uploaded in the
+//        same frame, which the graph shows as a spike
+//   F    create a texture whose file isn't there: `Failed` a frame or so later, drawn
+//        as the placeholder (the log says why)
 //   U    unload
 //   ESC  quit
 //
-// The C builds an asset group and hangs two callbacks off it: one per file to keep the
-// local path, one on the group to know when they are all in. Neither crosses to js —
-// `wgr_asset_add_task` takes a C callback and is one of the calls the guest ABI
-// replaces. It replaces them both: the asset op reports every file by id with its
-// local path, so counting the ids *is* the group, and progress is the count over six.
-// The group calls do reach js (`Asset.createGroup`, `groupAdd`, `getProgress`); they
-// are simply not needed once each file announces itself.
+// Starts with a spread-out load.
 import wgr.*;
 
 @:expose("WgrGuest")
@@ -27,13 +25,18 @@ class Loading {
 	static inline final SCREEN_HEIGHT = 720;
 	static inline final ENVIRONMENTS = 2;
 	static inline final MESHES = 2;
+	static inline final TEXTURES = 2;
+	static inline final FILES = ENVIRONMENTS + MESHES + TEXTURES + 1;
+	static inline final MISSING = FILES - 1; // created only on F
 	static inline final GRAPH = 300;
 
 	static final PATHS = [
 		"environments/venice_sunset_1k.hdr", "environments/studio_small_09_1k.hdr",
 		"models/woman_casual/woman_casual.glb", "models/sphere/sphere.glb",
-		"textures/tiles_normal.png", "sprites/logo/wg-logo-white-alpha.png"
+		"textures/tiles_normal.png", "sprites/logo/wg-logo-white-alpha.png",
+		"textures/not_there.png" // missing on purpose
 	];
+	static final STATUS = ["", "pending", "ready", "FAILED"];
 
 	static var background:Color;
 	static var bar:Color;
@@ -48,18 +51,12 @@ class Loading {
 	static var sphere:Model;
 	static var material:Material;
 
-	static var paths:Array<String> = [];
-	static var environments:Array<Environment> = [];
-	static var meshes:Array<Mesh> = [];
-	static var textures:Array<Texture> = [];
+	static var resources:Array<Handle> = [];
 
 	static var loading = false;
-	static var sync = false;
-	static var arrived = 0;
-	static var loaded = false;
+	static var atOnce = false;
 	static var loadStarted = 0.0;
 	static var loadSeconds = 0.0;
-	static var createMs = 0.0;
 
 	static var frameMs:Array<Float> = [];
 	static var frameNext = 0;
@@ -72,7 +69,7 @@ class Loading {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "loading (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -88,6 +85,8 @@ class Loading {
 		cubeColor = Color.rgba(230, 180, 60, 255);
 		for (_ in 0...GRAPH)
 			frameMs.push(0.0);
+		for (_ in 0...FILES)
+			resources.push(Handle.NONE);
 
 		camera = new Camera3D(Perspective);
 		camera.setView(new Vec3(0, 1.0, 5.5), new Vec3(0, 0.6, 0));
@@ -117,74 +116,48 @@ class Loading {
 		character.setMesh(Handle.NONE);
 		sphere.setMesh(Handle.NONE);
 		material.setNormalTexture(Handle.NONE);
-		for (e in environments)
-			e.release();
-		for (m in meshes)
-			m.release();
-		for (t in textures)
-			t.release();
-		environments = [];
-		meshes = [];
-		textures = [];
-		loaded = false;
+		material.setBaseColorTexture(Handle.NONE);
+		for (i in 0...FILES) {
+			Resource.release(resources[i]); // one call for every kind; false for none
+			resources[i] = Handle.NONE;
+		}
+		loading = false;
+	}
+
+	/** Create every resource and use it at once: each shows up when it's `Ready`. **/
+	static function startLoad(allAtOnce:Bool):Void {
+		releaseAll();
+		atOnce = allAtOnce;
+		Asset.setUploadBudget(allAtOnce ? 1000.0 : 4.0); // 4 ms is the default
+		loadStarted = Wgr.getTime();
+		loading = true;
+		for (i in 0...GRAPH)
+			frameMs[i] = 0.0; // "worst" covers this load
+
+		for (i in 0...ENVIRONMENTS)
+			resources[i] = new Environment(PATHS[i]);
+		for (i in ENVIRONMENTS...ENVIRONMENTS + MESHES)
+			resources[i] = new Mesh(PATHS[i]);
+		for (i in ENVIRONMENTS + MESHES...MISSING)
+			resources[i] = new Texture(PATHS[i]);
+
+		scene.setEnvironment(resources[0], 1.0, 0.0);
+		scene.setBackground(resources[0], 0.3);
+		character.setMesh(resources[2]);
+		sphere.setMesh(resources[3]);
+		material.setNormalTexture(resources[4]);
 	}
 
 	/**
-		Create every resource from its local path, and use them.
-
-		In a background load each create finds what the pipeline already prepared, so
-		this is cheap; after a `FileOnly` load it is where all the decoding happens, in
-		one frame, which is the spike the graph shows.
+		How many of the files are done (`Ready` or `Failed`, or not asked for); the load
+		is over when all are.
 	**/
-	static function createAll():Void {
-		final start = Wgr.getTime();
-		for (i in 0...ENVIRONMENTS)
-			environments.push(new Environment(PATHS[i])); // an asset path: loads on create
-		for (i in ENVIRONMENTS...ENVIRONMENTS + MESHES)
-			meshes.push(new Mesh(paths[i]));
-		for (i in ENVIRONMENTS + MESHES...PATHS.length)
-			textures.push(new Texture(PATHS[i])); // an asset path: loads on create
-		createMs = (Wgr.getTime() - start) * 1000.0;
-
-		scene.setEnvironment(environments[0], 1.0, 0.0);
-		scene.setBackground(environments[0], 0.3);
-		character.setMesh(meshes[0]);
-		sphere.setMesh(meshes[1]);
-		material.setNormalTexture(textures[0]);
-		loaded = true;
-	}
-
-	static function startLoad(synchronous:Bool):Void {
-		if (loading)
-			return; // one load at a time
-		releaseAll();
-		sync = synchronous;
-		loading = true;
-		arrived = 0;
-		paths = [for (_ in 0...PATHS.length) ""];
-		loadStarted = Wgr.getTime();
-		for (i in 0...GRAPH)
-			frameMs[i] = 0.0; // "worst" should describe this load, not the last one
-		createMs = 0.0;
-		// FileOnly fetches without creating anything, so the work lands in createAll.
-		for (i in 0...PATHS.length)
-			GuestAbi.loadAsset(PATHS[i], i + 1, null, synchronous ? FileOnly : null);
-	}
-
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!loading || id < 1 || id > PATHS.length)
-			return;
-		if (!ok) {
-			Log.error('loading: $path failed');
-			loading = false;
-			return;
-		}
-		paths[id - 1] = path;
-		if (++arrived < PATHS.length)
-			return;
-		loading = false;
-		createAll();
-		loadSeconds = Wgr.getTime() - loadStarted;
+	static function filesDone():Int {
+		var done = 0;
+		for (resource in resources)
+			if (Resource.getStatus(resource) != Pending)
+				done++;
+		return done;
 	}
 
 	static function drawGraph(x:Float, y:Float, width:Float, height:Float):Void {
@@ -223,8 +196,17 @@ class Loading {
 			startLoad(false);
 		if (keys.isPressed(S))
 			startLoad(true);
-		if (keys.isPressed(U) && !loading)
+		if (keys.isPressed(U))
 			releaseAll();
+		if (keys.isPressed(F) && resources[MISSING].isNone) {
+			final missing = new Texture(PATHS[MISSING]);
+			resources[MISSING] = missing;
+			material.setBaseColorTexture(missing); // the placeholder, once Failed
+		}
+		if (loading && filesDone() == FILES) {
+			loading = false;
+			loadSeconds = now - loadStarted;
+		}
 
 		elapsed += dt;
 		character.animate(dt);
@@ -238,7 +220,7 @@ class Loading {
 		Render.endMode3D();
 
 		Shape2D.drawRectangle(0, 0, screen.x, 64, bar);
-		Text.draw("wgrender loading   A: in the background   S: synchronously   U: unload", 12, 12, 12,
+		Text.draw("wgrender loading   A: spread out   S: all at once   F: a missing file   U: unload", 12, 12, 12,
 			Color.RAYWHITE);
 		// "In the background" means worker threads, and a web build only has them on a
 		// cross-origin isolated page. Without them the decode lands on this thread and
@@ -248,20 +230,33 @@ class Loading {
 			Wgr.hasThreads() ? Color.LIGHTGRAY : Color.GOLD);
 
 		if (loading) {
-			final progress = arrived / PATHS.length;
+			final progress = filesDone() / FILES;
 			Shape2D.drawRectangle(12, 54, 240 * progress, 12, graphOk);
 			Shape2D.drawRectangleLines(12, 54, 240, 12, line);
-			Text.draw('loading (${sync ? "synchronously" : (Wgr.hasThreads() ? "in the background"
-				: "in the background, but on this thread")})... ${Math.round(progress * 100)}%', 264, 54, 12,
+			Text.draw('loading (${atOnce ? "all at once" : "spread out"})... ${Math.round(progress * 100)}%', 264, 54,
+				12, Color.LIGHTGRAY);
+		} else if (!resources[0].isNone) {
+			Text.draw('loaded ${atOnce ? "all at once" : "spread out"} in ${fixed(loadSeconds, 2)} s', 12, 54, 12,
 				Color.LIGHTGRAY);
-		} else if (loaded) {
-			Text.draw('loaded ${PATHS.length} files '
-				+ '${sync ? "synchronously" : (Wgr.hasThreads() ? "in the background" : "without threads")} '
-				+ 'in ${fixed(loadSeconds, 2)} s; creating them took ${Math.round(createMs)} ms', 12, 54, 12,
-				Color.LIGHTGRAY);
+		}
+		for (i in 0...FILES) { // a row per file asked for: where it stands
+			if (resources[i].isNone)
+				continue;
+			final status = Resource.getStatus(resources[i]);
+			final path = PATHS[i];
+			final name = path.substr(path.lastIndexOf("/") + 1);
+			Text.draw(pad(STATUS[status], 8) + " " + name, 12, 80 + i * 16, 12,
+				status == Ready ? Color.LIME : status == Failed ? Color.RED : Color.LIGHTGRAY);
 		}
 		drawGraph(12, screen.y - 132, screen.x - 24, 120);
 		Render.endFrame();
+	}
+
+	/** `%-8s`: `text` left-aligned in `width` characters. **/
+	static function pad(text:String, width:Int):String {
+		while (text.length < width)
+			text += " ";
+		return text;
 	}
 
 	/** The same by-hand formatter the other examples carry; Haxe has no printf. **/

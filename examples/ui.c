@@ -64,18 +64,11 @@ static struct {
     float yaw;
 } g;
 
-static void on_character(const char *path, void *user)
+static void make_character(void)
 {
-    const wgr_handle_t mesh = wgr_mesh_create(path);
-    (void)user;
+    const wgr_handle_t mesh = wgr_mesh_create(CHARACTER_PATH);
     wgr_model_set_mesh(g.character, mesh);
-    wgr_mesh_release(mesh);
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("load failed: %s", path);
+    wgr_resource_release(mesh);
 }
 
 static void place_camera(void)
@@ -144,7 +137,7 @@ static void init(void *user_data)
     /* the list clips its rows and their labels to its box (LAYER_ROW, LAYER_ROW + 1) */
     g.list = ui_list_create(g.scene, LAYER_ROW, ROW_NAMES, ROWS, LIST_X, LIST_Y, LIST_WIDTH, LIST_HEIGHT, ROW_HEIGHT, 15);
 
-    wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_character, on_failed, NULL);
+    make_character(); /* loads on create: drawn once it has loaded */
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)

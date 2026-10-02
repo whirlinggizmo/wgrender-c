@@ -6,14 +6,15 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include "wgr_resource.h"
 #include "wgr_types.h"
 
 /* glTF/glb models (cgltf).
  *
  * Two layers, mirroring the rest of libwgrender (see docs/ARCHITECTURE.md):
  *   - A *Mesh* resource (kind MESH) owns the loaded, shared data: CPU geometry
- *     (incl. retained pick data), GPU buffers, skeleton and animation clips.
- *     Meshes are deduplicated by source path and reference counted.
+ *     (incl. retained pick data), GPU buffers, skeleton and animation clips. It is
+ *     loaded on create and released like any resource (wgr_resource.h).
  *   - A *Model* object (kind MODEL) is a lightweight scene drawable that
  *     references a Mesh and carries its own transform, tint, visibility and
  *     animation playback state.
@@ -21,15 +22,15 @@ extern "C" {
  * Load a Mesh from a path (wgr_mesh_create), then spawn one or more Models from
  * it (wgr_model_create). One Mesh can back many Models. */
 
-/* Mesh resource. Loads (or returns a shared, deduped) Mesh from a path and adds
- * a reference owned by the caller; release it with wgr_mesh_release. */
+/* The glTF or GLB file at asset path `path`, loading on create (wgr_resource.h):
+ * PENDING at once, then READY, or FAILED in a later frame for a file that is missing,
+ * fails to download or won't parse, or whose buffers are missing; FAILED at once for a
+ * path outside the asset root or before wgr_run has started the asset layer. The files
+ * it names load with it: a missing image warns and draws the placeholder texture. 0
+ * only when there's no room for another mesh. A model using it isn't drawn (or
+ * picked) until it is READY, and keeps its animation choice and material overrides
+ * for when it is. */
 wgr_handle_t wgr_mesh_create(const char *path);
-/* Drop this handle's reference to the resource. Resources are shared and
- * reference counted (loading the same path again returns the same handle, with
- * one more reference), so a resource is freed when its last reference goes, not
- * when you call this. Objects hold their own references, so handing a resource
- * to one and releasing it right away is the normal pattern. */
-void        wgr_mesh_release(wgr_handle_t mesh);
 
 /* Generated meshes: shapes made in code, with normals, texture coordinates (both
  * sets) and tangents, so any material lights them, normal maps and custom shaders
@@ -71,6 +72,10 @@ wgr_handle_t wgr_mesh_get_material(wgr_handle_t mesh, int slot);
  * later with wgr_model_set_mesh — draw/animate no-op until then. */
 wgr_handle_t wgr_model_create(wgr_handle_t mesh);
 bool wgr_model_set_mesh(wgr_handle_t handle, wgr_handle_t mesh);
+/* The mesh it draws (borrowed: the model holds the reference), or 0 for none and for a
+ * handle that isn't a model. A model is ready when its mesh is:
+ * wgr_resource_get_status(wgr_model_get_mesh(model)). */
+wgr_handle_t wgr_model_get_mesh(wgr_handle_t handle);
 
 bool wgr_model_set_transform(wgr_handle_t handle,
                             float position_x, float position_y, float position_z,
@@ -128,8 +133,6 @@ float wgr_model_get_animation_time(wgr_handle_t handle);
 /* Length of an animation in seconds (0 for no such animation or no mesh yet). */
 float wgr_model_get_animation_duration(wgr_handle_t handle, int animation_index);
 
-/* True once the model has a loaded mesh to draw. */
-bool wgr_model_is_ready(wgr_handle_t handle);
 
 #ifdef __cplusplus
 }

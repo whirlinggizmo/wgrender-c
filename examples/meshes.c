@@ -55,7 +55,7 @@ static void init(void *user_data)
 
     wgr_handle_t plane = wgr_mesh_create_plane(12.0f, 12.0f, 0);
     wgr_handle_t floor = wgr_model_create(plane);
-    wgr_mesh_release(plane); /* the model holds its own reference */
+    wgr_resource_release(plane); /* the model holds its own reference */
     wgr_handle_t ground = wgr_material_create(WGR_MATERIAL_PBR);
     wgr_material_set_vec4(ground, "base_color", 0.06f, 0.06f, 0.07f, 1.0f);
     wgr_material_set_float(ground, "metallic", 0.0f);
@@ -68,7 +68,7 @@ static void init(void *user_data)
     for (int i = 0; i < SHAPE_COUNT; i++) {
         const float x = ((float)i - (SHAPE_COUNT - 1) * 0.5f) * 1.4f;
         g.shapes[i] = wgr_model_create(shapes[i].mesh);
-        wgr_mesh_release(shapes[i].mesh);
+        wgr_resource_release(shapes[i].mesh);
         wgr_model_set_transform(g.shapes[i], x, shapes[i].y, 0, 0, 0, 0, 1, 1, 1);
         g.materials[i] = wgr_material_create(WGR_MATERIAL_PBR);
         wgr_material_set_vec4(g.materials[i], "base_color", shapes[i].r, shapes[i].gr, shapes[i].b, 1.0f);

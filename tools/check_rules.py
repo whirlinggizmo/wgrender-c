@@ -274,7 +274,7 @@ GETTERS_TODO = {
     *(f'wgr_material_set_{v}' for v in (
         'color', 'float', 'int', 'texture', 'texture_sampling', 'vec2', 'vec3', 'vec4')),
     *(f'wgr_model_set_{v}' for v in (
-        'animation', 'animation_loop', 'animation_speed', 'casts_shadow', 'mesh',
+        'animation', 'animation_loop', 'animation_speed', 'casts_shadow',
         'receives_shadow', 'tint')),
     *(f'wgr_scene_set_{v}' for v in (
         'active_camera', 'ambient', 'background', 'clip', 'environment', 'layer', 'tonemap')),

@@ -1,7 +1,8 @@
 /* libwgrender font example — TrueType text via fontstash, loaded async.
  *
- * Loads two fonts (JetBrains Mono, Komika) with wgr_asset_ensure_async, then draws
- * scalable text including a measured, centered line.
+ * Creates two fonts (JetBrains Mono, Komika), which load on create, then draws
+ * scalable text including a measured, centered line, each line once its font has
+ * loaded.
  *
  *   D    switch the default font (wgr_text_draw, font handle 0) between the built-in
  *        font (JetBrains Mono, ASCII) and Komika

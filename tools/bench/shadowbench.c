@@ -97,7 +97,7 @@ static wgr_handle_t place(wgr_handle_t mesh, float x, float y, float z, float r,
 {
     const wgr_handle_t model = wgr_model_create(mesh);
     const wgr_handle_t material = wgr_material_create(WGR_MATERIAL_PBR);
-    wgr_mesh_release(mesh);
+    wgr_resource_release(mesh);
     wgr_model_set_transform(model, x, y, z, 0, 0, 0, 1, 1, 1);
     wgr_material_set_vec4(material, "base_color", r, g, bl, 1.0f);
     wgr_material_set_float(material, "metallic", 0.0f);
@@ -137,7 +137,7 @@ static void setup(void)
             wgr_model_set_transform(b.models[i], x, 0.8f, z, 0, 0, 0, 1, 1, 1);
             wgr_scene_add(b.scene, b.models[i], 0);
         }
-        wgr_mesh_release(mesh);
+        wgr_resource_release(mesh);
         wgr_material_release(material);
     }
     for (int i = 0; which != CASE_SHARED && which != CASE_WIDE_SHARED && i < count; i++) {

@@ -23,9 +23,6 @@ class RenderTarget {
 	static inline final SPHERE_PATH = "models/sphere/sphere.glb";
 	static inline final FONT_PATH = "fonts/Komika/KOMIKAH_.ttf";
 
-	static inline final ASSET_CHARACTER = 1;
-	static inline final ASSET_SPHERE = 2;
-
 	static inline final PIXEL_W = 160;
 	static inline final PIXEL_H = 100;
 	static inline final PIXEL_SCALE = 4;
@@ -56,7 +53,7 @@ class RenderTarget {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "render_target (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -90,14 +87,9 @@ class RenderTarget {
 		scene.setAmbient(Color.WHITE, 0.25);
 
 		addModels();
-		load(CHARACTER_PATH, ASSET_CHARACTER);
-		load(SPHERE_PATH, ASSET_SPHERE);
+		makeCharacter(); // loads on create: drawn once it has loaded
+		makeSphere(); // loads on create: drawn once it has loaded
 		font = new Font(FONT_PATH); // the built-in font until it has loaded
-	}
-
-	static function load(path:String, id:Int):Void {
-		if (!GuestAbi.loadAsset(path, id))
-			Log.error('failed to queue asset: $path');
 	}
 
 	static function model(position:Vec3, scaleY:Float, scale:Float, material:Material):Model {
@@ -129,24 +121,17 @@ class RenderTarget {
 		globe = model(new Vec3(2.2, 1.2, 0), 1.6, 1.6, globeMaterial);
 	}
 
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('load failed: $path');
-			return;
-		}
-		switch id {
-			case ASSET_CHARACTER:
-				final mesh = new Mesh(path);
-				character.setMesh(mesh);
-				mesh.release();
+	static function makeCharacter():Void {
+		final mesh = new Mesh(CHARACTER_PATH);
+		character.setMesh(mesh);
+		mesh.release();
+	}
 
-			case ASSET_SPHERE:
-				final mesh = new Mesh(path);
-				globe.setMesh(mesh);
-				ground.setMesh(mesh);
-				mesh.release();
-
-		}
+	static function makeSphere():Void {
+		final mesh = new Mesh(SPHERE_PATH);
+		globe.setMesh(mesh);
+		ground.setMesh(mesh);
+		mesh.release();
 	}
 
 	/** A texture with a 2px frame and a caption above it. **/

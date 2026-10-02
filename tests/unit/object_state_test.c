@@ -158,7 +158,7 @@ void test_model_state(void)
     wgr_camera3d_set_view(camera, 0, 1, 12, 0, 1, 0, 0, 1, 0); /* the character is about 2 tall */
     wgr_handle_t model = wgr_model_create(0);
 
-    CHECK(!wgr_model_is_ready(model));
+    CHECK(wgr_model_get_mesh(model) == 0);
     CHECK(wgr_model_get_animation_duration(model, 0) == 0.0f);
     CHECK(wgr_model_set_animation(model, 3));
     CHECK(wgr_model_set_animation_time(model, 0.25f)); /* kept until the mesh arrives */
@@ -166,8 +166,10 @@ void test_model_state(void)
     wgr_handle_t mesh = wgr_mesh_create("examples/assets/" CHARACTER_PATH);
     CHECK(mesh != 0);
     wgr_model_set_mesh(model, mesh);
-    wgr_mesh_release(mesh);
-    CHECK(wgr_model_is_ready(model));
+    wgr_resource_release(mesh);
+    CHECK(!wgr_pick_object(model, camera, 0.5f, 0.5f).hit); /* not picked while its mesh loads */
+    CHECK(test_assets_run() > 0);
+    CHECK(wgr_resource_get_status(wgr_model_get_mesh(model)) == WGR_RESOURCE_READY); /* a model is ready when its mesh is */
 
     const float duration = wgr_model_get_animation_duration(model, 3);
     CHECK(duration > 0.0f);

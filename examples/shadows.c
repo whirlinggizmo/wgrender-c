@@ -46,20 +46,13 @@ enum { TINT_COUNT = 3 };
 static const wgr_color_t TINTS[TINT_COUNT] = {0x000000FFu, 0x1E3C64FFu, 0x64321EFFu};
 static const char *TINT_NAMES[TINT_COUNT] = {"none", "cool", "warm"};
 
-static void on_model_loaded(const char *path, void *user)
+static void make_model(void)
 {
-    wgr_handle_t mesh = wgr_mesh_create(path);
-    (void)user;
+    wgr_handle_t mesh = wgr_mesh_create(CHARACTER_PATH);
     wgr_model_set_mesh(g.character, mesh);
-    wgr_mesh_release(mesh);
+    wgr_resource_release(mesh);
     wgr_model_set_animation(g.character, 3);
     wgr_model_set_animation_loop(g.character, true);
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("load failed: %s", path);
 }
 
 /* A model of `mesh` at (x, y, z) in one color, added to the scene. */
@@ -67,7 +60,7 @@ static wgr_handle_t place(wgr_handle_t mesh, float x, float y, float z, float r,
 {
     const wgr_handle_t model = wgr_model_create(mesh);
     const wgr_handle_t material = wgr_material_create(WGR_MATERIAL_PBR);
-    wgr_mesh_release(mesh); /* the model holds it */
+    wgr_resource_release(mesh); /* the model holds it */
     wgr_model_set_transform(model, x, y, z, 0, 0, 0, 1, 1, 1);
     wgr_material_set_vec4(material, "base_color", r, gr, b, 1.0f);
     wgr_material_set_float(material, "metallic", 0.0f);
@@ -132,7 +125,7 @@ static void init(void *user_data)
     g.character = wgr_model_create(0);
     wgr_model_set_transform(g.character, 0, 0, 0, 0, 0, 0, 1, 1, 1);
     wgr_scene_add(g.scene, g.character, 0);
-    wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_model_loaded, on_failed, NULL);
+    make_model(); /* loads on create: drawn once it has loaded */
     wgr_debug_enable_fps(12, 10, 16);
 }
 

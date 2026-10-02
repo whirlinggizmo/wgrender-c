@@ -37,7 +37,7 @@ class Instancing {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "instancing (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -111,32 +111,16 @@ class Instancing {
 
 	/** Six walkers sharing one skinned mesh, each at its own point in the walk. **/
 	static function addWalkers():Void {
+		final mesh = new Mesh(CHARACTER_PATH); // the same resource for every walker
 		for (i in 0...WALKERS) {
-			final walker = new Model(Handle.NONE);
+			final walker = new Model(mesh);
 			walker.setTransform(new Vec3(i * 2.4 - 6.0, 0.0, -2.0), new Vec3(0, Math.PI, 0), Vec3.ONE);
 			walker.setAnimation(3);
 			walker.setAnimationLoop(true);
 			scene.add(walker);
 			walkers.push(walker);
-			// One load per walker, as the C does: the id is the index, where the C
-			// passes the handle through the callback's void *.
-			GuestAbi.loadAsset(CHARACTER_PATH, i + 1);
 		}
-	}
-
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('load failed: $path');
-			return;
-		}
-		// A bounds check, not a null one: Model is an abstract over Int, so there is
-		// no null to compare against on a static target.
-		if (id < 1 || id > walkers.length)
-			return;
-		final walker = walkers[id - 1];
-		final mesh = new Mesh(path); // the same resource for every walker
-		walker.setMesh(mesh);
-		mesh.release();
+		mesh.release(); // the walkers hold their own references
 	}
 
 	/** One material for every cube, or one each: the same picture, batched or not. **/
