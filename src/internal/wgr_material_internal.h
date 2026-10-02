@@ -48,9 +48,12 @@ typedef struct {
     float occlusion_strength;
     wgri_material_texture_t textures[WGRI_MATERIAL_MAX_TEXTURES];
     /* WGR_MATERIAL_CUSTOM: the shader (referenced) and its parameter values, the
-     * fragment block then the vertex block (std140, as the shader lays them out) */
+     * fragment block then the vertex block (std140, as the shader lays them out);
+     * NULL until the shader is READY, its settings kept by name meanwhile */
     wgr_handle_t shader;
     unsigned char *custom_params;
+    struct wgri_material_kept *kept;
+    int kept_count, kept_capacity;
     int ref_count;
 } wgri_material_t;
 
@@ -59,6 +62,22 @@ void wgri_material_deinit(void);
 
 /* Resolve without logging; NULL for 0 or a stale handle. */
 const wgri_material_t *wgri_material_get(wgr_handle_t material);
+
+/* A custom material's shader, once it's READY, with the material's parameters laid
+ * out for it and its kept settings applied (the first time); NULL while it loads, if
+ * it failed, or for a built-in material. What the draw paths use. */
+struct wgri_shader;
+struct wgri_shader *wgri_material_custom_shader(const wgri_material_t *material);
+/* Whether a custom material's shader failed to load: it then draws as
+ * wgri_material_failed. */
+bool wgri_material_custom_failed(const wgri_material_t *material);
+/* What a custom material whose shader failed draws as: flat magenta, unlit, the
+ * shader's version of the texture placeholder. */
+const wgri_material_t *wgri_material_failed(void);
+/* A READY screen shader's material (an effect's), and a READY surface shader's (a
+ * model's or a sprite's); both false while the shader loads, which is when they
+ * can't tell, so a caller refuses only what it knows is wrong. */
+bool wgri_material_is_surface(wgr_handle_t material);
 
 /* The texture transform as a 2x3 matrix, rows (m[0] m[1] m[2]) and
  * (m[3] m[4] m[5]): u' = m[0] u + m[1] v + m[2], v' = m[3] u + m[4] v + m[5].

@@ -43,7 +43,13 @@ abstract Material(Handle) from Handle to Handle {
 	public static inline function create(shading:MaterialShading = Pbr):Material
 		return (Raw.wgr_material_create(shading) : Handle);
 
-	/** A material drawn by a custom shader; it holds its own reference to the shader. **/
+	/**
+		A material drawn by a custom shader; it holds its own reference to the shader.
+		The shader may still be loading: settings made meanwhile are kept by name and
+		applied once it's `Ready` (an unknown name is logged then), and until then what
+		uses the material isn't drawn. If the shader `Failed`, a model draws flat
+		magenta, a sprite plainly, and an effect not at all.
+	**/
 	public static inline function custom(shader:Handle):Material
 		return (Raw.wgr_material_create_custom(shader) : Handle);
 

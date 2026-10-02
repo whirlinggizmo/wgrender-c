@@ -37,10 +37,10 @@ class Shaders {
 		"shaders/wave.wgrshader", "shaders/sprite_fx.wgrshader"
 	];
 	// ids 1..4 are the shaders, in that order; then the rest
-	static inline final ASSET_TOON = 1;
-	static inline final ASSET_DISSOLVE = 2;
-	static inline final ASSET_WAVE = 3;
-	static inline final ASSET_SPRITE_FX = 4;
+	static inline final SHADER_TOON = 1;
+	static inline final SHADER_DISSOLVE = 2;
+	static inline final SHADER_WAVE = 3;
+	static inline final SHADER_SPRITE_FX = 4;
 	static inline final ASSET_CHARACTER = 6;
 
 	static inline final FLOOR_Y = -0.3;
@@ -88,7 +88,7 @@ class Shaders {
 		addSprites();
 
 		for (i in 0...SHADER_PATHS.length)
-			load(SHADER_PATHS[i], i + 1);
+			makeMaterial(i + 1, SHADER_PATHS[i]);
 		final environment = new Environment(ENVIRONMENT_PATH); // lights the scene once loaded
 		scene.setEnvironment(environment, 1.0, 0.0); // lighting only: the background stays dark
 		environment.release(); // the scene holds its own reference
@@ -171,8 +171,11 @@ class Shaders {
 		logo2d.setTint(Color.rgba(90, 190, 255, 255));
 	}
 
-	/** A shader has loaded: make its material and give it to whatever wears it. **/
-	static function onShader(which:Int, path:String):Void {
+	/**
+		A shader's material, given to whatever wears it. The shader loads on create: its
+		settings are kept until it has loaded, and what wears it is drawn from then on.
+	**/
+	static function makeMaterial(which:Int, path:String):Void {
 		final shader = new Shader(path);
 		final material = Material.custom(shader);
 		shader.release(); // the material holds its own reference
@@ -180,13 +183,13 @@ class Shaders {
 			return;
 
 		switch which {
-			case ASSET_TOON:
+			case SHADER_TOON:
 				material.setColor("color", Color.rgba(255, 196, 120, 255));
 				material.setFloat("bands", 3.0);
 				material.setFloat("rim", 0.35);
 				character.setMaterial(CHARACTER_BODY_SLOT, material);
 
-			case ASSET_DISSOLVE:
+			case SHADER_DISSOLVE:
 				material.setVec4("color", 0.55, 0.6, 0.7, 1.0); // the shader's own colour, linear
 				material.setVec3("edge_color", 4.0, 1.2, 0.2);
 				material.setFloat("speed", 0.15);
@@ -196,7 +199,7 @@ class Shaders {
 				material.setTexture("noise_tex", noise);
 				noise.release(); // the material holds its own reference
 
-			case ASSET_WAVE:
+			case SHADER_WAVE:
 				material.setFloat("amplitude", 0.03);
 				material.setFloat("frequency", 2.5);
 				material.setFloat("wave_speed", 3.0);
@@ -206,7 +209,7 @@ class Shaders {
 				material.setFloat("reflectivity", 0.35); // real water is 0.02; more, so it shows
 				rippling.setMaterial(0, material);
 
-			case ASSET_SPRITE_FX: // one material, a 3D sprite and a 2D one
+			case SHADER_SPRITE_FX: // one material, a 3D sprite and a 2D one
 				material.setVec4("outline_color", 1.0, 0.45, 0.1, 1.0);
 				material.setFloat("outline_width", 2.5);
 				material.setFloat("flash", 0.8);
@@ -223,9 +226,6 @@ class Shaders {
 			return;
 		}
 		switch id {
-			case ASSET_TOON | ASSET_DISSOLVE | ASSET_WAVE | ASSET_SPRITE_FX:
-				onShader(id, path);
-
 			case ASSET_CHARACTER:
 				final mesh = new Mesh(path);
 				character.setMesh(mesh);

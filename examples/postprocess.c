@@ -55,29 +55,27 @@ static void on_model_loaded(const char *path, void *user)
     wgr_model_set_animation_loop(g.character, true);
 }
 
-static void on_vignette_loaded(const char *path, void *user)
+/* The effects' materials. Their shaders load on create: the settings are kept until
+ * they have, and an effect joins the chain from the frame its shader is ready. */
+static void make_vignette(void)
 {
-    wgr_handle_t shader = wgr_shader_create(path);
-    (void)user;
+    wgr_handle_t shader = wgr_shader_create(VIGNETTE_PATH);
     g.vignette = wgr_material_create_custom(shader);
-    wgr_shader_release(shader); /* the material holds its own reference */
+    wgr_resource_release(shader); /* the material holds its own reference */
     wgr_material_set_float(g.vignette, "strength", g.strength);
     wgr_material_set_float(g.vignette, "radius", 0.25f);
     wgr_material_set_vec4(g.vignette, "tint", 1.04f, 1.0f, 0.94f, 1.0f);
-    rebuild_effects();
 }
 
-static void on_scanlines_loaded(const char *path, void *user)
+static void make_scanlines(void)
 {
-    wgr_handle_t shader = wgr_shader_create(path);
-    (void)user;
+    wgr_handle_t shader = wgr_shader_create(SCANLINES_PATH);
     g.scanlines = wgr_material_create_custom(shader);
-    wgr_shader_release(shader);
+    wgr_resource_release(shader);
     wgr_material_set_float(g.scanlines, "lines", 220.0f);
     wgr_material_set_float(g.scanlines, "darkness", 0.35f);
     wgr_material_set_float(g.scanlines, "offset", 1.5f);
     wgr_material_set_float(g.scanlines, "flicker", 1.0f);
-    rebuild_effects();
 }
 
 static void on_failed(const char *path, void *user)
@@ -155,8 +153,9 @@ static void init(void *user_data)
     wgr_scene_add(g.scene, g.character, 0);
 
     load(CHARACTER_PATH, on_model_loaded);
-    load(VIGNETTE_PATH, on_vignette_loaded);
-    load(SCANLINES_PATH, on_scanlines_loaded);
+    make_vignette();
+    make_scanlines();
+    rebuild_effects();
     wgr_debug_enable_fps(12, 10, 16);
 }
 

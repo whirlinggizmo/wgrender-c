@@ -28,9 +28,10 @@
 static struct {
     wgr_handle_t materials[WGR_MAX_EFFECTS];
     int count;
+    wgr_handle_t drawn[WGR_MAX_EFFECTS]; /* this frame's chain: the effects whose shader is READY */
+    int drawn_count;
     wgr_handle_t buffers[2]; /* render targets, made on first use and when the screen resizes */
     int width, height;
-    bool warned; /* a shader that went missing: say so once */
 } wgr_fx;
 
 static void free_buffers(void)
@@ -69,9 +70,7 @@ static bool ensure_buffers(int width, int height)
 static const wgri_shader_program_t *effect_program(wgr_handle_t material, wgri_shader_t **shader_out)
 {
     const wgri_material_t *material_ptr = wgri_material_get(material);
-    wgri_shader_t *shader = material_ptr != NULL && material_ptr->shader != 0 && wgri_shader_hooks.get != NULL
-                              ? wgri_shader_hooks.get(material_ptr->shader)
-                              : NULL;
+    wgri_shader_t *shader = wgri_material_custom_shader(material_ptr); /* NULL while it loads, or failed */
     if (shader == NULL || !shader->screen) {
         return NULL;
     }
@@ -90,11 +89,7 @@ static void draw_effect(wgr_handle_t material, wgr_handle_t source)
     float info[4];
 
     if (program == NULL || material_ptr == NULL) {
-        if (!wgr_fx.warned) {
-            wgr_logger_warn("render: a screen effect's material lost its shader; the frame is drawn as it is");
-            wgr_fx.warned = true;
-        }
-        return;
+        return; /* not in this frame's chain (effects_begin): can't happen */
     }
     if (shader->screen_pipeline.id == SG_INVALID_ID) {
         /* the frame covers every pixel: no depth test, no blending, no culling */
@@ -150,7 +145,16 @@ static bool effects_begin(sg_attachments *attachments)
     const vec2_t size = wgri_render_target_size();
     const int width = (int)(size.x + 0.5f), height = (int)(size.y + 0.5f);
 
-    if (wgr_fx.count == 0 || width <= 0 || height <= 0 || !ensure_buffers(width, height)) {
+    /* the chain is the effects whose shader is READY: one still loading (or failed, or
+       released) is left out, and with none the frame goes straight to the screen */
+    wgr_fx.drawn_count = 0;
+    for (int i = 0; i < wgr_fx.count; i++) {
+        wgri_shader_t *shader;
+        if (effect_program(wgr_fx.materials[i], &shader) != NULL) {
+            wgr_fx.drawn[wgr_fx.drawn_count++] = wgr_fx.materials[i];
+        }
+    }
+    if (wgr_fx.drawn_count == 0 || width <= 0 || height <= 0 || !ensure_buffers(width, height)) {
         return false;
     }
     return wgri_texture_get_target(wgr_fx.buffers[0], attachments, NULL, NULL);
@@ -159,8 +163,8 @@ static bool effects_begin(sg_attachments *attachments)
 /* wgri_render_hooks: the chain, ending on the screen. */
 static void effects_draw(void)
 {
-    for (int i = 0; i < wgr_fx.count; i++) {
-        const bool last = i == wgr_fx.count - 1;
+    for (int i = 0; i < wgr_fx.drawn_count; i++) {
+        const bool last = i == wgr_fx.drawn_count - 1;
         const wgr_handle_t source = wgr_fx.buffers[i % 2];
         sg_attachments attachments;
         sg_pass pass = {.action = {.colors[0].load_action = SG_LOADACTION_DONTCARE, /* every pixel is written */
@@ -175,7 +179,7 @@ static void effects_draw(void)
         }
         pass.label = last ? "wgr-screen-effect-final" : "wgr-screen-effect";
         sg_begin_pass(&pass);
-        draw_effect(wgr_fx.materials[i], source);
+        draw_effect(wgr_fx.drawn[i], source);
         sg_end_pass();
     }
 }
@@ -189,7 +193,7 @@ bool wgr_render_add_effect(wgr_handle_t material)
         wgr_logger_warn("wgr_render_add_effect: needs a material made with wgr_material_create_custom");
         return false;
     }
-    if (!wgri_material_is_screen(material)) {
+    if (wgri_material_is_surface(material)) { /* known once its shader is READY; until then it's taken */
         wgr_logger_warn("wgr_render_add_effect: that material's shader draws surfaces; a screen effect's fragment shader "
                  "includes wgr_screen (see shaders/wgr.glsl)");
         return false;

@@ -2746,7 +2746,7 @@ static void draw_custom(const wgr_model_draw_t *e, const wgr_model_t *model_ptr,
                         const wgri_material_t *material, bool blended, sg_pipeline *cur_pip, int instance_base,
                         int instances)
 {
-    wgri_shader_t *shader = wgri_shader_hooks.get != NULL ? wgri_shader_hooks.get(material->shader) : NULL;
+    wgri_shader_t *shader = wgri_material_custom_shader(material); /* NULL while it loads */
     const int s = prim->skinned ? 1 : 0, b = blended ? 1 : 0, d = material->double_sided ? 1 : 0;
     const wgri_shader_program_t *program;
     const wgri_light_env_t *env = wgri_light_env_get(e->light_env);
@@ -2759,7 +2759,7 @@ static void draw_custom(const wgr_model_draw_t *e, const wgr_model_t *model_ptr,
         wgri_shadow_hooks.get_binding(e->light_env, &shadow);
     }
 
-    if (shader == NULL) return; /* released while the material was queued */
+    if (shader == NULL || shader->screen) return; /* loading (not there yet), released, or a screen shader */
     program = &shader->programs[s];
     if (shader->pipelines[s][b][d].id == SG_INVALID_ID) {
         shader->pipelines[s][b][d] = make_pipeline(program->shader, prim->skinned, blended, material->double_sided);
@@ -3042,8 +3042,11 @@ static void draw_primitive(const wgr_model_draw_t *e, const wgr_model_t *model_p
 {
     const wgri_material_t *material = prim_material(model_ptr, mesh_ptr, prim);
     if (material->shader != 0) {
-        draw_custom(e, model_ptr, prim, material, blended, cur_pip, instance_base, instances);
-        return;
+        if (!wgri_material_custom_failed(material)) {
+            draw_custom(e, model_ptr, prim, material, blended, cur_pip, instance_base, instances);
+            return;
+        }
+        material = wgri_material_failed(); /* its shader failed: flat magenta, as a failed texture's placeholder */
     }
     const wgri_material_texture_t *textures = material->textures;
     const wgri_light_env_t *light_env = wgri_light_env_get(e->light_env);

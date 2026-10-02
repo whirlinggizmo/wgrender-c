@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 
+#include "internal/wgr_resource_internal.h"
 #include "wgr_shader.h"
 #include "wgr_types.h"
 #include "sokol_gfx.h"
@@ -66,7 +67,8 @@ enum {
 };
 #define WGRI_SHADER_SPRITE_PIPELINES 8 /* the sprite batch's pipeline kinds (src/wgr_sprite_batch.c) */
 
-typedef struct {
+typedef struct wgri_shader {
+    wgri_resource_t resource; /* first: the resource core's part (internal/wgr_resource_internal.h) */
     wgri_shader_program_t programs[WGRI_SHADER_PROGRAM_COUNT];
     sg_pipeline pipelines[2][2][2];  /* [skinned][blended][double_sided], made by wgr_model on first use */
     sg_pipeline sprite_pipelines[WGRI_SHADER_SPRITE_PIPELINES]; /* made by the sprite batch on first use */
@@ -77,17 +79,13 @@ typedef struct {
     int block_size[WGRI_SHADER_BLOCK_COUNT]; /* FS_PARAMS / VS_PARAMS: bytes (std140, 16-byte multiple) */
     char textures[WGRI_SHADER_MAX_TEXTURES][WGRI_SHADER_NAME_MAX];
     int texture_count;
-    char path[512];
-    bool has_path;
-    int ref_count;
 } wgri_shader_t;
 
-/* Resolve without logging; NULL for 0 or a stale handle. The pointer is valid until
- * the next shader is created. */
+/* Resolve a READY shader without logging; NULL for 0, a stale handle, or one still
+ * loading or failed. The pointer is valid until the next shader is created. */
 wgri_shader_t *wgri_shader_get(wgr_handle_t shader);
 void wgri_shader_init(void);
 void wgri_shader_deinit(void);
-void wgri_shader_retain(wgr_handle_t shader);
 
 /* Index of the parameter or texture called `name`, or -1. */
 int wgri_shader_find_param(const wgri_shader_t *shader, const char *name);
@@ -117,9 +115,7 @@ typedef struct {
 } wgri_shader_frame_t;
 
 typedef struct {
-    wgri_shader_t *(*get)(wgr_handle_t shader);
-    void (*retain)(wgr_handle_t shader);
-    void (*release)(wgr_handle_t shader);
+    wgri_shader_t *(*get)(wgr_handle_t shader); /* READY ones only (wgri_shader_get) */
     int (*find_param)(const wgri_shader_t *shader, const char *name);
     int (*find_texture)(const wgri_shader_t *shader, const char *name);
     /* Textures for libwgrender's slots when there's nothing to show: white (2D), black

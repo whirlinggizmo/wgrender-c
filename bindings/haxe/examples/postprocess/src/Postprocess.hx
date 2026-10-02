@@ -30,8 +30,6 @@ class Postprocess {
 	static inline final SCANLINES_PATH = "shaders/scanlines.wgrshader";
 
 	static inline final ASSET_CHARACTER = 1;
-	static inline final ASSET_VIGNETTE = 2;
-	static inline final ASSET_SCANLINES = 3;
 
 	static var scene:Scene;
 	static var camera:Camera3D;
@@ -94,8 +92,7 @@ class Postprocess {
 		scene.add(character);
 
 		load(CHARACTER_PATH, ASSET_CHARACTER);
-		load(VIGNETTE_PATH, ASSET_VIGNETTE);
-		load(SCANLINES_PATH, ASSET_SCANLINES);
+		makeEffects();
 		Debug.enableFps(12, 10, 16);
 	}
 
@@ -148,26 +145,29 @@ class Postprocess {
 				mesh.release();
 				character.setAnimation(3);
 				character.setAnimationLoop(true);
-
-			case ASSET_VIGNETTE:
-				final shader = new Shader(path);
-				vignette = Material.custom(shader);
-				shader.release(); // the material holds its own reference
-				vignette.setFloat("strength", strength);
-				vignette.setFloat("radius", 0.25);
-				vignette.setVec4("tint", 1.04, 1.0, 0.94, 1.0);
-				rebuildEffects();
-
-			case ASSET_SCANLINES:
-				final shader = new Shader(path);
-				scanlines = Material.custom(shader);
-				shader.release();
-				scanlines.setFloat("lines", 220.0);
-				scanlines.setFloat("darkness", 0.35);
-				scanlines.setFloat("offset", 1.5);
-				scanlines.setFloat("flicker", 1.0);
-				rebuildEffects();
 		}
+	}
+
+	/**
+		The effects' materials. Their shaders load on create: the settings are kept until
+		they have, and an effect joins the chain from the frame its shader is ready.
+	**/
+	static function makeEffects():Void {
+		final vignetteShader = new Shader(VIGNETTE_PATH);
+		vignette = Material.custom(vignetteShader);
+		vignetteShader.release(); // the material holds its own reference
+		vignette.setFloat("strength", strength);
+		vignette.setFloat("radius", 0.25);
+		vignette.setVec4("tint", 1.04, 1.0, 0.94, 1.0);
+
+		final scanlinesShader = new Shader(SCANLINES_PATH);
+		scanlines = Material.custom(scanlinesShader);
+		scanlinesShader.release();
+		scanlines.setFloat("lines", 220.0);
+		scanlines.setFloat("darkness", 0.35);
+		scanlines.setFloat("offset", 1.5);
+		scanlines.setFloat("flicker", 1.0);
+		rebuildEffects();
 	}
 
 	/** The chain is rebuilt whole rather than edited: clear, then add what is on. **/

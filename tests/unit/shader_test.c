@@ -29,6 +29,7 @@
 #include "wgr_shader.h"
 #include "wgr_texture.h"
 #include "test.h"
+#include "test_assets.h"
 #include "tests.h"
 
 #include "sokol_gfx.h"
@@ -54,13 +55,16 @@ void test_shader_custom_material(void)
     wgri_texture_init();
     wgri_shader_init();
     wgri_material_init();
+    test_assets_start(0, ".");
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL); /* wrong names and files below log on purpose */
 
     const wgr_handle_t toon = wgr_shader_create(SHADERS "toon.wgrshader");
     CHECK(toon != 0);
     CHECK(wgr_handle_get_kind(toon) == WGR_HANDLE_KIND_SHADER);
+    CHECK(wgri_shader_get(toon) == NULL); /* loading: not one to draw with yet */
     CHECK(wgr_shader_create(SHADERS "toon.wgrshader") == toon); /* deduped by path */
-    wgr_shader_release(toon);
+    wgr_resource_release(toon);
+    CHECK(test_assets_run() > 0);
 
     const wgri_shader_t *shader = wgri_shader_get(toon);
     CHECK(shader != NULL);
@@ -94,7 +98,7 @@ void test_shader_custom_material(void)
     CHECK(!wgr_material_set_float(material, "metallic", 0)); /* built-in names don't apply */
     CHECK(!wgr_material_set_float(material, "missing", 0));
 
-    const wgr_handle_t texture = wgr_texture_create("examples/assets/textures/noise.png");
+    const wgr_handle_t texture = wgr_texture_create("examples/assets/textures/noise.png"); /* still loading is fine */
     CHECK(texture != 0);
     CHECK(wgr_material_set_texture(material, "base_tex", texture));
     CHECK(wgri_material_get(material)->textures[0].texture == texture);
@@ -105,15 +109,26 @@ void test_shader_custom_material(void)
     wgr_resource_release(texture); /* the material keeps it */
 
     /* the material holds the shader: released with the material's last reference */
-    wgr_shader_release(toon);
+    wgr_resource_release(toon);
     CHECK(wgri_shader_get(toon) != NULL);
     wgr_material_release(material);
     CHECK(wgri_shader_get(toon) == NULL);
 
     /* a vertex hook's parameters come after the fragment block */
+    /* made while its shader loads: settings are kept by name, and applied once it's
+       READY; a name the shader doesn't declare is only known (and logged) then */
     const wgr_handle_t wave = wgr_shader_create(SHADERS "wave.wgrshader");
     const wgr_handle_t rippling = wgr_material_create_custom(wave);
-    wgr_shader_release(wave);
+    wgr_resource_release(wave);
+    CHECK(rippling != 0 && wgri_material_get(rippling)->custom_params == NULL);
+    CHECK(wgri_material_custom_shader(wgri_material_get(rippling)) == NULL); /* not drawn yet */
+    CHECK(wgr_material_set_float(rippling, "amplitude", 0.25f));
+    CHECK(wgr_material_set_float(rippling, "amplitude", 0.5f)); /* the later one wins */
+    CHECK(wgr_material_set_float(rippling, "no_such_name", 1.0f)); /* can't tell yet */
+    CHECK(test_assets_run() > 0);
+    CHECK(wgri_material_custom_shader(wgri_material_get(rippling)) != NULL); /* applied */
+    CHECK_NEAR(value_at(rippling, "amplitude", 0), 0.5f, EPS);
+    CHECK(!wgr_material_set_float(rippling, "no_such_name", 1.0f)); /* now it can */
     shader = wgri_shader_get(wave);
     CHECK(shader != NULL && shader->texture_count == 0);
     CHECK(shader->block_size[WGRI_SHADER_BLOCK_FS_PARAMS] == 48 && shader->block_size[WGRI_SHADER_BLOCK_VS_PARAMS] == 16);
@@ -124,7 +139,6 @@ void test_shader_custom_material(void)
         CHECK(shader->programs[p].env_view_slot == 8 && shader->programs[p].env_sampler_slot == 8);
         CHECK(shader->programs[p].brdf_view_slot == 9 && shader->programs[p].brdf_sampler_slot == 8);
     }
-    CHECK(wgr_material_set_float(rippling, "amplitude", 0.5f));
     CHECK(wgr_material_set_float(rippling, "wave_speed", 2.0f));
     CHECK(wgr_material_set_vec4(rippling, "high_color", 1, 1, 1, 1));
     CHECK_NEAR(value_at(rippling, "amplitude", 0), 0.5f, EPS);
@@ -138,14 +152,26 @@ void test_shader_custom_material(void)
         fputs("wgrshader 1\nend\n", old);
         fclose(old);
     }
-    CHECK(wgr_shader_create(WGR_TEST_DIR "/old.wgrshader") == 0);
+    const wgr_handle_t old_format = wgr_shader_create(WGR_TEST_DIR "/old.wgrshader");
 
     /* not shaders */
-    CHECK(wgr_shader_create("examples/assets/textures/noise.png") == 0);
-    CHECK(wgr_shader_create(SHADERS "missing.wgrshader") == 0);
+    const wgr_handle_t not_shader = wgr_shader_create("examples/assets/textures/noise.png");
+    const wgr_handle_t missing = wgr_shader_create(SHADERS "missing.wgrshader");
     CHECK(wgr_material_create_custom(0) == 0);
+    const wgr_handle_t broken = wgr_material_create_custom(missing); /* taken: it isn't known yet */
+    CHECK(test_assets_run() > 0);
+    CHECK(wgr_resource_get_status(old_format) == WGR_RESOURCE_FAILED);
+    CHECK(wgr_resource_get_status(not_shader) == WGR_RESOURCE_FAILED);
+    CHECK(wgr_resource_get_status(missing) == WGR_RESOURCE_FAILED);
+    CHECK(wgri_material_custom_failed(wgri_material_get(broken))); /* drawn as wgri_material_failed */
+    CHECK(wgri_material_failed()->base_color[0] == 1.0f && wgri_material_failed()->base_color[1] == 0.0f);
+    wgr_material_release(broken);
+    wgr_resource_release(old_format);
+    wgr_resource_release(not_shader);
+    wgr_resource_release(missing);
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
+    test_assets_stop();
     wgri_material_deinit();
     wgri_shader_deinit();
     wgri_texture_deinit();
@@ -171,9 +197,11 @@ void test_shader_sprites(void)
     wgri_material_init();
     wgri_sprite3d_init();
     wgri_sprite2d_init();
+    test_assets_start(0, ".");
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL); /* refusals below log on purpose */
 
     const wgr_handle_t shader = wgr_shader_create(SHADERS "sprite_fx.wgrshader");
+    CHECK(test_assets_run() > 0);
     const wgri_shader_t *shader_ptr = wgri_shader_get(shader);
     CHECK(shader_ptr != NULL);
     if (shader_ptr == NULL) return;
@@ -183,7 +211,7 @@ void test_shader_sprites(void)
     CHECK(shader_ptr->programs[WGRI_SHADER_PROGRAM_SPRITE_PULLED].has_block[WGRI_SHADER_BLOCK_SPRITE_BATCH]);
     CHECK(shader_ptr->programs[WGRI_SHADER_PROGRAM_STATIC].sprite_view_slot == 10); /* white on models */
     const wgr_handle_t custom = wgr_material_create_custom(shader);
-    wgr_shader_release(shader); /* the material holds it */
+    wgr_resource_release(shader); /* the material holds it */
     const wgr_handle_t pbr = wgr_material_create(WGR_MATERIAL_PBR);
 
     const unsigned char pixel[4] = {255, 255, 255, 255};
@@ -233,6 +261,7 @@ void test_shader_sprites(void)
     wgr_resource_release(texture);
     wgr_scene_destroy(scene);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
+    test_assets_stop();
     wgri_sprite2d_deinit();
     wgri_sprite3d_deinit();
     wgri_material_deinit();
@@ -259,11 +288,24 @@ void test_shader_effects(void)
     wgri_sprite3d_init();
     wgri_sprite2d_init();
     wgri_effect_init();
+    test_assets_start(0, ".");
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL); /* refusals below log on purpose */
 
     const wgr_handle_t vignette = wgr_shader_create(SHADERS "vignette.wgrshader");
     const wgr_handle_t scanlines = wgr_shader_create(SHADERS "scanlines.wgrshader");
     const wgr_handle_t toon = wgr_shader_create(SHADERS "toon.wgrshader");
+
+    /* an effect whose shader is still loading is taken (whether it's a screen shader isn't
+       known yet), and left out of the chain: the frame goes straight to the screen */
+    const wgr_handle_t early = wgr_material_create_custom(vignette);
+    CHECK(wgr_render_add_effect(early));
+    wgr_render_begin_frame();
+    wgr_render_clear_background(WGR_COLOR_BLACK);
+    wgr_render_end_frame();
+    wgr_render_clear_effects();
+    wgr_material_release(early);
+
+    CHECK(test_assets_run() > 0);
     const wgri_shader_t *screen = wgri_shader_get(vignette);
     CHECK(screen != NULL);
     if (screen == NULL) return;
@@ -280,7 +322,7 @@ void test_shader_effects(void)
     CHECK(screen->param_count == 3 && screen->block_size[WGRI_SHADER_BLOCK_FS_PARAMS] == 32);
 
     const wgr_handle_t dark = wgr_material_create_custom(vignette);
-    wgr_shader_release(vignette); /* the material holds it from here */
+    wgr_resource_release(vignette); /* the material holds it from here */
     const wgr_handle_t crt = wgr_material_create_custom(scanlines);
     const wgr_handle_t surface = wgr_material_create_custom(toon);
     const wgr_handle_t pbr = wgr_material_create(WGR_MATERIAL_PBR);
@@ -341,9 +383,10 @@ void test_shader_effects(void)
     wgr_material_release(crt);
     wgr_material_release(surface);
     wgr_material_release(pbr);
-    wgr_shader_release(scanlines);
-    wgr_shader_release(toon);
+    wgr_resource_release(scanlines);
+    wgr_resource_release(toon);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
+    test_assets_stop();
     wgri_effect_deinit();
     wgri_sprite2d_deinit();
     wgri_sprite3d_deinit();

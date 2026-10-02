@@ -45,7 +45,9 @@ void wgr_render_end_texture(void);
  * — a vignette, color grading, scanlines. An effect is a custom material whose shader
  * is a screen effect (its fragment shader includes wgr_screen; see shaders/wgr.glsl and
  * tools/pack_shader.py); a surface material is refused, as is a screen material on a
- * model or sprite. The material's parameters can be changed any frame
+ * model or sprite. Which one a shader is is known once it's READY: until then the
+ * material is taken, and an effect is drawn from the frame its shader is ready (a
+ * surface shader, it turns out, never is). The material's parameters can be changed any frame
  * (wgr_material_set_float), so an effect can fade in and out.
  *
  * Effects apply to the screen, not to render targets: to post-process a target, draw

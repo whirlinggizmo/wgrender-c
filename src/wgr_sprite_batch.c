@@ -689,9 +689,7 @@ typedef struct {
 static bool draw_custom(const wgr_sprite_batch_t *b)
 {
     const wgri_material_t *material = wgri_material_get(b->material);
-    wgri_shader_t *shader = material != NULL && material->shader != 0 && wgri_shader_hooks.get != NULL
-                              ? wgri_shader_hooks.get(material->shader)
-                              : NULL;
+    wgri_shader_t *shader = wgri_material_custom_shader(material); /* NULL while it loads */
     const wgr_sprite_camera_t *cam = &wgr_sb.cameras[b->camera];
     const wgri_light_env_t *env = wgri_light_env_get(b->light_env);
     const float time = (float)wgr_get_time();
@@ -1040,9 +1038,16 @@ void wgri_sprite_batch_draw(int batch, bool follows)
         wgr_sb.last_drawn = -1; /* the next batch applies everything again */
         return;
     }
-    if (b->material != 0 && !b->lit && draw_custom(b)) {
-        wgr_sb.last_drawn = -1; /* the next batch applies everything again */
-        return;
+    if (b->material != 0 && !b->lit) {
+        const wgri_material_t *material = wgri_material_get(b->material);
+        if (draw_custom(b)) {
+            wgr_sb.last_drawn = -1; /* the next batch applies everything again */
+            return;
+        }
+        if (material != NULL && material->shader != 0 && !wgri_material_custom_failed(material)) {
+            return; /* its shader is still loading: not there yet */
+        }
+        /* failed (or gone): drawn as a plain sprite */
     }
     /* right after another batch, only what differs is applied again (sorted sprites
        from several textures make long runs of small batches) */

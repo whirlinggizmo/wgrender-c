@@ -59,13 +59,13 @@ static void on_character_loaded(const char *path, void *user)
     wgr_mesh_release(mesh);
 }
 
-/* A shader is loaded: make its material and give it to its model. */
-static void on_shader_loaded(const char *path, void *user)
+/* A shader's material, given to its model or sprites. The shader loads on create: its
+ * settings are kept until it has loaded, and what uses it is drawn from then on. */
+static void make_material(int which)
 {
-    const int which = (int)(intptr_t)user;
-    wgr_handle_t shader = wgr_shader_create(path);
+    wgr_handle_t shader = wgr_shader_create(SHADER_PATHS[which]);
     wgr_handle_t material = wgr_material_create_custom(shader);
-    wgr_shader_release(shader); /* the material holds its own reference */
+    wgr_resource_release(shader); /* the material holds its own reference */
     if (material == 0) return;
 
     switch (which) {
@@ -182,8 +182,7 @@ static void init(void *user_data)
     wgr_sprite2d_set_tint(g.logo2d, wgr_color_rgba(90, 190, 255, 255));
 
     for (int i = 0; i < SHADER_COUNT; i++) {
-        wgr_asset_add_task(wgr_asset_ensure_async(SHADER_PATHS[i], NULL, WGR_ASSET_NONE), on_shader_loaded, on_failed,
-                          (void *)(intptr_t)i);
+        make_material(i);
     }
     {
         const wgr_handle_t environment = wgr_environment_create(ENVIRONMENT_PATH); /* lights the scene once loaded */

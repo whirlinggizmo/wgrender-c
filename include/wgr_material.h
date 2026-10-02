@@ -27,7 +27,10 @@ extern "C" {
  *   otherwise (below).
  *
  * Parameters are set by name. Setters return false for an unknown name or a
- * value of the wrong kind.
+ * value of the wrong kind. On a custom material whose shader is still loading, the
+ * names aren't known yet: the value is kept and the setter returns true, and once
+ * the shader is READY what was kept is applied, an unknown name or wrong kind logged
+ * then and ignored.
  *
  *   name                          kind     default    notes
  *   base_color                    vec4     1,1,1,1    linear rgba; alpha drives MASK/BLEND
@@ -69,7 +72,14 @@ wgr_handle_t wgr_material_create(wgr_material_shading_t shading);
  * transforms like <t>_offset are the shader's business); the built-in names above
  * don't apply. Alpha mode and double-sided work as for built-in materials. Picking
  * treats its surfaces as solid everywhere. The material holds its own reference to
- * the shader. */
+ * the shader.
+ *
+ * The shader may still be loading (wgr_resource.h): the material is made at once, its
+ * settings are kept until the shader is READY (above), and until then what uses it
+ * isn't drawn (an effect is left out of the chain). If the shader FAILED, a model
+ * using it draws flat magenta and unlit (the shader's version of the texture
+ * placeholder), a sprite draws plainly, and an effect stays out. 0 for a handle that
+ * isn't a shader, or no room for another material. */
 wgr_handle_t wgr_material_create_custom(wgr_handle_t shader);
 /* The material's custom shader, or 0 for built-in shading. */
 wgr_handle_t wgr_material_get_shader(wgr_handle_t material);

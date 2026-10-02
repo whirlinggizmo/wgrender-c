@@ -125,14 +125,15 @@ static void clear_textures(wgri_material_t *material_ptr)
     }
 }
 
+static void forget_kept(wgri_material_t *material_ptr);
+
 /* Everything a material holds: textures, and a custom material's shader and values. */
 static void clear(wgri_material_t *material_ptr)
 {
     clear_textures(material_ptr);
     free(material_ptr->custom_params);
-    if (material_ptr->shader != 0 && wgri_shader_hooks.release != NULL) {
-        wgri_shader_hooks.release(material_ptr->shader);
-    }
+    forget_kept(material_ptr);
+    wgr_resource_release(material_ptr->shader); /* no-op for 0 */
     memset(material_ptr, 0, sizeof(*material_ptr));
 }
 
@@ -191,6 +192,148 @@ static bool set_custom_floats(wgri_material_t *material_ptr, const char *name, w
     return true;
 }
 
+static bool set_custom_int(wgri_material_t *material_ptr, const char *name, int value)
+{
+    unsigned char *at = custom_param(material_ptr, name, 1 << WGRI_SHADER_PARAM_INT, NULL);
+    if (at != NULL) memcpy(at, &value, sizeof(value));
+    return at != NULL;
+}
+
+static bool set_custom_color(wgri_material_t *material_ptr, const char *name, wgr_color_t color)
+{
+    const wgri_colorf_t c = wgri_color_unpack(color);
+    const float linear[4] = {wgri_srgb_to_linear(c.r), wgri_srgb_to_linear(c.g), wgri_srgb_to_linear(c.b), c.a};
+    wgri_shader_param_type_t type;
+    unsigned char *at =
+        custom_param(material_ptr, name, (1 << WGRI_SHADER_PARAM_VEC3) | (1 << WGRI_SHADER_PARAM_VEC4), &type);
+    if (at != NULL) memcpy(at, linear, sizeof(float) * (type == WGRI_SHADER_PARAM_VEC4 ? 4 : 3));
+    return at != NULL;
+}
+
+static bool set_custom_texture(wgri_material_t *material_ptr, const char *name, wgr_handle_t texture)
+{
+    wgri_material_texture_t *custom = custom_texture(material_ptr, name);
+    if (custom == NULL) return false;
+    if (custom->texture != texture) {
+        wgri_resource_retain(texture); /* before releasing, in case they're the same resource */
+        wgr_resource_release(custom->texture);
+        custom->texture = texture;
+    }
+    return true;
+}
+
+static bool set_custom_sampling(wgri_material_t *material_ptr, const char *name, wgr_texture_wrap_t wrap_u,
+                                wgr_texture_wrap_t wrap_v, wgr_texture_filter_t filter)
+{
+    wgri_material_texture_t *custom = custom_texture(material_ptr, name);
+    if (custom == NULL) return false;
+    custom->wrap_u = wrap_u;
+    custom->wrap_v = wrap_v;
+    custom->filter = filter;
+    return true;
+}
+
+/* A setting made on a custom material while its shader loads: kept by name, and
+ * applied once the shader is READY (realize), which is when an unknown name is told. */
+typedef enum { KEPT_INT, KEPT_FLOATS, KEPT_COLOR, KEPT_TEXTURE, KEPT_SAMPLING } kept_kind_t;
+typedef struct wgri_material_kept {
+    kept_kind_t kind;
+    char name[WGRI_SHADER_NAME_MAX];
+    wgri_shader_param_type_t type; /* KEPT_FLOATS */
+    int count;
+    float values[4];
+    int value;
+    wgr_color_t color;
+    wgr_handle_t texture; /* KEPT_TEXTURE: a reference */
+    wgr_texture_wrap_t wrap_u, wrap_v;
+    wgr_texture_filter_t filter;
+} wgri_material_kept_t;
+
+static void forget_kept(wgri_material_t *material_ptr)
+{
+    for (int i = 0; i < material_ptr->kept_count; i++) {
+        if (material_ptr->kept[i].kind == KEPT_TEXTURE) wgr_resource_release(material_ptr->kept[i].texture);
+    }
+    free(material_ptr->kept);
+    material_ptr->kept = NULL;
+    material_ptr->kept_count = material_ptr->kept_capacity = 0;
+}
+
+/* Where to keep `kind` of `name`: the same setting made before, replaced, or a new
+ * one; NULL (logged) out of memory or for a name that can't be one. */
+static wgri_material_kept_t *keep(wgri_material_t *material_ptr, kept_kind_t kind, const char *name)
+{
+    wgri_material_kept_t *kept;
+    if (name == NULL || strlen(name) >= WGRI_SHADER_NAME_MAX) {
+        wgr_logger_warn("material: '%s' isn't a name its shader can have", name != NULL ? name : "(null)");
+        return NULL;
+    }
+    for (int i = 0; i < material_ptr->kept_count; i++) {
+        kept = &material_ptr->kept[i];
+        if (kept->kind == kind && strcmp(kept->name, name) == 0) {
+            if (kind == KEPT_TEXTURE) wgr_resource_release(kept->texture);
+            return kept;
+        }
+    }
+    if (material_ptr->kept_count == material_ptr->kept_capacity) {
+        const int capacity = material_ptr->kept_capacity > 0 ? material_ptr->kept_capacity * 2 : 8;
+        kept = realloc(material_ptr->kept, sizeof(*kept) * (size_t)capacity);
+        if (kept == NULL) return NULL;
+        material_ptr->kept = kept;
+        material_ptr->kept_capacity = capacity;
+    }
+    kept = &material_ptr->kept[material_ptr->kept_count++];
+    *kept = (wgri_material_kept_t){.kind = kind};
+    snprintf(kept->name, sizeof(kept->name), "%s", name);
+    return kept;
+}
+
+static bool keep_floats(wgri_material_t *material_ptr, const char *name, wgri_shader_param_type_t type,
+                        const float *values, int count)
+{
+    wgri_material_kept_t *kept = keep(material_ptr, KEPT_FLOATS, name);
+    if (kept == NULL) return false;
+    kept->type = type;
+    kept->count = count;
+    memcpy(kept->values, values, sizeof(float) * (size_t)count);
+    return true;
+}
+
+/* Lay out a custom material's parameters for its shader once it's READY, and apply what
+ * was set meanwhile. False while the shader loads (or failed). */
+static bool realize(wgri_material_t *material_ptr)
+{
+    const wgri_shader_t *shader;
+    size_t size;
+
+    if (material_ptr->custom_params != NULL) {
+        return true;
+    }
+    shader = wgri_shader_hooks.get != NULL ? wgri_shader_hooks.get(material_ptr->shader) : NULL;
+    if (shader == NULL) {
+        return false;
+    }
+    size = (size_t)(shader->block_size[WGRI_SHADER_BLOCK_FS_PARAMS] + shader->block_size[WGRI_SHADER_BLOCK_VS_PARAMS]);
+    material_ptr->custom_params = calloc(1, size > 0 ? size : 1);
+    if (material_ptr->custom_params == NULL) {
+        return false;
+    }
+    for (int i = 0; i < material_ptr->kept_count; i++) { /* an unknown name is logged by its setter */
+        const wgri_material_kept_t *kept = &material_ptr->kept[i];
+        switch (kept->kind) {
+            case KEPT_INT: set_custom_int(material_ptr, kept->name, kept->value); break;
+            case KEPT_FLOATS: set_custom_floats(material_ptr, kept->name, kept->type, kept->values, kept->count); break;
+            case KEPT_COLOR: set_custom_color(material_ptr, kept->name, kept->color); break;
+            case KEPT_TEXTURE: set_custom_texture(material_ptr, kept->name, kept->texture); break;
+            case KEPT_SAMPLING:
+                set_custom_sampling(material_ptr, kept->name, kept->wrap_u, kept->wrap_v, kept->filter);
+                break;
+        }
+    }
+    forget_kept(material_ptr); /* the textures hold their own references now */
+    return true;
+}
+
 /* -------------------------------------------------------------- internal ---- */
 
 void wgri_material_uv_matrix(const wgri_material_texture_t *texture, float m[6])
@@ -217,6 +360,37 @@ bool wgri_material_is_screen(wgr_handle_t material)
                                     ? wgri_shader_hooks.get(material_ptr->shader)
                                     : NULL;
     return shader != NULL && shader->screen;
+}
+
+bool wgri_material_is_surface(wgr_handle_t material)
+{
+    const wgri_material_t *material_ptr = wgri_material_get(material);
+    const wgri_shader_t *shader = material_ptr != NULL && material_ptr->shader != 0 && wgri_shader_hooks.get != NULL
+                                    ? wgri_shader_hooks.get(material_ptr->shader)
+                                    : NULL;
+    return material_ptr != NULL && (material_ptr->shader == 0 || (shader != NULL && !shader->screen));
+}
+
+wgri_shader_t *wgri_material_custom_shader(const wgri_material_t *material)
+{
+    /* realize changes only the material's own record (this module's) */
+    if (material == NULL || material->shader == 0 || !realize((wgri_material_t *)material)) {
+        return NULL;
+    }
+    return wgri_shader_hooks.get(material->shader);
+}
+
+bool wgri_material_custom_failed(const wgri_material_t *material)
+{
+    return material != NULL && material->shader != 0 &&
+           wgr_resource_get_status(material->shader) == WGR_RESOURCE_FAILED;
+}
+
+static wgri_material_t wgr_material_failed; /* set up in init */
+
+const wgri_material_t *wgri_material_failed(void)
+{
+    return &wgr_material_failed;
 }
 
 void wgri_material_retain(wgr_handle_t material)
@@ -248,6 +422,17 @@ void wgri_material_init(void)
     if (!wgri_handle_pool_init(&wgr_material_pool, WGR_HANDLE_KIND_MATERIAL, "material", (void **)&wgr_materials,
                              sizeof(wgri_material_t), MATERIALS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         wgr_logger_error("material: out of memory");
+    }
+    wgr_material_failed = (wgri_material_t){
+        .shading = WGR_MATERIAL_UNLIT,
+        .alpha_mode = WGR_ALPHA_OPAQUE,
+        .base_color = {1.0f, 0.0f, 1.0f, 1.0f}, /* the placeholder checker's magenta */
+        .roughness = 1.0f,
+        .normal_scale = 1.0f,
+        .occlusion_strength = 1.0f,
+    };
+    for (int i = 0; i < WGRI_MATERIAL_MAX_TEXTURES; i++) {
+        wgr_material_failed.textures[i] = (wgri_material_texture_t){.scale = {1.0f, 1.0f}, .mipmaps = true};
     }
 }
 
@@ -310,28 +495,22 @@ wgr_handle_t wgr_material_create(wgr_material_shading_t shading)
 WGRI_KEEP
 wgr_handle_t wgr_material_create_custom(wgr_handle_t shader)
 {
-    const wgri_shader_t *shader_ptr = wgri_shader_hooks.get != NULL ? wgri_shader_hooks.get(shader) : NULL;
     wgri_material_t *material_ptr;
-    unsigned char *params;
     wgr_handle_t handle;
-    size_t size;
 
-    if (shader_ptr == NULL) {
+    if (wgr_handle_get_kind(shader) != WGR_HANDLE_KIND_SHADER || wgr_resource_get_status(shader) == WGR_RESOURCE_NONE) {
         wgr_logger_error("wgr_material_create_custom: needs a shader (wgr_shader_create)");
         return 0;
     }
-    size = (size_t)(shader_ptr->block_size[WGRI_SHADER_BLOCK_FS_PARAMS] + shader_ptr->block_size[WGRI_SHADER_BLOCK_VS_PARAMS]);
-    params = calloc(1, size > 0 ? size : 1);
-    handle = params != NULL ? wgr_material_create(WGR_MATERIAL_UNLIT) : 0;
+    handle = wgr_material_create(WGR_MATERIAL_UNLIT);
     material_ptr = resolve(handle);
     if (material_ptr == NULL) {
-        free(params);
         return 0;
     }
     material_ptr->shading = WGR_MATERIAL_CUSTOM;
     material_ptr->shader = shader;
-    material_ptr->custom_params = params;
-    wgri_shader_hooks.retain(shader);
+    wgri_resource_retain(shader);
+    realize(material_ptr); /* at once when the shader is READY; else on first use after */
     return handle;
 }
 
@@ -406,9 +585,10 @@ bool wgr_material_set_int(wgr_handle_t material, const char *name, int value)
 {
     wgri_material_t *material_ptr = resolve_custom(material);
     if (material_ptr != NULL) {
-        unsigned char *at = custom_param(material_ptr, name, 1 << WGRI_SHADER_PARAM_INT, NULL);
-        if (at != NULL) memcpy(at, &value, sizeof(value));
-        return at != NULL;
+        wgri_material_kept_t *kept;
+        if (realize(material_ptr)) return set_custom_int(material_ptr, name, value);
+        if ((kept = keep(material_ptr, KEPT_INT, name)) != NULL) kept->value = value;
+        return kept != NULL;
     }
     const param_t *param = lookup(material, name, PARAM_INT, PARAM_INT, &material_ptr);
     if (param == NULL) {
@@ -426,7 +606,10 @@ WGRI_KEEP
 bool wgr_material_set_vec2(wgr_handle_t material, const char *name, float x, float y)
 {
     wgri_material_t *custom_ptr = resolve_custom(material);
-    if (custom_ptr != NULL) return set_custom_floats(custom_ptr, name, WGRI_SHADER_PARAM_VEC2, (const float[]){x, y}, 2);
+    if (custom_ptr != NULL) {
+        return realize(custom_ptr) ? set_custom_floats(custom_ptr, name, WGRI_SHADER_PARAM_VEC2, (const float[]){x, y}, 2)
+                                   : keep_floats(custom_ptr, name, WGRI_SHADER_PARAM_VEC2, (const float[]){x, y}, 2);
+    }
     float *values = lookup_values(material, name, PARAM_VEC2);
     if (values == NULL) {
         return false;
@@ -440,7 +623,10 @@ WGRI_KEEP
 bool wgr_material_set_float(wgr_handle_t material, const char *name, float value)
 {
     wgri_material_t *custom_ptr = resolve_custom(material);
-    if (custom_ptr != NULL) return set_custom_floats(custom_ptr, name, WGRI_SHADER_PARAM_FLOAT, &value, 1);
+    if (custom_ptr != NULL) {
+        return realize(custom_ptr) ? set_custom_floats(custom_ptr, name, WGRI_SHADER_PARAM_FLOAT, &value, 1)
+                                   : keep_floats(custom_ptr, name, WGRI_SHADER_PARAM_FLOAT, &value, 1);
+    }
     float *values = lookup_values(material, name, PARAM_FLOAT);
     if (values == NULL) {
         return false;
@@ -453,7 +639,10 @@ WGRI_KEEP
 bool wgr_material_set_vec3(wgr_handle_t material, const char *name, float x, float y, float z)
 {
     wgri_material_t *custom_ptr = resolve_custom(material);
-    if (custom_ptr != NULL) return set_custom_floats(custom_ptr, name, WGRI_SHADER_PARAM_VEC3, (const float[]){x, y, z}, 3);
+    if (custom_ptr != NULL) {
+        return realize(custom_ptr) ? set_custom_floats(custom_ptr, name, WGRI_SHADER_PARAM_VEC3, (const float[]){x, y, z}, 3)
+                                   : keep_floats(custom_ptr, name, WGRI_SHADER_PARAM_VEC3, (const float[]){x, y, z}, 3);
+    }
     float *values = lookup_values(material, name, PARAM_VEC3);
     if (values == NULL) {
         return false;
@@ -468,7 +657,10 @@ WGRI_KEEP
 bool wgr_material_set_vec4(wgr_handle_t material, const char *name, float x, float y, float z, float w)
 {
     wgri_material_t *custom_ptr = resolve_custom(material);
-    if (custom_ptr != NULL) return set_custom_floats(custom_ptr, name, WGRI_SHADER_PARAM_VEC4, (const float[]){x, y, z, w}, 4);
+    if (custom_ptr != NULL) {
+        return realize(custom_ptr) ? set_custom_floats(custom_ptr, name, WGRI_SHADER_PARAM_VEC4, (const float[]){x, y, z, w}, 4)
+                                   : keep_floats(custom_ptr, name, WGRI_SHADER_PARAM_VEC4, (const float[]){x, y, z, w}, 4);
+    }
     float *values = lookup_values(material, name, PARAM_VEC4);
     if (values == NULL) {
         return false;
@@ -488,12 +680,10 @@ bool wgr_material_set_color(wgr_handle_t material, const char *name, wgr_color_t
     float *values;
 
     if (material_ptr != NULL) {
-        wgri_shader_param_type_t type;
-        unsigned char *at =
-            custom_param(material_ptr, name, (1 << WGRI_SHADER_PARAM_VEC3) | (1 << WGRI_SHADER_PARAM_VEC4), &type);
-        const float linear[4] = {wgri_srgb_to_linear(c.r), wgri_srgb_to_linear(c.g), wgri_srgb_to_linear(c.b), c.a};
-        if (at != NULL) memcpy(at, linear, sizeof(float) * (type == WGRI_SHADER_PARAM_VEC4 ? 4 : 3));
-        return at != NULL;
+        wgri_material_kept_t *kept;
+        if (realize(material_ptr)) return set_custom_color(material_ptr, name, color);
+        if ((kept = keep(material_ptr, KEPT_COLOR, name)) != NULL) kept->color = color;
+        return kept != NULL;
     }
     const param_t *param = lookup(material, name, PARAM_VEC3, PARAM_VEC4, &material_ptr);
 
@@ -514,21 +704,27 @@ WGRI_KEEP
 bool wgr_material_set_texture(wgr_handle_t material, const char *name, wgr_handle_t texture)
 {
     wgri_material_t *material_ptr = resolve_custom(material);
-    wgri_material_texture_t *custom = material_ptr != NULL ? custom_texture(material_ptr, name) : NULL;
     const param_t *param = NULL;
     wgr_handle_t *slot;
 
-    if (material_ptr == NULL) {
-        param = lookup(material, name, PARAM_TEXTURE, PARAM_TEXTURE, &material_ptr);
-    }
-    if (param == NULL && custom == NULL) {
-        return false;
-    }
     if (texture != 0 && wgr_handle_get_kind(texture) != WGR_HANDLE_KIND_TEXTURE) {
-        wgr_logger_warn("material: '%s' needs a texture handle", name);
+        wgr_logger_warn("material: '%s' needs a texture handle", name != NULL ? name : "(null)");
         return false;
     }
-    slot = custom != NULL ? &custom->texture : &material_ptr->textures[param->offset].texture;
+    if (material_ptr != NULL) {
+        wgri_material_kept_t *kept;
+        if (realize(material_ptr)) return set_custom_texture(material_ptr, name, texture);
+        if ((kept = keep(material_ptr, KEPT_TEXTURE, name)) != NULL) {
+            wgri_resource_retain(texture); /* the kept setting's own reference */
+            kept->texture = texture;
+        }
+        return kept != NULL;
+    }
+    param = lookup(material, name, PARAM_TEXTURE, PARAM_TEXTURE, &material_ptr);
+    if (param == NULL) {
+        return false;
+    }
+    slot = &material_ptr->textures[param->offset].texture;
     if (*slot != texture) {
         wgri_resource_retain(texture); /* before releasing, in case they're the same resource */
         wgr_resource_release(*slot);
@@ -542,19 +738,27 @@ bool wgr_material_set_texture_sampling(wgr_handle_t material, const char *name, 
                                       wgr_texture_wrap_t wrap_v, wgr_texture_filter_t filter)
 {
     wgri_material_t *material_ptr = resolve_custom(material);
-    wgri_material_texture_t *texture = material_ptr != NULL ? custom_texture(material_ptr, name) : NULL;
+    wgri_material_texture_t *texture = NULL;
     const param_t *param = NULL;
 
-    if (material_ptr == NULL) {
-        param = lookup(material, name, PARAM_TEXTURE, PARAM_TEXTURE, &material_ptr);
-        if (param != NULL) texture = &material_ptr->textures[param->offset];
-    }
-    if (texture == NULL) {
-        return false;
-    }
     if (wrap_u < WGR_TEXTURE_WRAP_REPEAT || wrap_u > WGR_TEXTURE_WRAP_MIRROR || wrap_v < WGR_TEXTURE_WRAP_REPEAT ||
         wrap_v > WGR_TEXTURE_WRAP_MIRROR || filter < WGR_TEXTURE_FILTER_LINEAR || filter > WGR_TEXTURE_FILTER_NEAREST) {
-        wgr_logger_warn("material: invalid sampling for '%s'", name);
+        wgr_logger_warn("material: invalid sampling for '%s'", name != NULL ? name : "(null)");
+        return false;
+    }
+    if (material_ptr != NULL) {
+        wgri_material_kept_t *kept;
+        if (realize(material_ptr)) return set_custom_sampling(material_ptr, name, wrap_u, wrap_v, filter);
+        if ((kept = keep(material_ptr, KEPT_SAMPLING, name)) != NULL) {
+            kept->wrap_u = wrap_u;
+            kept->wrap_v = wrap_v;
+            kept->filter = filter;
+        }
+        return kept != NULL;
+    }
+    param = lookup(material, name, PARAM_TEXTURE, PARAM_TEXTURE, &material_ptr);
+    if (param != NULL) texture = &material_ptr->textures[param->offset];
+    if (texture == NULL) {
         return false;
     }
     texture->wrap_u = wrap_u;
