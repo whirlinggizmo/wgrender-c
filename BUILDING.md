@@ -2,15 +2,42 @@
 
 CMake (3.21 or newer) and Python 3 build everything, on Windows, Linux and macOS: the
 library, the examples, the tests, the web builds and the tools. There is no make and
-no shell script.
+no shell script. [Requirements](#requirements) lists what to install.
 
-| To do | Needs |
+## Requirements
+
+Required for any build:
+
+- [CMake](https://cmake.org/download/) 3.21 or newer
+- [Python](https://www.python.org/downloads/) 3.9 or newer: every tool, standard
+  library only (nothing to `pip install`)
+- a C compiler: gcc or clang on Linux; on macOS Apple's clang (`xcode-select
+  --install`); on Windows [Visual Studio](https://visualstudio.microsoft.com/downloads/)
+  with the C++ workload (MSVC), or MinGW (below)
+- [Ninja](https://ninja-build.org/), except with Visual Studio on Windows
+- on Linux, the GL, X11 and ALSA dev packages: `python3 tools/setup_system_packages.py
+  install` (apt, dnf or pacman), which a Linux desktop configure checks for
+
+Optional, by what you build or check:
+
+| For | Needs |
 | --- | --- |
-| Desktop builds, the tests, `tools/verify_builds.py` | CMake, a C compiler, Python 3 (on Linux, the GL/X11/ALSA dev packages) |
-| Web builds | and Emscripten (emsdk) |
-| Browser checks: `verify_builds.py --web`, webcheck, webstart | and a Chromium-based browser: Brave, Chrome, Chromium or Edge |
+| Web builds (`wasm32-*`) | [Emscripten](https://emscripten.org/docs/getting_started/downloads.html) (emsdk), exactly the version `build.json` pins (`"emscripten"`; see [Web](#web-webgl2-and-webgpu)) |
+| The web examples checked in a browser (`verify_builds.py --web`, `check_web_examples.py`, `measure_example_startup.py`) | a Chromium-based browser: [Chrome](https://www.google.com/chrome/), [Chromium](https://www.chromium.org/getting-involved/download-chromium/), [Brave](https://brave.com/download/) or [Edge](https://www.microsoft.com/edge/download) |
+| WebGPU checked without a window, on Linux | Xvfb (`xvfb`), else a visible window opens |
+| Windows builds from Linux or macOS (`windows-x64-mingw-*`) | MinGW-w64 (`mingw-w64` from the system's packages, or `brew install mingw-w64`), and [Wine](https://gitlab.winehq.org/wine/wine/-/wikis/Download) or Steam's Proton to run their tests |
+| The rule check (`tools/check_rules.py`, the `check` test) | clang: the one emsdk brings, or one on `PATH` ([LLVM](https://releases.llvm.org/)) |
+| A Windows machine checked over ssh (`verify_on_windows.py`) | ssh to it, and there CMake, Ninja and Python as above |
+| The Haxe binding (`bindings/haxe`) | [Haxe](https://haxe.org/download/) 4.3.7 and [hxcpp](https://lib.haxe.org/p/hxcpp/) 4.3.2 (`haxelib install hxcpp 4.3.2`), a C++ compiler for its native builds, Emscripten for its web builds; [its BUILDING.md](bindings/haxe/BUILDING.md) |
 
-The browser checks (`tools/check_web_examples.py`) are Python too: there is no Node to install.
+Set up by the tools the first time, into the per-user cache (`~/.cache/wgrender`;
+`WGR_CACHE_DIR` moves it), with nothing to install: sokol-shdc, the shader compiler
+(pinned and SHA-256 checked); the pinned MinGW-w64 on a Windows host
+([WinLibs](https://winlibs.com/), `tools/setup_mingw.py`); a Basis Universal encoder
+for compressed textures (`tools/compress_textures.py`, built with your C++ compiler); the
+Wine prefix. Nothing else is downloaded, and nothing at all once these are set up.
+
+The browser checks are Python too: there is no Node to install.
 
 - [Desktop](#desktop): Windows (MSVC or MinGW), Linux, macOS
 - [Web](#web-webgl2-and-webgpu): WebGL2 and WebGPU, with Emscripten

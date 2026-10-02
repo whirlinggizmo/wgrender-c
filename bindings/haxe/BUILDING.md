@@ -8,19 +8,26 @@ build is `haxe <file>.hxml`, on Windows, Linux or macOS.
 
 ## What you need
 
-- Haxe 4.3 and hxcpp (`haxelib install hxcpp`). Tested with Haxe 4.3.7, and with hxcpp
+- [Haxe](https://haxe.org/download/) 4.3 and [hxcpp](https://lib.haxe.org/p/hxcpp/)
+  (`haxelib install hxcpp`). Tested with Haxe 4.3.7, and with hxcpp
   4.3.2, the one haxelib serves (CI pins it), and hxcpp's current master. A newer hxcpp
   should work; `haxelib.json` doesn't pin one, so a user isn't held back
 - a C and C++ compiler for native builds:
   - Linux and macOS: gcc or clang
-  - Windows: MSVC (Visual Studio; hxcpp's default), or MinGW. Always add
+  - Windows: MSVC ([Visual Studio](https://visualstudio.microsoft.com/downloads/) with
+    the C++ workload; hxcpp's default), or MinGW. Always add
     `-D HXCPP_M64`: hxcpp builds 32-bit on Windows unless told otherwise.
-- for the web: Emscripten (emsdk), with `emcc` on `PATH`. wgrender's web library is
-  built by its `tools/build_web_library.py`, on the Python emsdk brings.
+- for the web: [Emscripten](https://emscripten.org/docs/getting_started/downloads.html)
+  (emsdk), exactly the version wgrender's `build.json` pins (`"emscripten"`), with `emcc`
+  on `PATH`. wgrender's web library is built by its `tools/build_web_library.py`, on the
+  Python emsdk brings, which refuses another version (see wgrender's
+  [BUILDING.md](../../BUILDING.md#web-webgl2-and-webgpu)).
 - on Linux, the system's GL, X11 and ALSA dev packages, which sokol links:
   `python3 tools/setup_system_packages.py install` from the repository root (apt, dnf or pacman)
-- Python 3 for the tools here (`tools/run_examples.py`, `tools/check_binding.py`, the generators)
-- a Chromium-based browser (Brave, Chrome, Chromium or Edge) for `tools/run_examples.py drive`
+- [Python](https://www.python.org/downloads/) 3.9 or newer for the tools here (`tools/run_examples.py`, `tools/check_binding.py`, the generators)
+- a Chromium-based browser ([Chrome](https://www.google.com/chrome/),
+  [Chromium](https://www.chromium.org/getting-involved/download-chromium/),
+  [Brave](https://brave.com/download/) or [Edge](https://www.microsoft.com/edge/download)) for `tools/run_examples.py drive`
   (`tools/drive_example.py`, Python like the rest: there is no Node to install)
 
 ## Install
