@@ -2,7 +2,10 @@
  * a running frame loop, on create, first with the GPU uploads given a budget a frame
  * (wgr_asset_set_upload_budget, 4 ms: the default), then with none (everything
  * prepared is uploaded in the frame it's ready), and prints the worst frame and total
- * time of each, then the worst of the first frames that draw the loaded models. The
+ * time of each, then the worst of the first frames that draw the loaded models. A
+ * warm-up load of the same models comes first, drawn and released, unmeasured: it takes
+ * the one-time costs (files from disk, shaders and pipelines made, the driver's first
+ * uploads), so neither measured case pays them and their order doesn't matter. The
  * files are decoded on worker threads either way. Needs tools/bench/fetch_bench_models.py (run.py runs it).
  *
  *   tools/bench/run_benchmark.py loadbench                   headless: CPU work only (no GPU uploads)
@@ -39,7 +42,7 @@ static const char *KTX_PATHS[MODELS] = {"bench/Sponza/Sponza.ktx.gltf", "bench/F
 #define SHOW_FRAMES 30 /* frames drawing the loaded models */
 
 static struct {
-    int phase; /* 0 = with an upload budget, 1 = with none, 2 = done */
+    int phase; /* -1 = warming up, 0 = with an upload budget, 1 = with none, 2 = done */
     bool loading, failed;
     int showing; /* frames left drawing the loaded models */
     double show_worst, show_first[3]; /* the first frames after they're set */
@@ -49,6 +52,11 @@ static struct {
     double started, last, worst, last_show;
     int frames;
 } b;
+
+static const char *phase_name(void)
+{
+    return b.phase < 0 ? "warm-up" : b.phase == 0 ? "budget" : "at once";
+}
 
 static void start(bool budget)
 {
@@ -84,6 +92,7 @@ static void init(void *user)
         b.models[i] = wgr_model_create(0);
         wgr_scene_add(b.scene, b.models[i], 0);
     }
+    b.phase = -1;
     start(true);
 }
 
@@ -117,16 +126,18 @@ static void frame(float dt, float fraction, void *user)
         if (took > b.show_worst) b.show_worst = took;
         b.last_show = now;
         if (--b.showing > 0) return;
-        printf("loadbench: %-10s drawing them: first frames %.1f, %.1f, %.1f ms, worst of %d %.1f ms\n",
-               b.phase == 0 ? "budget" : "at once", b.show_first[0] * 1000.0, b.show_first[1] * 1000.0,
-               b.show_first[2] * 1000.0, SHOW_FRAMES, b.show_worst * 1000.0);
-        fflush(stdout);
+        if (b.phase >= 0) {
+            printf("loadbench: %-10s drawing them: first frames %.1f, %.1f, %.1f ms, worst of %d %.1f ms\n",
+                   phase_name(), b.show_first[0] * 1000.0, b.show_first[1] * 1000.0, b.show_first[2] * 1000.0,
+                   SHOW_FRAMES, b.show_worst * 1000.0);
+            fflush(stdout);
+        }
         for (int i = 0; i < MODELS; i++) {
             wgr_model_set_mesh(b.models[i], 0);
             wgr_resource_release(b.meshes[i]);
         }
-        if (++b.phase == 1) {
-            start(false);
+        if (++b.phase <= 1) {
+            start(b.phase == 0); /* after the warm-up the budget, then none */
         } else {
             b.phase = 2;
             wgr_request_quit();
@@ -141,8 +152,8 @@ static void frame(float dt, float fraction, void *user)
         wgr_request_quit();
         return;
     }
-    printf("loadbench: %-10s worst frame %7.1f ms, loaded in %6.2f s over %d frames\n",
-           b.phase == 0 ? "budget" : "at once", b.worst * 1000.0, now - b.started, b.frames);
+    printf("loadbench: %-10s worst frame %7.1f ms, loaded in %6.2f s over %d frames%s\n", phase_name(),
+           b.worst * 1000.0, now - b.started, b.frames, b.phase < 0 ? " (not measured)" : "");
     fflush(stdout);
     for (int i = 0; i < MODELS; i++) wgr_model_set_mesh(b.models[i], b.meshes[i]);
     b.showing = SHOW_FRAMES;
