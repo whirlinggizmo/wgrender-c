@@ -120,6 +120,10 @@ typedef struct {
     uint16_t group;           /* slot of the group this task is a member of; 0 = none */
     int dependency_count;     /* dependencies (or a group's members) added in total */
     int failed_members;
+    /* pings (wgr_asset_ping_host): a task waiting on a round trip */
+    bool is_ping;
+    int ping_id;              /* web: the browser's request */
+    float ping_ms;            /* milliseconds, negative unreachable, PING_PENDING */
 } wgr_asset_task_t;
 
 /* Where a task looks for its file (wgr_asset_add_redirect, path mappers). */
@@ -1130,17 +1134,7 @@ static void plan(wgr_asset_task_t *task, const char *primary, const char *fallba
 
 /* ----------------------------------------------------------------- ping */
 
-#define MAX_PINGS 8
 #define PING_PENDING (-2.0f)
-typedef struct {
-    bool active;
-    int id;             /* web: the browser's request */
-    float result;       /* milliseconds, -1 unreachable, PING_PENDING */
-    char host[256];
-    wgr_asset_ping_fn on_done;
-    void *user_data;
-} wgr_asset_ping_t;
-static wgr_asset_ping_t wgr_asset_pings[MAX_PINGS];
 
 #ifdef __EMSCRIPTEN__
 /* A HEAD request to `url`, timed; any response counts (no-cors: a CDN needs no CORS
@@ -1171,27 +1165,30 @@ EM_JS(double, wgr_asset_ping_poll, (int id), {
 });
 #endif
 
+static void free_task(uint16_t i);
+
 WGRI_KEEP
-bool wgr_asset_ping_host(const char *host, int timeout_ms, wgr_asset_ping_fn on_done, void *user_data)
+wgr_handle_t wgr_asset_ping_host(const char *host, int timeout_ms)
 {
-    int slot = -1;
-    if (!wgr_asset_ready || on_done == NULL) return false;
-    for (int i = 0; i < MAX_PINGS && slot < 0; i++) {
-        if (!wgr_asset_pings[i].active) slot = i;
-    }
-    if (slot < 0) {
-        wgr_logger_warn("wgr_asset_ping_host: %d pings already waiting", MAX_PINGS);
-        return false;
-    }
+    wgr_handle_t handle;
+    wgr_asset_task_t *task_ptr;
+
+    if (!wgr_asset_ready) return 0;
+    handle = alloc_task();
+    if (handle == 0) return 0;
+    task_ptr = resolve(handle);
+    *task_ptr = (wgr_asset_task_t){0};
+    task_ptr->is_ping = true;
+    task_ptr->kept = true;
+    task_ptr->state = TASK_WAITING; /* finished by deliver_pings, at the next tick at the soonest */
     if (host == NULL) host = wgr_asset_host;
     if (timeout_ms <= 0) timeout_ms = 5000;
-    wgr_asset_pings[slot] = (wgr_asset_ping_t){.active = true, .on_done = on_done, .user_data = user_data};
-    snprintf(wgr_asset_pings[slot].host, sizeof(wgr_asset_pings[slot].host), "%s", host);
+    snprintf(task_ptr->path, sizeof(task_ptr->path), "%s", host);
 #ifdef __EMSCRIPTEN__
-    char url[300];
+    char url[600];
     snprintf(url, sizeof(url), "%s/", host); /* the host's root; a 404 still answers */
-    wgr_asset_pings[slot].id = wgr_asset_ping_begin(url, timeout_ms);
-    wgr_asset_pings[slot].result = PING_PENDING;
+    task_ptr->ping_id = wgr_asset_ping_begin(url, timeout_ms);
+    task_ptr->ping_ms = PING_PENDING;
 #else
     /* desktop: a local directory is there or it isn't. A URL would need a request of
      * its own, which the fetcher hook (files, not round trips) can't make. */
@@ -1199,37 +1196,46 @@ bool wgr_asset_ping_host(const char *host, int timeout_ms, wgr_asset_ping_fn on_
     char dir[512];
     snprintf(dir, sizeof(dir), "%s", host);
     if (strncmp(host, "file:", 5) == 0 && !wgri_asset_file_url_path(host, dir, sizeof(dir))) {
-        wgr_asset_pings[slot].result = -1.0f; /* not a directory on this machine */
+        task_ptr->ping_ms = -1.0f; /* not a directory on this machine */
     } else if (strstr(host, "://") != NULL && strncmp(host, "file:", 5) != 0) {
         wgr_logger_warn("wgr_asset_ping_host: %s: no host ping on desktop; set a fetcher and time an ensure", host);
-        wgr_asset_pings[slot].result = -1.0f;
+        task_ptr->ping_ms = -1.0f;
     } else {
-        wgr_asset_pings[slot].result = stat(dir[0] != '\0' ? dir : ".", &st) == 0 && S_ISDIR(st.st_mode) ? 0.0f : -1.0f;
+        task_ptr->ping_ms = stat(dir[0] != '\0' ? dir : ".", &st) == 0 && S_ISDIR(st.st_mode) ? 0.0f : -1.0f;
     }
 #endif
-    return true;
+    return handle;
 }
 
-/* Report finished pings (their callbacks may start more). */
+/* Finish the pings that have answered: DONE or FAILED, or freed if destroyed meanwhile. */
 static void deliver_pings(void)
 {
-    for (int i = 0; i < MAX_PINGS; i++) {
-        if (!wgr_asset_pings[i].active) continue;
+    for (uint16_t i = 1; i < wgr_asset_pool.capacity; i++) {
+        wgr_asset_task_t *task = &wgr_asset_tasks[i];
+        if (!wgr_asset_pool.occupied[i] || !task->is_ping || task->state != TASK_WAITING) continue;
 #ifdef __EMSCRIPTEN__
-        if (wgr_asset_pings[i].result == PING_PENDING) {
-            const double result = wgr_asset_ping_poll(wgr_asset_pings[i].id);
+        if (task->ping_ms == PING_PENDING) {
+            const double result = wgr_asset_ping_poll(task->ping_id);
             if (result == PING_PENDING) continue;
-            wgr_asset_pings[i].result = (float)result;
+            task->ping_ms = (float)result;
         }
 #endif
-        char host[sizeof(wgr_asset_pings[i].host)];
-        const wgr_asset_ping_fn on_done = wgr_asset_pings[i].on_done;
-        void *user_data = wgr_asset_pings[i].user_data;
-        const float result = wgr_asset_pings[i].result;
-        snprintf(host, sizeof(host), "%s", wgr_asset_pings[i].host);
-        wgr_asset_pings[i].active = false; /* free before the callback: it may ping again */
-        on_done(host, result, user_data);
+        if (task->dropped) {
+            free_task(i);
+        } else {
+            task->state = task->ping_ms >= 0.0f ? TASK_DONE : TASK_FAILED;
+        }
     }
+}
+
+WGRI_KEEP
+float wgr_asset_ping_get_milliseconds(wgr_handle_t ping)
+{
+    const wgr_asset_task_t *task_ptr = resolve(ping);
+    return task_ptr != NULL && task_ptr->kept && !task_ptr->dropped && task_ptr->is_ping &&
+                   task_ptr->state == TASK_DONE
+               ? task_ptr->ping_ms
+               : 0.0f;
 }
 
 /* Files found somewhere other than their own path (a redirect, a fallback), by local
@@ -2049,7 +2055,7 @@ bool wgr_asset_group_add(wgr_handle_t group, wgr_handle_t task)
     wgr_asset_task_t *group_ptr = resolve_kept(group), *task_ptr = resolve_kept(task);
     uint16_t group_index = 0;
 
-    if (group_ptr == NULL || task_ptr == NULL || !group_ptr->is_group || task_ptr->is_group ||
+    if (group_ptr == NULL || task_ptr == NULL || !group_ptr->is_group || task_ptr->is_group || task_ptr->is_ping ||
         task_ptr->group != 0 || is_finished(group_ptr)) {
         wgr_logger_warn("wgr_asset_group_add: needs a group still pending and a file task that isn't in a group");
         return false;
@@ -2091,6 +2097,7 @@ static float task_progress(const wgr_asset_task_t *task)
         case TASK_DONE:
         case TASK_FAILED: return 1.0f;
         case TASK_WAITING:
+            if (task->is_ping) return 0.0f; /* answered or not */
             return 0.5f + 0.5f * (task->dependency_count > 0
                                       ? (float)(task->dependency_count - task->pending) / (float)task->dependency_count
                                       : 1.0f);
@@ -2631,7 +2638,7 @@ void wgri_asset_pending_log(void)
     for (uint16_t i = 1; i < wgr_asset_pool.capacity; i++) {
         const wgr_asset_task_t *task = &wgr_asset_tasks[i];
         if (!wgr_asset_pool.occupied[i] || is_finished(task)) continue;
-        wgr_logger_warn("wgr_asset: pending: %s (%s%s%s)", task->path, STAGE[task->state],
+        wgr_logger_warn("wgr_asset: pending: %s (%s%s%s)", task->path, task->is_ping ? "pinging" : STAGE[task->state],
                  task->state == TASK_FETCHING ? (task->fetch_result == FETCH_PENDING ? ", in flight" : ", answered") : "",
                  task->finish_started ? ", part done" : "");
     }
@@ -2642,7 +2649,6 @@ void wgri_asset_deinit(void)
     wgr_asset_job_t job;
 
     wgr_asset_ready = false;
-    memset(wgr_asset_pings, 0, sizeof(wgr_asset_pings)); /* unreported: dropped */
 #ifndef __EMSCRIPTEN__
     open_fetch_answers(false); /* a download still running is turned away when it answers */
 #endif

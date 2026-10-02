@@ -217,7 +217,7 @@ TYPES_EXEMPT = {
 
 # Known gaps, each going (docs/PLAN-tasks.md): a callback or a `void *` where a polled
 # task belongs. The check fails when one is gone and still listed.
-TYPES_TODO = {'wgr_asset_ping_host', 'wgr_asset_set_fetcher'}
+TYPES_TODO = {'wgr_asset_set_fetcher'}
 
 def check_types(r, api):
     """Every parameter and return value is a type the rule allows."""

@@ -794,6 +794,11 @@ class CheckBindings {
 		check(group.destroy(), "a group is destroyed");
 		eq(AssetTask.getStatus(group), AssetTaskStatus.None, "and is no task after");
 		check(!AssetTask.destroy(group), "nor can be destroyed twice");
+
+		final ping = Asset.pingHost();
+		eq(ping.getStatus(), AssetTaskStatus.Pending, "a ping is a task, pending until a later frame");
+		near(ping.getPingMilliseconds(), 0, "with no round trip yet");
+		check(ping.destroy(), "and is destroyed as one");
 	}
 
 	/**

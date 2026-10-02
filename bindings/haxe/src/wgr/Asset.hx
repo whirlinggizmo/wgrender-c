@@ -7,12 +7,6 @@ import cpp.ConstCharStar;
 // wgr_asset.h — making a file local before it is loaded
 
 class Asset {
-	// The key a ping's callback carries in its `void *`, and the table it looks up in.
-	// Shared, because a ping crosses on both targets; `fetcher` belongs to the one call
-	// that is still hxcpp only.
-	static var nextId = 1;
-	static var pings = new Map<Int, (host:String, ms:Float) -> Void>();
-
 	#if cpp
 	static var fetcher:(request:Handle, url:String, destPath:String) -> Void;
 	#end
@@ -249,25 +243,19 @@ class Asset {
 	}
 
 	/**
-		Time the round trip to an asset host: `onDone` fires on a later frame with the
-		milliseconds, or a negative number when it couldn't be reached inside
-		`timeoutMs` (0 or less means 5000). A null `host` pings the current one.
+		Ping an asset host: a task (`AssetTask`) that is `Done` on a later frame when the
+		host answered within `timeoutMs` (0 or less means 5000), `Failed` when it didn't;
+		`AssetTask.getPingMilliseconds` gives the round trip. A null `host` pings the
+		current one.
 
 		On the web it is a HEAD request, and any response counts, even a 404. On desktop
-		the host is a local directory: 0 if it exists, negative if not — a URL host
+		the host is a local directory: `Done` if it exists, `Failed` if not — a URL host
 		can't be pinged there, since the fetcher hook deals in files rather than round
-		trips, so time an `ensure` instead. False when eight pings are already
-		waiting.
+		trips, so time an `ensure` instead. None before wgrender is up, or when there's
+		no room.
 	**/
-	public static function pingHost(?host:String, timeoutMs:Int = 0, onDone:(host:String, ms:Float) -> Void):Bool {
-		final id = nextId++;
-		pings.set(id, onDone);
-		final ok = Raw.wgr_asset_ping_host(#if cpp Native.cstr(host) #else host #end, timeoutMs,
-			Trampoline.ping(AssetNative.pingTrampoline), Native.toUser(id));
-		if (!ok)
-			pings.remove(id);
-		return ok;
-	}
+	public static inline function pingHost(?host:String, timeoutMs:Int = 0):AssetTask
+		return (Raw.wgr_asset_ping_host(#if cpp Native.cstr(host) #else host #end, timeoutMs) : Handle);
 
 
 	/**
@@ -442,19 +430,6 @@ class Asset {
 // (README, "Calling it from cppia")
 @:access(wgr.Asset) @:allow(wgr.Asset)
 private class AssetNative {
-	// One ping per call, so drop the closure as it fires.
-	static function pingTrampoline(host:CStr, milliseconds:F32, user:VoidStar):Void {
-		final id = Native.fromUser(user);
-		final cb = Asset.pings.get(id);
-		if (cb == null)
-			return;
-		Asset.pings.remove(id);
-		try
-			cb(#if cpp host.toString() #else Raw.str(host) #end, milliseconds)
-		catch (e:haxe.Exception)
-			Wgr.report("an asset ping callback", e);
-	}
-
 	#if cpp
 	static function fetchTrampoline(request:WgrHandle, url:ConstCharStar, destPath:ConstCharStar,
 			user:VoidStar):Void {

@@ -25,15 +25,6 @@ class Native {
 		return untyped __cpp__("(const char *)nullptr");
 	}
 
-	/** wgrender's callbacks carry a `void *`; we carry a table key in it. **/
-	public static extern inline function toUser(id:Int):VoidStar {
-		return untyped __cpp__("(void *)(intptr_t)({0})", id);
-	}
-
-	public static extern inline function fromUser(user:VoidStar):Int {
-		return untyped __cpp__("(int)(intptr_t)({0})", user);
-	}
-
 	public static extern inline function cstr(s:String):ConstCharStar {
 		return s == null ? nullStr() : ConstCharStar.fromString(s);
 	}
@@ -49,13 +40,6 @@ class Native {
 
 	public static extern inline function nullStr():CStr
 		return 0;
-
-	/** The table key rides in the `void *` as itself. **/
-	public static extern inline function toUser(id:Int):VoidStar
-		return id;
-
-	public static extern inline function fromUser(user:VoidStar):Int
-		return user;
 
 	/** `Raw.cstr` does this on js, into the op's arena; this is for a shared signature. **/
 	public static extern inline function cstr(s:String):CStr

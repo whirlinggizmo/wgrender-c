@@ -53,7 +53,6 @@ CALLBACKS = {
     'wgr_frame_fn': '(dt:Single, tickFraction:Single, user:VoidStar) -> Void',
     'wgr_tick_fn': '(dt:Single, user:VoidStar) -> Void',
     'wgr_asset_fetch_fn': '(request:WgrHandle, url:ConstCharStar, destPath:ConstCharStar, user:VoidStar) -> Void',
-    'wgr_asset_ping_fn': '(host:ConstCharStar, milliseconds:Single, user:VoidStar) -> Void',
 }
 
 # Structs returned by value, and the public-layer class the JS side builds from them.
@@ -81,30 +80,11 @@ MANUAL_CPP = ''
 
 MANUAL_JS = '''
 
-	/**
-		The callback-taking calls, which the generator skips because a `void *` has no
-		js mapping. On wasm both a function pointer and a `void *` are an `Int` -- a
-		table index and an address -- so these are mechanical once someone says so.
-
-		They are here rather than in the generator's output because saying "`void *` is
-		an Int on js" in general would also un-skip wgr_set_init and friends, which are
-		omitted on purpose: the guest ABI is their replacement, and a guest reaching
-		past it would install a second frame callback.
-	**/
-	public static inline function wgr_asset_ping_host(host_:String, timeout_ms:Int, on_done:Int,
-			user_data:Int):Bool
-		return Raw.host._wgr_asset_ping_host(cstr(host_), timeout_ms, on_done, user_data) != 0;
-
 	/** Fill wgrender's lifecycle slots with the guest glue's dispatchers. **/
 	public static inline function wgr_guest_install():Void
 		Raw.host._wgr_guest_install();
 
-	/** Turn a Haxe function into a wasm table index; `removeFunction` gives it back. **/
-	public static inline function addFunction(fn:Dynamic, signature:String):Int
-		return Raw.host.addFunction(fn, signature);
-
-	public static inline function removeFunction(pointer:Int):Void
-		Raw.host.removeFunction(pointer);'''
+'''
 
 SCALARS = {  # C type -> (hxcpp, js), size, how JS reads it out of the heap
     'void': ('Void', 'Void', 0, None),
@@ -272,7 +252,7 @@ def emit_cpp(enums, structs, functions):
              '/** C `void *`: the opaque user pointer every wgrender callback carries. **/',
              'typedef VoidStar = RawPointer<cpp.Void>;',
              '/** The ABI types the callback plumbing shares with js; see Raw.js.hx. **/',
-             'typedef CStr = ConstCharStar;', 'typedef F32 = Single;', '']
+             'typedef CStr = ConstCharStar;', '']
     for c in sorted(used_callbacks):
         lines.append(f'typedef {hx(c, enums, "cpp")} = cpp.Callable<{CALLBACKS[c]}>;')
     lines.append('')
@@ -406,8 +386,6 @@ typedef WgrColor = Int;
 **/
 typedef VoidStar = Int;
 typedef CStr = Int;
-typedef F32 = Float;
-typedef AssetPingFn = Int;
 
 /**
 	The same C surface Raw.cpp.hx declares, reached through the host module's exports.

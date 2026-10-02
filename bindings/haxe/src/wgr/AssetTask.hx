@@ -3,8 +3,8 @@ package wgr;
 // wgr_asset.h
 
 /**
-	A "make this file local" task (`Asset.ensure`), or a group of them
-	(`Asset.createGroup`). Nothing is called back: read its status in a frame, and
+	A "make this file local" task (`Asset.ensure`), a group of them
+	(`Asset.createGroup`), or a ping (`Asset.pingHost`). Nothing is called back: read its status in a frame, and
 	destroy it when done with it. It is kept until then, so its status and path can be
 	read any number of times. Written as methods too (`task.getStatus()`), through
 	`@:using`.
@@ -46,4 +46,11 @@ abstract AssetTask(Handle) from Handle to Handle {
 	**/
 	public static inline function destroy(task:AssetTask):Bool
 		return Raw.wgr_asset_task_destroy(task);
+
+	/**
+		The round trip of a `Done` ping, in milliseconds (0 on desktop); 0 for one that
+		isn't `Done`, and for anything that isn't a ping.
+	**/
+	public static inline function getPingMilliseconds(ping:AssetTask):Float
+		return Raw.wgr_asset_ping_get_milliseconds(ping);
 }

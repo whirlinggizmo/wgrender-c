@@ -73,7 +73,7 @@ class WebHost {
 		`tools/check_binding.py` fails if `src/wgr` starts reaching one that is not here.
 	**/
 	public static final RUNTIME_METHODS = [
-		"addFunction", "removeFunction", "stringToUTF8", "lengthBytesUTF8", "UTF8ToString",
+		"addFunction", "stringToUTF8", "lengthBytesUTF8", "UTF8ToString",
 		"stackAlloc", "stackSave", "stackRestore", "HEAPU8", "HEAP32", "HEAPU32", "HEAPF32"
 	];
 

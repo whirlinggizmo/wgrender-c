@@ -200,8 +200,8 @@ bool wgr_asset_set_manifest(const char *path);
  * (refused as above, or no room). */
 wgr_handle_t wgr_asset_ensure(const char *path, const char *fetch_url, unsigned int flags);
 
-/* A task's status: a file's, or a group's. NONE for anything that isn't a task. It
- * changes only at the start of a frame, so a frame that reads it sees each change
+/* A task's status: a file's, a group's or a ping's. NONE for anything that isn't a
+ * task. It changes only at the start of a frame, so a frame that reads it sees each change
  * once. */
 wgr_asset_task_status_t wgr_asset_task_get_status(wgr_handle_t task);
 
@@ -257,16 +257,17 @@ bool wgr_asset_group_add(wgr_handle_t group, wgr_handle_t task);
 bool wgr_asset_add_redirect(const char *prefix, const char *target);
 void wgr_asset_clear_redirects(void);
 
-/* Ping an asset host: `on_done` fires on a later frame with the round trip in
- * milliseconds, or a negative value when it can't be reached within `timeout_ms`
- * (<= 0: 5000). `host` NULL pings the current one (wgr_asset_set_host). On the web
- * it's a HEAD request to the host (any response counts, even a 404; another origin
- * needs no CORS headers). On desktop the host is a local directory: 0 if it exists,
- * negative if not (or a URL: no host ping on desktop, whose fetcher hands files, not
- * round trips). False when
- * `on_done` is NULL or 8 pings are already waiting. */
-typedef void (*wgr_asset_ping_fn)(const char *host, float milliseconds, void *user_data);
-bool wgr_asset_ping_host(const char *host, int timeout_ms, wgr_asset_ping_fn on_done, void *user_data);
+/* Ping an asset host: a task (wgr_asset_task_get_status, _destroy) that is DONE on a
+ * later frame when the host answered within `timeout_ms` (<= 0: 5000), FAILED when it
+ * didn't. `host` NULL pings the current one (wgr_asset_set_host). On the web it's a
+ * HEAD request to the host (any response counts, even a 404; another origin needs no
+ * CORS headers). On desktop the host is a local directory: DONE if it exists, FAILED
+ * if not (or a URL: no host ping on desktop, whose fetcher hands files, not round
+ * trips). Returns 0 before the asset layer is up, or when there's no room. */
+wgr_handle_t wgr_asset_ping_host(const char *host, int timeout_ms);
+/* The round trip of a DONE ping, in milliseconds (0 on desktop); 0 for one that isn't
+ * DONE, and for anything that isn't a ping. */
+float wgr_asset_ping_get_milliseconds(wgr_handle_t ping);
 
 /* Milliseconds per frame spent finishing loads on the main thread (GPU uploads),
  * default 4. At least one step runs each frame, so one large texture can exceed

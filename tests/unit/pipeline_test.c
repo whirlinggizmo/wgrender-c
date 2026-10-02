@@ -665,22 +665,6 @@ void test_pipeline_ktx_fallback(void)
 
 #define REDIRECT_DIR WGR_TEST_DIR "/redirect"
 
-static struct {
-    int calls;
-    float ms[4];
-    char host[4][256];
-} pinged;
-
-static void on_ping(const char *host, float milliseconds, void *user)
-{
-    (void)user;
-    if (pinged.calls < 4) {
-        pinged.ms[pinged.calls] = milliseconds;
-        snprintf(pinged.host[pinged.calls], sizeof(pinged.host[0]), "%s", host);
-    }
-    pinged.calls++;
-}
-
 /* Redirect rules stack (the newest first, then the file itself), a file missing under
  * a rule falls through, a model's files are found through the rules too, and a
  * download rule leaves desktop loading alone. */
@@ -760,17 +744,28 @@ void test_pipeline_redirects(void)
     CHECK(wgr_texture_get_size(got.texture).x == 256.0f);
     wgr_resource_release(got.texture);
 
-    /* ping (desktop: the host is a directory) */
-    memset(&pinged, 0, sizeof(pinged));
-    CHECK(!wgr_asset_ping_host(NULL, 0, NULL, NULL));
-    CHECK(wgr_asset_ping_host(NULL, 0, on_ping, NULL));
-    CHECK(wgr_asset_ping_host(REDIRECT_DIR "/missing", 0, on_ping, NULL));
-    CHECK(wgr_asset_ping_host("https://example.com", 0, on_ping, NULL));
-    CHECK(pinged.calls == 0); /* on a later tick */
+    /* ping, a task (desktop: the host is a directory) */
+    const wgr_handle_t here = wgr_asset_ping_host(NULL, 0);
+    const wgr_handle_t missing = wgr_asset_ping_host(REDIRECT_DIR "/missing", 0);
+    const wgr_handle_t url = wgr_asset_ping_host("https://example.com", 0);
+    const wgr_handle_t dropped = wgr_asset_ping_host(NULL, 0);
+    CHECK(here != 0 && missing != 0 && url != 0 && dropped != 0);
+    CHECK(wgr_asset_task_get_status(here) == WGR_ASSET_TASK_PENDING); /* on a later tick */
+    CHECK(wgr_asset_task_get_progress(here) == 0.0f);
+    CHECK(wgr_asset_task_destroy(dropped));
     wgri_asset_tick();
-    CHECK(pinged.calls == 3);
-    CHECK(pinged.ms[0] == 0.0f && strcmp(pinged.host[0], REDIRECT_DIR) == 0);
-    CHECK(pinged.ms[1] < 0.0f && pinged.ms[2] < 0.0f);
+    CHECK(wgr_asset_task_get_status(here) == WGR_ASSET_TASK_DONE && wgr_asset_ping_get_milliseconds(here) == 0.0f);
+    CHECK(wgr_asset_task_get_status(missing) == WGR_ASSET_TASK_FAILED);
+    CHECK(wgr_asset_task_get_status(url) == WGR_ASSET_TASK_FAILED);
+    CHECK(wgr_asset_task_get_status(dropped) == WGR_ASSET_TASK_NONE);
+    CHECK(wgr_asset_task_get_progress(here) == 1.0f && wgr_asset_task_get_path(here)[0] == '\0');
+    {
+        const wgr_handle_t group = wgr_asset_group_create();
+        CHECK(!wgr_asset_group_add(group, here)); /* a group is of files */
+        wgr_asset_task_destroy(group);
+    }
+    CHECK(wgr_asset_task_destroy(here) && wgr_asset_task_destroy(missing) && wgr_asset_task_destroy(url));
+    CHECK(wgri_asset_pending_count() == 0);
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     stop_assets();

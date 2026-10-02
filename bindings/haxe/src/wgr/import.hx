@@ -4,6 +4,4 @@
 // wgr.macros runs there and must not drag the per-target surface in with it.
 #if !macro
 import wgr.impl.Raw;
-// and the callback plumbing, which Event and Asset reach for on both targets
-import wgr.impl.Trampoline;
 #end
