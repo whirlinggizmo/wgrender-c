@@ -30,7 +30,9 @@ the working tree as it is, nothing left there):
 Each step is a CMake preset (CMakePresets.json), configured, built and tested: its work
 in build/<platform>/<variant>/, what it makes in out/<platform>/<variant>/; the haxe
 steps are the binding's own scripts. --only takes step names (linux-x64-debug-headless,
-wasm32-release, haxe, ...). Stops at the first step that fails.
+wasm32-release, haxe, ...). Stops at the first step that fails. A step skipped for want
+of a tool (MinGW-w64, Wine, Haxe) is announced before anything runs and named again in
+the final line, so a PASS can't be read as more than it was.
 """
 import argparse
 import shutil
@@ -52,30 +54,33 @@ HAXE = {'haxe': [['bindings/haxe/tools/check_binding.py']],
 
 
 def steps(web, windows):
-    yield builds.native('release'), False
-    yield builds.native('debug-headless'), True
+    """The steps to run, as (name, run its tests), and what is skipped for want of a tool."""
+    plan, skipped = [(builds.native('release'), False), (builds.native('debug-headless'), True)], []
     if builds.HOST in ('linux-x64', 'macos-arm64'):
-        yield builds.native('debug-tsan'), True
+        plan.append((builds.native('debug-tsan'), True))
         if shutil.which('x86_64-w64-mingw32-gcc'):
-            yield 'windows-x64-mingw-release', False
+            plan.append(('windows-x64-mingw-release', False))
             import wine
             if wine.find():
-                yield 'windows-x64-mingw-debug-headless', True
+                plan.append(('windows-x64-mingw-debug-headless', True))
             else:
-                print('verify_builds: no Wine, so the Windows build is built but not run')
+                skipped.append('windows-x64-mingw-debug-headless (no Wine: the Windows build is built, not run)')
+        else:
+            skipped.append('windows-x64-mingw-release and -debug-headless (no MinGW-w64)')
     has_haxe = shutil.which('haxe') is not None
     if has_haxe:
-        yield 'haxe', False
+        plan.append(('haxe', False))
     else:
-        print('verify_builds: no Haxe, so the Haxe binding is not checked')
+        skipped.append('haxe (no Haxe)')
     if web:
-        for preset in WEB:
-            yield preset, False
+        plan += [(preset, False) for preset in WEB]
         if has_haxe:
-            yield 'haxe-web', False
+            plan.append(('haxe-web', False))
+        else:
+            skipped.append('haxe-web (no Haxe)')
     if windows:
-        for step in REMOTE:
-            yield step, False
+        plan += [(step, False) for step in REMOTE]
+    return plan, skipped
 
 
 def run(*cmd):
@@ -94,9 +99,16 @@ def main():
     web = args.web or (only is not None and any(s in WEB or s == 'haxe-web' for s in only))
     if only and any(s in REMOTE for s in only) and not args.windows:
         sys.exit('verify_builds: the windows-* steps need --windows HOST')
-    for preset, test in steps(web, args.windows):
-        if only and preset not in only:
-            continue
+    plan, skipped = steps(web, args.windows)
+    if only:
+        unknown = only - {name for name, _ in plan} - {s.split()[0] for s in skipped}
+        if unknown:
+            sys.exit(f'verify_builds: no step {", ".join(sorted(unknown))} on this machine')
+        plan = [(name, test) for name, test in plan if name in only]
+        skipped = [s for s in skipped if s.split()[0] in only]
+    for skip in skipped:
+        print(f'verify_builds: SKIPPING {skip}', flush=True)
+    for preset, test in plan:
         print(f'== {preset}', flush=True)
         start = time.monotonic()
         if preset in REMOTE:
@@ -110,7 +122,7 @@ def main():
         if not ok:
             sys.exit(f'verify_builds: FAIL at {preset}')
         print(f'== {preset}: ok ({time.monotonic() - start:.0f}s)', flush=True)
-    print('verify_builds: PASS')
+    print('verify_builds: PASS' + (f' -- SKIPPED: {"; ".join(skipped)}' if skipped else ''))
 
 
 if __name__ == '__main__':
