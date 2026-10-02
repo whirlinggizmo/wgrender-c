@@ -19,8 +19,9 @@ Required:
 - [CMake](https://cmake.org/download/) 3.21 or newer, and [Ninja](https://ninja-build.org/)
 - [Python](https://www.python.org/downloads/) 3.9 or newer
 - gcc or clang to build, and clang for the tests: the rule check (`tools/check_rules.py`,
-  the `check` test that `ctest` and `verify_builds.py` run) reads the code through it;
-  emsdk's or the system's
+  the `check` test that `ctest` and `verify_builds.py` run) reads the code through it.
+  Emscripten's counts, and is tried first, so with emsdk installed there's nothing more
+  to get; else the system's
 - the GL, X11 and ALSA dev packages: `python3 tools/setup_system_packages.py install`
   (apt, dnf or pacman); a desktop configure checks for them
 
@@ -42,7 +43,8 @@ Required:
 - [CMake](https://cmake.org/download/) 3.21 or newer, and [Ninja](https://ninja-build.org/)
   (`brew install cmake ninja`)
 - [Python](https://www.python.org/downloads/) 3.9 or newer
-- Apple's clang: `xcode-select --install`; it also serves the tests' rule check
+- Apple's clang: `xcode-select --install`; it also serves the tests' rule check (as
+  Emscripten's does, tried first, when emsdk is installed)
 
 Optional:
 
@@ -65,7 +67,8 @@ Required, by the compiler you build with:
 - MinGW (`windows-x64-mingw-*`): [Ninja](https://ninja-build.org/); the compiler is set up
   for you (below)
 - clang for the tests: the rule check (`tools/check_rules.py`, the `check` test) reads
-  the code through it; emsdk's, or [LLVM's](https://releases.llvm.org/)
+  the code through it. Emscripten's counts, and is tried first, so with emsdk installed
+  there's nothing more to get; else [LLVM's](https://releases.llvm.org/)
 
 Optional:
 
