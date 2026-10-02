@@ -8,6 +8,7 @@ extern "C" {
 #include <stdbool.h>
 
 #include "wgr_texture.h"
+#include "wgr_resource.h"
 #include "wgr_types.h"
 
 /* Materials (resources): how a surface is shaded. See docs/HISTORY.md, "Materials and shaders".
@@ -83,12 +84,6 @@ wgr_handle_t wgr_material_create(wgr_material_shading_t shading);
 wgr_handle_t wgr_material_create_custom(wgr_handle_t shader);
 /* The material's custom shader, or 0 for built-in shading. */
 wgr_handle_t wgr_material_get_shader(wgr_handle_t material);
-/* Drop this handle's reference to the resource. Resources are shared and
- * reference counted (loading the same path again returns the same handle, with
- * one more reference), so a resource is freed when its last reference goes, not
- * when you call this. Objects hold their own references, so handing a resource
- * to one and releasing it right away is the normal pattern. */
-void        wgr_material_release(wgr_handle_t material);
 
 bool wgr_material_set_shading(wgr_handle_t material, wgr_material_shading_t shading);
 wgr_material_shading_t wgr_material_get_shading(wgr_handle_t material);

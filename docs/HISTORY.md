@@ -20,6 +20,7 @@ Text here is kept as it was written, so a name or a path in it may since have ch
 - [Frustum culling](#frustum-culling) (open part: [PLAN-culling.md](PLAN-culling.md))
 - [handle-only public API (librl-style asset/resource split)](#handle-only-public-api-librl-style-assetresource-split)
 - [Lighting (light objects, per-scene lighting)](#lighting-light-objects-per-scene-lighting)
+- [Load on create, and polled tasks instead of callbacks](#load-on-create-and-polled-tasks-instead-of-callbacks) (open part: [PLAN-tasks.md](PLAN-tasks.md))
 - [Loading pipeline (background preparation, budgeted GPU upload)](#loading-pipeline-background-preparation-budgeted-gpu-upload)
 - [Materials and shaders](#materials-and-shaders)
 - [Model instancing](#model-instancing) (open part: [PLAN-instancing.md](PLAN-instancing.md))
@@ -2240,6 +2241,165 @@ lights, glTF light import, clustered culling if scenes need hundreds of lights.
 3. **Shapes and sprites stay unlit** until the materials work.
 
 *From docs/PLAN-lighting.md.*
+
+## Load on create, and polled tasks instead of callbacks
+
+Phase 1, as planned and as built. The rest of the plan is open: [PLAN-tasks.md](PLAN-tasks.md).
+
+### Why
+
+A C callback is the hardest thing in the public API for a binding: a function pointer
+and a `void *` it hands back. A JS guest can't pass one at all (the Haxe binding's guest
+ABI works around six), and every binding writes a trampoline for each. And most of
+wgrender's callbacks exist for one reason: a resource can only be created once its file
+is local and loaded, so the program ensures the file, waits for a callback, and creates
+the resource in it.
+
+libwgt (`gfx/include/wgt_texture.h`, `core/src/wgt_core_load_priv.h`) shows the way out,
+built on a pipeline it says it cribbed from wgrender's own: **a resource loads on
+create.** `create(path)` returns a handle at once, PENDING; the file is made local,
+prepared on a worker and finished on the main thread over the frames that follow; the
+handle becomes READY or FAILED, and nothing is ever called back. Making a file local
+*without* loading it is a separate thing, a task (libwgt's `wgt_asset_ensure`, designed
+there and not yet built). Whatever may wait is read, never called back: a status that
+changes only at the start of a frame, so a frame callback that checks it sees each
+change once, in order.
+
+### What we have
+
+- **`wgr_*_create(path)` is synchronous** (`wgri_loader_create`, `src/wgr_asset.c`): it
+  returns the resource the asset layer already loaded for that path, or else reads,
+  decodes and finishes it on the spot, on the main thread, holding up the frame, and
+  returns **0 for any failure** -- a missing file, a broken one -- with nothing to ask
+  why. It never fetches: the file must be local.
+- **`wgr_asset_ensure_async` does two things**: makes the file local (fetching and
+  caching it if it's missing) *and* loads the resource its extension names, unless
+  `WGR_ASSET_FILE_ONLY`. That loaded resource is held out of sight until the program
+  creates it in `wgr_asset_add_task`'s callback (or a group's).
+- **Callbacks in the public API (11 calls):** the loop setters; `wgr_asset_add_task`,
+  `wgr_asset_ping_host`, `wgr_asset_set_fetcher`; the event bus.
+- **Readiness:** `wgr_model_is_ready` only; nothing says FAILED.
+
+The machinery for the rest is there: the asset layer's queue already fetches, caches,
+prepares on workers and finishes on the main thread within a budget. What changes is who
+starts it (create, not ensure) and how its outcome is read (a status, not a callback).
+
+### Design: a resource loads on create
+
+
+```c
+typedef enum {
+    WGR_RESOURCE_NONE    = 0,  /* not a resource of this kind */
+    WGR_RESOURCE_PENDING = 1,  /* its file is being made local, prepared or finished */
+    WGR_RESOURCE_READY   = 2,
+    WGR_RESOURCE_FAILED  = 3,  /* the fetch, the file or the decode failed (logged why) */
+} wgr_resource_status_t;      /* wgr_resource.h */
+
+wgr_handle_t          wgr_texture_create(const char *path);       /* as now, but at once, PENDING */
+/* ... the same for mesh, audio, font, environment, shader */
+
+/* wgr_resource.h: one call for any resource, by its handle's kind (each module
+   registers its getter); NONE for anything that isn't one */
+wgr_resource_status_t wgr_resource_get_status(wgr_handle_t resource);
+```
+
+- `create` returns a handle at once, PENDING, and queues the load: make the file local
+  (from the cache, or **fetched** if it's missing, exactly as ensure fetches today), then
+  prepare on a worker, then finish on the main thread within the upload budget. On
+  desktop with the file on disk that's typically the next frame.
+- **The path is an asset path**, as `ensure` takes: relative to the asset root, which is
+  the host directory, the desktop cache directory under a URL host, or `/wgr` on the
+  web, so the same path names the same file everywhere. Normalized, and refused (a
+  FAILED handle, logged) when it's absolute, names a drive or climbs out. A redirect, a
+  `.ktx` variant or a fallback changes where the bytes come from, never the key: a
+  resource is found by its asset path, not by the local path it was read from. A
+  file-system path outside the root can't be created from.
+- **A key an ensure took from an explicit source** (a `fetch_url`) names that file:
+  creating the key loads it from wherever the ensure found it (on desktop a local
+  source is read in place, not copied under the key). A redirect's or a `.ktx`
+  variant's answer isn't kept that way; a create plans those afresh.
+- **0 only when there's no room** for another resource of that kind. A bad path, a
+  missing file, a failed fetch or a file that won't decode gives a handle that's
+  FAILED. Creating the same path again gives the same handle, with one more reference,
+  whatever its status.
+- **Drawing a resource that isn't READY is always safe.** PENDING is "not there yet":
+  a sprite or texture draw using a PENDING texture draws nothing (and isn't picked), a
+  material slot draws as if unset (its own default), a model whose mesh isn't READY
+  isn't drawn, a scene whose environment isn't READY is lit as if it had none and
+  draws no background (FAILED too: there's no sensible placeholder sky), a font draws
+  as the default font, a sound whose audio isn't READY plays when it is. FAILED is "visibly broken": a texture draws the placeholder
+  (`wgr_texture_set_placeholder`). Decided over the placeholder while PENDING too
+  (libwgt's choice): on a slow first visit to the web build, every texture would show
+  the magenta checker for seconds. Each header says so.
+- **A custom material follows the same rule as an object**, its shader being the
+  resource it uses: `wgr_material_create_custom(shader)` takes a shader in any status.
+  While the shader is PENDING the material isn't drawn (an effect is skipped in the
+  chain), and its setters keep values by name, applied once the shader is READY; a
+  name the shader doesn't declare is logged then, so a setter can only refuse an
+  unknown name once the shader is READY (the header says so). Getters read the kept
+  values. FAILED, it draws as a fallback that's visibly broken: flat magenta, unlit,
+  the shader's version of the texture placeholder.
+- `wgr_model_is_ready` goes: a model is ready when its mesh is
+  (`wgr_mesh_get_status(wgr_model_get_mesh(model))`).
+- **Files that name other files** (a glTF's buffers and images) load together, as ensure
+  loads them now: a missing buffer fails the mesh, a missing image warns and uses the
+  placeholder.
+- Every header with a `create(path)` says what it refuses and when it's FAILED (AGENTS.md:
+  "false for ..." names every refusal; for a handle, "0 only when ...").
+
+### Decisions (phase 1)
+
+1. **One `wgr_resource_status_t` for every resource**, where libwgt has one enum per kind
+   (`wgt_texture_status_t`, `wgt_font_status_t`, each NONE / PENDING / READY / FAILED).
+   The values are the same for every resource, so one type says so, and a binding maps
+   it once. Recommended: one.
+2. **0 only when there's no room; a bad path is a FAILED handle** (libwgt's rule), where
+   create returns 0 for any failure now. A handle can say why (it was logged) and be
+   checked like any other. Recommended.
+
+### Phase 1 as built (2026-10-02, branch polled-tasks)
+
+Every resource kind loads on create, one commit each: textures, environments, audio,
+fonts, shaders, meshes, then materials and the cleanup. What changed on the way, against
+the design above:
+
+- **A resource section, and a resource core.** Status, path and release turned out to be
+  the same for every kind, so they're one call each in a new section, `wgr_resource.h`:
+  `wgr_resource_get_status`, `wgr_resource_get_path` (the file actually read: a `.ktx`'s
+  variant, a fallback, where a redirect found it; libwgt has this per kind) and
+  `wgr_resource_release`, replacing seven `wgr_<kind>_release`. Inside, `src/wgr_resource.c`
+  does the reference counting, finding a resource by its path, load on create and the
+  status for every kind: a record starts with a `wgri_resource_t`, and a module registers
+  its pool with its loader and how to free a record. About 60 to 80 lines of near
+  copies per module went. A kind whose records another thread reads (audio: the mixer)
+  gives its lock, taken around pool changes and statuses. The binding has
+  `Resource.getStatus/getPath/release`, and `texture.getStatus()` etc. through `@:using`.
+- **The path is an asset path**, as ensure takes, the same file everywhere; a path outside
+  the root, or a create before the asset layer runs, is FAILED at once.
+- **PENDING is "not there yet", FAILED is "visibly broken"**, rather than the placeholder
+  for both (libwgt's choice): a pending texture draws nothing in a sprite and its default
+  in a material, a pending environment lights nothing, a pending font draws as the
+  built-in one, a sound waits; a failed texture draws the placeholder. On a slow first
+  web visit the checker would otherwise have shown everywhere for seconds.
+- **A custom material follows the object rule**, its shader being the resource it uses:
+  made at once, settings kept by name until the shader is READY (an unknown name logged
+  then), not drawn while it loads, flat magenta if it failed. The effect chain is decided
+  at the start of each frame from the effects whose shader is ready.
+- **A key ensured from an explicit source** (a `fetch_url`) names that file for a later
+  create, on desktop too, where a local source is read in place.
+- **Getter gaps closed on the way:** `wgr_sound_get_audio`, `wgr_model_get_mesh` (which
+  replaces `wgr_model_is_ready`).
+- **Ensure loads nothing now**, so its loading by extension, the resources a group held
+  for its callback, and `WGR_ASSET_FILE_ONLY` went at the end of phase 1 rather than in
+  phase 2.
+- **Nothing loads synchronously**, so `examples/loading.c` (reworked around statuses, a
+  row per file) and `loadbench` compare loading with the upload budget against without.
+- **Tests and tooling:** `tests/unit/test_assets.c` brings the asset layer up and waits;
+  hxcpp builds of the binding depend on wgrender's headers (a stale object had called
+  the old variadic logger); `check_asset_cache.py`'s replacement sheet is cyan, told
+  apart from the placeholder it now expects when a load fails.
+
+*From docs/PLAN-tasks.md.*
 
 ## Loading pipeline (background preparation, budgeted GPU upload)
 

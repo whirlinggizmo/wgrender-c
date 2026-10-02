@@ -64,8 +64,8 @@ static bool assign_material(wgr_handle_t *slot, wgr_handle_t material, const cha
         return false;
     }
     if (*slot != material) {
-        wgri_material_retain(material); /* no-op for 0 */
-        wgr_material_release(*slot);
+        wgri_resource_retain(material); /* no-op for 0 */
+        wgr_resource_release(*slot);
         *slot = material;
     }
     return true;
@@ -673,7 +673,7 @@ void wgr_sprite3d_destroy(wgr_handle_t handle)
     }
     wgri_scene_forget(handle);
     texture = sprite_ptr->texture;
-    wgr_material_release(sprite_ptr->material); /* no-op for 0 */
+    wgr_resource_release(sprite_ptr->material); /* no-op for 0 */
     *sprite_ptr = (wgr_sprite3d_t){0};
     wgri_handle_pool_free(&wgr_sprite_pool, handle);
     if (texture != 0) {

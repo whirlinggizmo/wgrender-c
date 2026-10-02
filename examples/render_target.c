@@ -52,7 +52,7 @@ static wgr_handle_t create_model(float x, float y, float z, float scale_y, float
     wgr_model_set_transform(model, x, y, z, 0, 0, 0, scale, scale_y, scale);
     if (material != 0) {
         wgr_model_set_material(model, 0, material);
-        wgr_material_release(material); /* the model keeps its own reference */
+        wgr_resource_release(material); /* the model keeps its own reference */
     }
     wgr_scene_add(g.scene, model, 0);
     return model;

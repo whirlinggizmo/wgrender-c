@@ -5,52 +5,34 @@
 
 #include "wgr_types.h"
 
-/* A resource type's loading, split for the asset pipeline (docs/HISTORY.md, "Loading pipeline (background preparation, budgeted GPU upload)"):
- *
- *   prepare  any thread: read and decode the file into CPU data (the slow part).
- *            Touches no handles, sokol_gfx or other shared state.
- *   finish   main thread: create the resource from that data (GPU uploads), one
- *            step per call so the pipeline can spread big resources over frames.
- *
+/* A resource type's loading, split for the asset pipeline (docs/HISTORY.md, "Loading pipeline (background preparation, budgeted GPU upload)").
  * A resource loads on create (wgri_resource_create, then wgri_asset_load): its handle
  * comes back at once, PENDING, and the pipeline makes the file local, prepares it and
  * then fills it in:
  *
- *   fill     main thread: one step of filling in the PENDING `resource` from the data.
- *            The resource core makes it READY when the last step returns
- *            WGRI_LOADER_DONE, and FAILED when any step of the load fails.
- *
- * A loader with fill loads on create. Until every module does, the others
- * keep the older pair below: finish creates the resource, and ensure loads it by its
- * extension (wgri_asset_register_loader); their sync create functions run both halves
- * in a row through wgri_loader_create. */
+ *   prepare  any thread: read and decode the file into CPU data (the slow part).
+ *            Touches no handles, sokol_gfx or other shared state.
+ *   fill     main thread: one step of filling in the PENDING `resource` from that data
+ *            (GPU uploads), one step per call so the pipeline can spread big
+ *            resources over frames. The resource core makes it READY when the last
+ *            step returns WGRI_LOADER_DONE, and FAILED when any step of the load fails.
+ *   discard  free prepared data, at any point (filled in or not). */
 
 typedef enum {
-    WGRI_LOADER_DONE = 0, /* the resource exists: *resource holds one reference */
-    WGRI_LOADER_MORE,     /* call finish again */
-    WGRI_LOADER_FAILED,   /* nothing was created (logged why) */
+    WGRI_LOADER_DONE = 0, /* the resource is filled in */
+    WGRI_LOADER_MORE,     /* call fill again, in this frame or a later one */
+    WGRI_LOADER_FAILED,   /* it can't be (logged why) */
 } wgri_loader_step_t;
 
 typedef struct wgri_loader {
     const char *name; /* "texture", for logs */
-    /* CPU data for `path`, or NULL when it can't be loaded (logged why). */
-    void *(*prepare)(const char *path);
-    /* One step of creating the resource under `path` from `prepared`. */
-    wgri_loader_step_t (*finish)(void *prepared, const char *path, wgr_handle_t *resource);
-    /* Free prepared data, at any point (finished or not). Resources that finish
-     * already created stay alive. */
-    void (*discard)(void *prepared);
-    /* The live resource loaded from `path`, with a reference added, or 0. */
-    wgr_handle_t (*find)(const char *path);
-    /* Drop a reference (the pipeline's, after the callback ran). */
-    void (*release)(wgr_handle_t resource);
-    /* Load on create (wgri_asset_load): one step of filling in `resource` from the file
-     * at local path `path`. */
+    void *(*prepare)(const char *path);   /* CPU data for the file at local `path`, or NULL (logged why) */
     wgri_loader_step_t (*fill)(void *prepared, const char *path, wgr_handle_t resource);
+    void (*discard)(void *prepared);
 } wgri_loader_t;
 
 /* Load the file at asset path `path` (normalized: wgri_asset_normalize_path) into
- * `resource`, which the caller made PENDING, with `loader`'s prepare, fill and fail.
+ * `resource`, which the caller made PENDING, with `loader`'s prepare and fill.
  * The file is made local as an ensured one is (the cache, a download, a redirect, a
  * mapped variant and its fallback, the files it names), then prepared on a worker and
  * filled in on the main thread within the upload budget. Every outcome comes in a
@@ -60,17 +42,8 @@ typedef struct wgri_loader {
 bool wgri_asset_load(const wgri_loader_t *loader, const char *path, wgr_handle_t resource);
 
 /* Forget the load into `resource`, released while it loads: the file is still made
- * local, but neither fill nor fail is called and what was prepared is discarded. */
+ * local, but fill isn't called and what was prepared is discarded. */
 void wgri_asset_load_cancel(wgr_handle_t resource);
-
-/* Load synchronously: find, or prepare and finish every step. The resource holds
- * one reference for the caller; 0 on failure. */
-wgr_handle_t wgri_loader_create(const wgri_loader_t *loader, const char *path);
-
-/* Register `loader` for file extensions (with the dot, matched case-insensitively):
- * files ensured with those extensions are prepared before their callback fires.
- * Registrations persist across wgri_asset_init, like dependency listers. */
-void wgri_asset_register_loader(const char *extension, const wgri_loader_t *loader);
 
 /* Rewrite paths with `extension` when they're ensured, before anything is fetched or
  * cached: the texture module turns textures/rock.ktx into the variant this GPU can use

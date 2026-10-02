@@ -25,7 +25,7 @@ package wgr;
 	A custom shader's parameters are whatever it declares, so those go through the
 	`set*` methods by name.
 **/
-@:using(wgr.Material)
+@:using(wgr.Material, wgr.Resource)
 abstract Material(Handle) from Handle to Handle {
 	// --- the built-in glTF parameters, by name in the header's table ---
 
@@ -56,10 +56,6 @@ abstract Material(Handle) from Handle to Handle {
 	/** Its custom shader, or none for built-in shading. **/
 	public static inline function getShader(material:Material):Handle
 		return Raw.wgr_material_get_shader(material);
-
-	/** Drop this reference; the material goes when the last one does. **/
-	public static inline function release(material:Material):Void
-		Raw.wgr_material_release(material);
 
 	/** Built-in shading mode; `Custom` only ever comes from `Material.custom`. **/
 	public static inline function getShading(material:Material):MaterialShading

@@ -11,9 +11,6 @@ enum abstract AssetFlag(Int) to Int {
 	**/
 	var ForceFetch = 1 << 0;
 
-	/** Only make the file local; don't load the resource it names. **/
-	var FileOnly = 1 << 1;
-
 	@:op(A | B)
 	public static inline function or(a:AssetFlag, b:AssetFlag):AssetFlag
 		return cast((a : Int) | (b : Int));

@@ -423,7 +423,7 @@ void test_shadow_instancing(void)
         wgr_scene_add(scene, models[i], 0);
     }
     wgr_resource_release(mesh);
-    wgr_material_release(material);
+    wgr_resource_release(material);
 
     /* six casters, one mesh, one material: one draw into the map */
     wgr_render_begin_frame();

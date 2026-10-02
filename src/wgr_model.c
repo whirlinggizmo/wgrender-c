@@ -1327,7 +1327,7 @@ static void free_mesh_data(wgr_mesh_t *mesh)
     }
     free(mesh->prims);
     for (int m = 0; m < mesh->material_count; m++) {
-        wgr_material_release(mesh->materials[m]);
+        wgr_resource_release(mesh->materials[m]);
     }
     free(mesh->materials);
     free_mesh_cpu(mesh);
@@ -1888,8 +1888,8 @@ WGRI_KEEP bool wgr_model_set_tint(wgr_handle_t handle, wgr_color_t color)
 static void set_material_slot(wgr_model_t *model_ptr, int slot, wgr_handle_t material)
 {
     if (model_ptr->materials[slot] != material) {
-        wgri_material_retain(material); /* no-op for 0 */
-        wgr_material_release(model_ptr->materials[slot]);
+        wgri_resource_retain(material); /* no-op for 0 */
+        wgr_resource_release(model_ptr->materials[slot]);
         model_ptr->materials[slot] = material;
     }
 }
@@ -3479,7 +3479,7 @@ WGRI_KEEP void wgr_model_destroy(wgr_handle_t handle)
     wgri_scene_forget(handle);
     mesh = model_ptr->mesh;
     for (int m = 0; m < WGR_MAX_MATERIAL_SLOTS; m++) {
-        wgr_material_release(model_ptr->materials[m]); /* no-op for 0 */
+        wgr_resource_release(model_ptr->materials[m]); /* no-op for 0 */
     }
     free(model_ptr->posed_positions);
     memset(model_ptr, 0, sizeof(*model_ptr));

@@ -166,7 +166,7 @@ void test_model_instancing(void)
         wgr_scene_add(scene, models[i], 0);
     }
     wgr_resource_release(mesh);
-    wgr_material_release(material);
+    wgr_resource_release(material);
 
     /* one mesh, one material, eight placements: one draw */
     wgr_render_begin_frame();
@@ -182,7 +182,7 @@ void test_model_instancing(void)
     wgr_render_end_frame();
     CHECK(wgri_model_draw_call_count() == 2);
     wgr_model_set_material(models[3], -1, material);
-    wgr_material_release(other);
+    wgr_resource_release(other);
 
     /* so does a different mesh */
     const wgr_handle_t sphere = wgr_mesh_create_sphere(0.5f, 8, 8);
@@ -221,7 +221,7 @@ void test_model_instancing(void)
     for (int i = 0; i < 8; i++) { /* back to the built-in one */
         wgr_model_set_material(models[i], -1, material);
     }
-    wgr_material_release(custom);
+    wgr_resource_release(custom);
 
     /* skinned models sharing a mesh group as well: each instance's record says where
        its own joint matrices are, so two walkers out of step are still one draw per

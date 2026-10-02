@@ -7,31 +7,20 @@ extern "C" {
 
 #include "wgr_types.h"
 
-/* Asset loading is split from resource creation (see docs/ARCHITECTURE.md):
+/* The asset layer makes files local: from disk, from the cache, or downloaded from the
+ * asset host, and on the web it checks a cached copy as the cache mode says
+ * (wgr_asset_set_cache_mode, wgr_asset_set_manifest). A resource does this itself when
+ * it's created (wgr_resource.h: wgr_texture_create(path) loads on create), so a
+ * program only ENSURES a file to have it local without loading it: to fetch ahead (a
+ * level's files during a menu), from an explicit source (a fetch_url), or to read it
+ * itself. The callback receives the local PATH, never bytes: user code stays
+ * pointer-free. A key ensured from an explicit source is what a later create of that
+ * key loads, wherever the file was found.
  *
- *   1. ENSURE the file is locally available — async; fetches from the asset host
- *      if absent, and on the web checks a cached copy as the cache mode says
- *      (wgr_asset_set_cache_mode, wgr_asset_set_manifest). Desktop: a file already
- *      on disk is ready immediately.
- *   2. CREATE the resource synchronously from that local path inside the ready
- *      callback: wgr_texture_create(path), wgr_mesh_create(path), etc.
- *
- * The callback receives a PATH, never bytes — user code stays pointer-free.
- *
- * Files that reference other files are ensured together: ensuring a .gltf (or
- * .glb) also ensures the buffers and images it references, relative to it, and the
- * callback fires once all of them are local. A missing buffer fails; a missing
- * image only warns, and the model uses the placeholder texture
- * (wgr_texture_set_placeholder) in its place.
- *
- * Files are also loaded before the callback fires, so creating the resource in the
- * callback is cheap: decoding runs on worker threads, and GPU uploads run on the
- * main thread within a per-frame budget (wgr_asset_set_upload_budget). The extension
- * names the resource: .png/.jpg/.jpeg a texture, .ktx a compressed texture
- * (wgr_texture.h), .gltf/.glb a mesh, .hdr an environment, .wav/.ogg/.mp3 audio. A resource the callback doesn't create is
- * freed after it returns; pass WGR_ASSET_FILE_ONLY for a file used any other way
- * (a PNG for wgr_environment_create, say). A file that can't be loaded fires the
- * failure callback. */
+ * Files that reference other files are ensured together: ensuring a .gltf (or .glb)
+ * also ensures the buffers and images it references, relative to it, and the callback
+ * fires once all of them are local. A missing buffer fails; a missing image only
+ * warns. */
 
 typedef void (*wgr_asset_callback_fn)(const char *path, void *user_data);
 
@@ -46,8 +35,6 @@ enum {
     WGR_ASSET_NONE        = 0,
     WGR_ASSET_FORCE_FETCH = 1 << 0, /* re-download even if cached; no-op where nothing
                                       can download (desktop without a fetcher) */
-    WGR_ASSET_FILE_ONLY   = 1 << 1, /* only make the file local; don't load it as the
-                                      resource its extension names (see below) */
 };
 
 /* Set the asset base that logical paths resolve against. A URL ("https://host/assets")
@@ -220,20 +207,18 @@ wgr_asset_add_task_result_t wgr_asset_add_task(wgr_handle_t task,
                                              wgr_asset_callback_fn on_failure,
                                              void *user_data);
 
-/* Groups: one task for many files (for a level or a loading screen). A group
+/* Groups: one task for many files (fetching a level's files ahead, say). A group
  * completes when all of its members have, successfully only if they all did, and
  * then fires its own callbacks (wgr_asset_add_task) with an empty path. Members
- * keep their own callbacks, if they have any, and load without them. The group
- * holds its members' resources until its callbacks have run, so they can be
- * created there (with the paths the members' callbacks received). */
+ * keep their own callbacks, if they have any, and complete without them. */
 wgr_handle_t wgr_asset_group_create(void);
 /* Add a file task (wgr_asset_ensure_async) to a group. False for anything else, or
  * a task that's already in a group. */
 bool wgr_asset_group_add(wgr_handle_t group, wgr_handle_t task);
 
-/* Rough progress of a task or group, 0..1, for loading screens: a file counts a
- * quarter each for being fetched, its dependencies, being prepared and being
- * finished. 1 once the task has completed (its handle is no longer live). */
+/* Rough progress of a task or group, 0..1: a file counts half for being made local
+ * and half for the files it names. 1 once the task has completed (its handle is no
+ * longer live). For resources loading, read their statuses (wgr_resource.h). */
 float wgr_asset_get_progress(wgr_handle_t task);
 
 /* Redirects: load files from somewhere else, for mods, translations or a CDN.

@@ -128,7 +128,7 @@ static void init(void *user_data)
         wgr_sprite3d_set_material(g.sprites[i], g.sprite_material);
         wgr_scene_add(g.scene, g.sprites[i], 0);
     }
-    wgr_material_release(g.sprite_material); /* the sprites hold it */
+    wgr_resource_release(g.sprite_material); /* the sprites hold it */
     wgr_resource_release(sheet);              /* and the sheet */
 
     make_mesh(); /* loads on create: drawn once it has loaded */

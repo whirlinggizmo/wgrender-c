@@ -118,10 +118,10 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
       headers with one exported copy each for bindings; types `wgr_vec3_t`,
       `wgr_quat_t`, `wgr_mat4_t` (column-major `float m[16]`; `matrix_t` goes); the
       internal `wgri_mat4_*` / `wgri_v3_*` replaced by it; AGENTS.md allows mat4.
-- [ ] Load on create, and polled tasks instead of callbacks: docs/PLAN-tasks.md
-      (proposed). A resource loads on create (PENDING, then READY or FAILED); making a
-      file local is a task of its own (`wgr_asset_ensure`); the event bus goes; the
-      fetcher and ping are polled; then a public `wgr_fs.h` and byte spans.
+- [ ] Polled tasks instead of callbacks: docs/PLAN-tasks.md, phases 2 and 3 (phase 1,
+      load on create, is built). Making a file local is a task of its own
+      (`wgr_asset_ensure`); the event bus goes; the fetcher and ping are polled; then a
+      public `wgr_fs.h` and byte spans.
 - [ ] Maybe: a node tree (parenting, cached transforms, enabled / visible / pickable
       as separate flags). Biggest API change here; only if a hierarchy is wanted.
 

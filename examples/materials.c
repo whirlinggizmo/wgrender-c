@@ -56,7 +56,7 @@ static wgr_handle_t create_sphere(float x, float y, wgr_handle_t material)
     wgr_handle_t model = wgr_model_create(0); /* mesh attached when it loads */
     wgr_model_set_transform(model, x, y, 0, 0, 0, 0, 1, 1, 1);
     wgr_model_set_material(model, 0, material);
-    wgr_material_release(material);
+    wgr_resource_release(material);
     wgr_scene_add(g.scene, model, 0);
     return model;
 }
@@ -143,7 +143,7 @@ static void init(void *user_data)
     wgr_model_set_animation(g.character, 3);
     material = create_pbr(1.0f, 0.77f, 0.34f, 1.0f, 0.3f);
     wgr_model_set_material(g.character, CHARACTER_BODY_SLOT, material);
-    wgr_material_release(material);
+    wgr_resource_release(material);
     wgr_scene_add(g.scene, g.character, 0);
 
     make_sphere(); /* loads on create: drawn once it has loaded */

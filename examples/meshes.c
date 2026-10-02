@@ -61,7 +61,7 @@ static void init(void *user_data)
     wgr_material_set_float(ground, "metallic", 0.0f);
     wgr_material_set_float(ground, "roughness", 0.9f);
     wgr_model_set_material(floor, -1, ground);
-    wgr_material_release(ground);
+    wgr_resource_release(ground);
     wgr_scene_add(g.scene, floor, 0);
 
     const wgr_handle_t normal_map = wgr_texture_create(NORMAL_MAP_PATH); /* a flat normal until it loads */
@@ -77,7 +77,7 @@ static void init(void *user_data)
         wgr_material_set_vec2(g.materials[i], "normal_texture_scale", 2.0f, 2.0f); /* tiles repeat */
         wgr_material_set_texture(g.materials[i], "normal_texture", normal_map);
         wgr_model_set_material(g.shapes[i], 0, g.materials[i]);
-        wgr_material_release(g.materials[i]); /* the model keeps it alive */
+        wgr_resource_release(g.materials[i]); /* the model keeps it alive */
         wgr_scene_add(g.scene, g.shapes[i], 0);
     }
     wgr_resource_release(normal_map); /* the materials hold their own references */

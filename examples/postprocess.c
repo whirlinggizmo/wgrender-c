@@ -121,7 +121,7 @@ static void init(void *user_data)
     wgr_material_set_vec4(ground, "base_color", 0.07f, 0.07f, 0.08f, 1.0f);
     wgr_material_set_float(ground, "roughness", 0.85f);
     wgr_model_set_material(floor, -1, ground);
-    wgr_material_release(ground);
+    wgr_resource_release(ground);
     wgr_scene_add(g.scene, floor, 0);
 
     for (int i = 0; i < SHAPE_COUNT; i++) {
@@ -132,7 +132,7 @@ static void init(void *user_data)
         wgr_material_set_vec4(material, "base_color", shapes[i].r, shapes[i].gr, shapes[i].b, 1.0f);
         wgr_material_set_float(material, "roughness", 0.4f);
         wgr_model_set_material(g.shapes[i], 0, material);
-        wgr_material_release(material);
+        wgr_resource_release(material);
         wgr_scene_add(g.scene, g.shapes[i], 0);
     }
 

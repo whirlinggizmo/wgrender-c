@@ -100,7 +100,7 @@ static void make_material(int which)
             wgr_sprite2d_set_material(g.logo2d, material);
             break;
     }
-    wgr_material_release(material); /* the models hold their own references */
+    wgr_resource_release(material); /* the models hold their own references */
 }
 
 static void init(void *user_data)
@@ -144,7 +144,7 @@ static void init(void *user_data)
     wgr_material_set_float(ground, "metallic", 0.0f);
     wgr_material_set_float(ground, "roughness", 0.8f);
     wgr_model_set_material(g.floor, -1, ground);
-    wgr_material_release(ground); /* the model holds its own reference */
+    wgr_resource_release(ground); /* the model holds its own reference */
     wgr_scene_add(g.scene, g.floor, 0);
 
     g.character = wgr_model_create(0); /* meshes attach when they load */

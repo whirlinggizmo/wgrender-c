@@ -66,7 +66,7 @@ static wgr_handle_t place(wgr_handle_t mesh, float x, float y, float z, float r,
     wgr_material_set_float(material, "metallic", 0.0f);
     wgr_material_set_float(material, "roughness", roughness);
     wgr_model_set_material(model, -1, material);
-    wgr_material_release(material);
+    wgr_resource_release(material);
     wgr_scene_add(g.scene, model, 0);
     return model;
 }

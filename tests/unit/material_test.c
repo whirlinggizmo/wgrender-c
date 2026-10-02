@@ -1,3 +1,4 @@
+#include "internal/wgr_resource_internal.h"
 #include "internal/wgr_internal_internal.h"
 #include "internal/wgr_material_internal.h"
 #include "internal/wgr_math_internal.h"
@@ -117,10 +118,10 @@ void test_material_api(void)
     CHECK(wgr_material_get_shading(material) == WGR_MATERIAL_UNLIT);
 
     /* reference counted: freed when the last holder releases it */
-    wgri_material_retain(material); /* e.g. a model */
-    wgr_material_release(material); /* the creator's reference */
+    wgri_resource_retain(material); /* e.g. a model */
+    wgr_resource_release(material); /* the creator's reference */
     CHECK(wgri_material_get(material) != NULL);
-    wgr_material_release(material);
+    wgr_resource_release(material);
     CHECK(wgri_material_get(material) == NULL);
     CHECK(!wgr_material_set_float(material, "roughness", 0.5f));
 

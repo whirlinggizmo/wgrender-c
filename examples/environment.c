@@ -81,7 +81,7 @@ static wgr_handle_t create_sphere(float x, float y, float r, float gr, float b, 
     wgr_material_set_float(material, "roughness", roughness);
     wgr_model_set_transform(model, x, y, 0, 0, 0, 0, 1, 1, 1);
     wgr_model_set_material(model, 0, material);
-    wgr_material_release(material);
+    wgr_resource_release(material);
     wgr_scene_add(g.scene, model, 0);
     return model;
 }

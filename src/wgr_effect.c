@@ -202,7 +202,7 @@ bool wgr_render_add_effect(wgr_handle_t material)
         wgr_logger_warn("wgr_render_add_effect: at most %d effects", WGR_MAX_EFFECTS);
         return false;
     }
-    wgri_material_retain(material);
+    wgri_resource_retain(material);
     wgr_fx.materials[wgr_fx.count++] = material;
     return true;
 }
@@ -211,7 +211,7 @@ WGRI_KEEP
 void wgr_render_clear_effects(void)
 {
     for (int i = 0; i < wgr_fx.count; i++) {
-        wgr_material_release(wgr_fx.materials[i]);
+        wgr_resource_release(wgr_fx.materials[i]);
         wgr_fx.materials[i] = 0;
     }
     wgr_fx.count = 0;

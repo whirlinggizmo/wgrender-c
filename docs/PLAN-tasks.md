@@ -1,9 +1,10 @@
 # Plan: Load on create, and polled tasks instead of callbacks
 
-Status: **approved; phase 1 next.** No code changed yet. Decided: the four loop setters
-stay (`wgr_set_cleanup` renamed `wgr_set_shutdown`); the event bus goes; making a file
-local and loading it are separate (libwgt's split), and a resource loads on create; and
-the four decisions below, as recommended.
+Status: **phase 1 built** (every resource loads on create, the resource section; its
+design, decisions and what was built are in [HISTORY.md](HISTORY.md#load-on-create-and-polled-tasks-instead-of-callbacks)).
+**Phase 2 next**, then phase 3, both approved as below: the four loop setters stay
+(`wgr_set_shutdown` among them), the event bus goes, the fetcher is polled, and
+`wgr_fs.h` comes last.
 
 ## Why
 
@@ -24,88 +25,7 @@ there and not yet built). Whatever may wait is read, never called back: a status
 changes only at the start of a frame, so a frame callback that checks it sees each
 change once, in order.
 
-## What we have
-
-- **`wgr_*_create(path)` is synchronous** (`wgri_loader_create`, `src/wgr_asset.c`): it
-  returns the resource the asset layer already loaded for that path, or else reads,
-  decodes and finishes it on the spot, on the main thread, holding up the frame, and
-  returns **0 for any failure** -- a missing file, a broken one -- with nothing to ask
-  why. It never fetches: the file must be local.
-- **`wgr_asset_ensure_async` does two things**: makes the file local (fetching and
-  caching it if it's missing) *and* loads the resource its extension names, unless
-  `WGR_ASSET_FILE_ONLY`. That loaded resource is held out of sight until the program
-  creates it in `wgr_asset_add_task`'s callback (or a group's).
-- **Callbacks in the public API (11 calls):** the loop setters; `wgr_asset_add_task`,
-  `wgr_asset_ping_host`, `wgr_asset_set_fetcher`; the event bus.
-- **Readiness:** `wgr_model_is_ready` only; nothing says FAILED.
-
-The machinery for the rest is there: the asset layer's queue already fetches, caches,
-prepares on workers and finishes on the main thread within a budget. What changes is who
-starts it (create, not ensure) and how its outcome is read (a status, not a callback).
-
-## Design
-
-### 1. A resource loads on create
-
-```c
-typedef enum {
-    WGR_RESOURCE_NONE    = 0,  /* not a resource of this kind */
-    WGR_RESOURCE_PENDING = 1,  /* its file is being made local, prepared or finished */
-    WGR_RESOURCE_READY   = 2,
-    WGR_RESOURCE_FAILED  = 3,  /* the fetch, the file or the decode failed (logged why) */
-} wgr_resource_status_t;      /* wgr_resource.h */
-
-wgr_handle_t          wgr_texture_create(const char *path);       /* as now, but at once, PENDING */
-/* ... the same for mesh, audio, font, environment, shader */
-
-/* wgr_resource.h: one call for any resource, by its handle's kind (each module
-   registers its getter); NONE for anything that isn't one */
-wgr_resource_status_t wgr_resource_get_status(wgr_handle_t resource);
-```
-
-- `create` returns a handle at once, PENDING, and queues the load: make the file local
-  (from the cache, or **fetched** if it's missing, exactly as ensure fetches today), then
-  prepare on a worker, then finish on the main thread within the upload budget. On
-  desktop with the file on disk that's typically the next frame.
-- **The path is an asset path**, as `ensure` takes: relative to the asset root, which is
-  the host directory, the desktop cache directory under a URL host, or `/wgr` on the
-  web, so the same path names the same file everywhere. Normalized, and refused (a
-  FAILED handle, logged) when it's absolute, names a drive or climbs out. A redirect, a
-  `.ktx` variant or a fallback changes where the bytes come from, never the key: a
-  resource is found by its asset path, not by the local path it was read from. A
-  file-system path outside the root can't be created from.
-- **A key an ensure took from an explicit source** (a `fetch_url`) names that file:
-  creating the key loads it from wherever the ensure found it (on desktop a local
-  source is read in place, not copied under the key). A redirect's or a `.ktx`
-  variant's answer isn't kept that way; a create plans those afresh.
-- **0 only when there's no room** for another resource of that kind. A bad path, a
-  missing file, a failed fetch or a file that won't decode gives a handle that's
-  FAILED. Creating the same path again gives the same handle, with one more reference,
-  whatever its status.
-- **Drawing a resource that isn't READY is always safe.** PENDING is "not there yet":
-  a sprite or texture draw using a PENDING texture draws nothing (and isn't picked), a
-  material slot draws as if unset (its own default), a model whose mesh isn't READY
-  isn't drawn, a scene whose environment isn't READY is lit as if it had none and
-  draws no background (FAILED too: there's no sensible placeholder sky), a font draws
-  as the default font, a sound whose audio isn't READY plays when it is. FAILED is "visibly broken": a texture draws the placeholder
-  (`wgr_texture_set_placeholder`). Decided over the placeholder while PENDING too
-  (libwgt's choice): on a slow first visit to the web build, every texture would show
-  the magenta checker for seconds. Each header says so.
-- **A custom material follows the same rule as an object**, its shader being the
-  resource it uses: `wgr_material_create_custom(shader)` takes a shader in any status.
-  While the shader is PENDING the material isn't drawn (an effect is skipped in the
-  chain), and its setters keep values by name, applied once the shader is READY; a
-  name the shader doesn't declare is logged then, so a setter can only refuse an
-  unknown name once the shader is READY (the header says so). Getters read the kept
-  values. FAILED, it draws as a fallback that's visibly broken: flat magenta, unlit,
-  the shader's version of the texture placeholder.
-- `wgr_model_is_ready` goes: a model is ready when its mesh is
-  (`wgr_mesh_get_status(wgr_model_get_mesh(model))`).
-- **Files that name other files** (a glTF's buffers and images) load together, as ensure
-  loads them now: a missing buffer fails the mesh, a missing image warns and uses the
-  placeholder.
-- Every header with a `create(path)` says what it refuses and when it's FAILED (AGENTS.md:
-  "false for ..." names every refusal; for a handle, "0 only when ...").
+## Design (phases 2 and 3)
 
 ### 2. Making a file local is a task of its own
 
@@ -127,7 +47,8 @@ bool        wgr_asset_task_destroy(wgr_handle_t task);
 
 - `wgr_asset_ensure` (renamed from `ensure_async`: everything is async now) only makes
   files local: prefetching a level, warming the cache, a loading screen. It loads
-  nothing, so `WGR_ASSET_FILE_ONLY` goes; `WGR_ASSET_FORCE_FETCH` and `fetch_url` stay.
+  nothing (`WGR_ASSET_FILE_ONLY` already went with phase 1); `WGR_ASSET_FORCE_FETCH` and
+  `fetch_url` stay.
 - A task lives until it's destroyed, so its status and path can be read any number of
   times. Destroying one still pending lets it finish and discards the result (the
   file still lands in the cache).
@@ -212,26 +133,16 @@ or a `_get_data` beside a `_get_size`.
 
 ## Decisions
 
-1. **One `wgr_resource_status_t` for every resource**, where libwgt has one enum per kind
-   (`wgt_texture_status_t`, `wgt_font_status_t`, each NONE / PENDING / READY / FAILED).
-   The values are the same for every resource, so one type says so, and a binding maps
-   it once. Recommended: one.
-2. **0 only when there's no room; a bad path is a FAILED handle** (libwgt's rule), where
-   create returns 0 for any failure now. A handle can say why (it was logged) and be
-   checked like any other. Recommended.
-3. **The fetcher polled** (section 4) rather than kept as the one other callback: a
+1. **The fetcher polled** (section 4) rather than kept as the one other callback: a
    download is what a binding wants to do in its own language, and polling is what lets
    a JS guest or a cppia script supply one. Recommended.
-4. **`wgr_fs.h` in this branch, last.** It's the same model over the same machinery, but
+2. **`wgr_fs.h` in this branch, last.** It's the same model over the same machinery, but
    a new public surface with its own tests (the root jail, the web store). Recommended:
    phase 3, once load on create has settled.
 
 ## Phasing
 
-1. **Load on create.** The acquire step in front of the pipeline (local, cached or
-   fetched), create returning PENDING, `get_status` on every resource, 0 only when full,
-   `wgr_model_is_ready` out, every header's create documented; examples, binding and
-   tests follow.
+1. **Load on create.** Built.
 2. **Ensure as a task; callbacks out.** `wgr_asset_ensure` (files only), task status,
    path, progress and destroy; groups over tasks; `add_task` out; the event bus out;
    ping as a task; the polled fetcher. check_rules.py holds the callback rule.

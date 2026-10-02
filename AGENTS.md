@@ -89,7 +89,7 @@ make and no shell script: everything below works the same on Windows, Linux and 
   from libwgrender's fork (github.com/robknopf/clay: upstream plus fixes, each on its own
   branch merged into the fork's `main`). Records both commits in `deps/clay/VERSION`.
 - `tools/bench/run_benchmark.py loadbench [--desktop] [--ktx]` — worst frame while loading large
-  glTF models in the background vs synchronously (downloads them on first use); `--ktx`
+  glTF models on create with an upload budget vs without (downloads them on first use); `--ktx`
   with their textures compressed (made the first time; needs `--desktop`: headless
   samples no compressed format).
 - `tools/bench/run_benchmark.py shadowbench [--desktop]` — what a casting light costs a frame: the
@@ -291,9 +291,7 @@ Creation follows one pattern, no exceptions:
   `src/wgr_resource.c`): status, the file it was read from, release, and inside,
   reference counting, finding one by its path and load on create. A resource
   module's records start with a `wgri_resource_t` and it registers its pool
-  (`wgri_resource_register`); it keeps only what is its own, and its loader. Not
-  every kind is on it yet (docs/PLAN-tasks.md, phase 1): the rest still have their
-  own `wgr_<resource>_release`.
+  (`wgri_resource_register`); it keeps only what is its own, and its loader.
 
 **Every value a setter stores has a getter.** `set_<value>` pairs with
 `get_<value>` (or `is_`/`has_` for a bool), or with one getter per value when a setter
@@ -308,10 +306,13 @@ transform's parts. `tools/check_rules.py` holds it, with two lists beside it:
 rule was written. A new setter needs its getter or an entry in the first; the second
 only shrinks, since the check fails when a listed setter gains its getter.
 
-Loading is split from creation (the librl model): the **asset** layer *ensures a
-file is local* and fires a **path-only** callback
-(`wgr_asset_callback_fn(const char *path, void *user)`); the consumer then calls
-the sync `wgr_*_create(path)`. Bytes never cross into user code.
+**A resource loads on create** (libwgt's model, `include/wgr_resource.h`):
+`wgr_*_create(path)` takes an asset path, returns the handle at once, PENDING, and the
+asset layer makes the file local, prepares and fills it in; it is READY or FAILED in
+a later frame. Nothing is called back: objects take a resource in any status and do
+the right thing until it's READY, and a program reads `wgr_resource_get_status` for
+what it wants to show. *Ensuring* a file only makes it local. Bytes never cross into
+user code.
 
 ## Bindings: one name per C call
 

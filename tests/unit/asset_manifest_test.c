@@ -95,7 +95,7 @@ static const char *ensure(const char *path)
 {
     static char log[1024];
     fetch_log[0] = '\0';
-    wgr_asset_add_task(wgr_asset_ensure_async(path, NULL, WGR_ASSET_FILE_ONLY), on_ready, on_failed, NULL);
+    wgr_asset_add_task(wgr_asset_ensure_async(path, NULL, WGR_ASSET_NONE), on_ready, on_failed, NULL);
     for (int i = 0; i < 16; i++) wgri_asset_tick();
     snprintf(log, sizeof(log), "%s", fetch_log);
     return log;

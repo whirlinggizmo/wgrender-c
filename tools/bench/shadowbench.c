@@ -103,7 +103,7 @@ static wgr_handle_t place(wgr_handle_t mesh, float x, float y, float z, float r,
     wgr_material_set_float(material, "metallic", 0.0f);
     wgr_material_set_float(material, "roughness", 0.55f);
     wgr_model_set_material(model, -1, material);
-    wgr_material_release(material);
+    wgr_resource_release(material);
     wgr_scene_add(b.scene, model, 0);
     return model;
 }
@@ -138,7 +138,7 @@ static void setup(void)
             wgr_scene_add(b.scene, b.models[i], 0);
         }
         wgr_resource_release(mesh);
-        wgr_material_release(material);
+        wgr_resource_release(material);
     }
     for (int i = 0; which != CASE_SHARED && which != CASE_WIDE_SHARED && i < count; i++) {
         const float x = ((float)(i % side) - (float)side * 0.5f) * spacing;

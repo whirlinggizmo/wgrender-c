@@ -202,20 +202,18 @@ class Asset {
 		Raw.wgr_asset_clear_redirects();
 
 	/**
-		Roughly how far a task or group has got, 0 to 1, for a loading screen. A file
-		counts a quarter each for being fetched, for its dependencies, for being
-		prepared and for being finished, and reads 1 once the task has completed and
-		its handle is no longer live.
+		Roughly how far a task or group has got, 0 to 1. A file counts half for being
+		made local and half for the files it names, and reads 1 once the task has
+		completed and its handle is no longer live. For resources loading, read their
+		statuses (`texture.getStatus()`).
 	**/
 	public static inline function getProgress(task:AssetTask):Float
 		return Raw.wgr_asset_get_progress(task);
 
 	/**
-		One task standing for many files — a level, or a loading screen. It completes
-		when all its members have, successfully only if they all did, and then fires its
-		own callbacks with an empty path. Members keep their own callbacks if they have
-		any. The group holds its members' resources until its callbacks have run, so
-		they can be created there.
+		One task standing for many files — a level's, fetched ahead. It completes when
+		all its members have, successfully only if they all did, and then fires its own
+		callbacks with an empty path. Members keep their own callbacks if they have any.
 	**/
 	public static inline function createGroup():AssetTask
 		return (Raw.wgr_asset_group_create() : Handle);
@@ -225,8 +223,10 @@ class Asset {
 		return Raw.wgr_asset_group_add(group, task);
 
 	/**
-		Make a file local, then report. Returns a task to watch or attach callbacks to,
-		or none on failure.
+		Make a file local, without loading it, then report: to fetch ahead, from an
+		explicit source, or to read it yourself (a resource makes its own file local
+		when it's created). Returns a task to watch or attach callbacks to, or none on
+		failure.
 
 		`path` is the logical key: the cache path on the web, the read path under the
 		host on desktop, and where a fetched file lands. It stays under the host: "\\"

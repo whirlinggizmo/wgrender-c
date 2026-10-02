@@ -42,7 +42,7 @@ static void set_materials(bool own)
             const wgr_handle_t material = wgr_material_create(WGR_MATERIAL_PBR);
             wgr_material_set_float(material, "roughness", 0.5f);
             wgr_model_set_material(g_cubes[i], -1, material);
-            wgr_material_release(material); /* the model keeps its reference */
+            wgr_resource_release(material); /* the model keeps its reference */
         } else {
             wgr_model_set_material(g_cubes[i], -1, g_shared_material);
         }
@@ -78,7 +78,7 @@ static void on_init(void *user)
     wgr_model_set_transform(floor, 0, -0.6f, 0, 0, 0, 0, 1, 1, 1);
     wgr_scene_add(g_scene, floor, 0);
     wgr_resource_release(floor_mesh);
-    wgr_material_release(floor_material);
+    wgr_resource_release(floor_material);
 
     /* the field: one mesh, one material, a tint each */
     const wgr_handle_t cube = wgr_mesh_create_cube(0.6f, 0.6f, 0.6f);

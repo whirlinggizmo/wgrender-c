@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 
+#include "internal/wgr_resource_internal.h"
 #include "wgr_material.h"
 #include "wgr_types.h"
 
@@ -36,6 +37,7 @@ typedef struct {
 } wgri_material_texture_t;
 
 typedef struct {
+    wgri_resource_t resource; /* first: the resource core's part; a material is READY from the start */
     wgr_material_shading_t shading;
     wgr_alpha_mode_t alpha_mode;
     float alpha_cutoff;
@@ -54,7 +56,6 @@ typedef struct {
     unsigned char *custom_params;
     struct wgri_material_kept *kept;
     int kept_count, kept_capacity;
-    int ref_count;
 } wgri_material_t;
 
 void wgri_material_init(void);
@@ -92,6 +93,5 @@ bool wgri_material_set_texture_mipmaps(wgr_handle_t material, const char *name, 
 bool wgri_material_is_screen(wgr_handle_t material);
 
 /* Reference counting (meshes and models hold references). */
-void wgri_material_retain(wgr_handle_t material);
 
 #endif // WGRI_INTERNAL_MATERIAL_H

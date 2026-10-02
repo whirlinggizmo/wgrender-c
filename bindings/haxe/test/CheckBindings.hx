@@ -182,7 +182,7 @@ class CheckBindings {
 		Material.setColor(material, "c", Color.WHITE);
 		Material.setAlphaMode(material, Blend);
 		check(Material.getShader(material).isNone, "a built-in material has no custom shader");
-		Material.release(material);
+		material.release();
 
 		// a resource from a path that isn't there must come back as none, not garbage
 		// except a texture, which loads on create: a handle at once, failing in a later frame
@@ -440,7 +440,7 @@ class CheckBindings {
 		check(Model.setMaterial(m, 0, custom), "a material override is set");
 		eq((Model.getMaterial(m, 0) : Int), (custom : Int), "the model draws the override");
 		eq((Mesh.getMaterial(cube, 0) : Int), (mesh0 : Int), "the mesh's own slot is untouched");
-		Material.release(custom);
+		custom.release();
 		Model.destroy(m);
 		cube.release();
 	}
@@ -480,7 +480,7 @@ class CheckBindings {
 		final custom = Material.create(Unlit);
 		check(Sprite3D.setMaterial(s, custom), "a sprite3d takes a material");
 		eq((Sprite3D.getMaterial(s) : Int), (custom : Int), "and reads it back");
-		Material.release(custom);
+		custom.release();
 
 		check(Sprite3D.setTexture(s, Texture.getDefault()), "a sprite3d's texture can be swapped");
 		Sprite3D.destroy(s);
@@ -914,7 +914,7 @@ class CheckBindings {
 		final was = Asset.getHost();
 		Asset.setHost("https://example.invalid/assets");
 		Asset.setHost(was);
-		AssetTask.then(Asset.ensureAsync("no-such3.png", "https://example.invalid/no-such3.png", FileOnly),
+		AssetTask.then(Asset.ensureAsync("no-such3.png", "https://example.invalid/no-such3.png"),
 			_ -> {}, _ -> {});
 		#end
 	}

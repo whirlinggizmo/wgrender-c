@@ -111,7 +111,7 @@ void test_shader_custom_material(void)
     /* the material holds the shader: released with the material's last reference */
     wgr_resource_release(toon);
     CHECK(wgri_shader_get(toon) != NULL);
-    wgr_material_release(material);
+    wgr_resource_release(material);
     CHECK(wgri_shader_get(toon) == NULL);
 
     /* a vertex hook's parameters come after the fragment block */
@@ -143,7 +143,7 @@ void test_shader_custom_material(void)
     CHECK(wgr_material_set_vec4(rippling, "high_color", 1, 1, 1, 1));
     CHECK_NEAR(value_at(rippling, "amplitude", 0), 0.5f, EPS);
     CHECK_NEAR(value_at(rippling, "wave_speed", 0), 2.0f, EPS);
-    wgr_material_release(rippling);
+    wgr_resource_release(rippling);
 
     /* made by an older shaderpack: refused (wgr_frame changed), not drawn wrongly */
     FILE *old = fopen(WGR_TEST_DIR "/old.wgrshader", "wb");
@@ -165,7 +165,7 @@ void test_shader_custom_material(void)
     CHECK(wgr_resource_get_status(missing) == WGR_RESOURCE_FAILED);
     CHECK(wgri_material_custom_failed(wgri_material_get(broken))); /* drawn as wgri_material_failed */
     CHECK(wgri_material_failed()->base_color[0] == 1.0f && wgri_material_failed()->base_color[1] == 0.0f);
-    wgr_material_release(broken);
+    wgr_resource_release(broken);
     wgr_resource_release(old_format);
     wgr_resource_release(not_shader);
     wgr_resource_release(missing);
@@ -250,14 +250,14 @@ void test_shader_sprites(void)
     wgr_render_end_frame();
 
     /* the sprites held the material: it goes with the last of them */
-    wgr_material_release(custom);
+    wgr_resource_release(custom);
     CHECK(wgri_material_get(custom) != NULL); /* sprite2d still has it */
     wgr_sprite2d_destroy(sprite2d);
     CHECK(wgri_material_get(custom) == NULL);
     CHECK(wgri_shader_get(shader) == NULL); /* and the material held the shader */
 
     for (int i = 0; i < COUNT; i++) wgr_sprite3d_destroy(sprites[i]);
-    wgr_material_release(pbr);
+    wgr_resource_release(pbr);
     wgr_resource_release(texture);
     wgr_scene_destroy(scene);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
@@ -303,7 +303,7 @@ void test_shader_effects(void)
     wgr_render_clear_background(WGR_COLOR_BLACK);
     wgr_render_end_frame();
     wgr_render_clear_effects();
-    wgr_material_release(early);
+    wgr_resource_release(early);
 
     CHECK(test_assets_run() > 0);
     const wgri_shader_t *screen = wgri_shader_get(vignette);
@@ -371,7 +371,7 @@ void test_shader_effects(void)
     wgr_render_end_frame();
 
     /* the chain holds a reference to each material until it's cleared */
-    wgr_material_release(dark);
+    wgr_resource_release(dark);
     CHECK(wgri_material_get(dark) != NULL);
     wgr_render_clear_effects();
     CHECK(wgri_material_get(dark) == NULL);
@@ -380,9 +380,9 @@ void test_shader_effects(void)
     wgr_sprite2d_destroy(sprite2d);
     wgr_sprite3d_destroy(sprite);
     wgr_resource_release(texture);
-    wgr_material_release(crt);
-    wgr_material_release(surface);
-    wgr_material_release(pbr);
+    wgr_resource_release(crt);
+    wgr_resource_release(surface);
+    wgr_resource_release(pbr);
     wgr_resource_release(scanlines);
     wgr_resource_release(toon);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);

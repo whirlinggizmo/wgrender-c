@@ -101,29 +101,36 @@ Resources are shared; objects are cheap and private.
 
 - Resources are stored in their own handle pool (kind `*_…` resource kind),
   separate from the object pool.
-- A resource keeps a `ref_count`. It is freed only when the count reaches zero.
+- What every resource has in common is the **resource section's**
+  (`include/wgr_resource.h`, `src/wgr_resource.c`): a resource's record starts with
+  a `wgri_resource_t` (reference count, status, the path it was created from, the
+  file it was read from), and its module registers its pool with what is its own
+  (its loader, a record's defaults, how to free what a record holds). The core does
+  the reference counting, finding a resource by its path, load on create, the status,
+  the path and release, once for every kind.
+- A resource keeps a reference count. It is freed only when the count reaches zero.
 - Two kinds of reference add to the count:
-  1. **Instance references** — each object created from a resource retains it
-     (`+1`), and releases it when the object is destroyed (`-1`).
-  2. **Ownership references** — explicitly loading a resource
-     (`*_create`/preload) adds a caller-owned `+1`, dropped by `*_release`.
-- **The names say which layer you're on:** resources have `*_release` (drop *a*
-  reference; the resource goes when the last one does), objects have `*_destroy`
-  (the object is gone when you say so). Retaining is internal: one `create` is one
-  reference, so callers never need a matching `retain`.
-- **Dedup by source path:** `*_create(path)` first looks for an existing
-  resource with the same path; if found it just retains and returns it (and
-  skips the file read entirely). Generated resources are not deduped (no path).
+  1. **Instance references** — each object using a resource retains it (`+1`), and
+     releases it when the object is destroyed or given another (`-1`).
+  2. **Ownership references** — creating a resource adds a caller-owned `+1`,
+     dropped by `wgr_resource_release`.
+- **The names say which layer you're on:** resources are released with
+  `wgr_resource_release` (drop *a* reference; the resource goes when the last one
+  does, and one still loading stops loading), objects have `*_destroy` (the object is
+  gone when you say so). Retaining is internal: one `create` is one reference, so
+  callers never need a matching `retain`.
+- **Dedup by path:** `*_create(path)` first looks for a resource created from the
+  same asset path; if found it retains and returns it, whatever its status. A
+  generated mesh is found by its parameters the same way.
 
 This gives the behaviors we wanted:
 
-- **Preload once, spawn many.** Load a resource up front; create N objects that
-  all share it. The resource lives until the last object *and* the owning load
-  are gone.
-- **Implicit lifetime for simple callers.** `model = wgr_model_create("x.glb")`
-  loads-or-shares a Mesh and returns a Model; when the Model is destroyed and
-  nothing else references the Mesh, the Mesh frees itself. Simple callers never
-  touch resources.
+- **Create once, spawn many.** Create a resource up front; create N objects that
+  all share it. The resource lives until the last object *and* the creator's
+  reference are gone.
+- **Hand over and let go.** Give a resource to an object and release yours at once:
+  the object keeps it alive, and when it's destroyed and nothing else holds the
+  resource, the resource frees itself.
 
 ### Why this differs from librl
 In librl, a model/texture is pushed to the GPU as soon as it's loaded, and the
@@ -327,40 +334,48 @@ both — the noun says which. No `_create_from_memory`, no "create object from
 file" shortcut.
 
 ```c
-/* Resource — from a path (load-or-share: deduped, refcounted) or a generator. */
+/* Resource — from a path (loaded on create: deduped, refcounted) or a generator. */
 wgr_handle_t wgr_mesh_create(const char *path);
-wgr_handle_t wgr_mesh_create_cube(float w, float h, float l);   /* generated */
-void        wgr_mesh_release(wgr_handle_t mesh);
+wgr_handle_t wgr_mesh_create_cube(float w, float h, float l);   /* generated: READY at once */
 
 /* Object — from a resource handle (adds its own reference). */
 wgr_handle_t wgr_model_create(wgr_handle_t mesh);
+
+/* Any resource. */
+bool wgr_resource_release(wgr_handle_t resource);
+wgr_resource_status_t wgr_resource_get_status(wgr_handle_t resource);
 ```
 
 The same pattern applies to texture/sprite, audio/sound, font/text.
 
-**Loading is split from creation** (`include/wgr_asset.h`): *ensure* the file is
-local (async), then *create* synchronously from the path in the ready callback —
-which receives a path, never bytes. Before the callback fires, the asset pipeline
-also loads the file as the resource its extension names (decoded on worker
-threads, uploaded on the main thread within a per-frame budget), so the create in
-the callback only finds it. Each resource type registers a loader
-(`src/internal/wgr_loader.h`: prepare on any thread, finish on the main thread in
-steps); the sync create runs the same loader inline. See
-[HISTORY.md: Loading pipeline (background preparation, budgeted GPU upload)](HISTORY.md#loading-pipeline-background-preparation-budgeted-gpu-upload).
+**A resource loads on create** (`include/wgr_resource.h`): `wgr_mesh_create(path)`
+returns the handle at once, PENDING, and the asset layer makes the file local (from
+disk, the cache, or a download), prepares it on a worker thread and fills it in on
+the main thread within a per-frame upload budget; the handle is READY or FAILED in a
+later frame, at the start of it. Nothing is called back: objects take the handle at
+once and do the right thing until it's READY (a model isn't drawn, a texture draws
+nothing in a sprite and its default in a material, a font draws as the built-in
+one, a sound waits), and a program reads the status only for what it wants to show.
+Each resource type gives a loader (`src/internal/wgr_loader_internal.h`: prepare on
+any thread, fill on the main thread in steps). See
+[HISTORY.md: Loading pipeline (background preparation, budgeted GPU upload)](HISTORY.md#loading-pipeline-background-preparation-budgeted-gpu-upload)
+and [PLAN-tasks.md](PLAN-tasks.md).
 
 ```c
-static void on_ready(const char *path, void *user) {
-    wgr_handle_t mesh  = wgr_mesh_create(path);   /* resource ← file        */
-    g_model           = wgr_model_create(mesh);  /* object   ← resource    */
-    wgr_mesh_release(mesh);                       /* model keeps its own ref */
-}
-wgr_asset_add_task(wgr_asset_ensure_async(path, NULL, WGR_ASSET_NONE), on_ready, on_failed, ctx);
+wgr_handle_t mesh = wgr_mesh_create("models/character.glb"); /* PENDING */
+g_model           = wgr_model_create(mesh);                  /* drawn once it's READY */
+wgr_resource_release(mesh);                                  /* the model keeps its own reference */
 ```
+
+*Ensuring* a file (`wgr_asset_ensure_async`) only makes it local, without loading
+it: to fetch ahead (a level's files during a menu), from an explicit source (a
+`fetch_url`), or to read a file yourself. A key ensured from an explicit source is
+then what a create of that key loads.
 
 **The path is logical; the asset layer decides which file it is.** It stays under the
 asset root: `.` and `..` are resolved, and a path that is absolute, names a drive or
 climbs out is refused (the rule wgutils' fileio has), for what a program names and for
-what a file references alike. Ensuring `textures/rock.png` may load another file, tried
+what a file references alike. Creating `textures/rock.png` may load another file, tried
 in order until one exists:
 
 1. **Redirects** (`wgr_asset_add_redirect`): path rules stack, newest first, so a mod
@@ -379,10 +394,10 @@ hashes of the files' contents; `tools/gen_manifest.py`) the host is asked only a
 the root once per run, and a file is fetched only when its hash changed, and kept only
 when its bytes match ([HISTORY.md: a web asset cache that notices changed files](HISTORY.md#a-web-asset-cache-that-notices-changed-files)).
 
-The callback receives the file actually found, and files it references (a glTF's
-buffers and images) resolve the same way: the loader reads them from where the asset
-layer found them (`wgri_asset_found_path`). Direct `wgr_*_create(path)` calls load the
-path as given. On desktop a miss is a download when the host is a URL and the program
+A resource is read from the file actually found (`wgr_resource_get_path` names it),
+and the files it references (a glTF's buffers and images) resolve the same way: the
+loader reads them from where the asset layer found them (`wgri_asset_found_path`). On
+desktop a miss is a download when the host is a URL and the program
 supplied a fetcher (`wgr_asset_set_fetcher`): libwgrender names a URL and a destination
 file, the fetcher writes it, and bytes never cross the boundary — so the core carries no
 HTTP client and no TLS. Networking beyond this (WebSockets, HTTP APIs) is outside libwgrender

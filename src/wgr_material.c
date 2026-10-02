@@ -393,29 +393,16 @@ const wgri_material_t *wgri_material_failed(void)
     return &wgr_material_failed;
 }
 
-void wgri_material_retain(wgr_handle_t material)
+/* Free what a record holds past its resource header. */
+static void free_record(void *record)
 {
-    wgri_material_t *material_ptr = resolve(material);
-    if (material_ptr != NULL) {
-        material_ptr->ref_count++;
-    }
+    clear((wgri_material_t *)record);
 }
 
-WGRI_KEEP
-void wgr_material_release(wgr_handle_t material)
-{
-    wgri_material_t *material_ptr = resolve(material);
-    if (material_ptr == NULL) {
-        return;
-    }
-    if (material_ptr->ref_count > 0) {
-        material_ptr->ref_count--;
-    }
-    if (material_ptr->ref_count == 0) {
-        clear(material_ptr);
-        wgri_handle_pool_free(&wgr_material_pool, material);
-    }
-}
+static const wgri_resource_kind_t wgr_material_kind = {
+    .create = "wgr_material_create",
+    .free = free_record, /* no loader: a material is made from numbers */
+};
 
 void wgri_material_init(void)
 {
@@ -423,6 +410,7 @@ void wgri_material_init(void)
                              sizeof(wgri_material_t), MATERIALS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         wgr_logger_error("material: out of memory");
     }
+    wgri_resource_register(&wgr_material_pool, &wgr_material_kind);
     wgr_material_failed = (wgri_material_t){
         .shading = WGR_MATERIAL_UNLIT,
         .alpha_mode = WGR_ALPHA_OPAQUE,
@@ -438,6 +426,7 @@ void wgri_material_init(void)
 
 void wgri_material_deinit(void)
 {
+    wgri_resource_register(&wgr_material_pool, NULL);
     for (uint16_t i = 1; i < wgr_material_pool.capacity; i++) {
         if (wgr_material_pool.occupied[i]) {
             clear(&wgr_materials[i]);
@@ -469,13 +458,13 @@ wgr_handle_t wgr_material_create(wgr_material_shading_t shading)
         wgr_logger_error("wgr_material_create: unknown shading %d", (int)shading);
         return 0;
     }
-    handle = wgri_handle_pool_alloc(&wgr_material_pool);
+    handle = wgri_resource_add(WGR_HANDLE_KIND_MATERIAL);
     if (handle == 0) {
-        wgr_logger_error("material: pool full (%u)", (unsigned)wgr_material_pool.max - 1u);
         return 0;
     }
     wgri_handle_pool_resolve(&wgr_material_pool, handle, &index);
     wgr_materials[index] = (wgri_material_t){
+        .resource = wgr_materials[index].resource, /* the core's part: READY, one reference */
         .shading = shading,
         .alpha_mode = WGR_ALPHA_OPAQUE,
         .alpha_cutoff = 0.5f,
@@ -484,7 +473,6 @@ wgr_handle_t wgr_material_create(wgr_material_shading_t shading)
         .roughness = 1.0f,
         .normal_scale = 1.0f,
         .occlusion_strength = 1.0f,
-        .ref_count = 1,
     };
     for (int i = 0; i < WGRI_MATERIAL_MAX_TEXTURES; i++) {
         wgr_materials[index].textures[i] = (wgri_material_texture_t){.scale = {1.0f, 1.0f}, .mipmaps = true};
