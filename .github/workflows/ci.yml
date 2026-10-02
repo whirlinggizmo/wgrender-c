@@ -117,10 +117,10 @@ jobs:
           actions-cache-folder: emsdk-cache
       - uses: krdlab/setup-haxe@v2
         with:
-          haxe-version: 4.3.6
+          haxe-version: 4.3.7
       - name: The binding from this checkout, and hxcpp
         run: |
-          haxelib install hxcpp --always
+          haxelib install hxcpp 4.3.2 --always  # pinned: what haxelib serves users (bindings/haxe/BUILDING.md)
           haxelib dev wgrender-hx bindings/haxe
       - name: Refusals read from the C with clang
         run: python3 bindings/haxe/tools/check_refusals.py --require-clang

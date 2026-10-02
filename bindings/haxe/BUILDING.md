@@ -8,7 +8,9 @@ build is `haxe <file>.hxml`, on Windows, Linux or macOS.
 
 ## What you need
 
-- Haxe 4.3 and hxcpp (`haxelib install hxcpp`)
+- Haxe 4.3 and hxcpp (`haxelib install hxcpp`). Tested with Haxe 4.3.7, and with hxcpp
+  4.3.2, the one haxelib serves (CI pins it), and hxcpp's current master. A newer hxcpp
+  should work; `haxelib.json` doesn't pin one, so a user isn't held back
 - a C and C++ compiler for native builds:
   - Linux and macOS: gcc or clang
   - Windows: MSVC (Visual Studio; hxcpp's default), or MinGW. Always add
