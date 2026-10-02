@@ -94,7 +94,9 @@ class ForceFetch {
 		}
 		if (id != ASSET_MUSIC)
 			return;
-		final audio = new Audio(path);
+		// the file is local now, under the key: creating the key loads it from wherever
+		// the ensure found it
+		final audio = new Audio(INVALID_MUSIC_PATH);
 		music = new Sound(audio);
 		audio.release(); // the sound holds its own reference
 		music.setVolume(0.5);

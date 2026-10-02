@@ -58,6 +58,13 @@ abstract Sound(Handle) from Handle to Handle {
 	public static inline function setAudio(sound:Sound, audio:Audio):Bool
 		return Raw.wgr_sound_set_audio(sound, audio);
 
+	/**
+		The `Audio` it plays (the sound holds the reference), or none. Its status says
+		whether the sound is waiting for it to load.
+	**/
+	public static inline function getAudio(sound:Sound):Audio
+		return (Raw.wgr_sound_get_audio(sound) : Handle);
+
 	/** Objects are private, so they're destroyed; resources are shared and released. **/
 	public static inline function destroy(sound:Sound):Void
 		Raw.wgr_sound_destroy(sound);

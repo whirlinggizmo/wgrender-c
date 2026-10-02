@@ -16,7 +16,6 @@ class Guest {
 	static inline final MUSIC_PATH = "music/a_hero_is_born.mp3";
 
 	// The host hands these back on the asset op, in place of a callback.
-	static inline final ASSET_BGM = 1;
 	static inline final ASSET_MODEL = 2;
 	static inline final ASSET_DEBUG_FONT = 3;
 	static inline final ASSET_KOMIKA_FONT = 4;
@@ -97,7 +96,7 @@ class Guest {
 		backgroundColor = Color.rgba(245, 245, 245, 255);
 		greyAlpha = Color.rgba(0, 0, 0, 128);
 
-		load(MUSIC_PATH, ASSET_BGM);
+		makeBgm();
 		load(CHARACTER_PATH, ASSET_MODEL);
 		makeSprite();
 		load(DEBUG_FONT_PATH, ASSET_DEBUG_FONT);
@@ -115,6 +114,15 @@ class Guest {
 		scene.add(sprite);
 	}
 
+	// Audio loads on create: the music plays once it has loaded.
+	static function makeBgm():Void {
+		final audio = new Audio(MUSIC_PATH);
+		bgm = new Sound(audio);
+		audio.release(); // the sound holds its own reference
+		bgm.setLoop(true);
+		bgm.play();
+	}
+
 	// The path is local and ready; create the resource, then the object.
 	static function onAsset(id:Int, path:String, ok:Bool):Void {
 		if (!ok) {
@@ -122,13 +130,6 @@ class Guest {
 			return;
 		}
 		switch id {
-			case ASSET_BGM:
-				final audio = new Audio(path);
-				bgm = new Sound(audio);
-				audio.release(); // the sound holds its own reference
-				bgm.setLoop(true);
-				bgm.play();
-
 			case ASSET_MODEL:
 				final mesh = new Mesh(path);
 				model = new Model(mesh);

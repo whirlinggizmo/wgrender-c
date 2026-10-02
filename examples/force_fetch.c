@@ -24,12 +24,15 @@ static wgr_color_t g_bg;
 static wgr_handle_t g_music;
 static bool g_music_on;
 
+/* The file is local now, under the key; creating the key loads it from wherever the
+ * ensure found it. */
 static void on_music_loaded(const char *path, void *user)
 {
-    wgr_handle_t audio = wgr_audio_create(path);
+    wgr_handle_t audio = wgr_audio_create(INVALID_MUSIC_PATH);
+    (void)path;
     (void)user;
     g_music = wgr_sound_create(audio);
-    wgr_audio_release(audio); /* the sound holds its own reference */
+    wgr_resource_release(audio); /* the sound holds its own reference */
     wgr_sound_set_volume(g_music, 0.5f);
     wgr_sound_set_loop(g_music, true); /* "music" is just a looping sound */
     wgr_sound_play(g_music);

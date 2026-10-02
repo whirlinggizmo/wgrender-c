@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "internal/wgr_resource_internal.h"
 #include "internal/exports_internal.h"
 #include "internal/wgr_audio_internal.h"
 #include "internal/wgr_handle_pool_internal.h"
@@ -48,9 +49,16 @@ static wgr_handle_t create_sound(wgr_handle_t audio, bool loop)
         .loop = loop,
         .playing = false,
     };
-    if (audio != 0) wgri_audio_retain(audio); /* the sound's own ref to the shared Audio */
+    if (audio != 0) wgri_resource_retain(audio); /* the sound's own ref to the shared Audio */
     wgri_audio_unlock();
     return handle;
+}
+
+WGRI_KEEP
+wgr_handle_t wgr_sound_get_audio(wgr_handle_t handle)
+{
+    const wgri_sound_t *sound_ptr = resolve(handle);
+    return sound_ptr != NULL ? sound_ptr->audio : 0; /* changed only on this thread */
 }
 
 WGRI_KEEP
@@ -60,9 +68,9 @@ bool wgr_sound_set_audio(wgr_handle_t handle, wgr_handle_t audio)
     if (sound_ptr == NULL) return false;
     wgri_audio_lock();
     if (sound_ptr->audio != audio) {
-        if (audio != 0) wgri_audio_retain(audio);
+        if (audio != 0) wgri_resource_retain(audio);
         wgri_audio_stream_free(sound_ptr); /* the decoder belongs to the old Audio */
-        if (sound_ptr->audio != 0) wgr_audio_release(sound_ptr->audio);
+        if (sound_ptr->audio != 0) wgr_resource_release(sound_ptr->audio);
         sound_ptr->audio = audio;
         /* volume/pitch/loop/playing/pos retained, so playback picks up the new Audio */
     }
@@ -87,7 +95,7 @@ void wgr_sound_destroy(wgr_handle_t handle)
     audio = sound_ptr->audio;
     memset(sound_ptr, 0, sizeof(*sound_ptr));
     wgri_handle_pool_free(&wgr_sound_pool, handle);
-    wgr_audio_release(audio); /* frees the Audio once its last sound is gone */
+    wgr_resource_release(audio); /* frees the Audio once its last sound is gone */
     wgri_audio_unlock();
 }
 
@@ -179,7 +187,7 @@ void wgri_sound_deinit(void)
         if (wgr_sound_pool.occupied[i]) {
             wgri_audio_lock();
             wgri_audio_stream_free(&wgr_sounds[i]);
-            wgr_audio_release(wgr_sounds[i].audio);
+            wgr_resource_release(wgr_sounds[i].audio);
             wgr_sounds[i] = (wgri_sound_t){0};
             wgri_audio_unlock();
         }

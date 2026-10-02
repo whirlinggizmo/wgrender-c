@@ -13,6 +13,10 @@ extern "C" {
  * streamed-vs-decoded is a property of the Audio (see docs/ARCHITECTURE.md). */
 wgr_handle_t wgr_sound_create(wgr_handle_t audio); /* audio may be 0 (attach later) */
 bool wgr_sound_set_audio(wgr_handle_t handle, wgr_handle_t audio);
+/* The Audio it plays (borrowed: the sound holds the reference), or 0 for none and for
+ * a handle that isn't a sound. Its status (wgr_resource_get_status) says whether the
+ * sound is waiting for it to load. */
+wgr_handle_t wgr_sound_get_audio(wgr_handle_t handle);
 void wgr_sound_destroy(wgr_handle_t handle);
 bool wgr_sound_play(wgr_handle_t handle);    /* (re)start from the beginning */
 bool wgr_sound_pause(wgr_handle_t handle);   /* stop, keep position          */

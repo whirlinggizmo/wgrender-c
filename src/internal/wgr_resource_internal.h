@@ -28,6 +28,11 @@ typedef struct {
     const struct wgri_loader *loader;   /* loads a created resource's file; NULL: none is */
     void (*init)(void *record);         /* a new record's defaults past the header, or NULL */
     void (*free)(void *record);         /* free what a record holds past the header (GPU objects, memory) */
+    /* A kind whose records another thread reads (audio: the mixer) gives the lock it
+     * reads them under, which must allow nesting; the core takes it around whatever
+     * changes the pool, a record's status or its reference count. NULL: no lock. */
+    void (*lock)(void);
+    void (*unlock)(void);
 } wgri_resource_kind_t;
 
 /* Register the resources in `pool` (whose records start with a wgri_resource_t) for
@@ -44,6 +49,10 @@ wgri_resource_t *wgri_resource_get(wgr_handle_t resource);
  * FAILED at once for a path outside the asset root or with the asset layer not
  * running (logged). 0 only when the pool is full. */
 wgr_handle_t wgri_resource_create(wgr_handle_kind_t kind, const char *path);
+
+/* The same with a loader other than the kind's own (audio's forced decode or stream,
+ * for tests). The path still finds whatever was created from it, however loaded. */
+wgr_handle_t wgri_resource_create_with(wgr_handle_kind_t kind, const char *path, const struct wgri_loader *loader);
 
 /* A resource made from numbers: a new record of `kind` with no path, READY, holding
  * one reference; the module fills in the rest. 0 when the pool is full. */

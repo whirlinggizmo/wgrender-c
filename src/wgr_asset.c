@@ -1253,14 +1253,17 @@ static void deliver_pings(void)
  * path: a model reads the files it references from where they were found
  * (wgri_asset_found_path, from loading workers). Under wgr_asset_jobs.lock. */
 typedef struct {
-    char from[512];
+    char from[512];   /* local paths: what loaders ask about (wgri_asset_found_path) */
     char to[512];
+    char key[512];    /* the same as asset paths, for a file an explicit source named (a fetch_url):
+                         what a load on create plans from (found_key); "" otherwise */
+    char at[512];
 } wgr_asset_found_t;
 static wgr_asset_found_t *wgr_asset_found;
 static int wgr_asset_found_count, wgr_asset_found_capacity;
 
 /* `origin` was found at `path` (the same path: forget any earlier redirect). */
-static void record_found(const char *origin, const char *path)
+static void record_found(const char *origin, const char *path, bool explicit_source)
 {
     char from[512], to[512];
     int i;
@@ -1283,10 +1286,30 @@ static void record_found(const char *origin, const char *path)
         if (i < wgr_asset_found_capacity) {
             snprintf(wgr_asset_found[i].from, sizeof(wgr_asset_found[i].from), "%s", from);
             snprintf(wgr_asset_found[i].to, sizeof(wgr_asset_found[i].to), "%s", to);
+            /* a redirect's or a variant's answer depends on the rules and the GPU at the
+               time, so only an explicit source's is kept for a later create */
+            snprintf(wgr_asset_found[i].key, sizeof(wgr_asset_found[i].key), "%s", explicit_source ? origin : "");
+            snprintf(wgr_asset_found[i].at, sizeof(wgr_asset_found[i].at), "%s", explicit_source ? path : "");
             if (i == wgr_asset_found_count) wgr_asset_found_count++;
         }
     }
     wgri_mutex_unlock(&wgr_asset_jobs.lock);
+}
+
+/* Where an earlier task found the file asset path `key` names, as an asset path, into
+ * `out`: true when it was found somewhere else (a fetch_url, a redirect, a fallback). */
+static bool found_key(const char *key, char *out, size_t out_size)
+{
+    bool found = false;
+    if (!wgr_asset_jobs.lock_live) return false;
+    wgri_mutex_lock(&wgr_asset_jobs.lock);
+    for (int i = 0; i < wgr_asset_found_count && !found; i++) {
+        if (wgr_asset_found[i].key[0] != '\0' && strcmp(wgr_asset_found[i].key, key) == 0) {
+            found = snprintf(out, out_size, "%s", wgr_asset_found[i].at) < (int)out_size;
+        }
+    }
+    wgri_mutex_unlock(&wgr_asset_jobs.lock);
+    return found;
 }
 
 bool wgri_asset_found_path(const char *local, char *out, size_t out_size)
@@ -1878,7 +1901,16 @@ bool wgri_asset_load(const wgri_loader_t *loader, const char *path, wgr_handle_t
     task_ptr = resolve(handle);
     *task_ptr = (wgr_asset_task_t){0};
     snprintf(task_ptr->origin, sizeof(task_ptr->origin), "%s", path);
-    plan_mapped(task_ptr, path);
+    {
+        /* a file an ensure found elsewhere (its fetch_url, say) is the one this key
+           names: load it from there, as the ensure's callback would have */
+        char at[512];
+        if (found_key(path, at, sizeof(at))) {
+            plan(task_ptr, at, "");
+        } else {
+            plan_mapped(task_ptr, path);
+        }
+    }
     task_ptr->loader = loader;
     task_ptr->target = resource;
     task_ptr->loads = true;
@@ -2288,9 +2320,9 @@ static void resolved(uint16_t i, bool ok)
 {
     wgr_asset_task_t *task = &wgr_asset_tasks[i];
     if (ok && task->origin[0] != '\0') {
-        record_found(task->origin, task->path);
+        record_found(task->origin, task->path, task->caller_url);
         if (task->candidate_next >= task->primary_count && task->fallback_origin[0] != '\0') {
-            record_found(task->fallback_origin, task->path);
+            record_found(task->fallback_origin, task->path, false);
         }
     }
     if (ok && !task->dependencies_started) {

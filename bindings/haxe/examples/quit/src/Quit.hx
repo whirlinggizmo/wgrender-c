@@ -23,12 +23,6 @@ class Quit {
 	static inline final ENV_A_PATH = "environments/venice_sunset_1k.hdr";
 	static inline final ENV_B_PATH = "environments/studio_small_09_1k.hdr";
 
-	static inline final ASSET_BGM = 1;
-	// The two environments are only ever started, so that something is in flight when
-	// the quit lands. Their ids exist to tell the failures apart in the log.
-	static inline final ASSET_ENV_A = 2;
-	static inline final ASSET_ENV_B = 3;
-
 	static inline final STALL = 0.5;
 
 	static var background:Color;
@@ -42,7 +36,7 @@ class Quit {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset, onShutdown);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}, onShutdown); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "quit (wgrender host, Haxe guest)", Resizable);
 	}
 
@@ -52,23 +46,11 @@ class Quit {
 		background = Color.rgba(30, 36, 48, 255);
 		// Soon enough that a headless check sees the quit happen.
 		quitAt = Wgr.getTime() + 1.0;
-		if (!GuestAbi.loadAsset(MUSIC_PATH, ASSET_BGM))
-			Log.error('failed to queue asset: $MUSIC_PATH');
-	}
-
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			// Expected for the environments: the quit lands before they arrive.
-			Log.info('asset did not complete: $path');
-			return;
-		}
-		if (id == ASSET_BGM) {
-			final audio = new Audio(path);
-			music = new Sound(audio);
-			audio.release(); // the sound keeps its own reference
-			music.setLoop(true);
-			music.play();
-		}
+		final audio = new Audio(MUSIC_PATH); // plays once it has loaded
+		music = new Sound(audio);
+		audio.release(); // the sound keeps its own reference
+		music.setLoop(true);
+		music.play();
 	}
 
 	static function onFrame(dt:Float):Void {
@@ -91,8 +73,9 @@ class Quit {
 
 		if (!quitting && Wgr.getTime() >= quitAt) {
 			quitting = true;
-			GuestAbi.loadAsset(ENV_A_PATH, ASSET_ENV_A);
-			GuestAbi.loadAsset(ENV_B_PATH, ASSET_ENV_B);
+			// only started to be in flight at quit: loads on create, never used
+			new Environment(ENV_A_PATH);
+			new Environment(ENV_B_PATH);
 			// A deliberately long synchronous frame, with those two loads outstanding.
 			final busyUntil = Wgr.getTime() + STALL;
 			while (Wgr.getTime() < busyUntil) {}

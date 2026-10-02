@@ -279,7 +279,7 @@ GETTERS_TODO = {
     *(f'wgr_scene_set_{v}' for v in (
         'active_camera', 'ambient', 'background', 'clip', 'environment', 'layer', 'tonemap')),
     'wgr_shape2d_set_color', 'wgr_shape2d_set_outline', 'wgr_shape3d_set_color',
-    *(f'wgr_sound_set_{v}' for v in ('audio', 'loop', 'pan', 'pitch', 'volume')),
+    *(f'wgr_sound_set_{v}' for v in ('loop', 'pan', 'pitch', 'volume')),
     *(f'wgr_sprite2d_set_{v}' for v in (
         'nine_slice', 'pick_alpha_test', 'size', 'source', 'texture', 'tint')),
     *(f'wgr_sprite3d_set_{v}' for v in (

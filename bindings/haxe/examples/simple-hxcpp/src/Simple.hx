@@ -56,13 +56,11 @@ class Simple {
 	}
 
 	static function loadAssets():Void {
-		load(MUSIC_PATH, path -> {
-			final audio = new Audio(path);
-			bgm = new Sound(audio);
-			audio.release(); // the sound holds its own reference
-			bgm.setLoop(true);
-			bgm.play();
-		});
+		final audio = new Audio(MUSIC_PATH); // plays once it has loaded
+		bgm = new Sound(audio);
+		audio.release(); // the sound holds its own reference
+		bgm.setLoop(true);
+		bgm.play();
 
 		load(CHARACTER_PATH, path -> {
 			final mesh = new Mesh(path);

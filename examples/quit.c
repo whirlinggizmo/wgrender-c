@@ -22,21 +22,6 @@ static struct {
     bool quitting;
 } g;
 
-static void on_music(const char *path, void *user)
-{
-    const wgr_handle_t audio = wgr_audio_create(path);
-    (void)user;
-    g.music = wgr_sound_create(audio);
-    wgr_audio_release(audio); /* the sound keeps its own reference */
-    wgr_sound_set_loop(g.music, true);
-    wgr_sound_play(g.music);
-}
-
-static void on_environment(const char *path, void *user)
-{
-    (void)path;
-    (void)user; /* only started to be in flight at quit; never created */
-}
 
 static void init(void *user_data)
 {
@@ -45,8 +30,11 @@ static void init(void *user_data)
     wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
     g.bg = wgr_color_rgba(30, 36, 48, 255);
     g.quit_at = wgr_get_time() + 1.0; /* soon enough for tools/check_web_examples.py to see the quit */
-    wgr_asset_add_task(wgr_asset_ensure_async(MUSIC_PATH, NULL, WGR_ASSET_NONE), on_music, NULL,
-                      NULL);
+    const wgr_handle_t audio = wgr_audio_create(MUSIC_PATH); /* plays once it has loaded */
+    g.music = wgr_sound_create(audio);
+    wgr_resource_release(audio); /* the sound keeps its own reference */
+    wgr_sound_set_loop(g.music, true);
+    wgr_sound_play(g.music);
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)
@@ -79,10 +67,9 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
     if (!g.quitting && wgr_get_time() >= g.quit_at) {
         g.quitting = true;
-        wgr_asset_add_task(wgr_asset_ensure_async("environments/venice_sunset_1k.hdr", NULL, WGR_ASSET_NONE),
-                          on_environment, NULL, NULL);
-        wgr_asset_add_task(wgr_asset_ensure_async("environments/studio_small_09_1k.hdr", NULL, WGR_ASSET_NONE),
-                          on_environment, NULL, NULL);
+        /* only started to be in flight at quit: loads on create, never used */
+        wgr_environment_create("environments/venice_sunset_1k.hdr");
+        wgr_environment_create("environments/studio_small_09_1k.hdr");
         const double busy_until = wgr_get_time() + 0.5; /* a long synchronous frame */
         while (wgr_get_time() < busy_until) {
         }

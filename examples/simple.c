@@ -48,12 +48,12 @@ static struct {
 
 /* --- asset callbacks: path is local and ready; create the resource, then the object --- */
 
-static void on_bgm_ready(const char *path, void *user)
+/* Audio loads on create: the music plays once it has loaded. */
+static void make_bgm(void)
 {
-    wgr_handle_t audio = wgr_audio_create(path);
-    (void)user;
+    wgr_handle_t audio = wgr_audio_create(MUSIC_PATH);
     g.bgm = wgr_sound_create(audio);
-    wgr_audio_release(audio); /* the sound holds its own reference */
+    wgr_resource_release(audio); /* the sound holds its own reference */
     wgr_sound_set_loop(g.bgm, true);
     wgr_sound_play(g.bgm);
 }
@@ -139,7 +139,7 @@ static void on_init(void *user_data)
     g.background_color = wgr_color_rgba(245, 245, 245, 255);
     g.grey_alpha = wgr_color_rgba(0, 0, 0, 128);
 
-    load(MUSIC_PATH, on_bgm_ready);
+    make_bgm();
     load(CHARACTER_PATH, on_model_ready);
     make_sprite();
     load(DEBUG_FONT_PATH, on_debug_font_ready);

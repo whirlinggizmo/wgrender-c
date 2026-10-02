@@ -190,7 +190,9 @@ class CheckBindings {
 		check(!Texture.isNone(missing) && missing.getStatus() == Pending, "a missing texture is pending at first");
 		missing.release();
 		check(Mesh.isNone(Mesh.create("no/such/mesh.glb")), "a missing mesh is none");
-		check(Audio.isNone(Audio.create("no/such/sound.mp3")), "a missing sound is none");
+		final silence = Audio.create("no/such/sound.mp3");
+		check(!Audio.isNone(silence) && silence.getStatus() == Pending, "a missing sound is pending at first");
+		silence.release();
 	}
 
 	static function checkText():Void {
@@ -730,6 +732,7 @@ class CheckBindings {
 	static function checkSoundAndAsset():Void {
 		final audio = Audio.create("no/such.wav");
 		final sound = Sound.create(audio);
+		check(Sound.getAudio(sound) == audio, "a sound gives back its audio");
 		check(!Sound.isPlaying(sound), "a new sound is not playing");
 		Sound.setVolume(sound, 0.5);
 		Sound.setPitch(sound, 1.5);
@@ -740,7 +743,7 @@ class CheckBindings {
 		Sound.pause(sound);
 		Sound.resume(sound);
 		Sound.destroy(sound);
-		Audio.release(audio);
+		audio.release();
 
 		// the host round-trips, and putting it back leaves the later checks alone
 		final was = Asset.getHost();

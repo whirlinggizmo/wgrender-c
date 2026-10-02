@@ -34,9 +34,6 @@ void wgri_audio_deinit(void);
 void wgri_audio_lock(void);
 void wgri_audio_unlock(void);
 
-/* Audio resource reference counting (take the lock). Public creation/destruction
- * is wgr_audio_create / wgr_audio_release; Sound objects add their own references. */
-void wgri_audio_retain(wgr_handle_t audio);
 
 /* The sound slots, for the mixer to walk (take the lock): indices 1 up to
  * wgri_sound_slot_count(), NULL for a free slot. Sounds are created and destroyed, and

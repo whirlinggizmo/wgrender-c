@@ -14,6 +14,7 @@
 
 #include "internal/exports_internal.h"
 #include "internal/wgr_handle_pool_internal.h"
+#include "internal/wgr_resource_internal.h"
 #include "internal/wgr_loader_internal.h"
 #include "internal/wgr_internal_internal.h"
 #include "internal/wgr_module_internal.h"
@@ -57,6 +58,7 @@ typedef enum {
 
 /* Audio resource: shared, refcounted, deduped by source path. */
 typedef struct {
+    wgri_resource_t resource; /* first: the resource core's part (internal/wgr_resource_internal.h) */
     float *pcm;              /* decoded: interleaved float samples */
     unsigned char *encoded;  /* streamed: the whole file */
     int encoded_size;
@@ -64,9 +66,6 @@ typedef struct {
     uint64_t frame_count;    /* frames (samples per channel), known for both kinds */
     int channels;
     int sample_rate;
-    int ref_count;
-    char path[256];
-    bool has_path;
 } wgr_audio_t;
 
 struct wgri_audio_stream {
@@ -305,17 +304,6 @@ static wgr_audio_t *resolve_audio(wgr_handle_t handle)
     return &wgr_audios[index];
 }
 
-static wgr_handle_t find_audio_by_path(const char *path)
-{
-    if (path == NULL || path[0] == '\0') return 0;
-    for (uint16_t i = 1; i < wgr_audio_pool.capacity; i++) {
-        if (wgr_audio_pool.occupied[i] && wgr_audios[i].has_path && strcmp(wgr_audios[i].path, path) == 0) {
-            return wgri_handle_pool_handle_from_index(&wgr_audio_pool, i);
-        }
-    }
-    return 0;
-}
-
 static void free_audio_data(wgr_audio_t *audio_ptr)
 {
     free(audio_ptr->pcm);
@@ -375,81 +363,74 @@ static void discard_audio(void *prepared)
     }
 }
 
+static void *prepare_decoded(const char *path)
+{
+    return prepare_audio_mode(path, WGRI_AUDIO_MODE_DECODE);
+}
+
+static void *prepare_streamed(const char *path)
+{
+    return prepare_audio_mode(path, WGRI_AUDIO_MODE_STREAM);
+}
+
 static void ensure_device(void); /* below: the device starts with the first resource */
 
-static wgri_loader_step_t finish_audio(void *prepared, const char *path, wgr_handle_t *resource)
+/* Move the prepared samples (or the file, to stream) into the PENDING `audio`, under
+ * the lock the mixer reads it under; the resource core makes it READY. */
+static wgri_loader_step_t fill(void *data, const char *path, wgr_handle_t audio)
 {
-    wgr_audio_t *audio = (wgr_audio_t *)prepared;
+    wgr_audio_t *prepared = (wgr_audio_t *)data;
     uint16_t index = 0;
 
-    ensure_device();
-    if (path != NULL) {
-        snprintf(audio->path, sizeof(audio->path), "%s", path);
-        audio->has_path = path[0] != '\0';
-    }
-    audio->ref_count = 1; /* the caller's, until wgr_audio_release */
-
+    (void)path;
+    ensure_device(); /* not under the lock, which the device's callback takes */
     wgri_audio_lock();
-    *resource = wgri_handle_pool_alloc(&wgr_audio_pool);
-    if (*resource == 0) {
+    if (!wgri_handle_pool_resolve(&wgr_audio_pool, audio, &index)) {
         wgri_audio_unlock();
-        wgr_logger_error("audio: pool full (%u)", (unsigned)wgr_audio_pool.max - 1u);
         return WGRI_LOADER_FAILED;
     }
-    wgri_handle_pool_resolve(&wgr_audio_pool, *resource, &index);
-    wgr_audios[index] = *audio;
+    wgr_audio_t *audio_ptr = &wgr_audios[index];
+    audio_ptr->pcm = prepared->pcm;
+    audio_ptr->encoded = prepared->encoded;
+    audio_ptr->encoded_size = prepared->encoded_size;
+    audio_ptr->format = prepared->format;
+    audio_ptr->frame_count = prepared->frame_count;
+    audio_ptr->channels = prepared->channels;
+    audio_ptr->sample_rate = prepared->sample_rate;
     wgri_audio_unlock();
-    audio->pcm = NULL; /* owned by the resource now */
-    audio->encoded = NULL;
+    prepared->pcm = NULL; /* the resource's now */
+    prepared->encoded = NULL;
     return WGRI_LOADER_DONE;
 }
 
-static wgr_handle_t find_audio(const char *path)
-{
-    wgr_handle_t handle;
-    wgri_audio_lock();
-    handle = find_audio_by_path(path);
-    if (handle != 0) {
-        wgri_audio_retain(handle);
-    }
-    wgri_audio_unlock();
-    return handle;
-}
-
-static void release_audio(wgr_handle_t audio)
-{
-    wgri_audio_lock();
-    wgr_audio_release(audio);
-    wgri_audio_unlock();
-}
-
+/* Decoded or streamed as the file's size says; the other two force one (tests). */
 static const wgri_loader_t wgr_audio_loader = {
-    .name = "audio",
-    .prepare = prepare_audio,
-    .finish = finish_audio,
-    .discard = discard_audio,
-    .find = find_audio,
-    .release = release_audio,
+    .name = "audio", .prepare = prepare_audio, .discard = discard_audio, .fill = fill};
+static const wgri_loader_t wgr_audio_decoded_loader = {
+    .name = "audio", .prepare = prepare_decoded, .discard = discard_audio, .fill = fill};
+static const wgri_loader_t wgr_audio_streamed_loader = {
+    .name = "audio", .prepare = prepare_streamed, .discard = discard_audio, .fill = fill};
+
+/* Free what a record holds past its resource header (no sound reads it any more). */
+static void free_record(void *record)
+{
+    free_audio_data((wgr_audio_t *)record);
+}
+
+static const wgri_resource_kind_t wgr_audio_kind = {
+    .create = "wgr_audio_create",
+    .loader = &wgr_audio_loader,
+    .free = free_record,
+    .lock = wgri_audio_lock, /* the mixer reads the records */
+    .unlock = wgri_audio_unlock,
 };
 
 wgr_handle_t wgri_audio_create_mode(const char *path, wgri_audio_mode_t mode)
 {
-    wgr_handle_t handle = find_audio(path);
-    wgr_audio_t *prepared;
-
-    if (handle != 0) {
-        return handle;
-    }
-    /* read and decode without the lock: the mixer keeps running meanwhile */
-    prepared = (wgr_audio_t *)prepare_audio_mode(path, mode);
-    if (prepared == NULL) {
-        return 0;
-    }
-    if (finish_audio(prepared, path, &handle) != WGRI_LOADER_DONE) {
-        handle = 0;
-    }
-    discard_audio(prepared);
-    return handle;
+    return wgri_resource_create_with(WGR_HANDLE_KIND_AUDIO, path,
+                                     mode == WGRI_AUDIO_MODE_DECODE   ? &wgr_audio_decoded_loader
+                                     : mode == WGRI_AUDIO_MODE_STREAM ? &wgr_audio_streamed_loader
+                                                                      : &wgr_audio_loader);
 }
 
 bool wgri_audio_is_streamed(wgr_handle_t handle)
@@ -465,32 +446,7 @@ bool wgri_audio_is_streamed(wgr_handle_t handle)
 WGRI_KEEP
 wgr_handle_t wgr_audio_create(const char *path)
 {
-    return wgri_audio_create_mode(path, WGRI_AUDIO_MODE_AUTO);
-}
-
-void wgri_audio_retain(wgr_handle_t handle)
-{
-    wgri_audio_lock();
-    wgr_audio_t *audio_ptr = resolve_audio(handle);
-    if (audio_ptr != NULL) audio_ptr->ref_count++;
-    wgri_audio_unlock();
-}
-
-WGRI_KEEP
-void wgr_audio_release(wgr_handle_t handle)
-{
-    wgri_audio_lock();
-    wgr_audio_t *audio_ptr = resolve_audio(handle);
-    if (audio_ptr != NULL) {
-        if (audio_ptr->ref_count > 0) audio_ptr->ref_count--;
-        if (audio_ptr->ref_count == 0) {
-            /* no Sound references it, so no stream reads its bytes */
-            free_audio_data(audio_ptr);
-            memset(audio_ptr, 0, sizeof(*audio_ptr));
-            wgri_handle_pool_free(&wgr_audio_pool, handle);
-        }
-    }
-    wgri_audio_unlock();
+    return wgri_resource_create(WGR_HANDLE_KIND_AUDIO, path);
 }
 
 /* -------------------------------------------------------------- mixer ------ */
@@ -596,8 +552,9 @@ void wgri_audio_mix(float *out, int frames, int sample_rate)
             continue;
         }
         uint16_t index = 0;
-        if (!wgri_handle_pool_resolve(&wgr_audio_pool, sound->audio, &index)) {
-            continue; /* no Audio attached yet */
+        if (!wgri_handle_pool_resolve(&wgr_audio_pool, sound->audio, &index) ||
+            wgr_audios[index].resource.status != WGR_RESOURCE_READY) {
+            continue; /* no Audio attached, or not loaded yet: it waits, and plays when it is */
         }
         mix_sound(sound, &wgr_audios[index], out, frames, sample_rate);
     }
@@ -660,9 +617,7 @@ void wgri_audio_init(void)
                              sizeof(wgr_audio_t), AUDIO_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
         wgr_logger_error("audio: out of memory");
     }
-    wgri_asset_register_loader(".wav", &wgr_audio_loader);
-    wgri_asset_register_loader(".ogg", &wgr_audio_loader);
-    wgri_asset_register_loader(".mp3", &wgr_audio_loader);
+    wgri_resource_register(&wgr_audio_pool, &wgr_audio_kind);
 #if defined(WGR_HEADLESS)
     wgr_logger_info("audio: headless build, no playback");
 #endif
@@ -677,10 +632,11 @@ void wgri_audio_deinit(void)
 #endif
     wgr_audio_device_tried = false;
     wgri_audio_lock(); /* sounds (and their decoders) are gone: wgri_sound_deinit runs first */
+    wgri_resource_register(&wgr_audio_pool, NULL);
     /* free any audio resources still alive (sounds should have released theirs) */
     for (uint16_t i = 1; i < wgr_audio_pool.capacity; i++) {
         if (wgr_audio_pool.occupied[i]) {
-            free_audio_data(&wgr_audios[i]);
+            free_record(&wgr_audios[i]);
             wgr_audios[i] = (wgr_audio_t){0};
         }
     }

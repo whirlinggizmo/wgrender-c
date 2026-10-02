@@ -192,7 +192,7 @@ void test_sound_pan(void)
     wgri_sound_init();
     wgr_handle_t audio = wgr_audio_create("examples/assets/sounds/click_004.ogg");
     wgr_handle_t sound = wgr_sound_create(audio);
-    wgr_audio_release(audio);
+    wgr_resource_release(audio);
     wgr_sound_set_loop(sound, true);
 
     /* find the loudest frame at center, then check the same frame panned */

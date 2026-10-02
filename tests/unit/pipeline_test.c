@@ -245,7 +245,7 @@ static void check_async_loads(int workers)
     CHECK(!wgr_resource_release(got.texture)); /* and it's no longer a resource */
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgr_mesh_release(got.mesh);
-    wgr_audio_release(got.audio);
+    wgr_resource_release(got.audio);
     stop_assets();
 }
 
@@ -362,7 +362,7 @@ void test_pipeline_shutdown(void)
         }
         if (got.mesh != 0) wgr_mesh_release(got.mesh);
         if (got.texture != 0) wgr_resource_release(got.texture);
-        if (got.audio != 0) wgr_audio_release(got.audio);
+        if (got.audio != 0) wgr_resource_release(got.audio);
         wgr_asset_set_upload_budget(4.0f);
         stop_assets();
     }
@@ -629,6 +629,16 @@ void test_pipeline_ktx_fallback(void)
     CHECK(run_until_done() > 0);
     CHECK(wgr_resource_get_status(variant) == WGR_RESOURCE_FAILED);
     wgr_resource_release(variant);
+
+    /* a file an ensure took from an explicit source is what its key names: creating the
+       key loads it from there (desktop reads a local source where it is) */
+    CHECK(wgr_asset_add_task(wgr_asset_ensure_async("made_up.png", "png_only.png", WGR_ASSET_FORCE_FETCH), on_path,
+                             on_failed, NULL) == WGR_ASSET_ADD_TASK_OK);
+    CHECK(run_until_done() > 0);
+    const wgr_handle_t keyed = wgr_texture_create("made_up.png");
+    CHECK(run_until_done() > 0);
+    CHECK(wgr_resource_get_status(keyed) == WGR_RESOURCE_READY && wgr_texture_get_size(keyed).x == 256.0f);
+    wgr_resource_release(keyed);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgri_texture_set_ktx_support(-1);
     stop_assets();

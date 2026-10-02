@@ -30,6 +30,7 @@ void test_asset_async_fetch(void);
 void test_app_identity(void);
 
 void test_audio_streaming(void);
+void test_audio_pending(void);
 void test_audio_threads(void);
 void test_audio_many_sounds(void);
 

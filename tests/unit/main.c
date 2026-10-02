@@ -35,6 +35,7 @@ static const test_case_t TESTS[] = {
     {"asset_async_fetch", test_asset_async_fetch},
     {"app_identity", test_app_identity},
     {"audio_streaming", test_audio_streaming},
+    {"audio_pending", test_audio_pending},
     {"audio_threads", test_audio_threads},
     {"audio_many_sounds", test_audio_many_sounds},
     {"environment_mapping", test_environment_mapping},

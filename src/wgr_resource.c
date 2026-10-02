@@ -25,6 +25,19 @@ void wgri_resource_register(wgri_handle_pool_t *pool, const wgri_resource_kind_t
     }
 }
 
+/* The kind's lock, if it has one (wgri_resource_kind_t). */
+static void lock(unsigned kind)
+{
+    const wgri_resource_kind_t *desc = kind < KINDS ? wgr_resource_kinds[kind].kind : NULL;
+    if (desc != NULL && desc->lock != NULL) desc->lock();
+}
+
+static void unlock(unsigned kind)
+{
+    const wgri_resource_kind_t *desc = kind < KINDS ? wgr_resource_kinds[kind].kind : NULL;
+    if (desc != NULL && desc->unlock != NULL) desc->unlock();
+}
+
 /* The header of the record in slot `index` of `pool`. */
 static wgri_resource_t *header(const wgri_handle_pool_t *pool, uint16_t index)
 {
@@ -56,17 +69,20 @@ static wgr_handle_t new_record(wgr_handle_kind_t kind)
     if (pool == NULL) {
         return 0;
     }
+    lock(kind); /* the pool may grow, moving every record */
     handle = wgri_handle_pool_alloc(pool);
+    if (handle != 0) {
+        wgri_handle_pool_resolve(pool, handle, &index);
+        memset(header(pool, index), 0, pool->item_size);
+        if (desc->init != NULL) {
+            desc->init(header(pool, index));
+        }
+        header(pool, index)->ref_count = 1;
+    }
+    unlock(kind);
     if (handle == 0) {
         wgr_logger_error("%s: pool full (%u)", pool->name, (unsigned)pool->max - 1u);
-        return 0;
     }
-    wgri_handle_pool_resolve(pool, handle, &index);
-    memset(header(pool, index), 0, pool->item_size);
-    if (desc->init != NULL) {
-        desc->init(header(pool, index));
-    }
-    header(pool, index)->ref_count = 1;
     return handle;
 }
 
@@ -93,6 +109,12 @@ static wgr_handle_t find(const wgri_handle_pool_t *pool, const char *path)
 
 wgr_handle_t wgri_resource_create(wgr_handle_kind_t kind, const char *path)
 {
+    const wgri_resource_kind_t *desc = (unsigned)kind < KINDS ? wgr_resource_kinds[kind].kind : NULL;
+    return desc != NULL ? wgri_resource_create_with(kind, path, desc->loader) : 0;
+}
+
+wgr_handle_t wgri_resource_create_with(wgr_handle_kind_t kind, const char *path, const struct wgri_loader *loader)
+{
     wgri_handle_pool_t *pool = (unsigned)kind < KINDS ? wgr_resource_kinds[kind].pool : NULL;
     const wgri_resource_kind_t *desc = pool != NULL ? wgr_resource_kinds[kind].kind : NULL;
     char key[sizeof(((wgri_resource_t *)0)->path)];
@@ -115,48 +137,59 @@ wgr_handle_t wgri_resource_create(wgr_handle_kind_t kind, const char *path)
     if (!valid) {
         wgr_logger_error("%s: %s isn't a path under the asset root (absolute, a drive, or climbing out with \"..\")",
                          desc->create, path != NULL ? path : "(null)");
-        resource_ptr->status = WGR_RESOURCE_FAILED;
+        wgri_resource_failed(handle);
         return handle;
     }
+    lock(kind);
     memcpy(resource_ptr->path, key, sizeof(key));
     resource_ptr->status = WGR_RESOURCE_PENDING;
-    if (!wgri_asset_load(desc->loader, key, handle)) {
+    unlock(kind);
+    if (!wgri_asset_load(loader, key, handle)) {
         wgr_logger_error("%s: %s can't be loaded: the asset layer isn't running", desc->create, key);
-        resource_ptr->status = WGR_RESOURCE_FAILED;
+        wgri_resource_failed(handle);
     }
     return handle;
 }
 
 void wgri_resource_retain(wgr_handle_t resource)
 {
+    lock(WGRI_HANDLE_KIND(resource));
     wgri_resource_t *resource_ptr = wgri_resource_get(resource);
     if (resource_ptr != NULL) {
         resource_ptr->ref_count++;
     }
+    unlock(WGRI_HANDLE_KIND(resource));
 }
 
 void wgri_resource_loaded(wgr_handle_t resource, const char *found)
 {
+    lock(WGRI_HANDLE_KIND(resource));
     wgri_resource_t *resource_ptr = wgri_resource_get(resource);
     if (resource_ptr != NULL) {
         resource_ptr->status = WGR_RESOURCE_READY;
         snprintf(resource_ptr->found, sizeof(resource_ptr->found), "%s", found != NULL ? found : "");
     }
+    unlock(WGRI_HANDLE_KIND(resource));
 }
 
 void wgri_resource_failed(wgr_handle_t resource)
 {
+    lock(WGRI_HANDLE_KIND(resource));
     wgri_resource_t *resource_ptr = wgri_resource_get(resource);
     if (resource_ptr != NULL) {
         resource_ptr->status = WGR_RESOURCE_FAILED;
     }
+    unlock(WGRI_HANDLE_KIND(resource));
 }
 
 WGRI_KEEP
 wgr_resource_status_t wgr_resource_get_status(wgr_handle_t resource)
 {
+    lock(WGRI_HANDLE_KIND(resource));
     const wgri_resource_t *resource_ptr = wgri_resource_get(resource);
-    return resource_ptr != NULL ? resource_ptr->status : WGR_RESOURCE_NONE;
+    const wgr_resource_status_t status = resource_ptr != NULL ? resource_ptr->status : WGR_RESOURCE_NONE;
+    unlock(WGRI_HANDLE_KIND(resource));
+    return status;
 }
 
 WGRI_KEEP
@@ -166,8 +199,20 @@ const char *wgr_resource_get_path(wgr_handle_t resource)
     return resource_ptr != NULL ? resource_ptr->found : "";
 }
 
+static bool release(wgr_handle_t resource);
+
 WGRI_KEEP
 bool wgr_resource_release(wgr_handle_t resource)
+{
+    const unsigned kind = WGRI_HANDLE_KIND(resource);
+    lock(kind);
+    const bool released = release(resource);
+    unlock(kind);
+    return released;
+}
+
+/* wgr_resource_release, under the kind's lock. */
+static bool release(wgr_handle_t resource)
 {
     wgri_handle_pool_t *pool = pool_of(resource);
     wgri_resource_t *resource_ptr = wgri_resource_get(resource);

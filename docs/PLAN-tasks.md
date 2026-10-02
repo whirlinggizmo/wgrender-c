@@ -74,6 +74,10 @@ wgr_resource_status_t wgr_resource_get_status(wgr_handle_t resource);
   `.ktx` variant or a fallback changes where the bytes come from, never the key: a
   resource is found by its asset path, not by the local path it was read from. A
   file-system path outside the root can't be created from.
+- **A key an ensure took from an explicit source** (a `fetch_url`) names that file:
+  creating the key loads it from wherever the ensure found it (on desktop a local
+  source is read in place, not copied under the key). A redirect's or a `.ktx`
+  variant's answer isn't kept that way; a create plans those afresh.
 - **0 only when there's no room** for another resource of that kind. A bad path, a
   missing file, a failed fetch or a file that won't decode gives a handle that's
   FAILED. Creating the same path again gives the same handle, with one more reference,
