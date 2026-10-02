@@ -135,7 +135,7 @@ void test_render_command_passes(void)
     CHECK(wgri_render_command_count() == back + 2);
     wgr_render_end_frame();
 
-    wgr_texture_release(target);
+    wgr_resource_release(target);
     wgri_texture_deinit();
     wgri_camera3d_deinit();
     wgri_scene_deinit();

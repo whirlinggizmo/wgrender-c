@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include "internal/wgr_resource_internal.h"
 #include "internal/exports_internal.h"
 #include "internal/wgr_material_internal.h"
 #include "internal/wgr_effect_internal.h"
@@ -35,7 +36,7 @@ static struct {
 static void free_buffers(void)
 {
     for (int i = 0; i < 2; i++) {
-        wgr_texture_release(wgr_fx.buffers[i]);
+        wgr_resource_release(wgr_fx.buffers[i]);
         wgr_fx.buffers[i] = 0;
     }
     wgr_fx.width = wgr_fx.height = 0;

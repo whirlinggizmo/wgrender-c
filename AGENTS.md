@@ -283,10 +283,17 @@ Creation follows one pattern, no exceptions:
   noun → handle). **No** `_create_from_memory` and **no** "create object from
   file" shortcut; loading bytes and turning them into a resource is internal.
 - **Freeing says which layer it is:** resources are reference counted and shared,
-  so they have `wgr_<resource>_release(handle)` — it drops this handle's reference
-  and frees the resource only when the last one goes. Objects are private, so they
-  have `wgr_<object>_destroy(handle)`. `retain` stays internal: one `create` is one
-  reference.
+  so they're released with `wgr_resource_release(handle)` — it drops this handle's
+  reference and frees the resource only when the last one goes. Objects are private,
+  so they have `wgr_<object>_destroy(handle)`. `retain` stays internal: one `create`
+  is one reference.
+- **What every resource shares is the resource section's** (`wgr_resource.h`,
+  `src/wgr_resource.c`): status, the file it was read from, release, and inside,
+  reference counting, finding one by its path and load on create. A resource
+  module's records start with a `wgri_resource_t` and it registers its pool
+  (`wgri_resource_register`); it keeps only what is its own, and its loader. Not
+  every kind is on it yet (docs/PLAN-tasks.md, phase 1): the rest still have their
+  own `wgr_<resource>_release`.
 
 **Every value a setter stores has a getter.** `set_<value>` pairs with
 `get_<value>` (or `is_`/`has_` for a bool), or with one getter per value when a setter

@@ -57,7 +57,7 @@ static void release_all(void)
         if (g.resources[i] == 0) continue;
         if (i < ENVIRONMENTS) wgr_environment_release(g.resources[i]);
         else if (i < ENVIRONMENTS + MESHES) wgr_mesh_release(g.resources[i]);
-        else wgr_texture_release(g.resources[i]);
+        else wgr_resource_release(g.resources[i]);
         g.resources[i] = 0;
     }
     g.loaded = false;

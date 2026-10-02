@@ -37,6 +37,21 @@ typedef enum
 /* PENDING, READY or FAILED for a resource of any kind; NONE for anything else. */
 wgr_resource_status_t wgr_resource_get_status(wgr_handle_t resource);
 
+/* The file it was read from, as a path under the asset root: for "name.ktx" the
+ * variant this GPU got (or the PNG), for a redirected path where the redirect found
+ * it. "" until it is READY, for one made from numbers, and for anything that isn't a
+ * resource. Borrowed: valid while the resource is, until the next create. */
+const char *wgr_resource_get_path(wgr_handle_t resource);
+
+/* Drop this handle's reference. Resources are shared and reference counted (creating
+ * the same path again gives the same handle, with one more reference), so a resource
+ * is freed when its last reference goes, not when you call this; one still loading
+ * then stops loading. Objects hold their own references, so handing a resource to one
+ * and releasing it right away is the normal pattern. A built-in (the default texture,
+ * the placeholder) is never freed. False for a handle that isn't a resource: 0, an
+ * object, or one already freed. */
+bool wgr_resource_release(wgr_handle_t resource);
+
 #ifdef __cplusplus
 }
 #endif

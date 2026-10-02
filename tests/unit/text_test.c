@@ -183,7 +183,7 @@ void test_text_slices_and_dpi(void)
     wgr_render_end_frame();
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_texture_release(target);
+    wgr_resource_release(target);
     wgri_text_deinit();
     wgri_font_deinit();
     wgri_render_deinit();

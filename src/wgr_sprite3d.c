@@ -3,6 +3,7 @@
 #include <math.h>
 #include <string.h>
 
+#include "internal/wgr_resource_internal.h"
 #include "internal/exports_internal.h"
 #include "internal/wgr_color_internal.h"
 #include "wgr_color.h"
@@ -135,7 +136,7 @@ static wgr_handle_t create_sprite(wgr_handle_t texture)
         .alpha_cutoff = 0.5f,
     };
     if (texture != 0) {
-        wgri_texture_retain(texture);
+        wgri_resource_retain(texture);
     }
     return handle;
 }
@@ -157,11 +158,11 @@ bool wgr_sprite3d_set_texture(wgr_handle_t handle, wgr_handle_t texture)
         return true;
     }
     if (sprite_ptr->texture != 0) {
-        wgr_texture_release(sprite_ptr->texture);
+        wgr_resource_release(sprite_ptr->texture);
     }
     sprite_ptr->texture = texture;
     if (texture != 0) {
-        wgri_texture_retain(texture);
+        wgri_resource_retain(texture);
     }
     return true;
 }
@@ -676,7 +677,7 @@ void wgr_sprite3d_destroy(wgr_handle_t handle)
     *sprite_ptr = (wgr_sprite3d_t){0};
     wgri_handle_pool_free(&wgr_sprite_pool, handle);
     if (texture != 0) {
-        wgr_texture_release(texture);
+        wgr_resource_release(texture);
     }
 }
 

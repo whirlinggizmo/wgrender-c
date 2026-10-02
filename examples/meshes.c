@@ -80,7 +80,7 @@ static void init(void *user_data)
         wgr_material_release(g.materials[i]); /* the model keeps it alive */
         wgr_scene_add(g.scene, g.shapes[i], 0);
     }
-    wgr_texture_release(normal_map); /* the materials hold their own references */
+    wgr_resource_release(normal_map); /* the materials hold their own references */
     wgr_debug_enable_fps(12, 10, 16);
 }
 

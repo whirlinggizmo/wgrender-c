@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "internal/wgr_resource_internal.h"
 #include "internal/exports_internal.h"
 #include "internal/wgr_color_internal.h"
 #include "internal/wgr_handle_pool_internal.h"
@@ -119,7 +120,7 @@ static float *lookup_values(wgr_handle_t material, const char *name, param_kind_
 static void clear_textures(wgri_material_t *material_ptr)
 {
     for (int i = 0; i < WGRI_MATERIAL_MAX_TEXTURES; i++) {
-        wgr_texture_release(material_ptr->textures[i].texture); /* no-op for 0 */
+        wgr_resource_release(material_ptr->textures[i].texture); /* no-op for 0 */
         material_ptr->textures[i].texture = 0;
     }
 }
@@ -529,8 +530,8 @@ bool wgr_material_set_texture(wgr_handle_t material, const char *name, wgr_handl
     }
     slot = custom != NULL ? &custom->texture : &material_ptr->textures[param->offset].texture;
     if (*slot != texture) {
-        wgri_texture_retain(texture); /* before releasing, in case they're the same resource */
-        wgr_texture_release(*slot);
+        wgri_resource_retain(texture); /* before releasing, in case they're the same resource */
+        wgr_resource_release(*slot);
         *slot = texture;
     }
     return true;

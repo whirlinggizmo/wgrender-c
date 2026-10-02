@@ -129,7 +129,7 @@ static void init(void *user_data)
     {
         const wgr_handle_t normal_map = wgr_texture_create(NORMAL_MAP_PATH); /* a flat normal until it loads */
         wgr_material_set_texture(g.tiles, "normal_texture", normal_map);
-        wgr_texture_release(normal_map); /* the material holds its own reference */
+        wgr_resource_release(normal_map); /* the material holds its own reference */
     }
 
     g.character = wgr_model_create(0);

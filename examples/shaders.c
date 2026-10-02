@@ -93,7 +93,7 @@ static void on_shader_loaded(const char *path, void *user)
             {
                 const wgr_handle_t noise = wgr_texture_create(NOISE_PATH); /* white until it loads */
                 wgr_material_set_texture(material, "noise_tex", noise);
-                wgr_texture_release(noise); /* the material holds its own reference */
+                wgr_resource_release(noise); /* the material holds its own reference */
             }
             break;
         case SHADER_WAVE:
@@ -184,7 +184,7 @@ static void init(void *user_data)
     wgr_sprite3d_set_tint(g.logo3d, wgr_color_rgba(90, 190, 255, 255)); /* so the white flash shows */
     wgr_scene_add(g.scene, g.logo3d, 0);
     g.logo2d = wgr_sprite2d_create(logo);
-    wgr_texture_release(logo); /* the sprites hold their own references */
+    wgr_resource_release(logo); /* the sprites hold their own references */
     wgr_sprite2d_set_size(g.logo2d, 96.0f, 96.0f);
     wgr_sprite2d_set_pivot(g.logo2d, 1.0f, 1.0f);
     wgr_sprite2d_set_tint(g.logo2d, wgr_color_rgba(90, 190, 255, 255));

@@ -97,7 +97,7 @@ static void init(void *user_data)
     wgr_sprite2d_set_scale(g.sprites[3], -1, 1);
     wgr_sprite2d_set_position(g.sprites[TINT_SPRITE], 450, 110);
     wgr_sprite2d_set_size(g.sprites[TINT_SPRITE], 96, 96);
-    wgr_texture_release(white_logo); /* the sprite holds its own reference */
+    wgr_resource_release(white_logo); /* the sprite holds its own reference */
 
     wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_mesh_loaded, on_failed, NULL);
 }

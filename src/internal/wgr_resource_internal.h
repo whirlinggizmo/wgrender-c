@@ -1,15 +1,59 @@
 #ifndef WGRI_INTERNAL_RESOURCE_H
 #define WGRI_INTERNAL_RESOURCE_H
 
+#include <stdbool.h>
+
 #include "wgr_handle.h"
 #include "wgr_resource.h"
+#include "internal/wgr_handle_pool_internal.h"
 
-/* A resource kind's status, for wgr_resource_get_status: NONE for a handle that isn't
- * one of its resources. */
-typedef wgr_resource_status_t (*wgri_resource_status_fn)(wgr_handle_t resource);
+struct wgri_loader;
 
-/* Register (or with NULL, forget) the status getter for resources of `kind`. Each
- * resource module registers its own when it starts, so the core never names one. */
-void wgri_resource_register_status(wgr_handle_kind_t kind, wgri_resource_status_fn status);
+/* The resource core: what every resource kind shares, so each module keeps only what
+ * is its own (wgr_resource.h says what a resource is). A resource module's records
+ * start with a wgri_resource_t; it registers its handle pool with a description, and
+ * the core does the reference counting, finding a resource by the path it was created
+ * from, load on create, the status and path, and release. */
+
+typedef struct {
+    int ref_count;
+    wgr_resource_status_t status;
+    bool permanent;  /* a built-in: never freed, and release does nothing */
+    char path[256];  /* the asset path it was created from, which finds it again; "" for none */
+    char found[512]; /* the file it was read from, under the asset root; "" until READY */
+} wgri_resource_t;
+
+typedef struct {
+    const char *create;                 /* the public create's name, for logs: "wgr_texture_create" */
+    const struct wgri_loader *loader;   /* loads a created resource's file; NULL: none is */
+    void (*init)(void *record);         /* a new record's defaults past the header, or NULL */
+    void (*free)(void *record);         /* free what a record holds past the header (GPU objects, memory) */
+} wgri_resource_kind_t;
+
+/* Register the resources in `pool` (whose records start with a wgri_resource_t) for
+ * its handle kind; `kind` must outlive the registration. NULL forgets the kind. */
+void wgri_resource_register(wgri_handle_pool_t *pool, const wgri_resource_kind_t *kind);
+
+/* The header of a live resource, or NULL (and no warning) for anything else. Don't
+ * hold it across a create: the records move when a pool grows. */
+wgri_resource_t *wgri_resource_get(wgr_handle_t resource);
+
+/* Load on create: the resource of `kind` at asset path `path`, as wgr_resource.h says.
+ * A path already created gives the same handle with one more reference; otherwise a
+ * new record, PENDING, whose file the asset layer loads with the kind's loader, or
+ * FAILED at once for a path outside the asset root or with the asset layer not
+ * running (logged). 0 only when the pool is full. */
+wgr_handle_t wgri_resource_create(wgr_handle_kind_t kind, const char *path);
+
+/* A resource made from numbers: a new record of `kind` with no path, READY, holding
+ * one reference; the module fills in the rest. 0 when the pool is full. */
+wgr_handle_t wgri_resource_add(wgr_handle_kind_t kind);
+
+void wgri_resource_retain(wgr_handle_t resource);
+
+/* From the asset layer, when the load into `resource` is done: READY, read from `found`
+ * (a path under the asset root), or FAILED. */
+void wgri_resource_loaded(wgr_handle_t resource, const char *found);
+void wgri_resource_failed(wgr_handle_t resource);
 
 #endif // WGRI_INTERNAL_RESOURCE_H

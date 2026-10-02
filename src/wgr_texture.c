@@ -6,6 +6,7 @@
 
 #include "internal/exports_internal.h"
 #include "internal/wgr_asset_internal.h"
+#include "internal/wgr_fs_internal.h"
 #include "internal/wgr_handle_pool_internal.h"
 #include "internal/wgr_ktx_internal.h"
 #include "internal/wgr_loader_internal.h"
@@ -33,6 +34,7 @@
  * mask for picking, generated lazily). Many Sprite objects may reference one
  * Texture. */
 typedef struct {
+    wgri_resource_t resource; /* first: the resource core's part (internal/wgr_resource_internal.h) */
     sg_image image; /* sampled image (a target's resolve image when multisampled) */
     sg_view view;
     sg_sampler sampler;
@@ -46,11 +48,6 @@ typedef struct {
     int width;
     int height;
     unsigned char *alpha; /* lazy CPU alpha mask (w*h bytes) for picking */
-    int ref_count;
-    char path[256];       /* the asset path it was created from: what finds it again */
-    bool has_path;
-    char local[512];      /* the file it was read from (a .ktx variant, or the fallback PNG): the alpha mask's */
-    wgr_resource_status_t status;
 } wgr_texture_t;
 
 static wgr_texture_t *wgr_textures; /* grown by the pool: don't hold a pointer across a create */
@@ -74,11 +71,6 @@ static wgr_texture_t *resolve(wgr_handle_t handle)
         return NULL;
     }
     return &wgr_textures[index];
-}
-
-static bool is_builtin_texture(uint16_t index)
-{
-    return index <= WGR_TEXTURE_BUILTIN_COUNT;
 }
 
 static void free_texture_data(wgr_texture_t *texture_ptr)
@@ -117,36 +109,10 @@ static void extract_alpha_mask(wgr_texture_t *texture_ptr, const unsigned char *
     }
 }
 
-static wgr_handle_t find_texture_by_path(const char *path)
+/* A new texture record's defaults past the resource header. */
+static void init_record(void *record)
 {
-    if (path == NULL || path[0] == '\0') {
-        return 0;
-    }
-    for (uint16_t i = WGR_TEXTURE_BUILTIN_COUNT + 1; i < wgr_texture_pool.capacity; i++) {
-        if (wgr_texture_pool.occupied[i] && wgr_textures[i].has_path &&
-            strcmp(wgr_textures[i].path, path) == 0) {
-            return wgri_handle_pool_handle_from_index(&wgr_texture_pool, i);
-        }
-    }
-    return 0;
-}
-
-static wgr_handle_t alloc_texture_slot(wgr_texture_t *out)
-{
-    wgr_handle_t handle;
-    uint16_t index = 0;
-
-    handle = wgri_handle_pool_alloc(&wgr_texture_pool);
-    if (handle == 0) {
-        wgr_logger_error("texture: pool full (%u)", (unsigned)wgr_texture_pool.max - 1u);
-        return 0;
-    }
-    wgri_handle_pool_resolve(&wgr_texture_pool, handle, &index);
-    *out = (wgr_texture_t){0};
-    out->sampler = wgr_default_sampler;
-    out->status = WGR_RESOURCE_READY; /* made from numbers; a load sets PENDING */
-    wgr_textures[index] = *out;
-    return handle;
+    ((wgr_texture_t *)record)->sampler = wgr_default_sampler;
 }
 
 /* ------------------------------------------------------------ pixels ---- */
@@ -282,7 +248,8 @@ static bool fill_texture(uint16_t index, sg_image image, int width, int height)
         view = sg_make_view(&(sg_view_desc){.texture.image = image});
     }
     if (sg_query_view_state(view) != SG_RESOURCESTATE_VALID) {
-        wgr_logger_error("Couldn't create a GPU image for %s (see the sokol error above)", t->has_path ? t->path : "texture");
+        wgr_logger_error("Couldn't create a GPU image for %s (see the sokol error above)",
+                         t->resource.path[0] != '\0' ? t->resource.path : "texture");
         sg_destroy_view(view);
         sg_destroy_image(image);
         return false;
@@ -291,7 +258,6 @@ static bool fill_texture(uint16_t index, sg_image image, int width, int height)
     t->view = view;
     t->width = width;
     t->height = height;
-    t->status = WGR_RESOURCE_READY;
     return true;
 }
 
@@ -299,20 +265,16 @@ static bool fill_texture(uint16_t index, sg_image image, int width, int height)
  * image, or one made from pixels; its slot index in *index_out. */
 static wgr_handle_t add_texture(sg_image image, int width, int height, uint16_t *index_out)
 {
-    wgr_handle_t handle;
+    const wgr_handle_t handle = wgri_resource_add(WGR_HANDLE_KIND_TEXTURE);
     uint16_t index = 0;
-    wgr_texture_t t = {0};
 
-    handle = alloc_texture_slot(&t);
     if (handle == 0) {
         sg_destroy_image(image);
         return 0;
     }
     wgri_handle_pool_resolve(&wgr_texture_pool, handle, &index);
-    wgr_textures[index].ref_count = 1;
     if (!fill_texture(index, image, width, height)) {
-        wgr_textures[index] = (wgr_texture_t){0};
-        wgri_handle_pool_free(&wgr_texture_pool, handle);
+        wgr_resource_release(handle);
         return 0;
     }
     *index_out = index;
@@ -558,19 +520,8 @@ static wgri_loader_step_t fill(void *data, const char *path, wgr_handle_t textur
         width = prepared->pixels->width;
         height = prepared->pixels->height;
     }
-    if (image.id == SG_INVALID_ID || !fill_texture(index, image, width, height)) {
-        return WGRI_LOADER_FAILED;
-    }
-    snprintf(wgr_textures[index].local, sizeof(wgr_textures[index].local), "%s", path);
-    return WGRI_LOADER_DONE;
-}
-
-static void fail(wgr_handle_t texture)
-{
-    uint16_t index = 0;
-    if (wgri_handle_pool_resolve(&wgr_texture_pool, texture, &index)) {
-        wgr_textures[index].status = WGR_RESOURCE_FAILED;
-    }
+    return image.id != SG_INVALID_ID && fill_texture(index, image, width, height) ? WGRI_LOADER_DONE
+                                                                                   : WGRI_LOADER_FAILED;
 }
 
 static const wgri_loader_t wgr_texture_loader = {
@@ -578,7 +529,15 @@ static const wgri_loader_t wgr_texture_loader = {
     .prepare = prepare_texture,
     .discard = discard_texture,
     .fill = fill,
-    .fail = fail,
+};
+
+/* What the resource core needs to know about textures. */
+static void free_record(void *record);
+static const wgri_resource_kind_t wgr_texture_kind = {
+    .create = "wgr_texture_create",
+    .loader = &wgr_texture_loader,
+    .init = init_record,
+    .free = free_record,
 };
 
 wgr_handle_t wgri_texture_create_rgba(const unsigned char *rgba, int width, int height)
@@ -604,38 +563,9 @@ bool wgri_texture_get_alpha_mask(wgr_handle_t handle, const unsigned char **alph
     return true;
 }
 
-void wgri_texture_retain(wgr_handle_t handle)
+static void free_record(void *record)
 {
-    wgr_texture_t *texture_ptr = resolve(handle);
-    if (texture_ptr != NULL) {
-        texture_ptr->ref_count++;
-    }
-}
-
-WGRI_KEEP
-void wgr_texture_release(wgr_handle_t handle)
-{
-    uint16_t index = 0;
-    wgr_texture_t *texture_ptr;
-
-    if (!wgri_handle_pool_resolve(&wgr_texture_pool, handle, &index)) {
-        return;
-    }
-    if (is_builtin_texture(index)) {
-        return;
-    }
-    texture_ptr = &wgr_textures[index];
-    if (texture_ptr->ref_count > 0) {
-        texture_ptr->ref_count--;
-    }
-    if (texture_ptr->ref_count == 0) {
-        if (texture_ptr->status == WGR_RESOURCE_PENDING) {
-            wgri_asset_load_cancel(handle);
-        }
-        free_texture_data(texture_ptr);
-        memset(texture_ptr, 0, sizeof(*texture_ptr));
-        wgri_handle_pool_free(&wgr_texture_pool, handle);
-    }
+    free_texture_data((wgr_texture_t *)record);
 }
 
 bool wgri_texture_ensure_alpha_mask(wgr_handle_t handle)
@@ -649,19 +579,21 @@ bool wgri_texture_ensure_alpha_mask(wgr_handle_t handle)
     if (texture_ptr == NULL || texture_ptr->alpha != NULL) {
         return texture_ptr != NULL && texture_ptr->alpha != NULL;
     }
-    if (texture_ptr->local[0] == '\0') { /* not loaded from a file (yet) */
+    if (texture_ptr->resource.found[0] == '\0') { /* not loaded from a file (yet) */
         return false;
     }
-    if (ends_with(texture_ptr->local, ".ktx")) { /* compressed: its pixels are in the PNG beside it */
-        char png[sizeof(texture_ptr->local)];
-        const char *dot = strrchr(texture_ptr->local, '.');
+    char local[sizeof(texture_ptr->resource.found) + 64];
+    wgri_fs_resolve(texture_ptr->resource.found, local, sizeof(local)); /* the file it was read from */
+    if (ends_with(local, ".ktx")) { /* compressed: its pixels are in the PNG beside it */
+        char png[sizeof(local)];
+        const char *dot = strrchr(local, '.');
         const char *variant = dot;
-        while (variant > texture_ptr->local && variant[-1] != '.' && variant[-1] != '/') variant--;
-        if (variant > texture_ptr->local && variant[-1] == '.') dot = variant - 1; /* rock.bc7.ktx -> rock */
-        snprintf(png, sizeof(png), "%.*s.png", (int)(dot - texture_ptr->local), texture_ptr->local);
+        while (variant > local && variant[-1] != '.' && variant[-1] != '/') variant--;
+        if (variant > local && variant[-1] == '.') dot = variant - 1; /* rock.bc7.ktx -> rock */
+        snprintf(png, sizeof(png), "%.*s.png", (int)(dot - local), local);
         bytes = read_file_bytes(png, &size);
     } else {
-        bytes = read_file_bytes(texture_ptr->local, &size);
+        bytes = read_file_bytes(local, &size);
     }
     if (bytes == NULL) {
         return false;
@@ -674,7 +606,7 @@ bool wgri_texture_ensure_alpha_mask(wgr_handle_t handle)
     }
     if (w != texture_ptr->width || h != texture_ptr->height) {
         stbi_image_free(pixels);
-        wgr_logger_warn("Alpha mask decode size mismatch for %s", texture_ptr->path);
+        wgr_logger_warn("Alpha mask decode size mismatch for %s", texture_ptr->resource.found);
         return false;
     }
     extract_alpha_mask(texture_ptr, pixels);
@@ -755,15 +687,15 @@ wgr_handle_t wgr_texture_create_target(int width, int height)
         wgr_logger_error("wgr_texture_create_target: invalid size %dx%d", width, height);
         return 0;
     }
-    handle = alloc_texture_slot(&t);
+    handle = wgri_resource_add(WGR_HANDLE_KIND_TEXTURE);
     if (handle == 0) {
         return 0;
     }
+    wgri_handle_pool_resolve(&wgr_texture_pool, handle, &index);
+    t = wgr_textures[index]; /* its resource header and defaults */
     t.width = width;
     t.height = height;
     t.target = true;
-    t.ref_count = 1;
-    t.sampler = wgr_default_sampler;
     /* same format and MSAA as the screen, so every screen pipeline works in a target */
     t.image = sg_make_image(&(sg_image_desc){
         .usage = {.color_attachment = samples == 1, .resolve_attachment = samples > 1},
@@ -797,7 +729,6 @@ wgr_handle_t wgr_texture_create_target(int width, int height)
     });
     t.depth_attachment = sg_make_view(&(sg_view_desc){.depth_stencil_attachment.image = t.depth_image});
     t.view = sg_make_view(&(sg_view_desc){.texture.image = t.image});
-    wgri_handle_pool_resolve(&wgr_texture_pool, handle, &index);
     wgr_textures[index] = t;
     return handle;
 }
@@ -817,8 +748,8 @@ bool wgr_texture_set_placeholder(wgr_handle_t texture)
         return false;
     }
     if (texture != wgr_texture_placeholder) {
-        wgri_texture_retain(texture); /* before releasing, in case they're the same resource */
-        wgr_texture_release(wgr_texture_placeholder);
+        wgri_resource_retain(texture); /* before releasing, in case they're the same resource */
+        wgr_resource_release(wgr_texture_placeholder);
         wgr_texture_placeholder = texture;
     }
     return true;
@@ -827,52 +758,14 @@ bool wgr_texture_set_placeholder(wgr_handle_t texture)
 WGRI_KEEP
 wgr_handle_t wgr_texture_create(const char *path)
 {
-    char key[sizeof(wgr_textures[0].path)];
-    wgr_handle_t handle;
-    uint16_t index = 0;
-    wgr_texture_t t = {0};
-    const bool valid = path != NULL && wgri_asset_normalize_path(path, key, sizeof(key));
-
-    if (valid && (handle = find_texture_by_path(key)) != 0) {
-        wgri_texture_retain(handle); /* whatever its status: the same texture */
-        return handle;
-    }
-    handle = alloc_texture_slot(&t);
-    if (handle == 0) {
-        return 0;
-    }
-    wgri_handle_pool_resolve(&wgr_texture_pool, handle, &index);
-    wgr_textures[index].ref_count = 1;
-    if (!valid) {
-        wgr_logger_error("wgr_texture_create: %s isn't a path under the asset root (absolute, a drive, or "
-                         "climbing out with \"..\")", path != NULL ? path : "(null)");
-        wgr_textures[index].status = WGR_RESOURCE_FAILED;
-        return handle;
-    }
-    snprintf(wgr_textures[index].path, sizeof(wgr_textures[index].path), "%s", key);
-    wgr_textures[index].has_path = true;
-    wgr_textures[index].status = WGR_RESOURCE_PENDING;
-    if (!wgri_asset_load(&wgr_texture_loader, key, handle)) {
-        wgr_logger_error("wgr_texture_create: %s can't be loaded: the asset layer isn't running", key);
-        wgr_textures[index].status = WGR_RESOURCE_FAILED;
-    }
-    return handle;
-}
-
-/* wgr_resource_get_status for textures. A texture not loaded from a file (a render
- * target, a model's image, a built-in) is READY. */
-static wgr_resource_status_t get_status(wgr_handle_t handle)
-{
-    uint16_t index = 0;
-    return wgri_handle_pool_resolve(&wgr_texture_pool, handle, &index) ? wgr_textures[index].status
-                                                                       : WGR_RESOURCE_NONE;
+    return wgri_resource_create(WGR_HANDLE_KIND_TEXTURE, path); /* fill does the texture's part */
 }
 
 WGRI_KEEP
 vec2_t wgr_texture_get_size(wgr_handle_t handle)
 {
     wgr_texture_t *texture_ptr = resolve(handle);
-    if (texture_ptr == NULL || texture_ptr->status != WGR_RESOURCE_READY) {
+    if (texture_ptr == NULL || texture_ptr->resource.status != WGR_RESOURCE_READY) {
         return (vec2_t){0.0f, 0.0f};
     }
     return (vec2_t){(float)texture_ptr->width, (float)texture_ptr->height};
@@ -922,11 +815,11 @@ bool wgri_texture_get_binding(wgr_handle_t handle, sg_view *view, sg_sampler *sm
         if (texture_ptr == NULL) {
             return false;
         }
-    } else if (texture_ptr->status == WGR_RESOURCE_PENDING) {
+    } else if (texture_ptr->resource.status == WGR_RESOURCE_PENDING) {
         return false; /* not there yet: the caller draws nothing, or a slot's own default */
-    } else if (texture_ptr->status != WGR_RESOURCE_READY) { /* failed */
+    } else if (texture_ptr->resource.status != WGR_RESOURCE_READY) { /* failed */
         texture_ptr = resolve(wgr_texture_placeholder);
-        if (texture_ptr == NULL || texture_ptr->status != WGR_RESOURCE_READY) {
+        if (texture_ptr == NULL || texture_ptr->resource.status != WGR_RESOURCE_READY) {
             texture_ptr = resolve(WGR_TEXTURE_CHECKER); /* a placeholder that is itself loading */
         }
         if (texture_ptr == NULL) {
@@ -960,7 +853,7 @@ void wgri_texture_init(void)
         wgr_logger_error("texture: out of memory");
     }
     wgri_asset_register_path_mapper(".ktx", map_ktx);
-    wgri_resource_register_status(WGR_HANDLE_KIND_TEXTURE, get_status);
+    wgri_resource_register(&wgr_texture_pool, &wgr_texture_kind);
 
     wgr_default_sampler = sg_make_sampler(&(sg_sampler_desc){
         .min_filter = SG_FILTER_LINEAR,
@@ -988,7 +881,7 @@ void wgri_texture_init(void)
     });
     wgr_textures[index].view = sg_make_view(&(sg_view_desc){.texture.image = wgr_textures[index].image});
     wgr_textures[index].sampler = wgr_default_sampler;
-    wgr_textures[index].status = WGR_RESOURCE_READY;
+    wgr_textures[index].resource = (wgri_resource_t){.status = WGR_RESOURCE_READY, .permanent = true};
 
     /* built-in placeholder at index 2: magenta and black checks, hard to miss */
     {
@@ -1013,14 +906,14 @@ void wgri_texture_init(void)
         wgri_texture_pixels_free(pixels);
         wgr_textures[index].view = sg_make_view(&(sg_view_desc){.texture.image = wgr_textures[index].image});
         wgr_textures[index].sampler = wgr_default_sampler;
-        wgr_textures[index].status = WGR_RESOURCE_READY;
+        wgr_textures[index].resource = (wgri_resource_t){.status = WGR_RESOURCE_READY, .permanent = true};
     }
     wgr_texture_placeholder = WGR_TEXTURE_CHECKER;
 }
 
 void wgri_texture_deinit(void)
 {
-    wgri_resource_register_status(WGR_HANDLE_KIND_TEXTURE, NULL);
+    wgri_resource_register(&wgr_texture_pool, NULL);
     wgri_render_hooks.texture_target = NULL;
     wgri_render_hooks.texture_drawing_into = NULL;
     for (uint16_t i = 1; i < wgr_texture_pool.capacity; i++) {

@@ -22,6 +22,7 @@
 #include "internal/wgr_handle_pool_internal.h"
 #include "internal/wgr_loader_internal.h"
 #include "internal/wgr_manifest_internal.h"
+#include "internal/wgr_resource_internal.h"
 #include "internal/wgr_sha256_internal.h"
 #include "internal/wgr_thread_internal.h"
 #include "internal/wgr_internal_internal.h"
@@ -2201,7 +2202,7 @@ static void complete(uint16_t i, bool ok)
             } else {
                 wgr_logger_error("Asset not found: %s", task.origin);
             }
-            if (task.target != 0) task.loader->fail(task.target);
+            if (task.target != 0) wgri_resource_failed(task.target);
         }
         return;
     }
@@ -2405,6 +2406,9 @@ static void load(void)
             if (task->resource == 0) {
                 step = task->loader->finish(task->prepared, task->local, &task->resource);
             }
+        }
+        if (step == WGRI_LOADER_DONE && task->loads && task->target != 0) {
+            wgri_resource_loaded(task->target, task->path); /* read from where the task found it */
         }
         if (step != WGRI_LOADER_MORE) {
             task->loader->discard(task->prepared);

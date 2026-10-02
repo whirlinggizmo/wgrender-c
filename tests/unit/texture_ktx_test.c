@@ -122,8 +122,8 @@ void test_ktx_load(void)
     CHECK(test_assets_run() > 0);
     CHECK(wgr_resource_get_status(refused) == WGR_RESOURCE_FAILED);
     CHECK(wgr_resource_get_status(missing) == WGR_RESOURCE_FAILED);
-    wgr_texture_release(refused);
-    wgr_texture_release(missing);
+    wgr_resource_release(refused);
+    wgr_resource_release(missing);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
 
     /* no compressed format: rock.ktx loads rock.png, under the name asked for */
@@ -133,8 +133,8 @@ void test_ktx_load(void)
     CHECK(wgr_resource_get_status(png) == WGR_RESOURCE_READY);
     CHECK(wgr_texture_get_size(png).x == 256.0f && wgr_texture_get_size(png).y == 256.0f);
     CHECK(png == wgr_texture_create(FLAME_ASSET ".ktx")); /* the same texture */
-    wgr_texture_release(png);
-    wgr_texture_release(png);
+    wgr_resource_release(png);
+    wgr_resource_release(png);
 
     wgri_texture_set_ktx_support(-1);
     test_assets_stop();

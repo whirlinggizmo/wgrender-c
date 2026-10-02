@@ -77,7 +77,7 @@ static void make_sprite(void)
 {
     wgr_handle_t texture = wgr_texture_create(SPRITE_PATH);
     g.sprite = wgr_sprite3d_create(texture);
-    wgr_texture_release(texture); /* the sprite holds its own reference */
+    wgr_resource_release(texture); /* the sprite holds its own reference */
     wgr_sprite3d_set_facing(g.sprite, WGR_SPRITE3D_FACING_FREE); /* librl's default: oriented by its rotation */
     wgr_sprite3d_set_position(g.sprite, 0, SPRITE_Y_OFFSET, 0);
     wgr_sprite3d_set_tint(g.sprite, WGR_COLOR_RAYWHITE);

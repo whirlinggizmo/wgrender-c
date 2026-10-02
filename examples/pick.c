@@ -42,7 +42,7 @@ static void make_logo(void)
 {
     const wgr_handle_t texture = wgr_texture_create(LOGO_PATH);
     g_sprite = wgr_sprite3d_create(texture);
-    wgr_texture_release(texture); /* the sprite holds its own reference */
+    wgr_resource_release(texture); /* the sprite holds its own reference */
     wgr_sprite3d_set_size(g_sprite, 4.0f);
     wgr_sprite3d_set_facing(g_sprite, WGR_SPRITE3D_FACING_CAMERA);
     wgr_sprite3d_set_tint(g_sprite, WGR_COLOR_WHITE);

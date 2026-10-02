@@ -39,8 +39,8 @@ static void make_sprites(void)
     g.tile = wgr_sprite2d_create(tiles);
     wgr_sprite2d_set_source(g.tile, 32, 16, 16, 16); /* the coin */
     wgr_sprite2d_set_size(g.tile, 96, 96);
-    wgr_texture_release(logo); /* the sprites hold their own references */
-    wgr_texture_release(tiles);
+    wgr_resource_release(logo); /* the sprites hold their own references */
+    wgr_resource_release(tiles);
 }
 
 static void init(void *user_data)

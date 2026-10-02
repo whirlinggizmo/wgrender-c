@@ -220,7 +220,11 @@ static void check_async_loads(int workers)
     CHECK(wgr_resource_get_status(wgr_texture_get_default()) == WGR_RESOURCE_READY); /* made from numbers */
     CHECK(wgr_resource_get_status(0) == WGR_RESOURCE_NONE);
     CHECK(wgr_resource_get_status(got.scene_probe = wgr_scene_create()) == WGR_RESOURCE_NONE); /* an object */
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR); /* releasing what isn't a resource warns */
+    CHECK(!wgr_resource_release(got.scene_probe) && !wgr_resource_release(0));
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgr_scene_destroy(got.scene_probe);
+    CHECK(strcmp(wgr_resource_get_path(got.texture), "") == 0); /* not read yet */
     CHECK(wgr_texture_get_size(got.texture).x == 0.0f);
     CHECK(!wgri_texture_get_binding(got.texture, NULL, NULL, NULL, NULL)); /* not there yet: nothing drawn */
     load(CHARACTER_PATH, WGR_ASSET_NONE, on_mesh);
@@ -228,14 +232,18 @@ static void check_async_loads(int workers)
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 2 && got.failures == 0);
     CHECK(wgr_resource_get_status(got.texture) == WGR_RESOURCE_READY);
+    CHECK(strcmp(wgr_resource_get_path(got.texture), TEXTURE) == 0); /* the file it was read from */
     CHECK(wgr_texture_get_size(got.texture).x > 1.0f);
     CHECK(wgr_texture_create(TEXTURE) == got.texture); /* the same one, another reference */
-    wgr_texture_release(got.texture);
+    wgr_resource_release(got.texture);
     /* the callbacks' creates return the prepared resources, with one reference */
     CHECK(got.mesh != 0 && loaded_textures(got.mesh) >= 2);
     CHECK(got.audio != 0);
-    wgr_texture_release(got.texture);
+    CHECK(wgr_resource_release(got.texture));
     CHECK(texture_freed(got.texture)); /* the last reference is gone */
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
+    CHECK(!wgr_resource_release(got.texture)); /* and it's no longer a resource */
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgr_mesh_release(got.mesh);
     wgr_audio_release(got.audio);
     stop_assets();
@@ -256,9 +264,9 @@ void test_pipeline_cancel(void)
     start_assets(1, ASSETS);
     wgr_handle_t texture = wgr_texture_create(TEXTURE);
     CHECK(texture != 0 && wgr_texture_create(TEXTURE) == texture);
-    wgr_texture_release(texture);
+    wgr_resource_release(texture);
     CHECK(wgr_resource_get_status(texture) == WGR_RESOURCE_PENDING); /* one reference left */
-    wgr_texture_release(texture);
+    wgr_resource_release(texture);
     CHECK(texture_freed(texture));
     CHECK(run_until_done() > 0); /* the load runs on, and fills nothing */
     CHECK(texture_freed(texture));
@@ -266,7 +274,7 @@ void test_pipeline_cancel(void)
     texture = wgr_texture_create(TEXTURE); /* and loads from scratch afterwards */
     CHECK(run_until_done() > 0);
     CHECK(wgr_resource_get_status(texture) == WGR_RESOURCE_READY);
-    wgr_texture_release(texture);
+    wgr_resource_release(texture);
     stop_assets();
 }
 
@@ -315,9 +323,9 @@ void test_pipeline_failures(void)
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 1 && got.failures == 1);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_texture_release(broken);
-    wgr_texture_release(missing);
-    wgr_texture_release(outside);
+    wgr_resource_release(broken);
+    wgr_resource_release(missing);
+    wgr_resource_release(outside);
     stop_assets();
 }
 
@@ -353,7 +361,7 @@ void test_pipeline_shutdown(void)
             wgri_asset_tick();
         }
         if (got.mesh != 0) wgr_mesh_release(got.mesh);
-        if (got.texture != 0) wgr_texture_release(got.texture);
+        if (got.texture != 0) wgr_resource_release(got.texture);
         if (got.audio != 0) wgr_audio_release(got.audio);
         wgr_asset_set_upload_budget(4.0f);
         stop_assets();
@@ -475,7 +483,7 @@ void test_pipeline_many(void)
     CHECK(got.failures == 0);
     CHECK(got.successes == LOADS + chained);
     CHECK(chained == 200);
-    wgr_texture_release(texture);
+    wgr_resource_release(texture);
     stop_assets();
 }
 
@@ -611,15 +619,16 @@ void test_pipeline_ktx_fallback(void)
     CHECK(strstr(got.path, "png_only.png") != NULL);
     CHECK(wgr_resource_get_status(got.texture) == WGR_RESOURCE_READY);
     CHECK(wgr_texture_get_size(got.texture).x == 256.0f);
+    CHECK(strcmp(wgr_resource_get_path(got.texture), "png_only.png") == 0); /* the fallback it was read from */
     CHECK(wgr_texture_create("png_only.ktx") == got.texture); /* the same name: deduped */
-    wgr_texture_release(got.texture);
-    wgr_texture_release(got.texture);
+    wgr_resource_release(got.texture);
+    wgr_resource_release(got.texture);
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL); /* the failure logs an error */
     const wgr_handle_t variant = wgr_texture_create("png_only.bc7.ktx");
     CHECK(run_until_done() > 0);
     CHECK(wgr_resource_get_status(variant) == WGR_RESOURCE_FAILED);
-    wgr_texture_release(variant);
+    wgr_resource_release(variant);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgri_texture_set_ktx_support(-1);
     stop_assets();
@@ -682,21 +691,22 @@ void test_pipeline_redirects(void)
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 1 && strstr(got.path, "mods/") == NULL);
     CHECK(wgr_texture_get_size(got.texture).x == 256.0f);
-    wgr_texture_release(got.texture);
+    wgr_resource_release(got.texture);
 
     load("textures/both.png", WGR_ASSET_NONE, on_path); /* only in base: top falls through to it */
     got.texture = wgr_texture_create("textures/both.png");
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 2 && strstr(got.path, "mods/base/textures/both.png") != NULL);
     CHECK(wgr_texture_get_size(got.texture).x == 128.0f);
-    wgr_texture_release(got.texture);
+    wgr_resource_release(got.texture);
 
     load("textures/top.png", WGR_ASSET_NONE, on_path); /* in top: wins over the file itself */
     got.texture = wgr_texture_create("textures/top.png");
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 3 && strstr(got.path, "mods/top/textures/top.png") != NULL);
     CHECK(wgr_texture_get_size(got.texture).x == 128.0f);
-    wgr_texture_release(got.texture);
+    CHECK(strcmp(wgr_resource_get_path(got.texture), "mods/top/textures/top.png") == 0); /* where the redirect found it */
+    wgr_resource_release(got.texture);
 
     load("textures/nowhere.png", WGR_ASSET_NONE, on_path);
     got.texture = wgr_texture_create("textures/nowhere.png");
@@ -705,7 +715,7 @@ void test_pipeline_redirects(void)
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
     CHECK(got.successes == 3 && got.failures == 1);
     CHECK(wgr_resource_get_status(got.texture) == WGR_RESOURCE_FAILED);
-    wgr_texture_release(got.texture);
+    wgr_resource_release(got.texture);
 
     /* the model is only in models/, its image is overridden in the mod */
     load("models/m.gltf", WGR_ASSET_NONE, on_mesh);
@@ -721,7 +731,7 @@ void test_pipeline_redirects(void)
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 5 && strstr(got.path, "mods/") == NULL);
     CHECK(wgr_texture_get_size(got.texture).x == 256.0f);
-    wgr_texture_release(got.texture);
+    wgr_resource_release(got.texture);
 
     /* ping (desktop: the host is a directory) */
     memset(&pinged, 0, sizeof(pinged));

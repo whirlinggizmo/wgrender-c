@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "internal/wgr_resource_internal.h"
 #include "internal/exports_internal.h"
 #include "internal/wgr_camera3d_internal.h"
 #include "internal/wgr_color_internal.h"
@@ -589,7 +590,7 @@ static void free_emitters(wgri_handle_pool_t *pool, wgr_emitter_t *items)
     for (uint16_t i = 1; i < pool->capacity; i++) {
         if (pool->occupied[i]) {
             free(items[i].ring);
-            wgr_texture_release(items[i].texture);
+            wgr_resource_release(items[i].texture);
         }
     }
 }
@@ -654,7 +655,7 @@ static wgr_handle_t create_emitter(wgr_handle_t texture, bool two_d)
         wgr_logger_error("emitters: out of memory");
         return 0;
     }
-    if (texture != 0) wgri_texture_retain(texture);
+    if (texture != 0) wgri_resource_retain(texture);
     return handle;
 }
 
@@ -664,7 +665,7 @@ static void destroy_emitter(wgr_handle_t handle, bool two_d)
     if (emitter_ptr == NULL) return;
     wgri_scene_forget(handle);
     free(emitter_ptr->ring);
-    wgr_texture_release(emitter_ptr->texture); /* no-op for 0 */
+    wgr_resource_release(emitter_ptr->texture); /* no-op for 0 */
     *emitter_ptr = (wgr_emitter_t){0};
     wgri_handle_pool_free(two_d ? &wgr_emitter2d_pool : &wgr_emitter3d_pool, handle);
 }

@@ -106,8 +106,4 @@ abstract Texture(Handle) from Handle to Handle {
 	/** How this texture repeats and filters wherever it is used. **/
 	public static inline function setSampling(texture:Texture, wrapU:TextureWrap, wrapV:TextureWrap, filter:TextureFilter):Bool
 		return Raw.wgr_texture_set_sampling(texture, wrapU, wrapV, filter);
-
-	/** Drop this reference; the data goes when the last one does. **/
-	public static inline function release(texture:Texture):Void
-		Raw.wgr_texture_release(texture);
 }

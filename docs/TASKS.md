@@ -81,8 +81,32 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
 
 - [ ] The org's CONVENTIONS.md takes the same names (another repo: the user's call).
 - [ ] Hidden symbol visibility: only `wgr_*` exported.
+- [ ] A spot light's shadow bias (a bug; libwgt 0c9ea22): `src/wgr_shadow.c` converts
+      the bias to depth units as `texel_world / depth_range` for every light, which
+      is right only for an orthographic (directional) map. A spot's map stores depth
+      non-linearly, so a thin caster's shadow starts late (the character's leg shadow
+      at the knee). libwgt takes the bias in world units at the fragment's own
+      distance, with a WebGL test of a thin pillar's shadow at its foot. Own branch
+      off main; it touches the model shader, so link-check on the Adreno phone.
+- [ ] A model mirrored by its own scale (a bug; libwgt 26bf8c5, 5f230d0):
+      `wgr_model_set_scale(m, -1, 1, 1)` draws with back-face culling and CCW front
+      faces, so the model shows its inside, and a normal map is lit with the wrong
+      handedness. A mirror inside a glTF file is fixed at load (`src/wgr_model.c`,
+      the node's determinant), a model's own transform isn't. Draw a placement with a
+      negative determinant through a CW-front pipeline variant, carry its handedness
+      to the shader for the tangent's sign, and keep mirrored and unmirrored copies in
+      separate instanced draws. With the spot bias fix above: one branch, one Adreno
+      link check.
 - [ ] Pixel tests: frames read back in headless Chrome and in a GL window on Xvfb; a
-      desktop check of every example with screenshots.
+      desktop check of every example with screenshots. libwgt's way (78804dd,
+      46f1bc6): each desktop example in a real window on a private Xvfb display with
+      OpenGL in software, failing on an early exit or an error, the screen read from
+      the file Xvfb keeps it in and written as PNG with the standard library; and one
+      exact-pixel test drawn through the normal program path in such a window.
+- [ ] ARCHITECTURE.md: the lifecycle of resources and objects in one place (libwgt
+      0acd18a): resources shared and released, objects owned and destroyed, an object
+      holds a reference to each resource it uses, destroying an object never destroys
+      a resource, and the usual hand-over-then-release pattern.
 - [ ] Public math (own branch): vec2/3/4, quat, mat4 operations `inline` in public
       headers with one exported copy each for bindings; types `wgr_vec3_t`,
       `wgr_quat_t`, `wgr_mat4_t` (column-major `float m[16]`; `matrix_t` goes); the

@@ -168,10 +168,10 @@ static void on_init(void *user_data)
     make_sparks(particle);
     make_smoke(particle);
     make_confetti(particle);
-    wgr_texture_release(particle); /* each emitter holds its own reference */
+    wgr_resource_release(particle); /* each emitter holds its own reference */
     const wgr_handle_t flame = wgr_texture_create(FLAME_PATH);
     make_flame(flame);
-    wgr_texture_release(flame);
+    wgr_resource_release(flame);
 
     const vec2_t screen = wgr_window_get_screen_size();
     burst_confetti(screen.x * 0.5f, screen.y * 0.4f); /* one to start with */

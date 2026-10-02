@@ -188,7 +188,7 @@ class CheckBindings {
 		// except a texture, which loads on create: a handle at once, failing in a later frame
 		final missing = Texture.create("no/such/texture.png");
 		check(!Texture.isNone(missing) && missing.getStatus() == Pending, "a missing texture is pending at first");
-		Texture.release(missing);
+		missing.release();
 		check(Mesh.isNone(Mesh.create("no/such/mesh.glb")), "a missing mesh is none");
 		check(Audio.isNone(Audio.create("no/such/sound.mp3")), "a missing sound is none");
 	}
@@ -480,7 +480,7 @@ class CheckBindings {
 
 		check(Sprite3D.setTexture(s, Texture.getDefault()), "a sprite3d's texture can be swapped");
 		Sprite3D.destroy(s);
-		Texture.release(texture);
+		texture.release();
 	}
 
 	/**
@@ -593,7 +593,7 @@ class CheckBindings {
 		final size = Texture.getSize(target);
 		near(size.x, 64, "the target's width reads back");
 		near(size.y, 32, "the target's height reads back — the vec2 is not transposed");
-		Texture.release(target);
+		target.release();
 	}
 
 	// --- values with arithmetic behind them ---------------------------------

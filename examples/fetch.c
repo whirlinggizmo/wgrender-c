@@ -114,7 +114,7 @@ static void fetch(void)
 #endif
     /* nothing may hold the old texture, or creating the path again finds it loaded */
     wgr_sprite2d_set_texture(g_sprite, 0);
-    wgr_texture_release(g_texture);
+    wgr_resource_release(g_texture);
     g_texture = wgr_texture_create(TEXTURE_PATH); /* PENDING: made local (from the cache, or downloaded), then loaded */
     wgr_sprite2d_set_texture(g_sprite, g_texture); /* drawn once it's READY */
     g_waiting = true;

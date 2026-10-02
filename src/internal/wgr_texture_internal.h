@@ -28,8 +28,6 @@ bool wgri_texture_get_binding(wgr_handle_t handle, sg_view *view, sg_sampler *sm
  * if no mask is available. `*out_alpha` is in [0,1]. */
 bool wgri_texture_sample_alpha(wgr_handle_t handle, float u, float v, float *out_alpha);
 
-/* Reference counting (used by Sprite objects and explicit texture ownership). */
-void wgri_texture_retain(wgr_handle_t handle);
 
 /* Build the CPU alpha mask on demand (re-reads from the texture's source path).
  * Returns false if the texture has no path or decode fails. */

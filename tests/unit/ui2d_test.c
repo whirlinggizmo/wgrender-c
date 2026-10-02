@@ -580,7 +580,7 @@ void test_sprite3d_alpha_modes(void)
     wgr_render_end_frame();
 
     for (int i = 0; i < COUNT; i++) wgr_sprite3d_destroy(sprites[i]);
-    for (int t = 0; t < TEXTURES; t++) wgr_texture_release(textures[t]);
+    for (int t = 0; t < TEXTURES; t++) wgr_resource_release(textures[t]);
     wgr_scene_destroy(scene);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgri_sprite3d_deinit();
@@ -649,7 +649,7 @@ void test_sprite2d_batches(void)
     wgr_render_end_frame();
 
     for (int i = 0; i < COUNT; i++) wgr_sprite2d_destroy(sprites[i]);
-    for (int t = 0; t < 2; t++) wgr_texture_release(textures[t]);
+    for (int t = 0; t < 2; t++) wgr_resource_release(textures[t]);
     wgr_scene_destroy(scene);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgri_sprite2d_deinit();

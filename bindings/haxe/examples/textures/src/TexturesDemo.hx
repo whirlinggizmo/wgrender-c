@@ -7,16 +7,10 @@
 // tools/compress_textures.sh; asking for ".ktx" is the whole of the API.
 //
 // Under each: the file that actually loaded, what it costs in GPU memory, and how long
-// it took from asking to having it.
-//
-// A texture loads on create and doesn't say which file it was read from, so each name
-// is also ensured, only to learn that: the asset op hands over the local path it found.
+// it took from asking to having it. A texture loads on create; once it's `Ready`,
+// `texture.getPath()` says which file it was read from.
 //
 //   ESC  quit
-//
-// The C hangs a slot struct off each ensure's `void *`. The guest ABI has no user
-// pointer -- the asset op hands back the id the ensure was queued with -- so the id *is*
-// the slot index here, which is less machinery for the same thing.
 import wgr.*;
 
 @:expose("WgrGuest")
@@ -37,7 +31,7 @@ class TexturesDemo {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "textures (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -54,17 +48,8 @@ class TexturesDemo {
 				slot.sprite = new Sprite2D(slot.texture);
 				slot.sprite.setSize(SIZE, SIZE);
 				slots.push(slot);
-				// The id is the slot index; ids start at 1 so 0 stays "not an asset".
-				GuestAbi.loadAsset(path, slots.length);
 			}
 		}
-	}
-
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		final slot = slots[id - 1];
-		if (slot == null)
-			return;
-		slot.loaded = ok ? path : 'failed: $path';
 	}
 
 	/**
@@ -95,6 +80,9 @@ class TexturesDemo {
 				slot.took = Wgr.getTime() - slot.asked;
 				slot.width = Std.int(size.x);
 				slot.height = Std.int(size.y);
+				slot.loaded = slot.texture.getPath();
+			} else if (slot.loaded == "" && slot.texture.getStatus() == Failed) {
+				slot.loaded = 'failed: ${NAMES[Std.int(i / KINDS)]}';
 			}
 			slot.sprite.setPosition(x + SIZE * 0.5, y + SIZE * 0.5); // the pivot is the middle
 			slot.sprite.draw(); // nothing until it's loaded
@@ -116,7 +104,7 @@ class TexturesDemo {
 private class Slot {
 	public var texture:Texture = Handle.NONE;
 	public var sprite:Sprite2D = Handle.NONE;
-	public var loaded = ""; // the file found, once the ensure says
+	public var loaded = ""; // the file it was read from, once it's Ready
 	public var asked = 0.0;
 	public var took = 0.0; // 0 until the texture is Ready
 	public var width = 0;

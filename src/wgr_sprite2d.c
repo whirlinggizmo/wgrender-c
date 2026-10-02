@@ -3,6 +3,7 @@
 #include <math.h>
 #include <string.h>
 
+#include "internal/wgr_resource_internal.h"
 #include "internal/exports_internal.h"
 #include "internal/wgr_color_internal.h"
 #include "wgr_color.h"
@@ -89,7 +90,7 @@ void wgri_sprite2d_deinit(void)
 {
     for (uint16_t i = 1; i < wgr_sprite2d_pool.capacity; i++) {
         if (wgr_sprite2d_pool.occupied[i] && wgr_sprites2d[i].texture != 0) {
-            wgr_texture_release(wgr_sprites2d[i].texture);
+            wgr_resource_release(wgr_sprites2d[i].texture);
         }
     }
     wgri_handle_pool_destroy(&wgr_sprite2d_pool);
@@ -394,7 +395,7 @@ wgr_handle_t wgr_sprite2d_create(wgr_handle_t texture)
         .alpha_cutoff = 0.5f,
     };
     if (texture != 0) {
-        wgri_texture_retain(texture);
+        wgri_resource_retain(texture);
     }
     return handle;
 }
@@ -408,7 +409,7 @@ void wgr_sprite2d_destroy(wgr_handle_t sprite)
     }
     wgri_scene_forget(sprite);
     if (sprite_ptr->texture != 0) {
-        wgr_texture_release(sprite_ptr->texture);
+        wgr_resource_release(sprite_ptr->texture);
     }
     wgr_material_release(sprite_ptr->material); /* no-op for 0 */
     *sprite_ptr = (wgr_sprite2d_t){0};
@@ -426,10 +427,10 @@ bool wgr_sprite2d_set_texture(wgr_handle_t sprite, wgr_handle_t texture)
         return true;
     }
     if (texture != 0) {
-        wgri_texture_retain(texture);
+        wgri_resource_retain(texture);
     }
     if (sprite_ptr->texture != 0) {
-        wgr_texture_release(sprite_ptr->texture);
+        wgr_resource_release(sprite_ptr->texture);
     }
     sprite_ptr->texture = texture;
     if (sprite_ptr->alpha_test && texture != 0) {

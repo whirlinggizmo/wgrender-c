@@ -102,7 +102,7 @@ void test_shader_custom_material(void)
                                            WGR_TEXTURE_FILTER_NEAREST));
     CHECK(!wgr_material_set_texture(material, "base_color_texture", texture));
     CHECK(!wgr_material_set_texture(material, "missing", texture));
-    wgr_texture_release(texture); /* the material keeps it */
+    wgr_resource_release(texture); /* the material keeps it */
 
     /* the material holds the shader: released with the material's last reference */
     wgr_shader_release(toon);
@@ -230,7 +230,7 @@ void test_shader_sprites(void)
 
     for (int i = 0; i < COUNT; i++) wgr_sprite3d_destroy(sprites[i]);
     wgr_material_release(pbr);
-    wgr_texture_release(texture);
+    wgr_resource_release(texture);
     wgr_scene_destroy(scene);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgri_sprite2d_deinit();
@@ -337,7 +337,7 @@ void test_shader_effects(void)
 
     wgr_sprite2d_destroy(sprite2d);
     wgr_sprite3d_destroy(sprite);
-    wgr_texture_release(texture);
+    wgr_resource_release(texture);
     wgr_material_release(crt);
     wgr_material_release(surface);
     wgr_material_release(pbr);

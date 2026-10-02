@@ -133,10 +133,10 @@ void test_sprite_pick_alpha(void)
 
     wgr_sprite3d_destroy(plain);
     wgr_sprite3d_destroy(clear_sprite);
-    wgr_texture_release(opaque_texture);
-    wgr_texture_release(clear_texture);
+    wgr_resource_release(opaque_texture);
+    wgr_resource_release(clear_texture);
     wgr_sprite3d_destroy(sprite);
-    wgr_texture_release(texture);
+    wgr_resource_release(texture);
     test_assets_stop();
     wgri_sprite3d_deinit();
     wgri_material_deinit();

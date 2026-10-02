@@ -121,7 +121,7 @@ static void init(void *user_data)
                                       WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_FILTER_LINEAR);
     const wgr_handle_t normal_map = wgr_texture_create(NORMAL_PATH);
     wgr_material_set_texture(g.sprite_material, "normal_texture", normal_map);
-    wgr_texture_release(normal_map); /* the material holds its own reference */
+    wgr_resource_release(normal_map); /* the material holds its own reference */
     const wgr_handle_t sheet = wgr_texture_create(SPRITE_PATH); /* the sprites appear once it's loaded */
     wgr_texture_set_sampling(sheet, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_FILTER_NEAREST);
     for (int i = 0; i < SPRITE_COUNT; i++) {
@@ -136,7 +136,7 @@ static void init(void *user_data)
         wgr_scene_add(g.scene, g.sprites[i], 0);
     }
     wgr_material_release(g.sprite_material); /* the sprites hold it */
-    wgr_texture_release(sheet);              /* and the sheet */
+    wgr_resource_release(sheet);              /* and the sheet */
 
     wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_mesh_loaded, on_failed, NULL);
 }

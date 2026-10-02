@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "internal/wgr_resource_internal.h"
 #include "internal/exports_internal.h"
 #include "internal/wgr_color_internal.h"
 #include "wgr_color.h"
@@ -1446,7 +1447,7 @@ static void discard_mesh(void *data)
         for (cgltf_size i = 0; i < prepared->gltf->images_count; i++) {
             wgri_texture_pixels_free(prepared->textures.images[i].pixels);
             free(prepared->textures.images[i].ktx_bytes);
-            wgr_texture_release(prepared->textures.images[i].texture); /* materials hold what they use */
+            wgr_resource_release(prepared->textures.images[i].texture); /* materials hold what they use */
         }
     }
     free(prepared->textures.images);

@@ -76,8 +76,8 @@ void test_render_targets(void)
     CHECK(!wgr_texture_set_sampling(target, (wgr_texture_wrap_t)9, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_FILTER_LINEAR));
     CHECK(!wgr_texture_set_sampling(0, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_FILTER_LINEAR));
 
-    wgr_texture_release(target);
-    wgr_texture_release(other);
+    wgr_resource_release(target);
+    wgr_resource_release(other);
     CHECK(!wgr_render_begin_texture(target)); /* destroyed */
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
@@ -151,7 +151,7 @@ void test_render_clip_stack(void)
 
     CHECK(wgr_window_set_size((int)screen.x, (int)screen.y));
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_texture_release(target);
+    wgr_resource_release(target);
     wgri_render_deinit();
     wgri_texture_deinit();
     sg_shutdown();
@@ -195,7 +195,7 @@ void test_texture_draw_immediate(void)
     wgr_render_end_frame();
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    wgr_texture_release(texture);
+    wgr_resource_release(texture);
     wgri_render_deinit();
     wgri_texture_deinit();
     sg_shutdown();
