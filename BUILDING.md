@@ -6,38 +6,85 @@ no shell script. [Requirements](#requirements) lists what to install.
 
 ## Requirements
 
-Required for any build:
+Every tool is Python, standard library only: nothing to `pip install`, and no Node.
+What the tools set up themselves (below) needs nothing from you. Everything under
+Optional is only for what its row names: without it the rest builds and tests, and
+`tools/verify_builds.py` says `SKIPPING` for what it couldn't check (the Haxe binding
+without Haxe, the Windows build without MinGW or Wine).
 
-- [CMake](https://cmake.org/download/) 3.21 or newer
-- [Python](https://www.python.org/downloads/) 3.9 or newer: every tool, standard
-  library only (nothing to `pip install`)
-- a C compiler: gcc or clang on Linux; on macOS Apple's clang (`xcode-select
-  --install`); on Windows [Visual Studio](https://visualstudio.microsoft.com/downloads/)
-  with the C++ workload (MSVC), or MinGW (below)
-- [Ninja](https://ninja-build.org/), except with Visual Studio on Windows
-- on Linux, the GL, X11 and ALSA dev packages: `python3 tools/setup_system_packages.py
-  install` (apt, dnf or pacman), which a Linux desktop configure checks for
+### Linux
 
-Optional, by what you build or check:
+Required:
+
+- [CMake](https://cmake.org/download/) 3.21 or newer, and [Ninja](https://ninja-build.org/)
+- [Python](https://www.python.org/downloads/) 3.9 or newer
+- gcc or clang to build, and clang for the tests: the rule check (`tools/check_rules.py`,
+  the `check` test that `ctest` and `verify_builds.py` run) reads the code through it;
+  emsdk's or the system's
+- the GL, X11 and ALSA dev packages: `python3 tools/setup_system_packages.py install`
+  (apt, dnf or pacman); a desktop configure checks for them
+
+Optional:
 
 | For | Needs |
 | --- | --- |
 | Web builds (`wasm32-*`) | [Emscripten](https://emscripten.org/docs/getting_started/downloads.html) (emsdk), exactly the version `build.json` pins (`"emscripten"`; see [Web](#web-webgl2-and-webgpu)) |
-| The web examples checked in a browser (`verify_builds.py --web`, `check_web_examples.py`, `measure_example_startup.py`) | a Chromium-based browser: [Chrome](https://www.google.com/chrome/), [Chromium](https://www.chromium.org/getting-involved/download-chromium/), [Brave](https://brave.com/download/) or [Edge](https://www.microsoft.com/edge/download) |
-| WebGPU checked without a window, on Linux | Xvfb (`xvfb`), else a visible window opens |
-| Windows builds from Linux or macOS (`windows-x64-mingw-*`) | MinGW-w64 (`mingw-w64` from the system's packages, or `brew install mingw-w64`), and [Wine](https://gitlab.winehq.org/wine/wine/-/wikis/Download) or Steam's Proton to run their tests |
-| The rule check (`tools/check_rules.py`, the `check` test) | clang: the one emsdk brings, or one on `PATH` ([LLVM](https://releases.llvm.org/)) |
-| A Windows machine checked over ssh (`verify_on_windows.py`) | ssh to it, and there CMake, Ninja and Python as above |
-| The Haxe binding (`bindings/haxe`) | [Haxe](https://haxe.org/download/) 4.3.7 and [hxcpp](https://lib.haxe.org/p/hxcpp/) 4.3.2 (`haxelib install hxcpp 4.3.2`), a C++ compiler for its native builds, Emscripten for its web builds; [its BUILDING.md](bindings/haxe/BUILDING.md) |
+| Web examples checked in a browser (`verify_builds.py --web`, `check_web_examples.py`, `measure_example_startup.py`) | a Chromium-based browser ([Chrome](https://www.google.com/chrome/), [Chromium](https://www.chromium.org/getting-involved/download-chromium/), [Brave](https://brave.com/download/) or [Edge](https://www.microsoft.com/edge/download)) |
+| WebGPU checked without a window | Xvfb (`xvfb`); without it a visible window opens |
+| Windows builds (`windows-x64-mingw-*`), cross-built | MinGW-w64 (`mingw-w64`), and [Wine](https://gitlab.winehq.org/wine/wine/-/wikis/Download) or Steam's Proton to run their tests |
+| A Windows machine checked over ssh (`verify_on_windows.py`) | ssh to it, with the Windows requirements there |
+| Only if you work on the Haxe binding (`bindings/haxe`) | [Haxe](https://haxe.org/download/) 4.3.7 and [hxcpp](https://lib.haxe.org/p/hxcpp/) 4.3.2 (`haxelib install hxcpp 4.3.2`), with a C++ compiler; [its BUILDING.md](bindings/haxe/BUILDING.md) |
 
-Set up by the tools the first time, into the per-user cache (`~/.cache/wgrender`;
-`WGR_CACHE_DIR` moves it), with nothing to install: sokol-shdc, the shader compiler
-(pinned and SHA-256 checked); the pinned MinGW-w64 on a Windows host
-([WinLibs](https://winlibs.com/), `tools/setup_mingw.py`); a Basis Universal encoder
-for compressed textures (`tools/compress_textures.py`, built with your C++ compiler); the
-Wine prefix. Nothing else is downloaded, and nothing at all once these are set up.
+### macOS (Apple silicon)
 
-The browser checks are Python too: there is no Node to install.
+Required:
+
+- [CMake](https://cmake.org/download/) 3.21 or newer, and [Ninja](https://ninja-build.org/)
+  (`brew install cmake ninja`)
+- [Python](https://www.python.org/downloads/) 3.9 or newer
+- Apple's clang: `xcode-select --install`; it also serves the tests' rule check
+
+Optional:
+
+| For | Needs |
+| --- | --- |
+| Web builds (`wasm32-*`) | [Emscripten](https://emscripten.org/docs/getting_started/downloads.html) (emsdk), exactly the version `build.json` pins (`"emscripten"`; see [Web](#web-webgl2-and-webgpu)) |
+| Web examples checked in a browser | a Chromium-based browser ([Chrome](https://www.google.com/chrome/), [Chromium](https://www.chromium.org/getting-involved/download-chromium/), [Brave](https://brave.com/download/) or [Edge](https://www.microsoft.com/edge/download)) |
+| Windows builds (`windows-x64-mingw-*`), cross-built | MinGW-w64 (`brew install mingw-w64`), and [Wine](https://gitlab.winehq.org/wine/wine/-/wikis/Download) to run their tests |
+| Only if you work on the Haxe binding (`bindings/haxe`) | [Haxe](https://haxe.org/download/) 4.3.7 and [hxcpp](https://lib.haxe.org/p/hxcpp/) 4.3.2 (`haxelib install hxcpp 4.3.2`), with a C++ compiler; [its BUILDING.md](bindings/haxe/BUILDING.md) |
+
+### Windows
+
+Required, by the compiler you build with:
+
+- [CMake](https://cmake.org/download/) 3.21 or newer, and
+  [Python](https://www.python.org/downloads/) 3.9 or newer, either way
+- MSVC (`windows-x64-msvc-*`): [Visual Studio](https://visualstudio.microsoft.com/downloads/)
+  with the C++ workload. Its presets use Visual Studio's generator, so no developer
+  prompt is needed
+- MinGW (`windows-x64-mingw-*`): [Ninja](https://ninja-build.org/); the compiler is set up
+  for you (below)
+- clang for the tests: the rule check (`tools/check_rules.py`, the `check` test) reads
+  the code through it; emsdk's, or [LLVM's](https://releases.llvm.org/)
+
+Optional:
+
+| For | Needs |
+| --- | --- |
+| Web builds (`wasm32-*`) | [Emscripten](https://emscripten.org/docs/getting_started/downloads.html) (emsdk), exactly the version `build.json` pins (`"emscripten"`; see [Web](#web-webgl2-and-webgpu)) |
+| Web examples checked in a browser | a Chromium-based browser ([Chrome](https://www.google.com/chrome/), [Chromium](https://www.chromium.org/getting-involved/download-chromium/), [Brave](https://brave.com/download/) or [Edge](https://www.microsoft.com/edge/download)) |
+| Only if you work on the Haxe binding (`bindings/haxe`) | [Haxe](https://haxe.org/download/) 4.3.7 and [hxcpp](https://lib.haxe.org/p/hxcpp/) 4.3.2 (`haxelib install hxcpp 4.3.2`), with a C++ compiler; [its BUILDING.md](bindings/haxe/BUILDING.md); hxcpp builds with MSVC unless told otherwise |
+
+### Set up by the tools
+
+The first time they're needed, into the per-user cache (`~/.cache/wgrender` on Linux,
+`~/Library/Caches/wgrender` on macOS, `%LOCALAPPDATA%\wgrender` on Windows;
+`WGR_CACHE_DIR` moves it): sokol-shdc, the shader compiler
+(pinned, SHA-256 checked, from upstream or the robknopf mirror); on Windows the pinned
+MinGW-w64 ([WinLibs](https://winlibs.com/), `tools/setup_mingw.py`, run by the MinGW
+presets' configure); a Basis Universal encoder for compressed textures
+(`tools/compress_textures.py`, built with your C++ compiler); the Wine prefix. Nothing
+else is downloaded, and nothing at all once these are set up.
 
 - [Desktop](#desktop): Windows (MSVC or MinGW), Linux, macOS
 - [Web](#web-webgl2-and-webgpu): WebGL2 and WebGPU, with Emscripten
@@ -100,8 +147,8 @@ and ThreadSanitizer builds, as CI does). A project that builds wgrender as part 
 own (`add_subdirectory`) doesn't get this, so a newer compiler's new warning can't break
 it; `-DWGR_WERROR=ON` or `OFF` decides either way.
 
-On Windows, Visual Studio needs nothing more. From a command line, the `windows-x64-msvc`
-presets need an "x64 Native Tools Command Prompt" (or `vcvars64.bat`) first; they build
+On Windows, the `windows-x64-msvc` presets use Visual Studio's generator, from Visual
+Studio itself or any command line, with no developer prompt; they build
 with the static C runtime (`/MT`, `/MTd` for debug), as every wg* library does, so the
 `.lib` links into Beef and other static-runtime programs as it is. The
 `windows-x64-mingw` presets work from any shell: they build with a pinned MinGW-w64 (a
