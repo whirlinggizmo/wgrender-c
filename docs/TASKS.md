@@ -79,11 +79,6 @@ libwgt (`whirlinggizmo/libwgt`) is a layered port of wgrender; where it found so
 better, wgrender adopts it, and where wgrender's is better it stays. Branch
 `from-libwgt` first, then the API items, each on a branch of its own.
 
-- [ ] The Haxe binding moves in as `bindings/haxe` (history kept); its CI and Pages
-      join the root's, `tools/verify_builds.py` runs its suite. wgrender-beef is dropped and
-      wgrender-nim set aside.
-- [ ] `docs/HISTORY.md`: what's done moves out of TASKS.md and the PLAN files, so they
-      show only what's current.
 - [ ] The org's CONVENTIONS.md takes the same names (another repo: the user's call).
 - [ ] Hidden symbol visibility: only `wgr_*` exported.
 - [ ] Pixel tests: frames read back in headless Chrome and in a GL window on Xvfb; a

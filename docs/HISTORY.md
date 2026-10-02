@@ -4713,6 +4713,11 @@ TASKS.md's ticked items, by the section they were in.
       toolchain file sets up a WinLibs GCC in the per-user cache and builds with it,
       instead of the `gcc` on PATH (which was choosenim's, Nim's); the build's
       workaround for that shim's missing `ar` is gone.
+- [x] The Haxe binding moves in as `bindings/haxe` (history kept); its CI and Pages
+      join the root's, `tools/verify_builds.py` runs its suite. wgrender-beef is dropped and
+      wgrender-nim set aside.
+- [x] `docs/HISTORY.md`: what's done moves out of TASKS.md and the PLAN files, so they
+      show only what's current.
 
 ### Core runtime
 
