@@ -12,7 +12,6 @@
     "src/wgr_effect.c",
     "src/wgr_emitter.c",
     "src/wgr_environment.c",
-    "src/wgr_event.c",
     "src/wgr_font.c",
     "src/wgr_fontstash_impl.c",
     "src/wgr_frame_pace.c",

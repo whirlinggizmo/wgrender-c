@@ -44,9 +44,6 @@ void wgri_logger_init(void);
 size_t wgri_logger_whole_utf8(const char *text);
 void wgri_logger_deinit(void);
 
-/* event bus */
-int wgri_event_init(void);
-void wgri_event_deinit(void);
 
 /* color store */
 void wgri_color_set(wgr_handle_t handle, int r, int g, int b, int a);

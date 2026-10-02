@@ -29,20 +29,8 @@ package wgr.impl;
 @:noCompletion
 class Trampoline {
 	#if js
-	static var eventPointer = 0;
 	static var pingPointer = 0;
 	#end
-
-	/** `wgr_event_listener_fn`: `(void *payload, void *user)`, which is `vii` on wasm. **/
-	public static extern inline function event(dispatch:(payload:VoidStar, user:VoidStar) -> Void):EventListenerFn {
-		#if cpp
-		return cpp.Callable.fromStaticFunction(dispatch);
-		#else
-		if (eventPointer == 0)
-			eventPointer = Raw.addFunction(dispatch, "vii");
-		return eventPointer;
-		#end
-	}
 
 	/** `wgr_asset_ping_fn`: `(const char *host, float ms, void *user)`, `vifi` on wasm. **/
 	public static extern inline function ping(dispatch:(host:CStr, milliseconds:F32, user:VoidStar) -> Void):AssetPingFn {

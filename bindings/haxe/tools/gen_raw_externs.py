@@ -53,8 +53,6 @@ CALLBACKS = {
     'wgr_frame_fn': '(dt:Single, tickFraction:Single, user:VoidStar) -> Void',
     'wgr_tick_fn': '(dt:Single, user:VoidStar) -> Void',
     'wgr_asset_callback_fn': '(path:ConstCharStar, user:VoidStar) -> Void',
-    'wgr_event_callback_fn': '(event:VoidStar, user:VoidStar) -> Void',
-    'wgr_event_listener_fn': '(payload:VoidStar, user:VoidStar) -> Void',
     'wgr_asset_fetch_fn': '(request:WgrHandle, url:ConstCharStar, destPath:ConstCharStar, user:VoidStar) -> Void',
     'wgr_asset_ping_fn': '(host:ConstCharStar, milliseconds:Single, user:VoidStar) -> Void',
 }
@@ -94,18 +92,6 @@ MANUAL_JS = '''
 		omitted on purpose: the guest ABI is their replacement, and a guest reaching
 		past it would install a second frame callback.
 	**/
-	public static inline function wgr_event_on(event_name:String, listener:Int, user_data:Int):Int
-		return Raw.host._wgr_event_on(cstr(event_name), listener, user_data);
-
-	public static inline function wgr_event_once(event_name:String, listener:Int, user_data:Int):Int
-		return Raw.host._wgr_event_once(cstr(event_name), listener, user_data);
-
-	public static inline function wgr_event_off(event_name:String, listener:Int, user_data:Int):Int
-		return Raw.host._wgr_event_off(cstr(event_name), listener, user_data);
-
-	public static inline function wgr_event_emit(event_name:String, payload:Int):Int
-		return Raw.host._wgr_event_emit(cstr(event_name), payload);
-
 	public static inline function wgr_asset_ping_host(host_:String, timeout_ms:Int, on_done:Int,
 			user_data:Int):Bool
 		return Raw.host._wgr_asset_ping_host(cstr(host_), timeout_ms, on_done, user_data) != 0;
@@ -422,7 +408,6 @@ typedef WgrColor = Int;
 typedef VoidStar = Int;
 typedef CStr = Int;
 typedef F32 = Float;
-typedef EventListenerFn = Int;
 typedef AssetPingFn = Int;
 
 /**

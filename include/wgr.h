@@ -9,7 +9,6 @@
 #include "wgr_color.h"   // IWYU pragma: keep
 #include "wgr_debug.h"   // IWYU pragma: keep
 #include "wgr_environment.h" // IWYU pragma: keep
-#include "wgr_event.h"   // IWYU pragma: keep
 #include "wgr_font.h"    // IWYU pragma: keep
 #include "wgr_handle.h"  // IWYU pragma: keep
 #include "wgr_resource.h"  // IWYU pragma: keep

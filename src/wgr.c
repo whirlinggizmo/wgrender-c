@@ -184,7 +184,6 @@ static void on_init(void)
     wgri_camera3d_init();
     wgri_fs_init(NULL);   /* local storage; asset acquisition sits on top */
     wgri_asset_init();
-    wgri_event_init();
     wgri_input_init();
     wgri_debug_init();
 
@@ -360,7 +359,6 @@ static void on_shutdown(void)
     wgri_module_deinit_all(); /* before the core they use */
     wgri_debug_deinit();
     wgri_input_deinit();
-    wgri_event_deinit();
     wgri_asset_deinit();
     wgri_fs_deinit();
     wgri_camera3d_deinit();
