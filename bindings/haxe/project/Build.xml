@@ -27,7 +27,11 @@
 
     <include name="${haxelib:wgrender-hx}/project/wgrender.xml" />
 
+    <!-- Each group below includes wgrender's headers, so it depends on them all, as the
+         sources do (wgrender.xml): hxcpp would otherwise rebuild an object only when
+         its own file changed. -->
     <files id="haxe">
+        <depend files="wgrender-headers" />
         <compilerflag value="-I${WGRENDER}/include" />
         <compilerflag value="-I${WGRHX}/host" />
     </files>
@@ -41,6 +45,7 @@
          where that first happened; before it, every entry class happened to use only
          types that are Int underneath. -->
     <files id="__main__">
+        <depend files="wgrender-headers" />
         <compilerflag value="-I${WGRENDER}/include" />
         <compilerflag value="-I${WGRHX}/host" />
     </files>
@@ -49,6 +54,8 @@
          C step of its own. On the web, hxcpp's program brings its own main(), so the
          glue leaves its out (host/wgr_guest.c). -->
     <files id="wgrguest">
+        <depend files="wgrender-headers" />
+        <depend name="${WGRHX}/host/wgr_guest.h" />
         <compilerflag value="-I${WGRENDER}/include" />
         <compilerflag value="-I${WGRHX}/host" />
         <compilerflag value="-DWGR_GUEST_NO_MAIN" if="emscripten" />

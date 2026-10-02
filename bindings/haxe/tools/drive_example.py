@@ -67,8 +67,9 @@ def main():
                     errors.append(text)
             elif msg['method'] == 'Runtime.exceptionThrown':
                 d = params['exceptionDetails']
-                errors.append('UNCAUGHT ' + ((d.get('exception') or {}).get('description') or d.get('text') or '')
-                              .split('\n')[0])
+                # with the top of its stack: where a wasm trap happened is the whole story
+                text = (d.get('exception') or {}).get('description') or d.get('text') or ''
+                errors.append('UNCAUGHT ' + '\n    '.join(text.split('\n')[:12]))
             elif msg['method'] == 'Log.entryAdded' and params['entry']['level'] == 'error' \
                     and params['entry']['source'] != 'network':
                 # the browser's own: a module script refused for its MIME type, a WebGL error
