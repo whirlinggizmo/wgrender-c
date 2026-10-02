@@ -359,7 +359,7 @@ one, a sound waits), and a program reads the status only for what it wants to sh
 Each resource type gives a loader (`src/internal/wgr_loader_internal.h`: prepare on
 any thread, fill on the main thread in steps). See
 [HISTORY.md: Loading pipeline (background preparation, budgeted GPU upload)](HISTORY.md#loading-pipeline-background-preparation-budgeted-gpu-upload)
-and [PLAN-tasks.md](PLAN-tasks.md).
+and [HISTORY.md: Load on create, and polled tasks instead of callbacks](HISTORY.md#load-on-create-and-polled-tasks-instead-of-callbacks).
 
 ```c
 wgr_handle_t mesh = wgr_mesh_create("models/character.glb"); /* PENDING */

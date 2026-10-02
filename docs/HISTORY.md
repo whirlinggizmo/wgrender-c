@@ -20,7 +20,7 @@ Text here is kept as it was written, so a name or a path in it may since have ch
 - [Frustum culling](#frustum-culling) (open part: [PLAN-culling.md](PLAN-culling.md))
 - [handle-only public API (librl-style asset/resource split)](#handle-only-public-api-librl-style-assetresource-split)
 - [Lighting (light objects, per-scene lighting)](#lighting-light-objects-per-scene-lighting)
-- [Load on create, and polled tasks instead of callbacks](#load-on-create-and-polled-tasks-instead-of-callbacks) (open part: [PLAN-tasks.md](PLAN-tasks.md))
+- [Load on create, and polled tasks instead of callbacks](#load-on-create-and-polled-tasks-instead-of-callbacks)
 - [Loading pipeline (background preparation, budgeted GPU upload)](#loading-pipeline-background-preparation-budgeted-gpu-upload)
 - [Materials and shaders](#materials-and-shaders)
 - [Model instancing](#model-instancing) (open part: [PLAN-instancing.md](PLAN-instancing.md))
@@ -2244,7 +2244,10 @@ lights, glTF light import, clustered culling if scenes need hundreds of lights.
 
 ## Load on create, and polled tasks instead of callbacks
 
-Phases 1 and 2, as planned and as built. The rest of the plan is open: [PLAN-tasks.md](PLAN-tasks.md).
+Phases 1 and 2, as planned and as built (2026-10-02). Phase 3, a public `wgr_fs.h`, was
+dropped rather than built: libwgt already has it (`wgt_fs.h`), and wgrender is folding
+into libwgt, whose roadmap ports what wgrender has and libwgt lacks (downloads, the asset
+cache, the Haxe binding) rather than the reverse. Its design is kept below as it was.
 
 ### Why
 
@@ -2535,6 +2538,30 @@ What changed on the way, against the design above:
 - **Tests:** `test_assets_ensure` (ensure, tick until finished, read, destroy) and
   `test_assets_tick` / `test_assets_set_fetcher` (a tick, then each request handed to a
   test's downloader, as a program's frame does). `TYPES_TODO` is empty.
+
+### Phase 3, as planned and not built: a public `wgr_fs.h`, and byte spans
+
+libwgt's `wgt_fs.h` over wgrender's storage layer, which stays as it is inside:
+`wgr_fs_read`, `_write`, `_exists`, `_remove`, `_mkdir`, `_rmdir` each return a task, on
+every platform (a desktop read too, answered the next frame, as a web read is);
+`wgr_fs_task_get_status` (NONE, PENDING, DONE, NOT_FOUND, FAILED), `_get_path`,
+`_get_data`, `_get_size`, `_get_text`, `_destroy`. Requests made before storage is ready
+wait for it. Paths are confined under the root (normalized; an absolute one, a `:`, a
+control character, or one climbing above the root is refused). `wgr_fs.c` splits into
+`_native` and `_web`. AGENTS.md's hard rule takes libwgt's byte span: `const unsigned
+char *data, int size`, in copied before the call returns, out owned by the task until
+it's destroyed; `check_rules.py` allows one only as a parameter followed by `int size`,
+or a `_get_data` beside a `_get_size`.
+
+#### What would have changed beside the library
+
+- **The Haxe binding**: an `Fs` module over `wgr_fs.h`, its tasks as `AssetTask`'s are
+  (status, path, destroy), and a byte span as `haxe.io.Bytes` in and out (copied, so
+  nothing on the Haxe side points into wgrender).
+- **Tests**: the root jail (every refused path), a read and a write answered the next
+  frame on desktop as on the web, NOT_FOUND apart from FAILED, requests made before
+  storage is ready; the web store in the browser.
+- **check_rules.py**: the byte span, allowed only in the two shapes above.
 
 *From docs/PLAN-tasks.md.*
 
@@ -5015,6 +5042,12 @@ TASKS.md's ticked items, by the section they were in.
       wgrender-nim set aside.
 - [x] `docs/HISTORY.md`: what's done moves out of TASKS.md and the PLAN files, so they
       show only what's current.
+
+- [x] Polled tasks instead of callbacks (2026-10-02,
+      [load on create and polled tasks](#load-on-create-and-polled-tasks-instead-of-callbacks)):
+      every resource loads on create; ensure, ping and the desktop fetcher are polled
+      tasks; the event bus went; the loop setters are the only callbacks left. Phase 3,
+      a public `wgr_fs.h`, dropped: libwgt has it
 
 ### Core runtime
 

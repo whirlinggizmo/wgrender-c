@@ -216,7 +216,7 @@ TYPES_EXEMPT = {
 }
 
 # Known gaps, each going. The check fails when one is gone and still listed. Empty since
-# the last callbacks became polled tasks (docs/PLAN-tasks.md); a new entry needs a reason
+# the last callbacks became polled tasks (docs/HISTORY.md, "Load on create, and polled tasks"); a new entry needs a reason
 # it can't wait.
 TYPES_TODO = set()
 

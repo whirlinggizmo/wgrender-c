@@ -118,8 +118,6 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
       headers with one exported copy each for bindings; types `wgr_vec3_t`,
       `wgr_quat_t`, `wgr_mat4_t` (column-major `float m[16]`; `matrix_t` goes); the
       internal `wgri_mat4_*` / `wgri_v3_*` replaced by it; AGENTS.md allows mat4.
-- [ ] Polled tasks instead of callbacks: docs/PLAN-tasks.md, phase 3 (load on create
-      and the callbacks' removal are built): a public `wgr_fs.h` and byte spans.
 - [ ] Maybe: a node tree (parenting, cached transforms, enabled / visible / pickable
       as separate flags). Biggest API change here; only if a hierarchy is wanted.
 
