@@ -1,5 +1,9 @@
 # Plan: Shadows
 
+> Carried into libwgt (17f3f18, cb5dee5): every open item here is in libwgt's ROADMAP or
+> TASKS, or closed in its HISTORY; where each went is in HISTORY.md, "Carried into libwgt".
+> The items stay here while wgrender is maintained.
+
 Status: **phases 1 and 2 implemented (2026-09-21)** on desktop GL, WebGL2 and WebGPU:
 one directional light, then spot lights and up to four casting at once.
 Decisions 1–7 were answered as recommended, with one addition during implementation:

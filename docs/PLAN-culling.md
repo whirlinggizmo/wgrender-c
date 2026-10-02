@@ -1,5 +1,9 @@
 # Plan: Frustum culling
 
+> Carried into libwgt (17f3f18, cb5dee5): every open item here is in libwgt's ROADMAP or
+> TASKS, or closed in its HISTORY; where each went is in HISTORY.md, "Carried into libwgt".
+> The items stay here while wgrender is maintained.
+
 Status: **phases 1 and 2 built** (2026-09-21). Phase 3 (a visibility mask, 2D members,
 a spatial index) is open and not obviously needed yet.
 Builds on the scene's bounds registry ([ARCHITECTURE.md](ARCHITECTURE.md)) and shadows

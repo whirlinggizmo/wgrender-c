@@ -1,5 +1,9 @@
 # Plan: Model instancing
 
+> Carried into libwgt (17f3f18, cb5dee5): every open item here is in libwgt's ROADMAP or
+> TASKS, or closed in its HISTORY; where each went is in HISTORY.md, "Carried into libwgt".
+> The items stay here while wgrender is maintained.
+
 Status: **built** (2026-09-21), phases 1–4. Phase 5 (per-instance light sets,
 transparent runs, a persistent buffer) is open and not obviously needed yet. Decisions below are answered:
 automatic grouping with no new API (an explicit instanced handle only if a measured case

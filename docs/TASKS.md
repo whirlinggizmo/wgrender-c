@@ -1,5 +1,9 @@
 # wgrender Tasks
 
+> Carried into libwgt (17f3f18, cb5dee5): every open item here is in libwgt's ROADMAP or
+> TASKS, or closed in its HISTORY; where each went is in HISTORY.md, "Carried into libwgt".
+> The items stay here while wgrender is maintained.
+
 Working checklist. Order and reasoning live in [ROADMAP.md](ROADMAP.md); this file
 is what's left to do; what's done is in [HISTORY.md](HISTORY.md).
 

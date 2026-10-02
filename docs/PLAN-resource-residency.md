@@ -1,5 +1,9 @@
 # Plan: GPU resource residency (decoupled upload + optional eviction)
 
+> Carried into libwgt (17f3f18, cb5dee5): every open item here is in libwgt's ROADMAP or
+> TASKS, or closed in its HISTORY; where each went is in HISTORY.md, "Carried into libwgt".
+> The items stay here while wgrender is maintained.
+
 Status: **proposed — awaiting approval.** No code changed yet.
 Builds on the Asset→Resource→Object model ([ARCHITECTURE.md](ARCHITECTURE.md)) and
 the `wgr_fs` local cache ([HISTORY.md: wgr_fs + web-capable ensure (Phase 2)](HISTORY.md#wgr_fs--web-capable-ensure-phase-2)).

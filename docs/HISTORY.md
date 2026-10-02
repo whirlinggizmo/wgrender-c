@@ -31,6 +31,8 @@ Text here is kept as it was written, so a name or a path in it may since have ch
 - [UI through libwgrender's public API](#ui-through-libwgrenders-public-api) (open part: [PLAN-ui.md](PLAN-ui.md))
 - [wgr_fs + web-capable ensure (Phase 2)](#wgr_fs--web-capable-ensure-phase-2)
 - [Window and monitor control](#window-and-monitor-control)
+- [Carried into libwgt](#carried-into-libwgt)
+- [Roadmap items done](#roadmap-items-done)
 - [Tasks done](#tasks-done)
 - [Tasks dropped](#tasks-dropped)
 - [ARCHITECTURE.md status log](#architecturemd-status-log)
@@ -4913,6 +4915,141 @@ window, so a visible window may flash in its default style first on some platfor
 2. Window flags (decision 4).
 
 *From docs/PLAN-window.md.*
+
+## Carried into libwgt
+
+On 2026-10-02 libwgt went through every open item in TASKS.md, the five plans and
+ROADMAP.md (libwgt 17f3f18, then cb5dee5 for the ROADMAP's), so that nothing open here
+is lost when wgrender is archived. Each item went one of three ways: into libwgt's
+ROADMAP (R, with its phase) or TASKS (T, for what belongs to no phase); closed in
+libwgt's HISTORY as done or not applicable there (H); or dropped with a reason (none
+were). wgrender-c checked the list against these files.
+
+| From | Item | Went |
+| --- | --- | --- |
+| TASKS, Bugs and measurements | The normal-mapped sphere cut (loading, environment, materials) | T, bug: likely inherited, the sphere is wgrender's generator |
+| | XWayland vsync on NVIDIA | T, bug |
+| | Light selection by rest-pose bounds | H: fixed by libwgt 3978145, lights picked by the posed box |
+| | Phone frames 25-30 ms loading large textures | R, phase 4 web core |
+| | Low-end phone (Adreno 610) performance | R, phase 4 web core |
+| | Web audio stutter (ScriptProcessorNode) | R, phase 2 audio: an AudioWorklet backend in the sokol fork |
+| TASKS, From libwgt | All eight | H: wgrender adopting libwgt's ways; nothing for libwgt |
+| TASKS, Rendering | Two placements for an opaque + see-through model | H, not applicable: one placement per model there |
+| | Render targets later (formats, persistent targets) | T |
+| | Generated meshes later | T |
+| TASKS, Materials and glTF | Custom shaders: arrays, matrices, D3D11/Metal | T |
+| | Lightmaps | T |
+| | Environment follow-ups | Split: prefiltering on a worker H (libwgt does it); other inputs, RGBM, HDR framebuffer T |
+| | Tangents from texture coordinate set 0 | T |
+| | Mipmaps in sRGB space, normal maps not renormalized | T, bug: confirmed in libwgt's build_mipmaps |
+| | glTF extensions, morph targets, other image formats | T |
+| TASKS, Particles | Lit particles; custom shaders for emitters and 2D shapes; a CPU-simulated mode | T |
+| TASKS, UI and input | Gamepads later, touch later | T |
+| | UI later (clipboard, keyboard capture, letter spacing, ImGui), widgets | R, phase 5 app |
+| TASKS, Assets and loading | Music before its file has arrived | H: already R phases 2 (audio) and 3 (asset downloads) |
+| | Shader warm-up, ~220 ms on WebGL2 | T, bug: libwgt makes its pipelines at the first draw, but a browser may still compile at first use; to measure |
+| | Zero workers: a whole glTF in one frame; `.glb` listing on the main thread | T, bug: same shape in libwgt, to check with loadbench |
+| TASKS, Platform | Windows for real (window flags, XInput, D3D11, WASAPI) | T |
+| | Native iOS / Android | R, Later: when a program must ship natively where the wasm build can't serve |
+| TASKS, Infrastructure and tooling | Web `wgr_fs` tests, wasm-side tests | H: libwgt has browser tests |
+| | `tools/headers.py` reading two things from clang's strings | T: libwgt's has the same |
+| | API reference docs | T |
+| | Web size later (browser decoders) | R, phase 4 web core |
+| TASKS, Outside the library | Scripting; the C API as a contract for other implementations | R, Separate libraries |
+| PLAN-culling | Phase 3 (visibility mask, 2D members, spatial index) | T, beside hierarchical culling |
+| PLAN-instancing | Phase 5 (per-instance lights, transparent runs, persistent buffer) | T |
+| PLAN-shadows | Phase 3 (cascades, point lights, sprite casters, skipping unchanged passes) | T |
+| PLAN-ui | Step 4 | R, phase 5 app |
+| PLAN-resource-residency | The whole plan (proposed, never approved) | R, Later: when a loadbench case exceeds GPU memory |
+| ROADMAP | A built-in desktop fetcher (OS HTTP clients) | T, an optional part of libwgt's asset layer (not the sockets library, which would bring a bundled TLS); desktop ping and redirect rules in R phase 3 |
+| | Retained 2D geometry | T: libwgt also re-records every frame; when a benchmark shows it dominates |
+| | Image comparison | T: libwgt's pixel tests check chosen pixels; when a regression gets past them |
+| | Hot reload (reload-on-change) | R, phase 7 dev loop |
+| | Persistent render targets; full-screen passes | Persistent T; full-screen passes H (libwgt 36178e3) |
+| | Networking outside the library, and why | R, Separate libraries: the sockets entry, with the reasons |
+| | Pointer input and 2D hit-testing | H: done in libwgt (2538e46, 00b7871), and here |
+
+## Roadmap items done
+
+ROADMAP.md's items that were done, moved here as they were written on 2026-10-02 (they had
+been left in place, marked done). Each links to its own history above.
+
+### From "Now / next"
+
+1. **Materials & shaders** (phase 1 done 2026-09-16: built-in materials; phase 2
+   2026-09-20: custom shaders; see
+   [HISTORY.md: Materials and shaders](HISTORY.md#materials-and-shaders)) — a **handle-only uniform/material API**
+   (`wgr_material_set_float/vec4/texture(...)`, no struct/pointer across the public
+   boundary) on top of the sokol-shdc pipeline we already have. *Enabler:*
+   user shaders, particle looks, UI styling. The work is API shape, not plumbing
+   (shdc solved the per-backend shader half).
+2. **2D / UI layer** — screen-space coordinate system, `sprite2d` (the reserved-
+   but-unimplemented object), 2D draw ordering, **2D picking** (mouse → rect/AABB
+   hit-test; far cheaper than the existing 3D ray path in `wgr_pick`), and pickable
+   UI primitives. `text2d` already exists and slots in here. Broadly useful —
+   every game needs HUD/UI. sprite2d design: [HISTORY.md: sprite2d (screen-space sprites)](HISTORY.md#sprite2d-screen-space-sprites).
+
+   **GUI direction (decided 2026-09-16): don't build a GUI toolkit.** Two jobs, two
+   tools, both outside the core as optional modules (like scripting and bindings):
+   - *Developer/debug UI* (inspectors, sliders, stats): **Dear ImGui** via sokol's
+     `sokol_imgui.h` (and `sokol_gfx_imgui.h`). Its API isn't handle-only, so users
+     call ImGui directly; libwgrender provides a small C extension hook (input events in,
+     drawing inside the render pass). Optional, so wasm builds that don't use it
+     don't pay its size.
+   - *In-game UI/HUD* (styled, animated menus and bars): built from sprite2d +
+     text2d + shapes, with layout from a small renderer-agnostic library such as
+     **Clay** (C99, flexbox-like, emits rectangles/text/images to draw). Later.
+     Refined in [PLAN-ui.md](PLAN-ui.md) (accepted): the glue uses only libwgrender's
+     public API, so libwgrender gains the immediate drawing, text and input pieces a layout
+     library needs, and no Clay code or types enter libwgrender.
+   - *Widgets* (decided 2026-09-21): still not in the core. Buttons, sliders and lists
+     are mostly policy — theming, focus order, keyboard navigation, text editing — and
+     choosing that policy for everyone is the toolkit this decision rules out. The
+     hand-built widgets in `examples/ui.c` move into a shared
+     `examples/shared/ui/ui_widgets.h` instead: no API commitment, and it keeps proving
+     the public API is enough. A real widget layer, if a game wants one, goes outside the
+     core like the Clay glue.
+     Whatever such a layer can't express through the public API (focus, text-field
+     editing, clipboard) is a core gap and gets fixed in the core.
+3. **Particle emitters** — emitter object + **batched/instanced** quad rendering
+   (rides the 2D batch path + materials from 1–2). High visual payoff; doing it
+   right is what finally justifies a real batched renderer over sokol_gl immediate.
+
+### From "Supporting / cross-cutting"
+
+- ~~**Loading pipeline: decode in the background, upload within a frame budget**~~ —
+  done (2026-09-17): files ensured through `wgr_asset` are prepared on worker
+  threads (web too, with cross-origin isolation) and finished within a per-frame
+  upload budget before their callback; asset groups and progress replace librl's
+  `ensure_many`. See [HISTORY.md: Loading pipeline (background preparation, budgeted GPU upload)](HISTORY.md#loading-pipeline-background-preparation-budgeted-gpu-upload). Next: compressed
+  textures (KTX2 / Basis), since one large texture is still one upload.
+
+- ~~**Offscreen / render-to-texture**~~ — done (2026-09-16): render targets are
+  textures (`wgr_texture_create_target`, `wgr_render_begin_texture`); see
+  [HISTORY.md: Render to texture](HISTORY.md#render-to-texture). Still to come: persistent
+  (uncleared) targets, HDR formats and full-screen passes for post-effects.
+- **Mouse / pointer input + 2D hit-testing** — prerequisite for pickable UI;
+  lands together with the 2D layer (confirm how much pointer input is exposed
+  today).
+
+### From "Infrastructure / testing (done parts)"
+
+- ~~**Null / headless renderer**~~ — done: the `headless` preset (sokol dummy GPU
+  backend, a headless run loop behind the internal `wgr_platform` layer, no audio
+  device) and its smoke test of every example. Unit tests link the headless library, so they need no
+  GL/X11/ALSA. CI runs the unit and smoke tests and the WebGL2 webcheck. Next, when needed:
+  benchmarks / asset-validation tools on the headless build.
+- **Test suite** — built, in layers: **unit tests** (`ctest`, plain C against the
+  headless library: handle pool, `wgr_fs` and asset bookkeeping, scene order and picking
+  math, animation sampling, object state, shadows, culling, instancing; also under
+  the sanitizers, the `tsan`, `asan` and `ubsan` presets); **smoke** (every example
+  headless for 180 frames, and the same under Wine with `windows-headless`);
+  **web** (`tools/check_web_examples.py`, every example in a Chromium-based browser over the DevTools
+  protocol, WebGL2 and WebGPU). The parity layers that were planned here -- an API
+  report and scenarios run against both librl and wgrender -- were retired once parity
+  was reached (see "What librl taught us"). Still optional: **image comparison**,
+  rendering fixed scenes to render targets (which exist now) and comparing with a
+  per-pixel tolerance; worth it the first time a rendering regression gets past smoke.
 
 ## Tasks done
 
