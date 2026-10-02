@@ -7,6 +7,12 @@
 
     Project URL: https://github.com/floooh/sokol
 
+    Altered source: this is the Whirling Gizmo fork's version
+    (https://github.com/robknopf/sokol), not the original. Changed from
+    floooh/sokol: on emscripten, shutdown clears the ScriptProcessorNode's
+    onaudioprocess, so audio events queued before shutdown no longer run.
+    The fork's git history has each change.
+
     Do this:
         #define SOKOL_IMPL or
         #define SOKOL_AUDIO_IMPL

@@ -225,7 +225,9 @@ The handle-only surface (every parameter a handle, a number, an enum or a `const
 ## License
 
 wgrender's own code is MIT; see [LICENSE](LICENSE). What it vendors keeps its own
-license, in or next to each file:
+license, in or next to each file; [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) has
+each one's full text, which altered files are marked as such, and what a binary built
+with wgrender has to ship (that file, or the notices in it):
 
 | Where | What | License |
 |---|---|---|

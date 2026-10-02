@@ -1,6 +1,14 @@
 // VERSION: 0.14
 
 /*
+    Altered source: this is the Whirling Gizmo fork's version
+    (https://github.com/robknopf/clay), not the original. Changed from
+    nicbarker/clay: Clay_UpdateScrollContainers scrolls the innermost scroll
+    container under the pointer, not the outermost. The fork's git history has
+    each change.
+*/
+
+/*
     NOTE: In order to use this library you must define
     the following macro in exactly one file, _before_ including clay.h:
 

@@ -3,6 +3,6 @@
 # fixes libwgrender needs on top of upstream. Used only by examples/clay.c, which draws it
 # through libwgrender's public API; libwgrender itself doesn't include or link Clay
 # (docs/PLAN-ui.md). Files keep their upstream paths; update them all together with
-# tools/update_clay.sh.
-clay-fork https://github.com/robknopf/clay.git 842df9f5549e57cbe35dbf4524f4edd8c0292fc6 2026-09-18
+# tools/update_clay.py.
+clay-fork https://github.com/robknopf/clay.git 95784c55f16f060d4246c4ac322090ec9e214157 2026-10-02
 clay-upstream https://github.com/nicbarker/clay.git e6cc36941ab2af5d81107617039d6f527a1c660b
