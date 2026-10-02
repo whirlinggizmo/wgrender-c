@@ -77,8 +77,8 @@ class Simple {
 		makeSprite();
 
 		// Fonts are sized per draw call in wgrender, so one font handle serves any size.
-		load(DEBUG_FONT_PATH, path -> debugFont = new Font(path));
-		load(KOMIKA_FONT_PATH, path -> komikaFont = new Font(path));
+		debugFont = new Font(DEBUG_FONT_PATH); // the built-in font until they've loaded
+		komikaFont = new Font(KOMIKA_FONT_PATH);
 	}
 
 	// --- lifecycle ---

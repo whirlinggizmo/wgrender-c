@@ -48,12 +48,6 @@ static void on_sphere_loaded(const char *path, void *user)
     wgr_mesh_release(mesh);
 }
 
-static void on_font_loaded(const char *path, void *user)
-{
-    (void)user;
-    g.font = wgr_font_create(path);
-}
-
 static void on_failed(const char *path, void *user)
 {
     (void)user;
@@ -120,7 +114,7 @@ static void init(void *user_data)
 
     wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_character_loaded, on_failed, NULL);
     wgr_asset_add_task(wgr_asset_ensure_async(SPHERE_PATH, NULL, WGR_ASSET_NONE), on_sphere_loaded, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(FONT_PATH, NULL, WGR_ASSET_NONE), on_font_loaded, on_failed, NULL);
+    g.font = wgr_font_create(FONT_PATH); /* the built-in font until it has loaded */
 }
 
 /* A texture with a 2px frame and a caption above it. */

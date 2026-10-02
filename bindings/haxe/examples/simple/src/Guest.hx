@@ -17,8 +17,6 @@ class Guest {
 
 	// The host hands these back on the asset op, in place of a callback.
 	static inline final ASSET_MODEL = 2;
-	static inline final ASSET_DEBUG_FONT = 3;
-	static inline final ASSET_KOMIKA_FONT = 4;
 
 	static inline final SCREEN_WIDTH = 1024;
 	static inline final SCREEN_HEIGHT = 1280;
@@ -99,8 +97,10 @@ class Guest {
 		makeBgm();
 		load(CHARACTER_PATH, ASSET_MODEL);
 		makeSprite();
-		load(DEBUG_FONT_PATH, ASSET_DEBUG_FONT);
-		load(KOMIKA_FONT_PATH, ASSET_KOMIKA_FONT);
+		// fonts are sized per draw call, so one handle serves any size; text is in the
+		// built-in font until they've loaded
+		debugFont = new Font(DEBUG_FONT_PATH);
+		komikaFont = new Font(KOMIKA_FONT_PATH);
 	}
 
 	// A texture loads on create: the sprite exists at once and is drawn once it's loaded.
@@ -140,12 +140,6 @@ class Guest {
 				model.setPosition(0, 0, 0);
 				model.setTint(Color.RAYWHITE);
 				scene.add(model);
-
-			case ASSET_DEBUG_FONT:
-				debugFont = new Font(path);
-
-			case ASSET_KOMIKA_FONT:
-				komikaFont = new Font(path);
 		}
 	}
 

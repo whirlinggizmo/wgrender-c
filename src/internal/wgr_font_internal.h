@@ -19,9 +19,6 @@ FONScontext *wgri_font_context(void);
  * the caller; 0 if fontstash isn't available. */
 wgr_handle_t wgri_font_create_builtin(void);
 
-/* Reference counting (text objects and the default font hold references). */
-void wgri_font_retain(wgr_handle_t handle);
-
 /* fontstash font id for a handle, or FONS_INVALID. */
 int wgri_font_fons_id(wgr_handle_t handle);
 

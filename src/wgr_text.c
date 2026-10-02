@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "internal/wgr_resource_internal.h"
 #include "internal/exports_internal.h"
 #include "internal/wgr_color_internal.h"
 #include "internal/wgr_font_internal.h"
@@ -36,8 +37,8 @@ void wgri_text_init(void)
 
 void wgri_text_deinit(void)
 {
-    wgr_font_release(wgr_text_default_font);
-    wgr_font_release(wgr_text_builtin_font);
+    wgr_resource_release(wgr_text_default_font);
+    wgr_resource_release(wgr_text_builtin_font);
     wgr_text_default_font = 0;
     wgr_text_builtin_font = 0;
 }
@@ -268,12 +269,12 @@ void wgri_text_block_draw(wgr_handle_t font, const char *text, int length, float
 WGRI_KEEP
 bool wgr_text_set_default_font(wgr_handle_t font)
 {
-    if (font != 0 && wgri_font_fons_id(font) == FONS_INVALID) {
-        wgr_logger_warn("wgr_text_set_default_font: %u isn't a loaded font", (unsigned int)font);
+    if (font != 0 && wgr_handle_get_kind(font) != WGR_HANDLE_KIND_FONT) {
+        wgr_logger_warn("wgr_text_set_default_font: %u isn't a font", (unsigned int)font);
         return false;
     }
-    wgri_font_retain(font); /* the default font holds a reference; no-op for 0 */
-    wgr_font_release(wgr_text_default_font);
+    wgri_resource_retain(font); /* the default font holds a reference; no-op for 0 */
+    wgr_resource_release(wgr_text_default_font);
     wgr_text_default_font = font;
     return true;
 }

@@ -19,20 +19,11 @@ static wgr_color_t g_bg;
 static wgr_handle_t g_mono;
 static wgr_handle_t g_komika;
 
-static void on_mono_loaded(const char *path, void *user)
+/* A font loads on create; until it's READY text in it would be in the built-in font,
+ * so this example shows each line only once its own font has loaded. */
+static bool is_ready(wgr_handle_t font)
 {
-    (void)user;
-    g_mono = wgr_font_create(path);
-}
-static void on_komika_loaded(const char *path, void *user)
-{
-    (void)user;
-    g_komika = wgr_font_create(path);
-}
-static void on_failed(const char *p, void *u)
-{
-    (void)u;
-    wgr_logger_error("font load failed: %s", p);
+    return wgr_resource_get_status(font) == WGR_RESOURCE_READY;
 }
 
 static void on_init(void *user_data)
@@ -41,8 +32,8 @@ static void on_init(void *user_data)
     wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
     (void)user_data;
     g_bg = wgr_color_rgba(248, 248, 250, 255);
-    wgr_asset_add_task(wgr_asset_ensure_async(JETBRAINS_PATH, NULL, 0), on_mono_loaded, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(KOMIKA_PATH, NULL, 0), on_komika_loaded, on_failed, NULL);
+    g_mono = wgr_font_create(JETBRAINS_PATH);
+    g_komika = wgr_font_create(KOMIKA_PATH);
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)
@@ -55,14 +46,14 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
     /* centered title (Komika), measured */
     const char *title = "libwgrender + fontstash";
-    if (g_komika != 0) {
+    if (is_ready(g_komika)) {
         vec2_t sz = wgr_text_measure_ex(g_komika, title, 56.0f);
         wgr_text_draw_ex(g_komika, title, (screen.x - sz.x) * 0.5f, 90.0f, 56.0f,
                         WGR_COLOR_DARKBLUE);
     }
 
     /* a few sizes of mono text */
-    if (g_mono != 0) {
+    if (is_ready(g_mono)) {
         wgr_text_draw_ex(g_mono, "The quick brown fox jumps over the lazy dog.",
                         40.0f, 200.0f, 28.0f, WGR_COLOR_BLACK);
         wgr_text_draw_ex(g_mono, "scalable, anti-aliased TrueType glyphs",
@@ -75,7 +66,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
 
     /* the default font: built in (JetBrains Mono), or Komika after D */
     wgr_keyboard_state_t keys = wgr_input_get_keyboard_state();
-    if (keys.keys[WGR_KEY_D] == WGR_BUTTON_PRESSED && g_komika != 0) {
+    if (keys.keys[WGR_KEY_D] == WGR_BUTTON_PRESSED) {
         wgr_text_set_default_font(wgr_text_get_default_font() == 0 ? g_komika : 0);
     }
     wgr_text_draw(wgr_text_get_default_font() == 0 ? "[D] default font: built in   {a|b} ~ \\ ^_`"

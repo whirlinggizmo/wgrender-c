@@ -2,8 +2,12 @@ package wgr;
 
 // wgr_font.h — the typeface resource
 
-/** A loaded typeface. Fonts are sized per draw call, so one handle serves any size. **/
-@:using(wgr.Font)
+/**
+	A typeface, loaded on create and released like any resource (`Resource`):
+	`font.getStatus()`, `font.release()`. Fonts are sized per draw call, so one handle
+	serves any size.
+**/
+@:using(wgr.Font, wgr.Resource)
 abstract Font(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -16,6 +20,13 @@ abstract Font(Handle) from Handle to Handle {
 	public inline function new(path:String)
 		this = create(path);
 
+	/**
+		The font at an asset path, loading on create: `Pending` at once, then `Ready`, or
+		`Failed` in a later frame for a file that is missing, fails to download or isn't
+		a font; `Failed` at once for a path outside the asset root or before the asset
+		layer runs. `Handle.NONE` only when there's no room for another. Text in it is
+		drawn in the built-in font until it's `Ready`, and stays so if it `Failed`.
+	**/
 	public static inline function create(path:String):Font
 		return (Raw.wgr_font_create(path) : Handle);
 
@@ -32,8 +43,4 @@ abstract Font(Handle) from Handle to Handle {
 	/** Once at a 3D point, facing the camera; `size` is line height in world units. **/
 	public static inline function draw3D(font:Font, text:String, position:Vec3, size:Float, color:Color):Void
 		Raw.wgr_text_draw_3d(font, text, position.x, position.y, position.z, size, color);
-
-	/** Drop this reference; the font goes when the last one does. **/
-	public static inline function release(font:Font):Void
-		Raw.wgr_font_release(font);
 }

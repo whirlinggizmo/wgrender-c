@@ -30,25 +30,10 @@ static struct {
     float time;
 } g;
 
-static void on_font_loaded(const char *path, void *user)
-{
-    (void)user;
-    g.font = wgr_font_create(path);
-    for (int i = 0; i < LABEL_COUNT; i++) {
-        wgr_text3d_set_font(g.labels[i], g.font);
-    }
-    wgr_text3d_set_font(g.sign, g.font);
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("load failed: %s", path);
-}
 
 static wgr_handle_t add_label(const char *text, float x, float y, float z)
 {
-    wgr_handle_t label = wgr_text3d_create(0); /* font attached when it loads */
+    wgr_handle_t label = wgr_text3d_create(0); /* its font is set in init */
     wgr_text3d_set_text(label, text);
     wgr_text3d_set_font_size(label, 0.35f);
     wgr_text3d_set_transform(label, x, y, z, 0, 0, 0);
@@ -120,7 +105,11 @@ static void init(void *user_data)
     wgr_text3d_set_color(g.sign, g.gold);
     wgr_scene_add(g.scene, g.sign, 0);
 
-    wgr_asset_add_task(wgr_asset_ensure_async(FONT_PATH, NULL, WGR_ASSET_NONE), on_font_loaded, on_failed, NULL);
+    g.font = wgr_font_create(FONT_PATH); /* the built-in font until it has loaded */
+    for (int i = 0; i < LABEL_COUNT; i++) {
+        wgr_text3d_set_font(g.labels[i], g.font);
+    }
+    wgr_text3d_set_font(g.sign, g.font);
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)

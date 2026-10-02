@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "internal/wgr_resource_internal.h"
 #include "internal/exports_internal.h"
 #include "internal/wgr_color_internal.h"
 #include "wgr_color.h"
@@ -324,7 +325,7 @@ wgr_handle_t wgr_text3d_create(wgr_handle_t font)
         return 0;
     }
     wgri_handle_pool_resolve(&wgr_text3d_pool, handle, &index);
-    wgri_font_retain(font); /* no-op for 0 */
+    wgri_resource_retain(font); /* no-op for 0 */
     wgr_text3ds[index] = (wgr_text3d_t){
         .font = font,
         .size = 1.0f,
@@ -346,7 +347,7 @@ void wgr_text3d_destroy(wgr_handle_t handle)
     if (text_ptr == NULL) return;
     wgri_scene_forget(handle);
     free(text_ptr->text);
-    wgr_font_release(text_ptr->font);
+    wgr_resource_release(text_ptr->font);
     memset(text_ptr, 0, sizeof(*text_ptr));
     wgri_handle_pool_free(&wgr_text3d_pool, handle);
 }
@@ -356,8 +357,8 @@ bool wgr_text3d_set_font(wgr_handle_t handle, wgr_handle_t font)
 {
     wgr_text3d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL) return false;
-    wgri_font_retain(font); /* before releasing, in case they're the same font */
-    wgr_font_release(text_ptr->font);
+    wgri_resource_retain(font); /* before releasing, in case they're the same font */
+    wgr_resource_release(text_ptr->font);
     text_ptr->font = font;
     return true;
 }
@@ -577,7 +578,7 @@ void wgri_text3d_init(void)
 void wgri_text3d_deinit(void)
 {
     for (int i = 0; i < wgr_text3d_pool.capacity; i++) {
-        if (wgr_text3d_pool.occupied[i]) wgr_font_release(wgr_text3ds[i].font);
+        if (wgr_text3d_pool.occupied[i]) wgr_resource_release(wgr_text3ds[i].font);
         free(wgr_text3ds[i].text);
     }
     if (wgr_text3d_pipeline.id != SG_INVALID_ID) {

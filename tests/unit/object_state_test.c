@@ -24,6 +24,7 @@
 #include "wgr_sprite3d.h"
 #include "wgr_text3d.h"
 #include "test.h"
+#include "test_assets.h"
 #include "tests.h"
 
 #include "sokol_gfx.h"
@@ -44,12 +45,14 @@ static void setup(void)
     wgri_model_init();
     wgri_font_init();
     wgri_text3d_init();
+    test_assets_start(0, "."); /* resources load on create, from the repository's root */
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL);
 }
 
 static void teardown(void)
 {
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
+    test_assets_stop();
     wgri_text3d_deinit();
     wgri_font_deinit();
     wgri_model_deinit();
@@ -70,7 +73,7 @@ void test_text3d_state(void)
     wgr_handle_t camera = wgr_camera3d_create(WGR_CAMERA3D_PERSPECTIVE);
     wgr_camera3d_set_view(camera, 0, 0, 10, 0, 0, 0, 0, 1, 0);
     wgr_handle_t font = wgr_font_create("examples/assets/fonts/JetBrainsMono/JetBrainsMono-Regular.ttf");
-    CHECK(font != 0);
+    CHECK(font != 0 && test_assets_run() > 0);
 
     wgr_handle_t text = wgr_text3d_create(0);
     CHECK(wgr_text3d_set_text(text, "Hello"));
@@ -190,7 +193,9 @@ void test_sound_pan(void)
 
     wgri_audio_init();
     wgri_sound_init();
+    test_assets_start(0, ".");
     wgr_handle_t audio = wgr_audio_create("examples/assets/sounds/click_004.ogg");
+    CHECK(test_assets_run() > 0 && wgr_resource_get_status(audio) == WGR_RESOURCE_READY); /* not a silent pass */
     wgr_handle_t sound = wgr_sound_create(audio);
     wgr_resource_release(audio);
     wgr_sound_set_loop(sound, true);
@@ -219,6 +224,7 @@ void test_sound_pan(void)
     CHECK_NEAR(buffer[frame * 2 + 1], 0.0f, 1e-6f);
 
     wgr_sound_destroy(sound);
+    test_assets_stop();
     wgri_sound_deinit();
     wgri_audio_deinit();
 }

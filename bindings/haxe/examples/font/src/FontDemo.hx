@@ -10,8 +10,9 @@
 // `Text` and `Font` split wgrender's two families of text calls: the `wgr_text_draw`
 // group, which uses whatever the default font is, and the `wgr_text_draw_ex` group,
 // which takes a handle. So `Text.draw` is the first and `font.draw` is the second,
-// and `Text.getDefaultFont()` is the setting that connects them. `Font.isNone` is the
-// check for "not loaded yet", because a handle is 0 rather than null.
+// and `Text.getDefaultFont()` is the setting that connects them. A font loads on
+// create; until it's `Ready` text in it would be in the built-in font, so this example
+// shows each line only once its own font has loaded (`font.getStatus()`).
 //
 // The class is `FontDemo` rather than `Font` because a module named `Font` would
 // shadow `wgr.Font` inside itself.
@@ -23,9 +24,6 @@ class FontDemo {
 	static inline final SCREEN_HEIGHT = 500;
 	static inline final MONO_PATH = "fonts/JetBrainsMono/JetBrainsMono-Regular.ttf";
 	static inline final KOMIKA_PATH = "fonts/Komika/KOMIKAH_.ttf";
-
-	static inline final ASSET_MONO = 1;
-	static inline final ASSET_KOMIKA = 2;
 
 	static inline final TITLE = "wgrender + fontstash";
 	static inline final TITLE_SIZE = 56.0;
@@ -40,7 +38,7 @@ class FontDemo {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "font (wgrender host, Haxe guest)", Msaa4x | Resizable);
 	}
 
@@ -48,28 +46,12 @@ class FontDemo {
 		Asset.setHost(Assets.defaultBase());
 		Asset.setManifest(Assets.MANIFEST);
 		background = Color.rgba(248, 248, 250, 255);
-		load(MONO_PATH, ASSET_MONO);
-		load(KOMIKA_PATH, ASSET_KOMIKA);
-	}
-
-	static function load(path:String, id:Int):Void {
-		if (!GuestAbi.loadAsset(path, id))
-			Log.error('failed to queue asset: $path');
-	}
-
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('font load failed: $path');
-			return;
-		}
-		switch id {
-			case ASSET_MONO: mono = new Font(path);
-			case ASSET_KOMIKA: komika = new Font(path);
-		}
+		mono = new Font(MONO_PATH);
+		komika = new Font(KOMIKA_PATH);
 	}
 
 	static function drawTitle():Void {
-		if (komika.isNone())
+		if (komika.getStatus() != Ready)
 			return;
 		final screen = Window.getScreenSize();
 		final size = komika.measure(TITLE, TITLE_SIZE);
@@ -77,7 +59,7 @@ class FontDemo {
 	}
 
 	static function drawSamples():Void {
-		if (mono.isNone()) {
+		if (mono.getStatus() != Ready) {
 			Text.draw("loading fonts...", 40, 200, 20, Color.GRAY);
 			return;
 		}
@@ -88,7 +70,7 @@ class FontDemo {
 
 	static function onFrame(dt:Float):Void {
 		final keys = Input.getKeyboardState();
-		if (keys.isPressed(D) && !komika.isNone())
+		if (keys.isPressed(D))
 			Text.setDefaultFont(Text.getDefaultFont().isNone() ? komika : Handle.NONE);
 
 		Render.beginFrame();

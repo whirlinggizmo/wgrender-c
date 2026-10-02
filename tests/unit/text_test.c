@@ -16,6 +16,7 @@
 #include "wgr_render.h"
 #include "wgr_texture.h"
 #include "test.h"
+#include "test_assets.h"
 #include "tests.h"
 
 #include "fontstash.h"
@@ -31,6 +32,7 @@ void test_text_default_font(void)
     wgri_font_init();
     wgri_text_init();
     wgri_text3d_init();
+    test_assets_start(0, ".");
 
     /* built in: JetBrains Mono, used for 0 everywhere */
     CHECK(wgr_text_get_default_font() == 0);
@@ -48,8 +50,10 @@ void test_text_default_font(void)
     /* a font of our own as the default */
     wgr_handle_t font = wgr_font_create(FONT);
     CHECK(font != 0);
-    CHECK(wgr_text_set_default_font(font));
+    CHECK(wgr_text_set_default_font(font)); /* a font still loading is fine */
     CHECK(wgr_text_get_default_font() == font);
+    CHECK(wgr_text_measure_ex(0, "[ab]", 16.0f).x == builtin.x); /* the built-in font until it's loaded */
+    CHECK(test_assets_run() > 0);
     const vec2_t comic = wgr_text_measure_ex(font, "[ab]", 16.0f);
     CHECK(comic.x != builtin.x);
     CHECK(wgr_text_measure_ex(0, "[ab]", 16.0f).x == comic.x);
@@ -62,7 +66,7 @@ void test_text_default_font(void)
     CHECK(wgr_text_get_default_font() == font);
 
     /* the default font holds a reference: destroying ours keeps it loaded */
-    wgr_font_release(font);
+    wgr_resource_release(font);
     CHECK(wgr_text_measure_ex(0, "[ab]", 16.0f).x == comic.x);
     CHECK(wgr_text_set_default_font(0)); /* its reference goes: the font is freed */
     CHECK(wgri_font_fons_id(font) == FONS_INVALID);
@@ -71,6 +75,7 @@ void test_text_default_font(void)
     CHECK(wgr_text3d_measure(label).x == label_width);
 
     wgr_text3d_destroy(label);
+    test_assets_stop();
     wgri_text3d_deinit();
     wgri_text_deinit();
     wgri_font_deinit();
@@ -88,16 +93,19 @@ void test_text_font_refcount(void)
     wgri_scene_init();
     wgri_font_init();
     wgri_text3d_init();
+    test_assets_start(0, ".");
 
     const wgr_handle_t font = wgr_font_create(FONT);
+    CHECK(wgri_font_fons_id(font) == FONS_INVALID); /* loading */
+    CHECK(test_assets_run() > 0);
     const int fons_id = wgri_font_fons_id(font);
     CHECK(font != 0 && fons_id != FONS_INVALID);
     CHECK(wgr_font_create(FONT) == font); /* deduped: a second reference */
-    wgr_font_release(font);
+    wgr_resource_release(font);
     CHECK(wgri_font_fons_id(font) == fons_id); /* one reference left */
 
     wgr_handle_t label = wgr_text3d_create(font); /* the text's reference */
-    wgr_font_release(font);                      /* the last of ours */
+    wgr_resource_release(font);                      /* the last of ours */
     CHECK(wgri_font_fons_id(font) == fons_id);   /* the text keeps it */
     wgr_text3d_set_text(label, "x");
     CHECK(wgr_text3d_measure(label).x > 0.0f);
@@ -106,9 +114,10 @@ void test_text_font_refcount(void)
     CHECK(wgri_font_fons_id(font) == FONS_INVALID);
 
     const wgr_handle_t again = wgr_font_create(FONT); /* reuses the parked fontstash font */
-    CHECK(again != 0 && wgri_font_fons_id(again) == fons_id);
-    wgr_font_release(again);
+    CHECK(again != 0 && test_assets_run() > 0 && wgri_font_fons_id(again) == fons_id);
+    wgr_resource_release(again);
 
+    test_assets_stop();
     wgri_text3d_deinit();
     wgri_font_deinit();
     wgri_scene_deinit();

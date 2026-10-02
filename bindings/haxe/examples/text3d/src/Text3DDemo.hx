@@ -20,7 +20,6 @@ class Text3DDemo {
 	static inline final SCREEN_WIDTH = 1000;
 	static inline final SCREEN_HEIGHT = 640;
 	static inline final FONT_PATH = "fonts/JetBrainsMono/JetBrainsMono-Regular.ttf";
-	static inline final ASSET_FONT = 1;
 	static inline final SPIRAL_POINTS = 160;
 
 	static var background:Color;
@@ -46,7 +45,7 @@ class Text3DDemo {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "text3d (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -90,15 +89,17 @@ class Text3DDemo {
 
 		// Free facing: oriented by its own rotation, like a sign, rather than turned
 		// to the camera the way the labels are.
-		sign = new Text3D(Handle.NONE); // the font is attached when it loads
+		sign = new Text3D(Handle.NONE); // its font is set at the end of init
 		sign.setText("wgrender text3d");
 		sign.setFontSize(0.6);
 		sign.setFacing(Free);
 		sign.setColor(gold);
 		scene.add(sign);
 
-		if (!GuestAbi.loadAsset(FONT_PATH, ASSET_FONT))
-			Log.error('failed to queue asset: $FONT_PATH');
+		font = new Font(FONT_PATH); // the built-in font until it has loaded
+		for (label in labels)
+			label.setFont(font);
+		sign.setFont(font);
 	}
 
 	/** Rings lying on the ground under each object, and not pickable. **/
@@ -127,26 +128,13 @@ class Text3DDemo {
 	}
 
 	static function addLabel(text:String, position:Vec3):Text3D {
-		final label = new Text3D(Handle.NONE); // the font is attached when it loads
+		final label = new Text3D(Handle.NONE); // its font is set at the end of init
 		label.setText(text);
 		label.setFontSize(0.35);
 		label.setPosition(position);
 		label.setColor(Color.RAYWHITE);
 		scene.add(label);
 		return label;
-	}
-
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('load failed: $path');
-			return;
-		}
-		if (id != ASSET_FONT)
-			return;
-		font = new Font(path);
-		for (label in labels)
-			label.setFont(font);
-		sign.setFont(font);
 	}
 
 	static function nameOf(handle:Handle):String {

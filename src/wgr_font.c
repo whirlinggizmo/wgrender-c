@@ -1,4 +1,3 @@
-#include "wgr_asset.h"
 #include "wgr_font.h"
 
 #include <stdio.h>
@@ -8,6 +7,8 @@
 #include "internal/exports_internal.h"
 #include "internal/wgr_font_internal.h"
 #include "internal/wgr_handle_pool_internal.h"
+#include "internal/wgr_loader_internal.h"
+#include "internal/wgr_resource_internal.h"
 #include "wgr_logger.h"
 
 #include "fonts/wgr_default_font.h"
@@ -26,9 +27,8 @@
  * path and reused if that path is created again: memory is bounded by the distinct
  * font files, not by how often fonts are created. */
 typedef struct {
-    int fons_id;
-    int ref_count;
-    char path[256];
+    wgri_resource_t resource; /* first: the resource core's part (internal/wgr_resource_internal.h) */
+    int fons_id;              /* FONS_INVALID until it's READY */
 } wgr_font_t;
 
 typedef struct {
@@ -72,16 +72,6 @@ static unsigned char *read_file(const char *path, int *out_size)
     return bytes;
 }
 
-static wgr_handle_t find_by_path(const char *path)
-{
-    for (uint16_t i = 1; i < wgr_font_pool.capacity; i++) {
-        if (wgr_font_pool.occupied[i] && strcmp(wgr_fonts[i].path, path) == 0) {
-            return wgri_handle_pool_handle_from_index(&wgr_font_pool, i);
-        }
-    }
-    return 0;
-}
-
 /* Keep a fontstash font for a later create of `path`. When the list is full (more
  * than MAX_PARKED distinct files released) it isn't reused: a later create loads the
  * file again. */
@@ -106,87 +96,115 @@ static int take_parked(const char *path)
     return FONS_INVALID;
 }
 
-/* Load `path` into fontstash, or FONS_INVALID. */
-static int add_font(const char *path)
+/* A font file's bytes, read on a worker; fontstash takes them in fill. */
+typedef struct {
+    unsigned char *bytes;
+    int size;
+} wgr_font_prepared_t;
+
+static void *prepare_font(const char *path)
 {
-    int size = 0;
+    wgr_font_prepared_t *prepared = calloc(1, sizeof(*prepared));
+    if (prepared == NULL) {
+        return NULL;
+    }
+    prepared->bytes = read_file(path, &prepared->size);
+    if (prepared->bytes == NULL) {
+        wgr_logger_error("Failed to read font: %s", path);
+        free(prepared);
+        return NULL;
+    }
+    return prepared;
+}
+
+static void discard_font(void *data)
+{
+    wgr_font_prepared_t *prepared = (wgr_font_prepared_t *)data;
+    if (prepared == NULL) return;
+    free(prepared->bytes); /* NULL once fontstash took them */
+    free(prepared);
+}
+
+/* Add the file to fontstash for the PENDING `font`, or take the one parked for its
+ * path. A file fontstash won't take fails the load, so on the web the asset layer
+ * fetches it once more (a bad cached copy, not a bad font). */
+static wgri_loader_step_t fill(void *data, const char *path, wgr_handle_t font)
+{
+    wgr_font_prepared_t *prepared = (wgr_font_prepared_t *)data;
+    wgr_font_t *font_ptr = resolve(font);
     char name[32];
-    /* fontstash keeps the TTF bytes: freeData = 1 hands it the buffer to free on
-     * context destroy */
-    unsigned char *bytes = read_file(path, &size);
     int fid;
 
-    if (bytes == NULL) {
-        wgr_logger_error("Failed to read font: %s", path);
-        return FONS_INVALID;
+    if (font_ptr == NULL || wgr_fons == NULL) {
+        return WGRI_LOADER_FAILED;
     }
-    snprintf(name, sizeof(name), "font%d", wgr_font_added++);
-    fid = fonsAddFontMem(wgr_fons, name, bytes, size, 1);
+    fid = take_parked(font_ptr->resource.path);
     if (fid == FONS_INVALID) {
-        wgr_logger_error("fontstash failed to add font: %s", path);
+        snprintf(name, sizeof(name), "font%d", wgr_font_added++);
+        /* fontstash keeps the bytes: freeData = 1 frees them with the context */
+        fid = fonsAddFontMem(wgr_fons, name, prepared->bytes, prepared->size, 1);
+        if (fid == FONS_INVALID) {
+            wgr_logger_error("fontstash failed to add font: %s", path);
+            return WGRI_LOADER_FAILED;
+        }
+        prepared->bytes = NULL;
     }
-    return fid;
+    font_ptr->fons_id = fid;
+    return WGRI_LOADER_DONE;
 }
+
+static const wgri_loader_t wgr_font_loader = {
+    .name = "font",
+    .prepare = prepare_font,
+    .discard = discard_font,
+    .fill = fill,
+};
+
+static void init_record(void *record)
+{
+    ((wgr_font_t *)record)->fons_id = FONS_INVALID;
+}
+
+/* fontstash can't remove a font: park it for a later create of the same path. */
+static void free_record(void *record)
+{
+    const wgr_font_t *font_ptr = (const wgr_font_t *)record;
+    if (font_ptr->fons_id != FONS_INVALID) {
+        park(font_ptr->fons_id, font_ptr->resource.path);
+    }
+}
+
+static const wgri_resource_kind_t wgr_font_kind = {
+    .create = "wgr_font_create",
+    .loader = &wgr_font_loader,
+    .init = init_record,
+    .free = free_record,
+};
 
 WGRI_KEEP
 wgr_handle_t wgr_font_create(const char *path)
 {
-    wgr_handle_t handle;
-    uint16_t index = 0;
-    int fid;
-
-    if (wgr_fons == NULL || path == NULL) {
-        return 0;
-    }
-    handle = find_by_path(path);
-    if (handle != 0) {
-        wgri_font_retain(handle);
-        return handle;
-    }
-    if (strlen(path) >= sizeof(wgr_fonts[0].path)) {
-        wgr_logger_error("Font path too long: %s", path);
-        return 0;
-    }
-    fid = take_parked(path);
-    if (fid == FONS_INVALID) {
-        fid = add_font(path);
-        if (fid == FONS_INVALID) {
-            /* The file may be a bad cached copy rather than a bad font -- a host that
-               compresses once served gzip bytes under a .ttf's name. Forget it, so the
-               next attempt fetches it again. A .ttf has no registered loader, so the
-               asset layer's own retry (refetch_once) never sees this. */
-            wgr_asset_evict(path);
-            return 0;
-        }
-    }
-    handle = wgri_handle_pool_alloc(&wgr_font_pool);
-    if (handle == 0) {
-        wgr_logger_error("font: pool full (%u)", (unsigned)wgr_font_pool.max - 1u);
-        park(fid, path); /* keep it for later */
-        return 0;
-    }
-    wgri_handle_pool_resolve(&wgr_font_pool, handle, &index);
-    wgr_fonts[index].fons_id = fid;
-    wgr_fonts[index].ref_count = 1;
-    snprintf(wgr_fonts[index].path, sizeof(wgr_fonts[index].path), "%s", path);
-    return handle;
+    return wgri_resource_create(WGR_HANDLE_KIND_FONT, path);
 }
 
-/* The embedded default font, deduped under a path no file can have. */
+/* The embedded default font, deduped under a path no asset path can be (an asset path
+ * never has a ':'). */
 wgr_handle_t wgri_font_create_builtin(void)
 {
-    static const char *const path = "<built-in>";
+    static const char *const path = ":built-in";
     wgr_handle_t handle;
-    uint16_t index = 0;
+    wgr_font_t *font_ptr;
     int fid;
 
     if (wgr_fons == NULL) {
         return 0;
     }
-    handle = find_by_path(path);
-    if (handle != 0) {
-        wgri_font_retain(handle);
-        return handle;
+    for (uint16_t i = 1; i < wgr_font_pool.capacity; i++) {
+        if (wgr_font_pool.occupied[i] && strcmp(wgr_fonts[i].resource.path, path) == 0) {
+            handle = wgri_handle_pool_handle_from_index(&wgr_font_pool, i);
+            wgri_resource_retain(handle);
+            return handle;
+        }
     }
     fid = take_parked(path);
     if (fid == FONS_INVALID) {
@@ -197,36 +215,15 @@ wgr_handle_t wgri_font_create_builtin(void)
             return 0;
         }
     }
-    handle = wgri_handle_pool_alloc(&wgr_font_pool);
-    if (handle == 0) {
+    handle = wgri_resource_add(WGR_HANDLE_KIND_FONT);
+    font_ptr = resolve(handle);
+    if (font_ptr == NULL) {
         park(fid, path);
         return 0;
     }
-    wgri_handle_pool_resolve(&wgr_font_pool, handle, &index);
-    wgr_fonts[index].fons_id = fid;
-    wgr_fonts[index].ref_count = 1;
-    snprintf(wgr_fonts[index].path, sizeof(wgr_fonts[index].path), "%s", path);
+    font_ptr->fons_id = fid;
+    snprintf(font_ptr->resource.path, sizeof(font_ptr->resource.path), "%s", path);
     return handle;
-}
-
-void wgri_font_retain(wgr_handle_t handle)
-{
-    wgr_font_t *font_ptr = resolve(handle);
-    if (font_ptr != NULL) {
-        font_ptr->ref_count++;
-    }
-}
-
-WGRI_KEEP
-void wgr_font_release(wgr_handle_t handle)
-{
-    wgr_font_t *font_ptr = resolve(handle);
-    if (font_ptr == NULL || --font_ptr->ref_count > 0) {
-        return;
-    }
-    park(font_ptr->fons_id, font_ptr->path);
-    memset(font_ptr, 0, sizeof(*font_ptr));
-    wgri_handle_pool_free(&wgr_font_pool, handle);
 }
 
 /* Drops the caller's reference; the font stays while text objects (or the default
@@ -302,6 +299,7 @@ void wgri_font_init(void)
         wgr_logger_error("font: out of memory");
     }
 
+    wgri_resource_register(&wgr_font_pool, &wgr_font_kind);
     wgr_fons = sfons_create(&(sfons_desc_t){
         .width = WGR_FONT_ATLAS_DIM,
         .height = WGR_FONT_ATLAS_DIM,
@@ -315,6 +313,7 @@ void wgri_font_init(void)
 
 void wgri_font_deinit(void)
 {
+    wgri_resource_register(&wgr_font_pool, NULL);
     if (wgr_fons != NULL) {
         sfons_destroy(wgr_fons);
         wgr_fons = NULL;

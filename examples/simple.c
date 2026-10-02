@@ -84,19 +84,6 @@ static void make_sprite(void)
     wgr_scene_add(g.scene, g.sprite, 0);
 }
 
-/* Fonts are sized per draw call in libwgrender, so one font handle serves any size. */
-static void on_debug_font_ready(const char *path, void *user)
-{
-    (void)user;
-    g.debug_font = wgr_font_create(path);
-}
-
-static void on_komika_font_ready(const char *path, void *user)
-{
-    (void)user;
-    g.komika_font = wgr_font_create(path);
-}
-
 static void on_failed(const char *path, void *user)
 {
     (void)user;
@@ -142,8 +129,10 @@ static void on_init(void *user_data)
     make_bgm();
     load(CHARACTER_PATH, on_model_ready);
     make_sprite();
-    load(DEBUG_FONT_PATH, on_debug_font_ready);
-    load(KOMIKA_FONT_PATH, on_komika_font_ready);
+    /* fonts are sized per draw call, so one font handle serves any size; text is in
+       the built-in font until they've loaded */
+    g.debug_font = wgr_font_create(DEBUG_FONT_PATH);
+    g.komika_font = wgr_font_create(KOMIKA_FONT_PATH);
 }
 
 static void update(float dt)

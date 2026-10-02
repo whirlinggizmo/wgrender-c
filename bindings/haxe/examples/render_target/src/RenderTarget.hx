@@ -25,7 +25,6 @@ class RenderTarget {
 
 	static inline final ASSET_CHARACTER = 1;
 	static inline final ASSET_SPHERE = 2;
-	static inline final ASSET_FONT = 3;
 
 	static inline final PIXEL_W = 160;
 	static inline final PIXEL_H = 100;
@@ -93,7 +92,7 @@ class RenderTarget {
 		addModels();
 		load(CHARACTER_PATH, ASSET_CHARACTER);
 		load(SPHERE_PATH, ASSET_SPHERE);
-		load(FONT_PATH, ASSET_FONT);
+		font = new Font(FONT_PATH); // the built-in font until it has loaded
 	}
 
 	static function load(path:String, id:Int):Void {
@@ -147,8 +146,6 @@ class RenderTarget {
 				ground.setMesh(mesh);
 				mesh.release();
 
-			case ASSET_FONT:
-				font = new Font(path);
 		}
 	}
 
