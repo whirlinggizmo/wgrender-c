@@ -151,7 +151,8 @@ make and no shell script: everything below works the same on Windows, Linux and 
   `examples/shaders/*.glsl` into the committed `examples/assets/shaders/`; run it after
   changing one of them or `shaders/wgr.glsl`. `tools/gen_shaders.py` (`gen-shaders`)
   regenerates `src/shaders/*.glsl.h`. Both fetch the pinned sokol-shdc into
-  the per-user cache (`tools/hostcache.py`) the first time.
+  the per-user cache (`tools/hostcache.py`) the first time, checked against its SHA-256
+  (`tools/shdc.py`; a new pin in `deps/sokol/VERSION` needs its hashes there too).
 - `gen-brdf-lut` (a target of a Linux, macOS or Windows preset) — regenerate the baked BRDF table
   (`src/data/wgr_brdf_lut.h`) after changing `wgri_environment_brdf_lut` or its size (a
   unit test fails until you do).
