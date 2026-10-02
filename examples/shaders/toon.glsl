@@ -11,7 +11,7 @@ layout(binding=0) uniform texture2D base_tex;
 layout(binding=0) uniform sampler base_smp;
 
 void main() {
-    vec4 albedo = texture(sampler2D(base_tex, base_smp), wgr_uv0);
+    vec4 albedo = texture(sampler2D(base_tex, base_smp), wgr_texture_uv(0, wgr_uv0));
     albedo.rgb = wgri_srgb_to_linear(albedo.rgb);
     albedo *= color * wgr_color;
     vec3 n = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : -1.0);

@@ -85,6 +85,12 @@ bool wgri_material_is_surface(wgr_handle_t material);
  * Same as glTF KHR_texture_transform: translation * rotation * scale. Pure. */
 void wgri_material_uv_matrix(const wgri_material_texture_t *texture, float m[6]);
 
+/* For a custom shader's wgr_texture_uv (shaders/wgr.glsl): 1 in flips[binding / 4]
+ * [binding % 4] where the material's texture at that binding (0-7) is stored bottom-up
+ * (a render target on GL), 0 elsewhere. `view_slot` is the shader program's, per
+ * texture; `count` how many textures the shader has. */
+void wgri_material_texture_flips(const wgri_material_t *material, const int *view_slot, int count, float flips[2][4]);
+
 /* Whether texture `name` uses its mipmaps (glTF samplers can turn them off). */
 bool wgri_material_set_texture_mipmaps(wgr_handle_t material, const char *name, bool mipmaps);
 

@@ -86,7 +86,7 @@ static void draw_effect(wgr_handle_t material, wgr_handle_t source)
     const wgri_shader_program_t *program = effect_program(material, &shader);
     sg_bindings bind = {0};
     sg_view view = {0};
-    float info[4];
+    wgri_shader_screen_frame_t frame;
 
     if (program == NULL || material_ptr == NULL) {
         return; /* not in this frame's chain (effects_begin): can't happen */
@@ -102,12 +102,13 @@ static void draw_effect(wgr_handle_t material, wgr_handle_t source)
     }
     sg_apply_pipeline(shader->screen_pipeline);
 
-    info[0] = (float)wgr_fx.width;
-    info[1] = (float)wgr_fx.height;
-    info[2] = (float)wgr_get_time();
-    info[3] = wgri_texture_is_flipped(source) ? 1.0f : 0.0f;
+    frame.info[0] = (float)wgr_fx.width;
+    frame.info[1] = (float)wgr_fx.height;
+    frame.info[2] = (float)wgr_get_time();
+    frame.info[3] = wgri_texture_is_flipped(source) ? 1.0f : 0.0f;
+    wgri_material_texture_flips(material_ptr, program->view_slot, shader->texture_count, frame.texture_flip);
     if (program->has_block[WGRI_SHADER_BLOCK_FRAME]) {
-        sg_apply_uniforms(WGRI_SHADER_BLOCK_FRAME, &SG_RANGE(info));
+        sg_apply_uniforms(WGRI_SHADER_BLOCK_FRAME, &SG_RANGE(frame));
     }
     if (program->has_block[WGRI_SHADER_BLOCK_FS_PARAMS]) {
         sg_apply_uniforms(WGRI_SHADER_BLOCK_FS_PARAMS,

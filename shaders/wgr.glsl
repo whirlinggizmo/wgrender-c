@@ -17,7 +17,7 @@
  *     layout(binding=0) uniform texture2D noise_tex;                  your textures
  *     layout(binding=0) uniform sampler noise_smp;
  *     void main() {
- *         vec4 n = texture(sampler2D(noise_tex, noise_smp), wgr_uv0);
+ *         vec4 n = texture(sampler2D(noise_tex, noise_smp), wgr_texture_uv(0, wgr_uv0));
  *         wgr_output(tint.rgb * n.r, 1.0);
  *     }
  *     @end
@@ -32,7 +32,11 @@
  * are converted to linear, like built-in materials. Textures: each texture2D (up to
  * 8, fragment shader, bindings 0-7) is set by its name with wgr_material_set_texture,
  * and sampled with the sampler it's paired with in texture(sampler2D(...)), set up
- * by wgr_material_set_texture_sampling. A texture that isn't set is white.
+ * by wgr_material_set_texture_sampling. A texture that isn't set is white. Sample at
+ * wgr_texture_uv(binding, uv) rather than uv: a render target is stored bottom-up on
+ * GL (WebGL2 too), and it turns the coordinate over there, so the texture reads the
+ * same way up on every backend. Without it a render target given to your shader is
+ * upside down on GL; any other texture is unaffected.
  *
  * Fragment inputs (wgr_surface), world space (a 2D sprite's: screen pixels):
  *   wgr_world_pos   vec3   the surface point
@@ -48,6 +52,8 @@
  *                         models that differ only by tint still share one draw
  * and functions:
  *   wgr_time()             seconds since the program started
+ *   wgr_texture_uv(binding, uv)   the coordinate to sample your texture at `binding`
+ *                         (0-7) with: see Textures above
  *   wgr_camera_position()  world space
  *   wgr_ambient()          the scene's ambient light, linear rgb (0 outside a scene)
  *   wgr_light_count()      lights reaching this model (0..8)
@@ -101,6 +107,7 @@
  *   wgr_screen_color()       the frame here, linear rgba
  *   wgr_screen_color_at(uv)  the frame elsewhere (a blur, chromatic aberration)
  *   wgr_screen_size()  vec2  the frame in pixels, and wgr_screen_texel() = 1 / that
+ *   wgr_texture_uv(binding, uv)  your texture's coordinate, as above
  *   wgr_time(), wgri_srgb_to_linear(c), wgri_linear_to_srgb(c)
  *   wgr_output(color, alpha)  write the pixel (linear rgb, encoded to sRGB). No tint,
  *                         alpha mode or tone mapping: an effect draws over the screen. */
@@ -354,6 +361,8 @@ void main() {
 @include_block wgr_color
 layout(binding=1) uniform wgr_screen_frame {
     vec4 wgr_screen_info; /* xy size in pixels, z seconds, w 1 when the frame is stored bottom-up */
+    vec4 wgr_texture_flip_lo; /* 1 where your texture at binding 0-3 is stored bottom-up */
+    vec4 wgr_texture_flip_hi; /* ... and at bindings 4-7 (wgr_texture_uv) */
 };
 layout(binding=8) uniform texture2D wgr_screen_tex;
 layout(binding=8) uniform sampler wgr_screen_smp;
@@ -361,6 +370,16 @@ layout(location=0) in vec2 wgr_screen_uv;
 out vec4 wgr_frag_color;
 
 float wgr_time() { return wgr_screen_info.z; }
+
+/* `uv` to sample your texture at `binding` (0-7) with: turned over when that texture
+   is stored bottom-up (a render target, on GL), so every texture reads top-down on
+   every backend. The two flags are read and selected arithmetically: a flattened
+   uniform array indexed by a divided binding fails to link on Adreno (AGENTS.md). */
+vec2 wgr_texture_uv(int binding, vec2 uv) {
+    vec4 flips = mix(wgr_texture_flip_lo, wgr_texture_flip_hi, step(3.5, float(binding)));
+    return vec2(uv.x, mix(uv.y, 1.0 - uv.y, flips[binding % 4]));
+}
+
 vec2 wgr_screen_size() { return wgr_screen_info.xy; }
 vec2 wgr_screen_texel() { return 1.0 / max(wgr_screen_info.xy, vec2(1.0)); }
 
@@ -397,6 +416,8 @@ layout(binding=1) uniform wgr_frame {
     vec4 wgr_shadow_tint[4];      /* rgb what a shadow keeps (linear), w bias texels -> depth */
     vec4 wgr_shadow_extra[4];     /* x strength */
     vec4 wgr_shadow_map;          /* x 1 = stored top-down (yzw unused) */
+    vec4 wgr_texture_flip_lo;     /* 1 where your texture at binding 0-3 is stored bottom-up */
+    vec4 wgr_texture_flip_hi;     /* ... and at bindings 4-7 (wgr_texture_uv) */
 };
 layout(binding=8) uniform textureCube wgr_env_tex;
 layout(binding=8) uniform sampler wgr_env_smp; /* the BRDF table shares it: both are linear, clamped */
@@ -423,6 +444,16 @@ vec4 wgr_sprite_color() {
 }
 
 float wgr_time() { return wgr_camera_time.w; }
+
+/* `uv` to sample your texture at `binding` (0-7) with: turned over when that texture
+   is stored bottom-up (a render target, on GL), so every texture reads top-down on
+   every backend. The two flags are read and selected arithmetically: a flattened
+   uniform array indexed by a divided binding fails to link on Adreno (AGENTS.md). */
+vec2 wgr_texture_uv(int binding, vec2 uv) {
+    vec4 flips = mix(wgr_texture_flip_lo, wgr_texture_flip_hi, step(3.5, float(binding)));
+    return vec2(uv.x, mix(uv.y, 1.0 - uv.y, flips[binding % 4]));
+}
+
 vec3 wgr_camera_position() { return wgr_camera_time.xyz; }
 vec3 wgr_ambient() { return wgr_ambient_count.rgb; }
 int wgr_light_count() { return int(wgr_ambient_count.w + 0.5); }

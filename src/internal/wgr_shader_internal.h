@@ -112,7 +112,14 @@ typedef struct {
     float shadow_tint[4][4];
     float shadow_extra[4][4];
     float shadow_map[4];
+    float texture_flip[2][4]; /* the material's textures stored bottom-up, by binding (wgr_texture_uv) */
 } wgri_shader_frame_t;
+
+/* The block a screen effect reads (wgr_screen_frame in shaders/wgr.glsl), std140. */
+typedef struct {
+    float info[4];            /* xy size in pixels, z seconds, w 1 when the frame is stored bottom-up */
+    float texture_flip[2][4]; /* the effect's own textures stored bottom-up, by binding */
+} wgri_shader_screen_frame_t;
 
 typedef struct {
     wgri_shader_t *(*get)(wgr_handle_t shader); /* READY ones only (wgri_shader_get) */

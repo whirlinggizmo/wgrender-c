@@ -5,7 +5,9 @@
  *   - "minimap": the same scene from a top-down orthographic camera, in a 256x256
  *     texture
  *   - "label": text in two fonts drawn into a 256x128 texture, used as the
- *     base color texture of the spinning sphere's material (and shown on its own)
+ *     base color texture of the spinning sphere's material, and of a cube drawn by
+ *     a custom shader (toon), which reads it the same way up on every backend
+ *     through wgr_texture_uv (and shown on its own)
  * Each frame draws the label first, so the scene views that use it show this
  * frame's label. Keys: ESC quit. */
 #include <math.h>
@@ -17,6 +19,7 @@
 
 #define SPHERE_PATH "models/sphere/sphere.glb"
 #define FONT_PATH "fonts/Komika/KOMIKAH_.ttf"
+#define TOON_PATH "shaders/toon.wgrshader"
 
 enum { PIXEL_W = 160, PIXEL_H = 100, PIXEL_SCALE = 4, MINIMAP = 256, LABEL_W = 256, LABEL_H = 128 };
 
@@ -27,7 +30,7 @@ static struct {
     wgr_color_t bg, label_bg, minimap_bg, frame_color;
     wgr_handle_t pixel_view, minimap, label; /* render target textures */
     wgr_handle_t font;
-    wgr_handle_t character, globe, ground;
+    wgr_handle_t character, globe, ground, box;
     float time;
 } g;
 
@@ -60,7 +63,7 @@ static wgr_handle_t create_model(float x, float y, float z, float scale_y, float
 
 static void init(void *user_data)
 {
-    wgr_handle_t material, sun;
+    wgr_handle_t material, sun, shader, cube;
 
     (void)user_data;
     wgr_asset_set_host(EXAMPLE_ASSET_BASE);
@@ -104,6 +107,20 @@ static void init(void *user_data)
     wgr_material_set_vec2(material, "base_color_texture_scale", 2.0f, 1.0f); /* twice around */
     g.globe = create_model(2.2f, 1.2f, 0, 1.6f, 1.6f, material);
 
+    /* ...and so does a cube drawn by a custom shader: a target is stored bottom-up on
+       GL, and toon.glsl samples at wgr_texture_uv, which turns it over there */
+    shader = wgr_shader_create(TOON_PATH); /* drawn once it has loaded */
+    material = wgr_material_create_custom(shader);
+    wgr_resource_release(shader); /* the material holds its own reference */
+    wgr_material_set_texture(material, "base_tex", g.label);
+    wgr_material_set_vec4(material, "color", 1.0f, 1.0f, 1.0f, 1.0f);
+    wgr_material_set_float(material, "bands", 3.0f);
+    wgr_material_set_float(material, "rim", 0.2f);
+    g.box = create_model(2.2f, 1.2f, 0, 1.0f, 1.0f, material);
+    cube = wgr_mesh_create_cube(1.4f, 1.4f, 1.4f);
+    wgr_model_set_mesh(g.box, cube);
+    wgr_resource_release(cube);
+
     make_character(); /* loads on create: drawn once it has loaded */
     make_sphere(); /* loads on create: drawn once it has loaded */
     g.font = wgr_font_create(FONT_PATH); /* the built-in font until it has loaded */
@@ -133,6 +150,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_model_set_transform(g.character, gx, 0, gz, 0, -g.time * 0.6f, 0, 0.6f, 0.6f, 0.6f); /* walks in a circle */
     wgr_model_animate(g.character, dt);
     wgr_model_set_transform(g.globe, -2.2f, 1.2f, 0, 0, g.time * 0.8f, 0, 1.6f, 1.6f, 1.6f);
+    wgr_model_set_rotation(g.box, 0, -g.time * 0.5f, 0);
 
     wgr_render_begin_frame();
 

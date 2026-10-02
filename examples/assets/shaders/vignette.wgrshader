@@ -4,7 +4,7 @@ param strength float fs 0
 param radius float fs 4
 param tint vec4 fs 16
 program screen glsl410
-ub 1 fragment 16 wgr_screen_frame 1 0
+ub 1 fragment 48 wgr_screen_frame 3 0
 ub 2 fragment 32 params 2 0
 view 8 fragment wgr_screen_tex 2d float 0
 sampler 8 fragment wgr_screen_smp filtering 0
@@ -26,7 +26,7 @@ void main()
 source fs 1726
 #version 410
 
-uniform vec4 wgr_screen_frame[1];
+uniform vec4 wgr_screen_frame[3];
 uniform vec4 params[2];
 uniform sampler2D wgr_screen_tex_wgr_screen_smp;
 
@@ -83,7 +83,7 @@ void main()
 
 
 program screen glsl300es
-ub 1 fragment 16 wgr_screen_frame 1 0
+ub 1 fragment 48 wgr_screen_frame 3 0
 ub 2 fragment 32 params 2 0
 view 8 fragment wgr_screen_tex 2d float 0
 sampler 8 fragment wgr_screen_smp filtering 0
@@ -107,7 +107,7 @@ source fs 1892
 precision mediump float;
 precision highp int;
 
-uniform highp vec4 wgr_screen_frame[1];
+uniform highp vec4 wgr_screen_frame[3];
 uniform highp vec4 params[2];
 uniform highp sampler2D wgr_screen_tex_wgr_screen_smp;
 
@@ -164,7 +164,7 @@ void main()
 
 
 program screen wgsl
-ub 1 fragment 16 - 0 1
+ub 1 fragment 48 - 0 1
 ub 2 fragment 32 - 0 2
 view 8 fragment wgr_screen_tex 2d float 8
 sampler 8 fragment wgr_screen_smp filtering 40
@@ -201,12 +201,16 @@ fn main(@builtin(vertex_index) gl_VertexIndex_param : u32) -> main_out {
   return main_out(gl_Position, wgr_screen_uv);
 }
 
-source fs 2798
+source fs 2900
 diagnostic(off, derivative_uniformity);
 
 struct wgr_screen_frame {
   /* @offset(0) */
   wgr_screen_info : vec4f,
+  /* @offset(16) */
+  wgr_texture_flip_lo : vec4f,
+  /* @offset(32) */
+  wgr_texture_flip_hi : vec4f,
 }
 
 struct params {

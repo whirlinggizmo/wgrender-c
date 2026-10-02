@@ -776,6 +776,7 @@ static bool draw_custom(const wgr_sprite_batch_t *b)
                 frame.light_spot[i][2] = (float)wgri_shadow_slot_of(&custom_shadow, lights[i]);
             }
         }
+        wgri_material_texture_flips(material, program->view_slot, shader->texture_count, frame.texture_flip);
         sg_apply_uniforms(WGRI_SHADER_BLOCK_FRAME, &SG_RANGE(frame));
     }
     if (program->has_block[WGRI_SHADER_BLOCK_FS_PARAMS]) {

@@ -14,7 +14,7 @@ attr 5 color0
 attr 6 joints
 attr 7 weights
 ub 0 vertex 80 wgr_skinned_object 5 0
-ub 1 fragment 1184 wgr_frame 74 0
+ub 1 fragment 1216 wgr_frame 76 0
 ub 2 fragment 32 params 2 0
 view 0 fragment noise_tex 2d float 0
 view 12 vertex wgr_joint_tex 2d unfilterable_float 0
@@ -151,10 +151,10 @@ void main()
 }
 
 
-source fs 5063
+source fs 5335
 #version 410
 
-uniform vec4 wgr_frame[74];
+uniform vec4 wgr_frame[76];
 uniform vec4 params[2];
 uniform sampler2D noise_tex_noise_smp;
 
@@ -167,6 +167,12 @@ layout(location = 0) in vec3 wgr_world_pos;
 layout(location = 2) in vec4 wgr_tangent;
 layout(location = 4) in vec2 wgr_uv1;
 layout(location = 5) in vec4 wgr_color;
+
+vec2 wgr_texture_uv(int binding, vec2 uv)
+{
+    vec4 flips = mix(wgr_frame[74], wgr_frame[75], vec4(step(3.5, float(binding))));
+    return vec2(uv.x, mix(uv.y, 1.0 - uv.y, flips[binding % 4]));
+}
 
 float wgr_time()
 {
@@ -185,72 +191,72 @@ int wgr_light_count()
 
 vec3 wgr_light(int i, vec3 pos, out vec3 to_light)
 {
-    int _117 = int(wgr_frame[i * 1 + 11].w + 0.5);
-    if (_117 == 0)
+    int _155 = int(wgr_frame[i * 1 + 11].w + 0.5);
+    if (_155 == 0)
     {
         to_light = -normalize(wgr_frame[i * 1 + 11].xyz);
         return wgr_frame[i * 1 + 19].xyz;
     }
-    vec3 _142 = pos - wgr_frame[i * 1 + 3].xyz;
-    float _145 = length(_142);
-    vec3 _150;
-    if (_145 > 9.9999999747524270787835121154785e-07)
+    vec3 _180 = pos - wgr_frame[i * 1 + 3].xyz;
+    float _183 = length(_180);
+    vec3 _188;
+    if (_183 > 9.9999999747524270787835121154785e-07)
     {
-        _150 = _142 / vec3(_145);
+        _188 = _180 / vec3(_183);
     }
     else
     {
-        _150 = vec3(0.0, -1.0, 0.0);
+        _188 = vec3(0.0, -1.0, 0.0);
     }
-    to_light = -_150;
-    float falloff = 1.0 / max(_145 * _145, 0.00999999977648258209228515625);
+    to_light = -_188;
+    float falloff = 1.0 / max(_183 * _183, 0.00999999977648258209228515625);
     if (wgr_frame[i * 1 + 3].w > 0.0)
     {
-        float _181 = _145 / wgr_frame[i * 1 + 3].w;
-        float _191 = clamp(1.0 - (((_181 * _181) * _181) * _181), 0.0, 1.0);
-        falloff *= (_191 * _191);
+        float _219 = _183 / wgr_frame[i * 1 + 3].w;
+        float _229 = clamp(1.0 - (((_219 * _219) * _219) * _219), 0.0, 1.0);
+        falloff *= (_229 * _229);
     }
-    if (_117 == 2)
+    if (_155 == 2)
     {
-        float _209 = dot(_150, normalize(wgr_frame[i * 1 + 11].xyz));
-        float _225;
+        float _247 = dot(_188, normalize(wgr_frame[i * 1 + 11].xyz));
+        float _261;
         if ((wgr_frame[i * 1 + 27].x - wgr_frame[i * 1 + 27].y) <= 9.9999999747524270787835121154785e-07)
         {
-            _225 = float(_209 >= wgr_frame[i * 1 + 27].y);
+            _261 = float(_247 >= wgr_frame[i * 1 + 27].y);
         }
         else
         {
-            _225 = smoothstep(wgr_frame[i * 1 + 27].y, wgr_frame[i * 1 + 27].x, _209);
+            _261 = smoothstep(wgr_frame[i * 1 + 27].y, wgr_frame[i * 1 + 27].x, _247);
         }
-        falloff *= _225;
+        falloff *= _261;
     }
     return wgr_frame[i * 1 + 19].xyz * falloff;
 }
 
 vec3 wgr_tonemap_neutral(inout vec3 color)
 {
-    float _257 = min(color.x, min(color.y, color.z));
-    float _262;
-    if (_257 < 0.07999999821186065673828125)
+    float _293 = min(color.x, min(color.y, color.z));
+    float _298;
+    if (_293 < 0.07999999821186065673828125)
     {
-        _262 = _257 - ((6.25 * _257) * _257);
+        _298 = _293 - ((6.25 * _293) * _293);
     }
     else
     {
-        _262 = 0.039999999105930328369140625;
+        _298 = 0.039999999105930328369140625;
     }
-    color -= vec3(_262);
-    float _281 = color.x;
-    float _283 = color.y;
-    float _285 = color.z;
-    float _287 = max(_281, max(_283, _285));
-    if (_287 < 0.7599999904632568359375)
+    color -= vec3(_298);
+    float _317 = color.x;
+    float _319 = color.y;
+    float _321 = color.z;
+    float _323 = max(_317, max(_319, _321));
+    if (_323 < 0.7599999904632568359375)
     {
         return color;
     }
-    float _302 = 1.0 - (0.057599999010562896728515625 / (_287 + (-0.519999980926513671875)));
-    color *= (_302 / _287);
-    return mix(color, vec3(_302), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_287 - _302)) + 1.0))));
+    float _338 = 1.0 - (0.057599999010562896728515625 / (_323 + (-0.519999980926513671875)));
+    color *= (_338 / _323);
+    return mix(color, vec3(_338), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_323 - _338)) + 1.0))));
 }
 
 vec3 wgr_tonemap_aces(inout vec3 color)
@@ -278,53 +284,55 @@ void wgr_output(inout vec3 color, inout float alpha)
         alpha = 1.0;
     }
     color *= wgr_frame[2].z;
-    int _389 = int(wgr_frame[2].y + 0.5);
-    if (_389 == 1)
+    int _425 = int(wgr_frame[2].y + 0.5);
+    if (_425 == 1)
     {
         vec3 param = color;
-        vec3 _396 = wgr_tonemap_neutral(param);
-        color = _396;
+        vec3 _432 = wgr_tonemap_neutral(param);
+        color = _432;
     }
     else
     {
-        if (_389 == 2)
+        if (_425 == 2)
         {
             vec3 param_1 = color;
-            vec3 _404 = wgr_tonemap_aces(param_1);
-            color = _404;
+            vec3 _440 = wgr_tonemap_aces(param_1);
+            color = _440;
         }
     }
     vec3 param_2 = color;
-    vec3 _409 = wgri_linear_to_srgb(param_2);
-    wgr_frag_color = vec4(_409, alpha);
+    vec3 _445 = wgri_linear_to_srgb(param_2);
+    wgr_frag_color = vec4(_445, alpha);
 }
 
 void main()
 {
-    vec4 _432 = texture(noise_tex_noise_smp, wgr_uv0 * 2.0);
-    float _433 = _432.x;
-    float _448 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((wgr_time() * params[1].w) * 6.283185482025146484375));
-    if (_433 < _448)
+    int param = 0;
+    vec2 param_1 = wgr_uv0 * 2.0;
+    vec4 _470 = texture(noise_tex_noise_smp, wgr_texture_uv(param, param_1));
+    float _471 = _470.x;
+    float _486 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((wgr_time() * params[1].w) * 6.283185482025146484375));
+    if (_471 < _486)
     {
         discard;
     }
-    vec3 _464 = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
+    vec3 _502 = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
     vec3 light = wgr_ambient();
-    vec3 param_2;
+    vec3 param_4;
     for (int i = 0; i < 8; i++)
     {
         if (i >= wgr_light_count())
         {
             break;
         }
-        int param = i;
-        vec3 param_1 = wgr_world_pos;
-        vec3 _490 = wgr_light(param, param_1, param_2);
-        light += ((_490 * max(dot(_464, param_2), 0.0)) * vec3(0.3183098733425140380859375));
+        int param_2 = i;
+        vec3 param_3 = wgr_world_pos;
+        vec3 _528 = wgr_light(param_2, param_3, param_4);
+        light += ((_528 * max(dot(_502, param_4), 0.0)) * vec3(0.3183098733425140380859375));
     }
-    vec3 param_3 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _433 - _448)));
-    float param_4 = params[0].w;
-    wgr_output(param_3, param_4);
+    vec3 param_5 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _471 - _486)));
+    float param_6 = params[0].w;
+    wgr_output(param_5, param_6);
 }
 
 
@@ -337,7 +345,7 @@ attr 4 inst_right
 attr 5 inst_up
 attr 6 inst_color
 ub 0 vertex 128 wgr_sprite_view 8 0
-ub 1 fragment 1184 wgr_frame 74 0
+ub 1 fragment 1216 wgr_frame 76 0
 ub 2 fragment 32 params 2 0
 view 0 fragment noise_tex 2d float 0
 sampler 0 fragment noise_smp filtering 0
@@ -410,10 +418,10 @@ void main()
 }
 
 
-source fs 5063
+source fs 5335
 #version 410
 
-uniform vec4 wgr_frame[74];
+uniform vec4 wgr_frame[76];
 uniform vec4 params[2];
 uniform sampler2D noise_tex_noise_smp;
 
@@ -426,6 +434,12 @@ layout(location = 0) in vec3 wgr_world_pos;
 layout(location = 2) in vec4 wgr_tangent;
 layout(location = 4) in vec2 wgr_uv1;
 layout(location = 5) in vec4 wgr_color;
+
+vec2 wgr_texture_uv(int binding, vec2 uv)
+{
+    vec4 flips = mix(wgr_frame[74], wgr_frame[75], vec4(step(3.5, float(binding))));
+    return vec2(uv.x, mix(uv.y, 1.0 - uv.y, flips[binding % 4]));
+}
 
 float wgr_time()
 {
@@ -444,72 +458,72 @@ int wgr_light_count()
 
 vec3 wgr_light(int i, vec3 pos, out vec3 to_light)
 {
-    int _117 = int(wgr_frame[i * 1 + 11].w + 0.5);
-    if (_117 == 0)
+    int _155 = int(wgr_frame[i * 1 + 11].w + 0.5);
+    if (_155 == 0)
     {
         to_light = -normalize(wgr_frame[i * 1 + 11].xyz);
         return wgr_frame[i * 1 + 19].xyz;
     }
-    vec3 _142 = pos - wgr_frame[i * 1 + 3].xyz;
-    float _145 = length(_142);
-    vec3 _150;
-    if (_145 > 9.9999999747524270787835121154785e-07)
+    vec3 _180 = pos - wgr_frame[i * 1 + 3].xyz;
+    float _183 = length(_180);
+    vec3 _188;
+    if (_183 > 9.9999999747524270787835121154785e-07)
     {
-        _150 = _142 / vec3(_145);
+        _188 = _180 / vec3(_183);
     }
     else
     {
-        _150 = vec3(0.0, -1.0, 0.0);
+        _188 = vec3(0.0, -1.0, 0.0);
     }
-    to_light = -_150;
-    float falloff = 1.0 / max(_145 * _145, 0.00999999977648258209228515625);
+    to_light = -_188;
+    float falloff = 1.0 / max(_183 * _183, 0.00999999977648258209228515625);
     if (wgr_frame[i * 1 + 3].w > 0.0)
     {
-        float _181 = _145 / wgr_frame[i * 1 + 3].w;
-        float _191 = clamp(1.0 - (((_181 * _181) * _181) * _181), 0.0, 1.0);
-        falloff *= (_191 * _191);
+        float _219 = _183 / wgr_frame[i * 1 + 3].w;
+        float _229 = clamp(1.0 - (((_219 * _219) * _219) * _219), 0.0, 1.0);
+        falloff *= (_229 * _229);
     }
-    if (_117 == 2)
+    if (_155 == 2)
     {
-        float _209 = dot(_150, normalize(wgr_frame[i * 1 + 11].xyz));
-        float _225;
+        float _247 = dot(_188, normalize(wgr_frame[i * 1 + 11].xyz));
+        float _261;
         if ((wgr_frame[i * 1 + 27].x - wgr_frame[i * 1 + 27].y) <= 9.9999999747524270787835121154785e-07)
         {
-            _225 = float(_209 >= wgr_frame[i * 1 + 27].y);
+            _261 = float(_247 >= wgr_frame[i * 1 + 27].y);
         }
         else
         {
-            _225 = smoothstep(wgr_frame[i * 1 + 27].y, wgr_frame[i * 1 + 27].x, _209);
+            _261 = smoothstep(wgr_frame[i * 1 + 27].y, wgr_frame[i * 1 + 27].x, _247);
         }
-        falloff *= _225;
+        falloff *= _261;
     }
     return wgr_frame[i * 1 + 19].xyz * falloff;
 }
 
 vec3 wgr_tonemap_neutral(inout vec3 color)
 {
-    float _257 = min(color.x, min(color.y, color.z));
-    float _262;
-    if (_257 < 0.07999999821186065673828125)
+    float _293 = min(color.x, min(color.y, color.z));
+    float _298;
+    if (_293 < 0.07999999821186065673828125)
     {
-        _262 = _257 - ((6.25 * _257) * _257);
+        _298 = _293 - ((6.25 * _293) * _293);
     }
     else
     {
-        _262 = 0.039999999105930328369140625;
+        _298 = 0.039999999105930328369140625;
     }
-    color -= vec3(_262);
-    float _281 = color.x;
-    float _283 = color.y;
-    float _285 = color.z;
-    float _287 = max(_281, max(_283, _285));
-    if (_287 < 0.7599999904632568359375)
+    color -= vec3(_298);
+    float _317 = color.x;
+    float _319 = color.y;
+    float _321 = color.z;
+    float _323 = max(_317, max(_319, _321));
+    if (_323 < 0.7599999904632568359375)
     {
         return color;
     }
-    float _302 = 1.0 - (0.057599999010562896728515625 / (_287 + (-0.519999980926513671875)));
-    color *= (_302 / _287);
-    return mix(color, vec3(_302), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_287 - _302)) + 1.0))));
+    float _338 = 1.0 - (0.057599999010562896728515625 / (_323 + (-0.519999980926513671875)));
+    color *= (_338 / _323);
+    return mix(color, vec3(_338), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_323 - _338)) + 1.0))));
 }
 
 vec3 wgr_tonemap_aces(inout vec3 color)
@@ -537,53 +551,55 @@ void wgr_output(inout vec3 color, inout float alpha)
         alpha = 1.0;
     }
     color *= wgr_frame[2].z;
-    int _389 = int(wgr_frame[2].y + 0.5);
-    if (_389 == 1)
+    int _425 = int(wgr_frame[2].y + 0.5);
+    if (_425 == 1)
     {
         vec3 param = color;
-        vec3 _396 = wgr_tonemap_neutral(param);
-        color = _396;
+        vec3 _432 = wgr_tonemap_neutral(param);
+        color = _432;
     }
     else
     {
-        if (_389 == 2)
+        if (_425 == 2)
         {
             vec3 param_1 = color;
-            vec3 _404 = wgr_tonemap_aces(param_1);
-            color = _404;
+            vec3 _440 = wgr_tonemap_aces(param_1);
+            color = _440;
         }
     }
     vec3 param_2 = color;
-    vec3 _409 = wgri_linear_to_srgb(param_2);
-    wgr_frag_color = vec4(_409, alpha);
+    vec3 _445 = wgri_linear_to_srgb(param_2);
+    wgr_frag_color = vec4(_445, alpha);
 }
 
 void main()
 {
-    vec4 _432 = texture(noise_tex_noise_smp, wgr_uv0 * 2.0);
-    float _433 = _432.x;
-    float _448 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((wgr_time() * params[1].w) * 6.283185482025146484375));
-    if (_433 < _448)
+    int param = 0;
+    vec2 param_1 = wgr_uv0 * 2.0;
+    vec4 _470 = texture(noise_tex_noise_smp, wgr_texture_uv(param, param_1));
+    float _471 = _470.x;
+    float _486 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((wgr_time() * params[1].w) * 6.283185482025146484375));
+    if (_471 < _486)
     {
         discard;
     }
-    vec3 _464 = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
+    vec3 _502 = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
     vec3 light = wgr_ambient();
-    vec3 param_2;
+    vec3 param_4;
     for (int i = 0; i < 8; i++)
     {
         if (i >= wgr_light_count())
         {
             break;
         }
-        int param = i;
-        vec3 param_1 = wgr_world_pos;
-        vec3 _490 = wgr_light(param, param_1, param_2);
-        light += ((_490 * max(dot(_464, param_2), 0.0)) * vec3(0.3183098733425140380859375));
+        int param_2 = i;
+        vec3 param_3 = wgr_world_pos;
+        vec3 _528 = wgr_light(param_2, param_3, param_4);
+        light += ((_528 * max(dot(_502, param_4), 0.0)) * vec3(0.3183098733425140380859375));
     }
-    vec3 param_3 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _433 - _448)));
-    float param_4 = params[0].w;
-    wgr_output(param_3, param_4);
+    vec3 param_5 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _471 - _486)));
+    float param_6 = params[0].w;
+    wgr_output(param_5, param_6);
 }
 
 
@@ -591,7 +607,7 @@ program sprite_pulled glsl410
 attr 0 corner
 ub 0 vertex 128 wgr_sprite_view 8 0
 ub 4 vertex 16 wgr_sprite_batch 1 0
-ub 1 fragment 1184 wgr_frame 74 0
+ub 1 fragment 1216 wgr_frame 76 0
 ub 2 fragment 32 params 2 0
 view 0 fragment noise_tex 2d float 0
 view 11 vertex wgr_sprite_data 2d unfilterable_float 0
@@ -682,10 +698,10 @@ void main()
 }
 
 
-source fs 5063
+source fs 5335
 #version 410
 
-uniform vec4 wgr_frame[74];
+uniform vec4 wgr_frame[76];
 uniform vec4 params[2];
 uniform sampler2D noise_tex_noise_smp;
 
@@ -698,6 +714,12 @@ layout(location = 0) in vec3 wgr_world_pos;
 layout(location = 2) in vec4 wgr_tangent;
 layout(location = 4) in vec2 wgr_uv1;
 layout(location = 5) in vec4 wgr_color;
+
+vec2 wgr_texture_uv(int binding, vec2 uv)
+{
+    vec4 flips = mix(wgr_frame[74], wgr_frame[75], vec4(step(3.5, float(binding))));
+    return vec2(uv.x, mix(uv.y, 1.0 - uv.y, flips[binding % 4]));
+}
 
 float wgr_time()
 {
@@ -716,72 +738,72 @@ int wgr_light_count()
 
 vec3 wgr_light(int i, vec3 pos, out vec3 to_light)
 {
-    int _117 = int(wgr_frame[i * 1 + 11].w + 0.5);
-    if (_117 == 0)
+    int _155 = int(wgr_frame[i * 1 + 11].w + 0.5);
+    if (_155 == 0)
     {
         to_light = -normalize(wgr_frame[i * 1 + 11].xyz);
         return wgr_frame[i * 1 + 19].xyz;
     }
-    vec3 _142 = pos - wgr_frame[i * 1 + 3].xyz;
-    float _145 = length(_142);
-    vec3 _150;
-    if (_145 > 9.9999999747524270787835121154785e-07)
+    vec3 _180 = pos - wgr_frame[i * 1 + 3].xyz;
+    float _183 = length(_180);
+    vec3 _188;
+    if (_183 > 9.9999999747524270787835121154785e-07)
     {
-        _150 = _142 / vec3(_145);
+        _188 = _180 / vec3(_183);
     }
     else
     {
-        _150 = vec3(0.0, -1.0, 0.0);
+        _188 = vec3(0.0, -1.0, 0.0);
     }
-    to_light = -_150;
-    float falloff = 1.0 / max(_145 * _145, 0.00999999977648258209228515625);
+    to_light = -_188;
+    float falloff = 1.0 / max(_183 * _183, 0.00999999977648258209228515625);
     if (wgr_frame[i * 1 + 3].w > 0.0)
     {
-        float _181 = _145 / wgr_frame[i * 1 + 3].w;
-        float _191 = clamp(1.0 - (((_181 * _181) * _181) * _181), 0.0, 1.0);
-        falloff *= (_191 * _191);
+        float _219 = _183 / wgr_frame[i * 1 + 3].w;
+        float _229 = clamp(1.0 - (((_219 * _219) * _219) * _219), 0.0, 1.0);
+        falloff *= (_229 * _229);
     }
-    if (_117 == 2)
+    if (_155 == 2)
     {
-        float _209 = dot(_150, normalize(wgr_frame[i * 1 + 11].xyz));
-        float _225;
+        float _247 = dot(_188, normalize(wgr_frame[i * 1 + 11].xyz));
+        float _261;
         if ((wgr_frame[i * 1 + 27].x - wgr_frame[i * 1 + 27].y) <= 9.9999999747524270787835121154785e-07)
         {
-            _225 = float(_209 >= wgr_frame[i * 1 + 27].y);
+            _261 = float(_247 >= wgr_frame[i * 1 + 27].y);
         }
         else
         {
-            _225 = smoothstep(wgr_frame[i * 1 + 27].y, wgr_frame[i * 1 + 27].x, _209);
+            _261 = smoothstep(wgr_frame[i * 1 + 27].y, wgr_frame[i * 1 + 27].x, _247);
         }
-        falloff *= _225;
+        falloff *= _261;
     }
     return wgr_frame[i * 1 + 19].xyz * falloff;
 }
 
 vec3 wgr_tonemap_neutral(inout vec3 color)
 {
-    float _257 = min(color.x, min(color.y, color.z));
-    float _262;
-    if (_257 < 0.07999999821186065673828125)
+    float _293 = min(color.x, min(color.y, color.z));
+    float _298;
+    if (_293 < 0.07999999821186065673828125)
     {
-        _262 = _257 - ((6.25 * _257) * _257);
+        _298 = _293 - ((6.25 * _293) * _293);
     }
     else
     {
-        _262 = 0.039999999105930328369140625;
+        _298 = 0.039999999105930328369140625;
     }
-    color -= vec3(_262);
-    float _281 = color.x;
-    float _283 = color.y;
-    float _285 = color.z;
-    float _287 = max(_281, max(_283, _285));
-    if (_287 < 0.7599999904632568359375)
+    color -= vec3(_298);
+    float _317 = color.x;
+    float _319 = color.y;
+    float _321 = color.z;
+    float _323 = max(_317, max(_319, _321));
+    if (_323 < 0.7599999904632568359375)
     {
         return color;
     }
-    float _302 = 1.0 - (0.057599999010562896728515625 / (_287 + (-0.519999980926513671875)));
-    color *= (_302 / _287);
-    return mix(color, vec3(_302), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_287 - _302)) + 1.0))));
+    float _338 = 1.0 - (0.057599999010562896728515625 / (_323 + (-0.519999980926513671875)));
+    color *= (_338 / _323);
+    return mix(color, vec3(_338), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_323 - _338)) + 1.0))));
 }
 
 vec3 wgr_tonemap_aces(inout vec3 color)
@@ -809,53 +831,55 @@ void wgr_output(inout vec3 color, inout float alpha)
         alpha = 1.0;
     }
     color *= wgr_frame[2].z;
-    int _389 = int(wgr_frame[2].y + 0.5);
-    if (_389 == 1)
+    int _425 = int(wgr_frame[2].y + 0.5);
+    if (_425 == 1)
     {
         vec3 param = color;
-        vec3 _396 = wgr_tonemap_neutral(param);
-        color = _396;
+        vec3 _432 = wgr_tonemap_neutral(param);
+        color = _432;
     }
     else
     {
-        if (_389 == 2)
+        if (_425 == 2)
         {
             vec3 param_1 = color;
-            vec3 _404 = wgr_tonemap_aces(param_1);
-            color = _404;
+            vec3 _440 = wgr_tonemap_aces(param_1);
+            color = _440;
         }
     }
     vec3 param_2 = color;
-    vec3 _409 = wgri_linear_to_srgb(param_2);
-    wgr_frag_color = vec4(_409, alpha);
+    vec3 _445 = wgri_linear_to_srgb(param_2);
+    wgr_frag_color = vec4(_445, alpha);
 }
 
 void main()
 {
-    vec4 _432 = texture(noise_tex_noise_smp, wgr_uv0 * 2.0);
-    float _433 = _432.x;
-    float _448 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((wgr_time() * params[1].w) * 6.283185482025146484375));
-    if (_433 < _448)
+    int param = 0;
+    vec2 param_1 = wgr_uv0 * 2.0;
+    vec4 _470 = texture(noise_tex_noise_smp, wgr_texture_uv(param, param_1));
+    float _471 = _470.x;
+    float _486 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((wgr_time() * params[1].w) * 6.283185482025146484375));
+    if (_471 < _486)
     {
         discard;
     }
-    vec3 _464 = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
+    vec3 _502 = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
     vec3 light = wgr_ambient();
-    vec3 param_2;
+    vec3 param_4;
     for (int i = 0; i < 8; i++)
     {
         if (i >= wgr_light_count())
         {
             break;
         }
-        int param = i;
-        vec3 param_1 = wgr_world_pos;
-        vec3 _490 = wgr_light(param, param_1, param_2);
-        light += ((_490 * max(dot(_464, param_2), 0.0)) * vec3(0.3183098733425140380859375));
+        int param_2 = i;
+        vec3 param_3 = wgr_world_pos;
+        vec3 _528 = wgr_light(param_2, param_3, param_4);
+        light += ((_528 * max(dot(_502, param_4), 0.0)) * vec3(0.3183098733425140380859375));
     }
-    vec3 param_3 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _433 - _448)));
-    float param_4 = params[0].w;
-    wgr_output(param_3, param_4);
+    vec3 param_5 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _471 - _486)));
+    float param_6 = params[0].w;
+    wgr_output(param_5, param_6);
 }
 
 
@@ -867,7 +891,7 @@ attr 3 texcoord1
 attr 4 tangent
 attr 5 color0
 ub 0 vertex 80 wgr_object 5 0
-ub 1 fragment 1184 wgr_frame 74 0
+ub 1 fragment 1216 wgr_frame 76 0
 ub 2 fragment 32 params 2 0
 view 0 fragment noise_tex 2d float 0
 view 14 vertex wgr_instance_tex 2d unfilterable_float 0
@@ -967,10 +991,10 @@ void main()
 }
 
 
-source fs 5063
+source fs 5335
 #version 410
 
-uniform vec4 wgr_frame[74];
+uniform vec4 wgr_frame[76];
 uniform vec4 params[2];
 uniform sampler2D noise_tex_noise_smp;
 
@@ -983,6 +1007,12 @@ layout(location = 0) in vec3 wgr_world_pos;
 layout(location = 2) in vec4 wgr_tangent;
 layout(location = 4) in vec2 wgr_uv1;
 layout(location = 5) in vec4 wgr_color;
+
+vec2 wgr_texture_uv(int binding, vec2 uv)
+{
+    vec4 flips = mix(wgr_frame[74], wgr_frame[75], vec4(step(3.5, float(binding))));
+    return vec2(uv.x, mix(uv.y, 1.0 - uv.y, flips[binding % 4]));
+}
 
 float wgr_time()
 {
@@ -1001,72 +1031,72 @@ int wgr_light_count()
 
 vec3 wgr_light(int i, vec3 pos, out vec3 to_light)
 {
-    int _117 = int(wgr_frame[i * 1 + 11].w + 0.5);
-    if (_117 == 0)
+    int _155 = int(wgr_frame[i * 1 + 11].w + 0.5);
+    if (_155 == 0)
     {
         to_light = -normalize(wgr_frame[i * 1 + 11].xyz);
         return wgr_frame[i * 1 + 19].xyz;
     }
-    vec3 _142 = pos - wgr_frame[i * 1 + 3].xyz;
-    float _145 = length(_142);
-    vec3 _150;
-    if (_145 > 9.9999999747524270787835121154785e-07)
+    vec3 _180 = pos - wgr_frame[i * 1 + 3].xyz;
+    float _183 = length(_180);
+    vec3 _188;
+    if (_183 > 9.9999999747524270787835121154785e-07)
     {
-        _150 = _142 / vec3(_145);
+        _188 = _180 / vec3(_183);
     }
     else
     {
-        _150 = vec3(0.0, -1.0, 0.0);
+        _188 = vec3(0.0, -1.0, 0.0);
     }
-    to_light = -_150;
-    float falloff = 1.0 / max(_145 * _145, 0.00999999977648258209228515625);
+    to_light = -_188;
+    float falloff = 1.0 / max(_183 * _183, 0.00999999977648258209228515625);
     if (wgr_frame[i * 1 + 3].w > 0.0)
     {
-        float _181 = _145 / wgr_frame[i * 1 + 3].w;
-        float _191 = clamp(1.0 - (((_181 * _181) * _181) * _181), 0.0, 1.0);
-        falloff *= (_191 * _191);
+        float _219 = _183 / wgr_frame[i * 1 + 3].w;
+        float _229 = clamp(1.0 - (((_219 * _219) * _219) * _219), 0.0, 1.0);
+        falloff *= (_229 * _229);
     }
-    if (_117 == 2)
+    if (_155 == 2)
     {
-        float _209 = dot(_150, normalize(wgr_frame[i * 1 + 11].xyz));
-        float _225;
+        float _247 = dot(_188, normalize(wgr_frame[i * 1 + 11].xyz));
+        float _261;
         if ((wgr_frame[i * 1 + 27].x - wgr_frame[i * 1 + 27].y) <= 9.9999999747524270787835121154785e-07)
         {
-            _225 = float(_209 >= wgr_frame[i * 1 + 27].y);
+            _261 = float(_247 >= wgr_frame[i * 1 + 27].y);
         }
         else
         {
-            _225 = smoothstep(wgr_frame[i * 1 + 27].y, wgr_frame[i * 1 + 27].x, _209);
+            _261 = smoothstep(wgr_frame[i * 1 + 27].y, wgr_frame[i * 1 + 27].x, _247);
         }
-        falloff *= _225;
+        falloff *= _261;
     }
     return wgr_frame[i * 1 + 19].xyz * falloff;
 }
 
 vec3 wgr_tonemap_neutral(inout vec3 color)
 {
-    float _257 = min(color.x, min(color.y, color.z));
-    float _262;
-    if (_257 < 0.07999999821186065673828125)
+    float _293 = min(color.x, min(color.y, color.z));
+    float _298;
+    if (_293 < 0.07999999821186065673828125)
     {
-        _262 = _257 - ((6.25 * _257) * _257);
+        _298 = _293 - ((6.25 * _293) * _293);
     }
     else
     {
-        _262 = 0.039999999105930328369140625;
+        _298 = 0.039999999105930328369140625;
     }
-    color -= vec3(_262);
-    float _281 = color.x;
-    float _283 = color.y;
-    float _285 = color.z;
-    float _287 = max(_281, max(_283, _285));
-    if (_287 < 0.7599999904632568359375)
+    color -= vec3(_298);
+    float _317 = color.x;
+    float _319 = color.y;
+    float _321 = color.z;
+    float _323 = max(_317, max(_319, _321));
+    if (_323 < 0.7599999904632568359375)
     {
         return color;
     }
-    float _302 = 1.0 - (0.057599999010562896728515625 / (_287 + (-0.519999980926513671875)));
-    color *= (_302 / _287);
-    return mix(color, vec3(_302), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_287 - _302)) + 1.0))));
+    float _338 = 1.0 - (0.057599999010562896728515625 / (_323 + (-0.519999980926513671875)));
+    color *= (_338 / _323);
+    return mix(color, vec3(_338), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_323 - _338)) + 1.0))));
 }
 
 vec3 wgr_tonemap_aces(inout vec3 color)
@@ -1094,53 +1124,55 @@ void wgr_output(inout vec3 color, inout float alpha)
         alpha = 1.0;
     }
     color *= wgr_frame[2].z;
-    int _389 = int(wgr_frame[2].y + 0.5);
-    if (_389 == 1)
+    int _425 = int(wgr_frame[2].y + 0.5);
+    if (_425 == 1)
     {
         vec3 param = color;
-        vec3 _396 = wgr_tonemap_neutral(param);
-        color = _396;
+        vec3 _432 = wgr_tonemap_neutral(param);
+        color = _432;
     }
     else
     {
-        if (_389 == 2)
+        if (_425 == 2)
         {
             vec3 param_1 = color;
-            vec3 _404 = wgr_tonemap_aces(param_1);
-            color = _404;
+            vec3 _440 = wgr_tonemap_aces(param_1);
+            color = _440;
         }
     }
     vec3 param_2 = color;
-    vec3 _409 = wgri_linear_to_srgb(param_2);
-    wgr_frag_color = vec4(_409, alpha);
+    vec3 _445 = wgri_linear_to_srgb(param_2);
+    wgr_frag_color = vec4(_445, alpha);
 }
 
 void main()
 {
-    vec4 _432 = texture(noise_tex_noise_smp, wgr_uv0 * 2.0);
-    float _433 = _432.x;
-    float _448 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((wgr_time() * params[1].w) * 6.283185482025146484375));
-    if (_433 < _448)
+    int param = 0;
+    vec2 param_1 = wgr_uv0 * 2.0;
+    vec4 _470 = texture(noise_tex_noise_smp, wgr_texture_uv(param, param_1));
+    float _471 = _470.x;
+    float _486 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((wgr_time() * params[1].w) * 6.283185482025146484375));
+    if (_471 < _486)
     {
         discard;
     }
-    vec3 _464 = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
+    vec3 _502 = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
     vec3 light = wgr_ambient();
-    vec3 param_2;
+    vec3 param_4;
     for (int i = 0; i < 8; i++)
     {
         if (i >= wgr_light_count())
         {
             break;
         }
-        int param = i;
-        vec3 param_1 = wgr_world_pos;
-        vec3 _490 = wgr_light(param, param_1, param_2);
-        light += ((_490 * max(dot(_464, param_2), 0.0)) * vec3(0.3183098733425140380859375));
+        int param_2 = i;
+        vec3 param_3 = wgr_world_pos;
+        vec3 _528 = wgr_light(param_2, param_3, param_4);
+        light += ((_528 * max(dot(_502, param_4), 0.0)) * vec3(0.3183098733425140380859375));
     }
-    vec3 param_3 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _433 - _448)));
-    float param_4 = params[0].w;
-    wgr_output(param_3, param_4);
+    vec3 param_5 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _471 - _486)));
+    float param_6 = params[0].w;
+    wgr_output(param_5, param_6);
 }
 
 
@@ -1154,7 +1186,7 @@ attr 5 color0
 attr 6 joints
 attr 7 weights
 ub 0 vertex 80 wgr_skinned_object 5 0
-ub 1 fragment 1184 wgr_frame 74 0
+ub 1 fragment 1216 wgr_frame 76 0
 ub 2 fragment 32 params 2 0
 view 0 fragment noise_tex 2d float 0
 view 12 vertex wgr_joint_tex 2d unfilterable_float 0
@@ -1291,12 +1323,12 @@ void main()
 }
 
 
-source fs 5280
+source fs 5576
 #version 300 es
 precision mediump float;
 precision highp int;
 
-uniform highp vec4 wgr_frame[74];
+uniform highp vec4 wgr_frame[76];
 uniform highp vec4 params[2];
 uniform highp sampler2D noise_tex_noise_smp;
 
@@ -1309,6 +1341,12 @@ in highp vec3 wgr_world_pos;
 in highp vec4 wgr_tangent;
 in highp vec2 wgr_uv1;
 in highp vec4 wgr_color;
+
+highp vec2 wgr_texture_uv(int binding, highp vec2 uv)
+{
+    highp vec4 flips = mix(wgr_frame[74], wgr_frame[75], vec4(step(3.5, float(binding))));
+    return vec2(uv.x, mix(uv.y, 1.0 - uv.y, flips[binding % 4]));
+}
 
 highp float wgr_time()
 {
@@ -1327,72 +1365,72 @@ int wgr_light_count()
 
 highp vec3 wgr_light(int i, highp vec3 pos, out highp vec3 to_light)
 {
-    int _117 = int(wgr_frame[i * 1 + 11].w + 0.5);
-    if (_117 == 0)
+    int _155 = int(wgr_frame[i * 1 + 11].w + 0.5);
+    if (_155 == 0)
     {
         to_light = -normalize(wgr_frame[i * 1 + 11].xyz);
         return wgr_frame[i * 1 + 19].xyz;
     }
-    highp vec3 _142 = pos - wgr_frame[i * 1 + 3].xyz;
-    highp float _145 = length(_142);
-    highp vec3 _150;
-    if (_145 > 9.9999999747524270787835121154785e-07)
+    highp vec3 _180 = pos - wgr_frame[i * 1 + 3].xyz;
+    highp float _183 = length(_180);
+    highp vec3 _188;
+    if (_183 > 9.9999999747524270787835121154785e-07)
     {
-        _150 = _142 / vec3(_145);
+        _188 = _180 / vec3(_183);
     }
     else
     {
-        _150 = vec3(0.0, -1.0, 0.0);
+        _188 = vec3(0.0, -1.0, 0.0);
     }
-    to_light = -_150;
-    highp float falloff = 1.0 / max(_145 * _145, 0.00999999977648258209228515625);
+    to_light = -_188;
+    highp float falloff = 1.0 / max(_183 * _183, 0.00999999977648258209228515625);
     if (wgr_frame[i * 1 + 3].w > 0.0)
     {
-        highp float _181 = _145 / wgr_frame[i * 1 + 3].w;
-        highp float _191 = clamp(1.0 - (((_181 * _181) * _181) * _181), 0.0, 1.0);
-        falloff *= (_191 * _191);
+        highp float _219 = _183 / wgr_frame[i * 1 + 3].w;
+        highp float _229 = clamp(1.0 - (((_219 * _219) * _219) * _219), 0.0, 1.0);
+        falloff *= (_229 * _229);
     }
-    if (_117 == 2)
+    if (_155 == 2)
     {
-        highp float _209 = dot(_150, normalize(wgr_frame[i * 1 + 11].xyz));
-        highp float _225;
+        highp float _247 = dot(_188, normalize(wgr_frame[i * 1 + 11].xyz));
+        highp float _261;
         if ((wgr_frame[i * 1 + 27].x - wgr_frame[i * 1 + 27].y) <= 9.9999999747524270787835121154785e-07)
         {
-            _225 = float(_209 >= wgr_frame[i * 1 + 27].y);
+            _261 = float(_247 >= wgr_frame[i * 1 + 27].y);
         }
         else
         {
-            _225 = smoothstep(wgr_frame[i * 1 + 27].y, wgr_frame[i * 1 + 27].x, _209);
+            _261 = smoothstep(wgr_frame[i * 1 + 27].y, wgr_frame[i * 1 + 27].x, _247);
         }
-        falloff *= _225;
+        falloff *= _261;
     }
     return wgr_frame[i * 1 + 19].xyz * falloff;
 }
 
 highp vec3 wgr_tonemap_neutral(inout highp vec3 color)
 {
-    highp float _257 = min(color.x, min(color.y, color.z));
-    highp float _262;
-    if (_257 < 0.07999999821186065673828125)
+    highp float _293 = min(color.x, min(color.y, color.z));
+    highp float _298;
+    if (_293 < 0.07999999821186065673828125)
     {
-        _262 = _257 - ((6.25 * _257) * _257);
+        _298 = _293 - ((6.25 * _293) * _293);
     }
     else
     {
-        _262 = 0.039999999105930328369140625;
+        _298 = 0.039999999105930328369140625;
     }
-    color -= vec3(_262);
-    highp float _281 = color.x;
-    highp float _283 = color.y;
-    highp float _285 = color.z;
-    highp float _287 = max(_281, max(_283, _285));
-    if (_287 < 0.7599999904632568359375)
+    color -= vec3(_298);
+    highp float _317 = color.x;
+    highp float _319 = color.y;
+    highp float _321 = color.z;
+    highp float _323 = max(_317, max(_319, _321));
+    if (_323 < 0.7599999904632568359375)
     {
         return color;
     }
-    highp float _302 = 1.0 - (0.057599999010562896728515625 / (_287 + (-0.519999980926513671875)));
-    color *= (_302 / _287);
-    return mix(color, vec3(_302), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_287 - _302)) + 1.0))));
+    highp float _338 = 1.0 - (0.057599999010562896728515625 / (_323 + (-0.519999980926513671875)));
+    color *= (_338 / _323);
+    return mix(color, vec3(_338), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_323 - _338)) + 1.0))));
 }
 
 highp vec3 wgr_tonemap_aces(inout highp vec3 color)
@@ -1420,53 +1458,55 @@ void wgr_output(inout highp vec3 color, inout highp float alpha)
         alpha = 1.0;
     }
     color *= wgr_frame[2].z;
-    int _389 = int(wgr_frame[2].y + 0.5);
-    if (_389 == 1)
+    int _425 = int(wgr_frame[2].y + 0.5);
+    if (_425 == 1)
     {
         highp vec3 param = color;
-        highp vec3 _396 = wgr_tonemap_neutral(param);
-        color = _396;
+        highp vec3 _432 = wgr_tonemap_neutral(param);
+        color = _432;
     }
     else
     {
-        if (_389 == 2)
+        if (_425 == 2)
         {
             highp vec3 param_1 = color;
-            highp vec3 _404 = wgr_tonemap_aces(param_1);
-            color = _404;
+            highp vec3 _440 = wgr_tonemap_aces(param_1);
+            color = _440;
         }
     }
     highp vec3 param_2 = color;
-    highp vec3 _409 = wgri_linear_to_srgb(param_2);
-    wgr_frag_color = vec4(_409, alpha);
+    highp vec3 _445 = wgri_linear_to_srgb(param_2);
+    wgr_frag_color = vec4(_445, alpha);
 }
 
 void main()
 {
-    highp vec4 _432 = texture(noise_tex_noise_smp, wgr_uv0 * 2.0);
-    highp float _433 = _432.x;
-    highp float _448 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((wgr_time() * params[1].w) * 6.283185482025146484375));
-    if (_433 < _448)
+    int param = 0;
+    highp vec2 param_1 = wgr_uv0 * 2.0;
+    highp vec4 _470 = texture(noise_tex_noise_smp, wgr_texture_uv(param, param_1));
+    highp float _471 = _470.x;
+    highp float _486 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((wgr_time() * params[1].w) * 6.283185482025146484375));
+    if (_471 < _486)
     {
         discard;
     }
-    highp vec3 _464 = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
+    highp vec3 _502 = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
     highp vec3 light = wgr_ambient();
-    highp vec3 param_2;
+    highp vec3 param_4;
     for (int i = 0; i < 8; i++)
     {
         if (i >= wgr_light_count())
         {
             break;
         }
-        int param = i;
-        highp vec3 param_1 = wgr_world_pos;
-        highp vec3 _490 = wgr_light(param, param_1, param_2);
-        light += ((_490 * max(dot(_464, param_2), 0.0)) * vec3(0.3183098733425140380859375));
+        int param_2 = i;
+        highp vec3 param_3 = wgr_world_pos;
+        highp vec3 _528 = wgr_light(param_2, param_3, param_4);
+        light += ((_528 * max(dot(_502, param_4), 0.0)) * vec3(0.3183098733425140380859375));
     }
-    highp vec3 param_3 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _433 - _448)));
-    highp float param_4 = params[0].w;
-    wgr_output(param_3, param_4);
+    highp vec3 param_5 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _471 - _486)));
+    highp float param_6 = params[0].w;
+    wgr_output(param_5, param_6);
 }
 
 
@@ -1479,7 +1519,7 @@ attr 4 inst_right
 attr 5 inst_up
 attr 6 inst_color
 ub 0 vertex 128 wgr_sprite_view 8 0
-ub 1 fragment 1184 wgr_frame 74 0
+ub 1 fragment 1216 wgr_frame 76 0
 ub 2 fragment 32 params 2 0
 view 0 fragment noise_tex 2d float 0
 sampler 0 fragment noise_smp filtering 0
@@ -1552,12 +1592,12 @@ void main()
 }
 
 
-source fs 5280
+source fs 5576
 #version 300 es
 precision mediump float;
 precision highp int;
 
-uniform highp vec4 wgr_frame[74];
+uniform highp vec4 wgr_frame[76];
 uniform highp vec4 params[2];
 uniform highp sampler2D noise_tex_noise_smp;
 
@@ -1570,6 +1610,12 @@ in highp vec3 wgr_world_pos;
 in highp vec4 wgr_tangent;
 in highp vec2 wgr_uv1;
 in highp vec4 wgr_color;
+
+highp vec2 wgr_texture_uv(int binding, highp vec2 uv)
+{
+    highp vec4 flips = mix(wgr_frame[74], wgr_frame[75], vec4(step(3.5, float(binding))));
+    return vec2(uv.x, mix(uv.y, 1.0 - uv.y, flips[binding % 4]));
+}
 
 highp float wgr_time()
 {
@@ -1588,72 +1634,72 @@ int wgr_light_count()
 
 highp vec3 wgr_light(int i, highp vec3 pos, out highp vec3 to_light)
 {
-    int _117 = int(wgr_frame[i * 1 + 11].w + 0.5);
-    if (_117 == 0)
+    int _155 = int(wgr_frame[i * 1 + 11].w + 0.5);
+    if (_155 == 0)
     {
         to_light = -normalize(wgr_frame[i * 1 + 11].xyz);
         return wgr_frame[i * 1 + 19].xyz;
     }
-    highp vec3 _142 = pos - wgr_frame[i * 1 + 3].xyz;
-    highp float _145 = length(_142);
-    highp vec3 _150;
-    if (_145 > 9.9999999747524270787835121154785e-07)
+    highp vec3 _180 = pos - wgr_frame[i * 1 + 3].xyz;
+    highp float _183 = length(_180);
+    highp vec3 _188;
+    if (_183 > 9.9999999747524270787835121154785e-07)
     {
-        _150 = _142 / vec3(_145);
+        _188 = _180 / vec3(_183);
     }
     else
     {
-        _150 = vec3(0.0, -1.0, 0.0);
+        _188 = vec3(0.0, -1.0, 0.0);
     }
-    to_light = -_150;
-    highp float falloff = 1.0 / max(_145 * _145, 0.00999999977648258209228515625);
+    to_light = -_188;
+    highp float falloff = 1.0 / max(_183 * _183, 0.00999999977648258209228515625);
     if (wgr_frame[i * 1 + 3].w > 0.0)
     {
-        highp float _181 = _145 / wgr_frame[i * 1 + 3].w;
-        highp float _191 = clamp(1.0 - (((_181 * _181) * _181) * _181), 0.0, 1.0);
-        falloff *= (_191 * _191);
+        highp float _219 = _183 / wgr_frame[i * 1 + 3].w;
+        highp float _229 = clamp(1.0 - (((_219 * _219) * _219) * _219), 0.0, 1.0);
+        falloff *= (_229 * _229);
     }
-    if (_117 == 2)
+    if (_155 == 2)
     {
-        highp float _209 = dot(_150, normalize(wgr_frame[i * 1 + 11].xyz));
-        highp float _225;
+        highp float _247 = dot(_188, normalize(wgr_frame[i * 1 + 11].xyz));
+        highp float _261;
         if ((wgr_frame[i * 1 + 27].x - wgr_frame[i * 1 + 27].y) <= 9.9999999747524270787835121154785e-07)
         {
-            _225 = float(_209 >= wgr_frame[i * 1 + 27].y);
+            _261 = float(_247 >= wgr_frame[i * 1 + 27].y);
         }
         else
         {
-            _225 = smoothstep(wgr_frame[i * 1 + 27].y, wgr_frame[i * 1 + 27].x, _209);
+            _261 = smoothstep(wgr_frame[i * 1 + 27].y, wgr_frame[i * 1 + 27].x, _247);
         }
-        falloff *= _225;
+        falloff *= _261;
     }
     return wgr_frame[i * 1 + 19].xyz * falloff;
 }
 
 highp vec3 wgr_tonemap_neutral(inout highp vec3 color)
 {
-    highp float _257 = min(color.x, min(color.y, color.z));
-    highp float _262;
-    if (_257 < 0.07999999821186065673828125)
+    highp float _293 = min(color.x, min(color.y, color.z));
+    highp float _298;
+    if (_293 < 0.07999999821186065673828125)
     {
-        _262 = _257 - ((6.25 * _257) * _257);
+        _298 = _293 - ((6.25 * _293) * _293);
     }
     else
     {
-        _262 = 0.039999999105930328369140625;
+        _298 = 0.039999999105930328369140625;
     }
-    color -= vec3(_262);
-    highp float _281 = color.x;
-    highp float _283 = color.y;
-    highp float _285 = color.z;
-    highp float _287 = max(_281, max(_283, _285));
-    if (_287 < 0.7599999904632568359375)
+    color -= vec3(_298);
+    highp float _317 = color.x;
+    highp float _319 = color.y;
+    highp float _321 = color.z;
+    highp float _323 = max(_317, max(_319, _321));
+    if (_323 < 0.7599999904632568359375)
     {
         return color;
     }
-    highp float _302 = 1.0 - (0.057599999010562896728515625 / (_287 + (-0.519999980926513671875)));
-    color *= (_302 / _287);
-    return mix(color, vec3(_302), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_287 - _302)) + 1.0))));
+    highp float _338 = 1.0 - (0.057599999010562896728515625 / (_323 + (-0.519999980926513671875)));
+    color *= (_338 / _323);
+    return mix(color, vec3(_338), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_323 - _338)) + 1.0))));
 }
 
 highp vec3 wgr_tonemap_aces(inout highp vec3 color)
@@ -1681,53 +1727,55 @@ void wgr_output(inout highp vec3 color, inout highp float alpha)
         alpha = 1.0;
     }
     color *= wgr_frame[2].z;
-    int _389 = int(wgr_frame[2].y + 0.5);
-    if (_389 == 1)
+    int _425 = int(wgr_frame[2].y + 0.5);
+    if (_425 == 1)
     {
         highp vec3 param = color;
-        highp vec3 _396 = wgr_tonemap_neutral(param);
-        color = _396;
+        highp vec3 _432 = wgr_tonemap_neutral(param);
+        color = _432;
     }
     else
     {
-        if (_389 == 2)
+        if (_425 == 2)
         {
             highp vec3 param_1 = color;
-            highp vec3 _404 = wgr_tonemap_aces(param_1);
-            color = _404;
+            highp vec3 _440 = wgr_tonemap_aces(param_1);
+            color = _440;
         }
     }
     highp vec3 param_2 = color;
-    highp vec3 _409 = wgri_linear_to_srgb(param_2);
-    wgr_frag_color = vec4(_409, alpha);
+    highp vec3 _445 = wgri_linear_to_srgb(param_2);
+    wgr_frag_color = vec4(_445, alpha);
 }
 
 void main()
 {
-    highp vec4 _432 = texture(noise_tex_noise_smp, wgr_uv0 * 2.0);
-    highp float _433 = _432.x;
-    highp float _448 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((wgr_time() * params[1].w) * 6.283185482025146484375));
-    if (_433 < _448)
+    int param = 0;
+    highp vec2 param_1 = wgr_uv0 * 2.0;
+    highp vec4 _470 = texture(noise_tex_noise_smp, wgr_texture_uv(param, param_1));
+    highp float _471 = _470.x;
+    highp float _486 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((wgr_time() * params[1].w) * 6.283185482025146484375));
+    if (_471 < _486)
     {
         discard;
     }
-    highp vec3 _464 = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
+    highp vec3 _502 = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
     highp vec3 light = wgr_ambient();
-    highp vec3 param_2;
+    highp vec3 param_4;
     for (int i = 0; i < 8; i++)
     {
         if (i >= wgr_light_count())
         {
             break;
         }
-        int param = i;
-        highp vec3 param_1 = wgr_world_pos;
-        highp vec3 _490 = wgr_light(param, param_1, param_2);
-        light += ((_490 * max(dot(_464, param_2), 0.0)) * vec3(0.3183098733425140380859375));
+        int param_2 = i;
+        highp vec3 param_3 = wgr_world_pos;
+        highp vec3 _528 = wgr_light(param_2, param_3, param_4);
+        light += ((_528 * max(dot(_502, param_4), 0.0)) * vec3(0.3183098733425140380859375));
     }
-    highp vec3 param_3 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _433 - _448)));
-    highp float param_4 = params[0].w;
-    wgr_output(param_3, param_4);
+    highp vec3 param_5 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _471 - _486)));
+    highp float param_6 = params[0].w;
+    wgr_output(param_5, param_6);
 }
 
 
@@ -1735,7 +1783,7 @@ program sprite_pulled glsl300es
 attr 0 corner
 ub 0 vertex 128 wgr_sprite_view 8 0
 ub 4 vertex 16 wgr_sprite_batch 1 0
-ub 1 fragment 1184 wgr_frame 74 0
+ub 1 fragment 1216 wgr_frame 76 0
 ub 2 fragment 32 params 2 0
 view 0 fragment noise_tex 2d float 0
 view 11 vertex wgr_sprite_data 2d unfilterable_float 0
@@ -1826,12 +1874,12 @@ void main()
 }
 
 
-source fs 5280
+source fs 5576
 #version 300 es
 precision mediump float;
 precision highp int;
 
-uniform highp vec4 wgr_frame[74];
+uniform highp vec4 wgr_frame[76];
 uniform highp vec4 params[2];
 uniform highp sampler2D noise_tex_noise_smp;
 
@@ -1844,6 +1892,12 @@ in highp vec3 wgr_world_pos;
 in highp vec4 wgr_tangent;
 in highp vec2 wgr_uv1;
 in highp vec4 wgr_color;
+
+highp vec2 wgr_texture_uv(int binding, highp vec2 uv)
+{
+    highp vec4 flips = mix(wgr_frame[74], wgr_frame[75], vec4(step(3.5, float(binding))));
+    return vec2(uv.x, mix(uv.y, 1.0 - uv.y, flips[binding % 4]));
+}
 
 highp float wgr_time()
 {
@@ -1862,72 +1916,72 @@ int wgr_light_count()
 
 highp vec3 wgr_light(int i, highp vec3 pos, out highp vec3 to_light)
 {
-    int _117 = int(wgr_frame[i * 1 + 11].w + 0.5);
-    if (_117 == 0)
+    int _155 = int(wgr_frame[i * 1 + 11].w + 0.5);
+    if (_155 == 0)
     {
         to_light = -normalize(wgr_frame[i * 1 + 11].xyz);
         return wgr_frame[i * 1 + 19].xyz;
     }
-    highp vec3 _142 = pos - wgr_frame[i * 1 + 3].xyz;
-    highp float _145 = length(_142);
-    highp vec3 _150;
-    if (_145 > 9.9999999747524270787835121154785e-07)
+    highp vec3 _180 = pos - wgr_frame[i * 1 + 3].xyz;
+    highp float _183 = length(_180);
+    highp vec3 _188;
+    if (_183 > 9.9999999747524270787835121154785e-07)
     {
-        _150 = _142 / vec3(_145);
+        _188 = _180 / vec3(_183);
     }
     else
     {
-        _150 = vec3(0.0, -1.0, 0.0);
+        _188 = vec3(0.0, -1.0, 0.0);
     }
-    to_light = -_150;
-    highp float falloff = 1.0 / max(_145 * _145, 0.00999999977648258209228515625);
+    to_light = -_188;
+    highp float falloff = 1.0 / max(_183 * _183, 0.00999999977648258209228515625);
     if (wgr_frame[i * 1 + 3].w > 0.0)
     {
-        highp float _181 = _145 / wgr_frame[i * 1 + 3].w;
-        highp float _191 = clamp(1.0 - (((_181 * _181) * _181) * _181), 0.0, 1.0);
-        falloff *= (_191 * _191);
+        highp float _219 = _183 / wgr_frame[i * 1 + 3].w;
+        highp float _229 = clamp(1.0 - (((_219 * _219) * _219) * _219), 0.0, 1.0);
+        falloff *= (_229 * _229);
     }
-    if (_117 == 2)
+    if (_155 == 2)
     {
-        highp float _209 = dot(_150, normalize(wgr_frame[i * 1 + 11].xyz));
-        highp float _225;
+        highp float _247 = dot(_188, normalize(wgr_frame[i * 1 + 11].xyz));
+        highp float _261;
         if ((wgr_frame[i * 1 + 27].x - wgr_frame[i * 1 + 27].y) <= 9.9999999747524270787835121154785e-07)
         {
-            _225 = float(_209 >= wgr_frame[i * 1 + 27].y);
+            _261 = float(_247 >= wgr_frame[i * 1 + 27].y);
         }
         else
         {
-            _225 = smoothstep(wgr_frame[i * 1 + 27].y, wgr_frame[i * 1 + 27].x, _209);
+            _261 = smoothstep(wgr_frame[i * 1 + 27].y, wgr_frame[i * 1 + 27].x, _247);
         }
-        falloff *= _225;
+        falloff *= _261;
     }
     return wgr_frame[i * 1 + 19].xyz * falloff;
 }
 
 highp vec3 wgr_tonemap_neutral(inout highp vec3 color)
 {
-    highp float _257 = min(color.x, min(color.y, color.z));
-    highp float _262;
-    if (_257 < 0.07999999821186065673828125)
+    highp float _293 = min(color.x, min(color.y, color.z));
+    highp float _298;
+    if (_293 < 0.07999999821186065673828125)
     {
-        _262 = _257 - ((6.25 * _257) * _257);
+        _298 = _293 - ((6.25 * _293) * _293);
     }
     else
     {
-        _262 = 0.039999999105930328369140625;
+        _298 = 0.039999999105930328369140625;
     }
-    color -= vec3(_262);
-    highp float _281 = color.x;
-    highp float _283 = color.y;
-    highp float _285 = color.z;
-    highp float _287 = max(_281, max(_283, _285));
-    if (_287 < 0.7599999904632568359375)
+    color -= vec3(_298);
+    highp float _317 = color.x;
+    highp float _319 = color.y;
+    highp float _321 = color.z;
+    highp float _323 = max(_317, max(_319, _321));
+    if (_323 < 0.7599999904632568359375)
     {
         return color;
     }
-    highp float _302 = 1.0 - (0.057599999010562896728515625 / (_287 + (-0.519999980926513671875)));
-    color *= (_302 / _287);
-    return mix(color, vec3(_302), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_287 - _302)) + 1.0))));
+    highp float _338 = 1.0 - (0.057599999010562896728515625 / (_323 + (-0.519999980926513671875)));
+    color *= (_338 / _323);
+    return mix(color, vec3(_338), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_323 - _338)) + 1.0))));
 }
 
 highp vec3 wgr_tonemap_aces(inout highp vec3 color)
@@ -1955,53 +2009,55 @@ void wgr_output(inout highp vec3 color, inout highp float alpha)
         alpha = 1.0;
     }
     color *= wgr_frame[2].z;
-    int _389 = int(wgr_frame[2].y + 0.5);
-    if (_389 == 1)
+    int _425 = int(wgr_frame[2].y + 0.5);
+    if (_425 == 1)
     {
         highp vec3 param = color;
-        highp vec3 _396 = wgr_tonemap_neutral(param);
-        color = _396;
+        highp vec3 _432 = wgr_tonemap_neutral(param);
+        color = _432;
     }
     else
     {
-        if (_389 == 2)
+        if (_425 == 2)
         {
             highp vec3 param_1 = color;
-            highp vec3 _404 = wgr_tonemap_aces(param_1);
-            color = _404;
+            highp vec3 _440 = wgr_tonemap_aces(param_1);
+            color = _440;
         }
     }
     highp vec3 param_2 = color;
-    highp vec3 _409 = wgri_linear_to_srgb(param_2);
-    wgr_frag_color = vec4(_409, alpha);
+    highp vec3 _445 = wgri_linear_to_srgb(param_2);
+    wgr_frag_color = vec4(_445, alpha);
 }
 
 void main()
 {
-    highp vec4 _432 = texture(noise_tex_noise_smp, wgr_uv0 * 2.0);
-    highp float _433 = _432.x;
-    highp float _448 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((wgr_time() * params[1].w) * 6.283185482025146484375));
-    if (_433 < _448)
+    int param = 0;
+    highp vec2 param_1 = wgr_uv0 * 2.0;
+    highp vec4 _470 = texture(noise_tex_noise_smp, wgr_texture_uv(param, param_1));
+    highp float _471 = _470.x;
+    highp float _486 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((wgr_time() * params[1].w) * 6.283185482025146484375));
+    if (_471 < _486)
     {
         discard;
     }
-    highp vec3 _464 = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
+    highp vec3 _502 = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
     highp vec3 light = wgr_ambient();
-    highp vec3 param_2;
+    highp vec3 param_4;
     for (int i = 0; i < 8; i++)
     {
         if (i >= wgr_light_count())
         {
             break;
         }
-        int param = i;
-        highp vec3 param_1 = wgr_world_pos;
-        highp vec3 _490 = wgr_light(param, param_1, param_2);
-        light += ((_490 * max(dot(_464, param_2), 0.0)) * vec3(0.3183098733425140380859375));
+        int param_2 = i;
+        highp vec3 param_3 = wgr_world_pos;
+        highp vec3 _528 = wgr_light(param_2, param_3, param_4);
+        light += ((_528 * max(dot(_502, param_4), 0.0)) * vec3(0.3183098733425140380859375));
     }
-    highp vec3 param_3 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _433 - _448)));
-    highp float param_4 = params[0].w;
-    wgr_output(param_3, param_4);
+    highp vec3 param_5 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _471 - _486)));
+    highp float param_6 = params[0].w;
+    wgr_output(param_5, param_6);
 }
 
 
@@ -2013,7 +2069,7 @@ attr 3 texcoord1
 attr 4 tangent
 attr 5 color0
 ub 0 vertex 80 wgr_object 5 0
-ub 1 fragment 1184 wgr_frame 74 0
+ub 1 fragment 1216 wgr_frame 76 0
 ub 2 fragment 32 params 2 0
 view 0 fragment noise_tex 2d float 0
 view 14 vertex wgr_instance_tex 2d unfilterable_float 0
@@ -2113,12 +2169,12 @@ void main()
 }
 
 
-source fs 5280
+source fs 5576
 #version 300 es
 precision mediump float;
 precision highp int;
 
-uniform highp vec4 wgr_frame[74];
+uniform highp vec4 wgr_frame[76];
 uniform highp vec4 params[2];
 uniform highp sampler2D noise_tex_noise_smp;
 
@@ -2131,6 +2187,12 @@ in highp vec3 wgr_world_pos;
 in highp vec4 wgr_tangent;
 in highp vec2 wgr_uv1;
 in highp vec4 wgr_color;
+
+highp vec2 wgr_texture_uv(int binding, highp vec2 uv)
+{
+    highp vec4 flips = mix(wgr_frame[74], wgr_frame[75], vec4(step(3.5, float(binding))));
+    return vec2(uv.x, mix(uv.y, 1.0 - uv.y, flips[binding % 4]));
+}
 
 highp float wgr_time()
 {
@@ -2149,72 +2211,72 @@ int wgr_light_count()
 
 highp vec3 wgr_light(int i, highp vec3 pos, out highp vec3 to_light)
 {
-    int _117 = int(wgr_frame[i * 1 + 11].w + 0.5);
-    if (_117 == 0)
+    int _155 = int(wgr_frame[i * 1 + 11].w + 0.5);
+    if (_155 == 0)
     {
         to_light = -normalize(wgr_frame[i * 1 + 11].xyz);
         return wgr_frame[i * 1 + 19].xyz;
     }
-    highp vec3 _142 = pos - wgr_frame[i * 1 + 3].xyz;
-    highp float _145 = length(_142);
-    highp vec3 _150;
-    if (_145 > 9.9999999747524270787835121154785e-07)
+    highp vec3 _180 = pos - wgr_frame[i * 1 + 3].xyz;
+    highp float _183 = length(_180);
+    highp vec3 _188;
+    if (_183 > 9.9999999747524270787835121154785e-07)
     {
-        _150 = _142 / vec3(_145);
+        _188 = _180 / vec3(_183);
     }
     else
     {
-        _150 = vec3(0.0, -1.0, 0.0);
+        _188 = vec3(0.0, -1.0, 0.0);
     }
-    to_light = -_150;
-    highp float falloff = 1.0 / max(_145 * _145, 0.00999999977648258209228515625);
+    to_light = -_188;
+    highp float falloff = 1.0 / max(_183 * _183, 0.00999999977648258209228515625);
     if (wgr_frame[i * 1 + 3].w > 0.0)
     {
-        highp float _181 = _145 / wgr_frame[i * 1 + 3].w;
-        highp float _191 = clamp(1.0 - (((_181 * _181) * _181) * _181), 0.0, 1.0);
-        falloff *= (_191 * _191);
+        highp float _219 = _183 / wgr_frame[i * 1 + 3].w;
+        highp float _229 = clamp(1.0 - (((_219 * _219) * _219) * _219), 0.0, 1.0);
+        falloff *= (_229 * _229);
     }
-    if (_117 == 2)
+    if (_155 == 2)
     {
-        highp float _209 = dot(_150, normalize(wgr_frame[i * 1 + 11].xyz));
-        highp float _225;
+        highp float _247 = dot(_188, normalize(wgr_frame[i * 1 + 11].xyz));
+        highp float _261;
         if ((wgr_frame[i * 1 + 27].x - wgr_frame[i * 1 + 27].y) <= 9.9999999747524270787835121154785e-07)
         {
-            _225 = float(_209 >= wgr_frame[i * 1 + 27].y);
+            _261 = float(_247 >= wgr_frame[i * 1 + 27].y);
         }
         else
         {
-            _225 = smoothstep(wgr_frame[i * 1 + 27].y, wgr_frame[i * 1 + 27].x, _209);
+            _261 = smoothstep(wgr_frame[i * 1 + 27].y, wgr_frame[i * 1 + 27].x, _247);
         }
-        falloff *= _225;
+        falloff *= _261;
     }
     return wgr_frame[i * 1 + 19].xyz * falloff;
 }
 
 highp vec3 wgr_tonemap_neutral(inout highp vec3 color)
 {
-    highp float _257 = min(color.x, min(color.y, color.z));
-    highp float _262;
-    if (_257 < 0.07999999821186065673828125)
+    highp float _293 = min(color.x, min(color.y, color.z));
+    highp float _298;
+    if (_293 < 0.07999999821186065673828125)
     {
-        _262 = _257 - ((6.25 * _257) * _257);
+        _298 = _293 - ((6.25 * _293) * _293);
     }
     else
     {
-        _262 = 0.039999999105930328369140625;
+        _298 = 0.039999999105930328369140625;
     }
-    color -= vec3(_262);
-    highp float _281 = color.x;
-    highp float _283 = color.y;
-    highp float _285 = color.z;
-    highp float _287 = max(_281, max(_283, _285));
-    if (_287 < 0.7599999904632568359375)
+    color -= vec3(_298);
+    highp float _317 = color.x;
+    highp float _319 = color.y;
+    highp float _321 = color.z;
+    highp float _323 = max(_317, max(_319, _321));
+    if (_323 < 0.7599999904632568359375)
     {
         return color;
     }
-    highp float _302 = 1.0 - (0.057599999010562896728515625 / (_287 + (-0.519999980926513671875)));
-    color *= (_302 / _287);
-    return mix(color, vec3(_302), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_287 - _302)) + 1.0))));
+    highp float _338 = 1.0 - (0.057599999010562896728515625 / (_323 + (-0.519999980926513671875)));
+    color *= (_338 / _323);
+    return mix(color, vec3(_338), vec3(1.0 - (1.0 / ((0.1500000059604644775390625 * (_323 - _338)) + 1.0))));
 }
 
 highp vec3 wgr_tonemap_aces(inout highp vec3 color)
@@ -2242,53 +2304,55 @@ void wgr_output(inout highp vec3 color, inout highp float alpha)
         alpha = 1.0;
     }
     color *= wgr_frame[2].z;
-    int _389 = int(wgr_frame[2].y + 0.5);
-    if (_389 == 1)
+    int _425 = int(wgr_frame[2].y + 0.5);
+    if (_425 == 1)
     {
         highp vec3 param = color;
-        highp vec3 _396 = wgr_tonemap_neutral(param);
-        color = _396;
+        highp vec3 _432 = wgr_tonemap_neutral(param);
+        color = _432;
     }
     else
     {
-        if (_389 == 2)
+        if (_425 == 2)
         {
             highp vec3 param_1 = color;
-            highp vec3 _404 = wgr_tonemap_aces(param_1);
-            color = _404;
+            highp vec3 _440 = wgr_tonemap_aces(param_1);
+            color = _440;
         }
     }
     highp vec3 param_2 = color;
-    highp vec3 _409 = wgri_linear_to_srgb(param_2);
-    wgr_frag_color = vec4(_409, alpha);
+    highp vec3 _445 = wgri_linear_to_srgb(param_2);
+    wgr_frag_color = vec4(_445, alpha);
 }
 
 void main()
 {
-    highp vec4 _432 = texture(noise_tex_noise_smp, wgr_uv0 * 2.0);
-    highp float _433 = _432.x;
-    highp float _448 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((wgr_time() * params[1].w) * 6.283185482025146484375));
-    if (_433 < _448)
+    int param = 0;
+    highp vec2 param_1 = wgr_uv0 * 2.0;
+    highp vec4 _470 = texture(noise_tex_noise_smp, wgr_texture_uv(param, param_1));
+    highp float _471 = _470.x;
+    highp float _486 = 0.300000011920928955078125 + (0.4000000059604644775390625 * sin((wgr_time() * params[1].w) * 6.283185482025146484375));
+    if (_471 < _486)
     {
         discard;
     }
-    highp vec3 _464 = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
+    highp vec3 _502 = normalize(wgr_normal) * (gl_FrontFacing ? 1.0 : (-1.0));
     highp vec3 light = wgr_ambient();
-    highp vec3 param_2;
+    highp vec3 param_4;
     for (int i = 0; i < 8; i++)
     {
         if (i >= wgr_light_count())
         {
             break;
         }
-        int param = i;
-        highp vec3 param_1 = wgr_world_pos;
-        highp vec3 _490 = wgr_light(param, param_1, param_2);
-        light += ((_490 * max(dot(_464, param_2), 0.0)) * vec3(0.3183098733425140380859375));
+        int param_2 = i;
+        highp vec3 param_3 = wgr_world_pos;
+        highp vec3 _528 = wgr_light(param_2, param_3, param_4);
+        light += ((_528 * max(dot(_502, param_4), 0.0)) * vec3(0.3183098733425140380859375));
     }
-    highp vec3 param_3 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _433 - _448)));
-    highp float param_4 = params[0].w;
-    wgr_output(param_3, param_4);
+    highp vec3 param_5 = (params[0].xyz * light) + (params[1].xyz * (1.0 - smoothstep(0.0, 0.0599999986588954925537109375, _471 - _486)));
+    highp float param_6 = params[0].w;
+    wgr_output(param_5, param_6);
 }
 
 
@@ -2302,7 +2366,7 @@ attr 5 -
 attr 6 -
 attr 7 -
 ub 0 vertex 80 - 0 0
-ub 1 fragment 1184 - 0 1
+ub 1 fragment 1216 - 0 1
 ub 2 fragment 32 - 0 2
 view 0 fragment noise_tex 2d float 0
 view 12 vertex wgr_joint_tex 2d unfilterable_float 12
@@ -2552,7 +2616,7 @@ fn main(@location(0) position_2_param : vec3f, @location(1) normal_1_param : vec
   return main_out(gl_Position, wgr_world_pos, wgr_normal, wgr_tangent, wgr_uv0, wgr_uv1, wgr_color, wgr_tint, wgr_sprite_alpha);
 }
 
-source fs 8175
+source fs 8824
 diagnostic(off, derivative_uniformity);
 
 alias Arr = array<vec4f, 8u>;
@@ -2602,6 +2666,10 @@ struct wgr_frame {
   wgr_shadow_extra : Arr_8,
   /* @offset(1168) */
   wgr_shadow_map : vec4f,
+  /* @offset(1184) */
+  wgr_texture_flip_lo : vec4f,
+  /* @offset(1200) */
+  wgr_texture_flip_hi : vec4f,
 }
 
 struct params {
@@ -2613,7 +2681,7 @@ struct params {
   speed : f32,
 }
 
-@binding(1) @group(0) var<uniform> x_89 : wgr_frame;
+@binding(1) @group(0) var<uniform> x_96 : wgr_frame;
 
 var<private> wgr_tint : vec4f;
 
@@ -2627,7 +2695,7 @@ var<private> wgr_frag_color : vec4f;
 
 var<private> wgr_uv0 : vec2f;
 
-@binding(2) @group(0) var<uniform> x_440 : params;
+@binding(2) @group(0) var<uniform> x_478 : params;
 
 var<private> wgr_normal : vec3f;
 
@@ -2641,103 +2709,113 @@ var<private> wgr_uv1 : vec2f;
 
 var<private> wgr_color : vec4f;
 
+fn wgr_texture_uv_i1_vf2_(binding_1 : ptr<function, i32>, uv : ptr<function, vec2f>) -> vec2f {
+  var flips : vec4f;
+  flips = mix(x_96.wgr_texture_flip_lo, x_96.wgr_texture_flip_hi, vec4f(step(3.5f, f32(*(binding_1)))));
+  let x_121 = (*(uv)).x;
+  let x_124 = (*(uv)).y;
+  let x_126 = (*(uv)).y;
+  let x_132 = flips[(*(binding_1) % 4i)];
+  return vec2f(x_121, mix(x_124, (1.0f - x_126), x_132));
+}
+
 fn wgr_time_() -> f32 {
-  let x_94 = x_89.wgr_camera_time.w;
-  return x_94;
+  let x_101 = x_96.wgr_camera_time.w;
+  return x_101;
 }
 
 fn wgr_ambient_() -> vec3f {
-  let x_100 = x_89.wgr_ambient_count;
-  return x_100.xyz;
+  let x_139 = x_96.wgr_ambient_count;
+  return x_139.xyz;
 }
 
 fn wgr_light_count_() -> i32 {
-  let x_105 = x_89.wgr_ambient_count.w;
-  return i32((x_105 + 0.5f));
+  let x_144 = x_96.wgr_ambient_count.w;
+  return i32((x_144 + 0.5f));
 }
 
 fn wgr_light_i1_vf3_vf3_(i : ptr<function, i32>, pos : ptr<function, vec3f>, to_light : ptr<function, vec3f>) -> vec3f {
-  var x_150 : vec3f;
+  var x_188 : vec3f;
   var falloff : f32;
-  var x_225 : f32;
-  let x_117 = i32((x_89.wgr_light_dir_type[*(i)].w + 0.5f));
-  if ((x_117 == 0i)) {
-    *(to_light) = -(normalize(x_89.wgr_light_dir_type[*(i)].xyz));
-    let x_132 = x_89.wgr_light_radiance[*(i)];
-    return x_132.xyz;
+  var x_261 : f32;
+  let x_155 = i32((x_96.wgr_light_dir_type[*(i)].w + 0.5f));
+  if ((x_155 == 0i)) {
+    *(to_light) = -(normalize(x_96.wgr_light_dir_type[*(i)].xyz));
+    let x_170 = x_96.wgr_light_radiance[*(i)];
+    return x_170.xyz;
   }
-  let x_142 = (*(pos) - x_89.wgr_light_pos_range[*(i)].xyz);
-  let x_145 = length(x_142);
-  if ((x_145 > 0.00000099999999747524f)) {
-    x_150 = (x_142 / vec3f(x_145));
+  let x_180 = (*(pos) - x_96.wgr_light_pos_range[*(i)].xyz);
+  let x_183 = length(x_180);
+  if ((x_183 > 0.00000099999999747524f)) {
+    x_188 = (x_180 / vec3f(x_183));
   } else {
-    x_150 = vec3f(0.0f, -1.0f, 0.0f);
+    x_188 = vec3f(0.0f, -1.0f, 0.0f);
   }
-  let x_160 = x_150;
-  *(to_light) = -(x_150);
-  falloff = (1.0f / max((x_145 * x_145), 0.00999999977648258209f));
-  let x_173 = x_89.wgr_light_pos_range[*(i)].w;
-  if ((x_173 > 0.0f)) {
-    let x_181 = (x_145 / x_173);
-    let x_191 = clamp((1.0f - (((x_181 * x_181) * x_181) * x_181)), 0.0f, 1.0f);
-    falloff = (falloff * (x_191 * x_191));
+  let x_198 = x_188;
+  *(to_light) = -(x_188);
+  falloff = (1.0f / max((x_183 * x_183), 0.00999999977648258209f));
+  let x_211 = x_96.wgr_light_pos_range[*(i)].w;
+  if ((x_211 > 0.0f)) {
+    let x_219 = (x_183 / x_211);
+    let x_229 = clamp((1.0f - (((x_219 * x_219) * x_219) * x_219)), 0.0f, 1.0f);
+    falloff = (falloff * (x_229 * x_229));
   }
-  if ((x_117 == 2i)) {
-    let x_209 = dot(x_160, normalize(x_89.wgr_light_dir_type[*(i)].xyz));
-    let x_215 = x_89.wgr_light_spot[*(i)].x;
-    let x_220 = x_89.wgr_light_spot[*(i)].y;
-    if (((x_215 - x_220) <= 0.00000099999999747524f)) {
-      x_225 = select(0.0f, 1.0f, (x_209 >= x_220));
+  if ((x_155 == 2i)) {
+    let x_247 = dot(x_198, normalize(x_96.wgr_light_dir_type[*(i)].xyz));
+    let x_252 = x_96.wgr_light_spot[*(i)].x;
+    let x_256 = x_96.wgr_light_spot[*(i)].y;
+    if (((x_252 - x_256) <= 0.00000099999999747524f)) {
+      x_261 = select(0.0f, 1.0f, (x_247 >= x_256));
     } else {
-      x_225 = smoothstep(x_220, x_215, x_209);
+      x_261 = smoothstep(x_256, x_252, x_247);
     }
-    falloff = (falloff * x_225);
+    falloff = (falloff * x_261);
   }
-  let x_242 = x_89.wgr_light_radiance[*(i)];
-  let x_244 = falloff;
-  return (x_242.xyz * x_244);
+  let x_278 = x_96.wgr_light_radiance[*(i)];
+  let x_280 = falloff;
+  return (x_278.xyz * x_280);
 }
 
 fn wgr_tonemap_neutral_vf3_(color : ptr<function, vec3f>) -> vec3f {
-  var x_262 : f32;
-  let x_257 = min((*(color)).x, min((*(color)).y, (*(color)).z));
-  if ((x_257 < 0.07999999821186065674f)) {
-    x_262 = (x_257 - ((6.25f * x_257) * x_257));
+  var x_298 : f32;
+  let x_293 = min((*(color)).x, min((*(color)).y, (*(color)).z));
+  if ((x_293 < 0.07999999821186065674f)) {
+    x_298 = (x_293 - ((6.25f * x_293) * x_293));
   } else {
-    x_262 = 0.03999999910593032837f;
+    x_298 = 0.03999999910593032837f;
   }
-  *(color) = (*(color) - vec3f(x_262));
-  let x_287 = max((*(color)).x, max((*(color)).y, (*(color)).z));
-  if ((x_287 < 0.75999999046325683594f)) {
-    let x_293 = *(color);
-    return x_293;
+  *(color) = (*(color) - vec3f(x_298));
+  let x_323 = max((*(color)).x, max((*(color)).y, (*(color)).z));
+  if ((x_323 < 0.75999999046325683594f)) {
+    let x_329 = *(color);
+    return x_329;
   }
-  let x_302 = (1.0f - (0.05759999901056289673f / (x_287 + -0.51999998092651367188f)));
-  *(color) = (*(color) * (x_302 / x_287));
-  let x_316 = (1.0f - (1.0f / ((0.15000000596046447754f * (x_287 - x_302)) + 1.0f)));
-  let x_317 = *(color);
-  return mix(x_317, vec3f(x_302), vec3f(x_316));
+  let x_338 = (1.0f - (0.05759999901056289673f / (x_323 + -0.51999998092651367188f)));
+  *(color) = (*(color) * (x_338 / x_323));
+  let x_352 = (1.0f - (1.0f / ((0.15000000596046447754f * (x_323 - x_338)) + 1.0f)));
+  let x_353 = *(color);
+  return mix(x_353, vec3f(x_338), vec3f(x_352));
 }
 
-const x_46 = vec3f(1.0f);
+const x_53 = vec3f(1.0f);
 
 fn wgr_tonemap_aces_vf3_(color_1 : ptr<function, vec3f>) -> vec3f {
   *(color_1) = (*(color_1) * 0.60000002384185791016f);
-  let x_328 = *(color_1);
-  let x_330 = *(color_1);
-  let x_336 = *(color_1);
-  let x_338 = *(color_1);
-  return clamp(((x_328 * ((x_330 * 2.50999999046325683594f) + vec3f(0.02999999932944774628f))) / ((x_336 * ((x_338 * 2.43000006675720214844f) + vec3f(0.58999997377395629883f))) + vec3f(0.14000000059604644775f))), vec3f(), x_46);
+  let x_364 = *(color_1);
+  let x_366 = *(color_1);
+  let x_372 = *(color_1);
+  let x_374 = *(color_1);
+  return clamp(((x_364 * ((x_366 * 2.50999999046325683594f) + vec3f(0.02999999932944774628f))) / ((x_372 * ((x_374 * 2.43000006675720214844f) + vec3f(0.58999997377395629883f))) + vec3f(0.14000000059604644775f))), vec3f(), x_53);
 }
 
-const x_56 = vec3f(0.00313080009073019028f);
+const x_63 = vec3f(0.00313080009073019028f);
 
 fn wgri_linear_to_srgb_vf3_(c : ptr<function, vec3f>) -> vec3f {
-  *(c) = clamp(*(c), vec3f(), x_46);
-  let x_49 = *(c);
-  let x_54 = *(c);
-  let x_67 = *(c);
-  return mix((x_49 * 12.9200000762939453125f), ((pow(max(x_54, x_56), vec3f(0.4166666567325592041f)) * 1.05499994754791259766f) - vec3f(0.05499999970197677612f)), step(x_56, x_67));
+  *(c) = clamp(*(c), vec3f(), x_53);
+  let x_56 = *(c);
+  let x_61 = *(c);
+  let x_74 = *(c);
+  return mix((x_56 * 12.9200000762939453125f), ((pow(max(x_61, x_63), vec3f(0.4166666567325592041f)) * 1.05499994754791259766f) - vec3f(0.05499999970197677612f)), step(x_63, x_74));
 }
 
 fn wgr_output_vf3_f1_(color_2 : ptr<function, vec3f>, alpha : ptr<function, f32>) {
@@ -2746,75 +2824,80 @@ fn wgr_output_vf3_f1_(color_2 : ptr<function, vec3f>, alpha : ptr<function, f32>
   var param_2 : vec3f;
   *(color_2) = (*(color_2) * wgr_tint.xyz);
   *(alpha) = (*(alpha) * wgr_tint.w);
-  let x_368 = wgr_sprite_alpha;
-  if ((*(alpha) < max(x_89.wgr_output_params.x, max(wgr_sprite_alpha, 0.0f)))) {
+  let x_404 = wgr_sprite_alpha;
+  if ((*(alpha) < max(x_96.wgr_output_params.x, max(wgr_sprite_alpha, 0.0f)))) {
     discard;
   }
-  if (!((x_368 == 0.0f))) {
+  if (!((x_404 == 0.0f))) {
     *(alpha) = 1.0f;
   }
-  var x_389 : i32;
-  *(color_2) = (*(color_2) * x_89.wgr_output_params.z);
-  x_389 = i32((x_89.wgr_output_params.y + 0.5f));
-  if ((x_389 == 1i)) {
+  var x_425 : i32;
+  *(color_2) = (*(color_2) * x_96.wgr_output_params.z);
+  x_425 = i32((x_96.wgr_output_params.y + 0.5f));
+  if ((x_425 == 1i)) {
     param = *(color_2);
-    let x_396 = wgr_tonemap_neutral_vf3_(&(param));
-    *(color_2) = x_396;
+    let x_432 = wgr_tonemap_neutral_vf3_(&(param));
+    *(color_2) = x_432;
   } else {
-    if ((x_389 == 2i)) {
+    if ((x_425 == 2i)) {
       param_1 = *(color_2);
-      let x_404 = wgr_tonemap_aces_vf3_(&(param_1));
-      *(color_2) = x_404;
+      let x_440 = wgr_tonemap_aces_vf3_(&(param_1));
+      *(color_2) = x_440;
     }
   }
   param_2 = *(color_2);
-  let x_409 = wgri_linear_to_srgb_vf3_(&(param_2));
-  wgr_frag_color = vec4f(x_409.x, x_409.y, x_409.z, *(alpha));
+  let x_445 = wgri_linear_to_srgb_vf3_(&(param_2));
+  wgr_frag_color = vec4f(x_445.x, x_445.y, x_445.z, *(alpha));
   return;
 }
 
 fn main_1() {
+  var param_3 : i32;
+  var param_4 : vec2f;
   var light : vec3f;
   var i_1 : i32;
-  var param_3 : i32;
-  var param_4 : vec3f;
-  var param_5 : vec3f;
+  var param_5 : i32;
   var param_6 : vec3f;
-  var param_7 : f32;
-  let x_429 = wgr_uv0;
-  let x_432 = textureSample(noise_tex, noise_smp, (x_429 * 2.0f));
-  let x_433 = x_432.x;
-  let x_437 = wgr_time_();
-  let x_448 = (0.30000001192092895508f + (0.40000000596046447754f * sin(((x_437 * x_440.speed) * 6.28318548202514648438f))));
-  if ((x_433 < x_448)) {
+  var param_7 : vec3f;
+  var param_8 : vec3f;
+  var param_9 : f32;
+  let x_464 = wgr_uv0;
+  param_3 = 0i;
+  param_4 = (x_464 * 2.0f);
+  let x_469 = wgr_texture_uv_i1_vf2_(&(param_3), &(param_4));
+  let x_470 = textureSample(noise_tex, noise_smp, x_469);
+  let x_471 = x_470.x;
+  let x_475 = wgr_time_();
+  let x_486 = (0.30000001192092895508f + (0.40000000596046447754f * sin(((x_475 * x_478.speed) * 6.28318548202514648438f))));
+  if ((x_471 < x_486)) {
     discard;
   }
-  let x_464 = (normalize(wgr_normal) * select(-1.0f, 1.0f, gl_FrontFacing));
-  let x_466 = wgr_ambient_();
-  light = x_466;
+  let x_502 = (normalize(wgr_normal) * select(-1.0f, 1.0f, gl_FrontFacing));
+  let x_504 = wgr_ambient_();
+  light = x_504;
   i_1 = 0i;
   loop {
     if ((i_1 < 8i)) {
     } else {
       break;
     }
-    let x_476 = i_1;
-    let x_477 = wgr_light_count_();
-    if ((x_476 >= x_477)) {
+    let x_514 = i_1;
+    let x_515 = wgr_light_count_();
+    if ((x_514 >= x_515)) {
       break;
     }
-    param_3 = i_1;
-    param_4 = wgr_world_pos;
-    let x_490 = wgr_light_i1_vf3_vf3_(&(param_3), &(param_4), &(param_5));
-    light = (light + ((x_490 * max(dot(x_464, param_5), 0.0f)) * vec3f(0.31830987334251403809f)));
+    param_5 = i_1;
+    param_6 = wgr_world_pos;
+    let x_528 = wgr_light_i1_vf3_vf3_(&(param_5), &(param_6), &(param_7));
+    light = (light + ((x_528 * max(dot(x_502, param_7), 0.0f)) * vec3f(0.31830987334251403809f)));
 
     continuing {
       i_1 = (i_1 + 1i);
     }
   }
-  param_6 = ((x_440.color.xyz * light) + (x_440.edge_color * (1.0f - smoothstep(0.0f, 0.05999999865889549255f, (x_433 - x_448)))));
-  param_7 = x_440.color.w;
-  wgr_output_vf3_f1_(&(param_6), &(param_7));
+  param_8 = ((x_478.color.xyz * light) + (x_478.edge_color * (1.0f - smoothstep(0.0f, 0.05999999865889549255f, (x_471 - x_486)))));
+  param_9 = x_478.color.w;
+  wgr_output_vf3_f1_(&(param_8), &(param_9));
   return;
 }
 
@@ -2847,7 +2930,7 @@ attr 4 -
 attr 5 -
 attr 6 -
 ub 0 vertex 128 - 0 0
-ub 1 fragment 1184 - 0 1
+ub 1 fragment 1216 - 0 1
 ub 2 fragment 32 - 0 2
 view 0 fragment noise_tex 2d float 0
 sampler 0 fragment noise_smp filtering 32
@@ -2996,7 +3079,7 @@ fn main(@location(0) corner_1_param : vec2f, @location(1) inst_pos_param : vec4f
   return main_out(gl_Position, wgr_world_pos, wgr_normal, wgr_tangent, wgr_uv0, wgr_uv1, wgr_color, wgr_tint, wgr_sprite_alpha);
 }
 
-source fs 8175
+source fs 8824
 diagnostic(off, derivative_uniformity);
 
 alias Arr = array<vec4f, 8u>;
@@ -3046,6 +3129,10 @@ struct wgr_frame {
   wgr_shadow_extra : Arr_8,
   /* @offset(1168) */
   wgr_shadow_map : vec4f,
+  /* @offset(1184) */
+  wgr_texture_flip_lo : vec4f,
+  /* @offset(1200) */
+  wgr_texture_flip_hi : vec4f,
 }
 
 struct params {
@@ -3057,7 +3144,7 @@ struct params {
   speed : f32,
 }
 
-@binding(1) @group(0) var<uniform> x_89 : wgr_frame;
+@binding(1) @group(0) var<uniform> x_96 : wgr_frame;
 
 var<private> wgr_tint : vec4f;
 
@@ -3071,7 +3158,7 @@ var<private> wgr_frag_color : vec4f;
 
 var<private> wgr_uv0 : vec2f;
 
-@binding(2) @group(0) var<uniform> x_440 : params;
+@binding(2) @group(0) var<uniform> x_478 : params;
 
 var<private> wgr_normal : vec3f;
 
@@ -3085,103 +3172,113 @@ var<private> wgr_uv1 : vec2f;
 
 var<private> wgr_color : vec4f;
 
+fn wgr_texture_uv_i1_vf2_(binding_1 : ptr<function, i32>, uv : ptr<function, vec2f>) -> vec2f {
+  var flips : vec4f;
+  flips = mix(x_96.wgr_texture_flip_lo, x_96.wgr_texture_flip_hi, vec4f(step(3.5f, f32(*(binding_1)))));
+  let x_121 = (*(uv)).x;
+  let x_124 = (*(uv)).y;
+  let x_126 = (*(uv)).y;
+  let x_132 = flips[(*(binding_1) % 4i)];
+  return vec2f(x_121, mix(x_124, (1.0f - x_126), x_132));
+}
+
 fn wgr_time_() -> f32 {
-  let x_94 = x_89.wgr_camera_time.w;
-  return x_94;
+  let x_101 = x_96.wgr_camera_time.w;
+  return x_101;
 }
 
 fn wgr_ambient_() -> vec3f {
-  let x_100 = x_89.wgr_ambient_count;
-  return x_100.xyz;
+  let x_139 = x_96.wgr_ambient_count;
+  return x_139.xyz;
 }
 
 fn wgr_light_count_() -> i32 {
-  let x_105 = x_89.wgr_ambient_count.w;
-  return i32((x_105 + 0.5f));
+  let x_144 = x_96.wgr_ambient_count.w;
+  return i32((x_144 + 0.5f));
 }
 
 fn wgr_light_i1_vf3_vf3_(i : ptr<function, i32>, pos : ptr<function, vec3f>, to_light : ptr<function, vec3f>) -> vec3f {
-  var x_150 : vec3f;
+  var x_188 : vec3f;
   var falloff : f32;
-  var x_225 : f32;
-  let x_117 = i32((x_89.wgr_light_dir_type[*(i)].w + 0.5f));
-  if ((x_117 == 0i)) {
-    *(to_light) = -(normalize(x_89.wgr_light_dir_type[*(i)].xyz));
-    let x_132 = x_89.wgr_light_radiance[*(i)];
-    return x_132.xyz;
+  var x_261 : f32;
+  let x_155 = i32((x_96.wgr_light_dir_type[*(i)].w + 0.5f));
+  if ((x_155 == 0i)) {
+    *(to_light) = -(normalize(x_96.wgr_light_dir_type[*(i)].xyz));
+    let x_170 = x_96.wgr_light_radiance[*(i)];
+    return x_170.xyz;
   }
-  let x_142 = (*(pos) - x_89.wgr_light_pos_range[*(i)].xyz);
-  let x_145 = length(x_142);
-  if ((x_145 > 0.00000099999999747524f)) {
-    x_150 = (x_142 / vec3f(x_145));
+  let x_180 = (*(pos) - x_96.wgr_light_pos_range[*(i)].xyz);
+  let x_183 = length(x_180);
+  if ((x_183 > 0.00000099999999747524f)) {
+    x_188 = (x_180 / vec3f(x_183));
   } else {
-    x_150 = vec3f(0.0f, -1.0f, 0.0f);
+    x_188 = vec3f(0.0f, -1.0f, 0.0f);
   }
-  let x_160 = x_150;
-  *(to_light) = -(x_150);
-  falloff = (1.0f / max((x_145 * x_145), 0.00999999977648258209f));
-  let x_173 = x_89.wgr_light_pos_range[*(i)].w;
-  if ((x_173 > 0.0f)) {
-    let x_181 = (x_145 / x_173);
-    let x_191 = clamp((1.0f - (((x_181 * x_181) * x_181) * x_181)), 0.0f, 1.0f);
-    falloff = (falloff * (x_191 * x_191));
+  let x_198 = x_188;
+  *(to_light) = -(x_188);
+  falloff = (1.0f / max((x_183 * x_183), 0.00999999977648258209f));
+  let x_211 = x_96.wgr_light_pos_range[*(i)].w;
+  if ((x_211 > 0.0f)) {
+    let x_219 = (x_183 / x_211);
+    let x_229 = clamp((1.0f - (((x_219 * x_219) * x_219) * x_219)), 0.0f, 1.0f);
+    falloff = (falloff * (x_229 * x_229));
   }
-  if ((x_117 == 2i)) {
-    let x_209 = dot(x_160, normalize(x_89.wgr_light_dir_type[*(i)].xyz));
-    let x_215 = x_89.wgr_light_spot[*(i)].x;
-    let x_220 = x_89.wgr_light_spot[*(i)].y;
-    if (((x_215 - x_220) <= 0.00000099999999747524f)) {
-      x_225 = select(0.0f, 1.0f, (x_209 >= x_220));
+  if ((x_155 == 2i)) {
+    let x_247 = dot(x_198, normalize(x_96.wgr_light_dir_type[*(i)].xyz));
+    let x_252 = x_96.wgr_light_spot[*(i)].x;
+    let x_256 = x_96.wgr_light_spot[*(i)].y;
+    if (((x_252 - x_256) <= 0.00000099999999747524f)) {
+      x_261 = select(0.0f, 1.0f, (x_247 >= x_256));
     } else {
-      x_225 = smoothstep(x_220, x_215, x_209);
+      x_261 = smoothstep(x_256, x_252, x_247);
     }
-    falloff = (falloff * x_225);
+    falloff = (falloff * x_261);
   }
-  let x_242 = x_89.wgr_light_radiance[*(i)];
-  let x_244 = falloff;
-  return (x_242.xyz * x_244);
+  let x_278 = x_96.wgr_light_radiance[*(i)];
+  let x_280 = falloff;
+  return (x_278.xyz * x_280);
 }
 
 fn wgr_tonemap_neutral_vf3_(color : ptr<function, vec3f>) -> vec3f {
-  var x_262 : f32;
-  let x_257 = min((*(color)).x, min((*(color)).y, (*(color)).z));
-  if ((x_257 < 0.07999999821186065674f)) {
-    x_262 = (x_257 - ((6.25f * x_257) * x_257));
+  var x_298 : f32;
+  let x_293 = min((*(color)).x, min((*(color)).y, (*(color)).z));
+  if ((x_293 < 0.07999999821186065674f)) {
+    x_298 = (x_293 - ((6.25f * x_293) * x_293));
   } else {
-    x_262 = 0.03999999910593032837f;
+    x_298 = 0.03999999910593032837f;
   }
-  *(color) = (*(color) - vec3f(x_262));
-  let x_287 = max((*(color)).x, max((*(color)).y, (*(color)).z));
-  if ((x_287 < 0.75999999046325683594f)) {
-    let x_293 = *(color);
-    return x_293;
+  *(color) = (*(color) - vec3f(x_298));
+  let x_323 = max((*(color)).x, max((*(color)).y, (*(color)).z));
+  if ((x_323 < 0.75999999046325683594f)) {
+    let x_329 = *(color);
+    return x_329;
   }
-  let x_302 = (1.0f - (0.05759999901056289673f / (x_287 + -0.51999998092651367188f)));
-  *(color) = (*(color) * (x_302 / x_287));
-  let x_316 = (1.0f - (1.0f / ((0.15000000596046447754f * (x_287 - x_302)) + 1.0f)));
-  let x_317 = *(color);
-  return mix(x_317, vec3f(x_302), vec3f(x_316));
+  let x_338 = (1.0f - (0.05759999901056289673f / (x_323 + -0.51999998092651367188f)));
+  *(color) = (*(color) * (x_338 / x_323));
+  let x_352 = (1.0f - (1.0f / ((0.15000000596046447754f * (x_323 - x_338)) + 1.0f)));
+  let x_353 = *(color);
+  return mix(x_353, vec3f(x_338), vec3f(x_352));
 }
 
-const x_46 = vec3f(1.0f);
+const x_53 = vec3f(1.0f);
 
 fn wgr_tonemap_aces_vf3_(color_1 : ptr<function, vec3f>) -> vec3f {
   *(color_1) = (*(color_1) * 0.60000002384185791016f);
-  let x_328 = *(color_1);
-  let x_330 = *(color_1);
-  let x_336 = *(color_1);
-  let x_338 = *(color_1);
-  return clamp(((x_328 * ((x_330 * 2.50999999046325683594f) + vec3f(0.02999999932944774628f))) / ((x_336 * ((x_338 * 2.43000006675720214844f) + vec3f(0.58999997377395629883f))) + vec3f(0.14000000059604644775f))), vec3f(), x_46);
+  let x_364 = *(color_1);
+  let x_366 = *(color_1);
+  let x_372 = *(color_1);
+  let x_374 = *(color_1);
+  return clamp(((x_364 * ((x_366 * 2.50999999046325683594f) + vec3f(0.02999999932944774628f))) / ((x_372 * ((x_374 * 2.43000006675720214844f) + vec3f(0.58999997377395629883f))) + vec3f(0.14000000059604644775f))), vec3f(), x_53);
 }
 
-const x_56 = vec3f(0.00313080009073019028f);
+const x_63 = vec3f(0.00313080009073019028f);
 
 fn wgri_linear_to_srgb_vf3_(c : ptr<function, vec3f>) -> vec3f {
-  *(c) = clamp(*(c), vec3f(), x_46);
-  let x_49 = *(c);
-  let x_54 = *(c);
-  let x_67 = *(c);
-  return mix((x_49 * 12.9200000762939453125f), ((pow(max(x_54, x_56), vec3f(0.4166666567325592041f)) * 1.05499994754791259766f) - vec3f(0.05499999970197677612f)), step(x_56, x_67));
+  *(c) = clamp(*(c), vec3f(), x_53);
+  let x_56 = *(c);
+  let x_61 = *(c);
+  let x_74 = *(c);
+  return mix((x_56 * 12.9200000762939453125f), ((pow(max(x_61, x_63), vec3f(0.4166666567325592041f)) * 1.05499994754791259766f) - vec3f(0.05499999970197677612f)), step(x_63, x_74));
 }
 
 fn wgr_output_vf3_f1_(color_2 : ptr<function, vec3f>, alpha : ptr<function, f32>) {
@@ -3190,75 +3287,80 @@ fn wgr_output_vf3_f1_(color_2 : ptr<function, vec3f>, alpha : ptr<function, f32>
   var param_2 : vec3f;
   *(color_2) = (*(color_2) * wgr_tint.xyz);
   *(alpha) = (*(alpha) * wgr_tint.w);
-  let x_368 = wgr_sprite_alpha;
-  if ((*(alpha) < max(x_89.wgr_output_params.x, max(wgr_sprite_alpha, 0.0f)))) {
+  let x_404 = wgr_sprite_alpha;
+  if ((*(alpha) < max(x_96.wgr_output_params.x, max(wgr_sprite_alpha, 0.0f)))) {
     discard;
   }
-  if (!((x_368 == 0.0f))) {
+  if (!((x_404 == 0.0f))) {
     *(alpha) = 1.0f;
   }
-  var x_389 : i32;
-  *(color_2) = (*(color_2) * x_89.wgr_output_params.z);
-  x_389 = i32((x_89.wgr_output_params.y + 0.5f));
-  if ((x_389 == 1i)) {
+  var x_425 : i32;
+  *(color_2) = (*(color_2) * x_96.wgr_output_params.z);
+  x_425 = i32((x_96.wgr_output_params.y + 0.5f));
+  if ((x_425 == 1i)) {
     param = *(color_2);
-    let x_396 = wgr_tonemap_neutral_vf3_(&(param));
-    *(color_2) = x_396;
+    let x_432 = wgr_tonemap_neutral_vf3_(&(param));
+    *(color_2) = x_432;
   } else {
-    if ((x_389 == 2i)) {
+    if ((x_425 == 2i)) {
       param_1 = *(color_2);
-      let x_404 = wgr_tonemap_aces_vf3_(&(param_1));
-      *(color_2) = x_404;
+      let x_440 = wgr_tonemap_aces_vf3_(&(param_1));
+      *(color_2) = x_440;
     }
   }
   param_2 = *(color_2);
-  let x_409 = wgri_linear_to_srgb_vf3_(&(param_2));
-  wgr_frag_color = vec4f(x_409.x, x_409.y, x_409.z, *(alpha));
+  let x_445 = wgri_linear_to_srgb_vf3_(&(param_2));
+  wgr_frag_color = vec4f(x_445.x, x_445.y, x_445.z, *(alpha));
   return;
 }
 
 fn main_1() {
+  var param_3 : i32;
+  var param_4 : vec2f;
   var light : vec3f;
   var i_1 : i32;
-  var param_3 : i32;
-  var param_4 : vec3f;
-  var param_5 : vec3f;
+  var param_5 : i32;
   var param_6 : vec3f;
-  var param_7 : f32;
-  let x_429 = wgr_uv0;
-  let x_432 = textureSample(noise_tex, noise_smp, (x_429 * 2.0f));
-  let x_433 = x_432.x;
-  let x_437 = wgr_time_();
-  let x_448 = (0.30000001192092895508f + (0.40000000596046447754f * sin(((x_437 * x_440.speed) * 6.28318548202514648438f))));
-  if ((x_433 < x_448)) {
+  var param_7 : vec3f;
+  var param_8 : vec3f;
+  var param_9 : f32;
+  let x_464 = wgr_uv0;
+  param_3 = 0i;
+  param_4 = (x_464 * 2.0f);
+  let x_469 = wgr_texture_uv_i1_vf2_(&(param_3), &(param_4));
+  let x_470 = textureSample(noise_tex, noise_smp, x_469);
+  let x_471 = x_470.x;
+  let x_475 = wgr_time_();
+  let x_486 = (0.30000001192092895508f + (0.40000000596046447754f * sin(((x_475 * x_478.speed) * 6.28318548202514648438f))));
+  if ((x_471 < x_486)) {
     discard;
   }
-  let x_464 = (normalize(wgr_normal) * select(-1.0f, 1.0f, gl_FrontFacing));
-  let x_466 = wgr_ambient_();
-  light = x_466;
+  let x_502 = (normalize(wgr_normal) * select(-1.0f, 1.0f, gl_FrontFacing));
+  let x_504 = wgr_ambient_();
+  light = x_504;
   i_1 = 0i;
   loop {
     if ((i_1 < 8i)) {
     } else {
       break;
     }
-    let x_476 = i_1;
-    let x_477 = wgr_light_count_();
-    if ((x_476 >= x_477)) {
+    let x_514 = i_1;
+    let x_515 = wgr_light_count_();
+    if ((x_514 >= x_515)) {
       break;
     }
-    param_3 = i_1;
-    param_4 = wgr_world_pos;
-    let x_490 = wgr_light_i1_vf3_vf3_(&(param_3), &(param_4), &(param_5));
-    light = (light + ((x_490 * max(dot(x_464, param_5), 0.0f)) * vec3f(0.31830987334251403809f)));
+    param_5 = i_1;
+    param_6 = wgr_world_pos;
+    let x_528 = wgr_light_i1_vf3_vf3_(&(param_5), &(param_6), &(param_7));
+    light = (light + ((x_528 * max(dot(x_502, param_7), 0.0f)) * vec3f(0.31830987334251403809f)));
 
     continuing {
       i_1 = (i_1 + 1i);
     }
   }
-  param_6 = ((x_440.color.xyz * light) + (x_440.edge_color * (1.0f - smoothstep(0.0f, 0.05999999865889549255f, (x_433 - x_448)))));
-  param_7 = x_440.color.w;
-  wgr_output_vf3_f1_(&(param_6), &(param_7));
+  param_8 = ((x_478.color.xyz * light) + (x_478.edge_color * (1.0f - smoothstep(0.0f, 0.05999999865889549255f, (x_471 - x_486)))));
+  param_9 = x_478.color.w;
+  wgr_output_vf3_f1_(&(param_8), &(param_9));
   return;
 }
 
@@ -3286,7 +3388,7 @@ program sprite_pulled wgsl
 attr 0 -
 ub 0 vertex 128 - 0 0
 ub 4 vertex 16 - 0 4
-ub 1 fragment 1184 - 0 1
+ub 1 fragment 1216 - 0 1
 ub 2 fragment 32 - 0 2
 view 0 fragment noise_tex 2d float 0
 view 11 vertex wgr_sprite_data 2d unfilterable_float 11
@@ -3470,7 +3572,7 @@ fn main(@builtin(instance_index) gl_InstanceIndex_param : u32, @location(0) corn
   return main_out(gl_Position, wgr_world_pos, wgr_normal, wgr_tangent, wgr_uv0, wgr_uv1, wgr_color, wgr_tint, wgr_sprite_alpha);
 }
 
-source fs 8175
+source fs 8824
 diagnostic(off, derivative_uniformity);
 
 alias Arr = array<vec4f, 8u>;
@@ -3520,6 +3622,10 @@ struct wgr_frame {
   wgr_shadow_extra : Arr_8,
   /* @offset(1168) */
   wgr_shadow_map : vec4f,
+  /* @offset(1184) */
+  wgr_texture_flip_lo : vec4f,
+  /* @offset(1200) */
+  wgr_texture_flip_hi : vec4f,
 }
 
 struct params {
@@ -3531,7 +3637,7 @@ struct params {
   speed : f32,
 }
 
-@binding(1) @group(0) var<uniform> x_89 : wgr_frame;
+@binding(1) @group(0) var<uniform> x_96 : wgr_frame;
 
 var<private> wgr_tint : vec4f;
 
@@ -3545,7 +3651,7 @@ var<private> wgr_frag_color : vec4f;
 
 var<private> wgr_uv0 : vec2f;
 
-@binding(2) @group(0) var<uniform> x_440 : params;
+@binding(2) @group(0) var<uniform> x_478 : params;
 
 var<private> wgr_normal : vec3f;
 
@@ -3559,103 +3665,113 @@ var<private> wgr_uv1 : vec2f;
 
 var<private> wgr_color : vec4f;
 
+fn wgr_texture_uv_i1_vf2_(binding_1 : ptr<function, i32>, uv : ptr<function, vec2f>) -> vec2f {
+  var flips : vec4f;
+  flips = mix(x_96.wgr_texture_flip_lo, x_96.wgr_texture_flip_hi, vec4f(step(3.5f, f32(*(binding_1)))));
+  let x_121 = (*(uv)).x;
+  let x_124 = (*(uv)).y;
+  let x_126 = (*(uv)).y;
+  let x_132 = flips[(*(binding_1) % 4i)];
+  return vec2f(x_121, mix(x_124, (1.0f - x_126), x_132));
+}
+
 fn wgr_time_() -> f32 {
-  let x_94 = x_89.wgr_camera_time.w;
-  return x_94;
+  let x_101 = x_96.wgr_camera_time.w;
+  return x_101;
 }
 
 fn wgr_ambient_() -> vec3f {
-  let x_100 = x_89.wgr_ambient_count;
-  return x_100.xyz;
+  let x_139 = x_96.wgr_ambient_count;
+  return x_139.xyz;
 }
 
 fn wgr_light_count_() -> i32 {
-  let x_105 = x_89.wgr_ambient_count.w;
-  return i32((x_105 + 0.5f));
+  let x_144 = x_96.wgr_ambient_count.w;
+  return i32((x_144 + 0.5f));
 }
 
 fn wgr_light_i1_vf3_vf3_(i : ptr<function, i32>, pos : ptr<function, vec3f>, to_light : ptr<function, vec3f>) -> vec3f {
-  var x_150 : vec3f;
+  var x_188 : vec3f;
   var falloff : f32;
-  var x_225 : f32;
-  let x_117 = i32((x_89.wgr_light_dir_type[*(i)].w + 0.5f));
-  if ((x_117 == 0i)) {
-    *(to_light) = -(normalize(x_89.wgr_light_dir_type[*(i)].xyz));
-    let x_132 = x_89.wgr_light_radiance[*(i)];
-    return x_132.xyz;
+  var x_261 : f32;
+  let x_155 = i32((x_96.wgr_light_dir_type[*(i)].w + 0.5f));
+  if ((x_155 == 0i)) {
+    *(to_light) = -(normalize(x_96.wgr_light_dir_type[*(i)].xyz));
+    let x_170 = x_96.wgr_light_radiance[*(i)];
+    return x_170.xyz;
   }
-  let x_142 = (*(pos) - x_89.wgr_light_pos_range[*(i)].xyz);
-  let x_145 = length(x_142);
-  if ((x_145 > 0.00000099999999747524f)) {
-    x_150 = (x_142 / vec3f(x_145));
+  let x_180 = (*(pos) - x_96.wgr_light_pos_range[*(i)].xyz);
+  let x_183 = length(x_180);
+  if ((x_183 > 0.00000099999999747524f)) {
+    x_188 = (x_180 / vec3f(x_183));
   } else {
-    x_150 = vec3f(0.0f, -1.0f, 0.0f);
+    x_188 = vec3f(0.0f, -1.0f, 0.0f);
   }
-  let x_160 = x_150;
-  *(to_light) = -(x_150);
-  falloff = (1.0f / max((x_145 * x_145), 0.00999999977648258209f));
-  let x_173 = x_89.wgr_light_pos_range[*(i)].w;
-  if ((x_173 > 0.0f)) {
-    let x_181 = (x_145 / x_173);
-    let x_191 = clamp((1.0f - (((x_181 * x_181) * x_181) * x_181)), 0.0f, 1.0f);
-    falloff = (falloff * (x_191 * x_191));
+  let x_198 = x_188;
+  *(to_light) = -(x_188);
+  falloff = (1.0f / max((x_183 * x_183), 0.00999999977648258209f));
+  let x_211 = x_96.wgr_light_pos_range[*(i)].w;
+  if ((x_211 > 0.0f)) {
+    let x_219 = (x_183 / x_211);
+    let x_229 = clamp((1.0f - (((x_219 * x_219) * x_219) * x_219)), 0.0f, 1.0f);
+    falloff = (falloff * (x_229 * x_229));
   }
-  if ((x_117 == 2i)) {
-    let x_209 = dot(x_160, normalize(x_89.wgr_light_dir_type[*(i)].xyz));
-    let x_215 = x_89.wgr_light_spot[*(i)].x;
-    let x_220 = x_89.wgr_light_spot[*(i)].y;
-    if (((x_215 - x_220) <= 0.00000099999999747524f)) {
-      x_225 = select(0.0f, 1.0f, (x_209 >= x_220));
+  if ((x_155 == 2i)) {
+    let x_247 = dot(x_198, normalize(x_96.wgr_light_dir_type[*(i)].xyz));
+    let x_252 = x_96.wgr_light_spot[*(i)].x;
+    let x_256 = x_96.wgr_light_spot[*(i)].y;
+    if (((x_252 - x_256) <= 0.00000099999999747524f)) {
+      x_261 = select(0.0f, 1.0f, (x_247 >= x_256));
     } else {
-      x_225 = smoothstep(x_220, x_215, x_209);
+      x_261 = smoothstep(x_256, x_252, x_247);
     }
-    falloff = (falloff * x_225);
+    falloff = (falloff * x_261);
   }
-  let x_242 = x_89.wgr_light_radiance[*(i)];
-  let x_244 = falloff;
-  return (x_242.xyz * x_244);
+  let x_278 = x_96.wgr_light_radiance[*(i)];
+  let x_280 = falloff;
+  return (x_278.xyz * x_280);
 }
 
 fn wgr_tonemap_neutral_vf3_(color : ptr<function, vec3f>) -> vec3f {
-  var x_262 : f32;
-  let x_257 = min((*(color)).x, min((*(color)).y, (*(color)).z));
-  if ((x_257 < 0.07999999821186065674f)) {
-    x_262 = (x_257 - ((6.25f * x_257) * x_257));
+  var x_298 : f32;
+  let x_293 = min((*(color)).x, min((*(color)).y, (*(color)).z));
+  if ((x_293 < 0.07999999821186065674f)) {
+    x_298 = (x_293 - ((6.25f * x_293) * x_293));
   } else {
-    x_262 = 0.03999999910593032837f;
+    x_298 = 0.03999999910593032837f;
   }
-  *(color) = (*(color) - vec3f(x_262));
-  let x_287 = max((*(color)).x, max((*(color)).y, (*(color)).z));
-  if ((x_287 < 0.75999999046325683594f)) {
-    let x_293 = *(color);
-    return x_293;
+  *(color) = (*(color) - vec3f(x_298));
+  let x_323 = max((*(color)).x, max((*(color)).y, (*(color)).z));
+  if ((x_323 < 0.75999999046325683594f)) {
+    let x_329 = *(color);
+    return x_329;
   }
-  let x_302 = (1.0f - (0.05759999901056289673f / (x_287 + -0.51999998092651367188f)));
-  *(color) = (*(color) * (x_302 / x_287));
-  let x_316 = (1.0f - (1.0f / ((0.15000000596046447754f * (x_287 - x_302)) + 1.0f)));
-  let x_317 = *(color);
-  return mix(x_317, vec3f(x_302), vec3f(x_316));
+  let x_338 = (1.0f - (0.05759999901056289673f / (x_323 + -0.51999998092651367188f)));
+  *(color) = (*(color) * (x_338 / x_323));
+  let x_352 = (1.0f - (1.0f / ((0.15000000596046447754f * (x_323 - x_338)) + 1.0f)));
+  let x_353 = *(color);
+  return mix(x_353, vec3f(x_338), vec3f(x_352));
 }
 
-const x_46 = vec3f(1.0f);
+const x_53 = vec3f(1.0f);
 
 fn wgr_tonemap_aces_vf3_(color_1 : ptr<function, vec3f>) -> vec3f {
   *(color_1) = (*(color_1) * 0.60000002384185791016f);
-  let x_328 = *(color_1);
-  let x_330 = *(color_1);
-  let x_336 = *(color_1);
-  let x_338 = *(color_1);
-  return clamp(((x_328 * ((x_330 * 2.50999999046325683594f) + vec3f(0.02999999932944774628f))) / ((x_336 * ((x_338 * 2.43000006675720214844f) + vec3f(0.58999997377395629883f))) + vec3f(0.14000000059604644775f))), vec3f(), x_46);
+  let x_364 = *(color_1);
+  let x_366 = *(color_1);
+  let x_372 = *(color_1);
+  let x_374 = *(color_1);
+  return clamp(((x_364 * ((x_366 * 2.50999999046325683594f) + vec3f(0.02999999932944774628f))) / ((x_372 * ((x_374 * 2.43000006675720214844f) + vec3f(0.58999997377395629883f))) + vec3f(0.14000000059604644775f))), vec3f(), x_53);
 }
 
-const x_56 = vec3f(0.00313080009073019028f);
+const x_63 = vec3f(0.00313080009073019028f);
 
 fn wgri_linear_to_srgb_vf3_(c : ptr<function, vec3f>) -> vec3f {
-  *(c) = clamp(*(c), vec3f(), x_46);
-  let x_49 = *(c);
-  let x_54 = *(c);
-  let x_67 = *(c);
-  return mix((x_49 * 12.9200000762939453125f), ((pow(max(x_54, x_56), vec3f(0.4166666567325592041f)) * 1.05499994754791259766f) - vec3f(0.05499999970197677612f)), step(x_56, x_67));
+  *(c) = clamp(*(c), vec3f(), x_53);
+  let x_56 = *(c);
+  let x_61 = *(c);
+  let x_74 = *(c);
+  return mix((x_56 * 12.9200000762939453125f), ((pow(max(x_61, x_63), vec3f(0.4166666567325592041f)) * 1.05499994754791259766f) - vec3f(0.05499999970197677612f)), step(x_63, x_74));
 }
 
 fn wgr_output_vf3_f1_(color_2 : ptr<function, vec3f>, alpha : ptr<function, f32>) {
@@ -3664,75 +3780,80 @@ fn wgr_output_vf3_f1_(color_2 : ptr<function, vec3f>, alpha : ptr<function, f32>
   var param_2 : vec3f;
   *(color_2) = (*(color_2) * wgr_tint.xyz);
   *(alpha) = (*(alpha) * wgr_tint.w);
-  let x_368 = wgr_sprite_alpha;
-  if ((*(alpha) < max(x_89.wgr_output_params.x, max(wgr_sprite_alpha, 0.0f)))) {
+  let x_404 = wgr_sprite_alpha;
+  if ((*(alpha) < max(x_96.wgr_output_params.x, max(wgr_sprite_alpha, 0.0f)))) {
     discard;
   }
-  if (!((x_368 == 0.0f))) {
+  if (!((x_404 == 0.0f))) {
     *(alpha) = 1.0f;
   }
-  var x_389 : i32;
-  *(color_2) = (*(color_2) * x_89.wgr_output_params.z);
-  x_389 = i32((x_89.wgr_output_params.y + 0.5f));
-  if ((x_389 == 1i)) {
+  var x_425 : i32;
+  *(color_2) = (*(color_2) * x_96.wgr_output_params.z);
+  x_425 = i32((x_96.wgr_output_params.y + 0.5f));
+  if ((x_425 == 1i)) {
     param = *(color_2);
-    let x_396 = wgr_tonemap_neutral_vf3_(&(param));
-    *(color_2) = x_396;
+    let x_432 = wgr_tonemap_neutral_vf3_(&(param));
+    *(color_2) = x_432;
   } else {
-    if ((x_389 == 2i)) {
+    if ((x_425 == 2i)) {
       param_1 = *(color_2);
-      let x_404 = wgr_tonemap_aces_vf3_(&(param_1));
-      *(color_2) = x_404;
+      let x_440 = wgr_tonemap_aces_vf3_(&(param_1));
+      *(color_2) = x_440;
     }
   }
   param_2 = *(color_2);
-  let x_409 = wgri_linear_to_srgb_vf3_(&(param_2));
-  wgr_frag_color = vec4f(x_409.x, x_409.y, x_409.z, *(alpha));
+  let x_445 = wgri_linear_to_srgb_vf3_(&(param_2));
+  wgr_frag_color = vec4f(x_445.x, x_445.y, x_445.z, *(alpha));
   return;
 }
 
 fn main_1() {
+  var param_3 : i32;
+  var param_4 : vec2f;
   var light : vec3f;
   var i_1 : i32;
-  var param_3 : i32;
-  var param_4 : vec3f;
-  var param_5 : vec3f;
+  var param_5 : i32;
   var param_6 : vec3f;
-  var param_7 : f32;
-  let x_429 = wgr_uv0;
-  let x_432 = textureSample(noise_tex, noise_smp, (x_429 * 2.0f));
-  let x_433 = x_432.x;
-  let x_437 = wgr_time_();
-  let x_448 = (0.30000001192092895508f + (0.40000000596046447754f * sin(((x_437 * x_440.speed) * 6.28318548202514648438f))));
-  if ((x_433 < x_448)) {
+  var param_7 : vec3f;
+  var param_8 : vec3f;
+  var param_9 : f32;
+  let x_464 = wgr_uv0;
+  param_3 = 0i;
+  param_4 = (x_464 * 2.0f);
+  let x_469 = wgr_texture_uv_i1_vf2_(&(param_3), &(param_4));
+  let x_470 = textureSample(noise_tex, noise_smp, x_469);
+  let x_471 = x_470.x;
+  let x_475 = wgr_time_();
+  let x_486 = (0.30000001192092895508f + (0.40000000596046447754f * sin(((x_475 * x_478.speed) * 6.28318548202514648438f))));
+  if ((x_471 < x_486)) {
     discard;
   }
-  let x_464 = (normalize(wgr_normal) * select(-1.0f, 1.0f, gl_FrontFacing));
-  let x_466 = wgr_ambient_();
-  light = x_466;
+  let x_502 = (normalize(wgr_normal) * select(-1.0f, 1.0f, gl_FrontFacing));
+  let x_504 = wgr_ambient_();
+  light = x_504;
   i_1 = 0i;
   loop {
     if ((i_1 < 8i)) {
     } else {
       break;
     }
-    let x_476 = i_1;
-    let x_477 = wgr_light_count_();
-    if ((x_476 >= x_477)) {
+    let x_514 = i_1;
+    let x_515 = wgr_light_count_();
+    if ((x_514 >= x_515)) {
       break;
     }
-    param_3 = i_1;
-    param_4 = wgr_world_pos;
-    let x_490 = wgr_light_i1_vf3_vf3_(&(param_3), &(param_4), &(param_5));
-    light = (light + ((x_490 * max(dot(x_464, param_5), 0.0f)) * vec3f(0.31830987334251403809f)));
+    param_5 = i_1;
+    param_6 = wgr_world_pos;
+    let x_528 = wgr_light_i1_vf3_vf3_(&(param_5), &(param_6), &(param_7));
+    light = (light + ((x_528 * max(dot(x_502, param_7), 0.0f)) * vec3f(0.31830987334251403809f)));
 
     continuing {
       i_1 = (i_1 + 1i);
     }
   }
-  param_6 = ((x_440.color.xyz * light) + (x_440.edge_color * (1.0f - smoothstep(0.0f, 0.05999999865889549255f, (x_433 - x_448)))));
-  param_7 = x_440.color.w;
-  wgr_output_vf3_f1_(&(param_6), &(param_7));
+  param_8 = ((x_478.color.xyz * light) + (x_478.edge_color * (1.0f - smoothstep(0.0f, 0.05999999865889549255f, (x_471 - x_486)))));
+  param_9 = x_478.color.w;
+  wgr_output_vf3_f1_(&(param_8), &(param_9));
   return;
 }
 
@@ -3764,7 +3885,7 @@ attr 3 -
 attr 4 -
 attr 5 -
 ub 0 vertex 80 - 0 0
-ub 1 fragment 1184 - 0 1
+ub 1 fragment 1216 - 0 1
 ub 2 fragment 32 - 0 2
 view 0 fragment noise_tex 2d float 0
 view 14 vertex wgr_instance_tex 2d unfilterable_float 14
@@ -3947,7 +4068,7 @@ fn main(@location(0) position_2_param : vec3f, @location(1) normal_1_param : vec
   return main_out(gl_Position, wgr_world_pos, wgr_normal, wgr_tangent, wgr_uv0, wgr_uv1, wgr_color, wgr_tint, wgr_sprite_alpha);
 }
 
-source fs 8175
+source fs 8824
 diagnostic(off, derivative_uniformity);
 
 alias Arr = array<vec4f, 8u>;
@@ -3997,6 +4118,10 @@ struct wgr_frame {
   wgr_shadow_extra : Arr_8,
   /* @offset(1168) */
   wgr_shadow_map : vec4f,
+  /* @offset(1184) */
+  wgr_texture_flip_lo : vec4f,
+  /* @offset(1200) */
+  wgr_texture_flip_hi : vec4f,
 }
 
 struct params {
@@ -4008,7 +4133,7 @@ struct params {
   speed : f32,
 }
 
-@binding(1) @group(0) var<uniform> x_89 : wgr_frame;
+@binding(1) @group(0) var<uniform> x_96 : wgr_frame;
 
 var<private> wgr_tint : vec4f;
 
@@ -4022,7 +4147,7 @@ var<private> wgr_frag_color : vec4f;
 
 var<private> wgr_uv0 : vec2f;
 
-@binding(2) @group(0) var<uniform> x_440 : params;
+@binding(2) @group(0) var<uniform> x_478 : params;
 
 var<private> wgr_normal : vec3f;
 
@@ -4036,103 +4161,113 @@ var<private> wgr_uv1 : vec2f;
 
 var<private> wgr_color : vec4f;
 
+fn wgr_texture_uv_i1_vf2_(binding_1 : ptr<function, i32>, uv : ptr<function, vec2f>) -> vec2f {
+  var flips : vec4f;
+  flips = mix(x_96.wgr_texture_flip_lo, x_96.wgr_texture_flip_hi, vec4f(step(3.5f, f32(*(binding_1)))));
+  let x_121 = (*(uv)).x;
+  let x_124 = (*(uv)).y;
+  let x_126 = (*(uv)).y;
+  let x_132 = flips[(*(binding_1) % 4i)];
+  return vec2f(x_121, mix(x_124, (1.0f - x_126), x_132));
+}
+
 fn wgr_time_() -> f32 {
-  let x_94 = x_89.wgr_camera_time.w;
-  return x_94;
+  let x_101 = x_96.wgr_camera_time.w;
+  return x_101;
 }
 
 fn wgr_ambient_() -> vec3f {
-  let x_100 = x_89.wgr_ambient_count;
-  return x_100.xyz;
+  let x_139 = x_96.wgr_ambient_count;
+  return x_139.xyz;
 }
 
 fn wgr_light_count_() -> i32 {
-  let x_105 = x_89.wgr_ambient_count.w;
-  return i32((x_105 + 0.5f));
+  let x_144 = x_96.wgr_ambient_count.w;
+  return i32((x_144 + 0.5f));
 }
 
 fn wgr_light_i1_vf3_vf3_(i : ptr<function, i32>, pos : ptr<function, vec3f>, to_light : ptr<function, vec3f>) -> vec3f {
-  var x_150 : vec3f;
+  var x_188 : vec3f;
   var falloff : f32;
-  var x_225 : f32;
-  let x_117 = i32((x_89.wgr_light_dir_type[*(i)].w + 0.5f));
-  if ((x_117 == 0i)) {
-    *(to_light) = -(normalize(x_89.wgr_light_dir_type[*(i)].xyz));
-    let x_132 = x_89.wgr_light_radiance[*(i)];
-    return x_132.xyz;
+  var x_261 : f32;
+  let x_155 = i32((x_96.wgr_light_dir_type[*(i)].w + 0.5f));
+  if ((x_155 == 0i)) {
+    *(to_light) = -(normalize(x_96.wgr_light_dir_type[*(i)].xyz));
+    let x_170 = x_96.wgr_light_radiance[*(i)];
+    return x_170.xyz;
   }
-  let x_142 = (*(pos) - x_89.wgr_light_pos_range[*(i)].xyz);
-  let x_145 = length(x_142);
-  if ((x_145 > 0.00000099999999747524f)) {
-    x_150 = (x_142 / vec3f(x_145));
+  let x_180 = (*(pos) - x_96.wgr_light_pos_range[*(i)].xyz);
+  let x_183 = length(x_180);
+  if ((x_183 > 0.00000099999999747524f)) {
+    x_188 = (x_180 / vec3f(x_183));
   } else {
-    x_150 = vec3f(0.0f, -1.0f, 0.0f);
+    x_188 = vec3f(0.0f, -1.0f, 0.0f);
   }
-  let x_160 = x_150;
-  *(to_light) = -(x_150);
-  falloff = (1.0f / max((x_145 * x_145), 0.00999999977648258209f));
-  let x_173 = x_89.wgr_light_pos_range[*(i)].w;
-  if ((x_173 > 0.0f)) {
-    let x_181 = (x_145 / x_173);
-    let x_191 = clamp((1.0f - (((x_181 * x_181) * x_181) * x_181)), 0.0f, 1.0f);
-    falloff = (falloff * (x_191 * x_191));
+  let x_198 = x_188;
+  *(to_light) = -(x_188);
+  falloff = (1.0f / max((x_183 * x_183), 0.00999999977648258209f));
+  let x_211 = x_96.wgr_light_pos_range[*(i)].w;
+  if ((x_211 > 0.0f)) {
+    let x_219 = (x_183 / x_211);
+    let x_229 = clamp((1.0f - (((x_219 * x_219) * x_219) * x_219)), 0.0f, 1.0f);
+    falloff = (falloff * (x_229 * x_229));
   }
-  if ((x_117 == 2i)) {
-    let x_209 = dot(x_160, normalize(x_89.wgr_light_dir_type[*(i)].xyz));
-    let x_215 = x_89.wgr_light_spot[*(i)].x;
-    let x_220 = x_89.wgr_light_spot[*(i)].y;
-    if (((x_215 - x_220) <= 0.00000099999999747524f)) {
-      x_225 = select(0.0f, 1.0f, (x_209 >= x_220));
+  if ((x_155 == 2i)) {
+    let x_247 = dot(x_198, normalize(x_96.wgr_light_dir_type[*(i)].xyz));
+    let x_252 = x_96.wgr_light_spot[*(i)].x;
+    let x_256 = x_96.wgr_light_spot[*(i)].y;
+    if (((x_252 - x_256) <= 0.00000099999999747524f)) {
+      x_261 = select(0.0f, 1.0f, (x_247 >= x_256));
     } else {
-      x_225 = smoothstep(x_220, x_215, x_209);
+      x_261 = smoothstep(x_256, x_252, x_247);
     }
-    falloff = (falloff * x_225);
+    falloff = (falloff * x_261);
   }
-  let x_242 = x_89.wgr_light_radiance[*(i)];
-  let x_244 = falloff;
-  return (x_242.xyz * x_244);
+  let x_278 = x_96.wgr_light_radiance[*(i)];
+  let x_280 = falloff;
+  return (x_278.xyz * x_280);
 }
 
 fn wgr_tonemap_neutral_vf3_(color : ptr<function, vec3f>) -> vec3f {
-  var x_262 : f32;
-  let x_257 = min((*(color)).x, min((*(color)).y, (*(color)).z));
-  if ((x_257 < 0.07999999821186065674f)) {
-    x_262 = (x_257 - ((6.25f * x_257) * x_257));
+  var x_298 : f32;
+  let x_293 = min((*(color)).x, min((*(color)).y, (*(color)).z));
+  if ((x_293 < 0.07999999821186065674f)) {
+    x_298 = (x_293 - ((6.25f * x_293) * x_293));
   } else {
-    x_262 = 0.03999999910593032837f;
+    x_298 = 0.03999999910593032837f;
   }
-  *(color) = (*(color) - vec3f(x_262));
-  let x_287 = max((*(color)).x, max((*(color)).y, (*(color)).z));
-  if ((x_287 < 0.75999999046325683594f)) {
-    let x_293 = *(color);
-    return x_293;
+  *(color) = (*(color) - vec3f(x_298));
+  let x_323 = max((*(color)).x, max((*(color)).y, (*(color)).z));
+  if ((x_323 < 0.75999999046325683594f)) {
+    let x_329 = *(color);
+    return x_329;
   }
-  let x_302 = (1.0f - (0.05759999901056289673f / (x_287 + -0.51999998092651367188f)));
-  *(color) = (*(color) * (x_302 / x_287));
-  let x_316 = (1.0f - (1.0f / ((0.15000000596046447754f * (x_287 - x_302)) + 1.0f)));
-  let x_317 = *(color);
-  return mix(x_317, vec3f(x_302), vec3f(x_316));
+  let x_338 = (1.0f - (0.05759999901056289673f / (x_323 + -0.51999998092651367188f)));
+  *(color) = (*(color) * (x_338 / x_323));
+  let x_352 = (1.0f - (1.0f / ((0.15000000596046447754f * (x_323 - x_338)) + 1.0f)));
+  let x_353 = *(color);
+  return mix(x_353, vec3f(x_338), vec3f(x_352));
 }
 
-const x_46 = vec3f(1.0f);
+const x_53 = vec3f(1.0f);
 
 fn wgr_tonemap_aces_vf3_(color_1 : ptr<function, vec3f>) -> vec3f {
   *(color_1) = (*(color_1) * 0.60000002384185791016f);
-  let x_328 = *(color_1);
-  let x_330 = *(color_1);
-  let x_336 = *(color_1);
-  let x_338 = *(color_1);
-  return clamp(((x_328 * ((x_330 * 2.50999999046325683594f) + vec3f(0.02999999932944774628f))) / ((x_336 * ((x_338 * 2.43000006675720214844f) + vec3f(0.58999997377395629883f))) + vec3f(0.14000000059604644775f))), vec3f(), x_46);
+  let x_364 = *(color_1);
+  let x_366 = *(color_1);
+  let x_372 = *(color_1);
+  let x_374 = *(color_1);
+  return clamp(((x_364 * ((x_366 * 2.50999999046325683594f) + vec3f(0.02999999932944774628f))) / ((x_372 * ((x_374 * 2.43000006675720214844f) + vec3f(0.58999997377395629883f))) + vec3f(0.14000000059604644775f))), vec3f(), x_53);
 }
 
-const x_56 = vec3f(0.00313080009073019028f);
+const x_63 = vec3f(0.00313080009073019028f);
 
 fn wgri_linear_to_srgb_vf3_(c : ptr<function, vec3f>) -> vec3f {
-  *(c) = clamp(*(c), vec3f(), x_46);
-  let x_49 = *(c);
-  let x_54 = *(c);
-  let x_67 = *(c);
-  return mix((x_49 * 12.9200000762939453125f), ((pow(max(x_54, x_56), vec3f(0.4166666567325592041f)) * 1.05499994754791259766f) - vec3f(0.05499999970197677612f)), step(x_56, x_67));
+  *(c) = clamp(*(c), vec3f(), x_53);
+  let x_56 = *(c);
+  let x_61 = *(c);
+  let x_74 = *(c);
+  return mix((x_56 * 12.9200000762939453125f), ((pow(max(x_61, x_63), vec3f(0.4166666567325592041f)) * 1.05499994754791259766f) - vec3f(0.05499999970197677612f)), step(x_63, x_74));
 }
 
 fn wgr_output_vf3_f1_(color_2 : ptr<function, vec3f>, alpha : ptr<function, f32>) {
@@ -4141,75 +4276,80 @@ fn wgr_output_vf3_f1_(color_2 : ptr<function, vec3f>, alpha : ptr<function, f32>
   var param_2 : vec3f;
   *(color_2) = (*(color_2) * wgr_tint.xyz);
   *(alpha) = (*(alpha) * wgr_tint.w);
-  let x_368 = wgr_sprite_alpha;
-  if ((*(alpha) < max(x_89.wgr_output_params.x, max(wgr_sprite_alpha, 0.0f)))) {
+  let x_404 = wgr_sprite_alpha;
+  if ((*(alpha) < max(x_96.wgr_output_params.x, max(wgr_sprite_alpha, 0.0f)))) {
     discard;
   }
-  if (!((x_368 == 0.0f))) {
+  if (!((x_404 == 0.0f))) {
     *(alpha) = 1.0f;
   }
-  var x_389 : i32;
-  *(color_2) = (*(color_2) * x_89.wgr_output_params.z);
-  x_389 = i32((x_89.wgr_output_params.y + 0.5f));
-  if ((x_389 == 1i)) {
+  var x_425 : i32;
+  *(color_2) = (*(color_2) * x_96.wgr_output_params.z);
+  x_425 = i32((x_96.wgr_output_params.y + 0.5f));
+  if ((x_425 == 1i)) {
     param = *(color_2);
-    let x_396 = wgr_tonemap_neutral_vf3_(&(param));
-    *(color_2) = x_396;
+    let x_432 = wgr_tonemap_neutral_vf3_(&(param));
+    *(color_2) = x_432;
   } else {
-    if ((x_389 == 2i)) {
+    if ((x_425 == 2i)) {
       param_1 = *(color_2);
-      let x_404 = wgr_tonemap_aces_vf3_(&(param_1));
-      *(color_2) = x_404;
+      let x_440 = wgr_tonemap_aces_vf3_(&(param_1));
+      *(color_2) = x_440;
     }
   }
   param_2 = *(color_2);
-  let x_409 = wgri_linear_to_srgb_vf3_(&(param_2));
-  wgr_frag_color = vec4f(x_409.x, x_409.y, x_409.z, *(alpha));
+  let x_445 = wgri_linear_to_srgb_vf3_(&(param_2));
+  wgr_frag_color = vec4f(x_445.x, x_445.y, x_445.z, *(alpha));
   return;
 }
 
 fn main_1() {
+  var param_3 : i32;
+  var param_4 : vec2f;
   var light : vec3f;
   var i_1 : i32;
-  var param_3 : i32;
-  var param_4 : vec3f;
-  var param_5 : vec3f;
+  var param_5 : i32;
   var param_6 : vec3f;
-  var param_7 : f32;
-  let x_429 = wgr_uv0;
-  let x_432 = textureSample(noise_tex, noise_smp, (x_429 * 2.0f));
-  let x_433 = x_432.x;
-  let x_437 = wgr_time_();
-  let x_448 = (0.30000001192092895508f + (0.40000000596046447754f * sin(((x_437 * x_440.speed) * 6.28318548202514648438f))));
-  if ((x_433 < x_448)) {
+  var param_7 : vec3f;
+  var param_8 : vec3f;
+  var param_9 : f32;
+  let x_464 = wgr_uv0;
+  param_3 = 0i;
+  param_4 = (x_464 * 2.0f);
+  let x_469 = wgr_texture_uv_i1_vf2_(&(param_3), &(param_4));
+  let x_470 = textureSample(noise_tex, noise_smp, x_469);
+  let x_471 = x_470.x;
+  let x_475 = wgr_time_();
+  let x_486 = (0.30000001192092895508f + (0.40000000596046447754f * sin(((x_475 * x_478.speed) * 6.28318548202514648438f))));
+  if ((x_471 < x_486)) {
     discard;
   }
-  let x_464 = (normalize(wgr_normal) * select(-1.0f, 1.0f, gl_FrontFacing));
-  let x_466 = wgr_ambient_();
-  light = x_466;
+  let x_502 = (normalize(wgr_normal) * select(-1.0f, 1.0f, gl_FrontFacing));
+  let x_504 = wgr_ambient_();
+  light = x_504;
   i_1 = 0i;
   loop {
     if ((i_1 < 8i)) {
     } else {
       break;
     }
-    let x_476 = i_1;
-    let x_477 = wgr_light_count_();
-    if ((x_476 >= x_477)) {
+    let x_514 = i_1;
+    let x_515 = wgr_light_count_();
+    if ((x_514 >= x_515)) {
       break;
     }
-    param_3 = i_1;
-    param_4 = wgr_world_pos;
-    let x_490 = wgr_light_i1_vf3_vf3_(&(param_3), &(param_4), &(param_5));
-    light = (light + ((x_490 * max(dot(x_464, param_5), 0.0f)) * vec3f(0.31830987334251403809f)));
+    param_5 = i_1;
+    param_6 = wgr_world_pos;
+    let x_528 = wgr_light_i1_vf3_vf3_(&(param_5), &(param_6), &(param_7));
+    light = (light + ((x_528 * max(dot(x_502, param_7), 0.0f)) * vec3f(0.31830987334251403809f)));
 
     continuing {
       i_1 = (i_1 + 1i);
     }
   }
-  param_6 = ((x_440.color.xyz * light) + (x_440.edge_color * (1.0f - smoothstep(0.0f, 0.05999999865889549255f, (x_433 - x_448)))));
-  param_7 = x_440.color.w;
-  wgr_output_vf3_f1_(&(param_6), &(param_7));
+  param_8 = ((x_478.color.xyz * light) + (x_478.edge_color * (1.0f - smoothstep(0.0f, 0.05999999865889549255f, (x_471 - x_486)))));
+  param_9 = x_478.color.w;
+  wgr_output_vf3_f1_(&(param_8), &(param_9));
   return;
 }
 

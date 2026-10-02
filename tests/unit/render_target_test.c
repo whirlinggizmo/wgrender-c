@@ -1,4 +1,5 @@
 #include "internal/wgr_internal_internal.h"
+#include "internal/wgr_material_internal.h"
 #include "internal/wgr_platform_internal.h"
 #include "internal/wgr_render_internal.h"
 #include "internal/wgr_texture_internal.h"
@@ -44,6 +45,19 @@ void test_render_targets(void)
     CHECK_NEAR(wgr_texture_get_size(target).y, 32, EPS);
     CHECK(!wgri_texture_is_flipped(wgr_texture_get_default())); /* loaded images are never flipped */
     CHECK(wgri_texture_is_flipped(target) == !sg_query_features().origin_top_left);
+    {   /* a custom shader is told which of its textures are stored bottom-up, by binding
+           (wgr_texture_uv in shaders/wgr.glsl): here a target at binding 5, an image at 0 */
+        static wgri_material_t material;
+        const int view_slot[3] = {0, 5, -1}; /* the third texture is unused by this program */
+        float flips[2][4];
+        material.textures[0].texture = wgr_texture_get_default();
+        material.textures[1].texture = target;
+        material.textures[2].texture = target;
+        wgri_material_texture_flips(&material, view_slot, 3, flips);
+        CHECK(flips[0][0] == 0.0f);
+        CHECK(flips[1][1] == (wgri_texture_is_flipped(target) ? 1.0f : 0.0f));
+        CHECK(flips[0][1] + flips[0][2] + flips[0][3] + flips[1][0] + flips[1][2] + flips[1][3] == 0.0f);
+    }
 
     CHECK(wgri_render_current_pass() == 0);
     CHECK(!wgr_render_begin_texture(wgr_texture_get_default())); /* not a render target */

@@ -2781,6 +2781,7 @@ static void draw_custom(const wgr_model_draw_t *e, const wgr_model_t *model_ptr,
             wgri_shadow_fill_uniforms(&shadow, frame.shadow_mat, frame.shadow_params, frame.shadow_tint,
                                     frame.shadow_extra, frame.shadow_map);
         }
+        wgri_material_texture_flips(material, program->view_slot, shader->texture_count, frame.texture_flip);
         sg_apply_uniforms(WGRI_SHADER_BLOCK_FRAME, &(sg_range){.ptr = &frame, .size = sizeof(frame)});
     }
     if (program->has_block[WGRI_SHADER_BLOCK_FS_PARAMS]) {

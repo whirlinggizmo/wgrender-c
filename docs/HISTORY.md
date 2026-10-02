@@ -5212,6 +5212,16 @@ TASKS.md's ticked items, by the section they were in.
       and picking; one white, non-metallic material slot. Geometry in
       `src/wgr_mesh_shapes.c` (pure, unit tested: winding, normals, bounds);
       `examples/meshes.c`; the shaders example's floor and spheres use them
+- [x] A render target in a custom shader reads the right way up (2026-10-02): GL and
+      WebGL2 store a target bottom-up, and libwgrender turns the coordinate over where
+      it samples one (sprites, particles, built-in materials, effects' frame), but a
+      custom shader's own textures were never told, so a target given to one was upside
+      down there and right on WebGPU. `wgr_texture_uv(binding, uv)` in `shaders/wgr.glsl`
+      turns it over from flags in the frame block, by binding. libwgt flips at draw time
+      instead (a target stored top-down on every backend, at the cost of reversed-winding
+      pipelines in GL target passes), which is the better design: no reader can forget.
+      Read-time stays here as the smaller fix for a library folding into libwgt.
+      `examples/render_target.c` shows the label on a toon-shaded cube too
 
 ### Materials and glTF
 

@@ -18,7 +18,7 @@ attr 6 joints
 attr 7 weights
 ub 0 vertex 80 wgr_skinned_object 5 0
 ub 3 vertex 16 wave_params 1 0
-ub 1 fragment 1184 wgr_frame 74 0
+ub 1 fragment 1216 wgr_frame 76 0
 ub 2 fragment 48 params 3 0
 view 8 fragment wgr_env_tex cube float 0
 view 9 fragment wgr_brdf_tex 2d float 0
@@ -167,7 +167,7 @@ void main()
 source fs 6752
 #version 410
 
-uniform vec4 wgr_frame[74];
+uniform vec4 wgr_frame[76];
 uniform vec4 params[3];
 uniform sampler2D wgr_brdf_tex_wgr_env_smp;
 uniform samplerCube wgr_env_tex_wgr_env_smp;
@@ -380,7 +380,7 @@ attr 4 inst_right
 attr 5 inst_up
 attr 6 inst_color
 ub 0 vertex 128 wgr_sprite_view 8 0
-ub 1 fragment 1184 wgr_frame 74 0
+ub 1 fragment 1216 wgr_frame 76 0
 ub 2 fragment 48 params 3 0
 view 8 fragment wgr_env_tex cube float 0
 view 9 fragment wgr_brdf_tex 2d float 0
@@ -458,7 +458,7 @@ void main()
 source fs 6752
 #version 410
 
-uniform vec4 wgr_frame[74];
+uniform vec4 wgr_frame[76];
 uniform vec4 params[3];
 uniform sampler2D wgr_brdf_tex_wgr_env_smp;
 uniform samplerCube wgr_env_tex_wgr_env_smp;
@@ -666,7 +666,7 @@ program sprite_pulled glsl410
 attr 0 corner
 ub 0 vertex 128 wgr_sprite_view 8 0
 ub 4 vertex 16 wgr_sprite_batch 1 0
-ub 1 fragment 1184 wgr_frame 74 0
+ub 1 fragment 1216 wgr_frame 76 0
 ub 2 fragment 48 params 3 0
 view 8 fragment wgr_env_tex cube float 0
 view 9 fragment wgr_brdf_tex 2d float 0
@@ -762,7 +762,7 @@ void main()
 source fs 6752
 #version 410
 
-uniform vec4 wgr_frame[74];
+uniform vec4 wgr_frame[76];
 uniform vec4 params[3];
 uniform sampler2D wgr_brdf_tex_wgr_env_smp;
 uniform samplerCube wgr_env_tex_wgr_env_smp;
@@ -975,7 +975,7 @@ attr 4 tangent
 attr 5 color0
 ub 0 vertex 80 wgr_object 5 0
 ub 3 vertex 16 wave_params 1 0
-ub 1 fragment 1184 wgr_frame 74 0
+ub 1 fragment 1216 wgr_frame 76 0
 ub 2 fragment 48 params 3 0
 view 8 fragment wgr_env_tex cube float 0
 view 9 fragment wgr_brdf_tex 2d float 0
@@ -1087,7 +1087,7 @@ void main()
 source fs 6752
 #version 410
 
-uniform vec4 wgr_frame[74];
+uniform vec4 wgr_frame[76];
 uniform vec4 params[3];
 uniform sampler2D wgr_brdf_tex_wgr_env_smp;
 uniform samplerCube wgr_env_tex_wgr_env_smp;
@@ -1302,7 +1302,7 @@ attr 6 joints
 attr 7 weights
 ub 0 vertex 80 wgr_skinned_object 5 0
 ub 3 vertex 16 wave_params 1 0
-ub 1 fragment 1184 wgr_frame 74 0
+ub 1 fragment 1216 wgr_frame 76 0
 ub 2 fragment 48 params 3 0
 view 8 fragment wgr_env_tex cube float 0
 view 9 fragment wgr_brdf_tex 2d float 0
@@ -1453,7 +1453,7 @@ source fs 7119
 precision mediump float;
 precision highp int;
 
-uniform highp vec4 wgr_frame[74];
+uniform highp vec4 wgr_frame[76];
 uniform highp vec4 params[3];
 uniform highp sampler2D wgr_brdf_tex_wgr_env_smp;
 uniform highp samplerCube wgr_env_tex_wgr_env_smp;
@@ -1666,7 +1666,7 @@ attr 4 inst_right
 attr 5 inst_up
 attr 6 inst_color
 ub 0 vertex 128 wgr_sprite_view 8 0
-ub 1 fragment 1184 wgr_frame 74 0
+ub 1 fragment 1216 wgr_frame 76 0
 ub 2 fragment 48 params 3 0
 view 8 fragment wgr_env_tex cube float 0
 view 9 fragment wgr_brdf_tex 2d float 0
@@ -1746,7 +1746,7 @@ source fs 7119
 precision mediump float;
 precision highp int;
 
-uniform highp vec4 wgr_frame[74];
+uniform highp vec4 wgr_frame[76];
 uniform highp vec4 params[3];
 uniform highp sampler2D wgr_brdf_tex_wgr_env_smp;
 uniform highp samplerCube wgr_env_tex_wgr_env_smp;
@@ -1954,7 +1954,7 @@ program sprite_pulled glsl300es
 attr 0 corner
 ub 0 vertex 128 wgr_sprite_view 8 0
 ub 4 vertex 16 wgr_sprite_batch 1 0
-ub 1 fragment 1184 wgr_frame 74 0
+ub 1 fragment 1216 wgr_frame 76 0
 ub 2 fragment 48 params 3 0
 view 8 fragment wgr_env_tex cube float 0
 view 9 fragment wgr_brdf_tex 2d float 0
@@ -2052,7 +2052,7 @@ source fs 7119
 precision mediump float;
 precision highp int;
 
-uniform highp vec4 wgr_frame[74];
+uniform highp vec4 wgr_frame[76];
 uniform highp vec4 params[3];
 uniform highp sampler2D wgr_brdf_tex_wgr_env_smp;
 uniform highp samplerCube wgr_env_tex_wgr_env_smp;
@@ -2265,7 +2265,7 @@ attr 4 tangent
 attr 5 color0
 ub 0 vertex 80 wgr_object 5 0
 ub 3 vertex 16 wave_params 1 0
-ub 1 fragment 1184 wgr_frame 74 0
+ub 1 fragment 1216 wgr_frame 76 0
 ub 2 fragment 48 params 3 0
 view 8 fragment wgr_env_tex cube float 0
 view 9 fragment wgr_brdf_tex 2d float 0
@@ -2379,7 +2379,7 @@ source fs 7119
 precision mediump float;
 precision highp int;
 
-uniform highp vec4 wgr_frame[74];
+uniform highp vec4 wgr_frame[76];
 uniform highp vec4 params[3];
 uniform highp sampler2D wgr_brdf_tex_wgr_env_smp;
 uniform highp samplerCube wgr_env_tex_wgr_env_smp;
@@ -2594,7 +2594,7 @@ attr 6 -
 attr 7 -
 ub 0 vertex 80 - 0 0
 ub 3 vertex 16 - 0 3
-ub 1 fragment 1184 - 0 1
+ub 1 fragment 1216 - 0 1
 ub 2 fragment 48 - 0 2
 view 8 fragment wgr_env_tex cube float 8
 view 9 fragment wgr_brdf_tex 2d float 9
@@ -2867,7 +2867,7 @@ fn main(@location(0) position_2_param : vec3f, @location(1) normal_1_param : vec
   return main_out(gl_Position, wgr_world_pos, wgr_normal, wgr_tangent, wgr_uv0, wgr_uv1, wgr_color, wgr_tint, wgr_sprite_alpha);
 }
 
-source fs 10846
+source fs 10952
 diagnostic(off, derivative_uniformity);
 
 alias Arr = array<vec4f, 8u>;
@@ -2917,6 +2917,10 @@ struct wgr_frame {
   wgr_shadow_extra : Arr_8,
   /* @offset(1168) */
   wgr_shadow_map : vec4f,
+  /* @offset(1184) */
+  wgr_texture_flip_lo : vec4f,
+  /* @offset(1200) */
+  wgr_texture_flip_hi : vec4f,
 }
 
 struct params {
@@ -3224,7 +3228,7 @@ attr 4 -
 attr 5 -
 attr 6 -
 ub 0 vertex 128 - 0 0
-ub 1 fragment 1184 - 0 1
+ub 1 fragment 1216 - 0 1
 ub 2 fragment 48 - 0 2
 view 8 fragment wgr_env_tex cube float 8
 view 9 fragment wgr_brdf_tex 2d float 9
@@ -3375,7 +3379,7 @@ fn main(@location(0) corner_1_param : vec2f, @location(1) inst_pos_param : vec4f
   return main_out(gl_Position, wgr_world_pos, wgr_normal, wgr_tangent, wgr_uv0, wgr_uv1, wgr_color, wgr_tint, wgr_sprite_alpha);
 }
 
-source fs 10846
+source fs 10952
 diagnostic(off, derivative_uniformity);
 
 alias Arr = array<vec4f, 8u>;
@@ -3425,6 +3429,10 @@ struct wgr_frame {
   wgr_shadow_extra : Arr_8,
   /* @offset(1168) */
   wgr_shadow_map : vec4f,
+  /* @offset(1184) */
+  wgr_texture_flip_lo : vec4f,
+  /* @offset(1200) */
+  wgr_texture_flip_hi : vec4f,
 }
 
 struct params {
@@ -3727,7 +3735,7 @@ program sprite_pulled wgsl
 attr 0 -
 ub 0 vertex 128 - 0 0
 ub 4 vertex 16 - 0 4
-ub 1 fragment 1184 - 0 1
+ub 1 fragment 1216 - 0 1
 ub 2 fragment 48 - 0 2
 view 8 fragment wgr_env_tex cube float 8
 view 9 fragment wgr_brdf_tex 2d float 9
@@ -3913,7 +3921,7 @@ fn main(@builtin(instance_index) gl_InstanceIndex_param : u32, @location(0) corn
   return main_out(gl_Position, wgr_world_pos, wgr_normal, wgr_tangent, wgr_uv0, wgr_uv1, wgr_color, wgr_tint, wgr_sprite_alpha);
 }
 
-source fs 10846
+source fs 10952
 diagnostic(off, derivative_uniformity);
 
 alias Arr = array<vec4f, 8u>;
@@ -3963,6 +3971,10 @@ struct wgr_frame {
   wgr_shadow_extra : Arr_8,
   /* @offset(1168) */
   wgr_shadow_map : vec4f,
+  /* @offset(1184) */
+  wgr_texture_flip_lo : vec4f,
+  /* @offset(1200) */
+  wgr_texture_flip_hi : vec4f,
 }
 
 struct params {
@@ -4270,7 +4282,7 @@ attr 4 -
 attr 5 -
 ub 0 vertex 80 - 0 0
 ub 3 vertex 16 - 0 3
-ub 1 fragment 1184 - 0 1
+ub 1 fragment 1216 - 0 1
 ub 2 fragment 48 - 0 2
 view 8 fragment wgr_env_tex cube float 8
 view 9 fragment wgr_brdf_tex 2d float 9
@@ -4476,7 +4488,7 @@ fn main(@location(0) position_2_param : vec3f, @location(1) normal_1_param : vec
   return main_out(gl_Position, wgr_world_pos, wgr_normal, wgr_tangent, wgr_uv0, wgr_uv1, wgr_color, wgr_tint, wgr_sprite_alpha);
 }
 
-source fs 10846
+source fs 10952
 diagnostic(off, derivative_uniformity);
 
 alias Arr = array<vec4f, 8u>;
@@ -4526,6 +4538,10 @@ struct wgr_frame {
   wgr_shadow_extra : Arr_8,
   /* @offset(1168) */
   wgr_shadow_map : vec4f,
+  /* @offset(1184) */
+  wgr_texture_flip_lo : vec4f,
+  /* @offset(1200) */
+  wgr_texture_flip_hi : vec4f,
 }
 
 struct params {

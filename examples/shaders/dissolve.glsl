@@ -12,7 +12,7 @@ layout(binding=0) uniform texture2D noise_tex;
 layout(binding=0) uniform sampler noise_smp;
 
 void main() {
-    float noise = texture(sampler2D(noise_tex, noise_smp), wgr_uv0 * 2.0).r;
+    float noise = texture(sampler2D(noise_tex, noise_smp), wgr_texture_uv(0, wgr_uv0 * 2.0)).r;
     float threshold = 0.3 + 0.4 * sin(wgr_time() * speed * 6.2831853); /* never quite all gone */
     if (noise < threshold) {
         discard;

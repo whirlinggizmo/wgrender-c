@@ -336,6 +336,17 @@ static bool realize(wgri_material_t *material_ptr)
 
 /* -------------------------------------------------------------- internal ---- */
 
+void wgri_material_texture_flips(const wgri_material_t *material, const int *view_slot, int count, float flips[2][4])
+{
+    memset(flips, 0, sizeof(float) * 8);
+    for (int t = 0; t < count && t < WGRI_SHADER_MAX_TEXTURES; t++) {
+        const int binding = view_slot[t];
+        if (binding >= 0 && binding < 8 && wgri_texture_is_flipped(material->textures[t].texture)) {
+            flips[binding / 4][binding % 4] = 1.0f;
+        }
+    }
+}
+
 void wgri_material_uv_matrix(const wgri_material_texture_t *texture, float m[6])
 {
     const float c = cosf(texture->rotation), s = sinf(texture->rotation);
