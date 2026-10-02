@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compress textures for GPUs (docs/PLAN-textures.md): for each PNG, writes beside it
+"""Compress textures for GPUs (docs/HISTORY.md, "compressed textures"): for each PNG, writes beside it
 
     name.bc7.ktx    BC7        desktops
     name.astc.ktx   ASTC 4x4   phones

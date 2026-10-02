@@ -142,7 +142,7 @@ make and no shell script: everything below works the same on Windows, Linux and 
   CI; commit both files.
 - `tools/compress_textures.py [--linear] name.png...` — compressed texture files beside
   each PNG (`name.bc7.ktx`, `.astc.ktx`, `.etc2.ktx`), loaded as `name.ktx`
-  (docs/PLAN-textures.md); builds a pinned Basis Universal encoder into the per-user
+  (docs/HISTORY.md, "compressed textures"); builds a pinned Basis Universal encoder into the per-user
   cache (`tools/hostcache.py`) the first time. `--gltf model.gltf` does a model's textures and writes
   `model.ktx.gltf`.
 - `tools/pack_shader.py name.glsl` — compile a custom material shader (written against
@@ -196,16 +196,22 @@ make and no shell script: everything below works the same on Windows, Linux and 
 - **`include/*.h` is the contract.** A header comment says what the code does *now*,
   and changes in the same commit the behavior does. It is the one place never allowed
   to lag.
-- **`docs/PLAN-*.md` is a proposal plus its own history.** The `Status:` line at the
-  top is current; everything under it -- "Proposed design", the API sketch, "Phase N as
-  built" -- records what was thought or shipped at the time and is *not* rewritten when
-  later work supersedes it. A stale-looking line inside "Phase 1 as built" is accurate
-  as history: update the Status line, don't edit the record.
-- **`docs/TASKS.md` is a checklist; a ticked box is history** -- its text describes what
-  was true when it was ticked, not necessarily now.
-- So: for current behavior read the header and the code. Read a plan for *why*, and for
-  what was already tried. When a header and a plan disagree, check the code and fix the
-  header -- that disagreement is the bug, not the plan.
+- **`docs/PLAN-*.md` is what's open: a proposal, or the rest of one.** A plan says its
+  status and what's left; nothing in it is history. When a phase is built, its record
+  -- the design as it was, the decisions, "as built", what was measured -- moves to
+  `docs/HISTORY.md`, under the plan's title, in the same commit; a plan with nothing
+  left moves there whole and its file goes.
+- **`docs/TASKS.md` is what's left to do.** A task done moves to `docs/HISTORY.md`
+  ("Tasks done", under its section) in the commit that does it, rather than being
+  ticked in place.
+- **`docs/HISTORY.md` is the record, never current.** It keeps text as it was written
+  -- a name or a path in it may since have changed -- and isn't rewritten when later
+  work supersedes it. Read it for *why* things are the way they are, and for what was
+  already tried.
+- **`docs/ARCHITECTURE.md` describes the design as it is now**, and changes with it.
+- So: for current behavior read the header and the code. When a header and the history
+  disagree, the history is old; when a header and the code disagree, fix the header --
+  that disagreement is the bug.
 - **Say clamp or refuse, and mean it.** Clamp when every value in range is the same
   request at a different fidelity (a corner radius, a segment count, a map size);
   refuse -- return false -- when the value would change what the program asked for or

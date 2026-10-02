@@ -1,4 +1,4 @@
-/* The asset manifest's pieces (docs/PLAN-asset-cache.md): the content hash, and the
+/* The asset manifest's pieces (docs/HISTORY.md, "a web asset cache that notices changed files"): the content hash, and the
  * reader for one directory's manifest.json. */
 #include <stdlib.h>
 #include <string.h>

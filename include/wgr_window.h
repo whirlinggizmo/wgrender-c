@@ -42,7 +42,7 @@ void wgr_window_set_title(const char *title);
 int wgr_window_close_requested(void);
 vec2_t wgr_window_get_screen_size(void);
 
-/* Window size, position and monitors (docs/PLAN-window.md).
+/* Window size, position and monitors (docs/HISTORY.md, "Window and monitor control").
  *
  * Sizes are logical pixels, like wgr_window_get_screen_size; positions are the
  * desktop's coordinates (top-left origin). Functions return false where the platform

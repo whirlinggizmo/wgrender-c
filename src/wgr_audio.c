@@ -39,7 +39,7 @@
 #define AUDIO_INITIAL 32 /* slots to start with; the pool doubles as needed */
 #define STREAM_CHUNK_FRAMES 4096 /* frames decoded at a time while streaming */
 
-/* Mixing model (docs/PLAN-audio.md)
+/* Mixing model (docs/HISTORY.md, "Audio — streamed music and mixing off the main thread")
  * ---------------------------------
  * sokol_audio calls the mixer from the audio device's thread (on web, from the
  * browser's audio callback). It reads every Sound and its Audio, so every

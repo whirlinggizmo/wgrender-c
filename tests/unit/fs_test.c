@@ -1,4 +1,4 @@
-/* The local filesystem layer (src/wgr_fs.c, docs/PLAN-wgr_fs.md): where paths resolve,
+/* The local filesystem layer (src/wgr_fs.c, docs/HISTORY.md, "wgr_fs + web-capable ensure (Phase 2)"): where paths resolve,
  * reading and writing files, and creating the directories a write needs. The web half
  * (MEMFS + IndexedDB) isn't in this build; the desktop stubs for it are checked here so
  * callers can rely on their answers. */
@@ -137,7 +137,7 @@ static wgri_fs_meta_t make_meta(const char *etag, double fresh_until, const char
     return meta;
 }
 
-/* A cached file's metadata (docs/PLAN-asset-cache.md): kept with the bytes it
+/* A cached file's metadata (docs/HISTORY.md, "a web asset cache that notices changed files"): kept with the bytes it
  * describes, replaced or dropped with them, and never outliving them. */
 void test_fs_meta(void)
 {

@@ -1,4 +1,4 @@
-/* Custom material shaders (docs/PLAN-materials.md): loading the example .wgrshader files
+/* Custom material shaders (docs/HISTORY.md, "Materials and shaders"): loading the example .wgrshader files
  * written by tools/pack_shader.py (sokol's dummy backend takes the GL layout), their
  * parameters and textures by name through the material setters, where the values land
  * (std140 offsets, fragment block then vertex block), and reference counting. */

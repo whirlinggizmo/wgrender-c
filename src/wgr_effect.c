@@ -12,7 +12,7 @@
 #include "wgr_logger.h"
 #include "wgr_render.h"
 
-/* Screen effects (post-processing, docs/PLAN-render-target.md): the frame draws into a
+/* Screen effects (post-processing, docs/HISTORY.md, "Render to texture"): the frame draws into a
  * texture instead of the screen, and each effect's shader redraws it into the next
  * texture, the last one onto the screen. One triangle covering the screen per effect;
  * the shader is a screen shader (shaders/wgr.glsl, wgr_screen), which sees the frame as

@@ -1,4 +1,4 @@
-/* Loading benchmark (docs/PLAN-pipeline.md): loads Sponza and FlightHelmet during
+/* Loading benchmark (docs/HISTORY.md, "Loading pipeline (background preparation, budgeted GPU upload)"): loads Sponza and FlightHelmet during
  * a running frame loop, first through the asset pipeline (background), then
  * synchronously (files only ensured, meshes created in one callback), and prints
  * the worst frame and total time of each, then the worst of the first frames that

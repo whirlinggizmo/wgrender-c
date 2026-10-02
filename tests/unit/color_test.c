@@ -1,4 +1,4 @@
-/* Colors are values (docs/PLAN-color.md): packing, the helpers, and what the
+/* Colors are values (docs/HISTORY.md, "colors are values, not handles"): packing, the helpers, and what the
  * renderer unpacks them to. */
 #include "internal/wgr_color_internal.h"
 #include "wgr_color.h"

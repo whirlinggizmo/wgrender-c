@@ -44,7 +44,7 @@ void wgri_platform_set_title(const char *title);
  * tools/measure_example_startup.py read; elsewhere nothing). */
 void wgri_platform_mark(const char *name);
 
-/* Window and monitors (docs/PLAN-window.md). Sizes in logical pixels, positions in
+/* Window and monitors (docs/HISTORY.md, "Window and monitor control"). Sizes in logical pixels, positions in
  * the desktop's coordinates. False where the platform can't do it. */
 bool wgri_platform_set_window_size(int width, int height);
 bool wgri_platform_set_window_position(int x, int y);

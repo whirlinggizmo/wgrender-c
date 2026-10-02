@@ -5,7 +5,7 @@
 
 /* Fixed-rate tick scheduling for wgr_set_tick(). Pure logic (no clock, no
  * callbacks) so it can be unit tested; wgr.c feeds it real elapsed time and runs
- * the ticks it asks for. See docs/PLAN-tick.md. */
+ * the ticks it asks for. See docs/HISTORY.md, "Fixed-rate tick + frame callback timing arguments". */
 
 #define WGRI_MAX_TICKS_PER_FRAME 5
 

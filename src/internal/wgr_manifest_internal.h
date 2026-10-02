@@ -6,7 +6,7 @@
 
 #include "internal/wgr_sha256_internal.h"
 
-/* One directory's asset manifest (docs/PLAN-asset-cache.md): the content hash of each
+/* One directory's asset manifest (docs/HISTORY.md, "a web asset cache that notices changed files"): the content hash of each
  * file in it, and of each subdirectory's own manifest.json.
  *
  *   { "wgr_manifest": 1,

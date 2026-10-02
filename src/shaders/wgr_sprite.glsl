@@ -1,4 +1,4 @@
-/* wgr_sprite shaders — instanced sprite quads (docs/PLAN-sprites.md). Authored once in
+/* wgr_sprite shaders — instanced sprite quads (docs/HISTORY.md, "a sprite renderer, and particle emitters"). Authored once in
  * annotated GLSL; sokol-shdc generates wgr_sprite.glsl.h with GL core / WebGL2 / WebGPU
  * variants. Regen: `tools/gen_shaders.py`.
  *
@@ -96,7 +96,7 @@ void main() {
 @end
 
 @vs vs_particle
-/* A particle from its birth record and its age (docs/PLAN-sprites.md, step 4): the CPU
+/* A particle from its birth record and its age (docs/HISTORY.md, "a sprite renderer, and particle emitters", step 4): the CPU
    writes a particle once, when it's born; where it is, how big, what color and how
    turned all follow from how long ago that was. One draw per emitter. */
 layout(binding=0) uniform particle_params {

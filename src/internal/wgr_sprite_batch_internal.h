@@ -6,7 +6,7 @@
 
 #include "wgr_types.h"
 
-/* Instanced sprite drawing (docs/PLAN-sprites.md): sprites are recorded as one small
+/* Instanced sprite drawing (docs/HISTORY.md, "a sprite renderer, and particle emitters"): sprites are recorded as one small
  * instance each, in call order, and drawn as instanced quads; consecutive sprites
  * with the same texture, camera, clip and depth mode share one draw. Batches are
  * render commands, so they keep their place among sokol_gl layers, model draws and

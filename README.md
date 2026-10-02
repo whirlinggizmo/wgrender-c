@@ -100,7 +100,7 @@ int main(void) {
 - After a stall at most 5 ticks run per frame and the backlog is dropped.
 - Input edges (pressed/released, mouse deltas) are relative to the callback
   reading them, so every key press is seen by exactly one tick.
-- See `examples/tick.c` and [docs/PLAN-tick.md](docs/PLAN-tick.md).
+- See `examples/tick.c` and [HISTORY.md: Fixed-rate tick + frame callback timing arguments](docs/HISTORY.md#fixed-rate-tick--frame-callback-timing-arguments).
 
 The consumer owns `main()` and calls `wgr_run()`; the sokol implementation TU is
 compiled with `SOKOL_NO_ENTRY` so sokol does not generate its own entry point.
@@ -119,7 +119,8 @@ tests/unit/     unit tests (`ctest --preset linux-x64-debug-headless`; no displa
 tools/          build, check and generator scripts (Python), benchmarks (tools/bench), the web dev server
 cmake/          the MinGW toolchain file (the windows-x64-mingw presets)
 build.json      the build as data: sources, and per target defines, flags and libraries
-docs/           ARCHITECTURE.md, ROADMAP.md, TASKS.md and one PLAN-*.md per feature
+docs/           ARCHITECTURE.md (the design now), ROADMAP.md, TASKS.md, PLAN-*.md (open plans),
+                HISTORY.md (what was planned, decided and built, and why)
 ```
 
 ## Rendering notes
@@ -191,7 +192,7 @@ docs/           ARCHITECTURE.md, ROADMAP.md, TASKS.md and one PLAN-*.md per feat
   or `name.png`; on the web only that file downloads. Make them with
   `tools/compress_textures.py name.png`. A quarter of the GPU memory, and no decoding
   or mipmap building at load (a 2K texture: ~1 ms instead of 60-200 ms); see
-  `docs/PLAN-textures.md` and `examples/textures.c`. For a glTF model,
+  `docs/HISTORY.md, "compressed textures"` and `examples/textures.c`. For a glTF model,
   `tools/compress_textures.py --gltf model.gltf` writes `model.ktx.gltf`, which loads
   its textures the same way (and stays a valid glTF for other viewers).
 - Custom shaders: write a fragment shader (and optionally a vertex hook) against
@@ -203,12 +204,12 @@ docs/           ARCHITECTURE.md, ROADMAP.md, TASKS.md and one PLAN-*.md per feat
   the shader. The same shader draws sprites (`wgr_sprite3d_set_material`,
   `wgr_sprite2d_set_material`; `wgr_sprite_color()` is the sprite's texture and tint),
   with the same lights and environment a model shader gets.
-  See `docs/PLAN-materials.md` and `examples/shaders.c`.
+  See `docs/HISTORY.md, "Materials and shaders"` and `examples/shaders.c`.
 - Screen effects (post-processing): a shader that includes `wgr_screen` instead of
   `wgr_surface` redraws the finished frame — `wgr_render_add_effect(material)` puts it in
   a chain (up to 8, in order; the frame goes into a texture and the last effect draws
   onto the screen). Its parameters are the material's, so an effect can change every
-  frame. See `docs/PLAN-render-target.md` and `examples/postprocess.c`.
+  frame. See `docs/HISTORY.md, "Render to texture"` and `examples/postprocess.c`.
 
 ## Bindings
 

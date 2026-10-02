@@ -1,4 +1,4 @@
-/* The asset manifest on desktop (docs/PLAN-asset-cache.md): a URL host, a fetcher that
+/* The asset manifest on desktop (docs/HISTORY.md, "a web asset cache that notices changed files"): a URL host, a fetcher that
  * serves files from a directory standing in for the host, and manifests this test
  * writes the way tools/gen_manifest.py would. What each run downloads is the check:
  * the root manifest once a run, a directory's manifest and a file only when their

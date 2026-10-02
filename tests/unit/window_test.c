@@ -1,4 +1,4 @@
-/* Window and monitor API (docs/PLAN-window.md) on the headless platform: one
+/* Window and monitor API (docs/HISTORY.md, "Window and monitor control") on the headless platform: one
  * virtual monitor the size of the framebuffer; no position, no fullscreen. */
 #include <string.h>
 

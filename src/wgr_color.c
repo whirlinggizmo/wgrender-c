@@ -6,7 +6,7 @@
 /* Colors are plain values (0xRRGGBBAA) — no pool, no handles, no lifecycle. They
  * were handles in librl, which said in rl_color.c that colors are "tiny value
  * objects" without shared-asset semantics; making them values says the same thing
- * in the type. See docs/PLAN-color.md. */
+ * in the type. See docs/HISTORY.md, "colors are values, not handles". */
 
 static unsigned int clamp_component(int v)
 {

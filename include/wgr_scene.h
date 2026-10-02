@@ -65,7 +65,7 @@ bool wgr_scene_set_tonemap(wgr_handle_t scene, wgr_tonemap_t tonemap, float expo
 
 void wgr_scene_draw(wgr_handle_t scene);
 
-/* Pointer interaction (docs/PLAN-2d.md). An interactive scene picks under the pointer
+/* Pointer interaction (docs/HISTORY.md, "2D / UI layer"). An interactive scene picks under the pointer
  * (the mouse, or the primary touch) once per frame, before the frame's ticks, against
  * where its members were last drawn, and tracks hover and press per member: 2D
  * members first (topmost), then the nearest 3D member. Only pickable, visible members

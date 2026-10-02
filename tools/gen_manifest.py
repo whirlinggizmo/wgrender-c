@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write the asset manifests for a directory tree (docs/PLAN-asset-cache.md): a
+"""Write the asset manifests for a directory tree (docs/HISTORY.md, "a web asset cache that notices changed files"): a
 manifest.json in DIR and in every directory under it, each giving the sha256 of every
 file beside it and of each subdirectory's own manifest.json.
 

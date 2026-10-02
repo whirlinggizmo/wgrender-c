@@ -9,7 +9,7 @@
 
 /* Internal lighting data shared by wgr_scene (which collects a scene's lights),
  * wgr_model (which picks lights per placement and uploads them) and the model
- * shader. See docs/PLAN-lighting.md. */
+ * shader. See docs/HISTORY.md, "Lighting (light objects, per-scene lighting)". */
 
 #define WGRI_MAX_DRAW_LIGHTS 8    /* lights per model placement (shader array size) */
 #define WGRI_MAX_SHADOW_LIGHTS 4  /* lights casting shadows at once (layers in the map) */
@@ -42,7 +42,7 @@ typedef struct {
     wgri_scene_light_t lights[WGRI_MAX_SCENE_LIGHTS];
     int count;
     vec3_t ambient; /* color rgb * intensity */
-    /* environment lighting and output (docs/PLAN-environment.md) */
+    /* environment lighting and output (docs/HISTORY.md, "Environment lighting (image-based lighting) and tone mapping") */
     wgr_handle_t environment; /* 0 = none */
     float environment_intensity;
     float environment_rotation; /* radians around +y */

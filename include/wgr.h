@@ -53,7 +53,7 @@ typedef enum wgr_init_result_t {
  * desktop wgr_run() blocks until the window closes; on web it returns immediately
  * and the browser drives frames.
  *
- * Two callbacks, for two rates (see docs/PLAN-tick.md):
+ * Two callbacks, for two rates (see docs/HISTORY.md, "Fixed-rate tick + frame callback timing arguments"):
  *
  *   tick   simulation at a fixed rate (wgr_set_tick). Runs 0..N times before each
  *          frame, always with dt = 1/hz. Use it for physics and gameplay rules.

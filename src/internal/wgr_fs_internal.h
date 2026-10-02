@@ -11,7 +11,7 @@
  * Web: files in MEMFS under a root dir, kept between visits in IndexedDB, one
  * record per file. Init reads only the cache's list of files; a cached file is
  * read into MEMFS when it's needed (wgri_fs_cache_read_begin), so startup doesn't
- * grow with the cache (docs/PLAN-wgr_fs.md). A cached file can carry metadata
+ * grow with the cache (docs/HISTORY.md, "wgr_fs + web-capable ensure (Phase 2)"). A cached file can carry metadata
  * (wgri_fs_meta_t): on the web in a second IndexedDB store, read at init with the
  * list; on desktop in a sidecar under the root's ".meta/". */
 
@@ -45,7 +45,7 @@ void wgri_fs_read_free(unsigned char *data);
 
 /* What is known about where a cached file came from, kept beside it: the response's
  * validators, how long it may be used without asking, and the hash of the bytes
- * stored (docs/PLAN-asset-cache.md). An empty string is "none". A value too long for
+ * stored (docs/HISTORY.md, "a web asset cache that notices changed files"). An empty string is "none". A value too long for
  * its field is dropped, never cut: a cut ETag would ask the server about some other
  * version. */
 typedef struct {

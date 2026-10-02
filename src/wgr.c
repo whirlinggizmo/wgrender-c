@@ -291,7 +291,7 @@ static double update_frame_timing(void)
     return elapsed;
 }
 
-/* Run the ticks that are due (docs/PLAN-tick.md). Input edges seen by a tick are
+/* Run the ticks that are due (docs/HISTORY.md, "Fixed-rate tick + frame callback timing arguments"). Input edges seen by a tick are
  * those since the previous tick. */
 static void run_ticks(double elapsed)
 {

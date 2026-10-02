@@ -140,7 +140,7 @@ void wgri_input_init(void);
 void wgri_input_deinit(void);
 struct sapp_event; /* fwd decl from sokol_app */
 void wgri_input_handle_event(const struct sapp_event *ev);
-/* Input edges are relative to the running callback (docs/PLAN-tick.md). The
+/* Input edges are relative to the running callback (docs/HISTORY.md, "Fixed-rate tick + frame callback timing arguments"). The
  * runtime sets the context before each tick/frame callback and clears that
  * context's edges after it. */
 typedef enum {

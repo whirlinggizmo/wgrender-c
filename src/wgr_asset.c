@@ -103,7 +103,7 @@ typedef struct {
     bool dependency_failed;
     bool dependencies_started;
     bool optional;            /* a dependency its parent can do without */
-    /* loading (docs/PLAN-pipeline.md): prepare on a worker, finish on the main thread */
+    /* loading (docs/HISTORY.md, "Loading pipeline (background preparation, budgeted GPU upload)"): prepare on a worker, finish on the main thread */
     char local[512];          /* the local path: the resource's name and the callback's path */
     const wgri_loader_t *loader;
     void *prepared;
@@ -168,7 +168,7 @@ static int wgr_manifest_dir_count, wgr_manifest_dir_capacity;
 #ifndef __EMSCRIPTEN__
 /* Desktop downloads: the host is a URL, the app supplies the downloader, and the cache
  * directory is both where a download lands and where the next run finds it -- the same
- * job the browser's cache does on web (docs/PLAN-asset-fetch.md). */
+ * job the browser's cache does on web (wgr_asset_set_fetcher, include/wgr_asset.h). */
 static wgr_asset_fetch_fn wgr_asset_fetcher;
 static void *wgr_asset_fetcher_user;
 static char wgr_asset_cache_dir[512]; /* set by the program; "" = derived (cache_dir) */

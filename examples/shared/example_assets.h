@@ -17,7 +17,7 @@
 #  define EXAMPLE_ASSET_BASE "examples/assets"
 #endif
 
-/* The manifest of the asset host (docs/PLAN-asset-cache.md): the published site's
+/* The manifest of the asset host (docs/HISTORY.md, "a web asset cache that notices changed files"): the published site's
  * assets have one (tools/build_site.py writes it with tools/gen_manifest.py), so a returning
  * visitor fetches only what changed. Where there is none, as under tools/serve_site.py, the
  * cache asks the host about each file instead; on desktop the host is a directory

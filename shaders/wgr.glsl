@@ -1,4 +1,4 @@
-/* libwgrender custom shaders: what libwgrender gives a material's shader (docs/PLAN-materials.md,
+/* libwgrender custom shaders: what libwgrender gives a material's shader (docs/HISTORY.md, "Materials and shaders",
  * "Custom shaders"). tools/pack_shader.py puts this file in front of yours, adds libwgrender's
  * vertex shaders (static and skinned models, and sprites) and compiles the result for
  * every backend into a .wgrshader file (wgr_shader_create). One shader draws models and
@@ -69,7 +69,7 @@
  *                         Multiply it into that light's contribution, as built-in
  *                         materials do. It already has the light's shadow strength in
  *                         it, and fades out where the light's map ends
- *   Built-in materials use exactly these (docs/PLAN-environment.md).
+ *   Built-in materials use exactly these (docs/HISTORY.md, "Environment lighting (image-based lighting) and tone mapping").
  *   wgr_sprite_color()     a sprite's texture at its region times its tint, linear rgba
  *                         (on a model: its vertex color). The texture itself is
  *                         wgr_sprite_tex / wgr_sprite_smp, to sample it yourself (an

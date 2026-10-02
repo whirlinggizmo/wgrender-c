@@ -10,7 +10,7 @@
 /* Audio mixing runs on the audio device's thread (sokol_audio callback mode), so
  * Sound and Audio state shared with the game thread is guarded by one recursive
  * lock: take it (wgri_audio_lock) around any change to a registered wgri_sound_t or
- * to Audio resources. See docs/PLAN-audio.md. */
+ * to Audio resources. See docs/HISTORY.md, "Audio — streamed music and mixing off the main thread". */
 
 /* Decoder state for a Sound playing a streamed Audio (private to wgr_audio.c). */
 typedef struct wgri_audio_stream wgri_audio_stream_t;

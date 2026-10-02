@@ -1,4 +1,4 @@
-/* Loading pipeline (docs/PLAN-pipeline.md), on sokol's dummy backend. */
+/* Loading pipeline (docs/HISTORY.md, "Loading pipeline (background preparation, budgeted GPU upload)"), on sokol's dummy backend. */
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>

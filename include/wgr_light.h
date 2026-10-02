@@ -12,7 +12,7 @@ extern "C" {
 /* Lights (objects). Angles are radians, like the rest of the libwgrender API.
  * Add a light to a scene with wgr_scene_add(scene, light, 0); a light can be in
  * several scenes. Scenes also have an ambient term
- * (wgr_scene_set_ambient). See docs/PLAN-lighting.md.
+ * (wgr_scene_set_ambient). See docs/HISTORY.md, "Lighting (light objects, per-scene lighting)".
  *
  * - Nothing is lit implicitly: a new scene has no lights, no ambient and no
  *   environment (wgr_scene_set_environment), so its models render black until you

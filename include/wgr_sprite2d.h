@@ -10,7 +10,7 @@ extern "C" {
 #include "wgr_types.h"
 
 /* Sprite2d object: a textured quad in screen space that references a Texture
- * resource. See docs/PLAN-sprite2d.md.
+ * resource. See docs/HISTORY.md, "sprite2d (screen-space sprites)".
  *
  * - Coordinates are logical pixels: top-left origin, y down. On high-DPI displays
  *   one logical pixel spans several framebuffer pixels.

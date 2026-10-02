@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 /* SHA-256 (FIPS 180-4), for the asset manifest's content hashes
- * (docs/PLAN-asset-cache.md). `out` gets "sha256:" + 64 lowercase hex digits and a
+ * (docs/HISTORY.md, "a web asset cache that notices changed files"). `out` gets "sha256:" + 64 lowercase hex digits and a
  * terminator: WGRI_SHA256_TEXT bytes. */
 #define WGRI_SHA256_TEXT 72
 

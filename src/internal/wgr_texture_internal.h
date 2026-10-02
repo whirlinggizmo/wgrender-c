@@ -73,7 +73,7 @@ bool wgri_texture_is_flipped(wgr_handle_t handle);
  * while recording and while replaying a target's pass. */
 void wgri_texture_set_drawing_into(wgr_handle_t handle);
 
-/* Compressed textures (docs/PLAN-textures.md): the file `path` (textures/rock.ktx)
+/* Compressed textures (docs/HISTORY.md, "compressed textures"): the file `path` (textures/rock.ktx)
  * stands for on this GPU, written to `out`: rock.bc7.ktx, rock.astc.ktx, rock.etc2.ktx,
  * else rock.png. A variant name is kept as it is. False for other paths. */
 bool wgri_texture_ktx_path(const char *path, char *out, size_t out_size);

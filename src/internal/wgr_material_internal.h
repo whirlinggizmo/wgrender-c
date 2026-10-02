@@ -7,7 +7,7 @@
 #include "wgr_types.h"
 
 /* Material data read by the model renderer and picking. See wgr_material.h and
- * docs/PLAN-materials.md. */
+ * docs/HISTORY.md, "Materials and shaders". */
 
 typedef enum {
     WGRI_MATERIAL_TEXTURE_BASE_COLOR = 0,

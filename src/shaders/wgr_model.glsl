@@ -11,7 +11,7 @@
  *                    matrices a row; src/wgr_model.c uploads it once a frame)
  *   fs_params      = material, camera and lights (below)
  *
- * Color space (docs/PLAN-materials.md): the framebuffer holds sRGB values.
+ * Color space (docs/HISTORY.md, "Materials and shaders"): the framebuffer holds sRGB values.
  * Color textures are decoded from sRGB, factors and light radiance are linear,
  * lighting happens in linear space, and the result is encoded back to sRGB.
  *
@@ -30,7 +30,7 @@
  *   u_light_dir_type[i]   xyz direction the light travels, w type (0 dir, 1 point, 2 spot)
  *   u_light_radiance[i]   rgb color * intensity (linear)
  *   u_light_spot[i]       x cos(inner), y cos(outer)
- *   u_env             environment (docs/PLAN-environment.md): x intensity (0 = none),
+ *   u_env             environment (docs/HISTORY.md, "Environment lighting (image-based lighting) and tone mapping"): x intensity (0 = none),
  *                     y the prefiltered cubemap's last mip (roughness 1), z/w cos/sin
  *                     of its rotation around +y
  *   u_sh[9]           environment irradiance / pi as spherical harmonics (xyz)

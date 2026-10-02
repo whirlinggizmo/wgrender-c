@@ -1,4 +1,4 @@
-/* UI essentials (docs/PLAN-2d.md step 3): nine-slice geometry, text2d wrapping and
+/* UI essentials (docs/HISTORY.md, "2D / UI layer" step 3): nine-slice geometry, text2d wrapping and
  * alignment, and per-layer clip rectangles (which also mask picking). */
 #include <string.h>
 
@@ -222,7 +222,7 @@ void test_scene_clip(void)
     sg_shutdown();
 }
 
-/* sprite3d in a 2D world (docs/PLAN-2d.md step 4): the source rectangle, the world
+/* sprite3d in a 2D world (docs/HISTORY.md, "2D / UI layer" step 4): the source rectangle, the world
  * extent and the pivot, checked through picking — the quad picked is the quad drawn. */
 void test_sprite3d_2d_world(void)
 {

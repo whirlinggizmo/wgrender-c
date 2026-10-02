@@ -5,7 +5,7 @@
 
 #include "wgr_types.h"
 
-/* A resource type's loading, split for the asset pipeline (docs/PLAN-pipeline.md):
+/* A resource type's loading, split for the asset pipeline (docs/HISTORY.md, "Loading pipeline (background preparation, budgeted GPU upload)"):
  *
  *   prepare  any thread: read and decode the file into CPU data (the slow part).
  *            Touches no handles, sokol_gfx or other shared state.

@@ -1,5 +1,5 @@
 /* Sprite benchmark: where the time goes in sprite-heavy frames, as a baseline for a
- * dedicated sprite renderer (docs/PLAN-sprites.md).
+ * dedicated sprite renderer (docs/HISTORY.md, "a sprite renderer, and particle emitters").
  *
  * Scenes, each at a few sprite counts:
  *   - grid:         sprite3d in a grid under an orthographic camera, facing FREE, one

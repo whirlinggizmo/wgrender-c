@@ -35,7 +35,7 @@
  * MEMFS, nothing persists), surfaced via wgri_fs_is_ready(). */
 /* Bump to invalidate every cached file on the next visit (see the note inside). The
  * last resort, not how a changed asset reaches a returning visitor: revalidation and
- * the manifest do that (wgr_asset_set_cache_mode, docs/PLAN-asset-cache.md). This is
+ * the manifest do that (wgr_asset_set_cache_mode, docs/HISTORY.md, "a web asset cache that notices changed files"). This is
  * for a cached file that is wrong in a way nothing can detect. */
 #define WGR_FS_CACHE_EPOCH 3
 

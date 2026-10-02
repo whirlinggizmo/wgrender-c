@@ -78,15 +78,15 @@ Naming notes / decisions:
   resource carries the optional CPU-side alpha mask used for picking.
 - **A render target is a Texture.** `wgr_texture_create_target(w, h)` makes a texture
   you can draw into (`wgr_render_begin_texture`); everything that takes a texture
-  accepts it. See [PLAN-render-target.md](PLAN-render-target.md).
+  accepts it. See [HISTORY.md: Render to texture](HISTORY.md#render-to-texture).
 - **Material is a resource that objects use, not an object.** Meshes loaded from
   glTF create one material per glTF material (the mesh's slots); models draw with
   them unless they override a slot with `wgr_model_set_material`. Materials are
   created in code with `wgr_material_create(shading)`, not from a path. See
-  [PLAN-materials.md](PLAN-materials.md).
+  [HISTORY.md: Materials and shaders](HISTORY.md#materials-and-shaders).
 - **Light is an object with no resource.** Directional, point and spot lights are
   created with `wgr_light_create(type)` and added to scenes; nothing is loaded.
-  See [PLAN-lighting.md](PLAN-lighting.md).
+  See [HISTORY.md: Lighting (light objects, per-scene lighting)](HISTORY.md#lighting-light-objects-per-scene-lighting).
 - **Audio (resource) → Sound (object).** "audio" is the loaded data ("load the
   audio"); "a sound" is the concrete thing you play and position ("play a
   sound", `sound_set_volume`). `play_sfx()` / `play_music()` are thin
@@ -346,7 +346,7 @@ threads, uploaded on the main thread within a per-frame budget), so the create i
 the callback only finds it. Each resource type registers a loader
 (`src/internal/wgr_loader.h`: prepare on any thread, finish on the main thread in
 steps); the sync create runs the same loader inline. See
-[PLAN-pipeline.md](PLAN-pipeline.md).
+[HISTORY.md: Loading pipeline (background preparation, budgeted GPU upload)](HISTORY.md#loading-pipeline-background-preparation-budgeted-gpu-upload).
 
 ```c
 static void on_ready(const char *path, void *user) {
@@ -367,7 +367,7 @@ in order until one exists:
    or a translation overrides only the files it has; the file's own path comes last.
 2. **Device variants** (path mappers, `src/internal/wgr_loader.h`): `rock.ktx` becomes
    the compressed file this GPU can sample, falling back to `rock.png`
-   ([PLAN-textures.md](PLAN-textures.md)).
+   ([HISTORY.md: compressed textures](HISTORY.md#compressed-textures)).
 3. **Where it downloads from** (web): the asset host, or a redirect's URL (a CDN); the
    file is still cached and named by its path.
 
@@ -377,7 +377,7 @@ before it's used (304 keeps it, 200 replaces it, 4xx forgets it, no answer uses 
 an offline start works). With a manifest (`wgr_asset_set_manifest`, one per directory,
 hashes of the files' contents; `tools/gen_manifest.py`) the host is asked only about
 the root once per run, and a file is fetched only when its hash changed, and kept only
-when its bytes match ([PLAN-asset-cache.md](PLAN-asset-cache.md)).
+when its bytes match ([HISTORY.md: a web asset cache that notices changed files](HISTORY.md#a-web-asset-cache-that-notices-changed-files)).
 
 The callback receives the file actually found, and files it references (a glTF's
 buffers and images) resolve the same way: the loader reads them from where the asset
@@ -420,43 +420,3 @@ Effect on the web (gzipped): `hello` 134 KB, a sprite program ~170 KB, a program
 drawing models ~240 KB, one using everything ~300 KB (all ~311 KB before).
 
 ---
-
-## 8. Status
-
-- **Done — Mesh/Model split + vocabulary (Phase 1).** `wgr_model.c` separates a
-  shared, refcounted, path-deduped resource from a lightweight instance, in the
-  final vocabulary:
-  - **Mesh** resource (`wgr_mesh_t`, kind `WGR_HANDLE_KIND_MESH`) owns primitives
-    (`wgr_primitive_t`) + GPU buffers + retained pick geometry + skeleton + clips
-    + merged AABB + `ref_count` + `path`;
-  - **Model** object (`wgr_model_t`, kind `WGR_HANDLE_KIND_MODEL`) owns
-    transform / tint / visibility / animation playback / joint matrices, and
-    references a Mesh via its `mesh` handle;
-  - two handle pools; `create_mesh`/`find_mesh_by_path`/`retain_mesh`/
-    `release_mesh`/`create_model`;
-  - public API: `wgr_mesh_create` / `wgr_mesh_create_from_memory` /
-    `wgr_model_create_from_mesh` / `wgr_mesh_release`, plus backward-compatible
-    `wgr_model_create` / `wgr_model_create_from_memory` sugar. Builds clean (lib +
-    examples + `make check`).
-
-- **Pending — procedural mesh generators** (`wgr_mesh_create_cube/sphere/plane`)
-  and **retire the retained Shape object** into Model; keep the immediate
-  draw/gizmo API.
-
-- **Pending — Texture resource split** (Sprite objects share Texture resources;
-  alpha mask on the resource, generated on demand for alpha-test picking).
-
-- **Done — Audio/Sound split, Music folded in.** `wgr_audio.c` owns an **Audio**
-  resource (`wgr_audio_t`, kind `WGR_HANDLE_KIND_AUDIO`) holding decoded PCM,
-  refcounted and path-deduped; the mixer plays **Sound** objects (`wgri_sound_t`,
-  kind SOUND) that carry playback state (`pos`/`volume`/`pitch`/`loop`/`playing`)
-  and reference an Audio by handle. There is **no separate Music type** — a
-  looping background track is just a Sound with `wgr_sound_set_loop(true)`
-  (`wgr_music_*` and kind MUSIC are gone). `wgr_sound_play/pause/resume/stop`.
-
-- **Pending — streamed Audio.** Today every Audio is fully decoded into PCM, so a
-  long music track is decoded whole into RAM. The doc's *decoded | streamed* load
-  mode (chosen at `wgr_audio_create`) is the proper fix: the Audio holds the shared
-  compressed source, and a Sound playing a streamed Audio carries its own decoder
-  + ring buffer (single-buffer sharing only works for decoded PCM). Pairs with
-  the `wgr_fs`/host-fetch work. `play_sfx`/`play_music` sugar optional on top.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile a custom material shader into a .wgrshader file (docs/PLAN-materials.md).
+"""Compile a custom material shader into a .wgrshader file (docs/HISTORY.md, "Materials and shaders").
 
     tools/pack_shader.py name.glsl [-o name.wgrshader]
 

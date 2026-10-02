@@ -164,7 +164,7 @@ void test_asset_join_relative(void)
     CHECK(!wgri_asset_is_relative_uri(NULL));
 }
 
-/* The fetch hook (docs/PLAN-asset-fetch.md): with a URL host and a fetcher, a desktop
+/* The fetch hook (wgr_asset_set_fetcher, include/wgr_asset.h): with a URL host and a fetcher, a desktop
  * miss becomes a download. No network here — the fetcher writes the file itself, which
  * is all libwgrender asks of it. */
 static int fetch_calls;

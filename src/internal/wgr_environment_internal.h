@@ -9,7 +9,7 @@
 #include "wgr_types.h"
 #include "sokol_gfx.h"
 
-/* Environment lighting internals (docs/PLAN-environment.md): the CPU preparation
+/* Environment lighting internals (docs/HISTORY.md, "Environment lighting (image-based lighting) and tone mapping"): the CPU preparation
  * of an environment map, and what the model and background shaders bind.
  *
  * Conventions:

@@ -9,7 +9,7 @@ that lean on them. Items with a design doc link there.
 
 1. **Materials & shaders** (phase 1 done 2026-09-16: built-in materials; phase 2
    2026-09-20: custom shaders; see
-   [PLAN-materials.md](PLAN-materials.md)) — a **handle-only uniform/material API**
+   [HISTORY.md: Materials and shaders](HISTORY.md#materials-and-shaders)) — a **handle-only uniform/material API**
    (`wgr_material_set_float/vec4/texture(...)`, no struct/pointer across the public
    boundary) on top of the sokol-shdc pipeline we already have. *Enabler:*
    user shaders, particle looks, UI styling. The work is API shape, not plumbing
@@ -18,7 +18,7 @@ that lean on them. Items with a design doc link there.
    but-unimplemented object), 2D draw ordering, **2D picking** (mouse → rect/AABB
    hit-test; far cheaper than the existing 3D ray path in `wgr_pick`), and pickable
    UI primitives. `text2d` already exists and slots in here. Broadly useful —
-   every game needs HUD/UI. sprite2d design: [PLAN-sprite2d.md](PLAN-sprite2d.md).
+   every game needs HUD/UI. sprite2d design: [HISTORY.md: sprite2d (screen-space sprites)](HISTORY.md#sprite2d-screen-space-sprites).
 
    **GUI direction (decided 2026-09-16): don't build a GUI toolkit.** Two jobs, two
    tools, both outside the core as optional modules (like scripting and bindings):
@@ -68,7 +68,7 @@ four bindings; here the core stays a plain C library and each binding is its own
 on the handle-only API (see the README's Bindings section).
 
 Left out on purpose, not gaps: the scratch buffer and `_to_scratch` functions, public
-`fs_*` ([PLAN-wgr_fs.md](PLAN-wgr_fs.md)), `music_*`, `*_create_from_file`,
+`fs_*` ([HISTORY.md: wgr_fs + web-capable ensure (Phase 2)](HISTORY.md#wgr_fs--web-capable-ensure-phase-2)), `music_*`, `*_create_from_file`,
 `window_open` / `input_poll_events` / `init_values_async` (sokol owns the loop; see
 `wgr_run`), and `model_set_asset` / `load_asset` (Mesh resource + `wgr_model_set_mesh`).
 
@@ -78,12 +78,12 @@ Left out on purpose, not gaps: the scratch buffer and `_to_scratch` functions, p
   done (2026-09-17): files ensured through `wgr_asset` are prepared on worker
   threads (web too, with cross-origin isolation) and finished within a per-frame
   upload budget before their callback; asset groups and progress replace librl's
-  `ensure_many`. See [PLAN-pipeline.md](PLAN-pipeline.md). Next: compressed
+  `ensure_many`. See [HISTORY.md: Loading pipeline (background preparation, budgeted GPU upload)](HISTORY.md#loading-pipeline-background-preparation-budgeted-gpu-upload). Next: compressed
   textures (KTX2 / Basis), since one large texture is still one upload.
 
 - ~~**Offscreen / render-to-texture**~~ — done (2026-09-16): render targets are
   textures (`wgr_texture_create_target`, `wgr_render_begin_texture`); see
-  [PLAN-render-target.md](PLAN-render-target.md). Still to come: persistent
+  [HISTORY.md: Render to texture](HISTORY.md#render-to-texture). Still to come: persistent
   (uncleared) targets, HDR formats and full-screen passes for post-effects.
 - **Mouse / pointer input + 2D hit-testing** — prerequisite for pickable UI;
   lands together with the 2D layer (confirm how much pointer input is exposed
@@ -131,8 +131,12 @@ Left out on purpose, not gaps: the scratch buffer and `_to_scratch` functions, p
   per-pixel tolerance; worth it the first time a rendering regression gets past smoke.
 - **Hot reload (reload-on-change)** — watch source assets and re-`ensure`; we
   already have `wgr_fs` + `ensure`, so this is mostly a watcher. Big dev-loop win.
-- **Audio streaming** — ARCHITECTURE.md treats streamed-vs-decoded as an Audio
-  property; verify large music streams rather than fully decoding into RAM.
+- **Audio streaming from the network** — decoding streams already: an Audio over 1 MB
+  keeps its encoded bytes and each Sound decodes it while it plays. What's left is the
+  file itself: today it must be wholly local before `wgr_audio_create`, so a long track
+  can't start until it has arrived. A streamed Audio would be ready once enough has
+  arrived to start (a task's PENDING -> READY), which needs the asset layer to deliver a
+  file in pieces.
 
 ## Future
 

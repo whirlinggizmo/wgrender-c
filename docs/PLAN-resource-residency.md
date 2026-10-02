@@ -2,7 +2,7 @@
 
 Status: **proposed — awaiting approval.** No code changed yet.
 Builds on the Asset→Resource→Object model ([ARCHITECTURE.md](ARCHITECTURE.md)) and
-the `wgr_fs` local cache ([PLAN-wgr_fs.md](PLAN-wgr_fs.md)).
+the `wgr_fs` local cache ([HISTORY.md: wgr_fs + web-capable ensure (Phase 2)](HISTORY.md#wgr_fs--web-capable-ensure-phase-2)).
 
 ## Reality check — how much of this do we actually need?
 

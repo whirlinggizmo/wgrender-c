@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The web asset cache, end to end (docs/PLAN-asset-cache.md): the bug of 2026-09-25,
+"""The web asset cache, end to end (docs/HISTORY.md, "a web asset cache that notices changed files"): the bug of 2026-09-25,
 reproduced and shown fixed.
 
     tools/check_asset_cache.py [--manifest] [--backend=webgl2|webgpu] [--threads] [--browser=PATH]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compress a glTF model's textures for GPUs (docs/PLAN-textures.md).
+"""Compress a glTF model's textures for GPUs (docs/HISTORY.md, "compressed textures").
 
     tools/compress_model_textures.py model.gltf        (or tools/compress_textures.py --gltf model.gltf)
 

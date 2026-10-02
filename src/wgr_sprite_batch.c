@@ -21,7 +21,7 @@
 #include "wgr_logger.h"
 #include "wgr_window.h"
 
-/* Instanced sprites (docs/PLAN-sprites.md). During the frame, sprites are appended to
+/* Instanced sprites (docs/HISTORY.md, "a sprite renderer, and particle emitters"). During the frame, sprites are appended to
  * one instance array in call order and grouped into batches: consecutive sprites
  * with the same texture, camera, clip, depth mode and pass. Each batch is a render
  * command. Before the passes, the instances go up in one buffer update; each batch

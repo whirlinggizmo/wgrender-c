@@ -165,7 +165,7 @@ wgr_asset_cache_mode_t wgr_asset_get_cache_mode(void);
 
 /* An asset manifest: a hash of each file's contents, so a cached copy whose hash
  * still matches is used with no request at all, and one that changed is fetched once
- * (docs/PLAN-asset-cache.md; tools/gen_manifest.py writes them). `path` is the root
+ * (docs/HISTORY.md, "a web asset cache that notices changed files"; tools/gen_manifest.py writes them). `path` is the root
  * manifest's logical path under the host ("manifest.json"). A manifest lists the
  * files beside it and, for each directory, the hash of that directory's own
  * manifest.json, which is fetched only when a file under it is first ensured, and

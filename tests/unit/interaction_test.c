@@ -1,4 +1,4 @@
-/* Scene pointer interaction (docs/PLAN-2d.md): hover, press and click per member,
+/* Scene pointer interaction (docs/HISTORY.md, "2D / UI layer"): hover, press and click per member,
  * enabled, capture, 2D over 3D, touch, tick edges. Pointer events go through the real
  * input code; each "frame" updates the interaction and then clears frame edges, like
  * the runtime. */

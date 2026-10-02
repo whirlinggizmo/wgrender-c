@@ -391,7 +391,7 @@ static void decode_image(wgr_gltf_textures_t *cache, const cgltf_image *img)
     }
 }
 
-/* Compressed textures (docs/PLAN-textures.md): tools/compress_model_textures.py gives a texture
+/* Compressed textures (docs/HISTORY.md, "compressed textures"): tools/compress_model_textures.py gives a texture
  * the WGR_texture_ktx extension, {"source": <image>}, an image named "name.ktx" beside
  * its own. The texture module picks the file this GPU can sample (name.bc7.ktx, ...);
  * without one, the texture uses its own image. */

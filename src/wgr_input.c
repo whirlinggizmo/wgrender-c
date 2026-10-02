@@ -15,7 +15,7 @@
  * sokol_app delivers all pending events (event_cb) before each frame_cb. Held
  * state (buttons/keys down, mouse position) is shared. Edges (pressed/released,
  * mouse and wheel deltas, typed keys and chars) are tracked twice, because they
- * are relative to the callback reading them (docs/PLAN-tick.md):
+ * are relative to the callback reading them (docs/HISTORY.md, "Fixed-rate tick + frame callback timing arguments"):
  *
  *   frame edges: since the previous frame callback; cleared after it runs.
  *   tick edges:  since the previous tick; cleared after each tick. A frame that

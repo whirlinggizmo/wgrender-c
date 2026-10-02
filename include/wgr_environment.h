@@ -8,7 +8,7 @@ extern "C" {
 #include "wgr_types.h"
 
 /* Environment maps (resources): light a scene's models with the world around
- * them, and show it as the scene's background. See docs/PLAN-environment.md.
+ * them, and show it as the scene's background. See docs/HISTORY.md, "Environment lighting (image-based lighting) and tone mapping".
  *
  * - Load an equirectangular (latitude-longitude, 2:1) image: a Radiance .hdr
  *   (true high dynamic range, recommended) or a PNG/JPEG (sRGB, low dynamic range).

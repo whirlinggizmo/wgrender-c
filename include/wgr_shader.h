@@ -7,7 +7,7 @@ extern "C" {
 
 #include "wgr_types.h"
 
-/* Custom material shaders (resources). See docs/PLAN-materials.md, "Custom shaders".
+/* Custom material shaders (resources). See docs/HISTORY.md, "Materials and shaders", "Custom shaders".
  *
  * - Write a fragment shader (and optionally a vertex hook) against shaders/wgr.glsl,
  *   then compile it for every backend with tools/pack_shader.py name.glsl, which writes

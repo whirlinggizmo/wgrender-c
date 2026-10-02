@@ -10,7 +10,7 @@ extern "C" {
 #include "wgr_texture.h"
 #include "wgr_types.h"
 
-/* Materials (resources): how a surface is shaded. See docs/PLAN-materials.md.
+/* Materials (resources): how a surface is shaded. See docs/HISTORY.md, "Materials and shaders".
  *
  * - A mesh loaded from glTF creates one material per glTF material
  *   (wgr_mesh_get_material). They're shared by every model using that mesh, so

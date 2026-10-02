@@ -43,7 +43,7 @@ wgr_handle_t wgr_texture_create(const char *path);
  * to transparent black each time it's drawn into. Draw into it between
  * wgr_render_begin_texture and wgr_render_end_texture, then use it like any
  * texture. It matches the screen's pixel format and anti-aliasing (MSAA) and has
- * no mipmaps. See docs/PLAN-render-target.md. */
+ * no mipmaps. See docs/HISTORY.md, "Render to texture". */
 wgr_handle_t wgr_texture_create_target(int width, int height);
 
 /* How the texture is sampled where it's drawn directly (sprites, wgr_texture_draw).

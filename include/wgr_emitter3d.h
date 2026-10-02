@@ -7,7 +7,7 @@ extern "C" {
 
 #include "wgr_types.h"
 
-/* Particle emitters in the 3D world (docs/PLAN-sprites.md, step 4). An emitter is one
+/* Particle emitters in the 3D world (docs/HISTORY.md, "a sprite renderer, and particle emitters", step 4). An emitter is one
  * object that owns many particles, drawn from a texture (Texture -> Emitter, as
  * Texture -> Sprite). A particle is decided when it's born (where, how fast, how long
  * it lives, how big, how it spins, all within the ranges set here) and the GPU works

@@ -1,4 +1,4 @@
-/* libwgrender textures example — compressed textures (docs/PLAN-textures.md).
+/* libwgrender textures example — compressed textures (docs/HISTORY.md, "compressed textures").
  *
  * Each texture twice: loaded from its PNG (left), and as "name.ktx" (right), for which
  * libwgrender picks the file this GPU can use (name.bc7.ktx on desktops, name.astc.ktx on

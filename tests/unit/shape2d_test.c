@@ -1,6 +1,6 @@
 #include <math.h>
 
-/* Retained 2D shapes (docs/PLAN-2d.md step 2): exact-area picking under the 2D
+/* Retained 2D shapes (docs/HISTORY.md, "2D / UI layer" step 2): exact-area picking under the 2D
  * transform, and 2D/3D routing (a shape handle is one or the other). */
 #include "internal/wgr_camera3d_internal.h"
 #include "internal/wgr_internal_internal.h"

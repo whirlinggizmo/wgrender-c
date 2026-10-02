@@ -21,7 +21,7 @@
 #include "wgr_logger.h"
 #include "wgr_window.h"
 
-/* Particle emitters (docs/PLAN-sprites.md, step 4). A particle is a birth record:
+/* Particle emitters (docs/HISTORY.md, "a sprite renderer, and particle emitters", step 4). A particle is a birth record:
  * where and when it was born, how fast it went, how long it lives, its size scale,
  * spin and starting angle. The CPU decides those at birth (within the emitter's
  * ranges) and never touches the particle again; the shader (vs_particle in
