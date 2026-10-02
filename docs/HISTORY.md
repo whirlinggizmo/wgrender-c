@@ -32,6 +32,7 @@ Text here is kept as it was written, so a name or a path in it may since have ch
 - [wgr_fs + web-capable ensure (Phase 2)](#wgr_fs--web-capable-ensure-phase-2)
 - [Window and monitor control](#window-and-monitor-control)
 - [Tasks done](#tasks-done)
+- [Tasks dropped](#tasks-dropped)
 - [ARCHITECTURE.md status log](#architecturemd-status-log)
 
 ## 2D / UI layer
@@ -5560,6 +5561,12 @@ TASKS.md's ticked items, by the section they were in.
       fontstash data is kept by path and reused (fontstash can't remove fonts).
       Follow-up: a `.ttf/.otf` loader so reading big font files runs in the loading
       pipeline
+
+## Tasks dropped
+
+TASKS.md's items taken off without being done, by the section they were in, each
+with why. Earlier drops were recorded where they happened, in their plan's history
+(as polled tasks' phase 3 was) rather than here.
 
 ## ARCHITECTURE.md status log
 

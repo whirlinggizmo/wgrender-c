@@ -203,10 +203,13 @@ make and no shell script: everything below works the same on Windows, Linux and 
   status and what's left; nothing in it is history. When a phase is built, its record
   -- the design as it was, the decisions, "as built", what was measured -- moves to
   `docs/HISTORY.md`, under the plan's title, in the same commit; a plan with nothing
-  left moves there whole and its file goes.
+  left moves there whole and its file goes. A phase dropped rather than built moves
+  there too, saying why.
 - **`docs/TASKS.md` is what's left to do.** A task done moves to `docs/HISTORY.md`
   ("Tasks done", under its section) in the commit that does it, rather than being
-  ticked in place.
+  ticked in place. A task dropped moves there too ("Tasks dropped"), saying why: the
+  reason is what stops it being proposed again. Nothing leaves TASKS or a plan
+  without a record.
 - **`docs/HISTORY.md` is the record, never current.** It keeps text as it was written
   -- a name or a path in it may since have changed -- and isn't rewritten when later
   work supersedes it. Read it for *why* things are the way they are, and for what was

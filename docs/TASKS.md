@@ -5,7 +5,8 @@ is what's left to do; what's done is in [HISTORY.md](HISTORY.md).
 
 Workflow: pick the top unchecked item, outline a plan (AGENTS.md), implement with
 tests, keep `python3 tools/verify_builds.py` passing, and move the item to
-[HISTORY.md](HISTORY.md) ("Tasks done") in the same commit. What's here is what's left.
+[HISTORY.md](HISTORY.md) ("Tasks done") in the same commit. A task dropped instead
+moves to "Tasks dropped" with the reason. What's here is what's left.
 
 ## Bugs and measurements
 
