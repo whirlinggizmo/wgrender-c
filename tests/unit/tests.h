@@ -153,6 +153,8 @@ void test_nine_slice(void);
 void test_text2d_layout(void);
 void test_text_layout_shared(void);
 void test_color_values(void);
+void test_logger_level(void);
+void test_logger_utf8_cut(void);
 void test_scene_clip(void);
 void test_sprite3d_2d_world(void);
 void test_sprite3d_facings(void);

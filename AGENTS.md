@@ -250,8 +250,11 @@ parameter and return value is a **handle (`wgr_handle_t`)**, an **integral / flo
 / enum**, a **`const char *`** (paths and text), or a **fixed-layout math value by
 value: `vec2_t`, `vec3_t`, `vec4_t`, `quat_t`** (a quaternion is laid out as a
 `vec4_t`). **No other pointers in user code** — never `unsigned char *data` /
-`int size`, never struct pointers — **and never a record.** This is enforced by
-`tools/check_rules.py` (the `check` test), not just convention.
+`int size`, never struct pointers, no callbacks, no `...` — **and never a record.**
+This is enforced by `tools/check_rules.py` (the `check` test), not just convention,
+with two lists beside it as for getters: `TYPES_EXEMPT`, a call that breaks the rule on
+purpose and why (the loop setters: the platform owns the loop, so it calls the
+program), and `TYPES_TODO`, the known gaps, which only shrinks.
 
 Why the math values and nothing else: a struct returned by value puts its layout in
 the contract, which every binding mirrors and every FFI must get right (SysV returns a

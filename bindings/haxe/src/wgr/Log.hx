@@ -5,13 +5,15 @@ package wgr;
 /**
 	wgrender's logger, carrying the Haxe call site.
 
-	The C calls are varargs; these hand over an already-formatted Haxe string as a
-	`%s` argument rather than as the format itself, so text can never be read as a
-	format directive and nothing has to be escaped.
+	The C calls take finished text, so a Haxe string goes as it is: formatting is the
+	language's own (string interpolation), and text is never read as a format.
 **/
 class Log {
 	public static inline function setLevel(level:LogLevel):Void
 		Raw.wgr_logger_set_level(level);
+
+	public static inline function getLevel():LogLevel
+		return LogLevel.of(Raw.wgr_logger_get_level());
 
 	/**
 		`pos` is filled in by the compiler, so a call site reaches the log without the
@@ -29,7 +31,7 @@ class Log {
 			return;
 		}
 		#end
-		Raw.wgr_logger_message_source(level, file, line, "%s", msg);
+		Raw.wgr_logger_message_source(level, file, line, msg);
 	}
 
 	/** Named `verbose`, not `trace`: Haxe already has a global `trace` that does
@@ -54,5 +56,5 @@ class Log {
 
 	/** Without a call site, when you want wgrender's own bare line. **/
 	public static inline function plain(level:LogLevel, msg:String):Void
-		Raw.wgr_logger_message(level, "%s", msg);
+		Raw.wgr_logger_message(level, msg);
 }

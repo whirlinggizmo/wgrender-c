@@ -117,6 +117,8 @@ static const test_case_t TESTS[] = {
     {"text2d_layout", test_text2d_layout},
     {"text_layout_shared", test_text_layout_shared},
     {"color_values", test_color_values},
+    {"logger_level", test_logger_level},
+    {"logger_utf8_cut", test_logger_utf8_cut},
     {"scene_clip", test_scene_clip},
     {"sprite3d_2d_world", test_sprite3d_2d_world},
     {"sprite3d_facings", test_sprite3d_facings},

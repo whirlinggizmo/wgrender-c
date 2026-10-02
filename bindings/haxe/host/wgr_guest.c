@@ -64,7 +64,7 @@ GUEST_EXPORT int wgr_guest_faulted(void) { return faulted; }
 
 static void fault(const char *op, int code)
 {
-    wgr_logger_message(WGR_LOGGER_LEVEL_ERROR, "wgr_guest: %s faulted (%d)", op, code);
+    wgr_logger_error("wgr_guest: %s faulted (%d)", op, code);
     if (fault_policy == WGR_GUEST_FAULT_FATAL) {
         faulted = 1;
         wgr_request_quit();
@@ -129,7 +129,7 @@ static void host_shutdown(void *user)
     if (rc != 0) {
         /* Not fault(): that can call wgr_request_quit, and wgrender is already
          * quitting. Say it happened and let the teardown finish. */
-        wgr_logger_message(WGR_LOGGER_LEVEL_ERROR, "wgr_guest: shutdown faulted (%d)", rc);
+        wgr_logger_error("wgr_guest: shutdown faulted (%d)", rc);
     }
 }
 

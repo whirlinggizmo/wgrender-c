@@ -10,6 +10,10 @@ enum abstract LogLevel(Int) to Int {
 	var Error = 4;
 	var Fatal = 5;
 
+	@:allow(wgr)
+	static inline function of(v:Int):LogLevel
+		return cast v;
+
 	#if cpp
 	/** C++ needs the cast: the header says `wgr_log_level_t`, not `int`. **/
 	@:to extern inline function toRaw():CLogLevel

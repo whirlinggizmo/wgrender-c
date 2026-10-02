@@ -39,6 +39,9 @@ float wgri_window_dpi_scale(void);
 
 /* logger */
 void wgri_logger_init(void);
+/* The length of `text` without a UTF-8 character cut short at its end: what a message
+ * truncated to fit a buffer can end with. */
+size_t wgri_logger_whole_utf8(const char *text);
 void wgri_logger_deinit(void);
 
 /* event bus */

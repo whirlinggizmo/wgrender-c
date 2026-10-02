@@ -11,9 +11,8 @@ that parse what they check, never by scanning text.
   values    AGENTS.md § Public API shape: a struct in a public signature is one of the
             fixed-layout math values (VALUE_STRUCTS), or a record RECORDS_TODO lists
   types     AGENTS.md § Public API shape: every parameter and return value is a number,
-            bool, enum, handle, `const char *` or math value -- no other pointer, no
-            callback, no `void *`, no `...` -- but the loop setters (CALLBACKS_ALLOWED)
-            and the known gaps (CALLBACKS_TODO, VARIADIC_TODO)
+            bool, enum, handle, `const char *` or math value, and nothing else, unless
+            TYPES_EXEMPT says why not, or TYPES_TODO lists it as a known gap
   getters   AGENTS.md § Public API shape: every value a setter stores has a getter,
             unless GETTERS_EXEMPT says why not, or GETTERS_TODO lists it as a known gap
   modules   the core never calls an optional subsystem by name (src/internal/
@@ -210,19 +209,16 @@ SCALARS = {'void', 'bool', 'char', 'int', 'unsigned int', 'float', 'double', 'sh
            'long', 'unsigned long', 'long long', 'unsigned long long', 'int8_t', 'uint8_t', 'int16_t',
            'uint16_t', 'int32_t', 'uint32_t', 'int64_t', 'uint64_t', 'size_t'}
 
-# The one exception: the platform owns the loop (sokol_app, the browser), so these take
-# the program's callbacks and the `void *` they hand back. A new one is a decision.
-CALLBACKS_ALLOWED = {'wgr_set_init', 'wgr_set_tick', 'wgr_set_frame', 'wgr_set_cleanup'}
+# Calls whose signatures break the rule on purpose, and why. A decision, not a backlog.
+TYPES_EXEMPT = {
+    **{f'wgr_set_{c}': 'the platform owns the loop (sokol_app, the browser), so it calls the '
+       "program's function, with the `void *` it was given" for c in ('init', 'tick', 'frame', 'cleanup')},
+}
 
 # Known gaps, each going (docs/PLAN-tasks.md): a callback or a `void *` where a polled
 # task belongs, or the event bus. The check fails when one is gone and still listed.
-CALLBACKS_TODO = {'wgr_asset_add_task', 'wgr_asset_ping_host', 'wgr_asset_set_fetcher',
-                  'wgr_event_on', 'wgr_event_once', 'wgr_event_off', 'wgr_event_emit'}
-
-# Known gaps: printf-style calls, which a binding can't call; a public call takes the
-# finished text, and C formats in the wgr_logger_* macros (libwgt's wgt_log_message).
-VARIADIC_TODO = {'wgr_logger_message', 'wgr_logger_message_source'}
-
+TYPES_TODO = {'wgr_asset_add_task', 'wgr_asset_ping_host', 'wgr_asset_set_fetcher',
+              'wgr_event_on', 'wgr_event_once', 'wgr_event_off', 'wgr_event_emit'}
 
 def check_types(r, api):
     """Every parameter and return value is a type the rule allows."""
@@ -230,19 +226,18 @@ def check_types(r, api):
         if t in SCALARS or t == 'const char *' or t in api.enums or t in VALUE_STRUCTS or t in api.structs:
             return True  # (a struct that isn't a math value is check_values')
         return t in api.typedefs and api.typedefs[t][0] in SCALARS
-    bad, listed = [], CALLBACKS_ALLOWED | CALLBACKS_TODO
-    for name, f in api.functions.items():
+    def refused(f):
         wrong = [t for t in [f.returns] + [p.type for p in f.params] if not allowed(t)]
-        if wrong and name not in listed:
-            bad.append(f'{f.header}: {name}: {", ".join(dict.fromkeys(wrong))}')
-        if f.variadic and name not in VARIADIC_TODO:
-            bad.append(f'{f.header}: {name}: ... (take the finished text; format in a macro)')
-    gone = [f'{n}: listed, but it takes nothing the rule refuses now; take it off'
-            for n in sorted(CALLBACKS_TODO | VARIADIC_TODO)
-            if n not in api.functions or (not api.functions[n].variadic and all(
-                allowed(t) for t in [api.functions[n].returns] + [p.type for p in api.functions[n].params]))]
-    r.result(bad + gone, f'public calls take and return only allowed types ({len(CALLBACKS_ALLOWED)} loop '
-             f'callbacks; {len(CALLBACKS_TODO) + len(VARIADIC_TODO)} known gaps)',
+        return list(dict.fromkeys(wrong)) + (['...'] if f.variadic else [])
+    bad = [f'{f.header}: {name}: {", ".join(refused(f))}' for name, f in api.functions.items()
+           if refused(f) and name not in TYPES_EXEMPT and name not in TYPES_TODO]
+    gone = [f'{n}: on {"TYPES_EXEMPT" if n in TYPES_EXEMPT else "TYPES_TODO"}, but '
+            + ('no public call has that name now' if n not in api.functions else 'it breaks no rule now')
+            + '; take it off'
+            for n in sorted(set(TYPES_EXEMPT) | TYPES_TODO)
+            if n not in api.functions or not refused(api.functions[n])]
+    r.result(bad + gone, f'public calls take and return only allowed types ({len(TYPES_EXEMPT)} exempt; '
+             f'{len(TYPES_TODO)} known gaps)',
              'a public call takes or returns a type the rule refuses (a pointer, a callback, `void *`, `...`):')
 
 
@@ -276,7 +271,6 @@ GETTERS_TODO = {
     'wgr_emitter2d_set_spawn_box', 'wgr_emitter2d_set_spawn_circle',
     'wgr_emitter3d_set_spawn_box', 'wgr_emitter3d_set_spawn_sphere',
     'wgr_input_set_gamepad_deadzone',
-    'wgr_logger_set_level',
     *(f'wgr_material_set_{v}' for v in (
         'color', 'float', 'int', 'texture', 'texture_sampling', 'vec2', 'vec3', 'vec4')),
     *(f'wgr_model_set_{v}' for v in (

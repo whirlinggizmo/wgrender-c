@@ -143,8 +143,8 @@ serves has its own. libwgt has none either.
 
 `wgr_set_init`, `wgr_set_tick`, `wgr_set_frame`, `wgr_set_cleanup`: the platform owns the
 loop (sokol_app, or the browser), so something must call in; libwgt keeps the same
-exception. `tools/check_rules.py` allows a function pointer or `void *` in a public
-signature for these alone (libwgt's `CALLBACKS_ALLOWED`).
+exception. They are `tools/check_rules.py`'s `TYPES_EXEMPT`, the type rule's one
+exemption, with the reason beside them.
 
 ### 6. A public `wgr_fs.h`, and byte spans
 
@@ -173,8 +173,8 @@ or a `_get_data` beside a `_get_size`.
   call; the same handle for the same path while pending; 0 only when full), task
   lifetime, groups, the polled fetcher, each resource's status. `check_asset_cache.py`
   with and without `--manifest`.
-- **check_rules.py**: no function pointer or `void *` in a public signature but the loop
-  setters'.
+- **check_rules.py**: `TYPES_TODO` empties, leaving the loop setters as the only calls
+  the type rule exempts.
 
 ## Decisions
 
