@@ -19,7 +19,6 @@
 
 static wgr_guest_init_fn guest_init;
 static wgr_guest_frame_fn guest_frame;
-static wgr_guest_asset_fn guest_asset;
 static wgr_guest_shutdown_fn guest_shutdown;
 static wgr_guest_tick_fn guest_tick;
 static int guest_tick_hz;
@@ -38,11 +37,10 @@ static uint32_t frame_id;
 static float last_tick_fraction;
 
 GUEST_EXPORT void wgr_guest_register(wgr_guest_init_fn init, wgr_guest_frame_fn frame,
-                                     wgr_guest_asset_fn asset, wgr_guest_shutdown_fn shutdown)
+                                     wgr_guest_shutdown_fn shutdown)
 {
     guest_init = init;
     guest_frame = frame;
-    guest_asset = asset;
     guest_shutdown = shutdown;
 }
 
@@ -131,29 +129,6 @@ static void host_shutdown(void *user)
          * quitting. Say it happened and let the teardown finish. */
         wgr_logger_error("wgr_guest: shutdown faulted (%d)", rc);
     }
-}
-
-/* --- assets: the glue holds the function pointers, the guest holds an id --- */
-
-static void asset_done(const char *path, void *user, int ok)
-{
-    if (faulted || guest_asset == NULL) {
-        return;
-    }
-    int rc = guest_asset((uint32_t)(uintptr_t)user, path, ok);
-    if (rc != 0) {
-        fault("asset", rc);
-    }
-}
-
-static void asset_ok(const char *path, void *user) { asset_done(path, user, 1); }
-static void asset_failed(const char *path, void *user) { asset_done(path, user, 0); }
-
-GUEST_EXPORT int wgr_guest_asset_load(const char *path, uint32_t id, const char *fetch_url, uint32_t flags)
-{
-    wgr_handle_t task = wgr_asset_ensure_async(path, fetch_url, flags);
-    return wgr_asset_add_task(task, asset_ok, asset_failed, (void *)(uintptr_t)id)
-           == WGR_ASSET_ADD_TASK_OK;
 }
 
 /* Put the ops in wgrender's lifecycle slots, without opening a window or running.

@@ -6,6 +6,10 @@
 #include "wgr_asset.h"
 #include "test_os.h"
 
+#include <stdio.h>
+
+char test_assets_path[512];
+
 void test_assets_start(int workers, const char *root)
 {
     wgri_fs_init(NULL);
@@ -31,4 +35,22 @@ int test_assets_run(void)
         }
     }
     return -1;
+}
+
+wgr_asset_task_status_t test_assets_ensure(const char *path, const char *fetch_url, unsigned int flags, int frames)
+{
+    const wgr_handle_t task = wgr_asset_ensure(path, fetch_url, flags);
+    wgr_asset_task_status_t status;
+
+    test_assets_path[0] = '\0';
+    if (task == 0) {
+        return WGR_ASSET_TASK_NONE;
+    }
+    for (int frame = 0; frame < frames && wgr_asset_task_get_status(task) == WGR_ASSET_TASK_PENDING; frame++) {
+        wgri_asset_tick();
+    }
+    status = wgr_asset_task_get_status(task);
+    snprintf(test_assets_path, sizeof(test_assets_path), "%s", wgr_asset_task_get_path(task));
+    wgr_asset_task_destroy(task);
+    return status;
 }

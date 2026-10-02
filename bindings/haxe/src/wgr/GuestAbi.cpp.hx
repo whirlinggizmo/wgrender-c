@@ -24,7 +24,6 @@ class GuestAbi {
 	static var onInit:() -> Void;
 	static var onFrame:(dt:Float, frameId:Int) -> Void;
 	static var onTick:(dt:Float) -> Void;
-	static var onAsset:(id:Int, path:String, ok:Bool) -> Void;
 	static var onShutdown:() -> Void;
 
 	/**
@@ -39,11 +38,9 @@ class GuestAbi {
 		wgrender's `wgr_set_shutdown` for a guest. It is the op to release anything the
 		guest owns outside wgrender; anything wgrender owns is already being torn down.
 	**/
-	public static function register(init:() -> Void, frame:(dt:Float, frameId:Int) -> Void,
-			asset:(id:Int, path:String, ok:Bool) -> Void, ?shutdown:() -> Void):Void {
+	public static function register(init:() -> Void, frame:(dt:Float, frameId:Int) -> Void, ?shutdown:() -> Void):Void {
 		onInit = init;
 		onFrame = frame;
-		onAsset = asset;
 		onShutdown = shutdown;
 		installOps();
 	}
@@ -59,7 +56,7 @@ class GuestAbi {
 	static function installOps():Void {
 		opsInstalled = true;
 		GuestRaw.wgr_guest_register(cpp.Callable.fromStaticFunction(initOp), cpp.Callable.fromStaticFunction(frameOp),
-			cpp.Callable.fromStaticFunction(GuestAbiNative.assetOp), cpp.Callable.fromStaticFunction(shutdownOp));
+			cpp.Callable.fromStaticFunction(shutdownOp));
 		GuestRaw.wgr_guest_install();
 	}
 
@@ -100,11 +97,6 @@ class GuestAbi {
 
 	public static function setShutdown(shutdown:() -> Void):Void {
 		onShutdown = shutdown;
-		ensureInstalled();
-	}
-
-	public static function setAsset(asset:(id:Int, path:String, ok:Bool) -> Void):Void {
-		onAsset = asset;
 		ensureInstalled();
 	}
 
@@ -189,39 +181,7 @@ class GuestAbi {
 		return true;
 	}
 
-	/**
-		Make a file local; the host calls the asset op with `id` when it is.
-
-		`fetchUrl` overrides where the bytes are downloaded from, without changing the
-		key they are cached and resolved under -- a mirror, a CDN, a signed link. A
-		relative one is read against the asset host, as `Asset.ensureAsync` says.
-		`flags` is wgrender's, `ForceFetch` being the one worth knowing: fetch even if
-		the cache already has it.
-	**/
-	public static function loadAsset(path:String, id:Int, ?fetchUrl:String, ?flags:AssetFlag):Bool {
-		#if !emscripten
-		Asset.needsFetcher(fetchUrl); // an http(s) source natively wants a downloader
-		#end
-		return GuestRaw.wgr_guest_asset_load(path, id, Native.cstr(fetchUrl),
-			flags == null ? 0 : (flags : Int)) != 0;
-	}
-
 	/** On desktop there is no page: `main` is the entry, so run the guest now. **/
 	public static function autostart(boot:(host:Dynamic) -> Void):Void
 		boot(null);
-}
-
-@:access(wgr.GuestAbi) @:allow(wgr.GuestAbi)
-private class GuestAbiNative {
-	static function assetOp(id:cpp.UInt32, path:cpp.ConstCharStar, ok:Int):Int {
-		if (GuestAbi.onAsset == null)
-			return 0;
-		try
-			GuestAbi.onAsset(id, path.toString(), ok != 0)
-		catch (e:haxe.Exception) {
-			Log.error('guest: uncaught exception in asset: ${e.message}');
-			return 1;
-		}
-		return 0;
-	}
 }

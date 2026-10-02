@@ -58,7 +58,7 @@ class Stress {
 	public static function start(host:Dynamic):Bool {
 		n = entityCount();
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (_, _) -> onFrame(), (_, _, _) -> {}); // ensures nothing
+		GuestAbi.register(onInit, (_, _) -> onFrame()); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "stress (wgrender host, Haxe guest)", Resizable);
 	}
 

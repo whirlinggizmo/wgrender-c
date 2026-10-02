@@ -82,7 +82,7 @@ class Fetch {
 
 	public static function start(hostModule:Dynamic):Bool {
 		GuestAbi.attach(hostModule);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt)); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "fetch (wgrender host, Haxe guest)", Resizable);
 	}
 

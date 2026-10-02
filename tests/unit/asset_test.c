@@ -14,6 +14,7 @@
 
 #include "internal/wgr_asset_internal.h"
 #include "test.h"
+#include "test_assets.h"
 #include "tests.h"
 
 static void check_join(const char *base, const char *uri, const char *expected)
@@ -117,9 +118,9 @@ void test_asset_paths(void)
 
     wgri_fs_init(NULL);
     wgri_asset_init();
-    CHECK(wgr_asset_ensure_async("/etc/passwd", NULL, WGR_ASSET_NONE) == 0);
-    CHECK(wgr_asset_ensure_async("../outside.png", NULL, WGR_ASSET_NONE) == 0);
-    CHECK(wgr_asset_ensure_async("C:/x.png", NULL, WGR_ASSET_NONE) == 0);
+    CHECK(wgr_asset_ensure("/etc/passwd", NULL, WGR_ASSET_NONE) == 0);
+    CHECK(wgr_asset_ensure("../outside.png", NULL, WGR_ASSET_NONE) == 0);
+    CHECK(wgr_asset_ensure("C:/x.png", NULL, WGR_ASSET_NONE) == 0);
     CHECK(!wgr_asset_evict("../../etc/passwd"));
     CHECK(!wgr_asset_add_redirect("textures/", "../mods/"));
     CHECK(!wgr_asset_add_redirect("/textures/", "mods/"));
@@ -192,9 +193,16 @@ static void silent_fetcher(wgr_handle_t request, const char *url, const char *de
     silent_request = request;
 }
 
+/* Ensure a file and tick until it finishes: whether it was DONE, FAILED (both 0 or 1), and its path. */
 static int ready_count, failed_count;
-static void on_ready(const char *path, void *user) { (void)path; (void)user; ready_count++; }
-static void on_failed(const char *path, void *user) { (void)path; (void)user; failed_count++; }
+static char completed_path[512];
+static void ensure_and_tick(const char *key, const char *source, unsigned flags)
+{
+    const wgr_asset_task_status_t status = test_assets_ensure(key, source, flags, 8);
+    ready_count = status == WGR_ASSET_TASK_DONE;
+    failed_count = status == WGR_ASSET_TASK_FAILED;
+    snprintf(completed_path, sizeof(completed_path), "%s", test_assets_path);
+}
 
 void test_asset_fetch_hook(void)
 {
@@ -207,34 +215,26 @@ void test_asset_fetch_hook(void)
     CHECK(wgr_asset_set_cache_dir(WGR_TEST_DIR "/asset-cache"));
     CHECK(wgr_asset_set_fetcher(test_fetcher, &succeed));
     wgr_asset_set_host(WGR_TEST_DIR "/asset-cache");
-    wgr_asset_add_task(wgr_asset_ensure_async("nothing/here.bin", NULL, WGR_ASSET_NONE), on_ready, on_failed,
-                       NULL);
-    for (int i = 0; i < 8; i++) wgri_asset_tick();
+    ensure_and_tick("nothing/here.bin", NULL, WGR_ASSET_NONE);
     CHECK(fetch_calls == 0 && failed_count == 1);
 
-    /* a URL host makes the same miss a download, and the callback gets a local path */
+    /* a URL host makes the same miss a download, and the task has a local path */
     remove(WGR_TEST_DIR "/asset-cache/textures/rock.png");
     wgr_asset_set_host("https://assets.example.com/game");
-    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_NONE), on_ready, on_failed,
-                       NULL);
-    for (int i = 0; i < 8; i++) wgri_asset_tick();
+    ensure_and_tick("textures/rock.png", NULL, WGR_ASSET_NONE);
     CHECK(fetch_calls == 1 && ready_count == 1);
     CHECK(strcmp(fetched_url, "https://assets.example.com/game/textures/rock.png") == 0);
     CHECK(wgri_fs_exists("textures/rock.png")); /* it landed in the cache dir */
 
     /* cached now: the next ensure resolves without asking the fetcher again */
-    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_NONE), on_ready, on_failed,
-                       NULL);
-    for (int i = 0; i < 8; i++) wgri_asset_tick();
-    CHECK(fetch_calls == 1 && ready_count == 2);
+    ensure_and_tick("textures/rock.png", NULL, WGR_ASSET_NONE);
+    CHECK(fetch_calls == 1 && ready_count == 1);
 
     /* a fetcher that reports failure fails the task rather than hanging it */
     succeed = false;
     remove(WGR_TEST_DIR "/asset-cache/textures/rock.png");
-    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_FORCE_FETCH),
-                       on_ready, on_failed, NULL);
-    for (int i = 0; i < 8; i++) wgri_asset_tick();
-    CHECK(fetch_calls == 2 && failed_count == 2);
+    ensure_and_tick("textures/rock.png", NULL, WGR_ASSET_FORCE_FETCH);
+    CHECK(fetch_calls == 2 && failed_count == 1);
 
     /* a cached file can be wrong rather than missing, so it has to be droppable:
        librl had rl_fs_remove/rl_fs_clear and parity dropped them with the rest of the
@@ -242,18 +242,14 @@ void test_asset_fetch_hook(void)
     succeed = true;
     fetch_calls = 0;
     CHECK(!wgr_asset_evict("textures/rock.png")); /* a failed download leaves nothing behind */
-    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_NONE), on_ready, on_failed,
-                       NULL);
-    for (int i = 0; i < 8; i++) wgri_asset_tick();
+    ensure_and_tick("textures/rock.png", NULL, WGR_ASSET_NONE);
     CHECK(fetch_calls == 1 && wgri_fs_exists("textures/rock.png"));
 
     CHECK(wgr_asset_evict("textures/rock.png"));
     CHECK(!wgri_fs_exists("textures/rock.png")); /* gone, so the next ensure fetches */
     CHECK(!wgr_asset_evict(NULL) && !wgr_asset_evict(""));
 
-    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_NONE), on_ready, on_failed,
-                       NULL);
-    for (int i = 0; i < 8; i++) wgri_asset_tick();
+    ensure_and_tick("textures/rock.png", NULL, WGR_ASSET_NONE);
     CHECK(fetch_calls == 2); /* it went back to the fetcher rather than the cache */
 
     /* A per-call fetch_url is the download source, used verbatim -- the web path has
@@ -261,10 +257,7 @@ void test_asset_fetch_hook(void)
        mirror or a signed link was silently ignored here. */
     fetch_calls = 0;
     CHECK(wgr_asset_evict("textures/rock.png"));
-    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", "https://mirror.example.net/signed/rock.png?sig=1",
-                                              WGR_ASSET_NONE),
-                       on_ready, on_failed, NULL);
-    for (int i = 0; i < 8; i++) wgri_asset_tick();
+    ensure_and_tick("textures/rock.png", "https://mirror.example.net/signed/rock.png?sig=1", WGR_ASSET_NONE);
     CHECK(fetch_calls == 1);
     CHECK(strcmp(fetched_url, "https://mirror.example.net/signed/rock.png?sig=1") == 0);
     CHECK(wgri_fs_exists("textures/rock.png")); /* cached under the logical path, not the URL */
@@ -273,10 +266,7 @@ void test_asset_fetch_hook(void)
     wgr_asset_set_host(WGR_TEST_DIR "/asset-cache");
     fetch_calls = 0;
     CHECK(wgr_asset_evict("textures/rock.png"));
-    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", "https://mirror.example.net/rock.png",
-                                              WGR_ASSET_NONE),
-                       on_ready, on_failed, NULL);
-    for (int i = 0; i < 8; i++) wgri_asset_tick();
+    ensure_and_tick("textures/rock.png", "https://mirror.example.net/rock.png", WGR_ASSET_NONE);
     CHECK(fetch_calls == 1 && strcmp(fetched_url, "https://mirror.example.net/rock.png") == 0);
 
     /* a "://" redirect target is a download source too, on desktop as on the web */
@@ -284,9 +274,7 @@ void test_asset_fetch_hook(void)
     wgr_asset_add_redirect("textures/", "https://cdn.example.com/hd/textures/");
     fetch_calls = 0;
     CHECK(wgr_asset_evict("textures/rock.png"));
-    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_NONE), on_ready, on_failed,
-                       NULL);
-    for (int i = 0; i < 8; i++) wgri_asset_tick();
+    ensure_and_tick("textures/rock.png", NULL, WGR_ASSET_NONE);
     CHECK(fetch_calls == 1);
     CHECK(strcmp(fetched_url, "https://cdn.example.com/hd/textures/rock.png") == 0);
     wgr_asset_clear_redirects();
@@ -300,15 +288,18 @@ void test_asset_fetch_hook(void)
     /* the pending report names a task and its stage; here: one download in flight */
     CHECK(wgri_asset_pending_count() == 0);
     wgr_asset_set_fetcher(silent_fetcher, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_NONE), on_ready, on_failed,
-                       NULL);
-    wgri_asset_tick();
-    CHECK(wgri_asset_pending_count() == 1);
-    wgri_asset_pending_log(); /* logs "textures/rock.png (downloading, in flight)"; must not touch the task */
-    CHECK(wgri_asset_pending_count() == 1);
-    wgr_asset_fetch_done(silent_request, false); /* let it fail so deinit has nothing in flight */
-    for (int i = 0; i < 4; i++) wgri_asset_tick();
-    CHECK(wgri_asset_pending_count() == 0);
+    {
+        const wgr_handle_t task = wgr_asset_ensure("textures/rock.png", NULL, WGR_ASSET_NONE);
+        wgri_asset_tick();
+        CHECK(wgri_asset_pending_count() == 1);
+        wgri_asset_pending_log(); /* logs "textures/rock.png (downloading, in flight)"; must not touch the task */
+        CHECK(wgri_asset_pending_count() == 1);
+        wgr_asset_fetch_done(silent_request, false); /* let it fail so deinit has nothing in flight */
+        for (int i = 0; i < 4; i++) wgri_asset_tick();
+        CHECK(wgri_asset_pending_count() == 0); /* a finished task isn't pending, though it is kept */
+        CHECK(wgr_asset_task_get_status(task) == WGR_ASSET_TASK_FAILED);
+        CHECK(wgr_asset_task_destroy(task));
+    }
 
     wgr_asset_set_fetcher(NULL, NULL);
     wgr_asset_set_host("");
@@ -339,12 +330,10 @@ static void write_text(const char *path, const char *text)
 static bool dependency_loads(const char *key, const char *uri)
 {
     char full[512];
-    ready_count = failed_count = 0;
     wgri_fs_make_parents(key);
     wgri_fs_resolve(key, full, sizeof(full));
     write_text(full, uri);
-    wgr_asset_add_task(wgr_asset_ensure_async(key, NULL, WGR_ASSET_NONE), on_ready, on_failed, NULL);
-    for (int i = 0; i < 8; i++) wgri_asset_tick();
+    ensure_and_tick(key, NULL, WGR_ASSET_NONE);
     CHECK(ready_count + failed_count == 1);
     fprintf(stderr, "    %s -> %s: %s\n", key, uri, ready_count == 1 ? "loaded" : "refused");
     return ready_count == 1;
@@ -504,11 +493,8 @@ void test_asset_local_source(void)
         wgri_fs_resolve("music/real.mp3", where, sizeof(where));
         write_text(where, "the real bytes");
 
-        ready_count = failed_count = 0;
-        wgr_asset_add_task(wgr_asset_ensure_async("music/invalid.mp3", "music/real.mp3?v=2", WGR_ASSET_NONE),
-                           on_ready, on_failed, NULL);
-        for (int i = 0; i < 8; i++) wgri_asset_tick();
-        CHECK(ready_count == 1);
+        ensure_and_tick("music/invalid.mp3", "music/real.mp3?v=2", WGR_ASSET_NONE);
+        CHECK(ready_count == 1 && strcmp(completed_path, where) == 0); /* the path is the file found */
         CHECK(!wgri_fs_exists("music/invalid.mp3")); /* read in place: nothing copied under the key */
         {
             char key[512], found[512];
@@ -516,9 +502,9 @@ void test_asset_local_source(void)
             CHECK(wgri_asset_found_path(key, found, sizeof(found)) && strcmp(found, where) == 0);
         }
 
-        CHECK(wgr_asset_ensure_async("music/x.mp3", "../secret.bin", WGR_ASSET_NONE) == 0);
-        CHECK(wgr_asset_ensure_async("music/x.mp3", "file:///etc/passwd", WGR_ASSET_NONE) == 0);
-        CHECK(wgr_asset_ensure_async("music/x.mp3", "/etc/passwd", WGR_ASSET_NONE) == 0);
+        CHECK(wgr_asset_ensure("music/x.mp3", "../secret.bin", WGR_ASSET_NONE) == 0);
+        CHECK(wgr_asset_ensure("music/x.mp3", "file:///etc/passwd", WGR_ASSET_NONE) == 0);
+        CHECK(wgr_asset_ensure("music/x.mp3", "/etc/passwd", WGR_ASSET_NONE) == 0);
     }
 
     wgr_asset_set_host("");
@@ -529,14 +515,6 @@ void test_asset_local_source(void)
 #define RO_HOST WGR_TEST_DIR "/ro/assets"
 #define RO_CACHE WGR_TEST_DIR "/ro/cache"
 
-static char completed_path[512];
-static void on_ready_path(const char *path, void *user)
-{
-    (void)user;
-    ready_count++;
-    snprintf(completed_path, sizeof(completed_path), "%s", path);
-}
-
 static bool read_back(const char *path, const char *want)
 {
     char got[64] = "";
@@ -545,15 +523,6 @@ static bool read_back(const char *path, const char *want)
     if (fgets(got, sizeof(got), f) == NULL) got[0] = '\0';
     fclose(f);
     return strcmp(got, want) == 0;
-}
-
-static void ensure_and_tick(const char *key, const char *source, unsigned flags)
-{
-    ready_count = failed_count = 0;
-    completed_path[0] = '\0';
-    wgr_asset_add_task(wgr_asset_ensure_async(key, source, flags), on_ready_path, on_failed,
-                       NULL);
-    for (int i = 0; i < 8; i++) wgri_asset_tick();
 }
 
 /* A local host is only ever read, as a browser only reads its host: what a task
@@ -747,12 +716,20 @@ static void holding_fetcher(wgr_handle_t request, const char *url, const char *d
     if (held_count < 16) held[held_count++] = request;
 }
 
+static int count_done(const wgr_handle_t *tasks, int count)
+{
+    int done = 0;
+    for (int i = 0; i < count; i++) done += wgr_asset_task_get_status(tasks[i]) == WGR_ASSET_TASK_DONE;
+    return done;
+}
+
 /* A fetcher may answer from any thread, as a browser's fetch reports back: the answer
  * is taken at the next tick, on the main thread. And a fetcher has at most 6 downloads
  * out at once, a browser's limit per server; the rest wait their turn. */
 void test_asset_async_fetch(void)
 {
     char key[64];
+    wgr_handle_t tasks[10];
     wgri_fs_init(NULL);
     wgri_asset_init();
     CHECK(wgr_asset_set_cache_dir(ASYNC_CACHE));
@@ -762,38 +739,38 @@ void test_asset_async_fetch(void)
     CHECK(wgr_asset_set_fetcher(threaded_fetcher, NULL));
     remove(ASYNC_CACHE "/textures/rock.png");
     fetch_calls = 0;
-    ready_count = failed_count = 0;
-    wgr_asset_add_task(wgr_asset_ensure_async("textures/rock.png", NULL, WGR_ASSET_NONE), on_ready_path,
-                       on_failed, NULL);
+    tasks[0] = wgr_asset_ensure("textures/rock.png", NULL, WGR_ASSET_NONE);
     wgri_asset_tick();
     CHECK(fetch_calls == 1);
     wgri_thread_join(&async_thread); /* the answer is in; it counts from the next tick */
-    for (int i = 0; i < 4 && ready_count == 0; i++) wgri_asset_tick();
-    CHECK(ready_count == 1 && failed_count == 0);
+    CHECK(wgr_asset_task_get_status(tasks[0]) == WGR_ASSET_TASK_PENDING);
+    for (int i = 0; i < 4 && wgr_asset_task_get_status(tasks[0]) == WGR_ASSET_TASK_PENDING; i++) wgri_asset_tick();
+    CHECK(wgr_asset_task_get_status(tasks[0]) == WGR_ASSET_TASK_DONE);
+    CHECK(wgr_asset_task_destroy(tasks[0]));
     CHECK(read_back(ASYNC_CACHE "/textures/rock.png", "fetched"));
 
     /* six out at once; the rest wait for a slot */
     CHECK(wgr_asset_set_fetcher(holding_fetcher, NULL));
     held_count = 0;
-    ready_count = 0;
     for (int n = 0; n < 10; n++) {
         char cached[160];
         snprintf(key, sizeof(key), "many/%d.bin", n);
         snprintf(cached, sizeof(cached), ASYNC_CACHE "/%s", key);
         remove(cached); /* a run before this one's: each has to be downloaded */
-        wgr_asset_add_task(wgr_asset_ensure_async(key, NULL, WGR_ASSET_NONE), on_ready_path, on_failed, NULL);
+        tasks[n] = wgr_asset_ensure(key, NULL, WGR_ASSET_NONE);
     }
     for (int i = 0; i < 3; i++) wgri_asset_tick();
     CHECK(held_count == 6);
     CHECK(wgr_asset_fetch_done(held[0], true) && wgr_asset_fetch_done(held[1], true));
     for (int i = 0; i < 3; i++) wgri_asset_tick();
-    CHECK(held_count == 8 && ready_count == 2); /* two answered: two more out */
+    CHECK(held_count == 8 && count_done(tasks, 10) == 2); /* two answered: two more out */
     for (int n = 2; n < 8; n++) wgr_asset_fetch_done(held[n], true);
     for (int i = 0; i < 3; i++) wgri_asset_tick();
     CHECK(held_count == 10);
     for (int n = 8; n < 10; n++) wgr_asset_fetch_done(held[n], true);
     for (int i = 0; i < 3; i++) wgri_asset_tick();
-    CHECK(ready_count == 10 && wgri_asset_pending_count() == 0);
+    CHECK(count_done(tasks, 10) == 10 && wgri_asset_pending_count() == 0);
+    for (int n = 0; n < 10; n++) wgr_asset_task_destroy(tasks[n]);
 
     wgr_asset_set_fetcher(NULL, NULL);
     wgr_asset_set_host("");

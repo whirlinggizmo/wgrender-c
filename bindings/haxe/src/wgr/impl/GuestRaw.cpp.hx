@@ -14,15 +14,13 @@ import wgr.impl.Raw.WgrHandle;
 **/
 typedef GuestInitFn = cpp.Callable<() -> Int>;
 typedef GuestFrameFn = cpp.Callable<(dt:Single, frameId:UInt32) -> Int>;
-typedef GuestAssetFn = cpp.Callable<(id:UInt32, path:ConstCharStar, ok:Int) -> Int>;
 typedef GuestShutdownFn = cpp.Callable<() -> Int>;
 typedef GuestTickFn = cpp.Callable<(dt:Single) -> Int>;
 
 @:keep @:unreflective @:include("wgr_guest.h")
 extern class GuestRaw {
 	@:native("wgr_guest_register")
-	static function wgr_guest_register(init:GuestInitFn, frame:GuestFrameFn, asset:GuestAssetFn,
-		shutdown:GuestShutdownFn):Void;
+	static function wgr_guest_register(init:GuestInitFn, frame:GuestFrameFn, shutdown:GuestShutdownFn):Void;
 	@:native("wgr_guest_register_tick")
 	static function wgr_guest_register_tick(tick:GuestTickFn, hz:Int):Void;
 	@:native("wgr_guest_tick_fraction")
@@ -34,9 +32,6 @@ extern class GuestRaw {
 
 	@:native("wgr_guest_start")
 	static function wgr_guest_start(width:Int, height:Int, title:ConstCharStar, flags:UInt32):Int;
-	@:native("wgr_guest_asset_load")
-	static function wgr_guest_asset_load(path:ConstCharStar, id:UInt32, fetchUrl:ConstCharStar,
-		flags:UInt32):Int;
 	@:native("wgr_guest_frame_id")
 	static function wgr_guest_frame_id():UInt32;
 	@:native("wgr_guest_faulted")

@@ -30,7 +30,7 @@ class Hello3D {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // loads nothing
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt)); // loads nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "hello3d (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}

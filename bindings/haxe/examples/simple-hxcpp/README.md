@@ -217,8 +217,9 @@ model.setTint(Color.RAYWHITE);
 model.setPosition(0, 0, 0);
 scene.add(model);             // takes a Model, Sprite3D or Light, and nothing else
 
-// closures, not function pointers plus a void*
-Asset.ensureAsync(path).then(path -> { ... }, path -> Log.error('failed: $path'));
+// nothing called back: a task is read in a frame, then destroyed
+final task = Asset.ensure(path);
+if (task.getStatus() == Done) open(task.getPath());
 
 // the pick result's untyped handle still compares against typed ones
 if (pick.handle == model) ...

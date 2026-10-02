@@ -3,12 +3,11 @@ package wgr;
 // wgr_asset.h
 
 /**
-	A pending "make this file local" task, or a group of them (`Asset.createGroup`).
-
-	On hxcpp, attach callbacks with `then`: wgrender fires exactly one of them on the
-	main thread during a later frame, then frees the task. On js there is no `then` —
-	the guest ABI hands the guest an id rather than a task to hang closures on — so
-	watch `Asset.getProgress` instead.
+	A "make this file local" task (`Asset.ensure`), or a group of them
+	(`Asset.createGroup`). Nothing is called back: read its status in a frame, and
+	destroy it when done with it. It is kept until then, so its status and path can be
+	read any number of times. Written as methods too (`task.getStatus()`), through
+	`@:using`.
 **/
 @:using(wgr.AssetTask)
 abstract AssetTask(Handle) from Handle to Handle {
@@ -19,13 +18,32 @@ abstract AssetTask(Handle) from Handle to Handle {
 	public static inline function isNone(task:AssetTask):Bool
 		return (task : Handle).isNone;
 
+	/** `Pending`, `Done` or `Failed`; `None` for anything that isn't a task. **/
+	public static inline function getStatus(task:AssetTask):AssetTaskStatus
+		return AssetTaskStatus.of(Raw.wgr_asset_task_get_status(task));
+
 	/**
-		Attach callbacks. False, and no callback, if the task is invalid or the queue is
-		full. hxcpp only: it needs a C function pointer, which the guest ABI replaces.
+		The local path of a `Done` file task, directly openable: where the file was
+		found (a redirect's, a `fetchUrl`'s). `""` until then, for a group, and for
+		anything that isn't a task.
 	**/
-	#if cpp
-	public static inline function then(task:AssetTask, onSuccess:(path:String) -> Void,
-			?onFailure:(path:String) -> Void):Bool
-		return Asset.addTask(cast task, onSuccess, onFailure);
-	#end
+	public static inline function getPath(task:AssetTask):String
+		return Raw.wgr_asset_task_get_path(task);
+
+	/**
+		Roughly how far it has got, 0 to 1: a file counts half for being made local and
+		half for the files it names; a group, its members' average. 1 once it is `Done`
+		or `Failed`, 0 for anything that isn't a task. For resources loading, read their
+		statuses (`texture.getStatus()`).
+	**/
+	public static inline function getProgress(task:AssetTask):Float
+		return Raw.wgr_asset_task_get_progress(task);
+
+	/**
+		Free it. One still `Pending` runs on and its result is dropped (a file still
+		lands in the cache). Destroying a group destroys its members. False for anything
+		that isn't a task.
+	**/
+	public static inline function destroy(task:AssetTask):Bool
+		return Raw.wgr_asset_task_destroy(task);
 }

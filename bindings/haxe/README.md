@@ -448,16 +448,16 @@ wgrender-c: 480 functions, 18 enums, 12 structs
 ```
 
 **hxcpp reaches every one of wgrender's public functions.** On js it reaches all but
-five, and those five take a C function pointer the guest ABI replaces: the four
-lifecycle setters and `wgr_asset_add_task`, whose job `wgr_guest_asset_load` does with
-an id instead.
+five, and those five take a C function pointer: the four lifecycle setters, which the
+guest ABI's ops replace, and `wgr_asset_set_fetcher`, which has no job where the
+browser is the downloader.
 
 The rest of the callback-taking calls do cross, by the route librl's bindings use:
 register *one* dispatcher with wgrender and carry a table key in its `user_data`
 (`wgr.impl.Trampoline`). On hxcpp that dispatcher is a
 `cpp.Callable.fromStaticFunction`; on js it is a single `addFunction`, installed once
-for the whole program however many listeners there are. So `Event` and
-`Asset.pingHost` work on both targets.
+for the whole program however many listeners there are. So `Asset.pingHost` works on
+both targets.
 
 `wgr_input_get_keyboard_state` used to be an eleventh. Its struct is 2,324 bytes — 512
 ints of key state plus the keys and characters a frame produced — and the generator's

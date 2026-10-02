@@ -21,25 +21,32 @@
 #define MUSIC_FORCE_FETCH_PATH MUSIC_PATH
 
 static wgr_color_t g_bg;
+static wgr_handle_t g_fetch; /* the ensure, until it has finished */
 static wgr_handle_t g_music;
 static bool g_music_on;
 
-/* The file is local now, under the key; creating the key loads it from wherever the
- * ensure found it. */
-static void on_music_loaded(const char *path, void *user)
+/* Once the ensure is DONE the file is local, under the key: creating the key loads it
+ * from wherever the ensure found it. */
+static void poll_fetch(void)
 {
-    wgr_handle_t audio = wgr_audio_create(INVALID_MUSIC_PATH);
-    (void)path;
-    (void)user;
-    g_music = wgr_sound_create(audio);
-    wgr_resource_release(audio); /* the sound holds its own reference */
-    wgr_sound_set_volume(g_music, 0.5f);
-    wgr_sound_set_loop(g_music, true); /* "music" is just a looping sound */
-    wgr_sound_play(g_music);
-    g_music_on = true;
+    const wgr_asset_task_status_t status = wgr_asset_task_get_status(g_fetch);
+    if (status == WGR_ASSET_TASK_PENDING) {
+        return;
+    }
+    if (status == WGR_ASSET_TASK_DONE) {
+        wgr_handle_t audio = wgr_audio_create(INVALID_MUSIC_PATH);
+        g_music = wgr_sound_create(audio);
+        wgr_resource_release(audio); /* the sound holds its own reference */
+        wgr_sound_set_volume(g_music, 0.5f);
+        wgr_sound_set_loop(g_music, true); /* "music" is just a looping sound */
+        wgr_sound_play(g_music);
+        g_music_on = true;
+    } else {
+        wgr_logger_error("fetch failed: %s from %s", INVALID_MUSIC_PATH, MUSIC_FORCE_FETCH_PATH);
+    }
+    wgr_asset_task_destroy(g_fetch);
+    g_fetch = 0;
 }
-
-static void on_failed(const char *p, void *u) { (void)u; wgr_logger_error("load failed: %s", p); }
 
 static void on_init(void *user_data)
 {
@@ -50,8 +57,7 @@ static void on_init(void *user_data)
 
     /* The key (INVALID_MUSIC_PATH) is a bogus path, so the bytes can only come from
      * the explicit source, proving the override is honored. */
-    wgr_asset_add_task(wgr_asset_ensure_async(INVALID_MUSIC_PATH, MUSIC_FORCE_FETCH_PATH, WGR_ASSET_FORCE_FETCH),
-                       on_music_loaded, on_failed, NULL);
+    g_fetch = wgr_asset_ensure(INVALID_MUSIC_PATH, MUSIC_FORCE_FETCH_PATH, WGR_ASSET_FORCE_FETCH);
     wgr_logger_info("force_fetch: %s from %s", INVALID_MUSIC_PATH, MUSIC_FORCE_FETCH_PATH);
 }
 
@@ -59,6 +65,10 @@ static void frame(float dt, float tick_fraction, void *user_data)
 {
     (void)user_data;
     wgr_keyboard_state_t kb = wgr_input_get_keyboard_state();
+
+    if (g_fetch != 0) {
+        poll_fetch();
+    }
 
     if (kb.keys[WGR_KEY_M] == WGR_BUTTON_PRESSED && g_music != 0) {
         if (g_music_on) { wgr_sound_pause(g_music); } else { wgr_sound_resume(g_music); }

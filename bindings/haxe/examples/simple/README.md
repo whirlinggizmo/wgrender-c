@@ -21,8 +21,8 @@ renderer rather than a simulation:
 | Game state and logic | When ops are called, and in what order |
 | The handles it creates | The window, the loop, assets, input, the scene |
 
-`host/wgr_guest.h` is the whole contract — four ops (`init`, `frame`, `asset`,
-`shutdown`), registered once. wgrender was already most of the way to being a host:
+`host/wgr_guest.h` is the whole contract — three ops (`init`, `frame`, `shutdown`),
+registered once. wgrender was already most of the way to being a host:
 it owns the loop through `sapp_run`, hands out handles rather than pointers, and
 keeps a retained scene that draws in one call.
 
@@ -32,7 +32,9 @@ Guarantees the host makes, same as wg-vf's:
    nested. The guest *may* call wgrender's API during an op — that is the point — but
    the host will not re-enter the guest while one is running.
 2. **`init` first, `shutdown` last.**
-3. **`asset` fires on the main thread during a later frame**, never inside another op.
+
+Nothing else calls the guest: what may wait (a resource loading, a file being made
+local) it reads through wgrender's API, as a status.
 
 Ops return 0 for ok, nonzero for a fault. A guest in a language with exceptions
 catches at its own edge and converts a throw into a nonzero return — an exception that
@@ -48,7 +50,7 @@ Working, at parity with `../simple-hxcpp`: the same scene, the same picking, in 
 browser — model animating, sprite bobbing, both TTF fonts, music, 60 fps, and the pick
 message reading `MODEL PICK: ... pick result y: 0.581142`.
 
-The guest is Haxe compiled to JS (`src/Guest.hx`). It registers its four ops before
+The guest is Haxe compiled to JS (`src/Guest.hx`). It registers its three ops before
 `wgr_guest_start` and then drives wgrender's API from inside them.
 
 ### Size
@@ -121,7 +123,7 @@ answer is visible per file: **15 of 39 modules carry a guard, 24 carry none.**
 | guarded | why |
 |---|---|
 | `Wgr`, `Native` | entering the loop and hxcpp's pointer plumbing — the guest ABI's job here |
-| `Asset`, `AssetTask` | the guest gets an id back, not a closure (`Asset.setHost` is shared) |
+| `Asset` | `setFetcher` is hxcpp only: on the web the browser is the downloader |
 | `Input`, `KeyboardState` | the mouse struct is read differently; the 512-int keyboard struct isn't marshalled yet |
 | `Scene`, `Text` | struct converters: hxcpp unpacks a C struct, the JS layer returns the value |
 | `AlignX`, `AlignY`, `Key`, `LightKind`, `LogLevel`, `Projection`, `SpriteFacing` | one `@:to` cast each, only to satisfy C++'s enum parameters |
@@ -136,8 +138,7 @@ needs specifically:
 
 - the app lifecycle (`initValues`/`setInit`/`setFrame`/`run` and their trampolines) —
   the guest ABI enters the loop instead
-- `Asset.ensureAsync`/`AssetTask` — the guest gets an id back, not a closure
-  (`Asset.setHost` is shared)
+- `Asset.setFetcher` — on the web the browser is the downloader
 - `Native`, the hxcpp pointer and callback plumbing
 - the seven `@:to toRaw()` enum casts, which exist only to satisfy C++'s enum
   parameters

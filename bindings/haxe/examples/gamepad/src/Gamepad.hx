@@ -32,7 +32,7 @@ class Gamepad {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {});
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt));
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "gamepad (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}

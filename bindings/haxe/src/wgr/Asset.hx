@@ -7,14 +7,13 @@ import cpp.ConstCharStar;
 // wgr_asset.h — making a file local before it is loaded
 
 class Asset {
-	// The key every callback carries in its `void *`, and the tables it looks up in.
-	// Shared, because a ping crosses on both targets now; `pending` and `fetcher`
-	// belong to the two calls that are still hxcpp only.
+	// The key a ping's callback carries in its `void *`, and the table it looks up in.
+	// Shared, because a ping crosses on both targets; `fetcher` belongs to the one call
+	// that is still hxcpp only.
 	static var nextId = 1;
 	static var pings = new Map<Int, (host:String, ms:Float) -> Void>();
 
 	#if cpp
-	static var pending = new Map<Int, {onSuccess:(path:String) -> Void, onFailure:(path:String) -> Void}>();
 	static var fetcher:(request:Handle, url:String, destPath:String) -> Void;
 	#end
 
@@ -60,8 +59,7 @@ class Asset {
 		An http(s) URL on a native build needs a downloader, because wgrender links none.
 
 		Every way one reaches wgrender passes through here: a URL host, a `fetchUrl`
-		handed to `ensureAsync` or `GuestAbi.loadAsset`, and a redirect whose target is
-		a URL. Those are the only moments a fetcher can be needed, since wgrender
+		handed to `ensure`, and a redirect whose target is a URL. Those are the only moments a fetcher can be needed, since wgrender
 		consults one only for a URL host or a task with a URL of its own
 		(wgr_asset.c). A local host -- a directory or a file: URL -- and a relative
 		`fetchUrl` under one are read where they are, and never reach it.
@@ -121,7 +119,7 @@ class Asset {
 	/**
 		Forget a cached asset, so the next ensure fetches it again — the cache's copy,
 		never a local host's own file, which is only ever read. False when there was no
-		such file, or for a path that isn't under the host (as `ensureAsync` reads one).
+		such file, or for a path that isn't under the host (as `ensure` reads one).
 		A cache can hold a file that is wrong rather than old — a host that compresses
 		once served gzip bytes under an asset's name — and since the host says it hasn't
 		changed, revalidation keeps it: only something that drops it helps. wgrender
@@ -188,7 +186,7 @@ class Asset {
 		matched at the start of the path, not globs. Up to 32 rules; false when full,
 		given an empty prefix or target, a prefix over 255 or target over 511
 		characters, or a prefix or path target that isn't under the host (as
-		`ensureAsync` reads a path; a trailing "/" is kept). Every refusal is logged. Adding the same prefix twice keeps both
+		`ensure` reads a path; a trailing "/" is kept). Every refusal is logged. Adding the same prefix twice keeps both
 		rules rather than replacing the first.
 	**/
 	public static function addRedirect(prefix:String, target:String):Bool {
@@ -202,31 +200,27 @@ class Asset {
 		Raw.wgr_asset_clear_redirects();
 
 	/**
-		Roughly how far a task or group has got, 0 to 1. A file counts half for being
-		made local and half for the files it names, and reads 1 once the task has
-		completed and its handle is no longer live. For resources loading, read their
-		statuses (`texture.getStatus()`).
-	**/
-	public static inline function getProgress(task:AssetTask):Float
-		return Raw.wgr_asset_get_progress(task);
-
-	/**
-		One task standing for many files — a level's, fetched ahead. It completes when
-		all its members have, successfully only if they all did, and then fires its own
-		callbacks with an empty path. Members keep their own callbacks if they have any.
+		One task standing for many files — a level's, fetched ahead. It is `Done` once
+		every member is, `Failed` once every member has finished and any failed (an
+		empty one is `Done` at the next frame). Members keep their own statuses and
+		paths, and destroying the group destroys them.
 	**/
 	public static inline function createGroup():AssetTask
 		return (Raw.wgr_asset_group_create() : Handle);
 
-	/** Add a file task to a group. False for anything else, or a task already in one. **/
+	/**
+		Add a file task (`ensure`) to a group, finished or not. False for anything else,
+		a task already in a group, or a group that has finished.
+	**/
 	public static inline function groupAdd(group:AssetTask, task:AssetTask):Bool
 		return Raw.wgr_asset_group_add(group, task);
 
 	/**
-		Make a file local, without loading it, then report: to fetch ahead, from an
-		explicit source, or to read it yourself (a resource makes its own file local
-		when it's created). Returns a task to watch or attach callbacks to, or none on
-		failure.
+		Make a file local, without loading it: to fetch ahead, from an explicit source,
+		or to read it yourself (a resource makes its own file local when it's created).
+		Returns a task, `Pending` and then `Done` or `Failed` in a later frame, never
+		inside this call; read it and destroy it when done (`AssetTask`). None when
+		refused, as below, or when there's no room.
 
 		`path` is the logical key: the cache path on the web, the read path under the
 		host on desktop, and where a fetched file lands. It stays under the host: "\\"
@@ -246,11 +240,11 @@ class Asset {
 		it is held to `path`'s rules, so it can't climb out. A `fetchUrl` that is
 		refused — a file: URL, one leaving a local host — means no task.
 	**/
-	public static function ensureAsync(path:String, ?fetchUrl:String, ?flags:AssetFlag):AssetTask {
+	public static function ensure(path:String, ?fetchUrl:String, ?flags:AssetFlag):AssetTask {
 		#if (sys && !emscripten)
 		needsFetcher(fetchUrl);
 		#end
-		return (Raw.wgr_asset_ensure_async(path, #if cpp Native.cstr(fetchUrl) #else fetchUrl #end,
+		return (Raw.wgr_asset_ensure(path, #if cpp Native.cstr(fetchUrl) #else fetchUrl #end,
 			flags == null ? 0 : (flags : Int)) : Handle);
 	}
 
@@ -262,7 +256,7 @@ class Asset {
 		On the web it is a HEAD request, and any response counts, even a 404. On desktop
 		the host is a local directory: 0 if it exists, negative if not — a URL host
 		can't be pinged there, since the fetcher hook deals in files rather than round
-		trips, so time an `ensureAsync` instead. False when eight pings are already
+		trips, so time an `ensure` instead. False when eight pings are already
 		waiting.
 	**/
 	public static function pingHost(?host:String, timeoutMs:Int = 0, onDone:(host:String, ms:Float) -> Void):Bool {
@@ -281,7 +275,7 @@ class Asset {
 		there is somewhere to download it from, and the platform has no downloader of
 		its own — which is every desktop build. Somewhere to download from means a URL
 		`host`, or a source this task was handed outright: a `fetchUrl` passed to
-		`ensureAsync`, or a redirect target containing "://". Fetch the URL into the
+		`ensure`, or a redirect target containing "://". Fetch the URL into the
 		destination path, then call `fetchDone` with the same request and whether it
 		worked; finishing on a later tick is expected, and nothing blocks meanwhile.
 
@@ -442,19 +436,6 @@ class Asset {
 	}
 	#end
 
-	#if cpp
-	@:allow(wgr.AssetTask)
-	static function addTask(task:Handle, onSuccess:(path:String) -> Void, ?onFailure:(path:String) -> Void):Bool {
-		final id = nextId++;
-		pending.set(id, {onSuccess: onSuccess, onFailure: onFailure});
-		final ok = Raw.wgr_asset_add_task(task, cpp.Callable.fromStaticFunction(AssetNative.successTrampoline),
-			cpp.Callable.fromStaticFunction(AssetNative.failureTrampoline), Native.toUser(id)) == 0;
-		if (!ok)
-			pending.remove(id);
-		return ok;
-	}
-
-	#end
 }
 
 // its C callbacks: a private class, so -D scriptable makes no cppia wrappers for them
@@ -488,27 +469,5 @@ private class AssetNative {
 			Raw.wgr_asset_fetch_done(request, false);
 		}
 	}
-
-	// One callback per task, then the task is gone — so drop the closures here.
-	static function finish(user:VoidStar, path:ConstCharStar, success:Bool):Void {
-		final id = Native.fromUser(user);
-		final entry = Asset.pending.get(id);
-		if (entry == null)
-			return;
-		Asset.pending.remove(id);
-		final cb = success ? entry.onSuccess : entry.onFailure;
-		if (cb == null)
-			return;
-		try
-			cb(path.toString())
-		catch (e:haxe.Exception)
-			Wgr.report('an asset callback for "${path.toString()}"', e);
-	}
-
-	static function successTrampoline(path:ConstCharStar, user:VoidStar):Void
-		finish(user, path, true);
-
-	static function failureTrampoline(path:ConstCharStar, user:VoidStar):Void
-		finish(user, path, false);
 	#end
 }

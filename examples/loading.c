@@ -1,15 +1,19 @@
 /* libwgrender loading example — loading during gameplay without stalling frames.
  *
  * Creates two environments (~330 ms of CPU work each), two models and two textures,
- * while a cube spins and a graph shows every frame's duration. Resources load on create: each comes back PENDING at once and is READY
- * or FAILED a few frames later, so this program creates them all, uses them at once,
- * and only reads their statuses, for the progress bar and a row per file. Nothing is
- * called back, and nothing waits.
+ * while a cube spins and a graph shows every frame's duration. Resources load on
+ * create: each comes back PENDING at once and is READY or FAILED a few frames later,
+ * so this program creates them all, uses them at once, and only reads their statuses,
+ * for the progress bar and a row per file. Nothing is called back, and nothing waits.
+ * The other way to wait is for files alone (E): a group of ensures makes them local,
+ * and everything is created once the group is DONE.
  *
  *   A    load spread out: files are decoded on worker threads, and the GPU uploads
  *        are given a few milliseconds a frame (wgr_asset_set_upload_budget, 4 ms)
  *   S    load at once: no upload budget, so everything decoded is uploaded in the
  *        same frame, which the graph shows as a spike
+ *   E    fetch first: ensure every file as a group (on the web, downloads; on
+ *        desktop, done at the next frame), then create them, spread out
  *   F    create a texture whose file isn't there: FAILED a frame or so later, drawn
  *        as the placeholder (the log says why)
  *   U    unload
@@ -42,7 +46,8 @@ static struct {
     wgr_color_t bg, bar, graph_ok, graph_slow, line, cube;
     wgr_handle_t character, sphere, material;
     wgr_handle_t resources[FILES];
-    bool loading, at_once;
+    wgr_handle_t fetch_group; /* E: the files being made local, before anything is created */
+    bool loading, at_once, fetch_first;
     double load_started, load_seconds;
     double last_time;
     float frame_ms[GRAPH];
@@ -62,19 +67,14 @@ static void release_all(void)
         wgr_resource_release(g.resources[i]); /* one call for every kind; a no-op for 0 */
         g.resources[i] = 0;
     }
+    wgr_asset_task_destroy(g.fetch_group); /* its members too; false for 0 */
+    g.fetch_group = 0;
     g.loading = false;
 }
 
 /* Create every resource and use it at once: each shows up when it's READY. */
-static void start_load(bool at_once)
+static void create_all(void)
 {
-    release_all();
-    g.at_once = at_once;
-    wgr_asset_set_upload_budget(at_once ? 1000.0f : 4.0f); /* 4 ms is the default */
-    g.load_started = wgr_get_time();
-    g.loading = true;
-    for (int i = 0; i < GRAPH; i++) g.frame_ms[i] = 0.0f; /* "worst" covers this load */
-
     for (int i = 0; i < ENVIRONMENTS; i++) g.resources[i] = wgr_environment_create(PATHS[i]);
     for (int i = ENVIRONMENTS; i < ENVIRONMENTS + MESHES; i++) g.resources[i] = wgr_mesh_create(PATHS[i]);
     for (int i = ENVIRONMENTS + MESHES; i < MISSING; i++) g.resources[i] = wgr_texture_create(PATHS[i]);
@@ -84,6 +84,40 @@ static void start_load(bool at_once)
     wgr_model_set_mesh(g.character, g.resources[2]);
     wgr_model_set_mesh(g.sphere, g.resources[3]);
     wgr_material_set_texture(g.material, "normal_texture", g.resources[4]);
+}
+
+/* How the last load was asked for, for the status line. */
+static const char *how(void)
+{
+    return g.fetch_first ? "fetched first" : g.at_once ? "all at once" : "spread out";
+}
+
+static void start_clock(bool at_once)
+{
+    release_all();
+    g.at_once = at_once;
+    g.fetch_first = false;
+    wgr_asset_set_upload_budget(at_once ? 1000.0f : 4.0f); /* 4 ms is the default */
+    g.load_started = wgr_get_time();
+    g.loading = true;
+    for (int i = 0; i < GRAPH; i++) g.frame_ms[i] = 0.0f; /* "worst" covers this load */
+}
+
+static void start_load(bool at_once)
+{
+    start_clock(at_once);
+    create_all();
+}
+
+/* Ensure every file, as one group; frame() creates them all once it has finished. */
+static void start_fetch(void)
+{
+    start_clock(false);
+    g.fetch_first = true;
+    g.fetch_group = wgr_asset_group_create();
+    for (int i = 0; i < MISSING; i++) {
+        wgr_asset_group_add(g.fetch_group, wgr_asset_ensure(PATHS[i], NULL, WGR_ASSET_NONE));
+    }
 }
 
 /* How many of the files are done (READY or FAILED, or not asked for); the load is over
@@ -172,12 +206,18 @@ static void frame(float dt, float tick_fraction, void *user_data)
 #endif
     if (kb.keys[WGR_KEY_A] == WGR_BUTTON_PRESSED) start_load(false);
     if (kb.keys[WGR_KEY_S] == WGR_BUTTON_PRESSED) start_load(true);
+    if (kb.keys[WGR_KEY_E] == WGR_BUTTON_PRESSED) start_fetch();
     if (kb.keys[WGR_KEY_U] == WGR_BUTTON_PRESSED) release_all();
     if (kb.keys[WGR_KEY_F] == WGR_BUTTON_PRESSED && g.resources[MISSING] == 0) {
         g.resources[MISSING] = wgr_texture_create(PATHS[MISSING]);
         wgr_material_set_texture(g.material, "base_color_texture", g.resources[MISSING]); /* the placeholder, once FAILED */
     }
-    if (g.loading && files_done() == FILES) {
+    if (g.fetch_group != 0 && wgr_asset_task_get_status(g.fetch_group) != WGR_ASSET_TASK_PENDING) {
+        wgr_asset_task_destroy(g.fetch_group); /* local now (or not: the creates say why) */
+        g.fetch_group = 0;
+        create_all();
+    }
+    if (g.loading && g.fetch_group == 0 && files_done() == FILES) {
         g.loading = false;
         g.load_seconds = now - g.load_started;
     }
@@ -193,23 +233,30 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_render_end_mode_3d();
 
     wgr_shape2d_draw_rectangle(0, 0, (int)screen.x, 64, g.bar);
-    wgr_text_draw("libwgrender loading   A: spread out   S: all at once   F: a missing file   U: unload", 12, 12, 12,
-                 WGR_COLOR_RAYWHITE);
+    wgr_text_draw("libwgrender loading   A: spread out   S: all at once   E: fetch first   F: a missing file   "
+                  "U: unload",
+                  12, 12, 12, WGR_COLOR_RAYWHITE);
     /* "in the background" means worker threads, and a web build only has them on a
        cross-origin-isolated page. Without them the decode lands on this thread and the
        graph below says so, so the example had better not claim otherwise. */
     snprintf(line, sizeof(line), "%s  ·  decoding on %s", wgr_get_renderer(),
              wgr_has_threads() ? "worker threads" : "the main thread (no threads in this build/host)");
     wgr_text_draw(line, 12, 26, 12, wgr_has_threads() ? WGR_COLOR_LIGHTGRAY : WGR_COLOR_GOLD);
-    if (g.loading) {
+    if (g.fetch_group != 0) {
+        const float progress = wgr_asset_task_get_progress(g.fetch_group); /* the group's members' average */
+        snprintf(line, sizeof(line), "fetching first... %.0f%%", progress * 100.0f);
+        wgr_shape2d_draw_rectangle(12, 54, (int)(240 * progress), 12, g.graph_ok);
+        wgr_shape2d_draw_rectangle_lines(12, 54, 240, 12, g.line);
+        wgr_text_draw(line, 264, 54, 12, WGR_COLOR_LIGHTGRAY);
+    } else if (g.loading) {
         const float progress = (float)files_done() / FILES;
-        snprintf(line, sizeof(line), "loading (%s)... %.0f%%", g.at_once ? "all at once" : "spread out",
+        snprintf(line, sizeof(line), "loading (%s)... %.0f%%", how(),
                  progress * 100.0f);
         wgr_shape2d_draw_rectangle(12, 54, (int)(240 * progress), 12, g.graph_ok);
         wgr_shape2d_draw_rectangle_lines(12, 54, 240, 12, g.line);
         wgr_text_draw(line, 264, 54, 12, WGR_COLOR_LIGHTGRAY);
     } else if (g.resources[0] != 0) {
-        snprintf(line, sizeof(line), "loaded %s in %.2f s", g.at_once ? "all at once" : "spread out", g.load_seconds);
+        snprintf(line, sizeof(line), "loaded %s in %.2f s", how(), g.load_seconds);
         wgr_text_draw(line, 12, 54, 12, WGR_COLOR_LIGHTGRAY);
     }
     for (int i = 0; i < FILES; i++) { /* a row per file asked for: where it stands */

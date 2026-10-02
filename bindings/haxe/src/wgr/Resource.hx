@@ -9,9 +9,7 @@ package wgr;
 	everything at once and never wait; the status is for what it wants to show.
 
 	Each resource type has these as methods too (`texture.getStatus()`,
-	`texture.release()`), through `@:using`: the same calls, not other ones. Not every
-	type is a resource here yet (docs/PLAN-tasks.md, phase 1): the rest have their own
-	`release`.
+	`texture.release()`), through `@:using`: the same calls, not other ones.
 **/
 class Resource {
 	/** `Pending`, `Ready` or `Failed` for a resource of any kind; `None` for anything else. **/

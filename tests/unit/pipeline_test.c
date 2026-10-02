@@ -147,33 +147,26 @@ static struct {
     char path[512];
 } got;
 
-/* An ensure's success: the local path it made. */
-static void on_path(const char *path, void *user)
-{
-    (void)user;
-    got.successes++;
-    snprintf(got.path, sizeof(got.path), "%s", path);
-}
-
-static void on_nothing(const char *path, void *user)
-{
-    (void)path;
-    (void)user;
-    got.successes++;
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)path;
-    (void)user;
-    got.failures++;
-}
+/* Ensures in flight (load), read into `got` as they finish (poll_ensures). */
+typedef enum {
+    ON_DONE_COUNT, /* counted in got.successes */
+    ON_DONE_PATH,  /* ... and its path kept in got.path */
+    ON_DONE_CHAIN, /* ... and another queued (test_pipeline_many) */
+} on_done_t;
+enum { MAX_ENSURES = 1024 };
+static struct {
+    wgr_handle_t task;
+    on_done_t on_done;
+} ensures[MAX_ENSURES];
+static int ensure_count;
+static int chained;
 
 static void start_assets(int workers, const char *host)
 {
     setup();
     test_assets_start(workers, host);
     memset(&got, 0, sizeof(got));
+    ensure_count = 0;
 }
 
 static void stop_assets(void)
@@ -182,15 +175,54 @@ static void stop_assets(void)
     teardown();
 }
 
-static void load(const char *path, unsigned int flags, wgr_asset_callback_fn on_success)
+static void load(const char *path, unsigned int flags, on_done_t on_done)
 {
-    CHECK(wgr_asset_add_task(wgr_asset_ensure_async(path, NULL, flags), on_success, on_failed, NULL) ==
-          WGR_ASSET_ADD_TASK_OK);
+    const wgr_handle_t task = wgr_asset_ensure(path, NULL, flags);
+    CHECK(task != 0 && ensure_count < MAX_ENSURES);
+    if (task != 0 && ensure_count < MAX_ENSURES) {
+        ensures[ensure_count].task = task;
+        ensures[ensure_count].on_done = on_done;
+        ensure_count++;
+    }
 }
 
+/* Read the ensures that have finished into `got` and destroy them; a chain queues
+ * another, while tasks are in flight. */
+static void poll_ensures(void)
+{
+    for (int i = 0; i < ensure_count;) {
+        const wgr_handle_t task = ensures[i].task;
+        const on_done_t on_done = ensures[i].on_done;
+        const wgr_asset_task_status_t status = wgr_asset_task_get_status(task);
+        if (status == WGR_ASSET_TASK_PENDING) {
+            i++;
+            continue;
+        }
+        if (status == WGR_ASSET_TASK_DONE) {
+            got.successes++;
+            if (on_done == ON_DONE_PATH) snprintf(got.path, sizeof(got.path), "%s", wgr_asset_task_get_path(task));
+        } else {
+            got.failures++;
+        }
+        CHECK(wgr_asset_task_destroy(task));
+        ensures[i] = ensures[--ensure_count];
+        if (status == WGR_ASSET_TASK_DONE && on_done == ON_DONE_CHAIN && chained < 200) {
+            chained++;
+            load(TEXTURE, WGR_ASSET_NONE, ON_DONE_CHAIN);
+        }
+    }
+}
+
+/* Tick until nothing is pending and every ensure is read: the frames it took, or -1. */
 static int run_until_done(void)
 {
-    return test_assets_run();
+    for (int frame = 1; frame <= 2000; frame++) {
+        wgri_asset_tick();
+        poll_ensures();
+        if (wgri_asset_pending_count() == 0 && ensure_count == 0) return frame;
+        if (wgri_asset_get_worker_count() > 0) test_sleep_ms(1);
+    }
+    return -1;
 }
 
 /* A handle's texture is gone. */
@@ -304,8 +336,8 @@ void test_pipeline_failures(void)
     CHECK(wgr_texture_get_size(broken).x == 0.0f);
     int width = 0;
     CHECK(wgri_texture_get_binding(broken, NULL, NULL, &width, NULL) && width == 64); /* the placeholder checker */
-    load("broken.png", WGR_ASSET_NONE, on_nothing);
-    load("missing.png", WGR_ASSET_NONE, on_nothing);
+    load("broken.png", WGR_ASSET_NONE, ON_DONE_COUNT);
+    load("missing.png", WGR_ASSET_NONE, ON_DONE_COUNT);
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 1 && got.failures == 1);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
@@ -354,81 +386,104 @@ void test_pipeline_shutdown(void)
     }
 }
 
-static void on_group_done(const char *path, void *user)
-{
-    CHECK(path != NULL && path[0] == '\0');
-    (*(int *)user)++;
-}
-
-/* A group completes after its members, fails if one does, and reports progress. */
+/* A group finishes after its members, fails if one does, and reports progress; tasks
+ * are kept until destroyed, and destroying a group destroys its members. */
 void test_pipeline_group(void)
 {
-    int group_ok = 0, group_failed = 0;
-
     start_assets(1, ASSETS);
     wgr_handle_t group = wgr_asset_group_create();
-    wgr_handle_t texture = wgr_asset_ensure_async(TEXTURE, NULL, WGR_ASSET_NONE);
-    wgr_handle_t mesh = wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE);
-    CHECK(wgr_asset_add_task(texture, on_path, on_failed, NULL) == WGR_ASSET_ADD_TASK_OK);
+    const wgr_handle_t texture = wgr_asset_ensure(TEXTURE, NULL, WGR_ASSET_NONE);
+    const wgr_handle_t mesh = wgr_asset_ensure(CHARACTER_PATH, NULL, WGR_ASSET_NONE);
     CHECK(wgr_asset_group_add(group, texture));
-    CHECK(wgr_asset_group_add(group, mesh)); /* no callbacks of its own */
+    CHECK(wgr_asset_group_add(group, mesh));
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL);
     CHECK(!wgr_asset_group_add(group, texture)); /* already in a group */
     CHECK(!wgr_asset_group_add(group, group));
     CHECK(!wgr_asset_group_add(texture, mesh));
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    CHECK(wgr_asset_add_task(group, on_group_done, on_group_done, &group_ok) == WGR_ASSET_ADD_TASK_OK);
-    CHECK(wgr_asset_get_progress(group) == 0.0f);
+    CHECK(wgr_asset_task_get_status(group) == WGR_ASSET_TASK_PENDING);
+    CHECK(wgr_asset_task_get_status(texture) == WGR_ASSET_TASK_PENDING); /* never finished inside the call */
+    CHECK(wgr_asset_task_get_path(texture)[0] == '\0');
+    CHECK(wgr_asset_task_get_progress(group) == 0.0f);
 
     float last = 0.0f;
     bool monotonic = true;
     for (int frame = 0; frame < 2000 && wgri_asset_pending_count() > 0; frame++) {
         wgri_asset_tick();
-        const float progress = wgr_asset_get_progress(group);
+        const float progress = wgr_asset_task_get_progress(group);
         monotonic = monotonic && progress >= last && progress <= 1.0f;
         last = progress;
         test_sleep_ms(1);
     }
     CHECK(monotonic);
-    CHECK(group_ok == 1 && got.successes == 1 && got.failures == 0);
-    CHECK(wgr_asset_get_progress(group) == 1.0f); /* completed */
+    CHECK(wgr_asset_task_get_status(group) == WGR_ASSET_TASK_DONE);
+    CHECK(wgr_asset_task_get_status(texture) == WGR_ASSET_TASK_DONE);
+    CHECK(wgr_asset_task_get_status(mesh) == WGR_ASSET_TASK_DONE);
+    CHECK(strstr(wgr_asset_task_get_path(texture), TEXTURE) != NULL); /* read as often as wanted */
+    CHECK(strstr(wgr_asset_task_get_path(texture), TEXTURE) != NULL);
+    CHECK(wgr_asset_task_get_path(group)[0] == '\0');
+    CHECK(wgr_asset_task_get_progress(group) == 1.0f && wgr_asset_task_get_progress(texture) == 1.0f);
 
-    /* a missing member fails the group; the other members still load */
+    /* a finished group takes no more members */
+    const wgr_handle_t late = wgr_asset_ensure(TEXTURE, NULL, WGR_ASSET_NONE);
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL);
+    CHECK(!wgr_asset_group_add(group, late));
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
+
+    /* destroying a group destroys its members, and a destroyed task is no task */
+    CHECK(wgr_asset_task_destroy(group));
+    CHECK(wgr_asset_task_get_status(group) == WGR_ASSET_TASK_NONE);
+    CHECK(wgr_asset_task_get_status(texture) == WGR_ASSET_TASK_NONE);
+    CHECK(wgr_asset_task_get_status(mesh) == WGR_ASSET_TASK_NONE);
+    CHECK(!wgr_asset_task_destroy(texture));
+    CHECK(wgr_asset_task_get_progress(texture) == 0.0f && wgr_asset_task_get_path(texture)[0] == '\0');
+
+    /* a missing member fails the group once every member has finished */
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL);
     group = wgr_asset_group_create();
-    CHECK(wgr_asset_group_add(group, wgr_asset_ensure_async("missing.png", NULL, WGR_ASSET_NONE)));
-    CHECK(wgr_asset_group_add(group, wgr_asset_ensure_async(TEXTURE, NULL, WGR_ASSET_NONE)));
-    CHECK(wgr_asset_add_task(group, on_group_done, on_group_done, &group_failed) == WGR_ASSET_ADD_TASK_OK);
+    const wgr_handle_t missing = wgr_asset_ensure("missing.png", NULL, WGR_ASSET_NONE);
+    const wgr_handle_t found = wgr_asset_ensure(TEXTURE, NULL, WGR_ASSET_NONE);
+    CHECK(wgr_asset_group_add(group, missing) && wgr_asset_group_add(group, found));
     CHECK(run_until_done() > 0);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    CHECK(group_failed == 1);
+    CHECK(wgr_asset_task_get_status(group) == WGR_ASSET_TASK_FAILED);
+    CHECK(wgr_asset_task_get_status(missing) == WGR_ASSET_TASK_FAILED);
+    CHECK(wgr_asset_task_get_status(found) == WGR_ASSET_TASK_DONE); /* the others still made local */
+    CHECK(wgr_asset_task_get_path(missing)[0] == '\0');
+    CHECK(wgr_asset_task_destroy(group));
 
-    /* an empty group completes on the next tick */
-    group_ok = 0;
+    /* a member that finished before it joined counts as it finished */
+    CHECK(wgr_asset_task_get_status(late) == WGR_ASSET_TASK_DONE);
     group = wgr_asset_group_create();
-    CHECK(wgr_asset_add_task(group, on_group_done, NULL, &group_ok) == WGR_ASSET_ADD_TASK_OK);
+    CHECK(wgr_asset_group_add(group, late));
     CHECK(run_until_done() == 1);
-    CHECK(group_ok == 1);
+    CHECK(wgr_asset_task_get_status(group) == WGR_ASSET_TASK_DONE);
+    CHECK(wgr_asset_task_destroy(group) && wgr_asset_task_get_status(late) == WGR_ASSET_TASK_NONE);
+
+    /* a member destroyed while pending runs on with its result dropped, and the group
+       no longer waits for it */
+    group = wgr_asset_group_create();
+    const wgr_handle_t kept = wgr_asset_ensure(TEXTURE, NULL, WGR_ASSET_NONE);
+    const wgr_handle_t dropped = wgr_asset_ensure(CHARACTER_PATH, NULL, WGR_ASSET_NONE);
+    CHECK(wgr_asset_group_add(group, kept) && wgr_asset_group_add(group, dropped));
+    CHECK(wgr_asset_task_destroy(dropped));
+    CHECK(wgr_asset_task_get_status(dropped) == WGR_ASSET_TASK_NONE);
+    CHECK(run_until_done() > 0);
+    CHECK(wgr_asset_task_get_status(group) == WGR_ASSET_TASK_DONE && wgr_asset_task_get_progress(group) == 1.0f);
+    CHECK(wgr_asset_task_destroy(group));
+
+    /* an empty group is DONE on the next tick */
+    group = wgr_asset_group_create();
+    CHECK(wgr_asset_task_get_status(group) == WGR_ASSET_TASK_PENDING);
+    CHECK(run_until_done() == 1);
+    CHECK(wgr_asset_task_get_status(group) == WGR_ASSET_TASK_DONE);
+    CHECK(wgr_asset_task_destroy(group));
     stop_assets();
 }
 
-static int chained;
-
-/* Each success queues another load from inside its callback, while tasks are in flight. */
-static void on_chain(const char *path, void *user)
-{
-    (void)path;
-    (void)user;
-    got.successes++;
-    if (chained < 200) {
-        chained++;
-        load(TEXTURE, WGR_ASSET_NONE, on_chain);
-    }
-}
-
 /* Far more loads in flight than the task pool starts with (and than the old fixed
- * 256), some queued from completion callbacks while the pool grows under them: all
- * of them complete. */
+ * 256), some queued as others finish while the pool grows under them: all of them
+ * complete. */
 void test_pipeline_many(void)
 {
     enum { LOADS = 600, CHAINS = 20 };
@@ -440,7 +495,7 @@ void test_pipeline_many(void)
     const wgr_handle_t texture = wgr_texture_create(TEXTURE);
     CHECK(texture != 0 && run_until_done() > 0);
     for (int i = 0; i < LOADS; i++) {
-        load(TEXTURE, WGR_ASSET_NONE, i < CHAINS ? on_chain : on_nothing);
+        load(TEXTURE, WGR_ASSET_NONE, i < CHAINS ? ON_DONE_CHAIN : ON_DONE_COUNT);
     }
     CHECK(wgri_asset_pending_count() == LOADS);
     CHECK(run_until_done() > 0);
@@ -576,7 +631,7 @@ void test_pipeline_ktx_fallback(void)
     start_assets(0, KTX_DIR);
     wgri_texture_set_ktx_support(1); /* BC7, which png_only doesn't have */
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR); /* the fallback warns */
-    load("png_only.ktx", WGR_ASSET_NONE, on_path);
+    load("png_only.ktx", WGR_ASSET_NONE, ON_DONE_PATH);
     got.texture = wgr_texture_create("png_only.ktx");
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 1 && got.failures == 0);
@@ -596,9 +651,7 @@ void test_pipeline_ktx_fallback(void)
 
     /* a file an ensure took from an explicit source is what its key names: creating the
        key loads it from there (desktop reads a local source where it is) */
-    CHECK(wgr_asset_add_task(wgr_asset_ensure_async("made_up.png", "png_only.png", WGR_ASSET_FORCE_FETCH), on_path,
-                             on_failed, NULL) == WGR_ASSET_ADD_TASK_OK);
-    CHECK(run_until_done() > 0);
+    CHECK(test_assets_ensure("made_up.png", "png_only.png", WGR_ASSET_FORCE_FETCH, 100) == WGR_ASSET_TASK_DONE);
     const wgr_handle_t keyed = wgr_texture_create("made_up.png");
     CHECK(run_until_done() > 0);
     CHECK(wgr_resource_get_status(keyed) == WGR_RESOURCE_READY && wgr_texture_get_size(keyed).x == 256.0f);
@@ -660,21 +713,21 @@ void test_pipeline_redirects(void)
     CHECK(wgr_asset_add_redirect("models/", "mods/top/models/"));
     CHECK(wgr_asset_add_redirect("models/", "https://cdn.example.com/models/")); /* web only; ignored here */
 
-    load("textures/only_base.png", WGR_ASSET_NONE, on_path); /* in no mod: the file itself */
+    load("textures/only_base.png", WGR_ASSET_NONE, ON_DONE_PATH); /* in no mod: the file itself */
     got.texture = wgr_texture_create("textures/only_base.png");
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 1 && strstr(got.path, "mods/") == NULL);
     CHECK(wgr_texture_get_size(got.texture).x == 256.0f);
     wgr_resource_release(got.texture);
 
-    load("textures/both.png", WGR_ASSET_NONE, on_path); /* only in base: top falls through to it */
+    load("textures/both.png", WGR_ASSET_NONE, ON_DONE_PATH); /* only in base: top falls through to it */
     got.texture = wgr_texture_create("textures/both.png");
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 2 && strstr(got.path, "mods/base/textures/both.png") != NULL);
     CHECK(wgr_texture_get_size(got.texture).x == 128.0f);
     wgr_resource_release(got.texture);
 
-    load("textures/top.png", WGR_ASSET_NONE, on_path); /* in top: wins over the file itself */
+    load("textures/top.png", WGR_ASSET_NONE, ON_DONE_PATH); /* in top: wins over the file itself */
     got.texture = wgr_texture_create("textures/top.png");
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 3 && strstr(got.path, "mods/top/textures/top.png") != NULL);
@@ -682,7 +735,7 @@ void test_pipeline_redirects(void)
     CHECK(strcmp(wgr_resource_get_path(got.texture), "mods/top/textures/top.png") == 0); /* where the redirect found it */
     wgr_resource_release(got.texture);
 
-    load("textures/nowhere.png", WGR_ASSET_NONE, on_path);
+    load("textures/nowhere.png", WGR_ASSET_NONE, ON_DONE_PATH);
     got.texture = wgr_texture_create("textures/nowhere.png");
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL); /* the failures log errors */
     CHECK(run_until_done() > 0);
@@ -700,7 +753,7 @@ void test_pipeline_redirects(void)
     wgr_resource_release(got.mesh);
 
     wgr_asset_clear_redirects();
-    load("textures/top.png", WGR_ASSET_NONE, on_path);
+    load("textures/top.png", WGR_ASSET_NONE, ON_DONE_PATH);
     got.texture = wgr_texture_create("textures/top.png");
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 4 && strstr(got.path, "mods/") == NULL);

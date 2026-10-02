@@ -788,7 +788,12 @@ class CheckBindings {
 		check(!AssetTask.isNone(group), "an asset group is created");
 		eq(Handle.getKind(((group : Handle))), HandleKind.AssetTask, "and it is a task handle");
 		check(!Asset.groupAdd(group, group), "a group cannot contain itself");
-		near(Asset.getProgress(group), 0, "an empty group has made no progress");
+		eq(group.getStatus(), AssetTaskStatus.Pending, "a group is pending until the next frame");
+		near(group.getProgress(), 0, "an empty group has made no progress");
+		eq(group.getPath(), "", "and has no path");
+		check(group.destroy(), "a group is destroyed");
+		eq(AssetTask.getStatus(group), AssetTaskStatus.None, "and is no task after");
+		check(!AssetTask.destroy(group), "nor can be destroyed twice");
 	}
 
 	/**
@@ -882,16 +887,18 @@ class CheckBindings {
 		// a null fetch_url is not an empty one: null keeps redirects and variants,
 		// a URL tells wgrender the caller chose that exact file. The js binding sends
 		// null as a null pointer for this reason; hxcpp always did.
-		final plain = Asset.ensureAsync("no/such.png");
-		check(!AssetTask.isNone(plain), "ensureAsync with no fetch url makes a task");
-		final sourced = Asset.ensureAsync("no/such2.png", "https://example.invalid/no/such2.png");
+		final plain = Asset.ensure("no/such.png");
+		check(!AssetTask.isNone(plain), "ensure with no fetch url makes a task");
+		eq(plain.getStatus(), AssetTaskStatus.Pending, "pending: nothing finishes inside the call");
+		final sourced = Asset.ensure("no/such2.png", "https://example.invalid/no/such2.png");
 		check(!AssetTask.isNone(sourced), "and so does one with a source of its own");
+		check(plain.destroy() && sourced.destroy(), "a pending task is destroyed (it runs on, dropped)");
 		#if (sys && !emscripten)
 		// natively a source is http(s), or a path under a local host: nothing a program
 		// is handed can name a local file outside it (the web leaves that to the browser)
-		check(AssetTask.isNone(Asset.ensureAsync("no/such3.png", "file:///etc/passwd")),
+		check(AssetTask.isNone(Asset.ensure("no/such3.png", "file:///etc/passwd")),
 			"a file: URL source is refused");
-		check(AssetTask.isNone(Asset.ensureAsync("no/such3.png", "../outside.png")),
+		check(AssetTask.isNone(Asset.ensure("no/such3.png", "../outside.png")),
 			"and so is one climbing out of a local host");
 		#end
 
@@ -905,8 +912,8 @@ class CheckBindings {
 		// calls come in: under -D WGR_INCLUDE_FETCHER a URL host set after it used to
 		// swap in httpFetcher. The task has a source of its own and the host is a
 		// directory, so only the fetchUrl route leads to it. It answers at once, so
-		// the task fails on its first tick (callbacks are what arm it); a key at the
-		// root makes no directories.
+		// the task fails on its first tick, destroyed or not; a key at the root makes
+		// no directories.
 		check(Asset.setFetcher((request, url, _) -> {
 			fetchedUrl = url;
 			Asset.fetchDone(request, false);
@@ -914,8 +921,7 @@ class CheckBindings {
 		final was = Asset.getHost();
 		Asset.setHost("https://example.invalid/assets");
 		Asset.setHost(was);
-		AssetTask.then(Asset.ensureAsync("no-such3.png", "https://example.invalid/no-such3.png"),
-			_ -> {}, _ -> {});
+		Asset.ensure("no-such3.png", "https://example.invalid/no-such3.png").destroy();
 		#end
 	}
 

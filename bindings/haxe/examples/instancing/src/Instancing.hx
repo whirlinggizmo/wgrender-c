@@ -37,7 +37,7 @@ class Instancing {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt)); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "instancing (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}

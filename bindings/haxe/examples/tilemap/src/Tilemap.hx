@@ -67,7 +67,7 @@ class Tilemap {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt)); // ensures nothing
 		// No MSAA: the tiles are quads meeting edge to edge, and multisampled edges
 		// let the background through as a hairline seam between them.
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "tilemap (wgrender host, Haxe guest)", Resizable);

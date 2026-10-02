@@ -16,9 +16,8 @@
 // the file is read where it is, still under the bogus key. An absolute
 // https://cdn.example/... source is used as it is.
 //
-// This is the example that widened the guest ABI. `wgr_guest_asset_load` took a path
-// and an id, which is everything the earlier examples need and nothing this one does,
-// so it now takes wgrender's `fetch_url` and `flags` as well.
+// The ensure is a task the frame reads (`Asset.ensure`, `AssetTask`): nothing is
+// called back, so a guest needs no op for it.
 //
 //   M    toggle the music
 //   ESC  quit
@@ -35,8 +34,6 @@ class ForceFetch {
 	/** Where the bytes really are, relative to the asset host. **/
 	static inline final MUSIC_SOURCE = "music/a_hero_is_born.mp3";
 
-	static inline final ASSET_MUSIC = 1;
-
 	/** Desktop's host, the same one examples/fetch downloads from. **/
 	static inline final REMOTE_HOST =
 		"https://raw.githubusercontent.com/whirlinggizmo/wgrender-c/main/examples/assets";
@@ -46,6 +43,7 @@ class ForceFetch {
 	static var background:Color;
 	static var music:Sound;
 	static var musicOn = false;
+	static var fetch:AssetTask = Handle.NONE;
 	static var offline = false;
 
 	static function main():Void {
@@ -54,7 +52,7 @@ class ForceFetch {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt));
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "force_fetch (wgrender host, Haxe guest)", Resizable);
 	}
 
@@ -76,24 +74,28 @@ class ForceFetch {
 
 	/** The key cannot resolve, so the bytes can only have come from the source. **/
 	static function load():Void {
-		GuestAbi.loadAsset(INVALID_MUSIC_PATH, ASSET_MUSIC, MUSIC_SOURCE, ForceFetch);
+		fetch = Asset.ensure(INVALID_MUSIC_PATH, MUSIC_SOURCE, ForceFetch);
 		Log.info('force_fetch: $INVALID_MUSIC_PATH from $MUSIC_SOURCE under ${Asset.getHost()}');
 	}
 
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			if (id == ASSET_MUSIC && !offline && Wgr.getPlatform() != "web") {
+	/** Once the ensure has finished: play what it fetched, or try again offline. **/
+	static function pollFetch():Void {
+		final status = fetch.getStatus();
+		if (status == Pending)
+			return;
+		fetch.destroy();
+		fetch = Handle.NONE;
+		if (status != Done) {
+			if (!offline && Wgr.getPlatform() != "web") {
 				// desktop with no network: the same call, against the local directory
 				offline = true;
 				Asset.setHost(Assets.defaultBase());
 				load();
 				return;
 			}
-			Log.error('load failed: $path');
+			Log.error('fetch failed: $INVALID_MUSIC_PATH from $MUSIC_SOURCE');
 			return;
 		}
-		if (id != ASSET_MUSIC)
-			return;
 		// the file is local now, under the key: creating the key loads it from wherever
 		// the ensure found it
 		final audio = new Audio(INVALID_MUSIC_PATH);
@@ -107,6 +109,9 @@ class ForceFetch {
 
 	static function onFrame(dt:Float):Void {
 		final keys = Input.getKeyboardState();
+
+		if (!AssetTask.isNone(fetch))
+			pollFetch();
 
 		if (keys.isPressed(M) && !music.isNone()) {
 			if (musicOn)

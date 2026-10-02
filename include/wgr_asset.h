@@ -13,24 +13,24 @@ extern "C" {
  * it's created (wgr_resource.h: wgr_texture_create(path) loads on create), so a
  * program only ENSURES a file to have it local without loading it: to fetch ahead (a
  * level's files during a menu), from an explicit source (a fetch_url), or to read it
- * itself. The callback receives the local PATH, never bytes: user code stays
- * pointer-free. A key ensured from an explicit source is what a later create of that
- * key loads, wherever the file was found.
+ * itself. An ensure is a task: a handle whose status, local path and progress the
+ * program reads, nothing called back, and which it destroys when done with it. A key
+ * ensured from an explicit source is what a later create of that key loads, wherever
+ * the file was found.
  *
  * Files that reference other files are ensured together: ensuring a .gltf (or .glb)
- * also ensures the buffers and images it references, relative to it, and the callback
- * fires once all of them are local. A missing buffer fails; a missing image only
+ * also ensures the buffers and images it references, relative to it, and the task is
+ * DONE once all of them are local. A missing buffer fails it; a missing image only
  * warns. */
 
-typedef void (*wgr_asset_callback_fn)(const char *path, void *user_data);
-
 typedef enum {
-    WGR_ASSET_ADD_TASK_OK             =  0,
-    WGR_ASSET_ADD_TASK_ERR_INVALID    = -1,
-    WGR_ASSET_ADD_TASK_ERR_QUEUE_FULL = -2,
-} wgr_asset_add_task_result_t;
+    WGR_ASSET_TASK_NONE    = 0, /* not a task (or one destroyed) */
+    WGR_ASSET_TASK_PENDING = 1,
+    WGR_ASSET_TASK_DONE    = 2, /* the file is local, and every file it names */
+    WGR_ASSET_TASK_FAILED  = 3,
+} wgr_asset_task_status_t;
 
-/* Flags for wgr_asset_ensure_async (bitmask). */
+/* Flags for wgr_asset_ensure (bitmask). */
 enum {
     WGR_ASSET_NONE        = 0,
     WGR_ASSET_FORCE_FETCH = 1 << 0, /* re-download even if cached; no-op where nothing
@@ -95,7 +95,7 @@ bool wgr_asset_fetch_done(wgr_handle_t request, bool ok);
  * kept about it, on the web from the browser's storage and from this visit, on
  * desktop from the cache directory -- never a local host's own file. False when there
  * was no such file, or for a path that isn't under the host (as
- * wgr_asset_ensure_async reads one). A cache can hold a file that is wrong rather
+ * wgr_asset_ensure reads one). A cache can hold a file that is wrong rather
  * than old (a host that compresses once served gzip bytes under an asset's name):
  * the host says it hasn't changed, so revalidation keeps it, and only something that
  * drops it helps.
@@ -174,8 +174,8 @@ wgr_asset_cache_mode_t wgr_asset_get_cache_mode(void);
  * setting it again forgets what was read of the last one. */
 bool wgr_asset_set_manifest(const char *path);
 
-/* Ensure an asset is locally available, then fire the callback with a directly
- * openable local path.
+/* Ensure a file is local: a task that is PENDING, then DONE or FAILED at the start of
+ * a later frame (never inside this call), with a directly openable local path.
  *
  *   path      logical key: the cache path on web, the read path under the
  *             configured host on desktop, and (host + path) the default
@@ -196,30 +196,39 @@ bool wgr_asset_set_manifest(const char *path);
  *             a file: URL, one leaving a local host -- is refused (0).
  *   flags     bitmask of WGR_ASSET_* (e.g. WGR_ASSET_FORCE_FETCH).
  *
- * Returns a task handle (kind ASSET_TASK) to attach callbacks to, or 0. */
-wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
-                                  unsigned int flags);
+ * Returns a task handle (kind ASSET_TASK), kept until wgr_asset_task_destroy, or 0
+ * (refused as above, or no room). */
+wgr_handle_t wgr_asset_ensure(const char *path, const char *fetch_url, unsigned int flags);
 
-/* Attach success/failure callbacks to a task. The managed queue fires them
- * during wgr_asset_tick() (each frame, main thread) and then frees the task. */
-wgr_asset_add_task_result_t wgr_asset_add_task(wgr_handle_t task,
-                                             wgr_asset_callback_fn on_success,
-                                             wgr_asset_callback_fn on_failure,
-                                             void *user_data);
+/* A task's status: a file's, or a group's. NONE for anything that isn't a task. It
+ * changes only at the start of a frame, so a frame that reads it sees each change
+ * once. */
+wgr_asset_task_status_t wgr_asset_task_get_status(wgr_handle_t task);
 
-/* Groups: one task for many files (fetching a level's files ahead, say). A group
- * completes when all of its members have, successfully only if they all did, and
- * then fires its own callbacks (wgr_asset_add_task) with an empty path. Members
- * keep their own callbacks, if they have any, and complete without them. */
-wgr_handle_t wgr_asset_group_create(void);
-/* Add a file task (wgr_asset_ensure_async) to a group. False for anything else, or
- * a task that's already in a group. */
-bool wgr_asset_group_add(wgr_handle_t group, wgr_handle_t task);
+/* The local path of a DONE file task, directly openable (where the file was found:
+ * a redirect's, a fetch_url's). "" until then, for a group, and for anything that
+ * isn't a task. Borrowed: valid while the task is, until the next ensure. */
+const char *wgr_asset_task_get_path(wgr_handle_t task);
 
 /* Rough progress of a task or group, 0..1: a file counts half for being made local
- * and half for the files it names. 1 once the task has completed (its handle is no
- * longer live). For resources loading, read their statuses (wgr_resource.h). */
-float wgr_asset_get_progress(wgr_handle_t task);
+ * and half for the files it names; a group, its members' average. 1 once it is DONE
+ * or FAILED, 0 for anything that isn't a task. For resources loading, read their
+ * statuses (wgr_resource.h). */
+float wgr_asset_task_get_progress(wgr_handle_t task);
+
+/* Free a task. One still PENDING runs on and its result is dropped (a file still
+ * lands in the cache). Destroying a group destroys its members. False for anything
+ * that isn't a task. */
+bool wgr_asset_task_destroy(wgr_handle_t task);
+
+/* Groups: one task for many files (fetching a level's files ahead, say). A group is
+ * DONE once every member is, FAILED once every member has finished and any failed
+ * (an empty one is DONE at the next frame). Members keep their own statuses and
+ * paths. */
+wgr_handle_t wgr_asset_group_create(void);
+/* Add a file task (wgr_asset_ensure) to a group, finished or not. False for anything
+ * else, a task already in a group, or a group that has finished. */
+bool wgr_asset_group_add(wgr_handle_t group, wgr_handle_t task);
 
 /* Redirects: load files from somewhere else, for mods, translations or a CDN.
  * Files whose path starts with `prefix` are looked for under `target` instead:
@@ -239,12 +248,12 @@ float wgr_asset_get_progress(wgr_handle_t task);
  * matching a path is where it downloads from. Prefixes are plain text, matched at
  * the start of the path ("textures/", not "*.png").
  *
- * Redirects apply to files ensured with wgr_asset_ensure_async (without an explicit
- * fetch_url) and the files they reference (a model's buffers and images, found next
- * to wherever the model came from); the callback gets the path of the file found.
- * Direct wgr_*_create(path) calls load the path they're given. Up to 32 rules; false
+ * Redirects apply to every file a create loads or an ensure makes local (unless it
+ * gave an explicit fetch_url), and to the files they reference (a model's buffers and
+ * images, found next to wherever the model came from); wgr_resource_get_path and
+ * wgr_asset_task_get_path say which file was found. Up to 32 rules; false
  * when full, given an empty prefix or target, or a prefix or path target that isn't
- * under the host (as wgr_asset_ensure_async reads a path; a trailing "/" is kept). */
+ * under the host (as wgr_asset_ensure reads a path; a trailing "/" is kept). */
 bool wgr_asset_add_redirect(const char *prefix, const char *target);
 void wgr_asset_clear_redirects(void);
 

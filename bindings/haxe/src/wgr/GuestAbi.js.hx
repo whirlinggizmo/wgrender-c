@@ -25,7 +25,6 @@ class GuestAbi {
 	static var onInit:() -> Void;
 	static var onFrame:(dt:Float, frameId:Int) -> Void;
 	static var onTick:(dt:Float) -> Void;
-	static var onAsset:(id:Int, path:String, ok:Bool) -> Void;
 	static var onShutdown:() -> Void;
 
 	/**
@@ -40,11 +39,9 @@ class GuestAbi {
 		wgrender's `wgr_set_shutdown` for a guest. It is the op to release anything the
 		guest owns outside wgrender; anything wgrender owns is already being torn down.
 	**/
-	public static function register(init:() -> Void, frame:(dt:Float, frameId:Int) -> Void,
-			asset:(id:Int, path:String, ok:Bool) -> Void, ?shutdown:() -> Void):Void {
+	public static function register(init:() -> Void, frame:(dt:Float, frameId:Int) -> Void, ?shutdown:() -> Void):Void {
 		onInit = init;
 		onFrame = frame;
-		onAsset = asset;
 		onShutdown = shutdown;
 		installOps();
 	}
@@ -65,7 +62,6 @@ class GuestAbi {
 		opsInstalled = true;
 		Raw.host._wgr_guest_register(op("init", "i", () -> callInit()),
 			op("frame", "ifi", (dt:Float, frameId:Int) -> callFrame(dt, frameId)),
-			op("asset", "iiii", (id:Int, path:Int, ok:Int) -> callAsset(id, Raw.str(path), ok != 0)),
 			op("shutdown", "i", () -> callShutdown()));
 		Raw.host._wgr_guest_install();
 	}
@@ -87,8 +83,6 @@ class GuestAbi {
 	static function callInit():Void if (onInit != null) onInit();
 
 	static function callFrame(dt:Float, frameId:Int):Void if (onFrame != null) onFrame(dt, frameId);
-
-	static function callAsset(id:Int, path:String, ok:Bool):Void if (onAsset != null) onAsset(id, path, ok);
 
 	static function callShutdown():Void if (onShutdown != null) onShutdown();
 
@@ -116,11 +110,6 @@ class GuestAbi {
 
 	public static function setShutdown(shutdown:() -> Void):Void {
 		onShutdown = shutdown;
-		ensureInstalled();
-	}
-
-	public static function setAsset(asset:(id:Int, path:String, ok:Bool) -> Void):Void {
-		onAsset = asset;
 		ensureInstalled();
 	}
 
@@ -173,19 +162,6 @@ class GuestAbi {
 		Raw.stackRelease(mark);
 		return true;
 	}
-
-	/** Make a file local; the host calls the asset op with `id` when it is. **/
-	/**
-		Make a file local; the host calls the asset op with `id` when it is.
-
-		`fetchUrl` overrides where the bytes are downloaded from, without changing the
-		key they are cached and resolved under -- a mirror, a CDN, a signed link. A
-		relative one is read against the asset host, as `Asset.ensureAsync` says.
-		`flags` is wgrender's, `ForceFetch` being the one worth knowing: fetch even if
-		the cache already has it.
-	**/
-	public static inline function loadAsset(path:String, id:Int, ?fetchUrl:String, ?flags:AssetFlag):Bool
-		return Raw.wgr_guest_asset_load(path, id, fetchUrl, flags == null ? 0 : (flags : Int));
 
 	/** On js the page owns startup: web/boot.js loads the host, then calls `start`. **/
 	public static function autostart(_:(host:Dynamic) -> Void):Void {}

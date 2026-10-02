@@ -5,12 +5,16 @@
 // frame's real duration. Resources load on create: each comes back `Pending` at once
 // and is `Ready` or `Failed` a few frames later, so this program creates them all, uses
 // them at once, and only reads their statuses, for the progress bar and a row per file.
-// Nothing is called back, and nothing waits.
+// Nothing is called back, and nothing waits. The other way to wait is for files alone
+// (E): a group of ensures makes them local, and everything is created once the group
+// is `Done`.
 //
 //   A    load spread out: files are decoded on worker threads, and the GPU uploads
 //        are given a few milliseconds a frame (`Asset.setUploadBudget`, 4 ms)
 //   S    load at once: no upload budget, so everything decoded is uploaded in the
 //        same frame, which the graph shows as a spike
+//   E    fetch first: ensure every file as a group (on the web, downloads; on
+//        desktop, done at the next frame), then create them, spread out
 //   F    create a texture whose file isn't there: `Failed` a frame or so later, drawn
 //        as the placeholder (the log says why)
 //   U    unload
@@ -52,9 +56,12 @@ class Loading {
 	static var material:Material;
 
 	static var resources:Array<Handle> = [];
+	/** E: the files being made local, before anything is created. **/
+	static var fetchGroup:AssetTask = Handle.NONE;
 
 	static var loading = false;
 	static var atOnce = false;
+	static var fetchFirst = false;
 	static var loadStarted = 0.0;
 	static var loadSeconds = 0.0;
 
@@ -69,7 +76,7 @@ class Loading {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt)); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "loading (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -121,19 +128,42 @@ class Loading {
 			Resource.release(resources[i]); // one call for every kind; false for none
 			resources[i] = Handle.NONE;
 		}
+		fetchGroup.destroy(); // its members too; false for none
+		fetchGroup = Handle.NONE;
 		loading = false;
 	}
 
-	/** Create every resource and use it at once: each shows up when it's `Ready`. **/
-	static function startLoad(allAtOnce:Bool):Void {
+	static function startClock(allAtOnce:Bool):Void {
 		releaseAll();
 		atOnce = allAtOnce;
+		fetchFirst = false;
 		Asset.setUploadBudget(allAtOnce ? 1000.0 : 4.0); // 4 ms is the default
 		loadStarted = Wgr.getTime();
 		loading = true;
 		for (i in 0...GRAPH)
 			frameMs[i] = 0.0; // "worst" covers this load
+	}
 
+	static function startLoad(allAtOnce:Bool):Void {
+		startClock(allAtOnce);
+		createAll();
+	}
+
+	/** Ensure every file, as one group; `onFrame` creates them all once it has finished. **/
+	static function startFetch():Void {
+		startClock(false);
+		fetchFirst = true;
+		fetchGroup = Asset.createGroup();
+		for (i in 0...MISSING)
+			Asset.groupAdd(fetchGroup, Asset.ensure(PATHS[i]));
+	}
+
+	/** How the last load was asked for, for the status line. **/
+	static function how():String
+		return fetchFirst ? "fetched first" : atOnce ? "all at once" : "spread out";
+
+	/** Create every resource and use it at once: each shows up when it's `Ready`. **/
+	static function createAll():Void {
 		for (i in 0...ENVIRONMENTS)
 			resources[i] = new Environment(PATHS[i]);
 		for (i in ENVIRONMENTS...ENVIRONMENTS + MESHES)
@@ -196,6 +226,8 @@ class Loading {
 			startLoad(false);
 		if (keys.isPressed(S))
 			startLoad(true);
+		if (keys.isPressed(E))
+			startFetch();
 		if (keys.isPressed(U))
 			releaseAll();
 		if (keys.isPressed(F) && resources[MISSING].isNone) {
@@ -203,7 +235,12 @@ class Loading {
 			resources[MISSING] = missing;
 			material.setBaseColorTexture(missing); // the placeholder, once Failed
 		}
-		if (loading && filesDone() == FILES) {
+		if (!fetchGroup.isNone() && fetchGroup.getStatus() != Pending) {
+			fetchGroup.destroy(); // local now (or not: the creates say why)
+			fetchGroup = Handle.NONE;
+			createAll();
+		}
+		if (loading && fetchGroup.isNone() && filesDone() == FILES) {
 			loading = false;
 			loadSeconds = now - loadStarted;
 		}
@@ -220,8 +257,8 @@ class Loading {
 		Render.endMode3D();
 
 		Shape2D.drawRectangle(0, 0, screen.x, 64, bar);
-		Text.draw("wgrender loading   A: spread out   S: all at once   F: a missing file   U: unload", 12, 12, 12,
-			Color.RAYWHITE);
+		Text.draw("wgrender loading   A: spread out   S: all at once   E: fetch first   F: a missing file   U: unload",
+			12, 12, 12, Color.RAYWHITE);
 		// "In the background" means worker threads, and a web build only has them on a
 		// cross-origin isolated page. Without them the decode lands on this thread and
 		// the graph below says so, so the example had better not claim otherwise.
@@ -229,15 +266,18 @@ class Loading {
 			+ (Wgr.hasThreads() ? "worker threads" : "the main thread (no threads in this build/host)"), 12, 26, 12,
 			Wgr.hasThreads() ? Color.LIGHTGRAY : Color.GOLD);
 
-		if (loading) {
+		if (!fetchGroup.isNone()) {
+			final progress = fetchGroup.getProgress(); // the group's members' average
+			Shape2D.drawRectangle(12, 54, 240 * progress, 12, graphOk);
+			Shape2D.drawRectangleLines(12, 54, 240, 12, line);
+			Text.draw('fetching first... ${Math.round(progress * 100)}%', 264, 54, 12, Color.LIGHTGRAY);
+		} else if (loading) {
 			final progress = filesDone() / FILES;
 			Shape2D.drawRectangle(12, 54, 240 * progress, 12, graphOk);
 			Shape2D.drawRectangleLines(12, 54, 240, 12, line);
-			Text.draw('loading (${atOnce ? "all at once" : "spread out"})... ${Math.round(progress * 100)}%', 264, 54,
-				12, Color.LIGHTGRAY);
+			Text.draw('loading (${how()})... ${Math.round(progress * 100)}%', 264, 54, 12, Color.LIGHTGRAY);
 		} else if (!resources[0].isNone) {
-			Text.draw('loaded ${atOnce ? "all at once" : "spread out"} in ${fixed(loadSeconds, 2)} s', 12, 54, 12,
-				Color.LIGHTGRAY);
+			Text.draw('loaded ${how()} in ${fixed(loadSeconds, 2)} s', 12, 54, 12, Color.LIGHTGRAY);
 		}
 		for (i in 0...FILES) { // a row per file asked for: where it stands
 			if (resources[i].isNone)

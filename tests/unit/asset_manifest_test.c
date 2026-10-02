@@ -16,6 +16,7 @@
 #include "internal/wgr_internal_internal.h"
 #include "internal/wgr_sha256_internal.h"
 #include "test.h"
+#include "test_assets.h"
 #include "tests.h"
 #include "wgr_asset.h"
 
@@ -26,8 +27,6 @@
 static char fetch_log[1024]; /* the paths downloaded, each followed by ";" */
 static int ready, failed;
 
-static void on_ready(const char *path, void *user) { (void)path; (void)user; ready++; }
-static void on_failed(const char *path, void *user) { (void)path; (void)user; failed++; }
 
 static bool read_all(const char *path, char *out, size_t out_size, size_t *size)
 {
@@ -90,13 +89,16 @@ static void deploy(const char *a, const char *b, const char *served_b)
     write_all(SERVER "/manifest.json", root, strlen(root));
 }
 
-/* One ensure, run to its end; what it downloaded is returned (and the log reset). */
+/* One ensure, run to its end and counted in `ready` or `failed`; what it downloaded is
+ * returned (and the log reset). */
 static const char *ensure(const char *path)
 {
     static char log[1024];
+    wgr_asset_task_status_t status;
     fetch_log[0] = '\0';
-    wgr_asset_add_task(wgr_asset_ensure_async(path, NULL, WGR_ASSET_NONE), on_ready, on_failed, NULL);
-    for (int i = 0; i < 16; i++) wgri_asset_tick();
+    status = test_assets_ensure(path, NULL, WGR_ASSET_NONE, 16);
+    ready += status == WGR_ASSET_TASK_DONE;
+    failed += status == WGR_ASSET_TASK_FAILED;
     snprintf(log, sizeof(log), "%s", fetch_log);
     return log;
 }

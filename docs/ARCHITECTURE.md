@@ -367,10 +367,12 @@ g_model           = wgr_model_create(mesh);                  /* drawn once it's 
 wgr_resource_release(mesh);                                  /* the model keeps its own reference */
 ```
 
-*Ensuring* a file (`wgr_asset_ensure_async`) only makes it local, without loading
-it: to fetch ahead (a level's files during a menu), from an explicit source (a
-`fetch_url`), or to read a file yourself. A key ensured from an explicit source is
-then what a create of that key loads.
+*Ensuring* a file (`wgr_asset_ensure`) only makes it local, without loading it: to
+fetch ahead (a level's files during a menu), from an explicit source (a `fetch_url`),
+or to read a file yourself. An ensure is a task, read as a resource is: PENDING, then
+DONE (with the local path) or FAILED, kept until `wgr_asset_task_destroy`; a group of
+them is one task for a loading screen. A key ensured from an explicit source is then
+what a create of that key loads.
 
 **The path is logical; the asset layer decides which file it is.** It stays under the
 asset root: `.` and `..` are resolved, and a path that is absolute, names a drive or

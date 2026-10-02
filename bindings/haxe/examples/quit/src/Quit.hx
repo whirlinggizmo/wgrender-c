@@ -36,7 +36,7 @@ class Quit {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}, onShutdown); // ensures nothing
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onShutdown); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "quit (wgrender host, Haxe guest)", Resizable);
 	}
 

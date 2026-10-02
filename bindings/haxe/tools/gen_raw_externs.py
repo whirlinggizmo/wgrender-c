@@ -52,7 +52,6 @@ CALLBACKS = {
     'wgr_lifecycle_fn': '(user:VoidStar) -> Void',
     'wgr_frame_fn': '(dt:Single, tickFraction:Single, user:VoidStar) -> Void',
     'wgr_tick_fn': '(dt:Single, user:VoidStar) -> Void',
-    'wgr_asset_callback_fn': '(path:ConstCharStar, user:VoidStar) -> Void',
     'wgr_asset_fetch_fn': '(request:WgrHandle, url:ConstCharStar, destPath:ConstCharStar, user:VoidStar) -> Void',
     'wgr_asset_ping_fn': '(host:ConstCharStar, milliseconds:Single, user:VoidStar) -> Void',
 }
@@ -460,7 +459,7 @@ class Raw {
 	/**
 		A Haxe string as a C string in the wasm heap, and `null` as a null pointer.
 
-		The distinction matters: wgr_asset_ensure_async treats a null fetch_url as "use
+		The distinction matters: wgr_asset_ensure treats a null fetch_url as "use
 		the host, with redirects and variants" and a non-null one as "the caller chose
 		this exact file". An empty string is not the same thing, so null has to survive
 		the crossing — as it already does on hxcpp, through Native.cstr.
@@ -479,10 +478,6 @@ class Raw {
 
 	public static inline function str(pointer:Int):String
 		return host.UTF8ToString(pointer);
-
-	/** The guest ABI's asset op, keyed by `id` — the guest never sees a callback. **/
-	public static inline function wgr_guest_asset_load(path:String, id:Int, fetchUrl:String, flags:Int):Bool
-		return host._wgr_guest_asset_load(cstr(path), id, cstr(fetchUrl), flags) != 0;
 '''
 
 

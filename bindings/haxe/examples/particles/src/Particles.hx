@@ -40,7 +40,7 @@ class Particles {
 
 	public static function start(host:Dynamic):Void {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt)); // ensures nothing
 		GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "particles (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}

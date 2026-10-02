@@ -63,7 +63,7 @@ class WebHost {
 		derived; `tools/check_binding.py` fails if the header gains or loses one.
 	**/
 	public static final GUEST_ABI = [
-		"wgr_guest_asset_load", "wgr_guest_faulted", "wgr_guest_frame_id", "wgr_guest_install",
+		"wgr_guest_faulted", "wgr_guest_frame_id", "wgr_guest_install",
 		"wgr_guest_register", "wgr_guest_register_tick", "wgr_guest_set_fault_policy",
 		"wgr_guest_start", "wgr_guest_tick_fraction"
 	];

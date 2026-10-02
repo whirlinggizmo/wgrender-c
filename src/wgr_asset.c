@@ -67,6 +67,8 @@ enum {
     TASK_WAITING,   /* on its dependencies */
     TASK_PREPARING, /* queued for or running on a worker */
     TASK_FINISHING, /* prepared; creating the resource on the main thread */
+    TASK_DONE,      /* finished, kept until the program destroys it (wgr_asset_task_destroy) */
+    TASK_FAILED,
 };
 #define MAX_WORKERS 4
 #define DEFAULT_UPLOAD_BUDGET_MS 4.0f
@@ -83,10 +85,8 @@ typedef struct {
     char fallback_origin[512];
     bool overlay;         /* `path` came from a redirect: missing is normal, not a warning */
     unsigned int flags;
-    wgr_asset_callback_fn on_success;
-    wgr_asset_callback_fn on_failure;
-    void *user_data;
-    bool armed; /* callbacks attached via wgr_asset_add_task */
+    bool kept;    /* the program's (wgr_asset_ensure, a group): kept once finished, until destroyed */
+    bool dropped; /* destroyed while pending: freed when it finishes */
     int state;
     int fetch_result;         /* web: FETCH_* set when the download finishes */
     int cache_read;           /* web: reading the file from the cache (wgri_fs_cache_read_begin), or 0 */
@@ -698,7 +698,6 @@ static wgr_manifest_dir_t *want_manifest(const char *dir, const char *hash)
     task->manifest_dir = wgr_manifest_dir_count;
     task->manifest_generation = wgr_manifest_generation;
     task->manifest_root = dir[0] == '\0';
-    task->armed = true;
     return record;
 }
 
@@ -1720,7 +1719,6 @@ static void add_dependency(const char *uri, const char *fallback_uri, bool requi
     task->flags = parent_task->flags;
     task->parent = parent;
     task->optional = !required;
-    task->armed = true;
     parent_task->pending++;
     parent_task->dependency_count++;
 }
@@ -1768,7 +1766,7 @@ static void plan_mapped(wgr_asset_task_t *task, const char *path)
     plan(task, primary, fallback);
 }
 
-wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
+wgr_handle_t wgr_asset_ensure(const char *path, const char *fetch_url,
                                   unsigned int flags)
 {
     wgr_handle_t handle;
@@ -1780,7 +1778,7 @@ wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
         return 0;
     }
     if (!wgri_asset_normalize_path(path, logical, sizeof(logical))) {
-        wgr_logger_warn("wgr_asset_ensure_async: %s isn't a path under the asset root (absolute, a drive, or "
+        wgr_logger_warn("wgr_asset_ensure: %s isn't a path under the asset root (absolute, a drive, or "
                  "climbing out with \"..\")", path);
         return 0;
     }
@@ -1796,7 +1794,7 @@ wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
             found = WGRI_SOURCE_REFUSED; /* it becomes the task's path, which it wouldn't fit */
         }
         if (found == WGRI_SOURCE_REFUSED) {
-            wgr_logger_warn("wgr_asset_ensure_async: %s: %s isn't a source this host can read (a local one has to be a "
+            wgr_logger_warn("wgr_asset_ensure: %s: %s isn't a source this host can read (a local one has to be a "
                      "path under the host; a URL, http or https)", path, fetch_url);
             return 0;
         }
@@ -1823,6 +1821,7 @@ wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
         plan_mapped(task_ptr, path);
     }
     task_ptr->flags = flags;
+    task_ptr->kept = true;
     return handle;
 }
 
@@ -1855,7 +1854,6 @@ bool wgri_asset_load(const wgri_loader_t *loader, const char *path, wgr_handle_t
     task_ptr->loader = loader;
     task_ptr->target = resource;
     task_ptr->loads = true;
-    task_ptr->armed = true; /* nothing to attach: it starts on the next tick */
     return true;
 }
 
@@ -1869,23 +1867,6 @@ void wgri_asset_load_cancel(wgr_handle_t resource)
             wgr_asset_tasks[i].target = 0; /* runs on, and its result is dropped */
         }
     }
-}
-
-WGRI_KEEP
-wgr_asset_add_task_result_t wgr_asset_add_task(wgr_handle_t handle,
-                                             wgr_asset_callback_fn on_success,
-                                             wgr_asset_callback_fn on_failure,
-                                             void *user_data)
-{
-    wgr_asset_task_t *task_ptr = resolve(handle);
-    if (task_ptr == NULL) {
-        return WGR_ASSET_ADD_TASK_ERR_INVALID;
-    }
-    task_ptr->on_success = on_success;
-    task_ptr->on_failure = on_failure;
-    task_ptr->user_data = user_data;
-    task_ptr->armed = true;
-    return WGR_ASSET_ADD_TASK_OK;
 }
 
 /* ------------------------------------------------------------- workers ---- */
@@ -2020,7 +2001,26 @@ void wgr_asset_set_upload_budget(float milliseconds)
     wgr_asset_upload_budget_ms = milliseconds > 0.0f ? milliseconds : 0.0f;
 }
 
-/* ------------------------------------------------------ groups, progress */
+/* ------------------------------------------------- tasks, groups, progress */
+
+static bool is_finished(const wgr_asset_task_t *task)
+{
+    return task->state == TASK_DONE || task->state == TASK_FAILED;
+}
+
+/* A task handle the program holds (an ensure or a group), or NULL. */
+static wgr_asset_task_t *resolve_kept(wgr_handle_t handle)
+{
+    wgr_asset_task_t *task_ptr = resolve(handle);
+    return task_ptr != NULL && task_ptr->kept && !task_ptr->dropped ? task_ptr : NULL;
+}
+
+static void free_task(uint16_t i)
+{
+    free(wgr_asset_tasks[i].candidates);
+    wgr_asset_tasks[i] = (wgr_asset_task_t){0};
+    wgri_handle_pool_free(&wgr_asset_pool, wgri_handle_pool_handle_from_index(&wgr_asset_pool, i));
+}
 
 WGRI_KEEP
 wgr_handle_t wgr_asset_group_create(void)
@@ -2038,6 +2038,7 @@ wgr_handle_t wgr_asset_group_create(void)
     task_ptr = resolve(handle);
     *task_ptr = (wgr_asset_task_t){0};
     task_ptr->is_group = true;
+    task_ptr->kept = true;
     task_ptr->state = TASK_WAITING;
     return handle;
 }
@@ -2045,26 +2046,50 @@ wgr_handle_t wgr_asset_group_create(void)
 WGRI_KEEP
 bool wgr_asset_group_add(wgr_handle_t group, wgr_handle_t task)
 {
-    wgr_asset_task_t *group_ptr = resolve(group), *task_ptr = resolve(task);
+    wgr_asset_task_t *group_ptr = resolve_kept(group), *task_ptr = resolve_kept(task);
     uint16_t group_index = 0;
 
-    if (group_ptr == NULL || task_ptr == NULL || !group_ptr->is_group || task_ptr->is_group || group == task ||
-        task_ptr->group != 0 || task_ptr->parent != 0) {
-        wgr_logger_warn("wgr_asset_group_add: needs a group and a file task that isn't in a group");
+    if (group_ptr == NULL || task_ptr == NULL || !group_ptr->is_group || task_ptr->is_group ||
+        task_ptr->group != 0 || is_finished(group_ptr)) {
+        wgr_logger_warn("wgr_asset_group_add: needs a group still pending and a file task that isn't in a group");
         return false;
     }
     wgri_handle_pool_resolve(&wgr_asset_pool, group, &group_index);
     task_ptr->group = group_index;
-    task_ptr->armed = true; /* loads even without callbacks of its own */
-    group_ptr->pending++;
     group_ptr->dependency_count++;
+    if (is_finished(task_ptr)) {
+        group_ptr->failed_members += task_ptr->state == TASK_FAILED ? 1 : 0;
+    } else {
+        group_ptr->pending++;
+    }
     return true;
+}
+
+WGRI_KEEP
+wgr_asset_task_status_t wgr_asset_task_get_status(wgr_handle_t task)
+{
+    const wgr_asset_task_t *task_ptr = resolve_kept(task);
+    if (task_ptr == NULL) {
+        return WGR_ASSET_TASK_NONE;
+    }
+    return task_ptr->state == TASK_DONE     ? WGR_ASSET_TASK_DONE
+           : task_ptr->state == TASK_FAILED ? WGR_ASSET_TASK_FAILED
+                                            : WGR_ASSET_TASK_PENDING;
+}
+
+WGRI_KEEP
+const char *wgr_asset_task_get_path(wgr_handle_t task)
+{
+    const wgr_asset_task_t *task_ptr = resolve_kept(task);
+    return task_ptr != NULL && task_ptr->state == TASK_DONE ? task_ptr->local : "";
 }
 
 /* Rough progress of one file task: fetched, prepared, finished. */
 static float task_progress(const wgr_asset_task_t *task)
 {
     switch (task->state) { /* a file: half for being made local, half for the files it names */
+        case TASK_DONE:
+        case TASK_FAILED: return 1.0f;
         case TASK_WAITING:
             return 0.5f + 0.5f * (task->dependency_count > 0
                                       ? (float)(task->dependency_count - task->pending) / (float)task->dependency_count
@@ -2074,32 +2099,70 @@ static float task_progress(const wgr_asset_task_t *task)
 }
 
 WGRI_KEEP
-float wgr_asset_get_progress(wgr_handle_t task)
+float wgr_asset_task_get_progress(wgr_handle_t task)
 {
     uint16_t index = 0;
-    const wgr_asset_task_t *task_ptr;
+    const wgr_asset_task_t *task_ptr = resolve_kept(task);
     float sum;
 
-    if (wgr_handle_get_kind(task) != WGR_HANDLE_KIND_ASSET_TASK) {
+    if (task_ptr == NULL) {
         return 0.0f;
     }
-    if (!wgri_handle_pool_resolve(&wgr_asset_pool, task, &index)) {
-        return 1.0f; /* finished: its callbacks have run */
-    }
-    task_ptr = &wgr_asset_tasks[index];
-    if (!task_ptr->is_group) {
+    if (!task_ptr->is_group || is_finished(task_ptr)) {
         return task_progress(task_ptr);
     }
     if (task_ptr->dependency_count == 0) {
         return 0.0f;
     }
-    sum = (float)(task_ptr->dependency_count - task_ptr->pending); /* finished members */
+    wgri_handle_pool_resolve(&wgr_asset_pool, task, &index);
+    sum = 0.0f;
     for (uint16_t i = 1; i < wgr_asset_pool.capacity; i++) {
         if (wgr_asset_pool.occupied[i] && wgr_asset_tasks[i].group == index) {
             sum += task_progress(&wgr_asset_tasks[i]);
         }
     }
     return sum / (float)task_ptr->dependency_count;
+}
+
+/* Destroy one kept task: freed now if it has finished (or is a group), else when it does. */
+static void destroy_task(uint16_t i)
+{
+    wgr_asset_task_t *task_ptr = &wgr_asset_tasks[i];
+    if (is_finished(task_ptr) || task_ptr->is_group) {
+        free_task(i);
+    } else {
+        task_ptr->dropped = true;
+        task_ptr->group = 0;
+    }
+}
+
+WGRI_KEEP
+bool wgr_asset_task_destroy(wgr_handle_t task)
+{
+    uint16_t index = 0;
+    const wgr_asset_task_t *task_ptr = resolve_kept(task);
+
+    if (task_ptr == NULL) {
+        return false;
+    }
+    wgri_handle_pool_resolve(&wgr_asset_pool, task, &index);
+    if (task_ptr->is_group) {
+        for (uint16_t i = 1; i < wgr_asset_pool.capacity; i++) {
+            if (wgr_asset_pool.occupied[i] && i != index && wgr_asset_tasks[i].group == index) {
+                destroy_task(i);
+            }
+        }
+    } else if (task_ptr->group != 0 && !is_finished(task_ptr)) {
+        wgr_asset_task_t *group = &wgr_asset_tasks[task_ptr->group]; /* it no longer counts */
+        group->pending--;
+        group->dependency_count--;
+    } else if (task_ptr->group != 0) {
+        wgr_asset_task_t *group = &wgr_asset_tasks[task_ptr->group];
+        group->dependency_count--;
+        group->failed_members -= task_ptr->state == TASK_FAILED ? 1 : 0;
+    }
+    destroy_task(index);
+    return true;
 }
 
 void wgri_asset_init(void)
@@ -2129,56 +2192,51 @@ void wgri_asset_init(void)
 
 static void ready(uint16_t i, bool ok);
 
-/* Free a finished task slot before firing its callback (which may queue more),
- * then tell the task it's a dependency of, if any. */
+/* A task has finished: one the program holds is kept, DONE or FAILED, and any other
+ * freed; then the task it's a dependency of, or the group it's in, is told. */
 static void complete(uint16_t i, bool ok)
 {
-    wgr_handle_t handle = wgri_handle_pool_handle_from_index(&wgr_asset_pool, i);
     const wgr_asset_task_t task = wgr_asset_tasks[i];
-    char local[512];
+    char local[512] = "";
 
-    if (task.is_group) {
+    if (task.is_group || !ok) {
         local[0] = '\0';
     } else if (task.local[0] != '\0') {
         snprintf(local, sizeof(local), "%s", task.local);
     } else {
         wgri_fs_resolve(task.path, local, sizeof(local));
     }
-    free(task.candidates);
-    wgr_asset_tasks[i] = (wgr_asset_task_t){0};
-    wgri_handle_pool_free(&wgr_asset_pool, handle);
-    if (task.manifest_dir != 0) {
-        manifest_loaded(&task, ok); /* no callbacks, resource, parent or group */
-        return;
-    }
-    if (task.loads) { /* load on create: the resource says how it went, not a callback */
-        if (!ok) {
-            if (task.load_failed) {
-                wgr_logger_error("Asset couldn't be loaded: %s", task.origin);
-            } else if (task.dependency_failed) {
-                wgr_logger_error("Asset dependencies missing: %s", task.origin);
-            } else {
-                wgr_logger_error("Asset not found: %s", task.origin);
-            }
-            if (task.target != 0) wgri_resource_failed(task.target);
-        }
-        return;
-    }
-    if (ok) {
-        if (task.on_success) task.on_success(local, task.user_data);
+    if (task.kept && !task.dropped) {
+        wgr_asset_task_t *kept = &wgr_asset_tasks[i];
+        free(kept->candidates);
+        kept->candidates = NULL;
+        kept->candidate_count = kept->candidate_next = 0;
+        kept->state = ok ? TASK_DONE : TASK_FAILED;
+        snprintf(kept->local, sizeof(kept->local), "%s", local);
     } else {
+        free_task(i);
+    }
+    if (task.manifest_dir != 0) {
+        manifest_loaded(&task, ok); /* no resource, parent or group */
+        return;
+    }
+    if (!ok) {
+        const char *what = task.loads ? task.origin : task.path;
         if (task.is_group) {
             wgr_logger_error("Asset group: some files failed (%d of %d)", task.failed_members, task.dependency_count);
         } else if (task.load_failed) {
-            wgr_logger_error("Asset couldn't be loaded: %s", local);
+            wgr_logger_error("Asset couldn't be loaded: %s", what);
         } else if (task.dependency_failed) {
-            wgr_logger_error("Asset dependencies missing: %s", local);
+            wgr_logger_error("Asset dependencies missing: %s", what);
         } else if (task.optional) {
-            wgr_logger_warn("Asset not found (optional, dependency of %s): %s", wgr_asset_tasks[task.parent].path, local);
+            wgr_logger_warn("Asset not found (optional, dependency of %s): %s", wgr_asset_tasks[task.parent].path, what);
         } else {
-            wgr_logger_error("Asset not found: %s", local);
+            wgr_logger_error("Asset not found: %s", what);
         }
-        if (task.on_failure) task.on_failure(local, task.user_data);
+    }
+    if (task.loads) { /* load on create: the resource says how it went */
+        if (!ok && task.target != 0) wgri_resource_failed(task.target);
+        return;
     }
     if (task.parent != 0) {
         wgr_asset_task_t *parent = &wgr_asset_tasks[task.parent];
@@ -2188,11 +2246,11 @@ static void complete(uint16_t i, bool ok)
             ready(task.parent, !parent->dependency_failed);
         }
     }
-    if (task.group != 0) {
+    if (task.group != 0 && !task.dropped) {
         wgr_asset_task_t *group = &wgr_asset_tasks[task.group];
         group->pending--;
         group->failed_members += ok ? 0 : 1;
-        if (group->pending <= 0 && group->armed) {
+        if (group->pending <= 0) {
             complete(task.group, group->failed_members == 0);
         }
     }
@@ -2387,12 +2445,12 @@ void wgri_asset_tick(void)
     for (uint16_t i = 1; i < wgr_asset_pool.capacity; i++) {
         wgr_asset_task_t *task = &wgr_asset_tasks[i];
 
-        if (!wgr_asset_pool.occupied[i] || !task->armed || task->state == TASK_PREPARING ||
-            task->state == TASK_FINISHING) {
+        if (!wgr_asset_pool.occupied[i] || task->state == TASK_PREPARING || task->state == TASK_FINISHING ||
+            is_finished(task)) {
             continue;
         }
         if (task->is_group) {
-            if (task->pending <= 0) complete(i, task->failed_members == 0); /* all done before it was armed */
+            if (task->pending <= 0) complete(i, task->failed_members == 0); /* empty, or its members finished first */
             continue;
         }
         if (task->state == TASK_WAITING) {
@@ -2555,7 +2613,7 @@ int wgri_asset_pending_count(void)
 {
     int count = 0;
     for (uint16_t i = 1; i < wgr_asset_pool.capacity; i++) {
-        count += wgr_asset_pool.occupied[i] ? 1 : 0;
+        count += wgr_asset_pool.occupied[i] && !is_finished(&wgr_asset_tasks[i]) ? 1 : 0;
     }
     return count;
 }
@@ -2572,7 +2630,7 @@ void wgri_asset_pending_log(void)
     };
     for (uint16_t i = 1; i < wgr_asset_pool.capacity; i++) {
         const wgr_asset_task_t *task = &wgr_asset_tasks[i];
-        if (!wgr_asset_pool.occupied[i]) continue;
+        if (!wgr_asset_pool.occupied[i] || is_finished(task)) continue;
         wgr_logger_warn("wgr_asset: pending: %s (%s%s%s)", task->path, STAGE[task->state],
                  task->state == TASK_FETCHING ? (task->fetch_result == FETCH_PENDING ? ", in flight" : ", answered") : "",
                  task->finish_started ? ", part done" : "");
