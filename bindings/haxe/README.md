@@ -448,9 +448,8 @@ wgrender-c: 480 functions, 18 enums, 12 structs
 ```
 
 **hxcpp reaches every one of wgrender's public functions.** On js it reaches all but
-five, and those five take a C function pointer: the four lifecycle setters, which the
-guest ABI's ops replace, and `wgr_asset_set_fetcher`, which has no job where the
-browser is the downloader.
+four, and those four take a C function pointer: the lifecycle setters, which the guest
+ABI's ops replace.
 
 Nothing else in wgrender calls back: what may wait (a resource, an ensure, a ping) is
 a handle whose status the program reads, which crosses on both targets as any other

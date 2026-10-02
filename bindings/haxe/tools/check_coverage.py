@@ -51,9 +51,6 @@ OMISSIONS = {
     'wgr_set_frame': 'js: takes a C callback; the guest ABI installs ops instead',
     'wgr_set_tick': 'js: takes a C callback; the guest ABI installs ops instead',
     'wgr_set_shutdown': 'js: takes a C callback; the guest ABI installs ops instead',
-    'wgr_asset_set_fetcher': 'js: takes a C callback, and has no job there -- the browser '
-                             'is the downloader. Asset.setFetcher compiles anyway and '
-                             'answers false, so a caller needs no #if.',
 }
 
 

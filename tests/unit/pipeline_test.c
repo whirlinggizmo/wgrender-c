@@ -217,7 +217,7 @@ static void poll_ensures(void)
 static int run_until_done(void)
 {
     for (int frame = 1; frame <= 2000; frame++) {
-        wgri_asset_tick();
+        test_assets_tick();
         poll_ensures();
         if (wgri_asset_pending_count() == 0 && ensure_count == 0) return frame;
         if (wgri_asset_get_worker_count() > 0) test_sleep_ms(1);
@@ -376,7 +376,7 @@ void test_pipeline_shutdown(void)
         got.texture = wgr_texture_create(TEXTURE);
         got.audio = wgr_audio_create("sounds/click_004.ogg");
         for (int frame = 0; frame < round * 3; frame++) {
-            wgri_asset_tick();
+            test_assets_tick();
         }
         if (got.mesh != 0) wgr_resource_release(got.mesh);
         if (got.texture != 0) wgr_resource_release(got.texture);
@@ -409,7 +409,7 @@ void test_pipeline_group(void)
     float last = 0.0f;
     bool monotonic = true;
     for (int frame = 0; frame < 2000 && wgri_asset_pending_count() > 0; frame++) {
-        wgri_asset_tick();
+        test_assets_tick();
         const float progress = wgr_asset_task_get_progress(group);
         monotonic = monotonic && progress >= last && progress <= 1.0f;
         last = progress;
@@ -753,7 +753,7 @@ void test_pipeline_redirects(void)
     CHECK(wgr_asset_task_get_status(here) == WGR_ASSET_TASK_PENDING); /* on a later tick */
     CHECK(wgr_asset_task_get_progress(here) == 0.0f);
     CHECK(wgr_asset_task_destroy(dropped));
-    wgri_asset_tick();
+    test_assets_tick();
     CHECK(wgr_asset_task_get_status(here) == WGR_ASSET_TASK_DONE && wgr_asset_ping_get_milliseconds(here) == 0.0f);
     CHECK(wgr_asset_task_get_status(missing) == WGR_ASSET_TASK_FAILED);
     CHECK(wgr_asset_task_get_status(url) == WGR_ASSET_TASK_FAILED);

@@ -1,15 +1,9 @@
 package wgr;
 
-#if cpp
-import cpp.ConstCharStar;
-#end
-
 // wgr_asset.h — making a file local before it is loaded
 
 class Asset {
-	#if cpp
 	static var fetcher:(request:Handle, url:String, destPath:String) -> Void;
-	#end
 
 	/**
 		Where relative asset paths resolve from. A URL ("https://host/assets") is a
@@ -125,10 +119,37 @@ class Asset {
 		return Raw.wgr_asset_evict(path);
 
 	/**
-		Tell wgrender a fetch finished, from any thread: it takes the answer at its next
-		tick, on the main thread. Only a fetcher set with `setFetcher` is handed a
-		`request` to report on, so this is for hxcpp. False when it can't be taken:
-		wgrender shut down while the download ran, say.
+		Turn the program's downloading on or off (off by default): with it on, a
+		download wgrender wants is a request `fetchNext` hands out, once a frame. Turning
+		it off fails the requests not yet taken, at the next frame. False on the web,
+		where the browser is the downloader. `setFetcher` is the usual way in: it turns
+		this on and takes the requests for you.
+	**/
+	public static inline function setFetching(enabled:Bool):Bool
+		return Raw.wgr_asset_set_fetching(enabled);
+
+	public static inline function isFetching():Bool
+		return Raw.wgr_asset_is_fetching();
+
+	/** The next download to do, oldest first, or none. Each is handed out once. **/
+	public static inline function fetchNext():Handle
+		return Raw.wgr_asset_fetch_next();
+
+	/** What a request downloads. `""` for anything that isn't a request waiting on its answer. **/
+	public static inline function getFetchUrl(request:Handle):String
+		return Raw.wgr_asset_fetch_get_url(request);
+
+	/**
+		Where to write a request's download (directories above it exist). `""` for
+		anything that isn't a request waiting on its answer.
+	**/
+	public static inline function getFetchDest(request:Handle):String
+		return Raw.wgr_asset_fetch_get_dest(request);
+
+	/**
+		Tell wgrender a download finished, from any thread: it takes the answer at its
+		next tick, on the main thread. False when it can't be taken: wgrender shut down
+		while the download ran, say.
 	**/
 	public static inline function fetchDone(request:Handle, ok:Bool):Bool
 		return Raw.wgr_asset_fetch_done(request, ok);
@@ -259,7 +280,7 @@ class Asset {
 
 
 	/**
-		Download a missing asset. wgrender calls `fetch` when a file isn't local yet,
+		Download a missing asset. `fetch` is called when a file isn't local yet,
 		there is somewhere to download it from, and the platform has no downloader of
 		its own — which is every desktop build. Somewhere to download from means a URL
 		`host`, or a source this task was handed outright: a `fetchUrl` passed to
@@ -275,7 +296,10 @@ class Asset {
 		interrupted download never leaves half a file and never costs the copy that
 		was there. Success with nothing written is a failure.
 
-		Without one, a miss on desktop fails as it always has.
+		It is sugar over the calls above: this turns fetching on (`setFetching`), and
+		the binding's frame takes each request (`fetchNext`) and hands it to `fetch`,
+		before the program's own frame. Without one, a miss on desktop fails as it
+		always has.
 
 		Returns false on the web, where there is nothing to install: the browser is the
 		downloader, and wgrender fetches a miss itself. It compiles there so that a
@@ -285,15 +309,29 @@ class Asset {
 		themselves.
 	**/
 	public static function setFetcher(fetch:(request:Handle, url:String, destPath:String) -> Void):Bool {
-		#if cpp
 		fetcher = fetch;
-		#if !emscripten
+		#if (sys && !emscripten)
 		fetcherInstalled = fetch != null; // so needsFetcher leaves this one alone
 		#end
-		return Raw.wgr_asset_set_fetcher(cpp.Callable.fromStaticFunction(AssetNative.fetchTrampoline), Native.nullPtr());
-		#else
-		return false;
-		#end
+		return setFetching(fetch != null);
+	}
+
+	/** Hand each request to the fetcher; the binding's frame runs this before the program's. **/
+	@:allow(wgr.GuestAbi)
+	static function takeFetches():Void {
+		if (fetcher == null)
+			return;
+		var request = fetchNext();
+		while (!request.isNone) {
+			final url = getFetchUrl(request);
+			try
+				fetcher(request, url, getFetchDest(request))
+			catch (e:haxe.Exception) {
+				Wgr.report('the asset fetcher for "$url"', e);
+				fetchDone(request, false);
+			}
+			request = fetchNext();
+		}
 	}
 
 	#if (sys && !emscripten)
@@ -424,25 +462,4 @@ class Asset {
 	}
 	#end
 
-}
-
-// its C callbacks: a private class, so -D scriptable makes no cppia wrappers for them
-// (README, "Calling it from cppia")
-@:access(wgr.Asset) @:allow(wgr.Asset)
-private class AssetNative {
-	#if cpp
-	static function fetchTrampoline(request:WgrHandle, url:ConstCharStar, destPath:ConstCharStar,
-			user:VoidStar):Void {
-		if (Asset.fetcher == null) { // setFetcher(null): fail it, or the task waits for ever
-			Raw.wgr_asset_fetch_done(request, false);
-			return;
-		}
-		try
-			Asset.fetcher((request : Handle), url.toString(), destPath.toString())
-		catch (e:haxe.Exception) {
-			Wgr.report('the asset fetcher for "${url.toString()}"', e);
-			Raw.wgr_asset_fetch_done(request, false);
-		}
-	}
-	#end
 }

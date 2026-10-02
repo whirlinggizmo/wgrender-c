@@ -131,7 +131,7 @@ void test_asset_manifest(void)
     wgri_asset_init();
     CHECK(wgr_asset_set_cache_dir(CACHE));
     wgr_asset_set_host(HOST);
-    wgr_asset_set_fetcher(server_fetcher, NULL);
+    test_assets_set_fetcher(server_fetcher, NULL);
     ready = failed = 0;
 
     /* what a manifest path may be */
@@ -208,7 +208,7 @@ void test_asset_manifest(void)
     CHECK(ready == 16);
 
     wgr_asset_set_manifest(NULL);
-    wgr_asset_set_fetcher(NULL, NULL);
+    test_assets_set_fetcher(NULL, NULL);
     wgr_asset_set_host("");
     wgri_asset_deinit();
     wgri_fs_deinit();
@@ -233,7 +233,7 @@ void test_asset_clear_cache(void)
     wgri_asset_init();
     CHECK(wgr_asset_set_cache_dir(CACHE));
     wgr_asset_set_host(HOST);
-    wgr_asset_set_fetcher(server_fetcher, NULL);
+    test_assets_set_fetcher(server_fetcher, NULL);
     CHECK(wgr_asset_set_manifest("manifest.json"));
     ready = failed = 0;
     deploy("A1", "B1", NULL);
@@ -278,7 +278,7 @@ void test_asset_clear_cache(void)
     remove(CACHE "/textures/mine.png");
     remove(WGR_TEST_DIR "/escape.txt");
     wgr_asset_set_manifest(NULL);
-    wgr_asset_set_fetcher(NULL, NULL);
+    test_assets_set_fetcher(NULL, NULL);
     wgr_asset_set_host("");
     wgri_asset_deinit();
     wgri_fs_deinit();

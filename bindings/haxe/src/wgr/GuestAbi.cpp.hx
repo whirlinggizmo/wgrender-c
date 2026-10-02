@@ -143,6 +143,7 @@ class GuestAbi {
 	}
 
 	static function frameOp(dt:Single, frameId:cpp.UInt32):Int {
+		Asset.takeFetches(); // the downloads wgrender asked for since the last frame (setFetcher)
 		if (onFrame == null)
 			return 0;
 		try

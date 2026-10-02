@@ -215,9 +215,10 @@ TYPES_EXEMPT = {
        "program's function, with the `void *` it was given" for c in ('init', 'tick', 'frame', 'shutdown')},
 }
 
-# Known gaps, each going (docs/PLAN-tasks.md): a callback or a `void *` where a polled
-# task belongs. The check fails when one is gone and still listed.
-TYPES_TODO = {'wgr_asset_set_fetcher'}
+# Known gaps, each going. The check fails when one is gone and still listed. Empty since
+# the last callbacks became polled tasks (docs/PLAN-tasks.md); a new entry needs a reason
+# it can't wait.
+TYPES_TODO = set()
 
 def check_types(r, api):
     """Every parameter and return value is a type the rule allows."""
@@ -250,7 +251,6 @@ GETTERS_PAIRED = {
 
 # Setters with no getter on purpose, and why. A decision, not a backlog.
 GETTERS_EXEMPT = {
-    'wgr_asset_set_fetcher': 'a C callback and its void *: nothing a caller could use read back',
     'wgr_asset_set_manifest': 'an action: it reads a file; what it loads is not a value to return',
     **{f'wgr_shape2d_set_{g}': 'picks the geometry and its parameters in one call; '
        'reading it back would take a tagged union' for g in ('circle', 'line', 'rectangle')},

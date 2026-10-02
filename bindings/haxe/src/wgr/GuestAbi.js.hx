@@ -82,7 +82,11 @@ class GuestAbi {
 
 	static function callInit():Void if (onInit != null) onInit();
 
-	static function callFrame(dt:Float, frameId:Int):Void if (onFrame != null) onFrame(dt, frameId);
+	static function callFrame(dt:Float, frameId:Int):Void {
+		Asset.takeFetches(); // the downloads wgrender asked for since the last frame (setFetcher)
+		if (onFrame != null)
+			onFrame(dt, frameId);
+	}
 
 	static function callShutdown():Void if (onShutdown != null) onShutdown();
 

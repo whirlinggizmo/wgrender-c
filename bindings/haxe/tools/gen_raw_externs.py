@@ -52,7 +52,6 @@ CALLBACKS = {
     'wgr_lifecycle_fn': '(user:VoidStar) -> Void',
     'wgr_frame_fn': '(dt:Single, tickFraction:Single, user:VoidStar) -> Void',
     'wgr_tick_fn': '(dt:Single, user:VoidStar) -> Void',
-    'wgr_asset_fetch_fn': '(request:WgrHandle, url:ConstCharStar, destPath:ConstCharStar, user:VoidStar) -> Void',
 }
 
 # Structs returned by value, and the public-layer class the JS side builds from them.

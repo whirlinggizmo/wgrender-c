@@ -92,8 +92,8 @@ Left out on purpose, not gaps: the scratch buffer and `_to_scratch` functions, p
 ## Deferred (real value; build when forced or as lower priority)
 
 - **Desktop asset downloads: a built-in HTTP client** — the *hook* is done
-  (2026-09-20): a URL asset host plus `wgr_asset_set_fetcher` turns a desktop cache
-  miss into a download, the program supplies the downloader, and `examples/fetch.c`
+  (2026-09-20): a URL asset host plus `wgr_asset_set_fetching` turns a desktop cache
+  miss into a download request, the program polls for them and downloads, and `examples/fetch.c`
   wires one up in twenty lines. libwgrender still ships no HTTP and no TLS, which is
   the point.
   What is deferred is a *built-in* fetcher so nothing has to be supplied: the OS's own

@@ -43,14 +43,14 @@
 #define MAX_FETCHES 256 /* downloads at once; more tasks wait */
 #endif
 
-#define MAX_DESKTOP_FETCHES 6 /* a fetcher's downloads at once: a browser's limit per server */
-static int wgr_asset_fetching; /* downloads in flight: the browser's on web, the fetcher's on desktop */
+#define MAX_DESKTOP_FETCHES 6 /* the program's downloads at once: a browser's limit per server */
+static int wgr_asset_fetching; /* downloads in flight: the browser's on web, the program's on desktop */
 
-/* Acquisition layer: "ensure" makes an asset locally available, then fires the
- * callback with a directly-openable local path. Storage is delegated to wgr_fs.
+/* Acquisition layer: "ensure" makes an asset locally available, a task whose status
+ * and directly-openable local path the program reads. Storage is delegated to wgr_fs.
  *
  * Desktop: the host is a local base dir (set as the wgr_fs root); a missing file
- * is a failure, unless the host is a URL and the program supplied a fetcher. Web: the
+ * is a failure, unless the host is a URL and the program downloads (fetching). Web: the
  * host is a fetch origin — a cached file is read from the cache (IndexedDB) into the
  * local store, once the cache mode or the manifest says it is current (else the host
  * is asked first); a miss downloads the asset with fetch() and writes it into the
@@ -124,6 +124,9 @@ typedef struct {
     bool is_ping;
     int ping_id;              /* web: the browser's request */
     float ping_ms;            /* milliseconds, negative unreachable, PING_PENDING */
+    /* desktop downloads (wgr_asset_set_fetching): a request waiting for the program */
+    bool fetch_taken;         /* handed out by wgr_asset_fetch_next */
+    uint32_t fetch_order;     /* requests are handed out oldest first */
 } wgr_asset_task_t;
 
 /* Where a task looks for its file (wgr_asset_add_redirect, path mappers). */
@@ -166,11 +169,11 @@ static unsigned wgr_manifest_generation; /* bumped when the manifest changes */
 static wgr_manifest_dir_t *wgr_manifest_dirs;
 static int wgr_manifest_dir_count, wgr_manifest_dir_capacity;
 #ifndef __EMSCRIPTEN__
-/* Desktop downloads: the host is a URL, the app supplies the downloader, and the cache
+/* Desktop downloads: the host is a URL, the program is the downloader, and the cache
  * directory is both where a download lands and where the next run finds it -- the same
- * job the browser's cache does on web (wgr_asset_set_fetcher, include/wgr_asset.h). */
-static wgr_asset_fetch_fn wgr_asset_fetcher;
-static void *wgr_asset_fetcher_user;
+ * job the browser's cache does on web (wgr_asset_set_fetching, include/wgr_asset.h). */
+static bool wgr_asset_program_fetches;
+static uint32_t wgr_asset_fetch_order; /* the last request made */
 static char wgr_asset_cache_dir[512]; /* set by the program; "" = derived (cache_dir) */
 static bool wgr_asset_host_is_url;
 static char wgr_asset_local_root[512]; /* a local host's directory: the host, or what its file: URL names */
@@ -505,11 +508,79 @@ const char *wgr_asset_get_cache_dir(void)
     return cache_dir();
 }
 
-bool wgr_asset_set_fetcher(wgr_asset_fetch_fn fn, void *user_data)
+WGRI_KEEP
+bool wgr_asset_set_fetching(bool enabled)
 {
-    wgr_asset_fetcher = fn;
-    wgr_asset_fetcher_user = user_data;
+    wgr_asset_program_fetches = enabled;
+    if (!enabled) { /* nobody will take these now: they fail at the next tick */
+        for (uint16_t i = 1; i < wgr_asset_pool.capacity; i++) {
+            const wgr_asset_task_t *task = &wgr_asset_tasks[i];
+            if (wgr_asset_pool.occupied[i] && task->state == TASK_FETCHING && !task->fetch_taken) {
+                wgr_asset_fetch_done(wgri_handle_pool_handle_from_index(&wgr_asset_pool, i), false);
+            }
+        }
+    }
     return true;
+}
+
+WGRI_KEEP
+bool wgr_asset_is_fetching(void)
+{
+    return wgr_asset_program_fetches;
+}
+
+/* A request waiting on the program's answer, or NULL. */
+static wgr_asset_task_t *resolve_request(wgr_handle_t request)
+{
+    wgr_asset_task_t *task_ptr = resolve(request);
+    return task_ptr != NULL && task_ptr->state == TASK_FETCHING ? task_ptr : NULL;
+}
+
+WGRI_KEEP
+wgr_handle_t wgr_asset_fetch_next(void)
+{
+    uint16_t next = 0;
+    for (uint16_t i = 1; i < wgr_asset_pool.capacity; i++) {
+        const wgr_asset_task_t *task = &wgr_asset_tasks[i];
+        if (wgr_asset_pool.occupied[i] && task->state == TASK_FETCHING && !task->fetch_taken &&
+            (next == 0 || task->fetch_order < wgr_asset_tasks[next].fetch_order)) {
+            next = i;
+        }
+    }
+    if (next == 0) {
+        return 0;
+    }
+    wgr_asset_tasks[next].fetch_taken = true;
+    return wgri_handle_pool_handle_from_index(&wgr_asset_pool, next);
+}
+
+WGRI_KEEP
+const char *wgr_asset_fetch_get_url(wgr_handle_t request)
+{
+    static char url[1024];
+    const wgr_asset_task_t *task_ptr = resolve_request(request);
+    if (task_ptr == NULL) {
+        return "";
+    }
+    if (task_ptr->fetch_url[0] != '\0') { /* per-call override wins, as on the web (start_fetch) */
+        snprintf(url, sizeof(url), "%s", task_ptr->fetch_url);
+    } else {
+        snprintf(url, sizeof(url), "%s/%s", wgr_asset_host, task_ptr->path);
+    }
+    return url;
+}
+
+WGRI_KEEP
+const char *wgr_asset_fetch_get_dest(wgr_handle_t request)
+{
+    static char dest[1024];
+    char partial[600];
+    const wgr_asset_task_t *task_ptr = resolve_request(request);
+    if (task_ptr == NULL || !wgri_fs_partial_path(task_ptr->path, partial, sizeof(partial))) {
+        return "";
+    }
+    wgri_fs_resolve(partial, dest, sizeof(dest));
+    return dest;
 }
 #else
 bool wgr_asset_set_cache_dir(const char *dir)
@@ -524,11 +595,32 @@ const char *wgr_asset_get_cache_dir(void)
     return ""; /* the browser's */
 }
 
-bool wgr_asset_set_fetcher(wgr_asset_fetch_fn fn, void *user_data)
+bool wgr_asset_set_fetching(bool enabled)
 {
-    (void)fn;
-    (void)user_data; /* sokol_fetch already downloads here */
+    (void)enabled; /* the browser downloads here */
     return false;
+}
+
+bool wgr_asset_is_fetching(void)
+{
+    return false;
+}
+
+wgr_handle_t wgr_asset_fetch_next(void)
+{
+    return 0;
+}
+
+const char *wgr_asset_fetch_get_url(wgr_handle_t request)
+{
+    (void)request;
+    return "";
+}
+
+const char *wgr_asset_fetch_get_dest(wgr_handle_t request)
+{
+    (void)request;
+    return "";
 }
 
 bool wgr_asset_fetch_done(wgr_handle_t request, bool ok)
@@ -722,7 +814,7 @@ static int manifest_lookup(uint16_t slot, char hash[WGRI_SHA256_TEXT])
         return NOT_LISTED;
     }
 #ifndef __EMSCRIPTEN__
-    if (!wgr_asset_host_is_url || wgr_asset_fetcher == NULL) {
+    if (!wgr_asset_host_is_url || !wgr_asset_program_fetches) {
         return NOT_LISTED; /* a local directory host: its files are simply there */
     }
 #endif
@@ -1198,7 +1290,7 @@ wgr_handle_t wgr_asset_ping_host(const char *host, int timeout_ms)
     if (strncmp(host, "file:", 5) == 0 && !wgri_asset_file_url_path(host, dir, sizeof(dir))) {
         task_ptr->ping_ms = -1.0f; /* not a directory on this machine */
     } else if (strstr(host, "://") != NULL && strncmp(host, "file:", 5) != 0) {
-        wgr_logger_warn("wgr_asset_ping_host: %s: no host ping on desktop; set a fetcher and time an ensure", host);
+        wgr_logger_warn("wgr_asset_ping_host: %s: no host ping on desktop; turn on fetching and time an ensure", host);
         task_ptr->ping_ms = -1.0f;
     } else {
         task_ptr->ping_ms = stat(dir[0] != '\0' ? dir : ".", &st) == 0 && S_ISDIR(st.st_mode) ? 0.0f : -1.0f;
@@ -2525,11 +2617,11 @@ void wgri_asset_tick(void)
         }
         start_fetch(i, NULL); /* miss (or forced): download, cache, resolve on later ticks */
 #else
-        /* Desktop: a hit resolves from the jailed local fs. A miss asks the app's
-         * fetcher, if one is set and there is somewhere to download from -- a URL host,
-         * or a source this task was given outright (a per-call fetch_url, or a URL
-         * redirect). It answers on a later tick (wgr_asset_fetch_done). Without a
-         * fetcher a miss fails, as it always has.
+        /* Desktop: a hit resolves from the jailed local fs. A miss is a request for
+         * the program (wgr_asset_fetch_next), if it downloads and there is somewhere to
+         * download from -- a URL host, or a source this task was given outright (a
+         * per-call fetch_url, or a URL redirect). It answers on a later tick
+         * (wgr_asset_fetch_done). Without fetching a miss fails, as it always has.
          *
          * A local host is only ever read, as a browser only reads its host. A task the
          * caller gave a URL of its own lives in the cache (WGRI_FS_CACHE) under one, as
@@ -2537,7 +2629,7 @@ void wgri_asset_tick(void)
          * there counts only if it came from that URL -- so a shipped file is never
          * overwritten, and an old download never hides a newer shipped one. */
         if (task->state == TASK_FETCHING) {
-            continue; /* the fetcher answers with wgr_asset_fetch_done */
+            continue; /* the program answers with wgr_asset_fetch_done */
         }
         if (!wgr_asset_host_is_url && task->fetch_url[0] != '\0' &&
             strncmp(task->path, WGRI_FS_CACHE, sizeof(WGRI_FS_CACHE) - 1) != 0 &&
@@ -2569,20 +2661,13 @@ void wgri_asset_tick(void)
                 resolved(i, true);
                 continue;
             }
-            if (wgr_asset_fetcher != NULL && (wgr_asset_host_is_url || task->fetch_url[0] != '\0')) {
-                char joined[1024], dest[1024];
+            if (wgr_asset_program_fetches && (wgr_asset_host_is_url || task->fetch_url[0] != '\0')) {
+                char dest[1024];
                 if (wgr_asset_fetching >= MAX_DESKTOP_FETCHES) {
                     continue; /* waits for a download to finish, as a browser queues them */
                 }
-                const char *url; /* per-call override wins, as on the web (start_fetch) */
-                if (task->fetch_url[0] != '\0') {
-                    url = task->fetch_url;
-                } else {
-                    snprintf(joined, sizeof(joined), "%s/%s", wgr_asset_host, task->path);
-                    url = joined;
-                }
-                /* The fetcher writes a partial file (.part/), which takes the file's place
-                   only when the fetcher says it worked (wgr_asset_fetch_done): a failed or
+                /* The program writes a partial file (.part/), which takes the file's place
+                   only when it says it worked (wgr_asset_fetch_done): a failed or
                    interrupted download never leaves half a file where one is read, and never
                    costs the copy that was there. */
                 char partial[600];
@@ -2592,16 +2677,16 @@ void wgri_asset_tick(void)
                     continue;
                 }
                 wgri_fs_resolve(partial, dest, sizeof(dest));
-                wgri_fs_make_parents(partial);    /* the fetcher only has to write */
+                wgri_fs_make_parents(partial);    /* the program only has to write */
                 wgri_fs_make_parents(task->path); /* and the file has somewhere to go */
                 remove(dest);                     /* what an interrupted run left */
-                task->state = TASK_FETCHING;
+                task->state = TASK_FETCHING;      /* a request, for wgr_asset_fetch_next */
+                task->fetch_taken = false;
+                task->fetch_order = ++wgr_asset_fetch_order;
                 wgr_asset_fetching++;
-                wgr_asset_fetcher(wgri_handle_pool_handle_from_index(&wgr_asset_pool, i), url, dest,
-                                  wgr_asset_fetcher_user);
                 continue;
             }
-            if (sourced) { /* no fetcher, and nothing kept from this URL: the host's file isn't it */
+            if (sourced) { /* no fetching, and nothing kept from this URL: the host's file isn't it */
                 if (use_fallback(task)) continue;
                 resolved(i, false);
                 continue;

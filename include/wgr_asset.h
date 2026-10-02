@@ -34,13 +34,13 @@ typedef enum {
 enum {
     WGR_ASSET_NONE        = 0,
     WGR_ASSET_FORCE_FETCH = 1 << 0, /* re-download even if cached; no-op where nothing
-                                      can download (desktop without a fetcher) */
+                                      can download (desktop without fetching) */
 };
 
 /* Set the asset base that logical paths resolve against. A URL ("https://host/assets")
  * is a fetch origin on both platforms: a missing file is downloaded from it and cached,
  * on the web in the browser's storage (IndexedDB, checked as wgr_asset_set_cache_mode
- * says) and on desktop in the cache directory, by the fetcher below. Anything else is a
+ * says) and on desktop in the cache directory, by the program (fetching, below). Anything else is a
  * local directory ("examples/assets"), as it has always been on desktop, and a file:
  * URL ("file:///opt/game/assets") names one too -- on desktop only, since a browser
  * reads no file: URLs. A local host is only ever read, as a browser only reads its
@@ -62,33 +62,47 @@ bool wgr_asset_set_cache_dir(const char *dir);
 /* The directory downloads go in: set, or the default above. "" on the web. */
 const char *wgr_asset_get_cache_dir(void);
 
-/* Download a missing asset. libwgrender calls this when the host is a URL, the file
- * isn't local yet, and there is no built-in fetcher for this platform (desktop):
- * fetch `url` into `dest_path`, then call wgr_asset_fetch_done(request, ok).
+/* Downloads, on desktop, by the program: libwgrender has no HTTP client there, so a
+ * program that turns fetching on is asked for each download it wants -- when the host
+ * is a URL and a file isn't local yet, or a task has a source of its own (a fetch_url,
+ * a "://" redirect target). Without it, a miss on desktop fails as it always has.
  *
- * It is called on the main thread, and should start the download and return: do the
- * work on a thread of your own and call wgr_asset_fetch_done from there, from any
- * thread. The answer is taken at the next wgr_asset_tick, on the main thread, as a
- * browser's fetch reports back. A fetcher is handed at most 6 downloads at once, a
- * browser's limit per server; the rest wait their turn. One that downloads before
- * returning still works, but holds up the frame it runs in.
+ * Poll for work once a frame, on the main thread:
+ *
+ *     wgr_handle_t request;
+ *     while ((request = wgr_asset_fetch_next()) != 0) {
+ *         start_download(wgr_asset_fetch_get_url(request), wgr_asset_fetch_get_dest(request), request);
+ *     }
+ *
+ * and report each download with wgr_asset_fetch_done, from any thread: start it and
+ * return, do the work on a thread of your own, and answer from there. The answer is
+ * taken at the next wgr_asset_tick, on the main thread, as a browser's fetch reports
+ * back. At most 6 downloads are out at once, a browser's limit per server; the rest
+ * wait their turn. One downloaded before answering still works, but holds up the frame
+ * it runs in. A request nobody takes waits, and so does every task behind it.
  *
  * Bytes never cross this boundary; a downloader deals in files, which is what curl,
- * WinHTTP and NSURLSession all hand you anyway. The directories above `dest_path`
- * already exist. `dest_path` is where the download is written until it is whole, not
- * where the file is read: libwgrender moves it into place when you report success,
- * and deletes it when you don't, so a failed or interrupted download never leaves half
- * a file to be read and never costs the copy that was there. Reporting success with
- * nothing written is a failure.
- *
- * Without a fetcher, a miss on desktop fails as it always has. With one, a miss
- * downloads whenever there is a source: the host if it's a URL, or whatever the task
- * was told to use (a fetch_url, or a "://" redirect target). */
-typedef void (*wgr_asset_fetch_fn)(wgr_handle_t request, const char *url,
-                                   const char *dest_path, void *user_data);
-bool wgr_asset_set_fetcher(wgr_asset_fetch_fn fn, void *user_data);
-/* What became of a download the fetcher was handed; any thread. False when it can't be
- * taken: libwgrender isn't running (shut down while the download ran, say). */
+ * WinHTTP and NSURLSession all hand you anyway. The directories above the destination
+ * already exist. It is where the download is written until it is whole, not where the
+ * file is read: libwgrender moves it into place when you report success, and deletes
+ * it when you don't, so a failed or interrupted download never leaves half a file to
+ * be read and never costs the copy that was there. Reporting success with nothing
+ * written is a failure. */
+
+/* Turn the program's downloading on or off (off by default). Turning it off fails the
+ * requests not yet taken, at the next frame; ones taken are still answered. False on
+ * the web, where the browser is the downloader: nothing to turn on. */
+bool wgr_asset_set_fetching(bool enabled);
+bool wgr_asset_is_fetching(void);
+/* The next download to do, oldest first, or 0 when there's none. Each is handed out
+ * once. */
+wgr_handle_t wgr_asset_fetch_next(void);
+/* What a request downloads, and where to write it. "" for anything that isn't a
+ * request waiting on its answer. Borrowed: valid until the next call. */
+const char *wgr_asset_fetch_get_url(wgr_handle_t request);
+const char *wgr_asset_fetch_get_dest(wgr_handle_t request);
+/* What became of a download; any thread. False when it can't be taken: libwgrender
+ * isn't running (shut down while the download ran, say). */
 bool wgr_asset_fetch_done(wgr_handle_t request, bool ok);
 
 /* Forget a cached asset, so the next ensure fetches it again: the file and what was
@@ -165,8 +179,8 @@ wgr_asset_cache_mode_t wgr_asset_get_cache_mode(void);
  * file, a broken deploy) are not kept, and the load fails. A file no manifest lists,
  * a file ensured with a fetch_url, and every file under a manifest that couldn't be
  * read or didn't match its hash are cached as the cache mode says. On desktop a
- * manifest needs a URL host and a fetcher (wgr_asset_set_fetcher), and a download is
- * hashed once the fetcher reports it.
+ * manifest needs a URL host and fetching (wgr_asset_set_fetching), and a download is
+ * hashed once the program reports it.
  *
  * NULL or "" for none (the default). False for a path that isn't relative (one
  * starting with "/" or holding "://"), or is 512 bytes or longer. Set it before the
@@ -189,8 +203,8 @@ bool wgr_asset_set_manifest(const char *path);
  *             as a browser reads a URL against a directory, on every platform:
  *             "music/v2/a.mp3" is under the host, "../x" beside it, "/x" at its
  *             origin's root, and an absolute URL is used as it is.
- *             On desktop an absolute one has to be http or https, and needs a
- *             fetcher but not a URL host. Under a local host a relative one is a
+ *             On desktop an absolute one has to be http or https, and needs
+ *             fetching (wgr_asset_set_fetching) but not a URL host. Under a local host a relative one is a
  *             file under it, read where it is (nothing is copied); it is held to
  *             `path`'s rules, so it can't climb out of the host. Anything else --
  *             a file: URL, one leaving a local host -- is refused (0).
@@ -238,7 +252,7 @@ bool wgr_asset_group_add(wgr_handle_t group, wgr_handle_t task);
  *       textures/rock.png
  *   wgr_asset_add_redirect("models/", "https://cdn.example.com/game/models/");
  *       a target with "://" is where the file downloads from -- the browser on the
- *       web, your fetcher on desktop (wgr_asset_set_fetcher): it's still cached and
+ *       web, the program on desktop (wgr_asset_set_fetching): it's still cached and
  *       loaded as models/...
  *
  * Rules stack: every path rule matching a file is tried, the one added last first,
@@ -262,7 +276,7 @@ void wgr_asset_clear_redirects(void);
  * didn't. `host` NULL pings the current one (wgr_asset_set_host). On the web it's a
  * HEAD request to the host (any response counts, even a 404; another origin needs no
  * CORS headers). On desktop the host is a local directory: DONE if it exists, FAILED
- * if not (or a URL: no host ping on desktop, whose fetcher hands files, not round
+ * if not (or a URL: no host ping on desktop, whose downloads are files, not round
  * trips). Returns 0 before the asset layer is up, or when there's no room. */
 wgr_handle_t wgr_asset_ping_host(const char *host, int timeout_ms);
 /* The round trip of a DONE ping, in milliseconds (0 on desktop); 0 for one that isn't

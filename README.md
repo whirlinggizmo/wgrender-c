@@ -167,10 +167,10 @@ docs/           ARCHITECTURE.md (the design now), ROADMAP.md, TASKS.md, PLAN-*.m
   See `docs/PLAN-instancing.md` and `examples/instancing.c`.
 - Assets come from the same place on both platforms: give `wgr_asset_set_host` a URL
   and a logical path resolves against it everywhere. The browser downloads and caches
-  it on web; on desktop wgrender asks the program's fetcher
-  (`wgr_asset_set_fetcher`) to write the file, then caches it in a directory, so the
-  library carries no HTTP client and no TLS. See `examples/fetch.c`, which wires one up
-  with `curl` in twenty lines and downloads this repo's own assets over HTTPS — none of
+  it on web; on desktop wgrender asks the program to write the file (it polls
+  `wgr_asset_fetch_next` once a frame), then caches it in a directory, so the library
+  carries no HTTP client and no TLS. See `examples/fetch.c`, which does it with `curl`
+  in twenty lines and downloads this repo's own assets over HTTPS — none of
   the TLS being wgrender's.
 - Assets survive a host that compresses: a web download is one plain GET, decoded by
   the browser, so a host that gzips a `.glb` or `.ttf` (GitHub Pages does) can't hand

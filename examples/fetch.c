@@ -2,21 +2,24 @@
  * version does.
  *
  * On the web the browser downloads a missing asset and caches it. On desktop
- * libwgrender ships no HTTP client (and no TLS), so it asks the program for one: set a
- * URL as the asset host, hand it a fetcher, and a cache miss becomes a download.
+ * libwgrender ships no HTTP client (and no TLS), so it asks the program to download:
+ * set a URL as the asset host, turn fetching on, and a cache miss becomes a request
+ * the program takes once a frame.
  *
  *     wgr_asset_set_cache_dir("build/asset-cache");
  *     wgr_asset_set_host("http://localhost:8000/assets");
- *     wgr_asset_set_fetcher(fetch_with_curl, NULL);
+ *     wgr_asset_set_fetching(true);
+ *     ...each frame:
+ *     while ((request = wgr_asset_fetch_next()) != 0) fetch_with_curl(request);
  *
- * The fetcher here shells out to curl, so the example needs nothing built or linked.
+ * The downloader here shells out to curl, so the example needs nothing built or linked.
  * It is synchronous, which is fine for a handful of small files but would hitch a frame
- * on a big one; the hook is built for the other way round — a real fetcher (wgutils'
- * fetch_url, WinHTTP, NSURLSession) starts a download and calls wgr_asset_fetch_done
- * from a later tick, and nothing blocks meanwhile.
+ * on a big one; the requests are built for the other way round — a real downloader
+ * (wgutils' fetch_url, WinHTTP, NSURLSession) starts a download and calls
+ * wgr_asset_fetch_done from its own thread, and nothing blocks meanwhile.
  *
  * Bytes never cross the boundary: libwgrender names a URL and a destination file, the
- * fetcher writes that file. Downloads land in the cache directory and the next run
+ * program writes that file. Downloads land in the cache directory and the next run
  * finds them there, which is the job the browser's cache does on web.
  *
  * It downloads from the project's own assets on GitHub, over HTTPS, so there is nothing
@@ -65,12 +68,13 @@ static ui_button_t g_fetch, g_clear;
 static bool g_remote;
 static bool g_was_cached; /* the file was in the cache before this fetch */
 
-/* Download `url` to `dest_path`, then say how it went. A real one wouldn't block. */
-static void fetch_with_curl(wgr_handle_t request, const char *url, const char *dest_path, void *user)
+/* Download a request's URL to its destination, then say how it went. A real one
+ * wouldn't block. */
+static void fetch_with_curl(wgr_handle_t request)
 {
-    char command[1024];
-    (void)user;
-    snprintf(command, sizeof command, "curl -fsS --max-time 30 -o \"%s\" \"%s\"", dest_path, url);
+    char command[2200];
+    snprintf(command, sizeof command, "curl -fsS --max-time 30 -o \"%s\" \"%s\"", wgr_asset_fetch_get_dest(request),
+             wgr_asset_fetch_get_url(request));
     wgr_asset_fetch_done(request, system(command) == 0);
 }
 
@@ -149,7 +153,7 @@ static void on_init(void *user)
 #endif
     if (g_remote) {
         wgr_asset_set_cache_dir(CACHE_DIR);
-        wgr_asset_set_fetcher(fetch_with_curl, NULL);
+        wgr_asset_set_fetching(true); /* frame() takes the requests */
     } else {
         snprintf(g_host, sizeof g_host, "%s", EXAMPLE_ASSET_BASE); /* local directory */
     }
@@ -161,9 +165,18 @@ static void on_init(void *user)
 static void frame(float dt, float fraction, void *user)
 {
     char line[512];
+#ifndef __EMSCRIPTEN__
+    wgr_handle_t request;
+#endif
     (void)dt;
     (void)fraction;
     (void)user;
+
+#ifndef __EMSCRIPTEN__ /* the browser downloads by itself */
+    while ((request = wgr_asset_fetch_next()) != 0) {
+        fetch_with_curl(request);
+    }
+#endif
 
     if (g_waiting && wgr_resource_get_status(g_texture) != WGR_RESOURCE_PENDING) {
         g_waiting = false;

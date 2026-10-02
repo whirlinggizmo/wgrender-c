@@ -399,9 +399,10 @@ when its bytes match ([HISTORY.md: a web asset cache that notices changed files]
 A resource is read from the file actually found (`wgr_resource_get_path` names it),
 and the files it references (a glTF's buffers and images) resolve the same way: the
 loader reads them from where the asset layer found them (`wgri_asset_found_path`). On
-desktop a miss is a download when the host is a URL and the program
-supplied a fetcher (`wgr_asset_set_fetcher`): libwgrender names a URL and a destination
-file, the fetcher writes it, and bytes never cross the boundary — so the core carries no
+desktop a miss is a download when the host is a URL and the program downloads
+(`wgr_asset_set_fetching`): it takes each request once a frame (`wgr_asset_fetch_next`),
+libwgrender names a URL and a destination file, the program writes it and answers
+(`wgr_asset_fetch_done`, from any thread), and bytes never cross the boundary — so the core carries no
 HTTP client and no TLS. Networking beyond this (WebSockets, HTTP APIs) is outside libwgrender
 ([ROADMAP.md](ROADMAP.md)).
 
