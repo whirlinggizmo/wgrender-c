@@ -61,7 +61,7 @@ def main():
         hx = measure(site / 'wgrender-host.wasm', site / 'wgrender-host.js', site / f'{name}.js')
         c = measure(C_BUILD / f'{name}.wasm', C_BUILD / f'{name}.js')
         if hx is None:
-            print(f'{name}: not built (./build.py all)', file=sys.stderr)
+            print(f'{name}: not built (tools/run_examples.py web)', file=sys.stderr)
             continue
         if c is None:
             print(f'{name}: wgrender has no C build of it', file=sys.stderr)

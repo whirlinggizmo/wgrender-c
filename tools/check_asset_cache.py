@@ -2,10 +2,10 @@
 """The web asset cache, end to end (docs/PLAN-asset-cache.md): the bug of 2026-09-25,
 reproduced and shown fixed.
 
-    tools/check_cache.py [--manifest] [--backend=webgl2|webgpu] [--threads] [--browser=PATH]
+    tools/check_asset_cache.py [--manifest] [--backend=webgl2|webgpu] [--threads] [--browser=PATH]
                         [--verbose]
 
-Serves a web build with tools/serve.py, with /assets/ mounted from a scratch copy of
+Serves a web build with tools/serve_site.py, with /assets/ mounted from a scratch copy of
 the one file the tilemap example loads (textures/tiles.png), and visits tilemap
 again and again in one browser context, so its IndexedDB cache carries over from
 visit to visit as a returning visitor's does. Between visits the file changes, and
@@ -226,7 +226,7 @@ def main():
     opts = parse_args()
     if not (opts.site / 'examples.json').exists():
         preset = builds.preset_of(opts.site)
-        sys.exit(f'cachecheck: no web build at {opts.site} (cmake --preset {preset} && cmake --build --preset {preset})')
+        sys.exit(f'check_asset_cache: no web build at {opts.site} (cmake --preset {preset} && cmake --build --preset {preset})')
     work = builds.work(builds.preset_of(opts.site)) / 'cachecheck'
     assets = work / 'assets'
     shutil.rmtree(work, ignore_errors=True)
@@ -240,9 +240,9 @@ def main():
     failed = 0
     try:
         port = free_port()
-        run.spawn([PYTHON, ROOT / 'tools' / 'serve.py', port, opts.site, '--assets', assets])
+        run.spawn([PYTHON, ROOT / 'tools' / 'serve_site.py', port, opts.site, '--assets', assets])
         base_url = f'http://127.0.0.1:{port}'
-        wait_for(f'{base_url}/examples.json', 'tools/serve.py')
+        wait_for(f'{base_url}/examples.json', 'tools/serve_site.py')
         debug_base, browser = launch_browser(run, find_browser(opts.browser), opts.display)
         visitor = Visitor(browser, debug_base, base_url, opts)
         blocked = [f'{base_url}/assets/*']
@@ -296,7 +296,7 @@ def main():
                                                       log='gone from the host')),
                 ('gone, offline', 'block', lambda v: judge(v, {M: 'failed', T: 'failed'}, False, failed=True)),
             ]
-        print(f'cachecheck: {EXAMPLE} on {opts.site}, {opts.display}{", with manifests" if opts.manifest else ""}',
+        print(f'check_asset_cache: {EXAMPLE} on {opts.site}, {opts.display}{", with manifests" if opts.manifest else ""}',
               flush=True)
         for name, before, check in steps:
             if callable(before):
@@ -326,4 +326,4 @@ if __name__ == '__main__':
     try:
         sys.exit(main())
     except RuntimeError as e:
-        sys.exit(f'cachecheck: {e}')
+        sys.exit(f'check_asset_cache: {e}')

@@ -18,7 +18,7 @@
 #include "shared/example_assets.h"
 
 #define PARTICLE_PATH "textures/particle.png"
-#define FLAME_PATH    "textures/flame.png" /* a 4x4 flipbook (tools/gen_particles.py) */
+#define FLAME_PATH    "textures/flame.png" /* a 4x4 flipbook (tools/gen_particle_textures.py) */
 
 static wgr_handle_t g_scene;
 static wgr_handle_t g_camera;

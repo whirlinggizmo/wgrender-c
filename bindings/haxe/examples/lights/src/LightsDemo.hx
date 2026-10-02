@@ -27,7 +27,7 @@ class LightsDemo {
 	static inline final SCREEN_HEIGHT = 600;
 	static inline final CHARACTER_PATH = "models/woman_casual/woman_casual.glb";
 	static inline final SPRITE_PATH = "textures/tiles.png";
-	static inline final NORMAL_PATH = "textures/tiles_sheet_normal.png"; // wgrender's tools/gen_tiles.py
+	static inline final NORMAL_PATH = "textures/tiles_sheet_normal.png"; // wgrender's tools/gen_tile_sheet.py
 
 	static inline final ASSET_MESH = 1;
 	static inline final ASSET_SPRITE = 2;
@@ -36,7 +36,7 @@ class LightsDemo {
 	static inline final MODEL_COUNT = 5;
 	static inline final SPRITE_COUNT = 4;
 
-	// the sprites' cells in the sheet (pixels, from wgrender's tools/gen_tiles.py) and
+	// the sprites' cells in the sheet (pixels, from wgrender's tools/gen_tile_sheet.py) and
 	// their world height; all 1.6 wide
 	static final SPRITE_CELLS = [
 		[62.0, 2, 16, 16, 1.6], // stone

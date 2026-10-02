@@ -2,7 +2,7 @@
 """An example built all-in-one through hxcpp for the web: the Haxe program and
 wgrender in one wasm, the way examples/simple-hxcpp is, but for any example here.
 
-    tools/build_hxcpp_web.py <example>        examples/<example>/out/wasm32/release-hxcpp/site/<name>.js/.wasm
+    tools/build_hxcpp_example.py <example>        examples/<example>/out/wasm32/release-hxcpp/site/<name>.js/.wasm
 
 The examples are guests: on the web they normally run as JS against a wasm host. This
 builds the same source the other way, through hxcpp, which is what a desktop build
@@ -19,7 +19,6 @@ for wgrender's web builds; the work is in build/wasm32-<variant>/.
 """
 import os
 import pathlib
-import re
 import shutil
 import subprocess
 import sys
@@ -27,7 +26,7 @@ import sys
 LIB = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(LIB / 'tools'))
 from wgrpath import WGRENDER, web_variant  # noqa: E402
-from guestbuild import check_library, main_class  # noqa: E402
+from guestbuild import check_library, finish_site, main_class  # noqa: E402
 
 HAXE = os.environ.get('HAXE', 'haxe')
 
@@ -35,23 +34,6 @@ HAXE = os.environ.get('HAXE', 'haxe')
 def run(cmd, **kw):
     print('+', ' '.join(str(c) for c in cmd), flush=True)
     subprocess.run([str(c) for c in cmd], check=True, **kw)
-
-
-def finish_site(site, work, name, source):
-    """The page for an all-in-one build in SITE: web/index.html opening NAME, its source
-    link to SOURCE (a path in this repository), finished by tools/finish_site.py with
-    the versioned file names and examples.json. The page is written in WORK first."""
-    page = (LIB / 'web/index.html').read_text(encoding='utf-8')
-    for mark in ('/*wgr:first*/"simple-hxcpp"', '/*wgr:source*/"'):
-        if mark not in page:
-            sys.exit(f'{LIB}/web/index.html: no {mark} to fill in')
-    page = page.replace('/*wgr:first*/"simple-hxcpp"', f'/*wgr:first*/"{name}"')
-    page = re.sub(r'/\*wgr:source\*/"[^"]*"',
-                  f'/*wgr:source*/"https://github.com/whirlinggizmo/wgrender-c/blob/main/bindings/haxe/{source}"', page)
-    shell = work / 'index.html'
-    shell.write_text(page, encoding='utf-8')
-    run([sys.executable, WGRENDER / 'tools/finish_site.py', site, shell])
-    shell.unlink()
 
 
 def main():

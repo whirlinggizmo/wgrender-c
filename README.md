@@ -14,7 +14,7 @@ every example, published from `main` by `.github/workflows/pages.yml`. It is the
 `wasm32-release` build, without threads, because GitHub Pages can't send the COOP/COEP
 headers a threaded build needs; nothing needs threads, but asset decoding runs on the
 main thread there, which `loading` reports rather than hides. Locally, the
-`wasm32-release-threads` build served by `tools/serve.py`, which sends those headers,
+`wasm32-release-threads` build served by `tools/serve_site.py`, which sends those headers,
 loads the same examples on worker threads.
 
 ## Where it comes from

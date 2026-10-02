@@ -2,7 +2,7 @@
 """Build and test this checkout on a Windows machine over SSH, as it is, committed
 or not, and leave nothing behind there.
 
-    tools/run_remote_windows.py HOST [--msvc] [--variant PRESET ...] [--path DIR ...] [--keep]
+    tools/verify_on_windows.py HOST [--msvc] [--variant PRESET ...] [--path DIR ...] [--keep]
 
 Packs the working tree (every tracked file, and new ones git doesn't ignore), copies
 it to HOST with scp into a scratch folder in the remote user's profile, configures,
@@ -44,7 +44,7 @@ def working_tree():
 def script(folder, archive, variants, paths, keep, msvc):
     """The .bat that runs on the remote machine."""
     lines = ['@echo off',
-             'rem written by wgrender tools/run_remote_windows.py; it deletes itself',
+             'rem written by wgrender tools/verify_on_windows.py; it deletes itself',
              f'set ROOT=%USERPROFILE%\\{folder}',
              f'set PATH={";".join(paths + ["%PATH%"])}',
              'set FAILED=0',
@@ -52,14 +52,15 @@ def script(folder, archive, variants, paths, keep, msvc):
              'mkdir "%ROOT%"',
              'cd /d "%ROOT%"',
              f'tar -xzf "%USERPROFILE%\\{archive}"',
-             'if errorlevel 1 (echo run_remote_windows: unpacking failed & set FAILED=1 & goto done)']
+             'if errorlevel 1 (echo verify_on_windows: unpacking failed & set FAILED=1 & goto done)']
     for variant in variants:
-        lines += [f'echo run_remote_windows: {variant}',
+        lines += [f'echo verify_on_windows: {variant}',
                   f'cmake --preset {variant} > configure-{variant}.log 2>&1',
                   f'if errorlevel 1 (type configure-{variant}.log & set FAILED=1 & goto next_{variant})',
-                  # every error, not the first: Ninja's -k 0 (MSBuild goes on by itself)
-                  f'cmake --build --preset {variant}' + ('' if msvc else ' -- -k 0') + f' > build-{variant}.log 2>&1',
-                  f'if errorlevel 1 (findstr /c:"error:" /c:"error C" /c:"warning C" /c:"FAILED:" build-{variant}.log & set FAILED=1'
+                  # every error, not the first: Ninja's -k 0 (MSBuild, the msvc presets', goes on by itself)
+                  f'cmake --build --preset {variant}' + ('' if '-msvc-' in variant else ' -- -k 0')
+                  + f' > build-{variant}.log 2>&1',
+                  f'if errorlevel 1 (findstr /c:"error:" /c:"error C" /c:"error MSB" /c:"warning C" /c:"FAILED:" build-{variant}.log & set FAILED=1'
                   f' & goto next_{variant})',
                   # only the headless presets have tests
                   *([f'ctest --preset {variant}', 'if errorlevel 1 set FAILED=1'] if 'headless' in variant else []),
@@ -89,15 +90,15 @@ def main():
             for name in working_tree():
                 tar.add(ROOT / name, arcname=name)
         local_bat.write_bytes(script(tag, archive, variants, args.paths, args.keep, args.msvc).encode())
-        print(f'run_remote_windows: {", ".join(variants)} on {args.host}', flush=True)
+        print(f'verify_on_windows: {", ".join(variants)} on {args.host}', flush=True)
         copied = subprocess.run(['scp', '-q', str(local_archive), str(local_bat), f'{args.host}:'])
         if copied.returncode != 0:
-            print('run_remote_windows: copying to the host failed')
+            print('verify_on_windows: copying to the host failed')
             return 1
     ran = subprocess.run(['ssh', args.host, bat])
     if args.keep:
-        print(f'run_remote_windows: kept in %USERPROFILE%\\{tag} on {args.host}')
-    print('run_remote_windows: ' + ('PASS' if ran.returncode == 0 else 'FAIL'))
+        print(f'verify_on_windows: kept in %USERPROFILE%\\{tag} on {args.host}')
+    print('verify_on_windows: ' + ('PASS' if ran.returncode == 0 else 'FAIL'))
     return 0 if ran.returncode == 0 else 1
 
 

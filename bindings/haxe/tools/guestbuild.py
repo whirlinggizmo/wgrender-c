@@ -5,7 +5,7 @@ Each example is what a user would write: its src/, a build.web.hxml, and a
 build.desktop.hxml. Those are the build -- `haxe build.web.hxml` from the example's
 directory produces the same site this script does, host and all, because the wasm
 host is linked by wgr.macros.WebHost from a line in that file. So this is not a build
-system, and there is no script in each example to run it: examples/build.py imports it
+system, and there is no script in each example to run it: tools/run_examples.py imports it
 and names the example. It is the things a copy of an example does not need and the
 suite does:
 
@@ -14,7 +14,7 @@ suite does:
 - after a desktop build it copies the binary out of hxcpp's scratch and puts an
   `assets` link beside it, where wgr.Assets looks. A user's own game ships its own
   assets and does not need that step;
-- sizes and clean. Serving is examples/build.py's: one server, every example in a
+- sizes and clean. Serving is tools/run_examples.py's: one server, every example in a
   subdirectory of it.
 
 `guest` and `host` still work and mean `web`: the guest and its host are one build now.
@@ -37,7 +37,7 @@ LIB = pathlib.Path(__file__).resolve().parent.parent
 # The examples' own builds are named as wgrender's (tools/wgrpath.py): what they make
 # in out/<platform>/<variant>/, their work in build/<preset>/. A guest's web site is
 # out/wasm32/<variant>/site: release, the default every build.web.hxml names, or what
-# BACKEND, WEB_THREADS and WEB_DEBUG choose. hxcpp's web build (tools/build_hxcpp_web.py) adds
+# BACKEND, WEB_THREADS and WEB_DEBUG choose. hxcpp's web build (tools/build_hxcpp_example.py) adds
 # -hxcpp to the variant.
 DEFAULT_WEB = 'release'
 
@@ -116,7 +116,7 @@ class Project:
             return  # the binding is the same for every example in one run of the suite
         Project._checked = True
         self.check_library()
-        self.run([sys.executable, LIB / 'tools/gen_raw.py', '--check'])
+        self.run([sys.executable, LIB / 'tools/gen_raw_externs.py', '--check'])
         self.run([sys.executable, LIB / 'tools/check_coverage.py', '--check'])
         self.run([sys.executable, LIB / 'tools/check_refusals.py', '--check'])
 
@@ -189,7 +189,7 @@ class Project:
         print('removed out/ and build/')
 
     def command(self, name):
-        if name in ('web', 'guest', 'host'):
+        if name == 'web':
             self.build_web()
         elif name == 'desktop':
             self.build_desktop()
@@ -198,6 +198,124 @@ class Project:
             self.build_desktop()
         elif name == 'sizes':
             self.sizes()
+        elif name == 'clean':
+            self.clean()
+        else:
+            sys.exit(f'{self.name}: no command {name!r}')
+
+
+def finish_site(site, work, name, source):
+    """The page for an all-in-one build in SITE: web/index.html opening NAME, its source
+    link to SOURCE (a path in this repository), finished by tools/finish_site.py with
+    the versioned file names and examples.json. The page is written in WORK first."""
+    page = (LIB / 'web/index.html').read_text(encoding='utf-8')
+    for mark in ('/*wgr:first*/"simple-hxcpp"', '/*wgr:source*/"'):
+        if mark not in page:
+            sys.exit(f'{LIB}/web/index.html: no {mark} to fill in')
+    page = page.replace('/*wgr:first*/"simple-hxcpp"', f'/*wgr:first*/"{name}"')
+    page = __import__('re').sub(r'/\*wgr:source\*/"[^"]*"',
+                  f'/*wgr:source*/"https://github.com/whirlinggizmo/wgrender-c/blob/main/bindings/haxe/{source}"', page)
+    shell = work / 'index.html'
+    shell.write_text(page, encoding='utf-8')
+    subprocess.run([sys.executable, str(WGRENDER / 'tools/finish_site.py'), str(site), str(shell)], check=True)
+    shell.unlink()
+
+
+class HxcppProject:
+    """An example built all-in-one through hxcpp (Haxe -> C++ -> native or wasm), rather
+    than as a JS guest on a wasm host: its build.hxml (native) and web.hxml (the web,
+    hxcpp's emscripten target, always without threads), as `program`. The web build
+    gets the library's own page (web/index.html)."""
+
+    def __init__(self, root, name, program, source):
+        self.root = pathlib.Path(root).resolve()
+        self.name, self.program, self.source = name, program, source
+        self.haxe = os.environ.get('HAXE', 'haxe')
+
+    def run(self, cmd):
+        print('+', ' '.join(str(c) for c in cmd), flush=True)
+        subprocess.run([str(c) for c in cmd], check=True, cwd=self.root)
+
+    def desktop_out(self):
+        """out/<platform>/<variant>/bin, the preset as wgr.macros.NativeOut names it."""
+        platform_name, variant = builds.split(native_preset())
+        return self.root / 'out' / platform_name / variant / 'bin'
+
+    def web_out(self):
+        """out/wasm32/<variant>/site: wgrender's web settings, never threads, plus -hxcpp."""
+        return self.root / site_dir(web_variant(hxcpp=True))
+
+    def build_desktop(self):
+        out = self.desktop_out()
+        print(f'{self.name} (desktop) -> {out.relative_to(self.root)}/{self.program}')
+        check_library()
+        self.run([self.haxe, 'build.hxml'])
+        out.mkdir(parents=True, exist_ok=True)
+        program = exe(self.program)
+        shutil.copy2(self.root / 'build' / native_preset() / 'cpp' / program, out / program)
+        # wgr.Assets looks for `assets` beside the executable, the same lookup a shipped
+        # program uses
+        link = out / 'assets'
+        if link.is_symlink() or link.exists():
+            link.unlink()
+        link.symlink_to(WGRENDER / 'examples/assets')
+
+    def build_web(self):
+        site, variant = self.web_out(), web_variant(hxcpp=True)
+        work = self.root / 'build' / f'wasm32-{variant}'
+        print(f'{self.name} (web) -> {site.relative_to(self.root)}/')
+        check_library()
+        self.run([self.haxe, 'web.hxml', *(['-D', 'wgr-webgpu'] if '-webgpu' in variant else []),
+                  *(['--debug'] if variant.startswith('debug') else [])])
+        site.mkdir(parents=True, exist_ok=True)
+        for leaf in (f'{self.program}.js', f'{self.program}.wasm'):
+            shutil.copy2(work / 'cpp' / leaf, site / leaf)
+        finish_site(site, work, self.program, self.source)
+        self.sizes()
+
+    def measure(self, directory):
+        out = {}
+        for leaf in (f'{self.program}.js', f'{self.program}.wasm'):
+            path = pathlib.Path(directory) / leaf
+            if path.exists():
+                out[leaf] = (path.stat().st_size, len(gzip.compress(path.read_bytes(), 9)))
+        return out
+
+    def sizes(self):
+        for leaf, (raw, packed) in self.measure(self.web_out()).items():
+            print(f'{leaf}: {raw:,} bytes ({packed:,} gzipped)')
+
+    def compare(self):
+        """Its wasm beside wgrender's C build of the same example, both with the same web
+        flags (BACKEND=webgl2, no threads: wasm32-release)."""
+        wasm = f'{self.program}.wasm'
+        rows = [('C (wgrender example)', self.measure(WGRENDER / 'out/wasm32/release/site')),
+                (f'Haxe ({self.name})', self.measure(self.web_out()))]
+        baseline = rows[0][1].get(wasm, (None,))[0]
+        print(f'{"port":<22} {"wasm":>12} {"gzipped":>11} {"vs C":>8}')
+        for label, m in rows:
+            if wasm not in m:
+                print(f'{label:<22} (not built)')
+                continue
+            raw, packed = m[wasm]
+            print(f'{label:<22} {raw:>12,} {packed:>11,} {f"{raw / baseline:.2f}x" if baseline else "-":>8}')
+
+    def clean(self):
+        for d in ('out', 'build'):
+            shutil.rmtree(self.root / d, ignore_errors=True)
+
+    def command(self, name):
+        if name == 'web':
+            self.build_web()
+        elif name == 'desktop':
+            self.build_desktop()
+        elif name == 'all':
+            self.build_desktop()
+            self.build_web()
+        elif name == 'sizes':
+            self.sizes()
+        elif name == 'compare':
+            self.compare()
         elif name == 'clean':
             self.clean()
         else:

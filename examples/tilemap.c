@@ -28,7 +28,7 @@
 enum { WORLD_W = 24, WORLD_H = 16, MAX_PROPS = 64 };
 enum { LAYER_GROUND = 0, LAYER_PROPS = 1 };
 
-/* cells of the sheet, in texture pixels: x, y, width, height (tools/gen_tiles.py; each
+/* cells of the sheet, in texture pixels: x, y, width, height (tools/gen_tile_sheet.py; each
  * cell has a gutter around it that repeats its edge, so sampling never reaches a
  * neighbour) */
 static const float GRASS[4] = {2, 2, 16, 16};

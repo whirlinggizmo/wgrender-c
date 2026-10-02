@@ -3,7 +3,7 @@
 128x128 grayscale, for the dissolve shader in the `shaders` example. Needs nothing but
 the standard library. Run from anywhere:
 
-    tools/gen_noise.py
+    tools/gen_noise_texture.py
 """
 import sys
 from pathlib import Path

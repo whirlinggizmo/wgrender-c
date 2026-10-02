@@ -1,7 +1,7 @@
 # hello3d, for the web: the Haxe guest compiled to JS, and a wasm host linked to
 # exactly the wgrender calls it makes. `haxe build.web.hxml`, then serve
 # out/wasm32/release/site; the page loads its assets from assets/ beside it (which
-# tools/serve.py provides).
+# tools/serve_site.py provides).
 -cp src
 -lib wgrender-hx
 --main Hello3D

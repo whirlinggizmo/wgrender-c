@@ -327,7 +327,7 @@
     },
     {
       "name": "wasm32-release-threads",
-      "displayName": "Web, WebGL2, threaded (serve with COOP/COEP: tools/serve.py)",
+      "displayName": "Web, WebGL2, threaded (serve with COOP/COEP: tools/serve_site.py)",
       "inherits": "web-base",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
@@ -347,7 +347,7 @@
     },
     {
       "name": "wasm32-release-webgpu-threads",
-      "displayName": "Web, WebGPU, threaded (serve with COOP/COEP: tools/serve.py)",
+      "displayName": "Web, WebGPU, threaded (serve with COOP/COEP: tools/serve_site.py)",
       "inherits": "web-base",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
@@ -368,7 +368,7 @@
     },
     {
       "name": "wasm32-debug-threads",
-      "displayName": "Web, WebGL2, threaded (serve with COOP/COEP: tools/serve.py), debug: no optimization, assertions",
+      "displayName": "Web, WebGL2, threaded (serve with COOP/COEP: tools/serve_site.py), debug: no optimization, assertions",
       "inherits": "web-base",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {

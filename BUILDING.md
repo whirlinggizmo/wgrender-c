@@ -6,11 +6,11 @@ no shell script.
 
 | To do | Needs |
 | --- | --- |
-| Desktop builds, the tests, `tools/verify.py` | CMake, a C compiler, Python 3 (on Linux, the GL/X11/ALSA dev packages) |
+| Desktop builds, the tests, `tools/verify_builds.py` | CMake, a C compiler, Python 3 (on Linux, the GL/X11/ALSA dev packages) |
 | Web builds | and Emscripten (emsdk) |
-| Browser checks: `verify.py --web`, webcheck, webstart | and a Chromium-based browser: Brave, Chrome, Chromium or Edge |
+| Browser checks: `verify_builds.py --web`, webcheck, webstart | and a Chromium-based browser: Brave, Chrome, Chromium or Edge |
 
-The browser checks (`tools/check_web.py`) are Python too: there is no Node to install.
+The browser checks (`tools/check_web_examples.py`) are Python too: there is no Node to install.
 
 - [Desktop](#desktop): Windows (MSVC or MinGW), Linux, macOS
 - [Web](#web-webgl2-and-webgpu): WebGL2 and WebGPU, with Emscripten
@@ -45,7 +45,7 @@ cmake --preset linux-x64-release && cmake --build --preset linux-x64-release   #
 out/linux-x64/release/bin/simple        # from this directory: examples load examples/assets from here
 cmake --preset linux-x64-debug-headless && cmake --build --preset linux-x64-debug-headless   # no window, GPU or audio device
 ctest --preset linux-x64-debug-headless   # unit tests, guardrails, and every example headless for ~3 s
-python3 tools/verify.py         # release, headless, ThreadSanitizer (and Windows, below):
+python3 tools/verify_builds.py         # release, headless, ThreadSanitizer (and Windows, below):
                                 # run before calling a change done
 ```
 
@@ -68,7 +68,7 @@ environment variable is set.
 
 Every preset treats warnings as errors (`-Werror`, `/WX` for MSVC), so a new one stops
 the build where it appears rather than scrolling past. Some only show in the debug and
-sanitizer builds, where the compiler traces more (`tools/verify.py` runs the headless
+sanitizer builds, where the compiler traces more (`tools/verify_builds.py` runs the headless
 and ThreadSanitizer builds, as CI does). A project that builds wgrender as part of its
 own (`add_subdirectory`) doesn't get this, so a newer compiler's new warning can't break
 it; `-DWGR_WERROR=ON` or `OFF` decides either way.
@@ -80,14 +80,14 @@ with the static C runtime (`/MT`, `/MTd` for debug), as every wg* library does, 
 `windows-x64-mingw` presets work from any shell: they build with a pinned MinGW-w64 (a
 WinLibs GCC), which `tools/setup_mingw.py` downloads, checks against its SHA-256 and
 unpacks into the per-user cache the first time they configure, never with whichever
-`gcc` is on `PATH`. There are no sanitizer presets on Windows, so `verify.py` runs
+`gcc` is on `PATH`. There are no sanitizer presets on Windows, so `verify_builds.py` runs
 `windows-x64-msvc-release` and `windows-x64-msvc-debug-headless` there.
 
 On Linux, sokol links the system's audio, GL and X11 libraries, so their dev packages
 must be installed; configuring checks and names any that are missing:
 
 ```sh
-python3 tools/setup_deps.py install   # via apt / dnf / pacman (uses sudo)
+python3 tools/setup_system_packages.py install   # via apt / dnf / pacman (uses sudo)
 # or manually, e.g. Debian/Ubuntu:
 #   sudo apt install libasound2-dev libgl-dev libx11-dev libxi-dev libxcursor-dev
 ```
@@ -102,7 +102,7 @@ target_link_libraries(my_game PRIVATE wgrender)
 
 What's built, and with what, is `build.json`: the sources, and per target the defines,
 flags and libraries. The CMake build lists none of its own, and the bindings read the
-same file to compile wgrender with their own toolchains (`tools/build_web.py` builds the
+same file to compile wgrender with their own toolchains (`tools/build_web_library.py` builds the
 web library from it with nothing but emsdk). Checked on Windows 11 with Visual Studio
 2026 (MSVC 19.51): the library and all examples, no warnings, and the examples run.
 
@@ -112,22 +112,22 @@ Needs Emscripten: `$EMSDK` set, or `emcc` on `PATH` (`source <emsdk>/emsdk_env.s
 
 ```sh
 cmake --preset wasm32-release && cmake --build --preset wasm32-release   # every example -> out/wasm32/release/site/
-python3 tools/serve.py 8000 out/wasm32/release/site   # http://localhost:8000/ (assets mounted at /assets/)
-python3 tools/check_web.py                     # load each in a browser, fail on errors
-python3 tools/check_web.py --backend=webgpu    # the same for WebGPU (wasm32-release-webgpu)
-python3 tools/measure_web_startup.py                     # startup times per example: cold, warm and hot visits
-python3 tools/verify.py --web                  # all of the above web builds, checked
+python3 tools/serve_site.py 8000 out/wasm32/release/site   # http://localhost:8000/ (assets mounted at /assets/)
+python3 tools/check_web_examples.py                     # load each in a browser, fail on errors
+python3 tools/check_web_examples.py --backend=webgpu    # the same for WebGPU (wasm32-release-webgpu)
+python3 tools/measure_example_startup.py                     # startup times per example: cold, warm and hot visits
+python3 tools/verify_builds.py --web                  # all of the above web builds, checked
 tools/run_benchmarks.py --all                      # C and every binding -> docs/benchmarks.md
 ```
 
 The web presets are `wasm32-release` and `wasm32-release-webgpu`, each also with
 `-threads`, and `wasm32-debug` and `wasm32-debug-threads`. Without threads is the
-default: it runs on any static host. `tools/build_web.py` builds only the library, for
+default: it runs on any static host. `tools/build_web_library.py` builds only the library, for
 any of the eight combinations of backend, threads and debug, into the same
 `out/wasm32/<variant>/lib/` as the preset of that name (its objects in
 `build/wasm32-<variant>/buildweb/`).
 
-`tools/check_web.py` needs a Chromium-based browser: Brave, Chrome, Chromium or Edge,
+`tools/check_web_examples.py` needs a Chromium-based browser: Brave, Chrome, Chromium or Edge,
 found on PATH or where they install (override with `WEBCHECK_BROWSER`), and nothing
 but Python's standard library: it drives the browser over the DevTools protocol
 itself (`tools/weblib.py`). It checks
@@ -176,8 +176,8 @@ manifest a returning visit downloads them all again. Regenerate the manifests on
 deploy, after the last file is in place.
 
 `tools/build_site.py` copies a build and the assets it loads into `<build>/site/`, with
-their manifests, ready for any static host. `tools/serve.py` sends no-store by default (every reload gets the
-latest build); `--cache --gzip` serves as above. `tools/measure_web_startup.py` opens each
+their manifests, ready for any static host. `tools/serve_site.py` sends no-store by default (every reload gets the
+latest build); `--cache --gzip` serves as above. `tools/measure_example_startup.py` opens each
 example three times in a fresh browser profile
 (cold, warm, and hot: Chrome's compiled-code cache), locally and on emulated 4G, and
 times the download, compile, wgrender's init, the first frame and the end of asset
@@ -194,23 +194,23 @@ cmake --preset windows-x64-mingw-debug-headless && cmake --build --preset window
 ctest --preset windows-x64-mingw-debug-headless   # unit tests and every example headless, under Wine
 ```
 
-The tests go through `tools/run_wine.py`: `$WINE`, else `wine64` / `wine`
+The tests go through `tools/run_windows_program.py`: `$WINE`, else `wine64` / `wine`
 on `PATH`, else the newest Proton in a Steam library (Library > Tools). Its prefix (a
 fake Windows install, shared by every build) is in the per-user cache,
 `~/.cache/wgrender/wine` (`tools/hostcache.py`; `WGR_CACHE_DIR` or `WINEPREFIX` move it). The `.exe` files are linked statically (no MinGW DLLs to ship).
-`tools/verify.py` builds `windows-x64-mingw-release` when MinGW is installed, and tests
+`tools/verify_builds.py` builds `windows-x64-mingw-release` when MinGW is installed, and tests
 `windows-x64-mingw-debug-headless` when there's a Wine, so Windows code keeps compiling. Wine runs the
 windowed examples too (OpenGL through the host's driver), but their windows, audio and
 gamepads on real Windows are only checked by hand. To build and test on a real Windows
-machine without pushing, `tools/run_remote_windows.py HOST [--msvc]` copies the working
+machine without pushing, `tools/verify_on_windows.py HOST [--msvc]` copies the working
 tree there over ssh, runs the presets, and deletes it all after.
 
 ## Before calling a change done
 
 ```sh
-python3 tools/verify.py         # release, headless (unit tests, guardrails, smoke), tsan,
+python3 tools/verify_builds.py         # release, headless (unit tests, guardrails, smoke), tsan,
                                 # and windows-x64-mingw-* when MinGW and Wine are there
-python3 tools/verify.py --web   # also every example on wasm32-release, -release-threads and -release-webgpu-threads,
+python3 tools/verify_builds.py --web   # also every example on wasm32-release, -release-threads and -release-webgpu-threads,
                                 # loaded in the browser: for rendering, assets or web code
 ```
 
@@ -234,7 +234,7 @@ sokol-shdc is fetched into the per-user cache (`tools/hostcache.py`) the first t
 ## Benchmarks
 
 ```sh
-python3 tools/bench/run.py spritebench [--desktop]   # also shadowbench, loadbench [--ktx]
+python3 tools/bench/run_benchmark.py spritebench [--desktop]   # also shadowbench, loadbench [--ktx]
 cmake --build --preset wasm32-release --target benches   # the web pages: /bench/?ex=spritebench
 python3 tools/run_benchmarks.py --all                    # C and every binding -> docs/benchmarks.md
 ```

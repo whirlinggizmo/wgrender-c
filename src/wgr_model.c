@@ -391,7 +391,7 @@ static void decode_image(wgr_gltf_textures_t *cache, const cgltf_image *img)
     }
 }
 
-/* Compressed textures (docs/PLAN-textures.md): tools/compress_gltf.py gives a texture
+/* Compressed textures (docs/PLAN-textures.md): tools/compress_model_textures.py gives a texture
  * the WGR_texture_ktx extension, {"source": <image>}, an image named "name.ktx" beside
  * its own. The texture module picks the file this GPU can sample (name.bc7.ktx, ...);
  * without one, the texture uses its own image. */
@@ -1458,7 +1458,7 @@ static void discard_mesh(void *data)
 
 /* The model shaders and pipelines, made when the first mesh reaches the GPU (or a
  * model is drawn) rather than at startup: a program without models doesn't compile
- * them (tools/measure_web_startup.py measures startup). */
+ * them (tools/measure_example_startup.py measures startup). */
 static bool wgr_model_pipelines_ready;
 
 /* A pipeline drawing model primitives with `shader` (built-in or custom: the vertex

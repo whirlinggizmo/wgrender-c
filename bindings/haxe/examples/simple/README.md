@@ -85,7 +85,7 @@ checked-out `out/web/webgl2` is the threaded default (726,858 wasm) and doesn't 
 ### Startup
 
 Size doesn't decide this, and the first attempt was *slower* despite shipping less.
-`tools/measure_web_startup.py --site=DIR` at the library root (wgrender's own `tools/measure_web_startup.py` takes
+`tools/measure_example_startup.py --site=DIR` at the library root (wgrender's own `tools/measure_example_startup.py` takes
 a web preset's site, with its `examples.json`), median of 3, ms to
 `wgr:first-frame`:
 
@@ -152,9 +152,9 @@ guard `rl/impl/RLImpl.hx` provides. So `import wgr.*;` gives a consumer the API 
 none of the plumbing.
 
 `src/wgr/impl/Raw.js.hx` is the other half — 453 calls, written whole by
-`tools/gen_raw.py` from wgrender's `include/*.h`, with the handful that need care
+`tools/gen_raw_externs.py` from wgrender's `include/*.h`, with the handful that need care
 declared in that tool rather than patched into its output, so the two ports cannot
-drift. `tools/gen_raw.py --check` fails when the headers have moved and the binding
+drift. `tools/gen_raw_externs.py --check` fails when the headers have moved and the binding
 has not.
 
 ### What the marshalling layer has to get right
@@ -234,9 +234,9 @@ goes with it. Whatever carries the build config has to be something the build ke
 
 ```sh
 haxe build.web.hxml                 # out/wasm32/release/site: the guest, its host (.js + .wasm), the page
-examples/build.py web simple        # the same, with the suite's checks first
-examples/build.py sizes simple
-examples/build.py drive simple      # headless browser smoke test; writes out/check.png
+tools/run_examples.py web simple        # the same, with the suite's checks first
+tools/run_examples.py sizes simple
+tools/run_examples.py drive simple      # headless browser smoke test; writes out/check.png
 ```
 
 The host exports the guest ABI plus the slice of wgrender's C API the guest calls —

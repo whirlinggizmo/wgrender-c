@@ -62,7 +62,7 @@ redirects, host ping; anything else lives outside the library, see Future).
 
 Structural: **subsystems that can't be left out** -- librl linked everything into every
 build, and so did wgrender until `WGRI_MODULE` (ARCHITECTURE.md §7b): a program now links
-only the subsystems it uses, and `tools/measure_web_size.py` keeps that honest. **Scripting and
+only the subsystems it uses, and `tools/measure_example_sizes.py` keeps that honest. **Scripting and
 bindings mixed into the core** -- librl carried script hosts, hot-reload plumbing and
 four bindings; here the core stays a plain C library and each binding is its own repo
 on the handle-only API (see the README's Bindings section).
@@ -123,7 +123,7 @@ Left out on purpose, not gaps: the scratch buffer and `_to_scratch` functions, p
   math, animation sampling, object state, shadows, culling, instancing; also under
   the sanitizers, the `tsan`, `asan` and `ubsan` presets); **smoke** (every example
   headless for 180 frames, and the same under Wine with `windows-headless`);
-  **web** (`tools/check_web.py`, every example in a Chromium-based browser over the DevTools
+  **web** (`tools/check_web_examples.py`, every example in a Chromium-based browser over the DevTools
   protocol, WebGL2 and WebGPU). The parity layers that were planned here -- an API
   report and scenarios run against both librl and wgrender -- were retired once parity
   was reached (see "What librl taught us"). Still optional: **image comparison**,

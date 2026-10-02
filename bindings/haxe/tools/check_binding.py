@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Run the binding against headless wgrender and assert what it gets back.
 
-    test/check.py
-    test/check.py --lists      only the WebHost list guards: pure Python, for CI
+    tools/check_binding.py
+    tools/check_binding.py --lists      only the WebHost list guards: pure Python, for CI
 
 Headless is wgrender's own test build (-D wgr-headless: its headless flags, compiled in
 by project/Build.xml as any build of the binding is): no window, GPU or audio, and
@@ -63,7 +63,7 @@ def run(cmd, **kw):
 
 
 def main():
-    for tool in ('gen_raw.py', 'gen_keys.py', 'check_coverage.py', 'check_refusals.py', 'gen_sources.py'):
+    for tool in ('gen_raw_externs.py', 'gen_keys.py', 'check_coverage.py', 'check_refusals.py', 'gen_hxcpp_sources.py'):
         run([sys.executable, ROOT / 'tools' / tool, '--check'])
 
     # wgrender's sources compiled in, as every build of the binding does
@@ -153,13 +153,13 @@ def check_guest_warnings():
     source, includes = ROOT / 'host/wgr_guest.c', [WGRENDER / 'include', ROOT / 'host']
     if os.name == 'nt':
         if not shutil.which('cl'):
-            sys.exit('check: no cl.exe on PATH to compile host/wgr_guest.c with (run vcvars64.bat first)')
+            sys.exit('check_binding: no cl.exe on PATH to compile host/wgr_guest.c with (run vcvars64.bat first)')
         run(['cl', '/nologo', '/c', '/W3', '/WX', '/O2', *(f'/I{d}' for d in includes),
              f'/Fo{BUILD / "wgr_guest.obj"}', source])
     else:
         cc = os.environ.get('CC') or shutil.which('cc') or shutil.which('gcc') or shutil.which('clang')
         if not cc:
-            sys.exit('check: no C compiler (CC, cc, gcc or clang) to compile host/wgr_guest.c with')
+            sys.exit('check_binding: no C compiler (CC, cc, gcc or clang) to compile host/wgr_guest.c with')
         run([cc, f'-std={manifest["std"]}', '-O2', *manifest['warn'], '-Werror',
              *(f'-I{d}' for d in includes), '-c', '-o', BUILD / 'wgr_guest.o', source])
 

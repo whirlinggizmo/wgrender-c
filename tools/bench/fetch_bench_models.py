@@ -3,7 +3,7 @@
 repository) into examples/assets/bench/. Sponza: CC BY 4.0 (Crytek, Frank Meinl);
 FlightHelmet: CC0. See https://github.com/KhronosGroup/glTF-Sample-Assets.
 
-    tools/bench/fetch_assets.py
+    tools/bench/fetch_bench_models.py
 """
 import sys
 import json

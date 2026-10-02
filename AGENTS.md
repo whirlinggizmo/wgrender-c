@@ -44,7 +44,7 @@ make and no shell script: everything below works the same on Windows, Linux and 
   own, and the bindings read the same file to compile wgrender with their own
   toolchains. Edit it by hand: a new `src/*.c` goes in `sources` (`tools/check_rules.py` fails
   until it does).
-- `tools/build_web.py [BACKEND=webgpu] [WEB_THREADS=1] [WEB_DEBUG=1]` — the web library
+- `tools/build_web_library.py [BACKEND=webgpu] [WEB_THREADS=1] [WEB_DEBUG=1]` — the web library
   alone, from `build.json` with emcc and Python only, into the same
   `out/wasm32/<variant>/lib/libwgrender.a` the preset `wasm32-<variant>` makes:
   how a binding builds it with nothing but emsdk. Web builds link at `-O3` unless
@@ -55,7 +55,7 @@ make and no shell script: everything below works the same on Windows, Linux and 
   (`tools/check_rules.py`, through clang: the naming rules below, the public API's shape,
   the module boundary, `build.json`'s sources, the tools), and `smoke.<example>`: every
   example run headless for 180 frames, failing on crashes, timeouts or error logs
-  (`tools/run_smoke.py`). `tsan` (or `asan`, `ubsan`) runs the unit tests under a
+  (`tools/run_smoke_test.py`). `tsan` (or `asan`, `ubsan`) runs the unit tests under a
   sanitizer: run `linux-x64-debug-tsan` when touching audio or other code shared with
   the mixer thread.
 - **include/ and examples/ stay backend-free, and the compiler holds it:** each public
@@ -69,15 +69,15 @@ make and no shell script: everything below works the same on Windows, Linux and 
   for the sections; the SPIR-V it compiles through, `tools/spirv.py`, for the
   parameters' names, types and offsets). Matching a program's *output* is fine. Where nothing
   parses it, raise it rather than scan. clang is emsdk's, or one on PATH.
-- `tools/setup_deps.py [check|install]` — the Linux desktop build's system packages (GL, X11,
+- `tools/setup_system_packages.py [check|install]` — the Linux desktop build's system packages (GL, X11,
   ALSA); a Linux desktop configure runs the check.
-- `tools/run_wine.py program.exe` — run a Windows build under Wine (wine64/wine, or Steam's
+- `tools/run_windows_program.py program.exe` — run a Windows build under Wine (wine64/wine, or Steam's
   Proton); the `windows-x64-mingw-debug-headless` preset's tests go through it.
 - `tools/setup_mingw.py` — the pinned MinGW-w64 (a WinLibs GCC) the `windows-x64-mingw`
   presets build with on a Windows host: `cmake/mingw-w64.cmake` runs it, and it
   downloads into the per-user cache once. Never the `gcc` on PATH. To move to a newer
   GCC, change its release, URL and SHA-256 together.
-- `tools/run_remote_windows.py HOST [--msvc] [--variant PRESET]` — build and test the
+- `tools/verify_on_windows.py HOST [--msvc] [--variant PRESET]` — build and test the
   working tree, committed or not, on a real Windows machine over ssh (cmd.exe as its
   shell): copies it to a scratch folder there, runs the presets (MinGW by default,
   `--msvc` for Visual Studio's compiler), and deletes everything after.
@@ -88,48 +88,48 @@ make and no shell script: everything below works the same on Windows, Linux and 
 - `tools/update_clay.py [ref]` — the same for Clay (used only by `examples/clay.c`),
   from libwgrender's fork (github.com/robknopf/clay: upstream plus fixes, each on its own
   branch merged into the fork's `main`). Records both commits in `deps/clay/VERSION`.
-- `tools/bench/run.py loadbench [--desktop] [--ktx]` — worst frame while loading large
+- `tools/bench/run_benchmark.py loadbench [--desktop] [--ktx]` — worst frame while loading large
   glTF models in the background vs synchronously (downloads them on first use); `--ktx`
   with their textures compressed (made the first time; needs `--desktop`: headless
   samples no compressed format).
-- `tools/bench/run.py shadowbench [--desktop]` — what a casting light costs a frame: the
+- `tools/bench/run_benchmark.py shadowbench [--desktop]` — what a casting light costs a frame: the
   same scene with no shadows, one light at three map sizes, two lights, one where nothing
   receives, one where every model shares a mesh and material (what instancing is worth),
   and two where the camera faces away from everything (with culling on and off, which is
   what frustum culling is worth), at four model counts. Headless is CPU only (no GPU at
   all); `--desktop` opens a window with vsync off for real frame times.
-- `tools/bench/run.py spritebench [--desktop]` — sprite-heavy scenes (a grid, a
+- `tools/bench/run_benchmark.py spritebench [--desktop]` — sprite-heavy scenes (a grid, a
   perspective field with mixed facings, 3D and 2D particles as sprites and from
   emitters): frame time, CPU split into update / scene / submit, sokol_gl vertex/command
   use.
 - The benchmarks are targets of the web presets too (`loadbench`, `shadowbench`,
   `spritebench`, `stress`; `benches` for all): pages of their own under `bench/` in the
   site, `/bench/?ex=spritebench` (results in the browser console).
-- `python3 tools/check_web.py [--backend=webgpu] [--threads]` — the web build's smoke
+- `python3 tools/check_web_examples.py [--backend=webgpu] [--threads]` — the web build's smoke
   test in a browser, on the matching web preset's site (needs a Chromium-based
   browser: Brave, Chrome, Chromium or Edge, and Python's standard library; WebGPU runs on a virtual X display when Xvfb is installed,
   else in a visible window). Web builds have no threads unless their variant adds
-  `-threads`; a threaded build needs cross-origin isolation (`tools/serve.py` sends the
+  `-threads`; a threaded build needs cross-origin isolation (`tools/serve_site.py` sends the
   headers).
-- `python3 tools/check_cache.py [--manifest] [--backend=webgpu] [--threads]` — the web
+- `python3 tools/check_asset_cache.py [--manifest] [--backend=webgpu] [--threads]` — the web
   asset cache across visits: tilemap in one browser context while its sheet is kept,
   changed and deleted on the server, and the network blocked; each visit judged by its
   requests' statuses and the screen. `--manifest` does it with manifests. Run both when
   touching `wgr_fs` or the asset fetch.
 - `tools/gen_manifest.py DIR` — the asset manifests (`manifest.json` in DIR and every
   directory under it) that `wgr_asset_set_manifest` reads; `tools/build_site.py` runs it.
-- `python3 tools/serve.py [port] [out/wasm32/<variant>/site]` — the dev server (COOP/COEP headers,
+- `python3 tools/serve_site.py [port] [out/wasm32/<variant>/site]` — the dev server (COOP/COEP headers,
   `/assets/` mounted) on http://localhost:8000. `--tls CERT KEY` serves HTTPS for other
   devices on the LAN (a phone), which need a secure page for threaded builds.
   `--cache --gzip` serves as a real host should (versioned code cached for good; see
   README "Startup and hosting"). `--assets DIR` mounts DIR at `/assets/` instead.
 - `tools/build_site.py [out/wasm32/<variant>/site]` — a self-contained copy of a web build,
   assets included, for a static host (the Pages workflow publishes `wasm32-release`'s).
-- `python3 tools/measure_web_startup.py [--backend=webgpu] [--threads]` — startup times per web
+- `python3 tools/measure_example_startup.py [--backend=webgpu] [--threads]` — startup times per web
   example: cold, warm and hot visits, locally and on emulated 4G, from libwgrender's
   `wgr:*` performance marks; `--devtools=PORT --url=URL` measures a phone. Run it when
   touching init, the page shell or web build flags.
-- `tools/measure_web_size.py [out/wasm32/<variant>/site]` — wasm/JS sizes per web example (raw and gzip;
+- `tools/measure_example_sizes.py [out/wasm32/<variant>/site]` — wasm/JS sizes per web example (raw and gzip;
   brotli if installed).
 - `tools/run_benchmarks.py [--doc | --all]` — the C `simple` against every binding
   (docs/benchmarks.md): download size, frame cost, JS heap and GC, and what a call from a
@@ -155,14 +155,14 @@ make and no shell script: everything below works the same on Windows, Linux and 
 - `gen-brdf-lut` (a target of a Linux, macOS or Windows preset) — regenerate the baked BRDF table
   (`src/data/wgr_brdf_lut.h`) after changing `wgri_environment_brdf_lut` or its size (a
   unit test fails until you do).
-- Run `python3 tools/verify.py` (this machine's release, debug-headless and debug-tsan
+- Run `python3 tools/verify_builds.py` (this machine's release, debug-headless and debug-tsan
   presets, `windows-x64-mingw-release` / `windows-x64-mingw-debug-headless` when MinGW
-  and Wine are installed, and the Haxe binding's suite, `bindings/haxe/test/check.py`,
+  and Wine are installed, and the Haxe binding's suite, `bindings/haxe/tools/check_binding.py`,
   when Haxe is) before calling a change done; add `--web` (every example on
   `wasm32-release`, `wasm32-release-threads` and `wasm32-release-webgpu-threads`, loaded
   in the browser, and the Haxe examples built for the web and driven) when touching
   rendering, assets or web code, and `--windows HOST` (MinGW and MSVC built and tested
-  on a real Windows machine over ssh, `tools/run_remote_windows.py`) when touching
+  on a real Windows machine over ssh, `tools/verify_on_windows.py`) when touching
   threads, files and paths, the platform layer (`wgr_platform.c`, `deps/sokol_utils`) or
   the build.
   Without `--web` nothing links a web example, so **EM_JS changes are unverified until
@@ -186,7 +186,7 @@ make and no shell script: everything below works the same on Windows, Linux and 
 - Read-only tasks (questions, reviews) need no approval.
 - **Keep the core a plain C library.** Language bindings live here, under `bindings/`
   (`bindings/haxe`), built only on the public API, so a public API change updates them
-  in the same commit (`tools/verify.py` runs the Haxe binding's suite when Haxe is
+  in the same commit (`tools/verify_builds.py` runs the Haxe binding's suite when Haxe is
   installed). Scripting hosts and networking beyond asset downloads (WebSockets, HTTP
   APIs, multiplayer) are separate modules/repos built on the public API; don't add
   them here.
@@ -344,7 +344,7 @@ makes. Each binding's `tools/check_coverage.py --check` enforces rules 1 and 2.
   arithmetically (`mix(lo, hi, step(...))`). An affine `arr[i + k]` and a dynamic vector
   component (`v[i % 4]`) are both fine. `src/shaders/wgr_sprite.glsl`'s `curve_key` is
   the worked example.
-- A shader that only *some* GPUs reject won't show up in `tools/verify.py --web`
+- A shader that only *some* GPUs reject won't show up in `tools/verify_builds.py --web`
   or CI. Link-check on a real low-end device when you touch one.
 
 ## Naming
@@ -364,14 +364,16 @@ What they come to here:
   **build flag** the build system also passes: `-DWGR_HEADLESS` and `#ifdef
   WGR_HEADLESS` have to spell it the same, so build flags stay `WGR_` wherever they
   are used.
-- **Tools are named for what they do, verb first:** `gen_` writes committed files,
-  `check_` fails on what's wrong, `run_`, `build_`, `measure_`, `setup_`, `update_`,
-  `compress_`... (`check_web.py`, `measure_web_size.py`, `run_smoke.py`). A module that
-  tools import, and that isn't run, is a noun (`builds.py`, `weblib.py`,
-  `hostcache.py`). The same in `bindings/`. Every tool takes `--help` (its docstring,
-  and nothing else done) and stops on an argument it doesn't take: `tools/cli.py`'s
-  `parse`, first thing in its `__main__` block. `tools/check_rules.py` runs them all
-  both ways; a new module goes in its `TOOL_MODULES`.
+- **A script is `<verb>_<noun>`: what it does, and to what.** `gen_` writes committed
+  files, `check_` fails on what's wrong, `run_`, `build_`, `measure_`, `setup_`,
+  `update_`, `verify_`... (`verify_builds.py`, `check_web_examples.py`,
+  `measure_example_sizes.py`); a bare verb doesn't say to what. **A module, imported and
+  never run, is one word** (`builds.py`, `weblib.py`, `shdc.py`), and a script is never
+  imported: what scripts share goes in a module. The same in `bindings/`. Every script
+  takes `--help` (its docstring, and nothing else done) and stops on an argument it
+  doesn't take: `tools/cli.py`'s `parse`, first thing in its `__main__` block.
+  `tools/check_rules.py` holds all of it (imports read with Python's `ast`); a new
+  module goes in its `TOOL_MODULES`.
 - **Tooling environment variables:** `WGRENDER_` (`WGRENDER_WEB_PROFILE`). They aren't
   library symbols, and three letters collide too easily in a process environment. A
   variable naming another project takes *that* project's name (`SOKOL_DIR` for a sokol checkout, because

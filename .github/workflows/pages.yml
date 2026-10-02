@@ -52,8 +52,8 @@ jobs:
         run: |
           haxelib install hxcpp --always
           haxelib dev wgrender-hx bindings/haxe
-          python3 bindings/haxe/examples/build.py web
-          python3 bindings/haxe/examples/build.py site
+          python3 bindings/haxe/tools/run_examples.py web
+          python3 bindings/haxe/tools/run_examples.py site
           cp -r bindings/haxe/examples/out/wasm32/release/site build/wasm32-release/site/haxe
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

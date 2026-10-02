@@ -23,7 +23,7 @@
  * to start first — and nothing in libwgrender did the TLS. Point it somewhere else with
  * WGRENDER_ASSET_HOST, e.g. the dev server the web build uses:
  *
- *     python3 tools/serve.py
+ *     python3 tools/serve_site.py
  *     WGRENDER_ASSET_HOST=http://localhost:8000/assets out/linux-x64/release/bin/fetch
  *
  * Offline, or built headless for the smoke test (a gate shouldn't need a network), it

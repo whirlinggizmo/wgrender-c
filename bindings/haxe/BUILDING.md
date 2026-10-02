@@ -14,12 +14,12 @@ build is `haxe <file>.hxml`, on Windows, Linux or macOS.
   - Windows: MSVC (Visual Studio; hxcpp's default), or MinGW. Always add
     `-D HXCPP_M64`: hxcpp builds 32-bit on Windows unless told otherwise.
 - for the web: Emscripten (emsdk), with `emcc` on `PATH`. wgrender's web library is
-  built by its `tools/build_web.py`, on the Python emsdk brings.
+  built by its `tools/build_web_library.py`, on the Python emsdk brings.
 - on Linux, the system's GL, X11 and ALSA dev packages, which sokol links:
-  `python3 tools/setup_deps.py install` from the repository root (apt, dnf or pacman)
-- Python 3 for the tools here (`examples/build.py`, `test/check.py`, the generators)
-- a Chromium-based browser (Brave, Chrome, Chromium or Edge) for `examples/build.py drive`
-  (`tools/drive.py`, Python like the rest: there is no Node to install)
+  `python3 tools/setup_system_packages.py install` from the repository root (apt, dnf or pacman)
+- Python 3 for the tools here (`tools/run_examples.py`, `tools/check_binding.py`, the generators)
+- a Chromium-based browser (Brave, Chrome, Chromium or Edge) for `tools/run_examples.py drive`
+  (`tools/drive_example.py`, Python like the rest: there is no Node to install)
 
 ## Install
 
@@ -69,15 +69,15 @@ COOP/COEP headers), `WEB_DEBUG=0|1`.
 ## The examples
 
 ```sh
-examples/build.py all            build each one, web and native
-examples/build.py web simple     only the web build, only simple
-examples/build.py serve          serve every web build (http://localhost:8000/)
-examples/build.py drive          run each web build in a headless browser
-examples/build.py site           every web build and the assets, one site for any static host
-examples/build.py compare        sizes against wgrender's own C build of each
+tools/run_examples.py all            build each one, web and native
+tools/run_examples.py web simple     only the web build, only simple
+tools/run_examples.py serve          serve every web build (http://localhost:8000/)
+tools/run_examples.py drive          run each web build in a headless browser
+tools/run_examples.py site           every web build and the assets, one site for any static host
+tools/run_examples.py compare        sizes against wgrender's own C build of each
 ```
 
-`examples/build.py` builds against the wgrender this binding sits in and puts
+`tools/run_examples.py` builds against the wgrender this binding sits in and puts
 wgrender's sample assets beside each desktop binary.
 
 Builds are named as wgrender's are (its `tools/builds.py`): a preset
@@ -92,27 +92,27 @@ desktop binary `out/linux-x64/release/bin/` (`out/windows-x64-msvc/release/bin/`
 cmake --build --preset wasm32-release` in wgrender-c.
 
 `examples/simple-hxcpp` is `simple` built all-in-one through hxcpp, for the web too:
-`./build.py desktop` or `./build.py web` (`out/linux-x64/release/bin/`,
+`tools/run_examples.py desktop simple-hxcpp` or `web simple-hxcpp` (`out/linux-x64/release/bin/`,
 `out/wasm32/release-hxcpp/site/`: hxcpp's web build adds `-hxcpp` to the variant).
 Like every build of the binding it compiles wgrender in from its sources
 (`project/Build.xml`, with the flags `project/wgrender.xml` carries from wgrender's
 `build.json`), by whichever compiler hxcpp uses: MSVC or MinGW on Windows, emcc for the
 web. On Windows, `wgr.macros.NativeOut` tells hxcpp's emscripten target where emcc and
-emsdk's Python are. `tools/build_hxcpp_web.py <example>` builds any example that way for the
+emsdk's Python are. `tools/build_hxcpp_example.py <example>` builds any example that way for the
 web (`out/wasm32/release-hxcpp/site/`), for the benchmarks.
 
 ## Checks
 
 ```sh
-python3 test/check.py            # generators in --check mode, then the binding against
+python3 tools/check_binding.py            # generators in --check mode, then the binding against
                                  # headless wgrender (-D wgr-headless, compiled in),
                                  # native and js
 python3 tools/check_refusals.py --check --require-clang   # (CI) every refusal documented
 ```
 
-`test/check.py` builds in `build/<os>/headless/` and needs only Haxe, hxcpp and a C
-compiler. After wgrender changes, regenerate what is generated from it: `tools/gen_raw.py` (the C surface),
-`tools/gen_keys.py`, `tools/gen_sources.py` (`project/wgrender.xml`); `test/check.py`
+`tools/check_binding.py` builds in `build/<os>/headless/` and needs only Haxe, hxcpp and a C
+compiler. After wgrender changes, regenerate what is generated from it: `tools/gen_raw_externs.py` (the C surface),
+`tools/gen_keys.py`, `tools/gen_hxcpp_sources.py` (`project/wgrender.xml`); `tools/check_binding.py`
 says which is stale.
 
 ## Benchmarks

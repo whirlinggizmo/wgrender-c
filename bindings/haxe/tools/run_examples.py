@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """Build and check the examples here.
 
-    examples/build.py <command> [example ...]
+    tools/run_examples.py <command> [example ...]
 
 Naming examples limits the command to those; naming none means all of them.
 
     all        build it: the web build (guest and host) and the native binary
     web        the guest and its wasm host -- one build, each example's build.web.hxml
     desktop    the native binary only, each example's build.desktop.hxml
-    guest      (the same as web: the host is linked by the guest's build now)
-    host       (likewise)
     drive      run each web build in a headless browser and fail on a console error
     site       collect every web build into out/wasm32/<variant>/site with a page that lists them
     serve      build that site and serve it: one server, each example a subdirectory;
@@ -20,12 +18,12 @@ Naming examples limits the command to those; naming none means all of them.
     list       the examples, and what each one is
     clean      remove out/ (what the builds made) and build/ (their work)
 
-So `examples/build.py desktop` builds every example's native binary, and
-`examples/build.py all simple` builds one example every way.
+So `tools/run_examples.py desktop` builds every example's native binary, and
+`tools/run_examples.py all simple` builds one example every way.
 
 Each example owns its build.py; this runs them, so there is one command to say
 whether a change to the binding broke any of them. The library's own checks are
-test/check.py at the root -- they are not an example's business and run on their own.
+tools/check_binding.py at the root -- they are not an example's business and run on their own.
 
 Python rather than a Makefile: nothing else in wgrender-hx uses make, and wgrender's
 own tools that this shells out to are Python already, so it adds no dependency the
@@ -39,32 +37,24 @@ import pathlib
 import subprocess
 import sys
 
-HERE = pathlib.Path(__file__).resolve().parent
-LIB = HERE.parent
-if not (LIB / 'tools/wgrpath.py').exists():
-    # this tree has been copied out of the library; ask haxelib where it went
-    _found = subprocess.run(['haxelib', 'libpath', 'wgrender-hx'],
-                            capture_output=True, text=True).stdout.strip()
-    if not _found:
-        sys.exit('wgrender-hx not found. Either keep examples/ inside the library, or:\n'
-                 '  haxelib git wgrender-hx https://github.com/whirlinggizmo/wgrender-c main bindings/haxe')
-    LIB = pathlib.Path(_found)
+LIB = pathlib.Path(__file__).resolve().parents[1]  # the binding: bindings/haxe
+HERE = LIB / 'examples'
 sys.path.insert(0, str(LIB / 'tools'))
 from wgrpath import WGRENDER  # noqa: E402
-from guestbuild import Project, main_class as guest_main_class, site_dir, web_variant  # noqa: E402
+from guestbuild import HxcppProject, Project, main_class as guest_main_class, site_dir, web_variant  # noqa: E402
 C_BUILD = WGRENDER / 'out/wasm32/release/site'  # wgrender's own C build of each example
 
 
 # simple-hxcpp is the other architecture -- Haxe through hxcpp into one wasm, rather
-# than a JS guest on a wgrender host -- so it has its own commands and is not driven
-# or benched with the guests.
+# than a JS guest on a wgrender host (guestbuild.HxcppProject) -- so it is not benched
+# with the guests, and has no guest host to wait for when driven.
 GUESTS = ['hello', 'hello3d', 'particles', 'simple', 'stress', 'tick',
           'quit', 'window', 'font', 'audio', 'force_fetch',
           'fetch', 'sprite2d', 'sprite3d', 'text3d', 'tilemap',
           'model', 'meshes', 'textures', 'materials', 'lights',
           'instancing', 'shadows', 'render_target', 'postprocess', 'environment',
           'shaders', 'gamepad', 'scene3d', 'pick', 'loading', 'touch', 'ui']
-OTHERS = ['simple-hxcpp']
+OTHERS = {'simple-hxcpp': ('simple', 'examples/simple-hxcpp/src/Simple.hx')}  # program, source
 
 WHAT = {
     'hello': 'a window, 2D shapes, text and the mouse',
@@ -124,9 +114,9 @@ WHAT = {
 
 def wanted(names, chosen=()):
     picked = [n for n in names if not chosen or n in chosen]
-    if chosen and not picked and set(chosen) - set(GUESTS + OTHERS):
-        sys.exit(f'no such example: {", ".join(sorted(set(chosen) - set(GUESTS + OTHERS)))}\n'
-                 f'  have: {", ".join(GUESTS + OTHERS)}')
+    if chosen and not picked and set(chosen) - set(GUESTS + list(OTHERS)):
+        sys.exit(f'no such example: {", ".join(sorted(set(chosen) - set(GUESTS + list(OTHERS))))}\n'
+                 f'  have: {", ".join(GUESTS + list(OTHERS))}')
     return picked
 
 
@@ -135,15 +125,18 @@ def run(cmd, cwd, **kw):
     subprocess.run([str(c) for c in cmd], check=True, cwd=cwd, **kw)
 
 
+def project(name):
+    """A guest, or an example built all-in-one through hxcpp."""
+    if name in OTHERS:
+        return HxcppProject(HERE / name, name, *OTHERS[name])
+    return Project(HERE / name, name)
+
+
 def each(command, names=None, chosen=()):
-    """A guest is its hxml files, so this does its work in-process; an all-in-one
-    example (simple-hxcpp) is a different build and keeps its own script."""
-    for name in wanted(names or GUESTS + OTHERS, chosen):
-        if name in GUESTS:
-            print(f'\n=== {name}: {command}', flush=True)
-            Project(HERE / name, name).command(command)
-        else:
-            run([sys.executable, 'build.py', command], HERE / name)
+    """Every example is its hxml files, so this does each one's work in-process."""
+    for name in wanted(names or GUESTS + list(OTHERS), chosen):
+        print(f'\n=== {name}: {command}', flush=True)
+        project(name).command(command)
 
 
 # What an example's drive does beyond loading the page and checking it drew. Each
@@ -156,13 +149,13 @@ DRIVE_FLAGS = {'particles': ['--click']}
 def drive(chosen=()):
     env = dict(os.environ)
     for name in wanted(GUESTS, chosen):
-        run([sys.executable, LIB / 'tools/drive.py', f'--site={HERE / name / site_dir(web_variant())}', f'--label={name}',
+        run([sys.executable, LIB / 'tools/drive_example.py', f'--site={HERE / name / site_dir(web_variant())}', f'--label={name}',
              *DRIVE_FLAGS.get(name, [])], HERE / name, env=env)
     if 'simple-hxcpp' in wanted(OTHERS, chosen):
         # all-in-one through hxcpp: the library's own page (web/index.html), so no guest host to wait for
-        site = HERE / 'simple-hxcpp'
-        run([sys.executable, LIB / 'tools/drive.py', f'--site={site / site_dir("release-hxcpp")}', '--label=haxe-simple',
-             '--ready=examples.json', '--settle=8000'], site, env=env)
+        hxcpp = project('simple-hxcpp')
+        run([sys.executable, LIB / 'tools/drive_example.py', f'--site={hxcpp.web_out()}', '--label=haxe-simple',
+             '--ready=examples.json', '--settle=8000'], hxcpp.root, env=env)
 
 
 def bench(chosen=()):
@@ -180,7 +173,7 @@ def bench(chosen=()):
 SITE_INDEX = """<!doctype html>
 <meta charset="utf-8">
 <title>wgrender-hx examples</title>
-<!-- Generated by examples/build.py site. -->
+<!-- Generated by tools/run_examples.py site. -->
 <style>
   :root {{ color-scheme: dark; }}
   body {{ margin: 0; padding: 2.5rem 1.5rem; background: #14141a; color: #e8e8ef;
@@ -345,14 +338,14 @@ def site(chosen=()):
     for name in wanted(GUESTS, chosen):
         src = HERE / name / site_dir(web_variant())
         if not (src / 'index.html').exists():
-            print(f'{name}: not built, skipping (./build.py all)', file=sys.stderr)
+            print(f'{name}: not built, skipping (tools/run_examples.py web)', file=sys.stderr)
             continue
         shutil.copytree(src, out / name)
         built.append(name)
         size = sum(f.stat().st_size for f in (out / name).rglob('*') if f.is_file())
         options.append(f'  <option value="{name}">{name} &mdash; {size:,} bytes</option>')
     if not built:
-        sys.exit('nothing built: examples/build.py all')
+        sys.exit('nothing built: tools/run_examples.py all')
     for name in built:
         page = out / name / 'index.html'
         html = page.read_text(encoding='utf-8')
@@ -421,7 +414,7 @@ def serve(args, chosen=()):
     if '--tls' in args:
         i = args.index('--tls')
         if len(args) < i + 3:
-            sys.exit('--tls takes a certificate and a key: ./build.py serve --tls cert.pem key.pem')
+            sys.exit('--tls takes a certificate and a key: tools/run_examples.py serve --tls cert.pem key.pem')
         cert, key = args[i + 1], args[i + 2]
         args = args[:i] + args[i + 3:]
     port = next((a for a in args if a.isdigit()), '8443' if cert else '8000')
@@ -429,18 +422,18 @@ def serve(args, chosen=()):
         sys.exit('TLS needs both a certificate and a key')
 
     out = site(chosen)
-    cmd = [sys.executable, str(WGRENDER / 'tools/serve.py'), port, str(out), '--assets', str(WGRENDER / 'examples/assets')]
+    cmd = [sys.executable, str(WGRENDER / 'tools/serve_site.py'), port, str(out), '--assets', str(WGRENDER / 'examples/assets')]
     if cert:
         cmd += ['--tls', cert, key]
     scheme = 'https' if cert else 'http'
     print(f'\n{scheme}://localhost:{port}/')
     if not cert:
-        print('  another device on the LAN needs https: ./build.py serve --tls cert.pem key.pem')
+        print('  another device on the LAN needs https: tools/run_examples.py serve --tls cert.pem key.pem')
     subprocess.run(cmd, check=False)
 
 
 def listing():
-    for name in GUESTS + OTHERS:
+    for name in GUESTS + list(OTHERS):
         kind = 'guest' if name in GUESTS else 'all-in-one'
         print(f'  {name:<13} {kind:<11} {WHAT.get(name, "")}')
 
@@ -457,10 +450,8 @@ def main():
         listing()
     elif command == 'all':
         each('all', chosen=chosen)
-    elif command in ('web', 'guest', 'host'):
-        each('web', GUESTS, chosen)
-        if command == 'web':
-            each('web', OTHERS, chosen)
+    elif command == 'web':
+        each('web', chosen=chosen)
     elif command in ('desktop', 'sizes', 'clean'):
         each(command, chosen=chosen)
     elif command == 'drive':
@@ -472,8 +463,15 @@ def main():
     elif command == 'compare':
         # compare_sizes.py prints what is missing and why; a traceback on top of that adds
         # a stack trace to a message that was already the answer.
-        return subprocess.run([sys.executable, str(LIB / 'tools/compare_sizes.py')]
-                              + [str(HERE / n) for n in chosen]).returncode
+        guests = [n for n in chosen if n in GUESTS] if chosen else []
+        if not chosen or guests:
+            done = subprocess.run([sys.executable, str(LIB / 'tools/compare_sizes.py')]
+                                  + [str(HERE / n) for n in guests]).returncode
+            if done:
+                return done
+        for name in wanted(list(OTHERS), chosen):
+            print(f'\n=== {name}: compare', flush=True)
+            project(name).compare()
     elif command == 'bench':
         bench(chosen)
     else:

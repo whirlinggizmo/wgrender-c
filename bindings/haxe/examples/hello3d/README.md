@@ -9,8 +9,8 @@ game costs over the wgrender host when the game itself is seventy lines.
 
     haxe build.web.hxml                 the guest and its host, into out/wasm32/release/site
     haxe build.desktop.hxml             the native binary
-    examples/build.py serve hello3d     http://localhost:8000/hello3d/
-    examples/build.py drive hello3d     headless smoke test
+    tools/run_examples.py serve hello3d     http://localhost:8000/hello3d/
+    tools/run_examples.py drive hello3d     headless smoke test
 
 ## Against the C
 

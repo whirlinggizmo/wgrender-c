@@ -2,11 +2,11 @@
 """Desktop smoke test: run headless example binaries for a fixed number of frames and
 fail on a non-zero exit, a timeout, or error-level logs ([ERROR], [FATAL], sokol panics).
 
-    tools/run_smoke.py [--frames N] [--runner CMD] <binary>...
+    tools/run_smoke_test.py [--frames N] [--runner CMD] <binary>...
 
 ctest runs it once per example (smoke.<name>); run by hand, the binaries run in
 parallel and are reported in argument order. --runner runs each binary under a
-command (tools/run_wine.py for a Windows build made on Linux).
+command (tools/run_windows_program.py for a Windows build made on Linux).
 
 Runs from the repository root, so the examples find examples/assets. Headless builds
 pace frames at 60 per second (so timing-driven code runs as in a real game): 180
@@ -50,7 +50,7 @@ def main():
 
     n = len(args.binaries)
     if n > 1:
-        print(f'smoke: {n} examples, {args.frames} frames each (headless, in parallel)')
+        print(f'run_smoke_test: {n} examples, {args.frames} frames each (headless, in parallel)')
     with ThreadPoolExecutor(max_workers=n) as pool:
         results = list(pool.map(lambda b: run(b, args.frames, runner, timeout), args.binaries))
 

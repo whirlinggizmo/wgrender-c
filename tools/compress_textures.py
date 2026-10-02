@@ -11,7 +11,7 @@ falling back to name.png. Keep the PNG: it's the fallback, and pixel-accurate pi
 reads it.
 
     tools/compress_textures.py [--linear] image.png...
-    tools/compress_textures.py --gltf model.gltf     (a model's textures: tools/compress_gltf.py)
+    tools/compress_textures.py --gltf model.gltf     (a model's textures: tools/compress_model_textures.py)
 
 --linear: the images hold data, not colors (normal maps, roughness): no sRGB weighting
 when compressing, and mipmaps averaged as they are.
@@ -82,7 +82,7 @@ def compress(tool, image, linear):
 def main():
     args = sys.argv[1:]
     if args[:1] == ['--gltf']:
-        sys.exit(subprocess.run([sys.executable, str(ROOT / 'tools' / 'compress_gltf.py'), *args[1:]]).returncode)
+        sys.exit(subprocess.run([sys.executable, str(ROOT / 'tools' / 'compress_model_textures.py'), *args[1:]]).returncode)
     linear = args[:1] == ['--linear']
     if linear:
         args = args[1:]

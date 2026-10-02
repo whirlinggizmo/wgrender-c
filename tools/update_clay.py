@@ -8,7 +8,7 @@ libwgrender needs, each on its own branch merged into the fork's main; sync it w
 upstream there, then run this. Clay is used only by examples/clay.c. The files are
 copied at their upstream paths, so the demo layout's own include of "../../clay.h"
 resolves unchanged. deps/clay/VERSION records the fork commit and the upstream commit
-it's based on. Review the diff, rebuild (tools/verify.py --web), then commit.
+it's based on. Review the diff, rebuild (tools/verify_builds.py --web), then commit.
 """
 import os
 import shutil

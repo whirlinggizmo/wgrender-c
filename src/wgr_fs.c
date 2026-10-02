@@ -51,7 +51,7 @@ EM_JS(void, wgr_fs_store_open, (const char *root_c, int epoch), {
     Module.wgr_fs_next_read = 1;
     const done = (state, err) => {
         Module.wgr_fs_state = state;
-        performance.mark("wgr:fs-ready"); /* tools/measure_web_startup.py */
+        performance.mark("wgr:fs-ready"); /* tools/measure_example_startup.py */
         if (err) console.warn("wgr_fs: no persistent cache", err);
     };
     try {

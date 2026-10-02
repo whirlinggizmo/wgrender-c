@@ -36,7 +36,7 @@ class Tilemap {
 	static inline final ZOOM_MIN = 4.0;
 	static inline final ZOOM_MAX = 32.0;
 
-	// cells of the sheet, in texture pixels: x, y, width, height (wgrender's tools/gen_tiles.py;
+	// cells of the sheet, in texture pixels: x, y, width, height (wgrender's tools/gen_tile_sheet.py;
 	// each cell has a gutter around it that repeats its edge, so sampling never reaches a neighbour)
 	static final GRASS = [2.0, 2, 16, 16];
 	static final SAND = [22.0, 2, 16, 16];

@@ -11,7 +11,7 @@
 White on purpose: an emitter's color (and palette) tints them. Needs nothing but the
 standard library. Run from anywhere:
 
-    tools/gen_particles.py
+    tools/gen_particle_textures.py
 """
 import sys
 from pathlib import Path

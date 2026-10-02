@@ -26,10 +26,10 @@ out of the headers by parser rather than by hand — 72 of 76 unattended.
 
 ```sh
 haxe build.web.hxml                   # the JS guest and its host wasm, into out/wasm32/release/site
-examples/build.py all particles       # that, plus the native guest
-examples/build.py desktop particles   # out/linux-x64/release/bin/particles-guest, with assets linked beside it
-examples/build.py sizes particles
-examples/build.py drive particles     # headless smoke test; clicks once for the confetti
+tools/run_examples.py all particles       # that, plus the native guest
+tools/run_examples.py desktop particles   # out/linux-x64/release/bin/particles-guest, with assets linked beside it
+tools/run_examples.py sizes particles
+tools/run_examples.py drive particles     # headless smoke test; clicks once for the confetti
 ```
 
 ## Size

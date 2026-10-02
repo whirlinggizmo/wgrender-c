@@ -2,7 +2,7 @@
 """Run a Windows program under Wine: the windows-x64-mingw-* presets' tests and smoke runs use it
 (it is their CMAKE_CROSSCOMPILING_EMULATOR).
 
-    tools/run_wine.py program.exe [args...]
+    tools/run_windows_program.py program.exe [args...]
 
 Which Wine: $WINE if set, else wine64 or wine on PATH, else the newest Proton in a
 Steam library (its files/bin/wine; Proton is Valve's Wine, installed from Steam's
@@ -13,45 +13,23 @@ own debug output is off unless WINEDEBUG is set. Exits with the program's exit c
 or 127 when there's no Wine.
 """
 import os
-import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
 from hostcache import cache_dir  # noqa: E402
+import wine as wines  # noqa: E402  (which Wine)
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-def version_key(path):
-    """'Proton 11.0' after 'Proton 9.0'; Experimental and the like before numbers."""
-    return [int(n) for n in re.findall(r'\d+', path.parent.parent.parent.name)]
-
-
-def find_wine():
-    if os.environ.get('WINE'):
-        return os.environ['WINE']
-    for name in ('wine64', 'wine'):
-        if shutil.which(name):
-            return shutil.which(name)
-    home = Path.home()
-    libraries = [home / '.local/share/Steam', home / '.steam/steam']
-    vdf = home / '.local/share/Steam/steamapps/libraryfolders.vdf'
-    if vdf.exists():
-        libraries += [Path(p) for p in re.findall(r'"path"\s*"([^"]*)"', vdf.read_text(errors='replace'))]
-    found = {w for lib in libraries for w in lib.glob('steamapps/common/Proton*/files/bin/wine')
-             if os.access(w, os.X_OK)}
-    return str(max(found, key=version_key)) if found else None
 
 
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
-    wine = find_wine()
+    wine = wines.find()
     if not wine:
-        print('run_wine.py: no Wine found (install wine64, or Proton from Steam\'s Library > Tools, '
+        print('run_windows_program.py: no Wine found (install wine64, or Proton from Steam\'s Library > Tools, '
               'or set WINE)', file=sys.stderr)
         sys.exit(127)
     env = dict(os.environ)

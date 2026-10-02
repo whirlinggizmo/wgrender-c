@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Build a benchmark with CMake and run it.
 
-    tools/bench/run.py NAME [--desktop] [--ktx]
+    tools/bench/run_benchmark.py NAME [--desktop] [--ktx]
 
   loadbench     the worst frame while loading Sponza and FlightHelmet, background vs
-                synchronous (downloads the models the first time: fetch_assets.py)
+                synchronous (downloads the models the first time: fetch_bench_models.py)
   spritebench   sprite-heavy scenes: frame time, and CPU split into update / scene /
                 submit, with sokol_gl's vertex and command use
   shadowbench   what a casting light costs a frame: no shadows, one light at two map
@@ -47,7 +47,7 @@ def main():
 
     env = dict(os.environ)
     if args.name == 'loadbench':
-        run(sys.executable, str(ROOT / 'tools/bench/fetch_assets.py'))
+        run(sys.executable, str(ROOT / 'tools/bench/fetch_bench_models.py'))
         if args.ktx:
             for model in ('Sponza/Sponza', 'FlightHelmet/FlightHelmet'):
                 if not (BENCH / f'{model}.ktx.gltf').exists():

@@ -302,28 +302,46 @@ def check_modules(r, lib):
 
 
 # Where tools live, and the modules among them: imported by tools, never run. Every other
-# file is a tool.
-TOOL_FILES = ['tools/*.py', 'tools/bench/*.py', 'bindings/haxe/tools/*.py', 'bindings/haxe/test/check.py',
-              'bindings/haxe/examples/build.py', 'bindings/haxe/examples/simple-hxcpp/build.py']
-TOOL_MODULES = {'tools/builds.py', 'tools/cli.py', 'tools/headers.py', 'tools/hostcache.py', 'tools/spirv.py', 'tools/weblib.py', 'tools/bench/measure.py',
+# file is a script.
+TOOL_FILES = ['tools/*.py', 'tools/bench/*.py', 'bindings/haxe/tools/*.py']
+TOOL_MODULES = {'tools/builds.py', 'tools/cli.py', 'tools/headers.py', 'tools/hostcache.py', 'tools/shdc.py',
+                'tools/spirv.py', 'tools/weblib.py', 'tools/wine.py', 'tools/bench/measure.py', 'tools/bench/pages.py',
                 'bindings/haxe/tools/guestbuild.py', 'bindings/haxe/tools/members.py',
                 'bindings/haxe/tools/wgrpath.py', 'bindings/haxe/tools/wgrweb.py'}
-# What a tool's name may start with: what it does. A bare verb is a name too (serve.py).
+# What a script's name may start with: what it does. Then what it does it to.
 TOOL_VERBS = ('build', 'check', 'compare', 'compress', 'create', 'drive', 'fetch', 'finish', 'gen', 'measure',
               'pack', 'run', 'serve', 'setup', 'show', 'update', 'verify', 'watch')
-# Tools whose name is fixed by what runs them: a project's build script, a test suite.
-TOOL_NAMES_FIXED = {'bindings/haxe/test/check.py', 'bindings/haxe/examples/build.py',
-                    'bindings/haxe/examples/simple-hxcpp/build.py'}
 
 
 def check_tools(r):
     from concurrent.futures import ThreadPoolExecutor
     tools = sorted({p.relative_to(ROOT).as_posix() for pattern in TOOL_FILES for p in ROOT.glob(pattern)}
                    - TOOL_MODULES)
-    names = [t for t in tools if t not in TOOL_NAMES_FIXED
-             and Path(t).stem.split('_')[0] not in TOOL_VERBS]
-    r.result([f'{t}: not named verb first ({", ".join(TOOL_VERBS)})' for t in names],
-             f'{len(tools)} tools named verb first', 'tools named for what they do')
+    def shape(t):
+        stem = Path(t).stem
+        if t in TOOL_MODULES:
+            return None if '_' not in stem else f'{t}: a module is one word'
+        verb, sep, noun = stem.partition('_')
+        if verb not in TOOL_VERBS or not sep or not noun:
+            return f'{t}: a script is <verb>_<noun> ({", ".join(TOOL_VERBS)}), what it does and to what'
+        return None
+    every = sorted({p.relative_to(ROOT).as_posix() for pattern in TOOL_FILES for p in ROOT.glob(pattern)})
+    names = [problem for problem in map(shape, every) if problem]
+    r.result(names, f'{len(tools)} scripts are <verb>_<noun>, {len(every) - len(tools)} modules one word',
+             'tools named for what they do, and to what')
+
+    # A script is run, never imported: what tools share is a module's. Read with
+    # Python's own parser.
+    import ast
+    scripts = {Path(t).stem: t for t in tools}
+    imported = []
+    for t in every:
+        for node in ast.walk(ast.parse((ROOT / t).read_text(encoding='utf-8'), t)):
+            names_in = ([a.name for a in node.names] if isinstance(node, ast.Import)
+                        else [node.module or ''] if isinstance(node, ast.ImportFrom) else [])
+            imported += [f'{t} imports {scripts[n]}' for n in names_in if n in scripts and scripts[n] != t]
+    r.result(sorted(set(imported)), 'no script imports another (what tools share is a module)',
+             'a script imported by another file (move what it shares into a module):')
 
     def answers(tool):
         def run(arg):

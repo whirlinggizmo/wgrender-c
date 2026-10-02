@@ -51,7 +51,7 @@ class Version {
 		if (major() == BuiltVersion.MAJOR && minor() == BuiltVersion.MINOR)
 			return true;
 		Log.fatal('wgrender ${runtime()} does not match the $BUILT this binding was generated '
-			+ 'against (${BuiltVersion.COMMIT}) — regenerate with tools/gen_raw.py');
+			+ 'against (${BuiltVersion.COMMIT}) — regenerate with tools/gen_raw_externs.py');
 		return false;
 	}
 }

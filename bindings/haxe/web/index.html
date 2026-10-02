@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>wgrender-hx, through hxcpp</title>
-<!-- The page shell for the examples built through hxcpp into one wasm (tools/build_hxcpp_web.py finishes it with tools/finish_site.py); the JS guests' pages are wgr.macros.WebHost's. Started from wgrender's examples/web/index.html; this repository's own now. -->
+<!-- The page shell for the examples built through hxcpp into one wasm (tools/build_hxcpp_example.py finishes it with tools/finish_site.py); the JS guests' pages are wgr.macros.WebHost's. Started from wgrender's examples/web/index.html; this repository's own now. -->
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #15171c;
     color: #cdd3de; font: 14px/1.4 system-ui, sans-serif; }
@@ -183,7 +183,7 @@
     const s = document.createElement("script");
     s.src = versioned(current + ".js", version.js);
     s.onerror = () => {
-      statusEl.textContent = "not built: " + current + "  (examples/build.py web " + current + ")";
+      statusEl.textContent = "not built: " + current + "  (tools/run_examples.py web " + current + ")";
     };
     document.body.appendChild(s);
   </script>

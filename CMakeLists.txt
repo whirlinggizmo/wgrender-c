@@ -21,7 +21,7 @@
 #
 # What is built, and with what, is build.json: the sources, and per target the
 # defines, flags and libraries. The bindings read the same file to build wgrender with
-# their own toolchains (wgrender-nim's build.nim, tools/build_web.py), so this file
+# their own toolchains (wgrender-nim's build.nim, tools/build_web_library.py), so this file
 # lists no source, flag or library of its own.
 #
 # Options:
@@ -222,7 +222,7 @@ else()
   if(WGR_TARGET STREQUAL "linux" AND Python3_FOUND)
     # the system's GL, X11 and ALSA dev packages: stop here, with the command that
     # installs them, rather than at the link
-    execute_process(COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/setup_deps.py" check
+    execute_process(COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/setup_system_packages.py" check
                     RESULT_VARIABLE deps_missing)
     if(deps_missing)
       message(FATAL_ERROR "wgrender: missing system build dependencies (above)")
@@ -244,14 +244,14 @@ endif()
 message(STATUS "wgrender: ${WGR_TARGET}")
 
 # What wgrender's own web programs (the examples and benchmarks) export for its tools to
-# call from JS: the asset queue check_web.py and measure_web_startup.py wait on, and the cache
-# check_cache.py clears. Nothing in wgrender forces an export (src/internal/
+# call from JS: the asset queue check_web_examples.py and measure_example_startup.py wait on, and the cache
+# check_asset_cache.py clears. Nothing in wgrender forces an export (src/internal/
 # exports_internal.h), so a program of anyone else's carries none of these.
 set(WGR_TOOL_EXPORTS
     "-sEXPORTED_FUNCTIONS=_main,_wgri_asset_pending_count,_wgri_asset_pending_log,_wgr_asset_clear_cache")
 
 # How a program here runs: directly, or under CMAKE_CROSSCOMPILING_EMULATOR (Wine for
-# a Windows build made on Linux: tools/run_wine.py)
+# a Windows build made on Linux: tools/run_windows_program.py)
 set(WGR_RUNNER ${CMAKE_CROSSCOMPILING_EMULATOR})
 
 if(WGR_EXAMPLES)
@@ -283,7 +283,7 @@ if(WGR_EXAMPLES)
   # On the web, site/ is the site: <example>.js and .wasm, and the page and
   # examples.json that tools/finish_site.py writes once they're linked, as outputs the
   # build knows, so it writes them again when an example or the shell changes, or when
-  # they're gone. Serve it with tools/serve.py; tools/build_site.py makes a copy to hand a
+  # they're gone. Serve it with tools/serve_site.py; tools/build_site.py makes a copy to hand a
   # static host.
   if(EMSCRIPTEN AND Python3_FOUND)
     add_custom_command(
@@ -314,7 +314,7 @@ if(PROJECT_IS_TOP_LEVEL)
     endif()
   endfunction()
 
-  # The benchmarks (tools/bench; tools/bench/run.py builds and runs one). On the web
+  # The benchmarks (tools/bench; tools/bench/run_benchmark.py builds and runs one). On the web
   # they are pages of their own under bench/, out of the examples list and webcheck:
   # serve the site, then open /bench/?ex=spritebench (results in the browser console).
   # WGR_LOADBENCH_FLAGS picks what loadbench loads, e.g.
@@ -396,7 +396,7 @@ if(WGR_TESTS)
   endif()
 
   # Every example, headless for 180 frames (3 s at the paced 60 fps): fails on a bad
-  # exit, a timeout, or an error in its log (tools/run_smoke.py). Python by its path, not
+  # exit, a timeout, or an error in its log (tools/run_smoke_test.py). Python by its path, not
   # the imported Python3::Interpreter, which a cross build would run under the emulator.
   if(WGR_EXAMPLES AND Python3_FOUND)
     set(runner_arg)
@@ -406,7 +406,7 @@ if(WGR_TESTS)
     endif()
     foreach(name IN LISTS WGR_EXAMPLE_TARGETS)
       add_test(NAME smoke.${name}
-               COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/run_smoke.py" --frames 180
+               COMMAND "${Python3_EXECUTABLE}" "${WGR_ROOT}/tools/run_smoke_test.py" --frames 180
                        ${runner_arg} $<TARGET_FILE:${name}>
                WORKING_DIRECTORY "${WGR_ROOT}")
     endforeach()

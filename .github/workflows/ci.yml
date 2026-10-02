@@ -5,7 +5,7 @@
 #   and on demand. Nothing waits on it; it catches clean-checkout problems (files
 #   not committed, new system dependencies).
 # - web: daily and on demand (Actions -> ci -> Run workflow), since web breakage
-#   from a clean environment is rare and `tools/verify.py --web` runs locally when
+#   from a clean environment is rare and `tools/verify_builds.py --web` runs locally when
 #   web code changes.
 # - haxe: every push and pull request, the binding in bindings/haxe against the
 #   wgrender beside it.
@@ -34,13 +34,13 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          python3 tools/setup_deps.py install
+          python3 tools/setup_system_packages.py install
       - name: Build library and examples (GL)
-        run: python3 tools/verify.py --only linux-x64-release
+        run: python3 tools/verify_builds.py --only linux-x64-release
       - name: Unit tests, guardrails, and every example headless
-        run: python3 tools/verify.py --only linux-x64-debug-headless
+        run: python3 tools/verify_builds.py --only linux-x64-debug-headless
       - name: Unit tests under ThreadSanitizer
-        run: python3 tools/verify.py --only linux-x64-debug-tsan
+        run: python3 tools/verify_builds.py --only linux-x64-debug-tsan
 
   # An EM_JS body is carried through the library as text and only compiled when an
   # example *links* -- closure runs then. So the desktop job above and a library
@@ -82,7 +82,7 @@ jobs:
         # and twice the deadline. Four at a time starved a model's decode past 20 s.
         run: |
           cmake --preset wasm32-release-threads && cmake --build --preset wasm32-release-threads
-          python3 tools/check_web.py --backend=webgl2 --threads --jobs=2 --settle=40000
+          python3 tools/check_web_examples.py --backend=webgl2 --threads --jobs=2 --settle=40000
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v7
@@ -91,7 +91,7 @@ jobs:
           path: build/wasm32-release-threads/webcheck
           if-no-files-found: ignore
 
-  # The Haxe binding: its audit, then its whole suite (bindings/haxe/test/check.py:
+  # The Haxe binding: its audit, then its whole suite (bindings/haxe/tools/check_binding.py:
   # the generators current, headless hxcpp, JS, cppia, its C). The audit reads
   # wgrender's C with clang, which comes from emsdk. Locally a missing clang is a skip,
   # so a desktop-only checkout still tests; a skip that can happen everywhere is not a
@@ -106,7 +106,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          python3 tools/setup_deps.py install
+          python3 tools/setup_system_packages.py install
       - uses: actions/cache@v6
         with:
           path: emsdk-cache
@@ -125,4 +125,4 @@ jobs:
       - name: Refusals read from the C with clang
         run: python3 bindings/haxe/tools/check_refusals.py --require-clang
       - name: The binding's suite
-        run: python3 bindings/haxe/test/check.py
+        run: python3 bindings/haxe/tools/check_binding.py

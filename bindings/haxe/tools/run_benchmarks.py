@@ -46,7 +46,7 @@ def measure_all():
     measure.run([sys.executable, 'build.py', 'web'], cwd=EXAMPLES / 'simple-hxcpp', env=env)
     # the stress scene all-in-one through hxcpp: the Haxe GC inside the wasm, which
     # gcbench cannot trace but a late frame shows
-    measure.run([sys.executable, ROOT / 'tools/build_hxcpp_web.py', 'stress'], cwd=ROOT, env=env)
+    measure.run([sys.executable, ROOT / 'tools/build_hxcpp_example.py', 'stress'], cwd=ROOT, env=env)
 
     haxe = f'Haxe {version(["haxe", "--version"])}'
     hxcpp = version(['haxelib', 'list', 'hxcpp']).split('[')[0].replace(':', '').strip()

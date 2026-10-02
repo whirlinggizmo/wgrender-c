@@ -4,7 +4,7 @@ and what waits on what.
 
     tools/show_waterfall.py SITE          (e.g. examples/simple/out/wasm32/release/site)
 
-The site is served the way a host should (tools/serve.py --cache --gzip) and loaded in
+The site is served the way a host should (tools/serve_site.py --cache --gzip) and loaded in
 a fresh headless browser; after 12 s it prints every request with its start, end and
 bytes transferred, then libwgrender's performance marks.
 """
@@ -34,7 +34,7 @@ def main():
     try:
         port = weblib.free_port()
         run.spawn(serve_command(port, site, '--cache', '--gzip'))
-        weblib.wait_for(f'http://127.0.0.1:{port}/index.html', 'serve.py')
+        weblib.wait_for(f'http://127.0.0.1:{port}/index.html', 'serve_site.py')
         debug_base, browser = weblib.launch_browser(run, weblib.find_browser(), 'headless')
         target = browser.send('Target.createTarget', {'url': 'about:blank'})['targetId']
         page = weblib.open_session(f'ws://{urllib.parse.urlsplit(debug_base).netloc}/devtools/page/{target}')

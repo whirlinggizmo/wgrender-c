@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """A self-contained copy of a web build to hand a static host: the examples, the page,
-and the assets they load, so nothing has to be mounted beside it (tools/serve.py does
+and the assets they load, so nothing has to be mounted beside it (tools/serve_site.py does
 that locally).
 
     tools/build_site.py [BUILD] [--out DIR]
@@ -38,7 +38,7 @@ def main():
     build = Path(args.build).resolve()
     out = Path(args.out).resolve() if args.out else builds.work(builds.preset_of(build)) / 'site'
     if not (build / 'examples.json').exists():
-        sys.exit(f'site: no web build at {build} (cmake --preset {builds.preset_of(build)} && '
+        sys.exit(f'build_site: no web build at {build} (cmake --preset {builds.preset_of(build)} && '
                  f'cmake --build --preset {builds.preset_of(build)})')
 
     if out.exists():
@@ -52,7 +52,7 @@ def main():
     # the manifests the examples set (EXAMPLE_ASSET_MANIFEST): a returning visitor then
     # fetches only the assets that changed since the last deploy
     subprocess.run([sys.executable, ROOT / 'tools' / 'gen_manifest.py', out / 'assets'], check=True)
-    print(f'site: {out} ({size(out) / 1e6:.1f} MB): any static host, at a domain root or under a path')
+    print(f'build_site: {out} ({size(out) / 1e6:.1f} MB): any static host, at a domain root or under a path')
 
 
 if __name__ == '__main__':

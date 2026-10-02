@@ -6,7 +6,7 @@
  *   - desktop: a local directory, relative to the run cwd (the project root).
  *   - web:     "assets", relative to the page, fetched on a cache miss then stored
  *              in idbfs. Relative and not "/assets" so the site works wherever it is
- *              hosted: at a domain root (tools/serve.py, which mounts examples/assets
+ *              hosted: at a domain root (tools/serve_site.py, which mounts examples/assets
  *              at /assets) and equally under a path, as GitHub Pages serves a project
  *              at /<repo>/. Benchmarks under bench/ keep the absolute form; they are a
  *              local tool and are not published.
@@ -19,7 +19,7 @@
 
 /* The manifest of the asset host (docs/PLAN-asset-cache.md): the published site's
  * assets have one (tools/build_site.py writes it with tools/gen_manifest.py), so a returning
- * visitor fetches only what changed. Where there is none, as under tools/serve.py, the
+ * visitor fetches only what changed. Where there is none, as under tools/serve_site.py, the
  * cache asks the host about each file instead; on desktop the host is a directory
  * and it's ignored. Pass it to wgr_asset_set_manifest() after wgr_asset_set_host(). */
 #define EXAMPLE_ASSET_MANIFEST "manifest.json"

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """wgrender's web library, built with emcc alone: no make, no shell, on any OS.
 
-    tools/build_web.py [BACKEND=webgl2|webgpu] [WEB_THREADS=0|1] [WEB_DEBUG=0|1] [-j N]
+    tools/build_web_library.py [BACKEND=webgl2|webgpu] [WEB_THREADS=0|1] [WEB_DEBUG=0|1] [-j N]
 
 The settings also come from the environment, else default to a WebGL2 release build
 without threads. The result is out/wasm32/<variant>/lib/libwgrender.a, <variant> being
@@ -34,13 +34,13 @@ def settings(args):
     given = dict(a.split('=', 1) for a in args if '=' in a)
     unknown = set(given) - set(DEFAULTS)
     if unknown:
-        sys.exit(f'buildweb: unknown setting {", ".join(sorted(unknown))}\n{__doc__}')
+        sys.exit(f'build_web_library: unknown setting {", ".join(sorted(unknown))}\n{__doc__}')
     chosen = {k: given.get(k) or os.environ.get(k) or v for k, v in DEFAULTS.items()}
     if chosen['BACKEND'] not in ('webgl2', 'webgpu'):
-        sys.exit(f"buildweb: BACKEND must be webgl2 or webgpu (got '{chosen['BACKEND']}')")
+        sys.exit(f"build_web_library: BACKEND must be webgl2 or webgpu (got '{chosen['BACKEND']}')")
     for k in ('WEB_THREADS', 'WEB_DEBUG'):
         if chosen[k] not in ('0', '1'):
-            sys.exit(f"buildweb: {k} must be 0 or 1 (got '{chosen[k]}')")
+            sys.exit(f"build_web_library: {k} must be 0 or 1 (got '{chosen[k]}')")
     return chosen
 
 
@@ -52,7 +52,7 @@ def tool(name):
     """emcc/emar as installed: emcc.bat on Windows, which PATHEXT lets which() find."""
     found = shutil.which(name)
     if not found:
-        sys.exit(f'buildweb: no {name} on PATH (emsdk: emsdk activate, or emsdk_env)')
+        sys.exit(f'build_web_library: no {name} on PATH (emsdk: emsdk activate, or emsdk_env)')
     return found
 
 
@@ -139,7 +139,7 @@ def main():
 
     failed = False
     if jobs_to_run:
-        print(f'buildweb: {name}: compiling {len(jobs_to_run)} of {len(objects)}', flush=True)
+        print(f'build_web_library: {name}: compiling {len(jobs_to_run)} of {len(objects)}', flush=True)
         with ThreadPoolExecutor(max_workers=jobs) as pool:
             for src, done in pool.map(compile_one, jobs_to_run):
                 if done.stdout.strip() or done.stderr.strip():
@@ -147,7 +147,7 @@ def main():
                 if done.returncode != 0:
                     failed = True
     if failed:
-        sys.exit('buildweb: compile failed')
+        sys.exit('build_web_library: compile failed')
 
     lib = build / 'libwgrender.a'
     if jobs_to_run or not lib.exists():
@@ -155,7 +155,7 @@ def main():
             lib.unlink()  # rcs into an existing archive would keep members that are gone
         done = subprocess.run([emar, 'rcs', str(lib), *map(str, objects)], cwd=ROOT)
         if done.returncode != 0:
-            sys.exit('buildweb: emar failed')
+            sys.exit('build_web_library: emar failed')
         print(f'built {lib.relative_to(ROOT).as_posix()}')
     else:
         print(f'{lib.relative_to(ROOT).as_posix()} is up to date')

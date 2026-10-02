@@ -153,7 +153,7 @@ static const char *backend_name(sg_backend b)
 
 static void on_init(void)
 {
-    wgri_platform_mark("wgr:init"); /* startup points: tools/measure_web_startup.py */
+    wgri_platform_mark("wgr:init"); /* startup points: tools/measure_example_startup.py */
     /* the window's style, as soon as it exists (sokol_app made it, visible, before
        this: a hidden window can show for a moment first) */
     wgri_platform_set_window_style((wgr_rt.window_flags & WGR_WINDOW_FLAG_WINDOW_RESIZABLE) != 0,

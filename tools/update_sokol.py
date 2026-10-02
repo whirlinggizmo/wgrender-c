@@ -6,7 +6,7 @@
 The fork (SOKOL_REPO, default github.com/robknopf/sokol) is floooh/sokol plus fixes
 libwgrender needs; sync it with upstream there, then run this. Only the headers already
 in deps/sokol are copied. deps/sokol/VERSION records the fork commit and the upstream
-commit it's based on. Review the diff, rebuild (tools/verify.py --web), then commit.
+commit it's based on. Review the diff, rebuild (tools/verify_builds.py --web), then commit.
 """
 import os
 import shutil

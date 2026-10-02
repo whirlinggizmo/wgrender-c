@@ -17,9 +17,9 @@ class Assets {
 
 	/**
 		The manifest under the asset base, for `Asset.setManifest`: the published site's
-		assets have one (examples/build.py site writes it with tools/gen_manifest.py),
+		assets have one (tools/run_examples.py site writes it with tools/gen_manifest.py),
 		so a returning visitor fetches only what changed. Where there is none, as under
-		tools/serve.py, the cache asks the host about each file instead; natively the
+		tools/serve_site.py, the cache asks the host about each file instead; natively the
 		base is a directory and it's ignored.
 	**/
 	public static inline final MANIFEST = "manifest.json";
@@ -27,10 +27,10 @@ class Assets {
 	/**
 		On the web — either web build — `assets` beside the page, relative, as wgrender's
 		own web examples have it, so a site works at a domain root or under a path
-		(GitHub Pages serves a project at /<repo>/). tools/serve.py mounts wgrender's
+		(GitHub Pages serves a project at /<repo>/). tools/serve_site.py mounts wgrender's
 		asset tree at `/assets`, which is beside a page served at the root. A page
 		elsewhere says where with `<meta name="wgr-asset-base" content="../assets">`
-		(examples/build.py site gives each example's page one, beside the shared tree).
+		(tools/run_examples.py site gives each example's page one, beside the shared tree).
 
 		Natively, in order:
 

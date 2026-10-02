@@ -13,7 +13,7 @@
   committed, its dependencies are vendored, and Python regenerates shaders rather
   than building. project/wgrender.xml lists the sources and the flags wgrender's own
   builds use (native, headless with -D wgr-headless, the web), from wgrender's
-  build.json; tools/gen_sources.py writes it, and its check mode fails when it drifts.
+  build.json; tools/gen_hxcpp_sources.py writes it, and its check mode fails when it drifts.
 
   hxcpp defaults to a 32-bit build on Windows, so add -D HXCPP_M64 for x64.
 -->

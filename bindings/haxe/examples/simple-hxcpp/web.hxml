@@ -1,7 +1,7 @@
 # Web (Emscripten) build of the wgrender simple example: simple.js + simple.wasm, with
 # wgrender compiled in from its sources by emcc, with wgrender's own web flags.
 #
-# `./build.py web` runs this with -D wgr-webgpu for BACKEND=webgpu and --debug for
+# `tools/run_examples.py web simple-hxcpp` runs this with -D wgr-webgpu for BACKEND=webgpu and --debug for
 # WEB_DEBUG=1, and puts the site in out/wasm32/<variant>/site/.
 
 -cp src

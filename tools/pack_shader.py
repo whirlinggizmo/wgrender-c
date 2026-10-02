@@ -10,7 +10,7 @@ and read from a texture where there's no base instance), compiles it for every
 backend libwgrender runs on (GL 4.1, WebGL2, WebGPU) with sokol-shdc, and writes one
 .wgrshader file: each backend's sources, what sokol needs to know about them, and the
 parameters by name. Load it with wgr_shader_create(path). Only needed to make the file,
-never at runtime; sokol-shdc is downloaded the first time (tools/gen_shaders.py).
+never at runtime; sokol-shdc is downloaded the first time (tools/shdc.py).
 
 A fragment shader that includes wgr_screen instead of wgr_surface is a screen effect
 (wgr_render_add_effect): it gets one program, drawn over the finished frame.
@@ -23,7 +23,7 @@ from pathlib import Path
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # an embedded Python (Windows) doesn't add it
-import gen_shaders  # noqa: E402
+import shdc as shader_compiler  # noqa: E402  (sokol-shdc, pinned)
 import spirv  # noqa: E402  (a SPIR-V module's uniform blocks)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -164,7 +164,7 @@ def main():
         sys.exit(__doc__)
     path = args[0]
     out = out or path[: -len(".glsl")] + ".wgrshader"
-    shdc = str(gen_shaders.shdc())
+    shdc = str(shader_compiler.path())
 
     user = open(path, encoding="utf-8").read()
     interface = open(INTERFACE, encoding="utf-8").read()

@@ -5,7 +5,7 @@
 
 Writes examples/<name>/ with build.web.hxml and build.desktop.hxml -- the build, and
 what a user copies -- a .gitignore, and a src/<Entry>.hx stub that starts and clears
-the screen. That is the whole example: examples/build.py runs the suite's chores for it
+the screen. That is the whole example: tools/run_examples.py runs the suite's chores for it
 by name, and wgr.macros.WebHost writes the page and its boot module into out/wasm32/release/site when
 the web build runs.
 
@@ -21,7 +21,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 WEB_HXML = '''# {name}, for the web: the Haxe guest compiled to JS, and a wasm host linked to
 # exactly the wgrender calls it makes. `haxe build.web.hxml`, then serve
 # out/wasm32/release/site; the page loads its assets from assets/ beside it (which
-# tools/serve.py provides).
+# tools/serve_site.py provides).
 -cp src
 -lib wgrender-hx
 --main {entry}
@@ -134,7 +134,7 @@ def main():
     print(f'examples/{name}/')
     print(f'  src/{entry}.hx   the stub to replace')
     print(f'  build.web.hxml, build.desktop.hxml   the build')
-    print(f'\nadd {name!r} to GUESTS in examples/build.py, then: examples/build.py all {name}')
+    print(f'\nadd {name!r} to GUESTS in tools/run_examples.py, then: tools/run_examples.py all {name}')
     return 0
 
 

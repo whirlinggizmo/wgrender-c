@@ -11,7 +11,7 @@ using haxe.macro.Tools;
 #end
 
 /**
-	What a cppia module needs of the binding, for `test/check.py`'s check-cppia.
+	What a cppia module needs of the binding, for `tools/check_binding.py`'s check-cppia.
 
 	Hot reload ([hotreload-hx](https://github.com/whirlinggizmo/hotreload-hx)) runs an
 	application's reloaded code as a cppia module, and cppia can't run an extern call

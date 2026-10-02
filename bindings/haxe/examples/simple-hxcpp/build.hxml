@@ -1,6 +1,6 @@
 # Desktop build of the wgrender simple example: wgrender compiled in from its sources.
 #
-# `./build.py desktop` runs this and installs the binary in out/<platform>/release/bin/.
+# `tools/run_examples.py desktop simple-hxcpp` runs this and installs the binary in out/<platform>/release/bin/.
 
 -cp src
 -lib wgrender-hx

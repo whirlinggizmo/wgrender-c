@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Web startup: how long each example takes to start, the first time and after.
 
-    tools/measure_web_startup.py [options] [example ...]     (after building the web preset)
+    tools/measure_example_startup.py [options] [example ...]     (after building the web preset)
 
 Each example is opened three times in a fresh browser profile, served the way a
-typical host serves it (tools/serve.py --cache --gzip: files kept and revalidated,
+typical host serves it (tools/serve_site.py --cache --gzip: files kept and revalidated,
 compressed):
   cold   nothing cached: everything downloads and compiles
   warm   the second visit: code from the HTTP cache (revalidated), assets from
@@ -137,7 +137,7 @@ def wait_for_port(port):
             if s.connect_ex(('127.0.0.1', port)) == 0:
                 return
         time.sleep(0.1)
-    raise RuntimeError(f'tools/serve.py did not start (port {port})')
+    raise RuntimeError(f'tools/serve_site.py did not start (port {port})')
 
 
 def visit(session, url):
@@ -213,12 +213,12 @@ def main():
     opts = parse_args()
     manifest = opts.site / 'examples.json'
     if not manifest.exists():
-        sys.exit(f'webstart: no web build at {opts.site}')
+        sys.exit(f'measure_example_startup: no web build at {opts.site}')
     built = json.loads(manifest.read_text())
     examples = opts.examples or built
     missing = [e for e in examples if e not in built]
     if missing:
-        sys.exit(f'webstart: not built: {", ".join(missing)}')
+        sys.exit(f'measure_example_startup: not built: {", ".join(missing)}')
 
     browser_path = None if opts.display == 'remote' else find_browser(opts.browser)
     run = RunProcesses('webstart')
@@ -226,16 +226,16 @@ def main():
     results = {}
     try:
         site_port = urllib.parse.urlsplit(opts.url).port if opts.url else free_port()
-        run.spawn([PYTHON, ROOT / 'tools' / 'serve.py', site_port, opts.site, '--cache', '--gzip',
+        run.spawn([PYTHON, ROOT / 'tools' / 'serve_site.py', site_port, opts.site, '--cache', '--gzip',
                    *(['--tls', *opts.tls] if opts.tls else [])])
         base_url = opts.url or f'http://127.0.0.1:{site_port}'
         if opts.tls:
             wait_for_port(site_port)  # its certificate isn't for 127.0.0.1
         else:
-            wait_for(f'{base_url}/examples.json', 'tools/serve.py')
+            wait_for(f'{base_url}/examples.json', 'tools/serve_site.py')
         where = {'headless': 'headless (SwiftShader)', 'xvfb': 'GPU, virtual display (Xvfb)',
                  'screen': 'GPU, on the screen', 'remote': f'the browser at DevTools port {opts.devtools}'}
-        print(f'webstart: {len(examples)} example(s), {opts.backend}{" threads" if opts.threads else ""}, '
+        print(f'measure_example_startup: {len(examples)} example(s), {opts.backend}{" threads" if opts.threads else ""}, '
               f'{where[opts.display]}{f", {browser_path}" if browser_path else ""}')
         print('ms from navigation; js and wasm show the bytes transferred (gzip)\n', flush=True)
         for net in opts.nets:
@@ -270,4 +270,4 @@ if __name__ == '__main__':
     try:
         sys.exit(main())
     except RuntimeError as e:
-        sys.exit(f'webstart: {e}')
+        sys.exit(f'measure_example_startup: {e}')

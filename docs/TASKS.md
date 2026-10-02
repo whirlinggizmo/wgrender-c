@@ -4,7 +4,7 @@ Working checklist. Order and reasoning live in [ROADMAP.md](ROADMAP.md); this fi
 is what's done and what's next.
 
 Workflow: pick the top unchecked item, outline a plan (AGENTS.md), implement with
-tests, keep `python3 tools/verify.py` passing, and tick the box in the same commit.
+tests, keep `python3 tools/verify_builds.py` passing, and tick the box in the same commit.
 
 ## Bugs and measurements
 
@@ -155,7 +155,7 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
 - [x] Shadows on the same rule: light matrices -1..1 on the CPU (caster culling was
       wrong on WebGPU), converted only for the depth pass.
 - [ ] The Haxe binding moves in as `bindings/haxe` (history kept); its CI and Pages
-      join the root's, `tools/verify.py` runs its suite. wgrender-beef is dropped and
+      join the root's, `tools/verify_builds.py` runs its suite. wgrender-beef is dropped and
       wgrender-nim set aside.
 - [x] Tools named verb-first (`run_`, `check_`, `build_`, `measure_`...); modules that
       tools import keep nouns. Every tool takes `--help` (prints its usage and does

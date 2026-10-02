@@ -13,18 +13,20 @@ Haxe, and what does Haxe cost in wasm.
 
 ## Build
 
+From `bindings/haxe/`, as every example is built (`guestbuild.HxcppProject`):
+
 ```sh
-./build.py desktop     # out/linux-x64/release/bin/simple (out/windows-x64-msvc/release/bin/ on Windows)
-./build.py web         # out/wasm32/release-hxcpp/site/ (simple.js + simple.wasm + the library's page)
-./build.py all
-./build.py serve       # http://localhost:8000/
-./build.py check       # compile the whole binding surface, not just what Simple.hx uses
-./build.py compare     # this port's wasm next to the C one
-./build.py clean
-../build.py drive simple-hxcpp   # headless-browser smoke test of the web build; writes build/wasm32-release-hxcpp/check.png
+tools/run_examples.py desktop simple-hxcpp   # out/linux-x64/release/bin/simple (out/windows-x64-msvc/release/bin/ on Windows)
+tools/run_examples.py web simple-hxcpp       # out/wasm32/release-hxcpp/site/ (simple.js + simple.wasm + the library's page)
+tools/run_examples.py all simple-hxcpp
+tools/run_examples.py drive simple-hxcpp     # headless-browser smoke test of the web build; writes build/wasm32-release-hxcpp/check.png
+tools/run_examples.py compare simple-hxcpp   # this port's wasm next to the C one
+tools/run_examples.py clean simple-hxcpp
 ```
 
-`./build.py` runs `haxe build.hxml` or `haxe web.hxml`, and hxcpp compiles wgrender in
+Serve the web build with wgrender's `tools/serve_site.py <port> examples/simple-hxcpp/out/wasm32/release-hxcpp/site`.
+
+That runs `haxe build.hxml` or `haxe web.hxml`, and hxcpp compiles wgrender in
 from its sources, as every build of the binding does (the binding's
 `project/Build.xml`), with whichever compiler it uses: MSVC or MinGW on
 Windows, emcc for the web. The C++ and objects are in `build/<preset>/cpp`
@@ -48,7 +50,7 @@ other route" below.
 
 ## Size
 
-`./build.py compare`, all built with the same wgrender web flags
+`tools/run_examples.py compare`, all built with the same wgrender web flags
 (`BACKEND=webgl2 WEB_THREADS=0`, release):
 
 | port                   |       wasm |   gzipped |  vs C |        js |  gzipped |
@@ -69,7 +71,7 @@ far less to carry into the binary.
 
 The JS glue is the same size everywhere, because it's almost entirely Emscripten's.
 
-Two caveats on the table. `./build.py compare` reads whatever each sibling project
+Two caveats on the table. `tools/run_examples.py compare` reads whatever each sibling project
 last built, so the Nim row shows 726,858 / 307,166 unless it was built with
 `WEB_THREADS=0` (its default is threads); the number above is the non-threaded build,
 so it lines up with the rest. And the Haxe link needs one extra flag that the others
@@ -245,7 +247,7 @@ Enums are `enum abstract`s over `Int`; window and asset flags are or-able
 `tools/gen_keys.py`, and carries `static_assert`s that fail the C++ build if the
 header's numbers ever move — the same guard the Nim port uses.
 
-`test/CheckBindings.hx` (`./build.py check`) **runs** against headless wgrender — no
+`test/CheckBindings.hx` (`tools/check_binding.py`) **runs** against headless wgrender — no
 window, GPU or audio, with `WGR_HEADLESS_FRAMES` driving a few frames — and asserts
 what it gets back. 317 checks: struct field order, colour packing, enum values against
 the headers, accessor round-trips, and behaviours the headers state exactly (a missing

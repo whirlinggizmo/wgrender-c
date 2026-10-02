@@ -18,9 +18,9 @@ guest, ...). Its entry in results.json:
     {"id", "label", "project", "example", "toolchain",
      "sizes":  {"files": [{"name", "kind", "raw", "gzip", "brotli"}], "total": {...}},
                kind: wasm, js, or page (the HTML and anything else it fetches)
-     "frame":  measure_page.frame          (script and task ms per frame)
-     "gc":     measure_page.gc             (JS heap allocation and V8 collections)
-     "calls":  measure_page.calls          (JS guests only: wgr calls per frame)
+     "frame":  pages.frame          (script and task ms per frame)
+     "gc":     pages.gc             (JS heap allocation and V8 collections)
+     "calls":  pages.calls          (JS guests only: wgr calls per frame)
      "stress": [{"n", "frame", "gc"}]   the stress scene (tools/bench/stress.c) at each
                                         entity count, where the configuration has it}
 
@@ -43,7 +43,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 WGRENDER = HERE.parents[1]
 sys.path.insert(0, str(WGRENDER / 'tools'))
 sys.path.insert(0, str(HERE))
-import measure_page  # noqa: E402
+import pages  # noqa: E402  (the browser measurements)
 import weblib  # noqa: E402
 
 SCHEMA = 1
@@ -99,7 +99,7 @@ def sizes(files):
     return {'files': rows, 'total': total}
 
 
-# --- the browser (tools/bench/measure_page.py) -----------------------------------
+# --- the browser (tools/bench/pages.py) -----------------------------------
 
 def _measured(what, *args, **kwargs):
     print(f'  {what.__name__}: {kwargs.get("label") or args[1]}', flush=True)
@@ -113,23 +113,23 @@ FRAME_RUNS = 3
 
 
 def frame(site, label, url='/', probe='wgrender-host.js', display='headless'):
-    """measure_page.frame: script and task time per frame, from Chrome's CPU accounting. The
+    """pages.frame: script and task time per frame, from Chrome's CPU accounting. The
     run with the median script time of FRAME_RUNS: one run alone moves by a tenth of a
     millisecond, which is more than the differences being measured."""
-    runs = [_measured(measure_page.frame, site, label, url=url, probe=probe, display=display) for _ in range(FRAME_RUNS)]
+    runs = [_measured(pages.frame, site, label, url=url, probe=probe, display=display) for _ in range(FRAME_RUNS)]
     runs.sort(key=lambda r: r['scriptMs'])
     return dict(runs[len(runs) // 2], scriptRuns=[r['scriptMs'] for r in runs])
 
 
 def gc(site, label, url='/', probe='wgrender-host.js', display='headless', load=0):
-    """measure_page.gc: JS heap allocation per frame and the collections V8 traced. `load`
+    """pages.gc: JS heap allocation per frame and the collections V8 traced. `load`
     burns that many ms in each frame first, taking the slack a pause would hide in."""
-    return _measured(measure_page.gc, site, label, url=url, probe=probe, display=display, load=load)
+    return _measured(pages.gc, site, label, url=url, probe=probe, display=display, load=load)
 
 
 def calls(site, label, url='/', probe='wgrender-host.js', guest='WgrGuest'):
-    """measure_page.calls: wgr calls per frame, for a guest that runs as JS."""
-    return _measured(measure_page.calls, site, label, url=url, probe=probe, guest=guest)
+    """pages.calls: wgr calls per frame, for a guest that runs as JS."""
+    return _measured(pages.calls, site, label, url=url, probe=probe, guest=guest)
 
 
 # The stress scene (tools/bench/stress.c) at these entity counts. It draws thousands of
@@ -167,12 +167,12 @@ def callbench():
          '-sEXPORTED_RUNTIME_METHODS=stackAlloc,stackSave,stackRestore,lengthBytesUTF8,stringToUTF8,HEAP32'])
     for name in ('index.html', 'bench.js'):
         shutil.copyfile(src / name, out / name)
-    with measure_page.page_on(out, 'callbench', probe='callbench.wasm') as (page, base):
+    with pages.page_on(out, 'callbench', probe='callbench.wasm') as (page, base):
         engine = page.send('Browser.getVersion').get('product', 'browser')
         page.send('Page.navigate', {'url': f'{base}/index.html'})
         deadline = time.monotonic() + 300
         while time.monotonic() < deadline:
-            result = measure_page.evaluate(page, 'globalThis.__callbench ? JSON.stringify(globalThis.__callbench) : null')
+            result = pages.evaluate(page, 'globalThis.__callbench ? JSON.stringify(globalThis.__callbench) : null')
             if result:
                 return dict(json.loads(result), engine=engine)
             time.sleep(0.5)

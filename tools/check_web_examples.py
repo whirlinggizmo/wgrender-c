@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Web smoke check for the libwgrender examples (tools/verify.py --web runs it).
+"""Web smoke check for the libwgrender examples (tools/verify_builds.py --web runs it).
 
-    tools/check_web.py [options] [example ...]     (default: all built examples)
+    tools/check_web_examples.py [options] [example ...]     (default: all built examples)
 
-Serves a web preset's site (out/wasm32/<variant>/site) with tools/serve.py, loads each built example in a
+Serves a web preset's site (out/wasm32/<variant>/site) with tools/serve_site.py, loads each built example in a
 Chromium-based browser (Brave, Chrome, Chromium, Edge) through the DevTools protocol,
 and fails an example if it logs a console error or a libwgrender [ERROR]/[FATAL] line,
 throws, hits a sokol panic, never reports starting on the expected backend, or is
@@ -127,7 +127,7 @@ def check_example(browser, debug_base, base_url, example, opts):
                     state['activity'] = time.monotonic()
                     result['backend_ok'] = result['backend_ok'] or BACKEND_LOG[opts.backend] in text
                 # libwgrender logs go to the console as plain messages: fail on error-level
-                # ones like tools/run_smoke.py does ([ERROR], [FATAL])
+                # ones like tools/run_smoke_test.py does ([ERROR], [FATAL])
                 if params.get('type') == 'error' or '[panic]' in text or ERROR_LINE.search(text):
                     result['errors'].append(first_line(text))
             elif method == 'Runtime.exceptionThrown':
@@ -216,13 +216,13 @@ def main():
     opts = parse_args()
     manifest = opts.site / 'examples.json'
     if not manifest.exists():
-        sys.exit(f'webcheck: no web build at {opts.site} (build it first: cmake --preset {builds.preset_of(opts.site)} '
+        sys.exit(f'check_web_examples: no web build at {opts.site} (build it first: cmake --preset {builds.preset_of(opts.site)} '
                  f'&& cmake --build --preset {builds.preset_of(opts.site)})')
     built = json.loads(manifest.read_text())
     examples = opts.examples or built
     missing = [e for e in examples if e not in built]
     if missing:
-        sys.exit(f'webcheck: not built: {", ".join(missing)}')
+        sys.exit(f'check_web_examples: not built: {", ".join(missing)}')
 
     browser_path = find_browser(opts.browser)
     opts.out.mkdir(parents=True, exist_ok=True)
@@ -230,14 +230,14 @@ def main():
     run.install_handlers()
     try:
         site_port = free_port()
-        run.spawn([PYTHON, ROOT / 'tools' / 'serve.py', site_port, opts.site])
+        run.spawn([PYTHON, ROOT / 'tools' / 'serve_site.py', site_port, opts.site])
         base_url = f'http://127.0.0.1:{site_port}'
-        wait_for(f'{base_url}/examples.json', 'tools/serve.py')
+        wait_for(f'{base_url}/examples.json', 'tools/serve_site.py')
         if opts.display == 'screen' and opts.backend == 'webgpu' and not opts.headed:
-            print('webcheck: no Xvfb; WebGPU runs in a window on the real screen')
+            print('check_web_examples: no Xvfb; WebGPU runs in a window on the real screen')
         debug_base, browser = launch_browser(run, browser_path, opts.display)
         where = 'virtual display (Xvfb)' if opts.display == 'xvfb' else opts.display
-        print(f'webcheck: {len(examples)} example(s), backend {opts.backend}, {where}, '
+        print(f'check_web_examples: {len(examples)} example(s), backend {opts.backend}, {where}, '
               f'{opts.jobs} at a time, {browser_path}', flush=True)
 
         # check `jobs` examples at a time; report in order as results complete
@@ -294,4 +294,4 @@ if __name__ == '__main__':
     try:
         sys.exit(main())
     except RuntimeError as e:
-        sys.exit(f'webcheck: {e}')
+        sys.exit(f'check_web_examples: {e}')

@@ -4,7 +4,7 @@ package wgr;
 
 /**
 	A touch point. The constructor takes the C struct's fields in order, which is what
-	lets `tools/gen_raw.py` generate the read on the JS side.
+	lets `tools/gen_raw_externs.py` generate the read on the JS side.
 **/
 @:structInit
 class Touch {

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Startup timing for any wgrender web build, for sites wgrender's own
-tools/measure_web_startup.py can't point at (it takes a web preset's site, with its
+tools/measure_example_startup.py can't point at (it takes a web preset's site, with its
 examples.json). The same idea, fewer options.
 
-    tools/measure_web_startup.py --site=DIR [--site=DIR ...] [--net=local|4g|both] [--runs=N]
+    tools/measure_example_startup.py --site=DIR [--site=DIR ...] [--net=local|4g|both] [--runs=N]
 
-Each site is opened in a fresh profile, served the way a host should (tools/serve.py
+Each site is opened in a fresh profile, served the way a host should (tools/serve_site.py
 --cache --gzip), and timed from navigation to libwgrender's own performance marks:
 wgr:init, wgr:subsystems, wgr:user-init, wgr:fs-ready, wgr:first-frame. Transferred
 bytes come from the resource timings. cold = a fresh profile, nothing cached; warm =
@@ -61,7 +61,7 @@ def main():
                 port = weblib.free_port()
                 run.spawn(serve_command(port, site, '--cache', '--gzip'))
                 entry = 'wgrender-host.js' if (site / 'wgrender-host.js').exists() else 'index.html'
-                weblib.wait_for(f'http://127.0.0.1:{port}/{entry}', 'serve.py')
+                weblib.wait_for(f'http://127.0.0.1:{port}/{entry}', 'serve_site.py')
                 for i in range(args.runs):
                     debug_base, browser = weblib.launch_browser(run, weblib.find_browser(), 'headless',
                                                                 profile=f'{run.profile}-{net}-{i}')
@@ -104,4 +104,4 @@ if __name__ == '__main__':
     try:
         sys.exit(main())
     except RuntimeError as e:
-        sys.exit(f'webstart: {e}')
+        sys.exit(f'measure_example_startup: {e}')

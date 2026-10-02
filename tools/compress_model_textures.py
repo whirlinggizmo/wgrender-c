@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compress a glTF model's textures for GPUs (docs/PLAN-textures.md).
 
-    tools/compress_gltf.py model.gltf        (or tools/compress_textures.py --gltf model.gltf)
+    tools/compress_model_textures.py model.gltf        (or tools/compress_textures.py --gltf model.gltf)
 
 Compresses every image the model's textures use (tools/compress_textures.py: name.bc7.ktx,
 name.astc.ktx and name.etc2.ktx beside each) and writes model.ktx.gltf beside the model:
@@ -49,7 +49,7 @@ def texture_uses(gltf):
 
 def main():
     if len(sys.argv) != 2 or not sys.argv[1].endswith(".gltf"):
-        sys.exit("usage: tools/compress_gltf.py model.gltf  (a .glb holds its images inside: not yet)")
+        sys.exit("usage: tools/compress_model_textures.py model.gltf  (a .glb holds its images inside: not yet)")
     path = sys.argv[1]
     base = os.path.dirname(os.path.abspath(path))
     with open(path, encoding="utf-8") as f:

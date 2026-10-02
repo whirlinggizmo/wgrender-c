@@ -17,7 +17,7 @@ layout at 4x the resolution, from a height field the same shapes draw, so a cell
 from the sheet cuts the matching relief. Needs nothing but the standard library. Run
 from anywhere:
 
-    tools/gen_tiles.py
+    tools/gen_tile_sheet.py
 """
 import sys
 from pathlib import Path

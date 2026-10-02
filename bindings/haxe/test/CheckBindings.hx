@@ -5,7 +5,7 @@
 // These assertions catch that class: field order in the struct reads, property
 // round-trips, packing, and the handful of behaviours that are cheap to state exactly.
 //
-// `./build.py check` builds this against wgrender's headless library
+// `tools/check_binding.py` builds this against wgrender's headless library
 // (build/linux-x64-release-headless/, ...: no window, GPU or audio) and runs it for a few frames.
 // Non-zero exit means a failure.
 import wgr.*;
@@ -1079,7 +1079,7 @@ class CheckBindings {
 	#if !sys
 	/**
 		js has no host loop to drive — the guest ABI replaces it — so this entry exists
-		only so `./build.py check` can type-check every assertion above against the js
+		only so `tools/check_binding.py` can type-check every assertion above against the js
 		binding. A wrapper that compiles on hxcpp but not js fails here, not in an example.
 	**/
 	public static function main():Void {}

@@ -20,11 +20,11 @@
 #include "wgr.h"
 
 #define SPRITE_PATH "textures/tiles.png"
-#define NORMAL_PATH "textures/tiles_sheet_normal.png" /* tools/gen_tiles.py */
+#define NORMAL_PATH "textures/tiles_sheet_normal.png" /* tools/gen_tile_sheet.py */
 
 enum { MODEL_COUNT = 5, SPRITE_COUNT = 4 };
 
-/* the sprites' cells in the sheet (pixels, from tools/gen_tiles.py) and their world
+/* the sprites' cells in the sheet (pixels, from tools/gen_tile_sheet.py) and their world
  * height; all 1.6 wide */
 static const float SPRITE_CELLS[SPRITE_COUNT][5] = {
     {62, 2, 16, 16, 1.6f},  /* stone */

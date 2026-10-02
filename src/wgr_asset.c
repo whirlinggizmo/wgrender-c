@@ -776,7 +776,7 @@ static void manifest_loaded(const wgr_asset_task_t *task, bool ok)
     }
     record = &wgr_manifest_dirs[task->manifest_dir - 1];
     record->state = MANIFEST_FAILED;
-    if (!ok && task->manifest_root) { /* a host without one, as tools/serve.py is */
+    if (!ok && task->manifest_root) { /* a host without one, as tools/serve_site.py is */
         wgr_logger_info("asset: no manifest at %s; files are cached as the cache mode says", task->path);
         return;
     }
@@ -2547,7 +2547,7 @@ void wgri_asset_tick(void)
     load();
 }
 /* Tasks not finished yet (queued, downloading or waiting on dependencies).
- * Exported on web so tools/check_web.py can tell when an example is done loading. */
+ * Exported on web so tools/check_web_examples.py can tell when an example is done loading. */
 WGRI_KEEP
 int wgri_asset_pending_count(void)
 {

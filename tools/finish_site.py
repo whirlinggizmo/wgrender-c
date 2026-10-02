@@ -6,7 +6,7 @@
 Writes SITE/index.html from SHELL with every program's version written in: a short
 hash of its .js and .wasm, so the page loads `name.js?v=<hash>` and
 `name.wasm?v=<hash>`. A host can then let browsers keep those for good (they change
-name when they change; tools/serve.py --cache does), and a returning visit fetches no
+name when they change; tools/serve_site.py --cache does), and a returning visit fetches no
 code at all. The versions are in the page itself, not a file beside it: that would be
 one more round trip before the code could start downloading.
 

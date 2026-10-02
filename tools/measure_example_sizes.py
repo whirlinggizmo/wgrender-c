@@ -2,7 +2,7 @@
 """Web build sizes per example: wasm and JS glue, raw and compressed (gzip -9, and
 brotli when Python's brotli module or the brotli tool is installed), sorted by total download size.
 
-    tools/measure_web_size.py [BUILD] [--summary]
+    tools/measure_example_sizes.py [BUILD] [--summary]
 
 BUILD is a web preset's site (default out/wasm32/release/site). Writes the table to the
 preset's work directory as well (build/<preset>/sizes.txt, not in the site);
@@ -54,7 +54,7 @@ def main():
         br = [brotli_size(b) for b in (w, j)] if brotli else [0, 0]
         rows.append((js.stem, len(w), len(j), *gz, *br, sum(gz), sum(br)))
     if not rows:
-        sys.exit(f'websize: no examples in {site}')
+        sys.exit(f'measure_example_sizes: no examples in {site}')
     rows.sort(key=lambda r: r[7])
 
     head = ['example', 'wasm', 'js', 'wasm.gz', 'js.gz'] + (['wasm.br', 'js.br'] if brotli else []) \

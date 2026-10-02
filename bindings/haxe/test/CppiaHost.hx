@@ -1,6 +1,6 @@
 // check-cppia's executable: the whole binding, compiled `-D scriptable` (which fails on
 // a public-class function with a C type in its signature), and a cppia module loaded
-// into it (which fails on a wrapper the module can't call). test/check.py builds and
+// into it (which fails on a wrapper the module can't call). tools/check_binding.py builds and
 // runs it; the module is test/CppiaModule.hx with wgr.macros.Cppia's generated class.
 class CppiaHost {
 	static function main() {

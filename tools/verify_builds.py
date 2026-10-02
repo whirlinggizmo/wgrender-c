@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run before calling a change done: every build and test this machine can run.
 
-    tools/verify.py [--web] [--windows HOST] [--only STEP[,STEP...]]
+    tools/verify_builds.py [--web] [--windows HOST] [--only STEP[,STEP...]]
 
 This machine's own presets (linux-x64-*, macos-arm64-*, or windows-x64-msvc-* on Windows):
   release         the library and examples with a window, GPU and audio (built, not run)
@@ -13,16 +13,16 @@ and on Linux and macOS:
   windows-x64-mingw-debug-headless  its unit tests and smoke run under Wine, when there's
                                     a Wine too
 and when Haxe is installed:
-  haxe      the Haxe binding's suite (bindings/haxe/test/check.py: its generators
+  haxe      the Haxe binding's suite (bindings/haxe/tools/check_binding.py: its generators
             current, headless hxcpp, JS, cppia, its C)
 With --web, also (needs Emscripten, and a Chromium-based browser: Brave, Chrome,
 Chromium or Edge):
   wasm32-release, wasm32-release-threads, wasm32-release-webgpu-threads
                     every example built for the web and loaded in the browser
-                    (tools/check_web.py)
+                    (tools/check_web_examples.py)
   haxe-web  the Haxe examples built for the web and driven in the browser, when Haxe
             is installed
-With --windows HOST, also, on that Windows machine over ssh (tools/run_remote_windows.py:
+With --windows HOST, also, on that Windows machine over ssh (tools/verify_on_windows.py:
 the working tree as it is, nothing left there):
   windows-mingw  windows-x64-mingw-debug-headless and -release
   windows-msvc   windows-x64-msvc-debug-headless and -release
@@ -47,8 +47,8 @@ import builds  # noqa: E402
 WEB = {'wasm32-release': ['--backend=webgl2'], 'wasm32-release-threads': ['--backend=webgl2', '--threads'],
        'wasm32-release-webgpu-threads': ['--backend=webgpu', '--threads']}
 REMOTE = {'windows-mingw': [], 'windows-msvc': ['--msvc']}
-HAXE = {'haxe': [['bindings/haxe/test/check.py']],
-        'haxe-web': [['bindings/haxe/examples/build.py', 'web'], ['bindings/haxe/examples/build.py', 'drive']]}
+HAXE = {'haxe': [['bindings/haxe/tools/check_binding.py']],
+        'haxe-web': [['bindings/haxe/tools/run_examples.py', 'web'], ['bindings/haxe/tools/run_examples.py', 'drive']]}
 
 
 def steps(web, windows):
@@ -58,16 +58,16 @@ def steps(web, windows):
         yield builds.native('debug-tsan'), True
         if shutil.which('x86_64-w64-mingw32-gcc'):
             yield 'windows-x64-mingw-release', False
-            import run_wine
-            if run_wine.find_wine():
+            import wine
+            if wine.find():
                 yield 'windows-x64-mingw-debug-headless', True
             else:
-                print('verify: no Wine, so the Windows build is built but not run')
+                print('verify_builds: no Wine, so the Windows build is built but not run')
     has_haxe = shutil.which('haxe') is not None
     if has_haxe:
         yield 'haxe', False
     else:
-        print('verify: no Haxe, so the Haxe binding is not checked')
+        print('verify_builds: no Haxe, so the Haxe binding is not checked')
     if web:
         for preset in WEB:
             yield preset, False
@@ -93,24 +93,24 @@ def main():
 
     web = args.web or (only is not None and any(s in WEB or s == 'haxe-web' for s in only))
     if only and any(s in REMOTE for s in only) and not args.windows:
-        sys.exit('verify: the windows-* steps need --windows HOST')
+        sys.exit('verify_builds: the windows-* steps need --windows HOST')
     for preset, test in steps(web, args.windows):
         if only and preset not in only:
             continue
         print(f'== {preset}', flush=True)
         start = time.monotonic()
         if preset in REMOTE:
-            ok = run(sys.executable, 'tools/run_remote_windows.py', args.windows, *REMOTE[preset])
+            ok = run(sys.executable, 'tools/verify_on_windows.py', args.windows, *REMOTE[preset])
         elif preset in HAXE:
             ok = all(run(sys.executable, *cmd) for cmd in HAXE[preset])
         else:
             ok = (run('cmake', '--preset', preset) and run('cmake', '--build', '--preset', preset)
                   and (not test or run('ctest', '--preset', preset))
-                  and (preset not in WEB or run(sys.executable, 'tools/check_web.py', *WEB[preset])))
+                  and (preset not in WEB or run(sys.executable, 'tools/check_web_examples.py', *WEB[preset])))
         if not ok:
-            sys.exit(f'verify: FAIL at {preset}')
+            sys.exit(f'verify_builds: FAIL at {preset}')
         print(f'== {preset}: ok ({time.monotonic() - start:.0f}s)', flush=True)
-    print('verify: PASS')
+    print('verify_builds: PASS')
 
 
 if __name__ == '__main__':
