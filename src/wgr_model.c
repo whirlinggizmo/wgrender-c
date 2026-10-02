@@ -1557,7 +1557,7 @@ static wgri_loader_step_t finish_mesh(void *data, const char *path, wgr_handle_t
                 return WGRI_LOADER_MORE;
             }
             if (image->pixels != NULL) {
-                image->texture = wgri_texture_create_pixels(image->pixels, NULL, true);
+                image->texture = wgri_texture_create_pixels(image->pixels, true);
                 image->failed = image->texture == 0;
                 wgri_texture_pixels_free(image->pixels);
                 image->pixels = NULL;

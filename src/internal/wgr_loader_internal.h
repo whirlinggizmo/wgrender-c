@@ -12,8 +12,17 @@
  *   finish   main thread: create the resource from that data (GPU uploads), one
  *            step per call so the pipeline can spread big resources over frames.
  *
- * The sync create functions (wgr_texture_create(path), ...) run both halves in a
- * row through wgri_loader_create. */
+ * A resource loads on create (wgri_asset_load): the module makes its handle at once,
+ * PENDING, and the pipeline makes the file local, prepares it and then fills it in:
+ *
+ *   fill     main thread: one step of filling in the PENDING `resource` from the data
+ *            (READY when it returns WGRI_LOADER_DONE).
+ *   fail     main thread: the load failed at any step; mark `resource` FAILED.
+ *
+ * A loader with fill and fail loads on create. Until every module does, the others
+ * keep the older pair below: finish creates the resource, and ensure loads it by its
+ * extension (wgri_asset_register_loader); their sync create functions run both halves
+ * in a row through wgri_loader_create. */
 
 typedef enum {
     WGRI_LOADER_DONE = 0, /* the resource exists: *resource holds one reference */
@@ -34,7 +43,25 @@ typedef struct {
     wgr_handle_t (*find)(const char *path);
     /* Drop a reference (the pipeline's, after the callback ran). */
     void (*release)(wgr_handle_t resource);
+    /* Load on create (wgri_asset_load): one step of filling in `resource`, and marking
+     * it FAILED. */
+    wgri_loader_step_t (*fill)(void *prepared, const char *path, wgr_handle_t resource);
+    void (*fail)(wgr_handle_t resource);
 } wgri_loader_t;
+
+/* Load the file at asset path `path` (normalized: wgri_asset_normalize_path) into
+ * `resource`, which the caller made PENDING, with `loader`'s prepare, fill and fail.
+ * The file is made local as an ensured one is (the cache, a download, a redirect, a
+ * mapped variant and its fallback, the files it names), then prepared on a worker and
+ * filled in on the main thread within the upload budget. Every outcome comes in a
+ * later frame, never inside this call: fill's last step, or fail. False only when the
+ * request can't be held (the asset layer isn't running, or no room): the caller marks
+ * the resource FAILED. */
+bool wgri_asset_load(const wgri_loader_t *loader, const char *path, wgr_handle_t resource);
+
+/* Forget the load into `resource`, released while it loads: the file is still made
+ * local, but neither fill nor fail is called and what was prepared is discarded. */
+void wgri_asset_load_cancel(wgr_handle_t resource);
 
 /* Load synchronously: find, or prepare and finish every step. The resource holds
  * one reference for the caller; 0 on failure. */

@@ -72,10 +72,10 @@ static void on_model_ready(const char *path, void *user)
     wgr_scene_add(g.scene, g.model, 0);
 }
 
-static void on_sprite_ready(const char *path, void *user)
+/* A texture loads on create: the sprite exists at once and is drawn once it's loaded. */
+static void make_sprite(void)
 {
-    wgr_handle_t texture = wgr_texture_create(path);
-    (void)user;
+    wgr_handle_t texture = wgr_texture_create(SPRITE_PATH);
     g.sprite = wgr_sprite3d_create(texture);
     wgr_texture_release(texture); /* the sprite holds its own reference */
     wgr_sprite3d_set_facing(g.sprite, WGR_SPRITE3D_FACING_FREE); /* librl's default: oriented by its rotation */
@@ -141,7 +141,7 @@ static void on_init(void *user_data)
 
     load(MUSIC_PATH, on_bgm_ready);
     load(CHARACTER_PATH, on_model_ready);
-    load(SPRITE_PATH, on_sprite_ready);
+    make_sprite();
     load(DEBUG_FONT_PATH, on_debug_font_ready);
     load(KOMIKA_FONT_PATH, on_komika_font_ready);
 }

@@ -38,7 +38,6 @@ class EnvironmentDemo {
 	// ids: 1..2 the environments, then the three scene assets
 	static inline final ASSET_SPHERE = 3;
 	static inline final ASSET_CHARACTER = 4;
-	static inline final ASSET_NORMAL_MAP = 5;
 
 	static inline final COLUMNS = 5;
 	static inline final SPACING = 1.3;
@@ -51,7 +50,6 @@ class EnvironmentDemo {
 	static var environments:Array<Environment> = [Handle.NONE, Handle.NONE];
 	static var spheres:Array<Model> = [];
 	static var character:Model;
-	static var tiles:Material;
 
 	static var environmentIndex = 0; // ENVIRONMENT_PATHS.length means "none"
 	static var blurIndex = 0; // BLURS.length means "no background"
@@ -94,7 +92,6 @@ class EnvironmentDemo {
 			load(ENVIRONMENT_PATHS[i], i + 1);
 		load(SPHERE_PATH, ASSET_SPHERE);
 		load(CHARACTER_PATH, ASSET_CHARACTER);
-		load(NORMAL_MAP_PATH, ASSET_NORMAL_MAP);
 	}
 
 	static function load(path:String, id:Int):Void {
@@ -124,7 +121,10 @@ class EnvironmentDemo {
 			sphere(x, 0.6, 1.0, 0.77, 0.34, 1.0, roughness); // gold
 		}
 		final normalMapped = sphere(-1.3, -0.7, 0.9, 0.9, 0.9, 0.0, 0.3);
-		tiles = normalMapped.getMaterial(0); // borrowed: the model's own material
+		final tiles = normalMapped.getMaterial(0); // borrowed: the model's own material
+		final normalMap = new Texture(NORMAL_MAP_PATH); // a flat normal until it loads
+		tiles.setNormalTexture(normalMap);
+		normalMap.release(); // the material holds its own reference
 	}
 
 	/** All three settings together, because any of them changing re-applies the lot. **/
@@ -152,11 +152,6 @@ class EnvironmentDemo {
 				final mesh = new Mesh(path);
 				character.setMesh(mesh);
 				mesh.release();
-
-			case ASSET_NORMAL_MAP:
-				final texture = new Texture(path);
-				tiles.setNormalTexture(texture);
-				texture.release();
 
 			default:
 				// an environment: preparing its lighting is the slow part, done once

@@ -58,23 +58,6 @@ static void on_mesh_loaded(const char *path, void *user)
     wgr_mesh_release(mesh); /* the models hold their own references */
 }
 
-static void on_sprite_texture(const char *path, void *user)
-{
-    wgr_handle_t texture = wgr_texture_create(path);
-    (void)user;
-    wgr_texture_set_sampling(texture, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_FILTER_NEAREST);
-    for (int i = 0; i < SPRITE_COUNT; i++) wgr_sprite3d_set_texture(g.sprites[i], texture);
-    wgr_texture_release(texture); /* the sprites hold their own references */
-}
-
-static void on_sprite_normal_map(const char *path, void *user)
-{
-    wgr_handle_t texture = wgr_texture_create(path);
-    (void)user;
-    wgr_material_set_texture(g.sprite_material, "normal_texture", texture);
-    wgr_texture_release(texture);
-}
-
 static void on_failed(const char *path, void *user)
 {
     (void)user;
@@ -136,8 +119,13 @@ static void init(void *user_data)
     /* cells sit side by side in the sheet: clamp, so none reaches into the next */
     wgr_material_set_texture_sampling(g.sprite_material, "normal_texture", WGR_TEXTURE_WRAP_CLAMP,
                                       WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_FILTER_LINEAR);
+    const wgr_handle_t normal_map = wgr_texture_create(NORMAL_PATH);
+    wgr_material_set_texture(g.sprite_material, "normal_texture", normal_map);
+    wgr_texture_release(normal_map); /* the material holds its own reference */
+    const wgr_handle_t sheet = wgr_texture_create(SPRITE_PATH); /* the sprites appear once it's loaded */
+    wgr_texture_set_sampling(sheet, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_FILTER_NEAREST);
     for (int i = 0; i < SPRITE_COUNT; i++) {
-        g.sprites[i] = wgr_sprite3d_create(0);
+        g.sprites[i] = wgr_sprite3d_create(sheet);
         const float *cell = SPRITE_CELLS[i];
         wgr_sprite3d_set_transform(g.sprites[i], -3.0f + 2.0f * (float)i, 0.2f, -2.5f, 0, 0, 0, 1, 1, 1);
         wgr_sprite3d_set_source(g.sprites[i], cell[0], cell[1], cell[2], cell[3]);
@@ -148,10 +136,9 @@ static void init(void *user_data)
         wgr_scene_add(g.scene, g.sprites[i], 0);
     }
     wgr_material_release(g.sprite_material); /* the sprites hold it */
+    wgr_texture_release(sheet);              /* and the sheet */
 
     wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_mesh_loaded, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(SPRITE_PATH, NULL, WGR_ASSET_NONE), on_sprite_texture, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(NORMAL_PATH, NULL, WGR_ASSET_NONE), on_sprite_normal_map, on_failed, NULL);
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)

@@ -15,9 +15,6 @@ class Particles {
 	static inline final PARTICLE_PATH = "textures/particle.png";
 	static inline final FLAME_PATH = "textures/flame.png"; // a 4x4 flipbook
 
-	static inline final ASSET_PARTICLE = 1;
-	static inline final ASSET_FLAME = 2;
-
 	static inline final SCREEN_WIDTH = 1000;
 	static inline final SCREEN_HEIGHT = 700;
 	static inline final ORBIT_RADIUS = 16.0;
@@ -43,7 +40,7 @@ class Particles {
 
 	public static function start(host:Dynamic):Void {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "particles (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -61,37 +58,20 @@ class Particles {
 		scene = new Scene();
 		scene.setActiveCamera(camera);
 
-		load(PARTICLE_PATH, ASSET_PARTICLE);
-		load(FLAME_PATH, ASSET_FLAME);
+		// the emitters run at once; their particles are drawn once the textures load
+		final particle = new Texture(PARTICLE_PATH);
+		makeFountain(particle);
+		makeSparks(particle);
+		makeSmoke(particle);
+		makeConfetti(particle);
+		particle.release(); // each emitter holds its own reference
+		final flameTexture = new Texture(FLAME_PATH);
+		makeFlame(flameTexture);
+		flameTexture.release();
+
+		final screen = Window.getScreenSize();
+		burst(new Vec2(screen.x * 0.5, screen.y * 0.4)); // one to start with
 		Debug.enableFps(12, 10, 16);
-	}
-
-	static function load(path:String, id:Int):Void {
-		if (!GuestAbi.loadAsset(path, id))
-			Log.error('failed to queue asset: $path');
-	}
-
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('asset load failed: $path');
-			return;
-		}
-		final texture = new Texture(path);
-		if (texture.isNone())
-			return;
-		switch id {
-			case ASSET_PARTICLE:
-				makeFountain(texture);
-				makeSparks(texture);
-				makeSmoke(texture);
-				makeConfetti(texture);
-				final screen = Window.getScreenSize();
-				burst(new Vec2(screen.x * 0.5, screen.y * 0.4)); // one to start with
-
-			case ASSET_FLAME:
-				makeFlame(texture);
-		}
-		texture.release(); // each emitter holds its own reference
 	}
 
 	// --- the emitters ---

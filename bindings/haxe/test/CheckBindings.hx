@@ -185,7 +185,10 @@ class CheckBindings {
 		Material.release(material);
 
 		// a resource from a path that isn't there must come back as none, not garbage
-		check(Texture.isNone(Texture.create("no/such/texture.png")), "a missing texture is none");
+		// except a texture, which loads on create: a handle at once, failing in a later frame
+		final missing = Texture.create("no/such/texture.png");
+		check(!Texture.isNone(missing) && missing.getStatus() == Pending, "a missing texture is pending at first");
+		Texture.release(missing);
 		check(Mesh.isNone(Mesh.create("no/such/mesh.glb")), "a missing mesh is none");
 		check(Audio.isNone(Audio.create("no/such/sound.mp3")), "a missing sound is none");
 	}

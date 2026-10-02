@@ -50,7 +50,6 @@ static struct {
     int collected;
     float center_x, center_y; /* what the camera looks at, in world units */
     float zoom;               /* world units visible vertically */
-    bool loaded;
 } g;
 
 static void place_camera(void)
@@ -102,10 +101,10 @@ static const float *tile_at(int x, int y)
     return GRASS;
 }
 
-static void on_tiles(const char *path, void *user)
+/* The map: every tile and prop a sprite cut from the sheet, drawn once it loads. */
+static void make_map(void)
 {
-    (void)user;
-    g.texture = wgr_texture_create(path);
+    g.texture = wgr_texture_create(TILES_PATH);
     /* pixel art: keep the texels crisp when zoomed in */
     wgr_texture_set_sampling(g.texture, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_FILTER_NEAREST);
 
@@ -129,13 +128,6 @@ static void on_tiles(const char *path, void *user)
     for (int i = 0; i < 8; i++) {
         add_prop(COIN, 3.5f + (float)i * 2.5f, 7.5f + (float)(i % 3), 0.8f, 0.8f, true);
     }
-    g.loaded = true;
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("load failed: %s", path);
 }
 
 static void init(void *user_data)
@@ -159,7 +151,7 @@ static void init(void *user_data)
     wgr_scene_set_active_camera(g.scene, g.camera);
     wgr_scene_set_interactive(g.scene, true);
 
-    wgr_asset_add_task(wgr_asset_ensure_async(TILES_PATH, NULL, WGR_ASSET_NONE), on_tiles, on_failed, NULL);
+    make_map();
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)
@@ -216,7 +208,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_shape2d_draw_rectangle(0, 0, (int)screen.x, 88, g.shade);
     wgr_text_draw("libwgrender tilemap: an orthographic camera over sprite3d tiles", 20, 20, 20, g.text);
     snprintf(line, sizeof(line), "coins: %d of 8   zoom: %.1f units   center: %.1f, %.1f%s", g.collected, (double)g.zoom,
-             (double)g.center_x, (double)g.center_y, g.loaded ? "" : "   (loading)");
+             (double)g.center_x, (double)g.center_y, wgr_resource_get_status(g.texture) == WGR_RESOURCE_PENDING ? "   (loading)" : "");
     wgr_text_draw(line, 20, 46, 15, g.dim);
     wgr_text_draw("drag or arrows to scroll, wheel to zoom, click the coins", 20, 68, 15, g.dim);
     wgr_render_end_frame();

@@ -30,6 +30,7 @@
 #include "wgr_model.h"
 #include "wgr_texture.h"
 #include "test.h"
+#include "test_assets.h"
 #include "test_os.h"
 #include "tests.h"
 
@@ -137,25 +138,26 @@ void test_pipeline_mesh_textures(void)
 
 static struct {
     int successes, failures;
-    wgr_handle_t texture, mesh, audio, group_texture;
+    wgr_handle_t texture, mesh, audio, group_mesh, scene_probe;
     char path[512];
     bool destroy_in_callback; /* create, then drop it again */
 } got;
 
-static void on_texture(const char *path, void *user)
+/* An ensure's success: the local path it made. */
+static void on_path(const char *path, void *user)
 {
     (void)user;
     got.successes++;
     snprintf(got.path, sizeof(got.path), "%s", path);
-    got.texture = wgr_texture_create(path);
-    if (got.destroy_in_callback) wgr_texture_release(got.texture);
 }
 
 static void on_mesh(const char *path, void *user)
 {
     (void)user;
     got.successes++;
+    snprintf(got.path, sizeof(got.path), "%s", path);
     got.mesh = wgr_mesh_create(path);
+    if (got.destroy_in_callback) wgr_mesh_release(got.mesh);
 }
 
 static void on_audio(const char *path, void *user)
@@ -182,18 +184,13 @@ static void on_failed(const char *path, void *user)
 static void start_assets(int workers, const char *host)
 {
     setup();
-    wgri_fs_init(NULL);
-    wgri_asset_set_worker_count(workers);
-    wgri_asset_init();
-    wgr_asset_set_host(host);
+    test_assets_start(workers, host);
     memset(&got, 0, sizeof(got));
 }
 
 static void stop_assets(void)
 {
-    wgri_asset_deinit();
-    wgri_asset_set_worker_count(-1);
-    wgri_fs_deinit();
+    test_assets_stop();
     teardown();
 }
 
@@ -203,41 +200,38 @@ static void load(const char *path, unsigned int flags, wgr_asset_callback_fn on_
           WGR_ASSET_ADD_TASK_OK);
 }
 
-/* Tick until nothing is pending; the frames it took, or -1 after 2000 frames. */
 static int run_until_done(void)
 {
-    for (int frame = 1; frame <= 2000; frame++) {
-        wgri_asset_tick();
-        if (wgri_asset_pending_count() == 0) return frame;
-        if (wgri_asset_get_worker_count() > 0) {
-            test_sleep_ms(1);
-        }
-    }
-    return -1;
+    return test_assets_run();
 }
 
-/* A handle's texture is gone (stale handles warn; quiet here). */
+/* A handle's texture is gone. */
 static bool texture_freed(wgr_handle_t texture)
 {
-    wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
-    const bool freed = wgr_texture_get_size(texture).x == 0.0f;
-    wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
-    return freed;
+    return wgr_resource_get_status(texture) == WGR_RESOURCE_NONE;
 }
 
 static void check_async_loads(int workers)
 {
     start_assets(workers, ASSETS);
     CHECK(wgri_asset_get_worker_count() == workers);
-    load(TEXTURE, WGR_ASSET_NONE, on_texture);
+    got.texture = wgr_texture_create(TEXTURE);
+    CHECK(wgr_resource_get_status(got.texture) == WGR_RESOURCE_PENDING); /* never loaded inside the call */
+    CHECK(wgr_resource_get_status(wgr_texture_get_default()) == WGR_RESOURCE_READY); /* made from numbers */
+    CHECK(wgr_resource_get_status(0) == WGR_RESOURCE_NONE);
+    CHECK(wgr_resource_get_status(got.scene_probe = wgr_scene_create()) == WGR_RESOURCE_NONE); /* an object */
+    wgr_scene_destroy(got.scene_probe);
+    CHECK(wgr_texture_get_size(got.texture).x == 0.0f);
+    CHECK(!wgri_texture_get_binding(got.texture, NULL, NULL, NULL, NULL)); /* not there yet: nothing drawn */
     load(CHARACTER_PATH, WGR_ASSET_NONE, on_mesh);
     load("sounds/click_004.ogg", WGR_ASSET_NONE, on_audio);
     CHECK(run_until_done() > 0);
-    CHECK(got.successes == 3 && got.failures == 0);
-    /* the callbacks' creates return the prepared resources, with one reference */
+    CHECK(got.successes == 2 && got.failures == 0);
+    CHECK(wgr_resource_get_status(got.texture) == WGR_RESOURCE_READY);
     CHECK(wgr_texture_get_size(got.texture).x > 1.0f);
-    CHECK(wgr_texture_create(got.path) == got.texture);
+    CHECK(wgr_texture_create(TEXTURE) == got.texture); /* the same one, another reference */
     wgr_texture_release(got.texture);
+    /* the callbacks' creates return the prepared resources, with one reference */
     CHECK(got.mesh != 0 && loaded_textures(got.mesh) >= 2);
     CHECK(got.audio != 0);
     wgr_texture_release(got.texture);
@@ -254,27 +248,25 @@ void test_pipeline_async(void)
     check_async_loads(2);
 }
 
-/* A resource the callback doesn't create (or releases again) is freed. */
-void test_pipeline_unclaimed(void)
+/* A texture released while it loads is freed at once and its load dropped: the file
+ * is still made local, but nothing fills it in. Creating it again while it loads gives
+ * the same one. */
+void test_pipeline_cancel(void)
 {
     start_assets(1, ASSETS);
-    got.destroy_in_callback = true;
-    load(TEXTURE, WGR_ASSET_NONE, on_texture);
-    CHECK(run_until_done() > 0);
-    CHECK(got.successes == 1);
-    CHECK(texture_freed(got.texture)); /* freed after the callback */
-
-    /* a sync create while the file is being prepared: the callback gets the same one */
-    got.destroy_in_callback = false;
-    load(TEXTURE, WGR_ASSET_NONE, on_texture);
-    char local[512];
-    wgri_fs_resolve(TEXTURE, local, sizeof(local));
-    const wgr_handle_t texture = wgr_texture_create(local);
-    CHECK(run_until_done() > 0);
-    CHECK(got.texture == texture);
+    wgr_handle_t texture = wgr_texture_create(TEXTURE);
+    CHECK(texture != 0 && wgr_texture_create(TEXTURE) == texture);
     wgr_texture_release(texture);
+    CHECK(wgr_resource_get_status(texture) == WGR_RESOURCE_PENDING); /* one reference left */
     wgr_texture_release(texture);
     CHECK(texture_freed(texture));
+    CHECK(run_until_done() > 0); /* the load runs on, and fills nothing */
+    CHECK(texture_freed(texture));
+
+    texture = wgr_texture_create(TEXTURE); /* and loads from scratch afterwards */
+    CHECK(run_until_done() > 0);
+    CHECK(wgr_resource_get_status(texture) == WGR_RESOURCE_READY);
+    wgr_texture_release(texture);
     stop_assets();
 }
 
@@ -288,7 +280,8 @@ static bool make_dir(const char *dir)
 #endif
 }
 
-/* Files that can't be loaded fire the failure callback; FILE_ONLY skips loading. */
+/* A texture that can't be loaded is FAILED: a broken file, a missing one, a path outside
+ * the asset root (at once). Ensuring a file only makes it local, broken or not. */
 void test_pipeline_failures(void)
 {
     const char *dir = WGR_TEST_DIR "/pipeline_test";
@@ -305,14 +298,26 @@ void test_pipeline_failures(void)
 
     start_assets(1, dir);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL);
+    const wgr_handle_t broken = wgr_texture_create("broken.png");
+    const wgr_handle_t missing = wgr_texture_create("missing.png");
+    const wgr_handle_t outside = wgr_texture_create("../broken.png");
+    CHECK(broken != 0 && missing != 0 && outside != 0);
+    CHECK(wgr_resource_get_status(outside) == WGR_RESOURCE_FAILED); /* refused at once */
+    CHECK(wgr_resource_get_status(broken) == WGR_RESOURCE_PENDING);
+    CHECK(run_until_done() > 0);
+    CHECK(wgr_resource_get_status(broken) == WGR_RESOURCE_FAILED);
+    CHECK(wgr_resource_get_status(missing) == WGR_RESOURCE_FAILED);
+    CHECK(wgr_texture_get_size(broken).x == 0.0f);
+    int width = 0;
+    CHECK(wgri_texture_get_binding(broken, NULL, NULL, &width, NULL) && width == 64); /* the placeholder checker */
     load("broken.png", WGR_ASSET_NONE, on_nothing);
     load("missing.png", WGR_ASSET_NONE, on_nothing);
     CHECK(run_until_done() > 0);
-    CHECK(got.successes == 0 && got.failures == 2);
-    load("broken.png", WGR_ASSET_FILE_ONLY, on_nothing);
-    CHECK(run_until_done() > 0);
-    CHECK(got.successes == 1 && got.failures == 2);
+    CHECK(got.successes == 1 && got.failures == 1);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
+    wgr_texture_release(broken);
+    wgr_texture_release(missing);
+    wgr_texture_release(outside);
     stop_assets();
 }
 
@@ -342,7 +347,7 @@ void test_pipeline_shutdown(void)
         start_assets(2, ASSETS);
         wgr_asset_set_upload_budget(0.0f);
         load(CHARACTER_PATH, WGR_ASSET_NONE, on_mesh);
-        load(TEXTURE, WGR_ASSET_NONE, on_texture);
+        got.texture = wgr_texture_create(TEXTURE);
         load("sounds/click_004.ogg", WGR_ASSET_NONE, on_audio);
         for (int frame = 0; frame < round * 3; frame++) {
             wgri_asset_tick();
@@ -365,7 +370,7 @@ static void on_group_create(const char *path, void *user)
 {
     (void)path;
     (*(int *)user)++;
-    got.group_texture = wgr_texture_create(got.path);
+    got.group_mesh = wgr_mesh_create(got.path);
 }
 
 /* A group completes after its members, fails if one does, and reports progress. */
@@ -377,7 +382,7 @@ void test_pipeline_group(void)
     wgr_handle_t group = wgr_asset_group_create();
     wgr_handle_t texture = wgr_asset_ensure_async(TEXTURE, NULL, WGR_ASSET_NONE);
     wgr_handle_t mesh = wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE);
-    CHECK(wgr_asset_add_task(texture, on_texture, on_failed, NULL) == WGR_ASSET_ADD_TASK_OK);
+    CHECK(wgr_asset_add_task(texture, on_path, on_failed, NULL) == WGR_ASSET_ADD_TASK_OK);
     CHECK(wgr_asset_group_add(group, texture));
     CHECK(wgr_asset_group_add(group, mesh)); /* no callbacks of its own */
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL);
@@ -400,7 +405,6 @@ void test_pipeline_group(void)
     CHECK(monotonic);
     CHECK(group_ok == 1 && got.successes == 1 && got.failures == 0);
     CHECK(wgr_asset_get_progress(group) == 1.0f); /* completed */
-    wgr_texture_release(got.texture);
 
     /* a missing member fails the group; the other members still load */
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL);
@@ -412,19 +416,20 @@ void test_pipeline_group(void)
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     CHECK(group_failed == 1);
 
-    /* the group holds its members' resources for its own callback */
+    /* the group holds its members' resources for its own callback (a mesh: ensure
+       still loads those) */
     group_ok = 0;
     group = wgr_asset_group_create();
     got.destroy_in_callback = true; /* the member's callback takes the handle and drops it again */
-    texture = wgr_asset_ensure_async(TEXTURE, NULL, WGR_ASSET_NONE);
-    CHECK(wgr_asset_add_task(texture, on_texture, on_failed, NULL) == WGR_ASSET_ADD_TASK_OK);
-    CHECK(wgr_asset_group_add(group, texture));
+    mesh = wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE);
+    CHECK(wgr_asset_add_task(mesh, on_mesh, on_failed, NULL) == WGR_ASSET_ADD_TASK_OK);
+    CHECK(wgr_asset_group_add(group, mesh));
     CHECK(wgr_asset_add_task(group, on_group_create, on_failed, &group_ok) == WGR_ASSET_ADD_TASK_OK);
     CHECK(run_until_done() > 0);
     CHECK(group_ok == 1);
-    CHECK(got.group_texture == got.texture); /* the same resource, not a reload */
-    wgr_texture_release(got.group_texture);
-    CHECK(texture_freed(got.group_texture));
+    CHECK(got.group_mesh == got.mesh); /* the same resource, not a reload */
+    wgr_mesh_release(got.group_mesh);
+    got.destroy_in_callback = false;
 
     /* an empty group completes on the next tick */
     group_ok = 0;
@@ -460,8 +465,8 @@ void test_pipeline_many(void)
     chained = 0;
     /* loaded once up front: every task then finds it, so this tests the task
      * bookkeeping rather than decoding the same file hundreds of times */
-    const wgr_handle_t texture = wgr_texture_create(ASSETS "/" TEXTURE);
-    CHECK(texture != 0);
+    const wgr_handle_t texture = wgr_texture_create(TEXTURE);
+    CHECK(texture != 0 && run_until_done() > 0);
     for (int i = 0; i < LOADS; i++) {
         load(TEXTURE, WGR_ASSET_NONE, i < CHAINS ? on_chain : on_nothing);
     }
@@ -590,8 +595,7 @@ void test_pipeline_gltf_ktx(void)
 }
 
 /* A compressed texture whose variant for this GPU is missing loads its PNG instead,
- * through the asset layer and through wgr_texture_create; a variant named outright
- * has no fallback. */
+ * for an ensure and for wgr_texture_create; a variant named outright has no fallback. */
 void test_pipeline_ktx_fallback(void)
 {
     CHECK(make_dir(WGR_TEST_DIR) && make_dir(KTX_DIR));
@@ -600,20 +604,22 @@ void test_pipeline_ktx_fallback(void)
     start_assets(0, KTX_DIR);
     wgri_texture_set_ktx_support(1); /* BC7, which png_only doesn't have */
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR); /* the fallback warns */
-    load("png_only.ktx", WGR_ASSET_NONE, on_texture);
+    load("png_only.ktx", WGR_ASSET_NONE, on_path);
+    got.texture = wgr_texture_create("png_only.ktx");
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 1 && got.failures == 0);
     CHECK(strstr(got.path, "png_only.png") != NULL);
+    CHECK(wgr_resource_get_status(got.texture) == WGR_RESOURCE_READY);
     CHECK(wgr_texture_get_size(got.texture).x == 256.0f);
-    const wgr_handle_t sync = wgr_texture_create(KTX_DIR "/png_only.ktx");
-    CHECK(sync == got.texture); /* the same file: deduped */
-    wgr_texture_release(sync);
+    CHECK(wgr_texture_create("png_only.ktx") == got.texture); /* the same name: deduped */
+    wgr_texture_release(got.texture);
     wgr_texture_release(got.texture);
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL); /* the failure logs an error */
-    load("png_only.bc7.ktx", WGR_ASSET_NONE, on_texture);
+    const wgr_handle_t variant = wgr_texture_create("png_only.bc7.ktx");
     CHECK(run_until_done() > 0);
-    CHECK(got.successes == 1 && got.failures == 1);
+    CHECK(wgr_resource_get_status(variant) == WGR_RESOURCE_FAILED);
+    wgr_texture_release(variant);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
     wgri_texture_set_ktx_support(-1);
     stop_assets();
@@ -671,28 +677,35 @@ void test_pipeline_redirects(void)
     CHECK(wgr_asset_add_redirect("models/", "mods/top/models/"));
     CHECK(wgr_asset_add_redirect("models/", "https://cdn.example.com/models/")); /* web only; ignored here */
 
-    load("textures/only_base.png", WGR_ASSET_NONE, on_texture); /* in no mod: the file itself */
+    load("textures/only_base.png", WGR_ASSET_NONE, on_path); /* in no mod: the file itself */
+    got.texture = wgr_texture_create("textures/only_base.png");
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 1 && strstr(got.path, "mods/") == NULL);
     CHECK(wgr_texture_get_size(got.texture).x == 256.0f);
     wgr_texture_release(got.texture);
 
-    load("textures/both.png", WGR_ASSET_NONE, on_texture); /* only in base: top falls through to it */
+    load("textures/both.png", WGR_ASSET_NONE, on_path); /* only in base: top falls through to it */
+    got.texture = wgr_texture_create("textures/both.png");
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 2 && strstr(got.path, "mods/base/textures/both.png") != NULL);
     CHECK(wgr_texture_get_size(got.texture).x == 128.0f);
     wgr_texture_release(got.texture);
 
-    load("textures/top.png", WGR_ASSET_NONE, on_texture); /* in top: wins over the file itself */
+    load("textures/top.png", WGR_ASSET_NONE, on_path); /* in top: wins over the file itself */
+    got.texture = wgr_texture_create("textures/top.png");
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 3 && strstr(got.path, "mods/top/textures/top.png") != NULL);
+    CHECK(wgr_texture_get_size(got.texture).x == 128.0f);
     wgr_texture_release(got.texture);
 
-    load("textures/nowhere.png", WGR_ASSET_NONE, on_texture);
-    wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL); /* the failure logs an error */
+    load("textures/nowhere.png", WGR_ASSET_NONE, on_path);
+    got.texture = wgr_texture_create("textures/nowhere.png");
+    wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL); /* the failures log errors */
     CHECK(run_until_done() > 0);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_ERROR);
     CHECK(got.successes == 3 && got.failures == 1);
+    CHECK(wgr_resource_get_status(got.texture) == WGR_RESOURCE_FAILED);
+    wgr_texture_release(got.texture);
 
     /* the model is only in models/, its image is overridden in the mod */
     load("models/m.gltf", WGR_ASSET_NONE, on_mesh);
@@ -703,9 +716,11 @@ void test_pipeline_redirects(void)
     wgr_mesh_release(got.mesh);
 
     wgr_asset_clear_redirects();
-    load("textures/top.png", WGR_ASSET_NONE, on_texture);
+    load("textures/top.png", WGR_ASSET_NONE, on_path);
+    got.texture = wgr_texture_create("textures/top.png");
     CHECK(run_until_done() > 0);
     CHECK(got.successes == 5 && strstr(got.path, "mods/") == NULL);
+    CHECK(wgr_texture_get_size(got.texture).x == 256.0f);
     wgr_texture_release(got.texture);
 
     /* ping (desktop: the host is a directory) */

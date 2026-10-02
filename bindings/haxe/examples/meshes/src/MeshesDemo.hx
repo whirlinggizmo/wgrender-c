@@ -22,13 +22,11 @@ class MeshesDemo {
 	static inline final SCREEN_WIDTH = 1000;
 	static inline final SCREEN_HEIGHT = 600;
 	static inline final NORMAL_MAP_PATH = "textures/tiles_normal.png";
-	static inline final ASSET_NORMAL_MAP = 1;
 	static inline final SHAPE_COUNT = 7;
 	static inline final SPACING = 1.4;
 
 	static var scene:Scene;
 	static var camera:Camera3D;
-	static var materials:Array<Material> = [];
 	static var target:Vec3;
 	static var orbit = true;
 	static var angle = 0.0;
@@ -39,7 +37,7 @@ class MeshesDemo {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "meshes (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -73,9 +71,6 @@ class MeshesDemo {
 
 		addFloor();
 		addShapes();
-
-		if (!GuestAbi.loadAsset(NORMAL_MAP_PATH, ASSET_NORMAL_MAP))
-			Log.error('failed to queue asset: $NORMAL_MAP_PATH');
 		Debug.enableFps(12, 10, 16);
 	}
 
@@ -94,6 +89,7 @@ class MeshesDemo {
 
 	static function addShapes():Void {
 		final all = shapes();
+		final normalMap = new Texture(NORMAL_MAP_PATH); // a flat normal until it loads
 		for (i in 0...SHAPE_COUNT) {
 			final shape = all[i];
 			final x = (i - (SHAPE_COUNT - 1) * 0.5) * SPACING;
@@ -106,24 +102,12 @@ class MeshesDemo {
 			material.setMetallic(0.0);
 			material.setRoughness(0.45);
 			material.setVec2("normal_texture_scale", 2.0, 2.0); // the tiles repeat
+			material.setNormalTexture(normalMap);
 			model.setMaterial(0, material);
 			material.release(); // the model keeps it alive
-			materials.push(material);
 			scene.add(model);
 		}
-	}
-
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('load failed: $path');
-			return;
-		}
-		if (id != ASSET_NORMAL_MAP)
-			return;
-		final texture = new Texture(path);
-		for (material in materials)
-			material.setNormalTexture(texture);
-		texture.release(); // the materials hold their own references
+		normalMap.release(); // the materials hold their own references
 	}
 
 	static function onFrame(dt:Float):Void {

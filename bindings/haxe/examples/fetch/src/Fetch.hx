@@ -39,8 +39,9 @@
 // standard library rather than about the binding.
 //
 // Two buttons (`UiWidgets.hx`, from examples/shared/ui) show the cache at work: Fetch
-// asset loads the logo again, and Clear cache forgets what was downloaded, so the next
-// fetch downloads it again. The line under them says what happened -- natively, whether
+// asset loads the logo again (releasing the texture, then creating it), and Clear
+// cache forgets what was downloaded, so the next fetch downloads it again. The line
+// under them says what happened -- natively, whether
 // the file came from the cache or was downloaded, told by looking in the cache
 // directory first (`Asset.getCacheDir`). The web keeps its cache in the browser, where
 // the example can't look, so there it just says loaded.
@@ -54,7 +55,6 @@ class Fetch {
 	static inline final SCREEN_WIDTH = 1024;
 	static inline final SCREEN_HEIGHT = 640;
 	static inline final TEXTURE_PATH = "sprites/logo/wg-logo-white-alpha.png";
-	static inline final ASSET_TEXTURE = 1;
 	static inline final LAYER_CONTROL = 1; // a button's label goes on the layer above
 	// the build's work directory, build/<preset> (wgr.macros.NativeOut); on the
 	// web the browser caches
@@ -64,6 +64,8 @@ class Fetch {
 
 	static var background:Color;
 	static var sprite:Sprite2D;
+	static var texture:Texture; // the logo; watched until it's Ready or Failed
+	static var waiting = false;
 	static var camera:Camera3D;
 	static var host = "";
 	static var remote = false;
@@ -80,14 +82,15 @@ class Fetch {
 
 	public static function start(hostModule:Dynamic):Bool {
 		GuestAbi.attach(hostModule);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "fetch (wgrender host, Haxe guest)", Resizable);
 	}
 
 	static function onInit():Void {
 		background = Color.rgba(28, 30, 38, 255);
 		camera = new Camera3D(Perspective);
-		sprite = new Sprite2D(Handle.NONE); // the texture is attached when it loads
+		texture = Handle.NONE;
+		sprite = new Sprite2D(Handle.NONE); // the texture is attached by fetch
 		sprite.setPosition(512, 380);
 		Debug.enableFps(12, 10, 16);
 
@@ -125,13 +128,14 @@ class Fetch {
 		if (remote)
 			wasCached = sys.FileSystem.exists('${Asset.getCacheDir()}/$TEXTURE_PATH');
 		#end
-		sprite.setTexture(Handle.NONE); // so a fetch is seen to happen
+		// nothing may hold the old texture, or creating the path again finds it loaded
+		sprite.setTexture(Handle.NONE);
+		texture.release();
+		texture = new Texture(TEXTURE_PATH); // Pending: made local (from the cache, or downloaded), then loaded
+		sprite.setTexture(texture); // drawn once it's Ready
+		waiting = true;
 		fetchButton.enabled = false;
 		state = 'fetching $TEXTURE_PATH...';
-		if (!GuestAbi.loadAsset(TEXTURE_PATH, ASSET_TEXTURE)) {
-			state = 'couldn\'t queue $TEXTURE_PATH';
-			fetchButton.enabled = true;
-		}
 	}
 
 	#if sys
@@ -150,18 +154,8 @@ class Fetch {
 	}
 	#end
 
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (id != ASSET_TEXTURE)
-			return;
-		fetchButton.enabled = true;
-		if (!ok) {
-			Log.error('could not get $path');
-			state = 'failed to get $TEXTURE_PATH';
-			return;
-		}
-		final texture = new Texture(path);
-		sprite.setTexture(texture);
-		texture.release(); // the sprite holds its own reference
+	/** The logo finished loading: say where it came from. **/
+	static function reportLoaded():Void {
 		#if sys
 		state = !remote ? 'read $TEXTURE_PATH from ${Assets.defaultBase()}'
 			: wasCached ? 'loaded $TEXTURE_PATH from the cache' : 'downloaded $TEXTURE_PATH into the cache';
@@ -171,6 +165,14 @@ class Fetch {
 	}
 
 	static function onFrame(dt:Float):Void {
+		if (waiting && texture.getStatus() != Pending) {
+			waiting = false;
+			fetchButton.enabled = true;
+			if (texture.getStatus() == Ready)
+				reportLoaded();
+			else
+				state = 'failed to get $TEXTURE_PATH'; // the log says why
+		}
 		if (fetchButton.update(scene, theme))
 			fetch();
 		if (clearButton.update(scene, theme)) {

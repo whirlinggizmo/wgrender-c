@@ -23,21 +23,6 @@ static struct {
     float angle;
 } g = {.orbit = true};
 
-static void on_normal_map_loaded(const char *path, void *user)
-{
-    wgr_handle_t texture = wgr_texture_create(path);
-    (void)user;
-    for (int i = 0; i < SHAPE_COUNT; i++) {
-        wgr_material_set_texture(g.materials[i], "normal_texture", texture);
-    }
-    wgr_texture_release(texture); /* the materials hold their own references */
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("load failed: %s", path);
-}
 
 static void init(void *user_data)
 {
@@ -79,6 +64,7 @@ static void init(void *user_data)
     wgr_material_release(ground);
     wgr_scene_add(g.scene, floor, 0);
 
+    const wgr_handle_t normal_map = wgr_texture_create(NORMAL_MAP_PATH); /* a flat normal until it loads */
     for (int i = 0; i < SHAPE_COUNT; i++) {
         const float x = ((float)i - (SHAPE_COUNT - 1) * 0.5f) * 1.4f;
         g.shapes[i] = wgr_model_create(shapes[i].mesh);
@@ -89,12 +75,12 @@ static void init(void *user_data)
         wgr_material_set_float(g.materials[i], "metallic", 0.0f);
         wgr_material_set_float(g.materials[i], "roughness", 0.45f);
         wgr_material_set_vec2(g.materials[i], "normal_texture_scale", 2.0f, 2.0f); /* tiles repeat */
+        wgr_material_set_texture(g.materials[i], "normal_texture", normal_map);
         wgr_model_set_material(g.shapes[i], 0, g.materials[i]);
         wgr_material_release(g.materials[i]); /* the model keeps it alive */
         wgr_scene_add(g.scene, g.shapes[i], 0);
     }
-    wgr_asset_add_task(wgr_asset_ensure_async(NORMAL_MAP_PATH, NULL, WGR_ASSET_NONE), on_normal_map_loaded, on_failed,
-                      NULL);
+    wgr_texture_release(normal_map); /* the materials hold their own references */
     wgr_debug_enable_fps(12, 10, 16);
 }
 

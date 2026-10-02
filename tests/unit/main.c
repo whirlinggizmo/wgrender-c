@@ -150,7 +150,7 @@ static const test_case_t TESTS[] = {
     {"pipeline_gpu_pools", test_pipeline_gpu_pools},
     {"pipeline_mesh_textures", test_pipeline_mesh_textures},
     {"pipeline_async", test_pipeline_async},
-    {"pipeline_unclaimed", test_pipeline_unclaimed},
+    {"pipeline_cancel", test_pipeline_cancel},
     {"pipeline_failures", test_pipeline_failures},
     {"pipeline_budget", test_pipeline_budget},
     {"pipeline_shutdown", test_pipeline_shutdown},

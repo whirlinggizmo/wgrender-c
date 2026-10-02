@@ -97,15 +97,9 @@ static void make_smoke(wgr_handle_t texture)
 
 /* A campfire's flames: puffs from a flipbook, played once over each one's life, glowing
  * white-yellow, then orange, red and out as they rise and break up. */
-static void on_flame_loaded(const char *path, void *user)
+static void make_flame(wgr_handle_t texture)
 {
-    wgr_handle_t texture = wgr_texture_create(path);
-    (void)user;
-    if (texture == 0) {
-        return;
-    }
     g_flame = wgr_emitter3d_create(texture);
-    wgr_texture_release(texture);
     wgr_emitter3d_set_frames(g_flame, 4, 4, 0, 0.0f);
     wgr_emitter3d_set_rate(g_flame, 40.0f);
     wgr_emitter3d_set_life(g_flame, 0.7f, 1.1f);
@@ -156,28 +150,6 @@ static void burst_confetti(float x, float y)
     wgr_emitter2d_burst(g_confetti, 300);
 }
 
-static void on_texture_loaded(const char *path, void *user)
-{
-    wgr_handle_t texture = wgr_texture_create(path);
-    (void)user;
-    if (texture == 0) {
-        return;
-    }
-    make_fountain(texture);
-    make_sparks(texture);
-    make_smoke(texture);
-    make_confetti(texture);
-    wgr_texture_release(texture); /* each emitter holds its own reference */
-
-    vec2_t screen = wgr_window_get_screen_size();
-    burst_confetti(screen.x * 0.5f, screen.y * 0.4f); /* one to start with */
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("asset load failed: %s", path);
-}
 
 static void on_init(void *user_data)
 {
@@ -190,8 +162,19 @@ static void on_init(void *user_data)
     g_scene = wgr_scene_create();
     wgr_scene_set_active_camera(g_scene, g_camera);
 
-    wgr_asset_add_task(wgr_asset_ensure_async(PARTICLE_PATH, NULL, 0), on_texture_loaded, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(FLAME_PATH, NULL, 0), on_flame_loaded, on_failed, NULL);
+    /* the emitters run at once; their particles are drawn once the textures load */
+    const wgr_handle_t particle = wgr_texture_create(PARTICLE_PATH);
+    make_fountain(particle);
+    make_sparks(particle);
+    make_smoke(particle);
+    make_confetti(particle);
+    wgr_texture_release(particle); /* each emitter holds its own reference */
+    const wgr_handle_t flame = wgr_texture_create(FLAME_PATH);
+    make_flame(flame);
+    wgr_texture_release(flame);
+
+    const vec2_t screen = wgr_window_get_screen_size();
+    burst_confetti(screen.x * 0.5f, screen.y * 0.4f); /* one to start with */
     wgr_debug_enable_fps(12, 10, 16);
 }
 

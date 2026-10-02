@@ -37,15 +37,12 @@ static const char *kind_name(wgr_handle_t handle)
     }
 }
 
-static void on_logo_loaded(const char *path, void *user)
+/* The logo, drawn and picked once its texture has loaded. */
+static void make_logo(void)
 {
-    wgr_handle_t texture = wgr_texture_create(path);
-    (void)user;
+    const wgr_handle_t texture = wgr_texture_create(LOGO_PATH);
     g_sprite = wgr_sprite3d_create(texture);
     wgr_texture_release(texture); /* the sprite holds its own reference */
-    if (g_sprite == 0) {
-        return;
-    }
     wgr_sprite3d_set_size(g_sprite, 4.0f);
     wgr_sprite3d_set_facing(g_sprite, WGR_SPRITE3D_FACING_CAMERA);
     wgr_sprite3d_set_tint(g_sprite, WGR_COLOR_WHITE);
@@ -106,7 +103,7 @@ static void on_init(void *user_data)
     wgr_shape3d_set_color(g_sphere, WGR_COLOR_GOLD);
     wgr_scene_add(g_scene, g_sphere, 0);
 
-    wgr_asset_add_task(wgr_asset_ensure_async(LOGO_PATH, NULL, 0), on_logo_loaded, on_failed, NULL);
+    make_logo();
     wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, 0), on_model_loaded, on_failed, NULL);
 
     wgr_debug_enable_fps(12, 10, 16);

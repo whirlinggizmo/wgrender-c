@@ -21,8 +21,7 @@ class PickDemo {
 	static inline final SCREEN_HEIGHT = 700;
 	static inline final LOGO_PATH = "sprites/logo/wg-logo-bw-alpha.png";
 	static inline final CHARACTER_PATH = "models/woman_casual/woman_casual.glb";
-	static inline final ASSET_LOGO = 1;
-	static inline final ASSET_MODEL = 2;
+	static inline final ASSET_MODEL = 1;
 
 	static var background:Color;
 	static var scene:Scene;
@@ -74,9 +73,23 @@ class PickDemo {
 		sphere.setColor(Color.GOLD);
 		scene.add(sphere);
 
-		load(LOGO_PATH, ASSET_LOGO);
+		makeLogo();
 		load(CHARACTER_PATH, ASSET_MODEL);
 		Debug.enableFps(12, 10, 16);
+	}
+
+	// The logo, drawn and picked once its texture has loaded.
+	static function makeLogo():Void {
+		final texture = new Texture(LOGO_PATH);
+		sprite = new Sprite3D(texture);
+		texture.release(); // the sprite holds its own reference
+		sprite.setSize(4.0);
+		sprite.setFacing(Camera);
+		sprite.setTint(Color.WHITE);
+		sprite.setPosition(0, 3.0, 4.0);
+		// the transparent parts of the logo let the click through
+		sprite.setPickAlphaTest(true, 0.5);
+		scene.add(sprite, 1);
 	}
 
 	static function load(path:String, id:Int):Void {
@@ -90,20 +103,6 @@ class PickDemo {
 			return;
 		}
 		switch id {
-			case ASSET_LOGO:
-				final texture = new Texture(path);
-				sprite = new Sprite3D(texture);
-				texture.release(); // the sprite holds its own reference
-				if (sprite.isNone())
-					return;
-				sprite.setSize(4.0);
-				sprite.setFacing(Camera);
-				sprite.setTint(Color.WHITE);
-				sprite.setPosition(0, 3.0, 4.0);
-				// the transparent parts of the logo let the click through
-				sprite.setPickAlphaTest(true, 0.5);
-				scene.add(sprite, 1);
-
 			case ASSET_MODEL:
 				final mesh = new Mesh(path);
 				model = new Model(mesh);

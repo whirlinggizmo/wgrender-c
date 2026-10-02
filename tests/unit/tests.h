@@ -128,7 +128,7 @@ void test_text_font_refcount(void);
 void test_pipeline_gpu_pools(void);
 void test_pipeline_mesh_textures(void);
 void test_pipeline_async(void);
-void test_pipeline_unclaimed(void);
+void test_pipeline_cancel(void);
 void test_pipeline_failures(void);
 void test_pipeline_budget(void);
 void test_pipeline_shutdown(void);

@@ -12,11 +12,13 @@
 #include "wgr_logger.h"
 #include "wgr_texture.h"
 #include "test.h"
+#include "test_assets.h"
 #include "tests.h"
 
 #include "sokol_gfx.h"
 
 #define FLAME "examples/assets/textures/flame"
+#define FLAME_ASSET "textures/flame" /* the same file, as an asset path under examples/assets */
 
 static unsigned char *read_all(const char *path, size_t *size)
 {
@@ -111,22 +113,31 @@ void test_ktx_load(void)
 {
     sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
     wgri_texture_init();
+    test_assets_start(0, "examples/assets");
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL);
     wgri_texture_set_ktx_support(1); /* pretend BC7 works: the file loads, the GPU refuses it */
-    CHECK(wgr_texture_create(FLAME ".ktx") == 0);
-    CHECK(wgr_texture_create("examples/assets/textures/missing.ktx") == 0);
+    const wgr_handle_t refused = wgr_texture_create(FLAME_ASSET ".ktx");
+    const wgr_handle_t missing = wgr_texture_create("textures/missing.ktx");
+    CHECK(test_assets_run() > 0);
+    CHECK(wgr_resource_get_status(refused) == WGR_RESOURCE_FAILED);
+    CHECK(wgr_resource_get_status(missing) == WGR_RESOURCE_FAILED);
+    wgr_texture_release(refused);
+    wgr_texture_release(missing);
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
 
-    /* no compressed format: rock.ktx loads rock.png */
+    /* no compressed format: rock.ktx loads rock.png, under the name asked for */
     wgri_texture_set_ktx_support(0);
-    const wgr_handle_t png = wgr_texture_create(FLAME ".ktx");
-    CHECK(png != 0 && wgr_texture_get_size(png).x == 256.0f && wgr_texture_get_size(png).y == 256.0f);
-    CHECK(png == wgr_texture_create(FLAME ".png")); /* the same texture */
+    const wgr_handle_t png = wgr_texture_create(FLAME_ASSET ".ktx");
+    CHECK(test_assets_run() > 0);
+    CHECK(wgr_resource_get_status(png) == WGR_RESOURCE_READY);
+    CHECK(wgr_texture_get_size(png).x == 256.0f && wgr_texture_get_size(png).y == 256.0f);
+    CHECK(png == wgr_texture_create(FLAME_ASSET ".ktx")); /* the same texture */
     wgr_texture_release(png);
     wgr_texture_release(png);
 
     wgri_texture_set_ktx_support(-1);
+    test_assets_stop();
     wgri_texture_deinit();
     sg_shutdown();
 }

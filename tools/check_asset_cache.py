@@ -10,17 +10,19 @@ the one file the tilemap example loads (textures/tiles.png), and visits tilemap
 again and again in one browser context, so its IndexedDB cache carries over from
 visit to visit as a returning visitor's does. Between visits the file changes, and
 each visit is judged by every request it made under /assets/ (and its HTTP status),
-what libwgrender logged, and whether the screen shows the replacement sheet, which
-is solid magenta. Without a manifest (the examples ask for manifest.json, and get a
+what libwgrender logged, and what the screen shows: the replacement sheet, which is
+solid cyan, or for a load that fails the placeholder, libwgrender's magenta checker.
+Without a manifest (the examples ask for manifest.json, and get a
 404), each cached copy is asked about:
 
   first      downloaded (200), the real sheet on screen
   unchanged  asked about and kept (304)
   offline    /assets/ blocked: the cached copy is used, no error
-  changed    the sheet replaced on disk: downloaded again (200), magenta on screen
-  again      the new copy kept (304), still magenta
+  changed    the sheet replaced on disk: downloaded again (200), cyan on screen
+  again      the new copy kept (304), still cyan
   cleared    wgr_asset_clear_cache() called in the page first: downloaded again (200)
-  gone       the file deleted: 404, the cached copy forgotten, the load fails
+  gone       the file deleted: 404, the cached copy forgotten, the load fails: the
+             placeholder on screen
   gone, offline  /assets/ blocked: nothing cached any more, so it fails again
 
 --manifest writes the manifests (tools/gen_manifest.py) after each change, and only
@@ -29,11 +31,11 @@ the root manifest is asked about:
   first      the root, textures/manifest.json and the sheet downloaded
   unchanged  the root asked about (304), nothing else requested
   offline    the root blocked: the cached one is used, and the cached sheet
-  changed    the root, the directory's manifest and the sheet downloaded; magenta
-  again      the root asked about (304), still magenta, nothing else requested
+  changed    the root, the directory's manifest and the sheet downloaded; cyan
+  again      the root asked about (304), still cyan, nothing else requested
   cleared    wgr_asset_clear_cache() called in the page first: all three downloaded again
-  stale host the manifests list a green sheet, the host serves magenta: downloaded,
-             not kept, the load fails
+  stale host the manifests list a green sheet, the host serves cyan: downloaded,
+             not kept, the load fails: the placeholder on screen
   caught up  the host serves the green sheet: only it is downloaded
 
 Default serving (no-store), so every copy is stale and every visit asks: the
@@ -59,7 +61,9 @@ from weblib import (PYTHON, ROOT, RunProcesses, find_browser, find_xvfb, free_po
 
 EXAMPLE = 'tilemap'
 TILES = 'textures/tiles.png'
-MAGENTA_MIN = 2000  # pixels: the tile map covers much of the screen when the sheet draws
+COLOUR_MIN = 2000  # pixels: the tile map covers much of the screen when the sheet draws
+CYAN = 'p[i] < 60 && p[i + 1] > 200 && p[i + 2] > 200'     # the replacement sheet
+MAGENTA = 'p[i] > 200 && p[i + 1] < 60 && p[i + 2] > 200'  # the placeholder checker (wgr_texture_set_placeholder)
 
 
 def parse_args():
@@ -90,9 +94,9 @@ def png_size(data):
     return struct.unpack('>II', data[16:24])
 
 
-def magenta_pixels(session, png_base64):
-    """Pixels of a screenshot that are (near) magenta, decoded in the page on a canvas of
-    its own (never the example's)."""
+def count_pixels(session, png_base64, test):
+    """Pixels of a screenshot that pass `test` (a JS condition on p[i], p[i + 1], p[i + 2]),
+    decoded in the page on a canvas of its own (never the example's)."""
     expression = f"""(async () => {{
         const image = await createImageBitmap(await (await fetch("data:image/png;base64,{png_base64}")).blob());
         const canvas = new OffscreenCanvas(image.width, image.height);
@@ -101,7 +105,7 @@ def magenta_pixels(session, png_base64):
         const p = context.getImageData(0, 0, image.width, image.height).data;
         let n = 0;
         for (let i = 0; i < p.length; i += 4)
-            if (p[i] > 200 && p[i + 1] < 60 && p[i + 2] > 200) n++;
+            if ({test}) n++;
         return n;
     }})()"""
     return session.send('Runtime.evaluate', {'expression': expression, 'awaitPromise': True,
@@ -187,7 +191,8 @@ class Visitor:
         with self.lock:
             v, self.visit_state = self.visit_state, None
         v['pending'] = pending
-        v['magenta'] = magenta_pixels(self.session, shot)
+        v['cyan'] = count_pixels(self.session, shot, CYAN)
+        v['magenta'] = count_pixels(self.session, shot, MAGENTA)
         v['shot'] = shot
         return v
 
@@ -197,9 +202,11 @@ class Visitor:
         self.browser.try_send('Target.disposeBrowserContext', {'browserContextId': self.context})
 
 
-def judge(v, requests, magenta, failed=False, log=None):
+def judge(v, requests, replaced, failed=False, log=None):
     """What's wrong with a visit, as lines. `requests`: path under /assets/ -> the
-    status of its one request ('failed': no answer); any other asset request is wrong."""
+    status of its one request ('failed': no answer); any other asset request is wrong.
+    `replaced`: the replacement sheet is on screen; `failed`: the load failed, so the
+    placeholder is."""
     problems = []
     got = {path[len('/assets/'):]: statuses for path, statuses in v['status'].items() if path.startswith('/assets/')}
     for path in sorted(set(got) | set(requests)):
@@ -208,10 +215,14 @@ def judge(v, requests, magenta, failed=False, log=None):
             problems.append(f'{path}: expected {want or "no request"}, got {got.get(path) or "no request"}')
     if v['pending'] != 0:
         problems.append(f'still loading ({v["pending"]} asset task(s) pending)')
-    if magenta and v['magenta'] < MAGENTA_MIN:
-        problems.append(f'the replacement sheet is not on screen ({v["magenta"]} magenta pixels)')
-    if not magenta and v['magenta'] >= MAGENTA_MIN:
-        problems.append(f'the replacement sheet is on screen ({v["magenta"]} magenta pixels)')
+    if replaced and v['cyan'] < COLOUR_MIN:
+        problems.append(f'the replacement sheet is not on screen ({v["cyan"]} cyan pixels)')
+    if not replaced and v['cyan'] >= COLOUR_MIN:
+        problems.append(f'the replacement sheet is on screen ({v["cyan"]} cyan pixels)')
+    if failed and v['magenta'] < COLOUR_MIN:
+        problems.append(f'the placeholder is not on screen ({v["magenta"]} magenta pixels)')
+    if not failed and v['magenta'] >= COLOUR_MIN:
+        problems.append(f'the placeholder is on screen ({v["magenta"]} magenta pixels)')
     errors = [line for line in v['console'] if '[ERROR' in line or '[FATAL' in line or line.startswith('exception')]
     if failed and not any(TILES in line for line in errors):
         problems.append(f'the load of {TILES} did not fail')
@@ -247,7 +258,7 @@ def main():
         visitor = Visitor(browser, debug_base, base_url, opts)
         blocked = [f'{base_url}/assets/*']
         clock = {'later': time.time()}
-        magenta = solid_png(*png_size(original), (255, 0, 255, 255))
+        cyan = solid_png(*png_size(original), (0, 255, 255, 255))
         green = solid_png(*png_size(original), (0, 160, 0, 255))
 
         def touch(path):
@@ -270,14 +281,14 @@ def main():
             def stale_host():
                 serve(green)
                 deploy()
-                serve(magenta)  # the manifests list green
+                serve(cyan)  # the manifests list green
 
             deploy()
             steps = [
                 ('first', None, lambda v: judge(v, {M: 200, D: 200, T: 200}, False)),
                 ('unchanged', None, lambda v: judge(v, {M: 304}, False)),
                 ('offline', 'block', lambda v: judge(v, {M: 'failed'}, False)),
-                ('changed', lambda: (serve(magenta), deploy()), lambda v: judge(v, {M: 200, D: 200, T: 200}, True)),
+                ('changed', lambda: (serve(cyan), deploy()), lambda v: judge(v, {M: 200, D: 200, T: 200}, True)),
                 ('again', None, lambda v: judge(v, {M: 304}, True)),
                 ('cleared', 'clear', lambda v: judge(v, {M: 200, D: 200, T: 200}, True)),
                 ('stale host', stale_host, lambda v: judge(v, {M: 200, D: 200, T: 200}, False, failed=True,
@@ -289,7 +300,7 @@ def main():
                 ('first', None, lambda v: judge(v, {M: 404, T: 200}, False)),
                 ('unchanged', None, lambda v: judge(v, {M: 404, T: 304}, False)),
                 ('offline', 'block', lambda v: judge(v, {M: 'failed', T: 'failed'}, False)),
-                ('changed', lambda: serve(magenta), lambda v: judge(v, {M: 404, T: 200}, True)),
+                ('changed', lambda: serve(cyan), lambda v: judge(v, {M: 404, T: 200}, True)),
                 ('again', None, lambda v: judge(v, {M: 404, T: 304}, True)),
                 ('cleared', 'clear', lambda v: judge(v, {M: 404, T: 200}, True)),
                 ('gone', tiles.unlink, lambda v: judge(v, {M: 404, T: 404}, False, failed=True,

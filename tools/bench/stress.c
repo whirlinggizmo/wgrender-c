@@ -125,21 +125,6 @@ static void update(entity_t *e)
     }
 }
 
-static void on_texture_ready(const char *path, void *user)
-{
-    (void)user;
-    g.texture = wgr_texture_create(path);
-    g.entities = calloc((size_t)g.n, sizeof(entity_t));
-    for (int i = 0; i < g.n; i++) {
-        spawn(&g.entities[i]);
-    }
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("failed to import asset: %s", path);
-}
 
 static void on_init(void *user_data)
 {
@@ -155,9 +140,10 @@ static void on_init(void *user_data)
     wgr_scene_set_active_camera(g.scene, g.camera);
     g.background = wgr_color_rgba(245, 245, 245, 255);
 
-    wgr_handle_t task = wgr_asset_ensure_async(SPRITE_PATH, NULL, WGR_ASSET_NONE);
-    if (wgr_asset_add_task(task, on_texture_ready, on_failed, NULL) != WGR_ASSET_ADD_TASK_OK) {
-        on_failed(SPRITE_PATH, NULL);
+    g.texture = wgr_texture_create(SPRITE_PATH); /* the sprites are drawn once it's loaded */
+    g.entities = calloc((size_t)g.n, sizeof(entity_t));
+    for (int i = 0; i < g.n; i++) {
+        spawn(&g.entities[i]);
     }
 }
 

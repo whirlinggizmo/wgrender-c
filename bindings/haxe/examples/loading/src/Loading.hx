@@ -143,7 +143,7 @@ class Loading {
 		for (i in ENVIRONMENTS...ENVIRONMENTS + MESHES)
 			meshes.push(new Mesh(paths[i]));
 		for (i in ENVIRONMENTS + MESHES...PATHS.length)
-			textures.push(new Texture(paths[i]));
+			textures.push(new Texture(PATHS[i])); // an asset path: loads on create
 		createMs = (Wgr.getTime() - start) * 1000.0;
 
 		scene.setEnvironment(environments[0], 1.0, 0.0);

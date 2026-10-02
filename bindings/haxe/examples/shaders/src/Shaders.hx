@@ -41,10 +41,8 @@ class Shaders {
 	static inline final ASSET_DISSOLVE = 2;
 	static inline final ASSET_WAVE = 3;
 	static inline final ASSET_SPRITE_FX = 4;
-	static inline final ASSET_LOGO = 5;
-	static inline final ASSET_ENVIRONMENT = 6;
-	static inline final ASSET_CHARACTER = 7;
-	static inline final ASSET_NOISE = 8;
+	static inline final ASSET_ENVIRONMENT = 5;
+	static inline final ASSET_CHARACTER = 6;
 
 	static inline final FLOOR_Y = -0.3;
 	static inline final SPHERE_Y = FLOOR_Y + 0.5; // spheres 1 m across, resting on the floor
@@ -57,7 +55,6 @@ class Shaders {
 	static var character:Model;
 	static var dissolving:Model;
 	static var rippling:Model;
-	static var dissolve:Material; // borrowed: the model holds the reference
 	static var sun:Light;
 	static var lamp:Light;
 	static var lampMarker:Shape3D;
@@ -93,7 +90,6 @@ class Shaders {
 
 		for (i in 0...SHADER_PATHS.length)
 			load(SHADER_PATHS[i], i + 1);
-		load(LOGO_PATH, ASSET_LOGO);
 		load(ENVIRONMENT_PATH, ASSET_ENVIRONMENT);
 		load(CHARACTER_PATH, ASSET_CHARACTER);
 	}
@@ -160,13 +156,15 @@ class Shaders {
 
 	/** The logo twice: in the world above the middle, and in the screen's corner. **/
 	static function addSprites():Void {
-		logo3d = new Sprite3D(Handle.NONE);
+		final logo = new Texture(LOGO_PATH);
+		logo3d = new Sprite3D(logo);
 		logo3d.setPosition(0, 1.55, -0.8);
 		logo3d.setSize(0.9);
 		logo3d.setTint(Color.rgba(90, 190, 255, 255)); // so the white flash shows
 		scene.add(logo3d);
 
-		logo2d = new Sprite2D(Handle.NONE);
+		logo2d = new Sprite2D(logo);
+		logo.release(); // the sprites hold their own references
 		logo2d.setSize(96.0, 96.0);
 		logo2d.setPivot(1.0, 1.0);
 		logo2d.setTint(Color.rgba(90, 190, 255, 255));
@@ -193,8 +191,9 @@ class Shaders {
 				material.setFloat("speed", 0.15);
 				material.setDoubleSided(true); // the inside shows through the holes
 				dissolving.setMaterial(0, material);
-				dissolve = material; // the model holds a reference; ours goes below
-				load(NOISE_PATH, ASSET_NOISE);
+				final noise = new Texture(NOISE_PATH); // white until it loads
+				material.setTexture("noise_tex", noise);
+				noise.release(); // the material holds its own reference
 
 			case ASSET_WAVE:
 				material.setFloat("amplitude", 0.03);
@@ -226,12 +225,6 @@ class Shaders {
 			case ASSET_TOON | ASSET_DISSOLVE | ASSET_WAVE | ASSET_SPRITE_FX:
 				onShader(id, path);
 
-			case ASSET_LOGO:
-				final texture = new Texture(path);
-				logo3d.setTexture(texture);
-				logo2d.setTexture(texture);
-				texture.release(); // the sprites hold their own references
-
 			case ASSET_ENVIRONMENT:
 				final environment = new Environment(path);
 				// lighting only: the background stays dark
@@ -242,12 +235,6 @@ class Shaders {
 				final mesh = new Mesh(path);
 				character.setMesh(mesh);
 				mesh.release();
-
-			case ASSET_NOISE:
-				final texture = new Texture(path);
-				if (!dissolve.isNone())
-					dissolve.setTexture("noise_tex", texture);
-				texture.release(); // the material holds its own reference
 		}
 	}
 

@@ -82,14 +82,6 @@ static void on_character_loaded(const char *path, void *user)
     wgr_mesh_release(mesh);
 }
 
-static void on_normal_map_loaded(const char *path, void *user)
-{
-    wgr_handle_t texture = wgr_texture_create(path);
-    (void)user;
-    wgr_material_set_texture(g.tiles, "normal_texture", texture);
-    wgr_texture_release(texture);
-}
-
 static void on_failed(const char *path, void *user)
 {
     (void)user;
@@ -134,6 +126,11 @@ static void init(void *user_data)
     }
     g.spheres[n] = create_sphere(-1.3f, -0.7f, 0.9f, 0.9f, 0.9f, 0.0f, 0.3f);
     g.tiles = wgr_model_get_material(g.spheres[n], 0); /* borrowed: the model's own material */
+    {
+        const wgr_handle_t normal_map = wgr_texture_create(NORMAL_MAP_PATH); /* a flat normal until it loads */
+        wgr_material_set_texture(g.tiles, "normal_texture", normal_map);
+        wgr_texture_release(normal_map); /* the material holds its own reference */
+    }
 
     g.character = wgr_model_create(0);
     wgr_model_set_transform(g.character, 1.3f, -1.3f, 0, 0, 0.4f, 0, 0.3f, 0.3f, 0.3f);
@@ -147,8 +144,6 @@ static void init(void *user_data)
     }
     wgr_asset_add_task(wgr_asset_ensure_async(SPHERE_PATH, NULL, WGR_ASSET_NONE), on_sphere_loaded, on_failed, NULL);
     wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_character_loaded, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(NORMAL_MAP_PATH, NULL, WGR_ASSET_NONE), on_normal_map_loaded, on_failed,
-                      NULL);
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)

@@ -30,7 +30,7 @@
  * reads the local asset directory instead and says so.
  *
  * Two buttons (examples/shared/ui/ui_widgets.h) show the cache at work: Fetch asset
- * ensures the logo again, and Clear cache forgets what was downloaded, so the next
+ * loads the logo again (releasing the texture, then creating it), and Clear cache forgets what was downloaded, so the next
  * fetch downloads it again. The line under them says what happened -- on desktop,
  * whether the file came from the cache or was downloaded, which the example tells by
  * looking in the cache directory first (wgr_asset_get_cache_dir). The web keeps its
@@ -54,6 +54,8 @@
 enum { LAYER_CONTROL = 1 }; /* a button's label goes on the layer above (ui_widgets.h) */
 
 static wgr_handle_t g_sprite, g_scene;
+static wgr_handle_t g_texture; /* the logo; watched until it's READY or FAILED */
+static bool g_waiting;
 static char g_host[256];
 static char g_state[512] = "";
 static ui_theme_t g_theme;
@@ -81,12 +83,9 @@ static bool host_is_up(const char *host)
 }
 #endif
 
-static void on_loaded(const char *path, void *user)
+/* The logo finished loading: say where it came from. */
+static void report_loaded(void)
 {
-    const wgr_handle_t texture = wgr_texture_create(path);
-    (void)user;
-    wgr_sprite2d_set_texture(g_sprite, texture);
-    wgr_texture_release(texture); /* the sprite holds its own reference */
 #ifdef __EMSCRIPTEN__
     snprintf(g_state, sizeof g_state, "loaded %s", TEXTURE_PATH);
 #else
@@ -97,18 +96,9 @@ static void on_loaded(const char *path, void *user)
                  TEXTURE_PATH);
     }
 #endif
-    ui_button_set_enabled(&g_fetch, true);
 }
 
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("could not get %s", path);
-    snprintf(g_state, sizeof g_state, "failed to get %s", TEXTURE_PATH);
-    ui_button_set_enabled(&g_fetch, true);
-}
-
-/* Ensure the logo, having noted whether the cache has it already. */
+/* Load the logo again, having noted whether the cache has it already. */
 static void fetch(void)
 {
 #ifndef __EMSCRIPTEN__
@@ -122,14 +112,14 @@ static void fetch(void)
         if (f != NULL) fclose(f);
     }
 #endif
-    wgr_sprite2d_set_texture(g_sprite, 0); /* so a fetch is seen to happen */
+    /* nothing may hold the old texture, or creating the path again finds it loaded */
+    wgr_sprite2d_set_texture(g_sprite, 0);
+    wgr_texture_release(g_texture);
+    g_texture = wgr_texture_create(TEXTURE_PATH); /* PENDING: made local (from the cache, or downloaded), then loaded */
+    wgr_sprite2d_set_texture(g_sprite, g_texture); /* drawn once it's READY */
+    g_waiting = true;
     ui_button_set_enabled(&g_fetch, false);
     snprintf(g_state, sizeof g_state, "fetching %s...", TEXTURE_PATH);
-    if (wgr_asset_add_task(wgr_asset_ensure_async(TEXTURE_PATH, NULL, 0), on_loaded, on_failed, NULL) !=
-        WGR_ASSET_ADD_TASK_OK) {
-        snprintf(g_state, sizeof g_state, "couldn't queue %s", TEXTURE_PATH);
-        ui_button_set_enabled(&g_fetch, true);
-    }
 }
 
 static void on_init(void *user)
@@ -175,6 +165,15 @@ static void frame(float dt, float fraction, void *user)
     (void)fraction;
     (void)user;
 
+    if (g_waiting && wgr_resource_get_status(g_texture) != WGR_RESOURCE_PENDING) {
+        g_waiting = false;
+        ui_button_set_enabled(&g_fetch, true);
+        if (wgr_resource_get_status(g_texture) == WGR_RESOURCE_READY) {
+            report_loaded();
+        } else {
+            snprintf(g_state, sizeof g_state, "failed to get %s", TEXTURE_PATH); /* the log says why */
+        }
+    }
     if (ui_button_update(&g_fetch, g_scene, &g_theme)) {
         fetch();
     }

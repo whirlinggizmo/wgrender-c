@@ -30,8 +30,6 @@ class LightsDemo {
 	static inline final NORMAL_PATH = "textures/tiles_sheet_normal.png"; // wgrender's tools/gen_tile_sheet.py
 
 	static inline final ASSET_MESH = 1;
-	static inline final ASSET_SPRITE = 2;
-	static inline final ASSET_NORMAL = 3;
 
 	static inline final MODEL_COUNT = 5;
 	static inline final SPRITE_COUNT = 4;
@@ -89,8 +87,6 @@ class LightsDemo {
 		addSprites();
 
 		load(CHARACTER_PATH, ASSET_MESH);
-		load(SPRITE_PATH, ASSET_SPRITE);
-		load(NORMAL_PATH, ASSET_NORMAL);
 	}
 
 	static function load(path:String, id:Int):Void {
@@ -142,9 +138,14 @@ class LightsDemo {
 		spriteMaterial.setRoughness(0.55);
 		// cells sit side by side in the sheet: clamp, so none reaches into the next
 		spriteMaterial.setTextureSampling("normal_texture", Clamp, Clamp, Linear);
+		final normalMap = new Texture(NORMAL_PATH);
+		spriteMaterial.setNormalTexture(normalMap);
+		normalMap.release(); // the material holds its own reference
+		final sheet = new Texture(SPRITE_PATH); // the sprites appear once it's loaded
+		sheet.setSampling(Clamp, Clamp, Nearest);
 		for (i in 0...SPRITE_COUNT) {
 			final cell = SPRITE_CELLS[i];
-			final sprite = new Sprite3D(Handle.NONE);
+			final sprite = new Sprite3D(sheet);
 			sprite.setPosition(-3.0 + 2.0 * i, 0.2, -2.5);
 			sprite.setSource(cell[0], cell[1], cell[2], cell[3]);
 			sprite.setExtent(1.6, cell[4]);
@@ -155,6 +156,7 @@ class LightsDemo {
 			sprites.push(sprite);
 		}
 		spriteMaterial.release(); // the sprites hold it
+		sheet.release(); // and the sheet
 	}
 
 	static function onAsset(id:Int, path:String, ok:Bool):Void {
@@ -168,18 +170,6 @@ class LightsDemo {
 				for (model in models)
 					model.setMesh(mesh);
 				mesh.release(); // the models hold their own references
-
-			case ASSET_SPRITE:
-				final texture = new Texture(path);
-				texture.setSampling(Clamp, Clamp, Nearest);
-				for (sprite in sprites)
-					sprite.setTexture(texture);
-				texture.release();
-
-			case ASSET_NORMAL:
-				final texture = new Texture(path);
-				spriteMaterial.setNormalTexture(texture);
-				texture.release();
 		}
 	}
 

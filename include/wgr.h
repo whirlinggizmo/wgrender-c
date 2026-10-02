@@ -12,6 +12,7 @@
 #include "wgr_event.h"   // IWYU pragma: keep
 #include "wgr_font.h"    // IWYU pragma: keep
 #include "wgr_handle.h"  // IWYU pragma: keep
+#include "wgr_resource.h"  // IWYU pragma: keep
 #include "wgr_input.h"   // IWYU pragma: keep
 #include "wgr_keys.h"    // IWYU pragma: keep
 #include "wgr_light.h"   // IWYU pragma: keep

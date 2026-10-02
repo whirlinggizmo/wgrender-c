@@ -32,6 +32,7 @@
     "src/wgr_pick.c",
     "src/wgr_platform.c",
     "src/wgr_render.c",
+    "src/wgr_resource.c",
     "src/wgr_scene.c",
     "src/wgr_sha256.c",
     "src/wgr_shader.c",

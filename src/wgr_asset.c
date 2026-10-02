@@ -108,6 +108,9 @@ typedef struct {
     const wgri_loader_t *loader;
     void *prepared;
     wgr_handle_t resource;     /* holds one reference until the callback has run */
+    wgr_handle_t target;       /* load on create: the PENDING resource to fill in (loader->fill), or 0;
+                                  0 again once cancelled (wgri_asset_load_cancel) */
+    bool loads;                /* a load on create's task, cancelled or not: no callbacks */
     bool load_failed;
     bool refetched;           /* a cached copy was rejected once and fetched again */
     uint32_t finish_order;    /* finishes run in the order tasks were prepared */
@@ -1782,6 +1785,24 @@ static void start_dependencies(uint16_t slot)
 }
 
 WGRI_KEEP
+/* Plan where `task` looks for `path` (a normalized key): a variant a path mapper
+ * picks for this device first, with its fallback, then redirects (plan). */
+static void plan_mapped(wgr_asset_task_t *task, const char *path)
+{
+    char primary[512], fallback[512] = "";
+    snprintf(primary, sizeof(primary), "%s", path);
+    for (int i = 0; i < wgr_asset_mapper_count; i++) { /* a variant chosen for this device, say */
+        char mapped[sizeof(primary)];
+        if (has_extension(path, wgr_asset_mappers[i].extension) &&
+            wgr_asset_mappers[i].map(path, mapped, sizeof(mapped), fallback, sizeof(fallback))) {
+            snprintf(primary, sizeof(primary), "%s", mapped);
+            break;
+        }
+        fallback[0] = '\0';
+    }
+    plan(task, primary, fallback);
+}
+
 wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
                                   unsigned int flags)
 {
@@ -1834,21 +1855,46 @@ wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
         snprintf(task_ptr->fetch_url, sizeof(task_ptr->fetch_url), "%s", found == WGRI_SOURCE_LOCAL ? "" : source);
         task_ptr->caller_url = true;
     } else {
-        char primary[512], fallback[512] = "";
-        snprintf(primary, sizeof(primary), "%s", path);
-        for (int i = 0; i < wgr_asset_mapper_count; i++) { /* a variant chosen for this device, say */
-            char mapped[sizeof(primary)];
-            if (has_extension(path, wgr_asset_mappers[i].extension) &&
-                wgr_asset_mappers[i].map(path, mapped, sizeof(mapped), fallback, sizeof(fallback))) {
-                snprintf(primary, sizeof(primary), "%s", mapped);
-                break;
-            }
-            fallback[0] = '\0';
-        }
-        plan(task_ptr, primary, fallback);
+        plan_mapped(task_ptr, path);
     }
     task_ptr->flags = flags;
     return handle;
+}
+
+WGRI_KEEP
+bool wgri_asset_load(const wgri_loader_t *loader, const char *path, wgr_handle_t resource)
+{
+    wgr_handle_t handle;
+    wgr_asset_task_t *task_ptr;
+
+    if (!wgr_asset_ready || loader == NULL || path == NULL || resource == 0) {
+        return false;
+    }
+    handle = alloc_task();
+    if (handle == 0) {
+        return false;
+    }
+    task_ptr = resolve(handle);
+    *task_ptr = (wgr_asset_task_t){0};
+    snprintf(task_ptr->origin, sizeof(task_ptr->origin), "%s", path);
+    plan_mapped(task_ptr, path);
+    task_ptr->loader = loader;
+    task_ptr->target = resource;
+    task_ptr->loads = true;
+    task_ptr->armed = true; /* nothing to attach: it starts on the next tick */
+    return true;
+}
+
+void wgri_asset_load_cancel(wgr_handle_t resource)
+{
+    if (resource == 0) {
+        return;
+    }
+    for (uint16_t i = 1; i < wgr_asset_pool.capacity; i++) {
+        if (wgr_asset_pool.occupied[i] && wgr_asset_tasks[i].target == resource) {
+            wgr_asset_tasks[i].target = 0; /* runs on, and its result is dropped */
+        }
+    }
 }
 
 WGRI_KEEP
@@ -2146,6 +2192,19 @@ static void complete(uint16_t i, bool ok)
         manifest_loaded(&task, ok); /* no callbacks, resource, parent or group */
         return;
     }
+    if (task.loads) { /* load on create: the resource says how it went, not a callback */
+        if (!ok) {
+            if (task.load_failed) {
+                wgr_logger_error("Asset couldn't be loaded: %s", task.origin);
+            } else if (task.dependency_failed) {
+                wgr_logger_error("Asset dependencies missing: %s", task.origin);
+            } else {
+                wgr_logger_error("Asset not found: %s", task.origin);
+            }
+            if (task.target != 0) task.loader->fail(task.target);
+        }
+        return;
+    }
     if (ok) {
         if (task.on_success) task.on_success(local, task.user_data);
     } else {
@@ -2195,16 +2254,24 @@ static void ready(uint16_t i, bool ok)
     wgr_asset_task_t *task = &wgr_asset_tasks[i];
     wgr_asset_job_t job = {.slot = i};
 
-    task->loader = ok && task->parent == 0 && !(task->flags & WGR_ASSET_FILE_ONLY) ? lookup_loader(task->path) : NULL;
-    if (task->loader == NULL) {
-        complete(i, ok);
-        return;
-    }
-    wgri_fs_resolve(task->path, task->local, sizeof(task->local));
-    task->resource = task->loader->find(task->local);
-    if (task->resource != 0) {
-        complete(i, true); /* already loaded */
-        return;
+    if (task->loads) {
+        if (!ok || task->target == 0) { /* missing, or released meanwhile */
+            complete(i, ok);
+            return;
+        }
+        wgri_fs_resolve(task->path, task->local, sizeof(task->local));
+    } else {
+        task->loader = ok && task->parent == 0 && !(task->flags & WGR_ASSET_FILE_ONLY) ? lookup_loader(task->path) : NULL;
+        if (task->loader == NULL) {
+            complete(i, ok);
+            return;
+        }
+        wgri_fs_resolve(task->path, task->local, sizeof(task->local));
+        task->resource = task->loader->find(task->local);
+        if (task->resource != 0) {
+            complete(i, true); /* already loaded */
+            return;
+        }
     }
     task->state = TASK_PREPARING;
     job.loader = task->loader;
@@ -2324,13 +2391,20 @@ static void load(void)
         wgr_asset_task_t *task = &wgr_asset_tasks[i];
         wgri_loader_step_t step = WGRI_LOADER_DONE;
 
-        if (!task->finish_started) {
-            /* created meanwhile, e.g. by a sync create of the same file: use that one */
-            task->resource = task->loader->find(task->local);
+        if (task->loads) {
             task->finish_started = true;
-        }
-        if (task->resource == 0) {
-            step = task->loader->finish(task->prepared, task->local, &task->resource);
+            if (task->target != 0) { /* else released meanwhile: drop what was prepared */
+                step = task->loader->fill(task->prepared, task->local, task->target);
+            }
+        } else {
+            if (!task->finish_started) {
+                /* created meanwhile, e.g. by a sync create of the same file: use that one */
+                task->resource = task->loader->find(task->local);
+                task->finish_started = true;
+            }
+            if (task->resource == 0) {
+                step = task->loader->finish(task->prepared, task->local, &task->resource);
+            }
         }
         if (step != WGRI_LOADER_MORE) {
             task->loader->discard(task->prepared);

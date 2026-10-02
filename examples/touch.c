@@ -28,27 +28,19 @@ static struct {
     wgr_color_t colors[WGR_INPUT_MAX_TOUCHES];
 } g;
 
-static void on_logo(const char *path, void *user)
+/* The two sprites; each is drawn once its texture has loaded. */
+static void make_sprites(void)
 {
-    (void)user;
-    g.logo = wgr_sprite2d_create(wgr_texture_create(path));
+    const wgr_handle_t logo = wgr_texture_create(LOGO_PATH);
+    const wgr_handle_t tiles = wgr_texture_create(TILES_PATH);
+    g.logo = wgr_sprite2d_create(logo);
     wgr_sprite2d_set_size(g.logo, 240, 240);
-}
-
-static void on_tiles(const char *path, void *user)
-{
-    const wgr_handle_t texture = wgr_texture_create(path);
-    (void)user;
-    wgr_texture_set_sampling(texture, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_FILTER_NEAREST);
-    g.tile = wgr_sprite2d_create(texture);
+    wgr_texture_set_sampling(tiles, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_FILTER_NEAREST);
+    g.tile = wgr_sprite2d_create(tiles);
     wgr_sprite2d_set_source(g.tile, 32, 16, 16, 16); /* the coin */
     wgr_sprite2d_set_size(g.tile, 96, 96);
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("load failed: %s", path);
+    wgr_texture_release(logo); /* the sprites hold their own references */
+    wgr_texture_release(tiles);
 }
 
 static void init(void *user_data)
@@ -57,8 +49,7 @@ static void init(void *user_data)
     (void)user_data;
     wgr_asset_set_host(EXAMPLE_ASSET_BASE);
     wgr_asset_set_manifest(EXAMPLE_ASSET_MANIFEST);
-    wgr_asset_add_task(wgr_asset_ensure_async(LOGO_PATH, NULL, WGR_ASSET_NONE), on_logo, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(TILES_PATH, NULL, WGR_ASSET_NONE), on_tiles, on_failed, NULL);
+    make_sprites();
     g.logo_x = screen.x * 0.5f;
     g.logo_y = screen.y * 0.45f;
     g.logo_scale = 1.0f;

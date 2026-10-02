@@ -1,9 +1,10 @@
-/* libwgrender sprite3d example — async asset load + textured billboard in a scene.
+/* libwgrender sprite3d example — a textured billboard in a scene.
  *
- * The handle-only flow:
- *   wgr_asset_ensure_async(png) -> on_ready(path) -> wgr_texture_create(path)
- *   -> wgr_sprite3d_create(texture) -> wgr_scene_add. The sprite bobs and faces
- *   the camera. */
+ * A texture loads on create: wgr_texture_create(path) -> wgr_sprite3d_create(texture)
+ * -> wgr_scene_add, all in init. The texture comes back PENDING and the sprite draws
+ * nothing until it is READY, a frame or so later (longer on the web, where it may
+ * download). Nothing waits for it: the status only says what to print. The sprite
+ * bobs and faces the camera. */
 #include <math.h>
 #include <stddef.h>
 
@@ -15,30 +16,8 @@
 static wgr_handle_t g_scene;
 static wgr_handle_t g_camera;
 static wgr_color_t g_bg;
-static wgr_handle_t g_sprite; /* set once the texture finishes loading */
-static bool g_loaded;
-
-static void on_logo_loaded(const char *path, void *user)
-{
-    wgr_handle_t texture = wgr_texture_create(path);
-    (void)user;
-    g_sprite = wgr_sprite3d_create(texture);
-    wgr_texture_release(texture); /* the sprite holds its own reference */
-    if (g_sprite == 0) {
-        return;
-    }
-    wgr_sprite3d_set_size(g_sprite, 6.0f);
-    wgr_sprite3d_set_facing(g_sprite, WGR_SPRITE3D_FACING_CAMERA);
-    wgr_sprite3d_set_tint(g_sprite, WGR_COLOR_WHITE);
-    wgr_scene_add(g_scene, g_sprite, 1);
-    g_loaded = true;
-}
-
-static void on_logo_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("could not load %s", path);
-}
+static wgr_handle_t g_logo; /* the texture, kept to read its status */
+static wgr_handle_t g_sprite;
 
 static void on_init(void *user_data)
 {
@@ -58,7 +37,11 @@ static void on_init(void *user_data)
     wgr_shape3d_set_color(pedestal, WGR_COLOR_DARKGRAY);
     wgr_scene_add(g_scene, pedestal, 0);
 
-    wgr_asset_add_task(wgr_asset_ensure_async(LOGO_PATH, NULL, 0), on_logo_loaded, on_logo_failed, NULL);
+    g_logo = wgr_texture_create(LOGO_PATH); /* PENDING: loads over the next frames */
+    g_sprite = wgr_sprite3d_create(g_logo);  /* fine at once: drawn when the texture is READY */
+    wgr_sprite3d_set_size(g_sprite, 6.0f);
+    wgr_sprite3d_set_facing(g_sprite, WGR_SPRITE3D_FACING_CAMERA);
+    wgr_scene_add(g_scene, g_sprite, 1);
     wgr_debug_enable_fps(12, 10, 16);
 }
 
@@ -70,10 +53,8 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_camera3d_set_view(g_camera, cosf(t * 0.3f) * 13.0f, 7.0f, sinf(t * 0.3f) * 13.0f,
                          0.0f, 2.5f, 0.0f, 0.0f, 1.0f, 0.0f);
 
-    if (g_loaded) {
-        float y = 3.5f + sinf(t * 1.5f) * 0.8f; /* bob */
-        wgr_sprite3d_set_transform(g_sprite, 0.0f, y, 0.0f, 0, 0, 0, 1, 1, 1);
-    }
+    const float y = 3.5f + sinf(t * 1.5f) * 0.8f; /* bob */
+    wgr_sprite3d_set_transform(g_sprite, 0.0f, y, 0.0f, 0, 0, 0, 1, 1, 1);
 
     wgr_render_begin_frame();
     wgr_render_clear_background(g_bg);
@@ -85,8 +66,11 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_scene_draw(g_scene);
 
     wgr_text_draw("libwgrender + sokol — sprite3d", 12, 36, 24, WGR_COLOR_RAYWHITE);
-    wgr_text_draw(g_loaded ? "logo: ensure -> texture_create -> sprite" : "loading logo...",
-                 12, 70, 16, WGR_COLOR_LIGHTGRAY);
+    switch (wgr_resource_get_status(g_logo)) {
+        case WGR_RESOURCE_PENDING: wgr_text_draw("loading logo...", 12, 70, 16, WGR_COLOR_LIGHTGRAY); break;
+        case WGR_RESOURCE_FAILED: wgr_text_draw("logo failed to load (see the log)", 12, 70, 16, WGR_COLOR_RED); break;
+        default: wgr_text_draw("logo: texture_create -> sprite3d_create", 12, 70, 16, WGR_COLOR_LIGHTGRAY); break;
+    }
 
     wgr_render_end_frame();
 

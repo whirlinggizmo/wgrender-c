@@ -605,6 +605,9 @@ static bool sprite_pick(wgr_handle_t handle, vec3_t origin, vec3_t dir, wgr_pick
     if (out == NULL || sprite_ptr == NULL || !sprite_ptr->visible || !sprite_ptr->pickable) {
         return false;
     }
+    if (!wgri_texture_get_binding(sprite_ptr->texture, NULL, NULL, NULL, NULL)) {
+        return false; /* not drawn while its texture loads, so not picked either */
+    }
     if (!wgri_camera3d_get_active_data(&cam)) {
         return false;
     }

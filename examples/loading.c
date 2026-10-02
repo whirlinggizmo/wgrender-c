@@ -70,7 +70,7 @@ static void create_all(void)
     const double start = wgr_get_time();
     for (int i = 0; i < ENVIRONMENTS; i++) g.resources[i] = wgr_environment_create(g.paths[i]);
     for (int i = ENVIRONMENTS; i < ENVIRONMENTS + MESHES; i++) g.resources[i] = wgr_mesh_create(g.paths[i]);
-    for (int i = ENVIRONMENTS + MESHES; i < FILES; i++) g.resources[i] = wgr_texture_create(g.paths[i]);
+    for (int i = ENVIRONMENTS + MESHES; i < FILES; i++) g.resources[i] = wgr_texture_create(PATHS[i]); /* loads on create */
     g.create_ms = (wgr_get_time() - start) * 1000.0;
 
     wgr_scene_set_environment(g.scene, g.resources[0], 1.0f, 0.0f);

@@ -11,7 +11,10 @@ void wgri_texture_init(void);
 void wgri_texture_deinit(void);
 
 /* Resolve a texture handle to its sokol view + sampler (for sokol_gl drawing).
- * Falls back to the 1x1 white default for handle 0 / invalid handles. */
+ * Falls back to the 1x1 white default for handle 0 / invalid handles, and to the
+ * placeholder for a texture that FAILED. False, writing nothing, for one still
+ * PENDING: the caller draws nothing (a sprite), or keeps a slot's own default (a
+ * material's texture). */
 /* A sampler for these settings (shared, made on first use; freed with the textures):
  * materials' textures (models and sprites) are sampled with these. mipmaps false:
  * the base level only. */
@@ -44,10 +47,10 @@ const char *wgri_texture_pixels_error(void);
 wgri_texture_pixels_t *wgri_texture_pixels_from_rgba(const unsigned char *rgba, int width, int height);
 void wgri_texture_pixels_free(wgri_texture_pixels_t *pixels);
 
-/* Main thread: upload pixels as a texture named `path` (NULL for none), with one
- * reference owned by the caller. `keep_alpha` keeps an alpha mask when any pixel
- * isn't fully opaque (for textures with no file to re-read it from). */
-wgr_handle_t wgri_texture_create_pixels(const wgri_texture_pixels_t *pixels, const char *path, bool keep_alpha);
+/* Main thread: upload pixels as a texture with no path (READY), with one reference
+ * owned by the caller. `keep_alpha` keeps an alpha mask when any pixel isn't fully
+ * opaque (for textures with no file to re-read it from). */
+wgr_handle_t wgri_texture_create_pixels(const wgri_texture_pixels_t *pixels, bool keep_alpha);
 
 /* Create an unnamed texture from RGBA8 pixels (e.g. an image embedded in a glTF
  * file). Returns it with one reference owned by the caller. Keeps an alpha mask

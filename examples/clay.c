@@ -416,21 +416,6 @@ static Clay_RenderCommandArray elements_layout(float dt)
 
 /* ------------------------------------------------------------- example ---- */
 
-static void on_texture(const char *path, void *user)
-{
-    const wgr_handle_t texture = wgr_texture_create(path);
-    if (user == &g.tiles) { /* pixel art: keep it crisp when scaled up */
-        wgr_texture_set_sampling(texture, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_FILTER_NEAREST);
-    }
-    *(wgr_handle_t *)user = texture;
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    wgr_logger_error("load failed: %s", path);
-}
-
 static void init(void *user_data)
 {
     const vec2_t screen = wgr_window_get_screen_size();
@@ -447,8 +432,10 @@ static void init(void *user_data)
     g.game_bg = wgr_color_rgba(24, 30, 40, 255);
     g.marker = wgr_color_rgba(240, 190, 90, 255);
     g.hint = wgr_color_rgba(140, 150, 170, 255);
-    wgr_asset_add_task(wgr_asset_ensure_async(TILES_PATH, NULL, WGR_ASSET_NONE), on_texture, on_failed, &g.tiles);
-    wgr_asset_add_task(wgr_asset_ensure_async(PANEL_PATH, NULL, WGR_ASSET_NONE), on_texture, on_failed, &g.panel);
+    g.tiles = wgr_texture_create(TILES_PATH); /* drawn once they're loaded */
+    wgr_texture_set_sampling(g.tiles, WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_WRAP_CLAMP,
+                             WGR_TEXTURE_FILTER_NEAREST); /* pixel art: keep it crisp when scaled up */
+    g.panel = wgr_texture_create(PANEL_PATH);
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)
@@ -468,7 +455,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     if (kb.keys[WGR_KEY_TAB] == WGR_BUTTON_PRESSED) g.elements = !g.elements;
     g.time += dt;
 
-    /* image data follows the textures as they load */
+    /* the images the UI draws (nothing, while a texture loads) */
     for (int i = 0; i < TILES; i++) {
         g.tile_images[i] = (clay_image_t){.texture = g.tiles,
                                           .source = {TILE_CELLS[i][0], TILE_CELLS[i][1], TILE_CELLS[i][2],

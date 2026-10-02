@@ -27,7 +27,7 @@ static struct {
     wgr_color_t bg;
     wgr_handle_t spheres[SPHERE_COUNT];
     wgr_handle_t character;
-    wgr_handle_t tiles; /* normal-mapped material, gets its texture when it loads */
+    wgr_handle_t tiles; /* normal-mapped material */
     wgr_handle_t sun;
     wgr_handle_t lamp;
     wgr_handle_t lamp_marker;
@@ -50,14 +50,6 @@ static void on_character_loaded(const char *path, void *user)
     (void)user;
     wgr_model_set_mesh(g.character, mesh);
     wgr_mesh_release(mesh);
-}
-
-static void on_normal_map_loaded(const char *path, void *user)
-{
-    wgr_handle_t texture = wgr_texture_create(path);
-    (void)user;
-    wgr_material_set_texture(g.tiles, "normal_texture", texture);
-    wgr_texture_release(texture); /* the material holds its own reference */
 }
 
 static void on_failed(const char *path, void *user)
@@ -140,6 +132,11 @@ static void init(void *user_data)
     /* normal mapped: bevelled tiles */
     g.tiles = create_pbr(0.6f, 0.6f, 0.62f, 0.0f, 0.45f);
     wgr_material_set_float(g.tiles, "normal_scale", 1.0f);
+    {
+        const wgr_handle_t normal_map = wgr_texture_create(NORMAL_MAP_PATH); /* a flat normal until it loads */
+        wgr_material_set_texture(g.tiles, "normal_texture", normal_map);
+        wgr_texture_release(normal_map); /* the material holds its own reference */
+    }
     g.spheres[n++] = create_sphere(0.0f, 0.0f, g.tiles); /* releases our reference; the model keeps one */
 
     /* alpha blended glass */
@@ -159,8 +156,6 @@ static void init(void *user_data)
 
     wgr_asset_add_task(wgr_asset_ensure_async(SPHERE_PATH, NULL, WGR_ASSET_NONE), on_sphere_loaded, on_failed, NULL);
     wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_character_loaded, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(NORMAL_MAP_PATH, NULL, WGR_ASSET_NONE), on_normal_map_loaded, on_failed,
-                      NULL);
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)

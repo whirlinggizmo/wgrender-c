@@ -2,8 +2,8 @@ package wgr;
 
 // wgr_texture.h — the image resource
 
-/** A loaded image: reference counted, shared. **/
-@:using(wgr.Texture)
+/** An image, loaded on create: reference counted, shared. **/
+@:using(wgr.Texture, wgr.Resource)
 abstract Texture(Handle) from Handle to Handle {
 	@:to inline function toRaw():WgrHandle
 		return (this : Int);
@@ -17,11 +17,25 @@ abstract Texture(Handle) from Handle to Handle {
 		this = create(path);
 
 	/**
-		Load an image. A path ending `.ktx` names a texture compressed for GPUs: the
-		first of `name.bc7.ktx`, `name.astc.ktx` or `name.etc2.ktx` this GPU can sample
-		is loaded, and `name.png` when none of them can. On the web only the chosen one
-		downloads. Name the plain `name.ktx` — naming a variant outright loads that one,
-		with no fallback.
+		The image at an asset path (relative to the asset root: the same file on every
+		platform), loading on create (`Resource`): `Pending` at once, then `Ready` (its
+		status: `texture.getStatus()`), or `Failed` in a later frame
+		for a file that is missing, fails to download or won't decode. `Failed` at once
+		for a path outside the root, or before the asset layer runs. The file is made
+		local as an ensured one is (the cache, a download, a redirect). Creating the
+		same path again gives the same texture, with one more reference, whatever its
+		status. `Handle.NONE` only when there's no room for another texture.
+
+		While it's `Pending` it isn't there yet: a sprite or a draw using it draws
+		nothing (and a sprite isn't picked), and a material draws as if the slot had no
+		texture. `Failed`, it draws as the placeholder. Its size reads 0, 0 until it's
+		`Ready`.
+
+		A path ending `.ktx` names a texture compressed for GPUs: the first of
+		`name.bc7.ktx`, `name.astc.ktx` or `name.etc2.ktx` this GPU can sample is loaded,
+		and `name.png` when none of them can or the variant is missing. On the web only
+		the chosen one downloads. Name the plain `name.ktx` — naming a variant outright
+		loads that one, with no fallback.
 	**/
 	public static inline function create(path:String):Texture
 		return (Raw.wgr_texture_create(path) : Handle);
@@ -39,24 +53,26 @@ abstract Texture(Handle) from Handle to Handle {
 		return (Raw.wgr_texture_get_default() : Handle);
 
 	/**
-		Stands in for a texture that failed to load — a glTF file's missing image, say,
-		which still loads the model, with a warning. Built in: a magenta and black
+		Drawn in place of a texture that failed to load, and of a glTF file's missing
+		image (the model still loads, with a warning). Built in: a magenta and black
 		checker. Setting one takes a reference; set `Handle.NONE` to restore the
-		built-in. Only affects resources loaded after the call.
+		built-in. A glTF's missing images take the one set when the model loaded;
+		failed textures draw the current one.
 	**/
 	public static inline function getPlaceholder():Texture
 		return (Raw.wgr_texture_get_placeholder() : Handle);
 
 	/**
-		Stands in for a texture that failed to load — a glTF file's missing image, say,
-		which still loads the model, with a warning. Built in: a magenta and black
+		Drawn in place of a texture that failed to load, and of a glTF file's missing
+		image (the model still loads, with a warning). Built in: a magenta and black
 		checker. Setting one takes a reference; set `Handle.NONE` to restore the
-		built-in. Only affects resources loaded after the call.
+		built-in. A glTF's missing images take the one set when the model loaded;
+		failed textures draw the current one.
 	**/
 	public static inline function setPlaceholder(value:Texture):Bool
 		return Raw.wgr_texture_set_placeholder(value);
 
-	/** Its size in pixels. **/
+	/** Its size in pixels: 0, 0 until it's `Ready`. **/
 	public static inline function getSize(texture:Texture):Vec2
 		return Vec2.of(Raw.wgr_texture_get_size(texture));
 

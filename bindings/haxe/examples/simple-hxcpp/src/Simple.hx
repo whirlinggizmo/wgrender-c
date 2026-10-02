@@ -44,6 +44,17 @@ class Simple {
 			onFailed(path);
 	}
 
+	// A texture loads on create: the sprite exists at once and is drawn once it's loaded.
+	static function makeSprite():Void {
+		final texture = new Texture(SPRITE_PATH);
+		sprite = new Sprite3D(texture);
+		texture.release(); // the sprite holds its own reference
+		sprite.setFacing(Free); // librl's default: oriented by its rotation
+		sprite.setPosition(0, SPRITE_Y_OFFSET, 0);
+		sprite.setTint(Color.RAYWHITE);
+		scene.add(sprite);
+	}
+
 	static function loadAssets():Void {
 		load(MUSIC_PATH, path -> {
 			final audio = new Audio(path);
@@ -65,15 +76,7 @@ class Simple {
 			scene.add(model);
 		});
 
-		load(SPRITE_PATH, path -> {
-			final texture = new Texture(path);
-			sprite = new Sprite3D(texture);
-			texture.release(); // the sprite holds its own reference
-			sprite.setFacing(Free); // librl's default: oriented by its rotation
-			sprite.setPosition(0, SPRITE_Y_OFFSET, 0);
-			sprite.setTint(Color.RAYWHITE);
-			scene.add(sprite);
-		});
+		makeSprite();
 
 		// Fonts are sized per draw call in wgrender, so one font handle serves any size.
 		load(DEBUG_FONT_PATH, path -> debugFont = new Font(path));

@@ -4,7 +4,11 @@
  * libwgrender picks the file this GPU can use (name.bc7.ktx on desktops, name.astc.ktx on
  * phones, name.etc2.ktx on older phones, else name.png), made beforehand by
  * tools/compress_textures.py. Under each: the file that was loaded, what it takes in
- * GPU memory (with mipmaps) and how long it took from asking to having it. */
+ * GPU memory (with mipmaps) and how long it took from asking to having it.
+ *
+ * A texture loads on create and doesn't say which file it was read from, so each name
+ * is also ensured, only to learn that: the ensure's callback hands over the local path
+ * it found. */
 #include <stdio.h>
 #include <string.h>
 
@@ -15,30 +19,18 @@ enum { TEXTURES = 2, KINDS = 2 }; /* kind 0: the PNG, 1: the .ktx */
 static const char *NAMES[TEXTURES] = {"sprites/logo/wg-logo-bw-alpha", "textures/flame"};
 
 typedef struct {
-    wgr_handle_t sprite;
-    char loaded[160];
-    double asked, took;
+    wgr_handle_t texture, sprite;
+    char loaded[160]; /* the file found, once the ensure says */
+    double asked, took; /* took: 0 until the texture is READY */
     int width, height;
 } slot_t;
 
 static slot_t g_slots[TEXTURES][KINDS];
 
-static void on_loaded(const char *path, void *user)
+static void on_found(const char *path, void *user)
 {
     slot_t *slot = (slot_t *)user;
-    const wgr_handle_t texture = wgr_texture_create(path);
-    vec2_t size;
-    slot->took = wgr_get_time() - slot->asked;
     snprintf(slot->loaded, sizeof(slot->loaded), "%s", path);
-    if (texture == 0) {
-        return;
-    }
-    size = wgr_texture_get_size(texture);
-    slot->width = (int)size.x;
-    slot->height = (int)size.y;
-    slot->sprite = wgr_sprite2d_create(texture);
-    wgr_texture_release(texture); /* the sprite holds its own reference */
-    wgr_sprite2d_set_size(slot->sprite, 220.0f, 220.0f);
 }
 
 static void on_failed(const char *path, void *user)
@@ -58,7 +50,10 @@ static void init(void *user_data)
             slot_t *slot = &g_slots[t][k];
             snprintf(path, sizeof(path), "%s.%s", NAMES[t], k == 0 ? "png" : "ktx");
             slot->asked = wgr_get_time();
-            wgr_asset_add_task(wgr_asset_ensure_async(path, NULL, 0), on_loaded, on_failed, slot);
+            slot->texture = wgr_texture_create(path); /* kept to read its status and size */
+            slot->sprite = wgr_sprite2d_create(slot->texture);
+            wgr_sprite2d_set_size(slot->sprite, 220.0f, 220.0f);
+            wgr_asset_add_task(wgr_asset_ensure_async(path, NULL, 0), on_found, on_failed, slot);
         }
     }
 }
@@ -83,15 +78,19 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_text_draw("libwgrender + sokol — textures: PNG (left) and compressed (right)", 12, 36, 22, WGR_COLOR_RAYWHITE);
     for (int t = 0; t < TEXTURES; t++) {
         for (int k = 0; k < KINDS; k++) {
-            const slot_t *slot = &g_slots[t][k];
+            slot_t *slot = &g_slots[t][k];
             const float x = 20.0f + (float)(t * KINDS + k) * 245.0f, y = 80.0f;
-            if (slot->sprite != 0) {
-                wgr_sprite2d_set_position(slot->sprite, x + 110.0f, y + 110.0f); /* the pivot: the middle */
-                wgr_sprite2d_draw(slot->sprite);
+            if (slot->took == 0.0 && wgr_resource_get_status(slot->texture) == WGR_RESOURCE_READY) {
+                const vec2_t size = wgr_texture_get_size(slot->texture);
+                slot->took = wgr_get_time() - slot->asked;
+                slot->width = (int)size.x;
+                slot->height = (int)size.y;
             }
+            wgr_sprite2d_set_position(slot->sprite, x + 110.0f, y + 110.0f); /* the pivot: the middle */
+            wgr_sprite2d_draw(slot->sprite); /* nothing until it's loaded */
             wgr_text_draw(slot->loaded[0] != '\0' ? strrchr(slot->loaded, '/') + 1 : "loading...", (int)x,
                          (int)y + 236, 16, WGR_COLOR_LIGHTGRAY);
-            if (slot->sprite != 0) {
+            if (slot->took > 0.0) {
                 snprintf(line, sizeof(line), "%dx%d  GPU %.0f KB  %.0f ms", slot->width, slot->height, gpu_kb(slot),
                          slot->took * 1000.0);
                 wgr_text_draw(line, (int)x, (int)y + 258, 14, WGR_COLOR_LIGHTGRAY);

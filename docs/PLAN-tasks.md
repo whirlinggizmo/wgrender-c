@@ -53,25 +53,47 @@ typedef enum {
     WGR_RESOURCE_PENDING = 1,  /* its file is being made local, prepared or finished */
     WGR_RESOURCE_READY   = 2,
     WGR_RESOURCE_FAILED  = 3,  /* the fetch, the file or the decode failed (logged why) */
-} wgr_resource_status_t;      /* wgr_types.h */
+} wgr_resource_status_t;      /* wgr_resource.h */
 
 wgr_handle_t          wgr_texture_create(const char *path);       /* as now, but at once, PENDING */
-wgr_resource_status_t wgr_texture_get_status(wgr_handle_t texture);
 /* ... the same for mesh, audio, font, environment, shader */
+
+/* wgr_resource.h: one call for any resource, by its handle's kind (each module
+   registers its getter); NONE for anything that isn't one */
+wgr_resource_status_t wgr_resource_get_status(wgr_handle_t resource);
 ```
 
 - `create` returns a handle at once, PENDING, and queues the load: make the file local
   (from the cache, or **fetched** if it's missing, exactly as ensure fetches today), then
   prepare on a worker, then finish on the main thread within the upload budget. On
   desktop with the file on disk that's typically the next frame.
+- **The path is an asset path**, as `ensure` takes: relative to the asset root, which is
+  the host directory, the desktop cache directory under a URL host, or `/wgr` on the
+  web, so the same path names the same file everywhere. Normalized, and refused (a
+  FAILED handle, logged) when it's absolute, names a drive or climbs out. A redirect, a
+  `.ktx` variant or a fallback changes where the bytes come from, never the key: a
+  resource is found by its asset path, not by the local path it was read from. A
+  file-system path outside the root can't be created from.
 - **0 only when there's no room** for another resource of that kind. A bad path, a
   missing file, a failed fetch or a file that won't decode gives a handle that's
   FAILED. Creating the same path again gives the same handle, with one more reference,
   whatever its status.
-- **Drawing a resource that isn't READY is always safe**, as now: a texture draws the
-  placeholder (`wgr_texture_set_placeholder`), a font draws as the default font, a model
-  whose mesh isn't READY isn't drawn, a sound whose audio isn't READY plays when it is.
-  Each header says so.
+- **Drawing a resource that isn't READY is always safe.** PENDING is "not there yet":
+  a sprite or texture draw using a PENDING texture draws nothing (and isn't picked), a
+  material slot draws as if unset (its own default), a model whose mesh isn't READY
+  isn't drawn, a font draws as the default font, a sound whose audio isn't READY plays
+  when it is. FAILED is "visibly broken": a texture draws the placeholder
+  (`wgr_texture_set_placeholder`). Decided over the placeholder while PENDING too
+  (libwgt's choice): on a slow first visit to the web build, every texture would show
+  the magenta checker for seconds. Each header says so.
+- **A custom material follows the same rule as an object**, its shader being the
+  resource it uses: `wgr_material_create_custom(shader)` takes a shader in any status.
+  While the shader is PENDING the material isn't drawn (an effect is skipped in the
+  chain), and its setters keep values by name, applied once the shader is READY; a
+  name the shader doesn't declare is logged then, so a setter can only refuse an
+  unknown name once the shader is READY (the header says so). Getters read the kept
+  values. FAILED, it draws as a fallback that's visibly broken: flat magenta, unlit,
+  the shader's version of the texture placeholder.
 - `wgr_model_is_ready` goes: a model is ready when its mesh is
   (`wgr_mesh_get_status(wgr_model_get_mesh(model))`).
 - **Files that name other files** (a glTF's buffers and images) load together, as ensure

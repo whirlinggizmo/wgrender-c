@@ -9,10 +9,13 @@
 // Under each: the file that actually loaded, what it costs in GPU memory, and how long
 // it took from asking to having it.
 //
+// A texture loads on create and doesn't say which file it was read from, so each name
+// is also ensured, only to learn that: the asset op hands over the local path it found.
+//
 //   ESC  quit
 //
-// The C hangs a slot struct off each load's `void *`. The guest ABI has no user
-// pointer -- the asset op hands back the id the load was queued with -- so the id *is*
+// The C hangs a slot struct off each ensure's `void *`. The guest ABI has no user
+// pointer -- the asset op hands back the id the ensure was queued with -- so the id *is*
 // the slot index here, which is less machinery for the same thing.
 import wgr.*;
 
@@ -44,11 +47,15 @@ class TexturesDemo {
 		Asset.setManifest(Assets.MANIFEST);
 		for (t in 0...NAMES.length) {
 			for (k in 0...KINDS) {
+				final path = '${NAMES[t]}.${k == 0 ? "png" : "ktx"}';
 				final slot = new Slot();
 				slot.asked = Wgr.getTime();
+				slot.texture = new Texture(path); // kept to read its status and size
+				slot.sprite = new Sprite2D(slot.texture);
+				slot.sprite.setSize(SIZE, SIZE);
 				slots.push(slot);
 				// The id is the slot index; ids start at 1 so 0 stays "not an asset".
-				GuestAbi.loadAsset('${NAMES[t]}.${k == 0 ? "png" : "ktx"}', slots.length);
+				GuestAbi.loadAsset(path, slots.length);
 			}
 		}
 	}
@@ -57,22 +64,7 @@ class TexturesDemo {
 		final slot = slots[id - 1];
 		if (slot == null)
 			return;
-		if (!ok) {
-			slot.loaded = 'failed: $path';
-			return;
-		}
-		slot.took = Wgr.getTime() - slot.asked;
-		slot.loaded = path;
-
-		final texture = new Texture(path);
-		if (texture.isNone())
-			return;
-		final size = texture.getSize();
-		slot.width = Std.int(size.x);
-		slot.height = Std.int(size.y);
-		slot.sprite = new Sprite2D(texture);
-		texture.release(); // the sprite holds its own reference
-		slot.sprite.setSize(SIZE, SIZE);
+		slot.loaded = ok ? path : 'failed: $path';
 	}
 
 	/**
@@ -98,13 +90,17 @@ class TexturesDemo {
 			final slot = slots[i];
 			final x = 20.0 + i * TILE;
 			final y = 80.0;
-			if (!slot.sprite.isNone()) {
-				slot.sprite.setPosition(x + SIZE * 0.5, y + SIZE * 0.5); // the pivot is the middle
-				slot.sprite.draw();
+			if (slot.took == 0.0 && slot.texture.getStatus() == Ready) {
+				final size = slot.texture.getSize();
+				slot.took = Wgr.getTime() - slot.asked;
+				slot.width = Std.int(size.x);
+				slot.height = Std.int(size.y);
 			}
+			slot.sprite.setPosition(x + SIZE * 0.5, y + SIZE * 0.5); // the pivot is the middle
+			slot.sprite.draw(); // nothing until it's loaded
 			Text.draw(slot.loaded == "" ? "loading..." : basename(slot.loaded), Std.int(x), Std.int(y) + 236, 16,
 				Color.LIGHTGRAY);
-			if (!slot.sprite.isNone())
+			if (slot.took > 0.0)
 				Text.draw('${slot.width}x${slot.height}  GPU ${Math.round(gpuKb(slot))} KB  '
 					+ '${Math.round(slot.took * 1000)} ms', Std.int(x), Std.int(y) + 258, 14, Color.LIGHTGRAY);
 		}
@@ -116,12 +112,13 @@ class TexturesDemo {
 	}
 }
 
-/** One loaded texture and what it cost. **/
+/** One texture and what it cost. **/
 private class Slot {
+	public var texture:Texture = Handle.NONE;
 	public var sprite:Sprite2D = Handle.NONE;
-	public var loaded = "";
+	public var loaded = ""; // the file found, once the ensure says
 	public var asked = 0.0;
-	public var took = 0.0;
+	public var took = 0.0; // 0 until the texture is Ready
 	public var width = 0;
 	public var height = 0;
 

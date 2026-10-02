@@ -18,9 +18,8 @@ class Guest {
 	// The host hands these back on the asset op, in place of a callback.
 	static inline final ASSET_BGM = 1;
 	static inline final ASSET_MODEL = 2;
-	static inline final ASSET_SPRITE = 3;
-	static inline final ASSET_DEBUG_FONT = 4;
-	static inline final ASSET_KOMIKA_FONT = 5;
+	static inline final ASSET_DEBUG_FONT = 3;
+	static inline final ASSET_KOMIKA_FONT = 4;
 
 	static inline final SCREEN_WIDTH = 1024;
 	static inline final SCREEN_HEIGHT = 1280;
@@ -100,9 +99,20 @@ class Guest {
 
 		load(MUSIC_PATH, ASSET_BGM);
 		load(CHARACTER_PATH, ASSET_MODEL);
-		load(SPRITE_PATH, ASSET_SPRITE);
+		makeSprite();
 		load(DEBUG_FONT_PATH, ASSET_DEBUG_FONT);
 		load(KOMIKA_FONT_PATH, ASSET_KOMIKA_FONT);
+	}
+
+	// A texture loads on create: the sprite exists at once and is drawn once it's loaded.
+	static function makeSprite():Void {
+		final texture = new Texture(SPRITE_PATH);
+		sprite = new Sprite3D(texture);
+		texture.release(); // the sprite holds its own reference
+		sprite.setFacing(Free);
+		sprite.setPosition(0, SPRITE_Y_OFFSET, 0);
+		sprite.setTint(Color.RAYWHITE);
+		scene.add(sprite);
 	}
 
 	// The path is local and ready; create the resource, then the object.
@@ -129,15 +139,6 @@ class Guest {
 				model.setPosition(0, 0, 0);
 				model.setTint(Color.RAYWHITE);
 				scene.add(model);
-
-			case ASSET_SPRITE:
-				final texture = new Texture(path);
-				sprite = new Sprite3D(texture);
-				texture.release(); // the sprite holds its own reference
-				sprite.setFacing(Free);
-				sprite.setPosition(0, SPRITE_Y_OFFSET, 0);
-				sprite.setTint(Color.RAYWHITE);
-				scene.add(sprite);
 
 			case ASSET_DEBUG_FONT:
 				debugFont = new Font(path);

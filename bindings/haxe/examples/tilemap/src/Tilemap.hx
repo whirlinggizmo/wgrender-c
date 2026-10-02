@@ -25,7 +25,6 @@ class Tilemap {
 	static inline final SCREEN_WIDTH = 960;
 	static inline final SCREEN_HEIGHT = 600;
 	static inline final TILES_PATH = "textures/tiles.png";
-	static inline final ASSET_TILES = 1;
 
 	static inline final WORLD_W = 24;
 	static inline final WORLD_H = 16;
@@ -61,7 +60,6 @@ class Tilemap {
 	static var centreX = 0.0;
 	static var centreY = 0.0;
 	static var zoom = 12.0; // world units visible vertically
-	static var loaded = false;
 
 	static function main():Void {
 		GuestAbi.autostart(start);
@@ -69,7 +67,7 @@ class Tilemap {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		// No MSAA: the tiles are quads meeting edge to edge, and multisampled edges
 		// let the background through as a hairline seam between them.
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "tilemap (wgrender host, Haxe guest)", Resizable);
@@ -93,8 +91,7 @@ class Tilemap {
 		scene.setActiveCamera(camera);
 		scene.setInteractive(true);
 
-		if (!GuestAbi.loadAsset(TILES_PATH, ASSET_TILES))
-			Log.error('failed to queue asset: $TILES_PATH');
+		buildWorld();
 	}
 
 	static function placeCamera():Void {
@@ -141,21 +138,11 @@ class Tilemap {
 		}
 	}
 
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('load failed: $path');
-			return;
-		}
-		if (id != ASSET_TILES)
-			return;
-		texture = new Texture(path);
+	// The map: every tile and prop a sprite cut from the sheet, drawn once it loads.
+	static function buildWorld():Void {
+		texture = new Texture(TILES_PATH);
 		// pixel art: keep the texels crisp when zoomed in
 		texture.setSampling(Clamp, Clamp, Nearest);
-		buildWorld();
-		loaded = true;
-	}
-
-	static function buildWorld():Void {
 		for (y in 0...WORLD_H) {
 			for (x in 0...WORLD_W) {
 				// A hair over one unit: neighbouring quads are blended separately, so
@@ -229,8 +216,9 @@ class Tilemap {
 		Render.beginMode2D(); // back to screen space for the HUD
 		Shape2D.drawRectangle(0, 0, screen.x, 88, shade);
 		Text.draw("wgrender tilemap: an orthographic camera over sprite3d tiles", 20, 20, 20, textColor);
+		final loading = texture.getStatus() == Pending ? "   (loading)" : "";
 		Text.draw('coins: $collected of $COIN_COUNT   zoom: ${fixed(zoom, 1)} units   '
-			+ 'center: ${fixed(centreX, 1)}, ${fixed(centreY, 1)}${loaded ? "" : "   (loading)"}', 20, 46, 15, dim);
+			+ 'center: ${fixed(centreX, 1)}, ${fixed(centreY, 1)}$loading', 20, 46, 15, dim);
 		Text.draw("drag or arrows to scroll, wheel to zoom, click the coins", 20, 68, 15, dim);
 		Render.endFrame();
 	}

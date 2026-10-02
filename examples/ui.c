@@ -72,13 +72,6 @@ static void on_character(const char *path, void *user)
     wgr_mesh_release(mesh);
 }
 
-static void on_panel(const char *path, void *user)
-{
-    (void)user;
-    g.panel_texture = wgr_texture_create(path); /* kept: the header draws it too */
-    wgr_sprite2d_set_texture(g.panel, g.panel_texture);
-}
-
 static void on_failed(const char *path, void *user)
 {
     (void)user;
@@ -117,7 +110,8 @@ static void init(void *user_data)
     wgr_scene_add(g.scene, g.character, 0);
 
     /* the panel: one 48x48 texture with 16 px borders, stretched to any size */
-    g.panel = wgr_sprite2d_create(0);
+    g.panel_texture = wgr_texture_create(PANEL_PATH); /* kept: the header draws it too */
+    g.panel = wgr_sprite2d_create(g.panel_texture);
     wgr_sprite2d_set_nine_slice(g.panel, 16, 16, 16, 16);
     wgr_sprite2d_set_pivot(g.panel, 0, 0);
     wgr_sprite2d_set_position(g.panel, PANEL_X, PANEL_Y);
@@ -151,7 +145,6 @@ static void init(void *user_data)
     g.list = ui_list_create(g.scene, LAYER_ROW, ROW_NAMES, ROWS, LIST_X, LIST_Y, LIST_WIDTH, LIST_HEIGHT, ROW_HEIGHT, 15);
 
     wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_character, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(PANEL_PATH, NULL, WGR_ASSET_NONE), on_panel, on_failed, NULL);
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)

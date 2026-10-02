@@ -67,23 +67,6 @@ static void on_environment_loaded(const char *path, void *user)
     wgr_environment_release(environment); /* the scene holds its own reference */
 }
 
-static void on_logo_loaded(const char *path, void *user)
-{
-    wgr_handle_t texture = wgr_texture_create(path);
-    (void)user;
-    wgr_sprite3d_set_texture(g.logo3d, texture);
-    wgr_sprite2d_set_texture(g.logo2d, texture);
-    wgr_texture_release(texture); /* the sprites hold their own references */
-}
-
-static void on_noise_loaded(const char *path, void *user)
-{
-    wgr_handle_t texture = wgr_texture_create(path);
-    (void)user;
-    if (g.dissolve != 0) wgr_material_set_texture(g.dissolve, "noise_tex", texture);
-    wgr_texture_release(texture); /* the material holds its own reference */
-}
-
 /* A shader is loaded: make its material and give it to its model. */
 static void on_shader_loaded(const char *path, void *user)
 {
@@ -107,7 +90,11 @@ static void on_shader_loaded(const char *path, void *user)
             wgr_material_set_double_sided(material, true); /* the inside shows through the holes */
             wgr_model_set_material(g.dissolving, 0, material);
             g.dissolve = material; /* the model holds a reference; this one is released below */
-            wgr_asset_add_task(wgr_asset_ensure_async(NOISE_PATH, NULL, WGR_ASSET_NONE), on_noise_loaded, on_failed, NULL);
+            {
+                const wgr_handle_t noise = wgr_texture_create(NOISE_PATH); /* white until it loads */
+                wgr_material_set_texture(material, "noise_tex", noise);
+                wgr_texture_release(noise); /* the material holds its own reference */
+            }
             break;
         case SHADER_WAVE:
             wgr_material_set_float(material, "amplitude", 0.03f);
@@ -190,16 +177,17 @@ static void init(void *user_data)
     wgr_mesh_release(fine_sphere);
 
     /* the logo, in the world above the middle and in the screen's corner */
-    g.logo3d = wgr_sprite3d_create(0);
+    const wgr_handle_t logo = wgr_texture_create(LOGO_PATH);
+    g.logo3d = wgr_sprite3d_create(logo);
     wgr_sprite3d_set_transform(g.logo3d, 0.0f, 1.55f, -0.8f, 0, 0, 0, 1, 1, 1);
     wgr_sprite3d_set_size(g.logo3d, 0.9f);
     wgr_sprite3d_set_tint(g.logo3d, wgr_color_rgba(90, 190, 255, 255)); /* so the white flash shows */
     wgr_scene_add(g.scene, g.logo3d, 0);
-    g.logo2d = wgr_sprite2d_create(0);
+    g.logo2d = wgr_sprite2d_create(logo);
+    wgr_texture_release(logo); /* the sprites hold their own references */
     wgr_sprite2d_set_size(g.logo2d, 96.0f, 96.0f);
     wgr_sprite2d_set_pivot(g.logo2d, 1.0f, 1.0f);
     wgr_sprite2d_set_tint(g.logo2d, wgr_color_rgba(90, 190, 255, 255));
-    wgr_asset_add_task(wgr_asset_ensure_async(LOGO_PATH, NULL, WGR_ASSET_NONE), on_logo_loaded, on_failed, NULL);
 
     for (int i = 0; i < SHADER_COUNT; i++) {
         wgr_asset_add_task(wgr_asset_ensure_async(SHADER_PATHS[i], NULL, WGR_ASSET_NONE), on_shader_loaded, on_failed,

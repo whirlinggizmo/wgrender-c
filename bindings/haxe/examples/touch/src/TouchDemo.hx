@@ -9,10 +9,6 @@
 //     somewhere or clicks anything.
 //
 // Without a touch screen: drag with the mouse, and the wheel zooms the logo. ESC quits.
-//
-// The C hangs a per-file callback off `wgr_asset_add_task`, which is one of the calls
-// the guest ABI replaces — the asset op reports every file by the id the load was
-// given, so the ids here stand in for those two callbacks.
 import wgr.*;
 
 @:expose("WgrGuest")
@@ -21,8 +17,6 @@ class TouchDemo {
 	static inline final SCREEN_HEIGHT = 700;
 	static inline final LOGO_PATH = "sprites/logo/wg-logo-white-alpha.png";
 	static inline final TILES_PATH = "textures/tiles.png";
-	static inline final LOGO_ID = 1;
-	static inline final TILES_ID = 2;
 	static inline final RING = 38.0;
 
 	static var logo:Sprite2D;
@@ -46,7 +40,7 @@ class TouchDemo {
 
 	public static function start(host:Dynamic):Bool {
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), onAsset);
+		GuestAbi.register(onInit, (dt, _) -> onFrame(dt), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "touch (wgrender host, Haxe guest)",
 			Msaa4x | Resizable);
 	}
@@ -55,8 +49,7 @@ class TouchDemo {
 		Asset.setHost(Assets.defaultBase());
 		Asset.setManifest(Assets.MANIFEST);
 		final screen = Window.getScreenSize();
-		logo = Handle.NONE;
-		tile = Handle.NONE;
+		makeSprites();
 		logoX = screen.x * 0.5;
 		logoY = screen.y * 0.45;
 		tileX = screen.x * 0.5;
@@ -65,26 +58,20 @@ class TouchDemo {
 			lifted.push([0.0, 0.0, 0.0]);
 			colors.push(Color.rgba(90 + 20 * i, 200 - 15 * i, 120 + 17 * i, 255));
 		}
-		GuestAbi.loadAsset(LOGO_PATH, LOGO_ID);
-		GuestAbi.loadAsset(TILES_PATH, TILES_ID);
 	}
 
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('load failed: $path');
-			return;
-		}
-		switch (id) {
-			case LOGO_ID:
-				logo = new Sprite2D(new Texture(path));
-				logo.setSize(240, 240);
-			case TILES_ID:
-				final texture = new Texture(path);
-				texture.setSampling(Clamp, Clamp, Nearest);
-				tile = new Sprite2D(texture);
-				tile.setSource(32, 16, 16, 16); // the coin
-				tile.setSize(96, 96);
-		}
+	/** The two sprites; each is drawn once its texture has loaded. **/
+	static function makeSprites():Void {
+		final logoTexture = new Texture(LOGO_PATH);
+		final tiles = new Texture(TILES_PATH);
+		logo = new Sprite2D(logoTexture);
+		logo.setSize(240, 240);
+		tiles.setSampling(Clamp, Clamp, Nearest);
+		tile = new Sprite2D(tiles);
+		tile.setSource(32, 16, 16, 16); // the coin
+		tile.setSize(96, 96);
+		logoTexture.release(); // the sprites hold their own references
+		tiles.release();
 	}
 
 	/** Scale and turn the logo about (x, y), so the point under the fingers stays put. **/

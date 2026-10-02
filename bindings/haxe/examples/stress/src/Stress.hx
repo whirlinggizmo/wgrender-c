@@ -38,7 +38,6 @@ class Stress {
 	static inline final SCREEN_WIDTH = 1024;
 	static inline final SCREEN_HEIGHT = 1280;
 	static inline final SPRITE_PATH = "sprites/logo/wg-logo-bw-alpha.png";
-	static inline final ASSET_SPRITE = 1;
 	static inline final DEFAULT_N = 2000;
 	static inline final STEP = 1.0 / 60.0;
 	public static inline final BOX = 10.0;
@@ -59,7 +58,7 @@ class Stress {
 	public static function start(host:Dynamic):Bool {
 		n = entityCount();
 		GuestAbi.attach(host);
-		GuestAbi.register(onInit, (_, _) -> onFrame(), onAsset);
+		GuestAbi.register(onInit, (_, _) -> onFrame(), (_, _, _) -> {}); // ensures nothing
 		return GuestAbi.start(SCREEN_WIDTH, SCREEN_HEIGHT, "stress (wgrender host, Haxe guest)", Resizable);
 	}
 
@@ -107,16 +106,7 @@ class Stress {
 		scene.setActiveCamera(camera);
 		background = Color.rgba(245, 245, 245, 255);
 
-		if (!GuestAbi.loadAsset(SPRITE_PATH, ASSET_SPRITE))
-			Log.error('failed to queue asset: $SPRITE_PATH');
-	}
-
-	static function onAsset(id:Int, path:String, ok:Bool):Void {
-		if (!ok) {
-			Log.error('failed to import asset: $path');
-			return;
-		}
-		texture = new Texture(path);
+		texture = new Texture(SPRITE_PATH); // the sprites are drawn once it's loaded
 		entities = [for (_ in 0...n) spawn()];
 	}
 

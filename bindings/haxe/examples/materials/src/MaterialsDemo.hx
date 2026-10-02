@@ -27,7 +27,6 @@ class MaterialsDemo {
 
 	static inline final ASSET_SPHERE = 1;
 	static inline final ASSET_CHARACTER = 2;
-	static inline final ASSET_NORMAL_MAP = 3;
 
 	static inline final COLUMNS = 5;
 	static inline final SPACING = 1.35;
@@ -40,7 +39,6 @@ class MaterialsDemo {
 	static var spheres:Array<Model> = [];
 	static var bottomRow:Array<Model> = [];
 	static var character:Model;
-	static var tiles:Material; // the normal-mapped one; its texture arrives later
 	static var sun:Light;
 	static var lamp:Light;
 	static var lampMarker:Shape3D;
@@ -75,7 +73,6 @@ class MaterialsDemo {
 
 		load(SPHERE_PATH, ASSET_SPHERE);
 		load(CHARACTER_PATH, ASSET_CHARACTER);
-		load(NORMAL_MAP_PATH, ASSET_NORMAL_MAP);
 	}
 
 	static function load(path:String, id:Int):Void {
@@ -144,8 +141,11 @@ class MaterialsDemo {
 		bottomRow.push(sphere(-SPACING, 0.0, emissive));
 
 		// normal mapped: bevelled tiles, tangents generated at load
-		tiles = pbr(0.6, 0.6, 0.62, 0.0, 0.45);
+		final tiles = pbr(0.6, 0.6, 0.62, 0.0, 0.45);
 		tiles.setNormalScale(1.0);
+		final normalMap = new Texture(NORMAL_MAP_PATH); // a flat normal until it loads
+		tiles.setNormalTexture(normalMap);
+		normalMap.release(); // the material holds its own reference
 		bottomRow.push(sphere(0.0, 0.0, tiles)); // releases our reference; the model keeps one
 
 		// alpha blended glass
@@ -181,11 +181,6 @@ class MaterialsDemo {
 				final mesh = new Mesh(path);
 				character.setMesh(mesh);
 				mesh.release();
-
-			case ASSET_NORMAL_MAP:
-				final texture = new Texture(path);
-				tiles.setNormalTexture(texture);
-				texture.release(); // the material holds its own reference
 		}
 	}
 

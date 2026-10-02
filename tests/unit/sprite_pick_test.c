@@ -19,11 +19,12 @@
 #include "wgr_sprite3d.h"
 #include "wgr_texture.h"
 #include "test.h"
+#include "test_assets.h"
 #include "tests.h"
 
 #include "sokol_gfx.h"
 
-#define BLOB "examples/assets/textures/blobshadow.png"
+#define BLOB "textures/blobshadow.png" /* under examples/assets */
 #define SCREEN 101.0f /* logical pixels each way, so the middle is a whole pixel */
 
 /* The furthest the sprite can be picked along one screen axis from the middle: the
@@ -59,10 +60,13 @@ void test_sprite_pick_alpha(void)
     wgri_texture_init();
     wgri_material_init();
     wgri_sprite3d_init();
+    test_assets_start(0, "examples/assets");
 
     /* a round blob on a square texture: opaque in the middle, clear at the corners */
     const wgr_handle_t texture = wgr_texture_create(BLOB);
     CHECK(texture != 0);
+    CHECK(test_assets_run() > 0);
+    CHECK(wgr_resource_get_status(texture) == WGR_RESOURCE_READY);
     CHECK(wgri_texture_ensure_alpha_mask(texture));
     CHECK(wgri_texture_get_alpha_mask(texture, &mask, &width, &height));
     CHECK(mask != NULL && width > 0 && height > 0);
@@ -133,6 +137,7 @@ void test_sprite_pick_alpha(void)
     wgr_texture_release(clear_texture);
     wgr_sprite3d_destroy(sprite);
     wgr_texture_release(texture);
+    test_assets_stop();
     wgri_sprite3d_deinit();
     wgri_material_deinit();
     wgri_texture_deinit();

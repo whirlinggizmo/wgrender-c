@@ -30,9 +30,7 @@ class Sprite2DDemo {
 	static inline final WHITE_LOGO_PATH = "sprites/logo/wg-logo-white-alpha.png";
 	static inline final CHARACTER_PATH = "models/woman_casual/woman_casual.glb";
 
-	static inline final ASSET_LOGO = 1;
-	static inline final ASSET_WHITE_LOGO = 2;
-	static inline final ASSET_MESH = 3;
+	static inline final ASSET_MESH = 1;
 
 	static inline final SPRITE_COUNT = 5;
 	static inline final TINT_SPRITE = 4;
@@ -91,8 +89,12 @@ class Sprite2DDemo {
 		model.setAnimationLoop(true);
 		scene.add(model);
 
+		// Kept, not released: the corner Texture.draw below needs the handle, so this
+		// one outlives the sprites that also reference it.
+		logo = new Texture(LOGO_PATH);
+		final whiteLogo = new Texture(WHITE_LOGO_PATH);
 		for (i in 0...SPRITE_COUNT) {
-			final sprite = new Sprite2D(Handle.NONE); // the texture likewise
+			final sprite = new Sprite2D(i == TINT_SPRITE ? whiteLogo : logo); // drawn once loaded
 			sprite.setSize(128, 128);
 			sprite.setPickAlphaTest(true, 0.5);
 			scene.add(sprite);
@@ -107,9 +109,8 @@ class Sprite2DDemo {
 		sprites[FLIP_SPRITE].setScale(-1, 1);
 		sprites[TINT_SPRITE].setPosition(450, 110);
 		sprites[TINT_SPRITE].setSize(96, 96);
+		whiteLogo.release(); // the sprite holds its own reference
 
-		load(LOGO_PATH, ASSET_LOGO);
-		load(WHITE_LOGO_PATH, ASSET_WHITE_LOGO);
 		load(CHARACTER_PATH, ASSET_MESH);
 	}
 
@@ -124,19 +125,6 @@ class Sprite2DDemo {
 			return;
 		}
 		switch id {
-			case ASSET_LOGO:
-				// Kept, not released: the corner Texture.draw below needs the handle,
-				// so this one outlives the sprites that also reference it.
-				logo = new Texture(path);
-				for (i in 0...SPRITE_COUNT)
-					if (i != TINT_SPRITE)
-						sprites[i].setTexture(logo);
-
-			case ASSET_WHITE_LOGO:
-				final texture = new Texture(path);
-				sprites[TINT_SPRITE].setTexture(texture);
-				texture.release(); // the sprite holds its own reference
-
 			case ASSET_MESH:
 				final mesh = new Mesh(path);
 				model.setMesh(mesh);

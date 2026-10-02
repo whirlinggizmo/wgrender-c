@@ -34,7 +34,6 @@ class UiDemo {
 	static inline final CHARACTER_PATH = "models/woman_casual/woman_casual.glb";
 	static inline final PANEL_PATH = "textures/ui_panel.png";
 	static inline final CHARACTER_ID = 1;
-	static inline final PANEL_ID = 2;
 
 	// Layers, bottom to top. Each widget puts its labels on the layer above the one
 	// it's given (UiWidgets.hx), so a control on CONTROL labels on LABEL, and the
@@ -100,7 +99,6 @@ class UiDemo {
 		highlight = Color.rgba(255, 220, 120, 255);
 		pill = Color.rgba(40, 46, 62, 230);
 		pillEdge = Color.rgba(90, 105, 140, 255);
-		panelTexture = Handle.NONE;
 
 		camera = new Camera3D(Perspective);
 		placeCamera();
@@ -118,7 +116,8 @@ class UiDemo {
 		scene.add(character, 0);
 
 		// the panel: one 48x48 texture with 16 px borders, stretched to any size
-		panel = new Sprite2D(Handle.NONE);
+		panelTexture = new Texture(PANEL_PATH); // kept: the header draws it too
+		panel = new Sprite2D(panelTexture);
 		panel.setNineSlice(16, 16, 16, 16);
 		panel.setPivot(0, 0);
 		panel.setPosition(PANEL_X, PANEL_Y);
@@ -150,7 +149,6 @@ class UiDemo {
 		list = new UiList(scene, LAYER_ROW, ROW_NAMES, LIST_X, LIST_Y, LIST_WIDTH, LIST_HEIGHT, ROW_HEIGHT, 15);
 
 		GuestAbi.loadAsset(CHARACTER_PATH, CHARACTER_ID);
-		GuestAbi.loadAsset(PANEL_PATH, PANEL_ID);
 	}
 
 	static function onAsset(id:Int, path:String, ok:Bool):Void {
@@ -163,9 +161,6 @@ class UiDemo {
 				final mesh = new Mesh(path);
 				character.setMesh(mesh);
 				mesh.release();
-			case PANEL_ID:
-				panelTexture = new Texture(path); // kept: the header draws it too
-				panel.setTexture(panelTexture);
 		}
 	}
 

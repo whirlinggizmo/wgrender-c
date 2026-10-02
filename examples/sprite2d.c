@@ -39,25 +39,6 @@ static struct {
     int frame;
 } g;
 
-static void on_logo_loaded(const char *path, void *user)
-{
-    (void)user;
-    g.logo = wgr_texture_create(path);
-    for (int i = 0; i < SPRITE_COUNT; i++) {
-        if (i != TINT_SPRITE) {
-            wgr_sprite2d_set_texture(g.sprites[i], g.logo);
-        }
-    }
-}
-
-static void on_white_logo_loaded(const char *path, void *user)
-{
-    wgr_handle_t texture = wgr_texture_create(path);
-    (void)user;
-    wgr_sprite2d_set_texture(g.sprites[TINT_SPRITE], texture);
-    wgr_texture_release(texture); /* the sprite holds its own reference */
-}
-
 static void on_mesh_loaded(const char *path, void *user)
 {
     wgr_handle_t mesh = wgr_mesh_create(path);
@@ -99,8 +80,10 @@ static void init(void *user_data)
     wgr_model_set_animation_loop(g.model, true);
     wgr_scene_add(g.scene, g.model, 0);
 
+    g.logo = wgr_texture_create(LOGO_PATH); /* kept: frame draws it once with wgr_texture_draw */
+    const wgr_handle_t white_logo = wgr_texture_create(WHITE_LOGO_PATH);
     for (int i = 0; i < SPRITE_COUNT; i++) {
-        g.sprites[i] = wgr_sprite2d_create(0); /* texture attached when it loads */
+        g.sprites[i] = wgr_sprite2d_create(i == TINT_SPRITE ? white_logo : g.logo); /* drawn once loaded */
         wgr_sprite2d_set_size(g.sprites[i], 128, 128);
         wgr_sprite2d_set_pick_alpha_test(g.sprites[i], true, 0.5f);
         wgr_scene_add(g.scene, g.sprites[i], 1);
@@ -114,9 +97,8 @@ static void init(void *user_data)
     wgr_sprite2d_set_scale(g.sprites[3], -1, 1);
     wgr_sprite2d_set_position(g.sprites[TINT_SPRITE], 450, 110);
     wgr_sprite2d_set_size(g.sprites[TINT_SPRITE], 96, 96);
+    wgr_texture_release(white_logo); /* the sprite holds its own reference */
 
-    wgr_asset_add_task(wgr_asset_ensure_async(LOGO_PATH, NULL, WGR_ASSET_NONE), on_logo_loaded, on_failed, NULL);
-    wgr_asset_add_task(wgr_asset_ensure_async(WHITE_LOGO_PATH, NULL, WGR_ASSET_NONE), on_white_logo_loaded, on_failed, NULL);
     wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_mesh_loaded, on_failed, NULL);
 }
 

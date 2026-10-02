@@ -84,7 +84,6 @@ typedef struct {
 
 static struct {
     wgr_handle_t textures[TEXTURES];
-    int textures_loaded;
     bool failed;
     wgr_handle_t scene, ortho, perspective;
     wgr_handle_t sprites[MAX_BENCH_SPRITES];
@@ -110,18 +109,19 @@ static float random01(void)
     return (float)(b.seed >> 8) / 16777216.0f;
 }
 
-static void on_texture(const char *path, void *user)
+/* How many textures are READY; a failed one ends the run. */
+static int textures_ready(void)
 {
-    const int i = (int)(intptr_t)user;
-    b.textures[i] = wgr_texture_create(path);
-    b.textures_loaded++;
-}
-
-static void on_failed(const char *path, void *user)
-{
-    (void)user;
-    fprintf(stderr, "spritebench: could not load %s\n", path);
-    b.failed = true;
+    int ready = 0;
+    for (int i = 0; i < TEXTURES; i++) {
+        const wgr_resource_status_t status = wgr_resource_get_status(b.textures[i]);
+        if (status == WGR_RESOURCE_FAILED && !b.failed) {
+            fprintf(stderr, "spritebench: could not load %s\n", TEXTURE_PATHS[i]);
+            b.failed = true;
+        }
+        ready += status == WGR_RESOURCE_READY;
+    }
+    return ready;
 }
 
 static void destroy_sprite(int i)
@@ -383,8 +383,7 @@ static void init(void *user)
     b.scene = wgr_scene_create();
     b.step = -1; /* set up once the textures are in */
     for (int i = 0; i < TEXTURES; i++) {
-        wgr_asset_add_task(wgr_asset_ensure_async(TEXTURE_PATHS[i], NULL, WGR_ASSET_NONE), on_texture, on_failed,
-                          (void *)(intptr_t)i);
+        b.textures[i] = wgr_texture_create(TEXTURE_PATHS[i]); /* loaded before the first step is set up */
     }
 }
 
@@ -397,18 +396,18 @@ static void frame(float dt, float fraction, void *user)
     (void)fraction;
     (void)user;
 
+    if (b.step < 0 && textures_ready() == TEXTURES) { /* waited for the textures */
+        wgr_texture_set_sampling(b.textures[0], WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_WRAP_CLAMP,
+                                 WGR_TEXTURE_FILTER_NEAREST);
+        b.step = 0;
+        setup();
+        b.last = wgr_get_time();
+    }
     if (b.failed) {
         wgr_request_quit();
         return;
     }
-    if (b.step < 0) { /* waiting for textures */
-        if (b.textures_loaded == TEXTURES) {
-            wgr_texture_set_sampling(b.textures[0], WGR_TEXTURE_WRAP_CLAMP, WGR_TEXTURE_WRAP_CLAMP,
-                                    WGR_TEXTURE_FILTER_NEAREST);
-            b.step = 0;
-            setup();
-            b.last = wgr_get_time();
-        }
+    if (b.step < 0) { /* still waiting for textures */
         wgr_render_begin_frame();
         wgr_render_end_frame();
         return;
