@@ -36,15 +36,6 @@ void wgr_logger_message_source(wgr_log_level_t level,
 #define wgr_logger_fatal(...) \
     wgr_logger_message_source(WGR_LOGGER_LEVEL_FATAL, __FILE__, __LINE__, __VA_ARGS__)
 
-#ifndef WGR_NO_LOG_SHORT_MACROS
-#define log_trace(...) wgr_logger_trace(__VA_ARGS__)
-#define log_debug(...) wgr_logger_debug(__VA_ARGS__)
-#define log_info(...) wgr_logger_info(__VA_ARGS__)
-#define log_warn(...) wgr_logger_warn(__VA_ARGS__)
-#define log_error(...) wgr_logger_error(__VA_ARGS__)
-#define log_fatal(...) wgr_logger_fatal(__VA_ARGS__)
-#endif
-
 #ifdef __cplusplus
 }
 #endif

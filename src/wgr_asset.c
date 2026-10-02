@@ -252,13 +252,13 @@ void wgr_asset_set_host(const char *host)
     snprintf(wgr_asset_local_root, sizeof(wgr_asset_local_root), "%s", wgr_asset_host);
     if (!wgr_asset_host_is_url && strncmp(wgr_asset_host, "file:", 5) == 0 &&
         !wgri_asset_file_url_path(wgr_asset_host, wgr_asset_local_root, sizeof(wgr_asset_local_root))) {
-        log_warn("wgr_asset_set_host: %s isn't a file: URL naming a directory on this machine", wgr_asset_host);
+        wgr_logger_warn("wgr_asset_set_host: %s isn't a file: URL naming a directory on this machine", wgr_asset_host);
     }
     wgri_fs_set_root(wgr_asset_host_is_url ? cache_dir() : wgr_asset_local_root);
     wgri_fs_set_cache_root(cache_dir());
 #else
     if (strncmp(wgr_asset_host, "file:", 5) == 0) {
-        log_warn("wgr_asset_set_host: %s: a browser doesn't read file: URLs", wgr_asset_host);
+        wgr_logger_warn("wgr_asset_set_host: %s: a browser doesn't read file: URLs", wgr_asset_host);
     }
 #endif
 }
@@ -278,7 +278,7 @@ static bool download_matches(wgr_asset_task_t *task)
         wgri_fs_read_free(data);
     }
     if (strcmp(meta.hash, task->expect_hash) != 0) {
-        log_warn("asset: %s isn't what the manifest lists (%.19s..., not %.19s...); not kept", task->path, meta.hash,
+        wgr_logger_warn("asset: %s isn't what the manifest lists (%.19s..., not %.19s...); not kept", task->path, meta.hash,
                  task->expect_hash);
         wgri_fs_remove(task->path);
         return false;
@@ -304,7 +304,7 @@ static void note_download(const char *path)
     snprintf(list, sizeof(list), "%s/" DOWNLOADS_LIST, cache_dir());
     f = fopen(list, "ab");
     if (f == NULL) {
-        log_warn("asset: couldn't note %s in %s; wgr_asset_clear_cache won't delete it", path, list);
+        wgr_logger_warn("asset: couldn't note %s in %s; wgr_asset_clear_cache won't delete it", path, list);
         return;
     }
     fprintf(f, "%s\n", path);
@@ -345,19 +345,19 @@ static int delete_downloads(void)
         if (n > 0 && line[n - 1] == '\r') line[--n] = '\0';
         if (n == 0) continue;
         if (!wgri_asset_normalize_path(line, relative, sizeof(relative))) {
-            log_warn("wgr_asset_clear_cache: %s lists %s, which isn't under it; left alone", list, line);
+            wgr_logger_warn("wgr_asset_clear_cache: %s lists %s, which isn't under it; left alone", list, line);
             continue;
         }
         snprintf(line, sizeof(line), "%s", relative);
         /* what the list holds was normalized (under 1024) and the cache directory is under
            512, so these fit; one that didn't is said, not cut short into another file */
         if (snprintf(file, sizeof(file), "%s/%s", cache_dir(), line) >= (int)sizeof(file)) {
-            log_warn("wgr_asset_clear_cache: %s/%s is too long a path; left alone", cache_dir(), line);
+            wgr_logger_warn("wgr_asset_clear_cache: %s/%s is too long a path; left alone", cache_dir(), line);
             continue;
         }
         deleted += remove(file) == 0 ? 1 : 0; /* listed twice, or evicted since: already gone */
         if (snprintf(file, sizeof(file), "%s/%s", meta_root, line) >= (int)sizeof(file)) {
-            log_warn("wgr_asset_clear_cache: %s/%s is too long a path; left alone", meta_root, line);
+            wgr_logger_warn("wgr_asset_clear_cache: %s/%s is too long a path; left alone", meta_root, line);
             continue;
         }
         remove(file);
@@ -452,10 +452,10 @@ static bool apply_fetch_answer(wgr_handle_t request, bool ok)
         char partial[600];
         const bool written = wgri_fs_partial_path(task->path, partial, sizeof(partial)) && wgri_fs_exists(partial);
         if (ok && !written) {
-            log_warn("asset: the fetcher said %s downloaded, but wrote nothing", task->path);
+            wgr_logger_warn("asset: the fetcher said %s downloaded, but wrote nothing", task->path);
             ok = false;
         } else if (ok && !wgri_fs_replace(partial, task->path)) {
-            log_warn("asset: couldn't move the download of %s into place", task->path);
+            wgr_logger_warn("asset: couldn't move the download of %s into place", task->path);
             ok = false;
         } else if (ok) { /* new bytes: what described the old ones goes */
             const wgri_fs_meta_t none = {0};
@@ -480,11 +480,11 @@ static bool apply_fetch_answer(wgr_handle_t request, bool ok)
         return true;
     }
     if (!ok && task->manifest_root && wgri_fs_exists(task->path)) {
-        log_info("asset: couldn't fetch %s; using the one from before", task->path);
+        wgr_logger_info("asset: couldn't fetch %s; using the one from before", task->path);
         resolved(i, true);
         return true;
     }
-    log_warn("asset: fetching %s failed", task->path);
+    wgr_logger_warn("asset: fetching %s failed", task->path);
     if (use_fallback(task)) {
         return true; /* another candidate to try */
     }
@@ -495,7 +495,7 @@ static bool apply_fetch_answer(wgr_handle_t request, bool ok)
 bool wgr_asset_set_cache_dir(const char *dir)
 {
     if (dir == NULL || *dir == '\0') {
-        log_warn("wgr_asset_set_cache_dir: a directory is needed");
+        wgr_logger_warn("wgr_asset_set_cache_dir: a directory is needed");
         return false;
     }
     snprintf(wgr_asset_cache_dir, sizeof(wgr_asset_cache_dir), "%s", dir);
@@ -551,7 +551,7 @@ bool wgr_asset_evict(const char *path)
 {
     char logical[512];
     if (path == NULL || !wgri_asset_normalize_path(path, logical, sizeof(logical))) {
-        log_warn("wgr_asset_evict: %s isn't a path under the asset root", path != NULL ? path : "(null)");
+        wgr_logger_warn("wgr_asset_evict: %s isn't a path under the asset root", path != NULL ? path : "(null)");
         return false;
     }
 #ifndef __EMSCRIPTEN__
@@ -574,7 +574,7 @@ void wgr_asset_clear_cache(void)
     {
         const int deleted = delete_downloads();
         if (deleted > 0) {
-            log_warn("wgr_asset_clear_cache: deleted %d downloaded file(s) from %s", deleted, cache_dir());
+            wgr_logger_warn("wgr_asset_clear_cache: deleted %d downloaded file(s) from %s", deleted, cache_dir());
         }
     }
 #endif
@@ -584,7 +584,7 @@ WGRI_KEEP
 bool wgr_asset_set_cache_mode(wgr_asset_cache_mode_t mode)
 {
     if (mode != WGR_ASSET_CACHE_REVALIDATE && mode != WGR_ASSET_CACHE_TRUST && mode != WGR_ASSET_CACHE_OFF) {
-        log_warn("wgr_asset_set_cache_mode: %d isn't a cache mode", (int)mode);
+        wgr_logger_warn("wgr_asset_set_cache_mode: %d isn't a cache mode", (int)mode);
         return false;
     }
     wgr_asset_cache_mode = mode;
@@ -659,7 +659,7 @@ bool wgr_asset_set_manifest(const char *path)
     const char *slash;
     if (path == NULL) path = "";
     if (path[0] == '/' || strstr(path, "://") != NULL || strlen(path) >= sizeof(wgr_manifest_path)) {
-        log_warn("wgr_asset_set_manifest: %s isn't a path under the host", path);
+        wgr_logger_warn("wgr_asset_set_manifest: %s isn't a path under the host", path);
         return false;
     }
     forget_manifests();
@@ -777,18 +777,18 @@ static void manifest_loaded(const wgr_asset_task_t *task, bool ok)
     record = &wgr_manifest_dirs[task->manifest_dir - 1];
     record->state = MANIFEST_FAILED;
     if (!ok && task->manifest_root) { /* a host without one, as tools/serve.py is */
-        log_info("asset: no manifest at %s; files are cached as the cache mode says", task->path);
+        wgr_logger_info("asset: no manifest at %s; files are cached as the cache mode says", task->path);
         return;
     }
     if (!ok) {
-        log_warn("asset: no manifest %s; what it would list is cached as the cache mode says", task->path);
+        wgr_logger_warn("asset: no manifest %s; what it would list is cached as the cache mode says", task->path);
         return;
     }
     if (wgri_fs_read(task->path, &data, &size) &&
         wgri_manifest_parse((const char *)data, (size_t)size, &record->manifest)) {
         record->state = MANIFEST_READY;
     } else {
-        log_warn("asset: %s isn't a manifest; what it would list is cached as the cache mode says", task->path);
+        wgr_logger_warn("asset: %s isn't a manifest; what it would list is cached as the cache mode says", task->path);
     }
     wgri_fs_read_free(data);
 }
@@ -928,7 +928,7 @@ void wgri_asset_fetch_finished(int slot, unsigned char *data, int size, int stat
         /* hash before store: the copy's hash is always that of the bytes it holds */
         if (meta.hash[0] == '\0') wgri_sha256_text(data, (size_t)size, meta.hash);
         if (strcmp(meta.hash, task->expect_hash) != 0) {
-            log_warn("asset: %s isn't what the manifest lists (%.19s..., not %.19s...); not kept", task->path,
+            wgr_logger_warn("asset: %s isn't what the manifest lists (%.19s..., not %.19s...); not kept", task->path,
                      meta.hash, task->expect_hash);
             task->fetch_result = FETCH_FAILED;
         } else {
@@ -947,11 +947,11 @@ void wgri_asset_fetch_finished(int slot, unsigned char *data, int size, int stat
         wgri_fs_meta_set(task->path, &meta);
         task->fetch_result = FETCH_USE_CACHE;
     } else if (task->revalidating && status / 100 == 4) {
-        log_info("asset: %s is gone from the host (HTTP %d); forgetting the cached copy", task->path, status);
+        wgr_logger_info("asset: %s is gone from the host (HTTP %d); forgetting the cached copy", task->path, status);
         wgri_fs_remove(task->path);
         task->fetch_result = FETCH_FAILED;
     } else if (task->revalidating) {
-        log_debug("asset: no answer about %s (HTTP %d); using the cached copy", task->path, status);
+        wgr_logger_debug("asset: no answer about %s (HTTP %d); using the cached copy", task->path, status);
         task->fetch_result = FETCH_USE_CACHE;
     } else {
         task->fetch_result = FETCH_FAILED;
@@ -1018,7 +1018,7 @@ void wgri_asset_register_path_mapper(const char *extension, wgri_asset_path_mapp
         }
     }
     if (wgr_asset_mapper_count >= MAX_PATH_MAPPERS || strlen(extension) >= sizeof(wgr_asset_mappers[0].extension)) {
-        log_error("Can't register a path mapper for %s", extension);
+        wgr_logger_error("Can't register a path mapper for %s", extension);
         return;
     }
     snprintf(wgr_asset_mappers[wgr_asset_mapper_count].extension, sizeof(wgr_asset_mappers[0].extension), "%s",
@@ -1040,12 +1040,12 @@ WGRI_KEEP
 bool wgr_asset_add_redirect(const char *prefix, const char *target)
 {
     if (prefix == NULL || target == NULL || prefix[0] == '\0' || target[0] == '\0') {
-        log_warn("wgr_asset_add_redirect: needs a prefix and a target");
+        wgr_logger_warn("wgr_asset_add_redirect: needs a prefix and a target");
         return false;
     }
     if (wgr_asset_redirect_count >= MAX_REDIRECTS || strlen(prefix) >= sizeof(wgr_asset_redirects[0].prefix) ||
         strlen(target) >= sizeof(wgr_asset_redirects[0].target)) {
-        log_warn("wgr_asset_add_redirect: too many redirects (%d), or too long", MAX_REDIRECTS);
+        wgr_logger_warn("wgr_asset_add_redirect: too many redirects (%d), or too long", MAX_REDIRECTS);
         return false;
     }
     {
@@ -1055,7 +1055,7 @@ bool wgr_asset_add_redirect(const char *prefix, const char *target)
         /* paths stay under the asset root, as ensured paths do; a URL is a URL */
         if (!normalize_prefix(prefix, to_prefix, sizeof(wgr_asset_redirects[0].prefix)) ||
             (!url && !normalize_prefix(target, to_target, sizeof(wgr_asset_redirects[0].target)))) {
-            log_warn("wgr_asset_add_redirect: %s -> %s: a path that isn't under the asset root", prefix, target);
+            wgr_logger_warn("wgr_asset_add_redirect: %s -> %s: a path that isn't under the asset root", prefix, target);
             return false;
         }
         if (url) snprintf(to_target, sizeof(wgr_asset_redirects[0].target), "%s", target);
@@ -1193,7 +1193,7 @@ bool wgr_asset_ping_host(const char *host, int timeout_ms, wgr_asset_ping_fn on_
         if (!wgr_asset_pings[i].active) slot = i;
     }
     if (slot < 0) {
-        log_warn("wgr_asset_ping_host: %d pings already waiting", MAX_PINGS);
+        wgr_logger_warn("wgr_asset_ping_host: %d pings already waiting", MAX_PINGS);
         return false;
     }
     if (host == NULL) host = wgr_asset_host;
@@ -1214,7 +1214,7 @@ bool wgr_asset_ping_host(const char *host, int timeout_ms, wgr_asset_ping_fn on_
     if (strncmp(host, "file:", 5) == 0 && !wgri_asset_file_url_path(host, dir, sizeof(dir))) {
         wgr_asset_pings[slot].result = -1.0f; /* not a directory on this machine */
     } else if (strstr(host, "://") != NULL && strncmp(host, "file:", 5) != 0) {
-        log_warn("wgr_asset_ping_host: %s: no host ping on desktop; set a fetcher and time an ensure", host);
+        wgr_logger_warn("wgr_asset_ping_host: %s: no host ping on desktop; set a fetcher and time an ensure", host);
         wgr_asset_pings[slot].result = -1.0f;
     } else {
         wgr_asset_pings[slot].result = stat(dir[0] != '\0' ? dir : ".", &st) == 0 && S_ISDIR(st.st_mode) ? 0.0f : -1.0f;
@@ -1310,7 +1310,7 @@ void wgri_asset_register_loader(const char *extension, const wgri_loader_t *load
         }
     }
     if (wgr_asset_loader_count >= MAX_LOADER_FORMATS || strlen(extension) >= sizeof(wgr_asset_loaders[0].extension)) {
-        log_error("Can't register a loader for %s", extension);
+        wgr_logger_error("Can't register a loader for %s", extension);
         return;
     }
     snprintf(wgr_asset_loaders[wgr_asset_loader_count].extension, sizeof(wgr_asset_loaders[0].extension), "%s", extension);
@@ -1710,7 +1710,7 @@ static void add_dependency(const char *uri, const char *fallback_uri, bool requi
         return;
     }
     if (!wgri_asset_join_relative(parent_task->path, uri, path, sizeof(path))) {
-        log_warn("Asset %s: can't use dependency '%s' (outside the asset root or too long)", parent_task->path, uri);
+        wgr_logger_warn("Asset %s: can't use dependency '%s' (outside the asset root or too long)", parent_task->path, uri);
         parent_task->dependency_failed = true;
         return;
     }
@@ -1723,7 +1723,7 @@ static void add_dependency(const char *uri, const char *fallback_uri, bool requi
     handle = alloc_task();
     parent_task = &wgr_asset_tasks[parent]; /* the allocation may have moved the tasks */
     if (handle == 0) {
-        log_error("Asset %s: can't queue its dependency %s", parent_task->path, path);
+        wgr_logger_error("Asset %s: can't queue its dependency %s", parent_task->path, path);
         parent_task->dependency_failed = true;
         return;
     }
@@ -1794,7 +1794,7 @@ wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
         return 0;
     }
     if (!wgri_asset_normalize_path(path, logical, sizeof(logical))) {
-        log_warn("wgr_asset_ensure_async: %s isn't a path under the asset root (absolute, a drive, or "
+        wgr_logger_warn("wgr_asset_ensure_async: %s isn't a path under the asset root (absolute, a drive, or "
                  "climbing out with \"..\")", path);
         return 0;
     }
@@ -1810,7 +1810,7 @@ wgr_handle_t wgr_asset_ensure_async(const char *path, const char *fetch_url,
             found = WGRI_SOURCE_REFUSED; /* it becomes the task's path, which it wouldn't fit */
         }
         if (found == WGRI_SOURCE_REFUSED) {
-            log_warn("wgr_asset_ensure_async: %s: %s isn't a source this host can read (a local one has to be a "
+            wgr_logger_warn("wgr_asset_ensure_async: %s: %s isn't a source this host can read (a local one has to be a "
                      "path under the host; a URL, http or https)", path, fetch_url);
             return 0;
         }
@@ -1908,7 +1908,7 @@ static wgr_handle_t alloc_task(void)
     const wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_asset_pool);
     bool ok;
     if (handle == 0) {
-        log_error("asset: too many tasks (%u)", (unsigned)wgr_asset_pool.max - 1u);
+        wgr_logger_error("asset: too many tasks (%u)", (unsigned)wgr_asset_pool.max - 1u);
         return 0;
     }
     wgri_mutex_lock(&wgr_asset_jobs.lock);
@@ -1917,7 +1917,7 @@ static wgr_handle_t alloc_task(void)
     wgri_mutex_unlock(&wgr_asset_jobs.lock);
     if (!ok) {
         wgri_handle_pool_free(&wgr_asset_pool, handle);
-        log_error("asset: out of memory");
+        wgr_logger_error("asset: out of memory");
         return 0;
     }
     return handle;
@@ -1955,7 +1955,7 @@ static void start_workers(int count)
     wgr_asset_jobs.worker_count = 0;
     for (int i = 0; i < count && i < MAX_WORKERS; i++) {
         if (!wgri_thread_create(&wgr_asset_jobs.threads[i], worker_main, NULL)) {
-            log_warn("Asset workers: started %d of %d; the rest of loading runs on the main thread", i, count);
+            wgr_logger_warn("Asset workers: started %d of %d; the rest of loading runs on the main thread", i, count);
             break;
         }
         wgr_asset_jobs.worker_count++;
@@ -2030,7 +2030,7 @@ bool wgr_asset_group_add(wgr_handle_t group, wgr_handle_t task)
 
     if (group_ptr == NULL || task_ptr == NULL || !group_ptr->is_group || task_ptr->is_group || group == task ||
         task_ptr->group != 0 || task_ptr->parent != 0) {
-        log_warn("wgr_asset_group_add: needs a group and a file task that isn't in a group");
+        wgr_logger_warn("wgr_asset_group_add: needs a group and a file task that isn't in a group");
         return false;
     }
     wgri_handle_pool_resolve(&wgr_asset_pool, group, &group_index);
@@ -2088,7 +2088,7 @@ void wgri_asset_init(void)
 {
     if (!wgri_handle_pool_init(&wgr_asset_pool, WGR_HANDLE_KIND_ASSET_TASK, "asset", (void **)&wgr_asset_tasks,
                              sizeof(wgr_asset_task_t), ASSET_TASKS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("asset: out of memory");
+        wgr_logger_error("asset: out of memory");
     }
     wgr_asset_fetching = 0;
 #ifndef __EMSCRIPTEN__
@@ -2104,7 +2104,7 @@ void wgri_asset_init(void)
     wgr_asset_jobs.done.head = wgr_asset_jobs.done.count = 0;
     wgri_mutex_unlock(&wgr_asset_jobs.lock);
     start_workers(wgr_asset_worker_request >= 0 ? wgr_asset_worker_request : default_worker_count());
-    log_info("wgr_asset: %d loading worker(s)%s", wgr_asset_jobs.worker_count,
+    wgr_logger_info("wgr_asset: %d loading worker(s)%s", wgr_asset_jobs.worker_count,
              wgr_asset_jobs.worker_count == 0 ? " (loading on the main thread)" : "");
     wgr_asset_ready = true;
 }
@@ -2150,15 +2150,15 @@ static void complete(uint16_t i, bool ok)
         if (task.on_success) task.on_success(local, task.user_data);
     } else {
         if (task.is_group) {
-            log_error("Asset group: some files failed (%d of %d)", task.failed_members, task.dependency_count);
+            wgr_logger_error("Asset group: some files failed (%d of %d)", task.failed_members, task.dependency_count);
         } else if (task.load_failed) {
-            log_error("Asset couldn't be loaded: %s", local);
+            wgr_logger_error("Asset couldn't be loaded: %s", local);
         } else if (task.dependency_failed) {
-            log_error("Asset dependencies missing: %s", local);
+            wgr_logger_error("Asset dependencies missing: %s", local);
         } else if (task.optional) {
-            log_warn("Asset not found (optional, dependency of %s): %s", wgr_asset_tasks[task.parent].path, local);
+            wgr_logger_warn("Asset not found (optional, dependency of %s): %s", wgr_asset_tasks[task.parent].path, local);
         } else {
-            log_error("Asset not found: %s", local);
+            wgr_logger_error("Asset not found: %s", local);
         }
         if (task.on_failure) task.on_failure(local, task.user_data);
     }
@@ -2253,7 +2253,7 @@ static bool refetch_once(uint16_t i)
     task->state = TASK_NEW;
     task->fetch_result = FETCH_PENDING;
     wgri_fs_remove(task->path);
-    log_warn("asset: %s didn't load; forgetting the cached copy and fetching it again", task->path);
+    wgr_logger_warn("asset: %s didn't load; forgetting the cached copy and fetching it again", task->path);
     return true;
 }
 #else
@@ -2354,9 +2354,9 @@ static bool use_fallback(wgr_asset_task_t *task)
     if (task->candidates == NULL || task->candidate_next >= task->candidate_count) return false;
     next = &task->candidates[task->candidate_next++];
     if (task->overlay) { /* a redirect without this file: normal for mods and translations */
-        log_debug("Asset %s not at %s; trying %s", task->origin, task->path, next->path);
+        wgr_logger_debug("Asset %s not at %s; trying %s", task->origin, task->path, next->path);
     } else {
-        log_warn("Asset not found: %s; using %s instead", task->path, next->path);
+        wgr_logger_warn("Asset not found: %s; using %s instead", task->path, next->path);
     }
     snprintf(task->path, sizeof(task->path), "%s", next->path);
     snprintf(task->fetch_url, sizeof(task->fetch_url), "%s", next->url);
@@ -2477,7 +2477,7 @@ void wgri_asset_tick(void)
             (task->caller_url || !wgri_fs_exists(task->path))) {
             char cached[sizeof(task->path)];
             if (snprintf(cached, sizeof(cached), WGRI_FS_CACHE "%s", task->path) >= (int)sizeof(cached)) {
-                log_warn("asset: %s is too long to keep in the cache", task->path);
+                wgr_logger_warn("asset: %s is too long to keep in the cache", task->path);
                 resolved(i, false);
                 continue;
             }
@@ -2520,7 +2520,7 @@ void wgri_asset_tick(void)
                    costs the copy that was there. */
                 char partial[600];
                 if (!wgri_fs_partial_path(task->path, partial, sizeof(partial))) {
-                    log_warn("asset: %s is too long to download", task->path);
+                    wgr_logger_warn("asset: %s is too long to download", task->path);
                     resolved(i, false);
                     continue;
                 }
@@ -2571,7 +2571,7 @@ void wgri_asset_pending_log(void)
     for (uint16_t i = 1; i < wgr_asset_pool.capacity; i++) {
         const wgr_asset_task_t *task = &wgr_asset_tasks[i];
         if (!wgr_asset_pool.occupied[i]) continue;
-        log_warn("wgr_asset: pending: %s (%s%s%s)", task->path, STAGE[task->state],
+        wgr_logger_warn("wgr_asset: pending: %s (%s%s%s)", task->path, STAGE[task->state],
                  task->state == TASK_FETCHING ? (task->fetch_result == FETCH_PENDING ? ", in flight" : ", answered") : "",
                  task->finish_started ? ", part done" : "");
     }

@@ -65,7 +65,7 @@ static wgr_texture_t *resolve(wgr_handle_t handle)
     uint16_t index = 0;
     if (!wgri_handle_pool_resolve(&wgr_texture_pool, handle, &index)) {
         if (handle != 0) {
-            log_warn("Invalid texture handle (%u)", (unsigned int)handle);
+            wgr_logger_warn("Invalid texture handle (%u)", (unsigned int)handle);
         }
         return NULL;
     }
@@ -134,7 +134,7 @@ static wgr_handle_t alloc_texture_slot(wgr_texture_t *out)
 
     handle = wgri_handle_pool_alloc(&wgr_texture_pool);
     if (handle == 0) {
-        log_error("texture: pool full (%u)", (unsigned)wgr_texture_pool.max - 1u);
+        wgr_logger_error("texture: pool full (%u)", (unsigned)wgr_texture_pool.max - 1u);
         return 0;
     }
     wgri_handle_pool_resolve(&wgr_texture_pool, handle, &index);
@@ -299,7 +299,7 @@ static wgr_handle_t add_texture(sg_image image, int width, int height, const cha
         t.view = sg_make_view(&(sg_view_desc){.texture.image = t.image});
     }
     if (sg_query_view_state(t.view) != SG_RESOURCESTATE_VALID) {
-        log_error("Couldn't create a GPU image for %s (see the sokol error above)", t.has_path ? t.path : "texture");
+        wgr_logger_error("Couldn't create a GPU image for %s (see the sokol error above)", t.has_path ? t.path : "texture");
         sg_destroy_view(t.view);
         sg_destroy_image(t.image);
         wgri_handle_pool_free(&wgr_texture_pool, handle);
@@ -334,7 +334,7 @@ static unsigned char *read_file_bytes(const char *path, int *out_size)
 
     *out_size = 0;
     if (path == NULL || (f = fopen(path, "rb")) == NULL) {
-        log_error("Failed to open texture: %s", path ? path : "(null)");
+        wgr_logger_error("Failed to open texture: %s", path ? path : "(null)");
         return NULL;
     }
     fseek(f, 0, SEEK_END);
@@ -373,7 +373,7 @@ static void *prepare_texture(const char *path)
     pixels = wgri_texture_pixels_decode(bytes, size);
     free(bytes);
     if (pixels == NULL) {
-        log_error("Failed to decode image %s (%s)", path, wgri_texture_pixels_error());
+        wgr_logger_error("Failed to decode image %s (%s)", path, wgri_texture_pixels_error());
     }
     return pixels;
 }
@@ -501,7 +501,7 @@ static void *prepare_ktx(const char *path)
         return NULL;
     }
     if (!wgri_ktx_parse(file->bytes, (size_t)size, &file->ktx, &error)) {
-        log_error("Can't load %s: %s", path, error);
+        wgr_logger_error("Can't load %s: %s", path, error);
         free(file->bytes);
         free(file);
         return NULL;
@@ -515,7 +515,7 @@ static wgr_handle_t create_ktx(const wgri_ktx_t *ktx, const char *path)
                           .num_mipmaps = ktx->mip_count, .label = "wgr-texture-ktx"};
     uint16_t index = 0;
     if (!sg_query_pixelformat(ktx->format).sample) {
-        log_error("Can't load %s: this GPU can't sample its format", path != NULL ? path : "a compressed texture");
+        wgr_logger_error("Can't load %s: this GPU can't sample its format", path != NULL ? path : "a compressed texture");
         return 0;
     }
     for (int i = 0; i < ktx->mip_count; i++) {
@@ -637,12 +637,12 @@ bool wgri_texture_ensure_alpha_mask(wgr_handle_t handle)
     pixels = stbi_load_from_memory(bytes, size, &w, &h, &comp, 4);
     free(bytes);
     if (pixels == NULL) {
-        log_error("Failed to decode image for alpha mask (%s)", stbi_failure_reason());
+        wgr_logger_error("Failed to decode image for alpha mask (%s)", stbi_failure_reason());
         return false;
     }
     if (w != texture_ptr->width || h != texture_ptr->height) {
         stbi_image_free(pixels);
-        log_warn("Alpha mask decode size mismatch for %s", texture_ptr->path);
+        wgr_logger_warn("Alpha mask decode size mismatch for %s", texture_ptr->path);
         return false;
     }
     extract_alpha_mask(texture_ptr, pixels);
@@ -678,7 +678,7 @@ bool wgr_texture_set_sampling(wgr_handle_t texture, wgr_texture_wrap_t wrap_u, w
     }
     if (wrap_u < WGR_TEXTURE_WRAP_REPEAT || wrap_u > WGR_TEXTURE_WRAP_MIRROR || wrap_v < WGR_TEXTURE_WRAP_REPEAT ||
         wrap_v > WGR_TEXTURE_WRAP_MIRROR || filter < WGR_TEXTURE_FILTER_LINEAR || filter > WGR_TEXTURE_FILTER_NEAREST) {
-        log_warn("wgr_texture_set_sampling: invalid wrap or filter");
+        wgr_logger_warn("wgr_texture_set_sampling: invalid wrap or filter");
         return false;
     }
     texture_ptr->sampler = wgri_texture_sampler(wrap_u, wrap_v, filter, true);
@@ -720,7 +720,7 @@ wgr_handle_t wgr_texture_create_target(int width, int height)
     uint16_t index = 0;
 
     if (width <= 0 || height <= 0 || width > 16384 || height > 16384) {
-        log_error("wgr_texture_create_target: invalid size %dx%d", width, height);
+        wgr_logger_error("wgr_texture_create_target: invalid size %dx%d", width, height);
         return 0;
     }
     handle = alloc_texture_slot(&t);
@@ -798,7 +798,7 @@ wgr_handle_t wgr_texture_create(const char *path)
     char mapped[256], fallback[256];
     if (wgri_texture_ktx_path(path, mapped, sizeof(mapped))) { /* rock.ktx: this GPU's variant */
         if (ends_with(mapped, ".ktx") && !file_exists(mapped) && ktx_fallback(path, fallback, sizeof(fallback))) {
-            log_warn("Texture %s not found; using %s instead", mapped, fallback);
+            wgr_logger_warn("Texture %s not found; using %s instead", mapped, fallback);
             snprintf(mapped, sizeof(mapped), "%s", fallback);
         }
         path = mapped;
@@ -850,7 +850,7 @@ bool wgri_texture_get_binding(wgr_handle_t handle, sg_view *view, sg_sampler *sm
     if (handle != 0 && handle == wgr_texture_drawing_into) {
         /* a pass can't sample the texture it renders into */
         if (!wgr_texture_self_use_logged) {
-            log_warn("texture: a render target can't be drawn into itself; the default texture is used");
+            wgr_logger_warn("texture: a render target can't be drawn into itself; the default texture is used");
             wgr_texture_self_use_logged = true;
         }
         texture_ptr = NULL;
@@ -885,7 +885,7 @@ void wgri_texture_init(void)
 
     if (!wgri_handle_pool_init(&wgr_texture_pool, WGR_HANDLE_KIND_TEXTURE, "texture", (void **)&wgr_textures,
                              sizeof(wgr_texture_t), TEXTURES_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("texture: out of memory");
+        wgr_logger_error("texture: out of memory");
     }
     wgri_asset_register_loader(".png", &wgr_texture_loader);
     wgri_asset_register_loader(".jpg", &wgr_texture_loader);

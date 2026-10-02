@@ -62,7 +62,7 @@ void wgri_shape3d_init(void)
 {
     if (!wgri_handle_pool_init(&wgr_shape3d_pool, WGR_HANDLE_KIND_SHAPE3D, "shape3d", (void **)&wgr_shapes3d,
                              sizeof(wgr_shape3d_t), SHAPES3D_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("shape3d: out of memory");
+        wgr_logger_error("shape3d: out of memory");
     }
     wgri_scene_register_passes(WGR_HANDLE_KIND_SHAPE3D, draw_opaque, collect_transparent, draw_transparent);
     wgri_scene_register_bounds(WGR_HANDLE_KIND_SHAPE3D, shape_bounds);
@@ -250,7 +250,7 @@ static wgr_shape3d_t *resolve(wgr_handle_t shape)
     uint16_t index = 0;
     if (!wgri_handle_pool_resolve(&wgr_shape3d_pool, shape, &index)) {
         if (shape != 0) {
-            log_warn("Invalid shape handle (%u)", (unsigned int)shape);
+            wgr_logger_warn("Invalid shape handle (%u)", (unsigned int)shape);
         }
         return NULL;
     }
@@ -264,7 +264,7 @@ wgr_handle_t wgr_shape3d_create(void)
     uint16_t index = 0;
 
     if (handle == 0) {
-        log_error("shape3d: pool full (%u)", (unsigned)wgr_shape3d_pool.max - 1u);
+        wgr_logger_error("shape3d: pool full (%u)", (unsigned)wgr_shape3d_pool.max - 1u);
         return 0;
     }
     wgri_handle_pool_resolve(&wgr_shape3d_pool, handle, &index);
@@ -376,11 +376,11 @@ bool wgr_shape3d_add_point(wgr_handle_t shape, float x, float y, float z)
 {
     wgr_shape3d_t *shape_ptr = resolve(shape);
     if (shape_ptr == NULL || shape_ptr->kind != WGR_SHAPE3D_LINE_STRIP) {
-        if (shape_ptr != NULL) log_warn("wgr_shape3d_add_point: shape isn't a line strip (wgr_shape3d_set_line_strip)");
+        if (shape_ptr != NULL) wgr_logger_warn("wgr_shape3d_add_point: shape isn't a line strip (wgr_shape3d_set_line_strip)");
         return false;
     }
     if (shape_ptr->point_count >= MAX_STRIP_POINTS) {
-        log_warn("wgr_shape3d_add_point: line strip is full (%d points)", MAX_STRIP_POINTS);
+        wgr_logger_warn("wgr_shape3d_add_point: line strip is full (%d points)", MAX_STRIP_POINTS);
         return false;
     }
     if (shape_ptr->point_count == shape_ptr->point_capacity) {

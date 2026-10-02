@@ -17,7 +17,7 @@ static wgri_sound_t *resolve(wgr_handle_t handle)
 {
     uint16_t index = 0;
     if (!wgri_handle_pool_resolve(&wgr_sound_pool, handle, &index)) {
-        if (handle != 0) log_warn("Invalid sound handle (%u)", (unsigned int)handle);
+        if (handle != 0) wgr_logger_warn("Invalid sound handle (%u)", (unsigned int)handle);
         return NULL;
     }
     return &wgr_sounds[index];
@@ -37,7 +37,7 @@ static wgr_handle_t create_sound(wgr_handle_t audio, bool loop)
     handle = wgri_handle_pool_alloc(&wgr_sound_pool);
     if (handle == 0) {
         wgri_audio_unlock();
-        log_error("sound: pool full (%u)", (unsigned)wgr_sound_pool.max - 1u);
+        wgr_logger_error("sound: pool full (%u)", (unsigned)wgr_sound_pool.max - 1u);
         return 0;
     }
     wgri_handle_pool_resolve(&wgr_sound_pool, handle, &index);
@@ -168,7 +168,7 @@ void wgri_sound_init(void)
     wgri_audio_lock(); /* the mixer may be running already */
     if (!wgri_handle_pool_init(&wgr_sound_pool, WGR_HANDLE_KIND_SOUND, "sound", (void **)&wgr_sounds,
                              sizeof(wgri_sound_t), SOUNDS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("sound: out of memory");
+        wgr_logger_error("sound: out of memory");
     }
     wgri_audio_unlock();
 }

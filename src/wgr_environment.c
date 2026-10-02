@@ -463,7 +463,7 @@ static wgr_environment_t *resolve(wgr_handle_t handle)
 {
     uint16_t index = 0;
     if (!wgri_handle_pool_resolve(&wgr_environment_pool, handle, &index)) {
-        if (handle != 0) log_warn("Invalid environment handle (%u)", (unsigned int)handle);
+        if (handle != 0) wgr_logger_warn("Invalid environment handle (%u)", (unsigned int)handle);
         return NULL;
     }
     return &wgr_environments[index];
@@ -569,7 +569,7 @@ static void *prepare_environment(const char *path)
     wgr_env_prepared_t *prepared;
 
     if (!load_image(path, &image)) {
-        log_error("wgr_environment_create: failed to load %s", path != NULL ? path : "(null)");
+        wgr_logger_error("wgr_environment_create: failed to load %s", path != NULL ? path : "(null)");
         free(image.rgb);
         return NULL;
     }
@@ -585,7 +585,7 @@ static void *prepare_environment(const char *path)
     free(image.rgb);
     if (!built || !wgri_environment_prefilter(&prepared->source, WGRI_ENVIRONMENT_CUBE_SIZE, WGRI_ENVIRONMENT_MIP_COUNT,
                                             PREFILTER_SAMPLES, &prepared->prefiltered)) {
-        log_error("wgr_environment_create: out of memory preparing %s", path);
+        wgr_logger_error("wgr_environment_create: out of memory preparing %s", path);
         wgri_environment_cube_free(&prepared->source);
         free(prepared);
         return NULL;
@@ -610,7 +610,7 @@ static wgri_loader_step_t finish_environment(void *data, const char *path, wgr_h
 
     *resource = 0;
     if (!wgr_env.ready) {
-        log_error("wgr_environment_create: environments aren't supported by this graphics backend");
+        wgr_logger_error("wgr_environment_create: environments aren't supported by this graphics backend");
         return WGRI_LOADER_FAILED;
     }
     env.sh = prepared->sh;
@@ -627,7 +627,7 @@ static wgri_loader_step_t finish_environment(void *data, const char *path, wgr_h
 
     const wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_environment_pool);
     if (handle == 0) {
-        log_error("environment: pool full (%u)", (unsigned)wgr_environment_pool.max - 1u);
+        wgr_logger_error("environment: pool full (%u)", (unsigned)wgr_environment_pool.max - 1u);
         sg_destroy_view(env.cube_view);
         sg_destroy_image(env.cube);
         sg_destroy_view(env.background_view);
@@ -660,7 +660,7 @@ WGRI_KEEP
 wgr_handle_t wgr_environment_create(const char *path)
 {
     if (!wgr_env.ready) { /* before the CPU work */
-        log_error("wgr_environment_create: environments aren't supported by this graphics backend");
+        wgr_logger_error("wgr_environment_create: environments aren't supported by this graphics backend");
         return 0;
     }
     return wgri_loader_create(&wgr_environment_loader, path);
@@ -792,11 +792,11 @@ void wgri_environment_init(void)
     if (!wgri_handle_pool_init(&wgr_environment_pool, WGR_HANDLE_KIND_ENVIRONMENT, "environment",
                              (void **)&wgr_environments, sizeof(wgr_environment_t), ENVIRONMENTS_INITIAL,
                              WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("environment: out of memory");
+        wgr_logger_error("environment: out of memory");
     }
 
     if (!sg_query_pixelformat(SG_PIXELFORMAT_RGBA16F).filter || !sg_query_pixelformat(SG_PIXELFORMAT_RG16F).filter) {
-        log_warn("environment: half-float textures can't be filtered on this backend; environments disabled");
+        wgr_logger_warn("environment: half-float textures can't be filtered on this backend; environments disabled");
         return;
     }
 

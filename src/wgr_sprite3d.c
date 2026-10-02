@@ -55,11 +55,11 @@ static bool assign_material(wgr_handle_t *slot, wgr_handle_t material, const cha
 {
     const wgri_material_t *material_ptr = material != 0 ? wgri_material_get(material) : NULL;
     if (material != 0 && material_ptr == NULL) {
-        log_warn("%s: needs a material (wgr_material_create or wgr_material_create_custom) or 0", who);
+        wgr_logger_warn("%s: needs a material (wgr_material_create or wgr_material_create_custom) or 0", who);
         return false;
     }
     if (wgri_material_is_screen(material)) {
-        log_warn("%s: that material's shader is a screen effect (wgr_render_add_effect), not a surface shader", who);
+        wgr_logger_warn("%s: that material's shader is a screen effect (wgr_render_add_effect), not a surface shader", who);
         return false;
     }
     if (*slot != material) {
@@ -102,7 +102,7 @@ static wgr_sprite3d_t *resolve(wgr_handle_t handle)
     uint16_t index = 0;
     if (!wgri_handle_pool_resolve(&wgr_sprite_pool, handle, &index)) {
         if (handle != 0) {
-            log_warn("Invalid sprite3d handle (%u)", (unsigned int)handle);
+            wgr_logger_warn("Invalid sprite3d handle (%u)", (unsigned int)handle);
         }
         return NULL;
     }
@@ -115,7 +115,7 @@ static wgr_handle_t create_sprite(wgr_handle_t texture)
     uint16_t index = 0;
 
     if (handle == 0) {
-        log_error("sprite3d: pool full (%u)", (unsigned)wgr_sprite_pool.max - 1u);
+        wgr_logger_error("sprite3d: pool full (%u)", (unsigned)wgr_sprite_pool.max - 1u);
         return 0;
     }
     wgri_handle_pool_resolve(&wgr_sprite_pool, handle, &index);
@@ -219,7 +219,7 @@ bool wgr_sprite3d_set_extent(wgr_handle_t handle, float width, float height)
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
     if (sprite_ptr == NULL) return false;
     if (width <= 0.0f || height <= 0.0f) {
-        log_warn("wgr_sprite3d_set_extent: %g x %g: both have to be more than 0", width, height);
+        wgr_logger_warn("wgr_sprite3d_set_extent: %g x %g: both have to be more than 0", width, height);
         return false;
     }
     sprite_ptr->width = width;
@@ -262,7 +262,7 @@ bool wgr_sprite3d_set_facing(wgr_handle_t handle, wgr_sprite3d_facing_t facing)
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
     if (sprite_ptr == NULL) return false;
     if (facing < WGR_SPRITE3D_FACING_CAMERA || facing > WGR_SPRITE3D_FACING_FREE) {
-        log_warn("wgr_sprite3d_set_facing: %d is not a wgr_sprite3d_facing_t", (int)facing);
+        wgr_logger_warn("wgr_sprite3d_set_facing: %d is not a wgr_sprite3d_facing_t", (int)facing);
         return false;
     }
     sprite_ptr->facing = facing;
@@ -437,7 +437,7 @@ bool wgr_sprite3d_set_alpha_mode(wgr_handle_t handle, wgr_alpha_mode_t mode, flo
     wgr_sprite3d_t *sprite_ptr = resolve(handle);
     if (sprite_ptr == NULL) return false;
     if (mode < WGR_ALPHA_OPAQUE || mode > WGR_ALPHA_ADD) {
-        log_warn("wgr_sprite3d_set_alpha_mode: %d is not a wgr_alpha_mode_t", (int)mode);
+        wgr_logger_warn("wgr_sprite3d_set_alpha_mode: %d is not a wgr_alpha_mode_t", (int)mode);
         return false;
     }
     sprite_ptr->alpha_mode = mode;
@@ -682,7 +682,7 @@ void wgri_sprite3d_init(void)
     wgri_sprite_batch_init(); /* shared with sprite2d: counted */
     if (!wgri_handle_pool_init(&wgr_sprite_pool, WGR_HANDLE_KIND_SPRITE3D, "sprite3d", (void **)&wgr_sprites,
                              sizeof(wgr_sprite3d_t), SPRITES_INITIAL, WGR_MAX_SPRITE3D)) {
-        log_error("sprite3d: out of memory");
+        wgr_logger_error("sprite3d: out of memory");
     }
     wgri_scene_register_passes(WGR_HANDLE_KIND_SPRITE3D, draw_opaque, collect_transparent, draw_transparent);
     wgri_scene_register_additive(WGR_HANDLE_KIND_SPRITE3D, draw_additive);

@@ -178,7 +178,7 @@ static bool can_move(void)
     static bool logged;
     if (sapp_can_move_window()) return true;
     if (!logged) {
-        log_info("window: a Wayland desktop (XWayland) places windows: moving them and changing monitor "
+        wgr_logger_info("window: a Wayland desktop (XWayland) places windows: moving them and changing monitor "
                  "aren't possible here");
         logged = true;
     }
@@ -209,7 +209,7 @@ int wgri_platform_current_monitor(void) { return sapp_current_display(); }
 bool wgri_platform_set_monitor(int monitor)
 {
     if (monitor < 0 || monitor >= sapp_num_displays()) {
-        log_warn("wgr_window_set_monitor: %d: monitors are 0 .. %d", monitor, sapp_num_displays() - 1);
+        wgr_logger_warn("wgr_window_set_monitor: %d: monitors are 0 .. %d", monitor, sapp_num_displays() - 1);
         return false;
     }
     if (!can_move()) return false;
@@ -280,7 +280,7 @@ bool wgri_platform_is_headless(void) { return true; }
 bool wgri_platform_set_window_size(int width, int height)
 {
     if (width <= 0 || height <= 0) {
-        log_warn("wgr_window_set_size: %d x %d: both have to be more than 0", width, height);
+        wgr_logger_warn("wgr_window_set_size: %d x %d: both have to be more than 0", width, height);
         return false;
     }
     wgr_headless.desc.width = width;

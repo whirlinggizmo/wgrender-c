@@ -42,7 +42,7 @@ static wgr_text2d_t *resolve(wgr_handle_t handle)
 {
     uint16_t index = 0;
     if (!wgri_handle_pool_resolve(&wgr_text2d_pool, handle, &index)) {
-        if (handle != 0) log_warn("Invalid text2d handle (%u)", (unsigned int)handle);
+        if (handle != 0) wgr_logger_warn("Invalid text2d handle (%u)", (unsigned int)handle);
         return NULL;
     }
     return &wgr_texts[index];
@@ -97,7 +97,7 @@ void wgri_text2d_init(void)
 {
     if (!wgri_handle_pool_init(&wgr_text2d_pool, WGR_HANDLE_KIND_TEXT2D, "text2d", (void **)&wgr_texts,
                              sizeof(wgr_text2d_t), TEXT2D_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("text2d: out of memory");
+        wgr_logger_error("text2d: out of memory");
     }
     wgri_scene_register_2d(WGR_HANDLE_KIND_TEXT2D, draw_2d, pick_2d);
     wgri_scene_register_enabled(WGR_HANDLE_KIND_TEXT2D, wgr_text2d_is_enabled);
@@ -119,7 +119,7 @@ wgr_handle_t wgr_text2d_create(wgr_handle_t font)
     wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_text2d_pool);
     uint16_t index = 0;
     if (handle == 0) {
-        log_error("text2d: pool full (%u)", (unsigned)wgr_text2d_pool.max - 1u);
+        wgr_logger_error("text2d: pool full (%u)", (unsigned)wgr_text2d_pool.max - 1u);
         return 0;
     }
     wgri_handle_pool_resolve(&wgr_text2d_pool, handle, &index);
@@ -230,7 +230,7 @@ bool wgr_text2d_set_align(wgr_handle_t handle, wgr_text_align_t horizontal, wgr_
     wgr_text2d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL) return false;
     if (horizontal > WGR_TEXT_ALIGN_RIGHT || vertical < WGR_TEXT_ALIGN_TOP || vertical > WGR_TEXT_ALIGN_BOTTOM) {
-        log_warn("wgr_text2d_set_align: horizontal is LEFT/CENTER/RIGHT, vertical TOP/MIDDLE/BOTTOM");
+        wgr_logger_warn("wgr_text2d_set_align: horizontal is LEFT/CENTER/RIGHT, vertical TOP/MIDDLE/BOTTOM");
         return false;
     }
     text_ptr->align_x = horizontal;

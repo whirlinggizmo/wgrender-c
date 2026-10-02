@@ -49,7 +49,7 @@ static void on_init(void *user_data)
      * the explicit source, proving the override is honored. */
     wgr_asset_add_task(wgr_asset_ensure_async(INVALID_MUSIC_PATH, MUSIC_FORCE_FETCH_PATH, WGR_ASSET_FORCE_FETCH),
                        on_music_loaded, on_failed, NULL);
-    log_info("force_fetch: %s from %s", INVALID_MUSIC_PATH, MUSIC_FORCE_FETCH_PATH);
+    wgr_logger_info("force_fetch: %s from %s", INVALID_MUSIC_PATH, MUSIC_FORCE_FETCH_PATH);
 }
 
 static void frame(float dt, float tick_fraction, void *user_data)

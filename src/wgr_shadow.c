@@ -188,7 +188,7 @@ static bool ensure_map(int size, int layers)
     }
     if (!depth_sampling_supported()) {
         if (!wgr_sm.unsupported) {
-            log_warn("shadows: this graphics backend can't sample a shadow map yet; shadows are off");
+            wgr_logger_warn("shadows: this graphics backend can't sample a shadow map yet; shadows are off");
             wgr_sm.unsupported = true;
         }
         return false;

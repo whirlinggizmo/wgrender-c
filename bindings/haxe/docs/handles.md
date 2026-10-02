@@ -33,7 +33,7 @@ if (pool->generations[index] != generation)          return false;
 A subsystem's `resolve()` then logs and returns NULL, and the setter returns `false`:
 
 ```c
-if (handle != 0) log_warn("Invalid model handle (%u)", (unsigned int)handle);
+if (handle != 0) wgr_logger_warn("Invalid model handle (%u)", (unsigned int)handle);
 ```
 
 Note `handle != 0`: a none handle is silent, deliberately, because `0` is a value you

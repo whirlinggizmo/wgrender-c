@@ -429,7 +429,7 @@ static wgr_scene_t *resolve(wgr_handle_t scene)
     uint16_t index = 0;
     if (!wgri_handle_pool_resolve(&wgr_scene_pool, scene, &index)) {
         if (scene != 0) {
-            log_warn("Invalid scene handle (%u)", (unsigned int)scene);
+            wgr_logger_warn("Invalid scene handle (%u)", (unsigned int)scene);
         }
         return NULL;
     }
@@ -535,7 +535,7 @@ wgr_handle_t wgr_scene_create(void)
     uint16_t index = 0;
 
     if (handle == 0) {
-        log_error("scene: pool full (%u)", (unsigned)wgr_scene_pool.max - 1u);
+        wgr_logger_error("scene: pool full (%u)", (unsigned)wgr_scene_pool.max - 1u);
         return 0;
     }
     wgri_handle_pool_resolve(&wgr_scene_pool, handle, &index);
@@ -606,7 +606,7 @@ bool wgr_scene_set_layer(wgr_handle_t scene, wgr_handle_t drawable, int layer)
     }
     idx = find_entry(scene_ptr, drawable);
     if (idx < 0) {
-        log_warn("wgr_scene_set_layer: %u is not in the scene", (unsigned int)drawable);
+        wgr_logger_warn("wgr_scene_set_layer: %u is not in the scene", (unsigned int)drawable);
         return false;
     }
     scene_ptr->items[idx].layer = layer;
@@ -624,7 +624,7 @@ bool wgr_scene_remove(wgr_handle_t scene, wgr_handle_t drawable)
     }
     idx = find_entry(scene_ptr, drawable);
     if (idx < 0) {
-        log_warn("wgr_scene_remove: %u is not in the scene", (unsigned int)drawable);
+        wgr_logger_warn("wgr_scene_remove: %u is not in the scene", (unsigned int)drawable);
         return false;
     }
     remove_entry(scene_ptr, idx); /* the rest keep their order */
@@ -694,7 +694,7 @@ bool wgr_scene_set_clip(wgr_handle_t scene, int layer, float x, float y, float w
     }
     if (slot < 0) {
         if (scene_ptr->clip_count >= MAX_SCENE_CLIPS) {
-            log_warn("wgr_scene_set_clip: at most %d clipped layers per scene", MAX_SCENE_CLIPS);
+            wgr_logger_warn("wgr_scene_set_clip: at most %d clipped layers per scene", MAX_SCENE_CLIPS);
             return false;
         }
         slot = scene_ptr->clip_count++;
@@ -731,7 +731,7 @@ bool wgr_scene_set_environment(wgr_handle_t scene, wgr_handle_t environment, flo
     wgr_scene_t *scene_ptr = resolve(scene);
     if (scene_ptr == NULL) return false;
     if (environment != 0 && wgr_handle_get_kind(environment) != WGR_HANDLE_KIND_ENVIRONMENT) {
-        log_warn("wgr_scene: %u is not an environment", (unsigned int)environment);
+        wgr_logger_warn("wgr_scene: %u is not an environment", (unsigned int)environment);
         return false;
     }
     retain_environment(environment); /* no-op for 0 */
@@ -748,7 +748,7 @@ bool wgr_scene_set_background(wgr_handle_t scene, wgr_handle_t environment, floa
     wgr_scene_t *scene_ptr = resolve(scene);
     if (scene_ptr == NULL) return false;
     if (environment != 0 && wgr_handle_get_kind(environment) != WGR_HANDLE_KIND_ENVIRONMENT) {
-        log_warn("wgr_scene: %u is not an environment", (unsigned int)environment);
+        wgr_logger_warn("wgr_scene: %u is not an environment", (unsigned int)environment);
         return false;
     }
     retain_environment(environment);
@@ -764,7 +764,7 @@ bool wgr_scene_set_tonemap(wgr_handle_t scene, wgr_tonemap_t tonemap, float expo
     wgr_scene_t *scene_ptr = resolve(scene);
     if (scene_ptr == NULL) return false;
     if (tonemap < WGR_TONEMAP_NONE || tonemap > WGR_TONEMAP_ACES) {
-        log_warn("wgr_scene_set_tonemap: %d is not a wgr_tonemap_t", (int)tonemap);
+        wgr_logger_warn("wgr_scene_set_tonemap: %d is not a wgr_tonemap_t", (int)tonemap);
         return false;
     }
     scene_ptr->tonemap = tonemap;
@@ -821,7 +821,7 @@ static bool grow_transparent_items(void)
     }
     wgr_transparent_items = items;
     wgr_transparent_capacity = size;
-    log_debug("scene: transparent list grown to %d parts", wgr_transparent_capacity);
+    wgr_logger_debug("scene: transparent list grown to %d parts", wgr_transparent_capacity);
     return true;
 }
 
@@ -924,7 +924,7 @@ static void draw_layer(const wgr_scene_entry_t *entries, int count, const wgri_c
         }
         if (room <= 0 || collected >= room) {
             if (!wgr_transparent_overflow_logged) {
-                log_warn("scene: %d transparent parts in one layer, the most there can be; skipping the rest",
+                wgr_logger_warn("scene: %d transparent parts in one layer, the most there can be; skipping the rest",
                          WGR_MAX_TRANSPARENT_ITEMS);
                 wgr_transparent_overflow_logged = true;
             }
@@ -1355,7 +1355,7 @@ void wgri_scene_init(void)
     wgr_scene_capture_releasing = false;
     if (!wgri_handle_pool_init(&wgr_scene_pool, WGR_HANDLE_KIND_SCENE, "scene", (void **)&wgr_scenes,
                              sizeof(wgr_scene_t), SCENES_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("scene: out of memory");
+        wgr_logger_error("scene: out of memory");
     }
 }
 

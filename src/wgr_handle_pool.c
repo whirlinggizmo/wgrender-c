@@ -136,10 +136,10 @@ static uint16_t find_free_slot_index(wgri_handle_pool_t *pool)
         const uint32_t doubled = (uint32_t)old_capacity * 2u;
         const uint16_t capacity = (uint16_t)(doubled < pool->max ? doubled : pool->max);
         if (!grow(pool, capacity)) {
-            log_error("%s: out of memory growing to %u slots", pool->name, (unsigned)capacity);
+            wgr_logger_error("%s: out of memory growing to %u slots", pool->name, (unsigned)capacity);
             return 0;
         }
-        log_debug("%s: grown to %u slots", pool->name, (unsigned)capacity);
+        wgr_logger_debug("%s: grown to %u slots", pool->name, (unsigned)capacity);
         pool->next_index = (uint16_t)(old_capacity + 1u);
         return old_capacity;
     }

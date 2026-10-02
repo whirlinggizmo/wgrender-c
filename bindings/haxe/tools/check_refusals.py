@@ -262,8 +262,8 @@ def logs(node):
     for call in (n for n in walk(node) if n.get('kind') == 'CallExpr'):
         for ref in (n for n in walk(call) if n.get('kind') == 'DeclRefExpr'):
             name = (ref.get('referencedDecl') or {}).get('name') or ''
-            # log_warn and friends are macros over wgr_logger_*, so the AST -- which
-            # sees the expansion, not the spelling -- never contains a "log_warn".
+            # wgr_logger_warn and friends are macros, so the AST -- which sees the
+            # expansion, not the spelling -- never contains a "wgr_logger_warn".
             if name.startswith('wgr_logger_') or name.startswith('wgri_log'):
                 return True
     return False

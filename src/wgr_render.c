@@ -135,7 +135,7 @@ static bool room_for(int more)
     if (wgr_render_cmd_count + more > capacity ||
         (grown = realloc(wgr_render_cmds, sizeof(*grown) * (size_t)capacity)) == NULL) {
         if (!wgr_render_overflow_logged) {
-            log_warn("render: %d render commands in a frame, the most there can be; the rest may be drawn out of "
+            wgr_logger_warn("render: %d render commands in a frame, the most there can be; the rest may be drawn out of "
                      "order or dropped",
                      wgr_render_cmd_count);
             wgr_render_overflow_logged = true;
@@ -435,16 +435,16 @@ bool wgr_render_begin_texture(wgr_handle_t texture)
     int w = 0, h = 0;
 
     if (wgr_render_current_pass_index != 0) {
-        log_warn("wgr_render_begin_texture: already drawing into a texture (call wgr_render_end_texture first)");
+        wgr_logger_warn("wgr_render_begin_texture: already drawing into a texture (call wgr_render_end_texture first)");
         return false;
     }
     if (!target_of(texture, &attachments, &w, &h)) {
-        log_warn("wgr_render_begin_texture: not a render target texture (see wgr_texture_create_target)");
+        wgr_logger_warn("wgr_render_begin_texture: not a render target texture (see wgr_texture_create_target)");
         return false;
     }
     if (wgr_render_pass_count >= MAX_RENDER_PASSES || !room_for(2)) {
         if (!wgr_render_pass_overflow_logged) {
-            log_warn("render: too many render target passes this frame (max %d)", MAX_RENDER_PASSES - 1);
+            wgr_logger_warn("render: too many render target passes this frame (max %d)", MAX_RENDER_PASSES - 1);
             wgr_render_pass_overflow_logged = true;
         }
         return false;
@@ -463,7 +463,7 @@ void wgr_render_end_texture(void)
 {
     wgr_render_revision++;
     if (wgr_render_current_pass_index == 0) {
-        log_warn("wgr_render_end_texture: not drawing into a texture");
+        wgr_logger_warn("wgr_render_end_texture: not drawing into a texture");
         return;
     }
     wgr_render_current_pass_index = 0;
@@ -567,7 +567,7 @@ static void grow_sgl_budgets(sgl_error_t err)
     }
     if (!vertices_full && !commands_full) {
         if (!wgr_sgl_at_most_logged) {
-            log_warn("render: a frame needed more than %d vertices or %d draw commands, the most there can be; "
+            wgr_logger_warn("render: a frame needed more than %d vertices or %d draw commands, the most there can be; "
                      "draws past them were dropped",
                      WGR_SGL_MAX_VERTICES, WGR_SGL_MAX_COMMANDS);
             wgr_sgl_at_most_logged = true;
@@ -576,10 +576,10 @@ static void grow_sgl_budgets(sgl_error_t err)
     }
     ctx = sgl_make_context(&(sgl_context_desc_t){.max_vertices = vertices, .max_commands = commands});
     if (ctx.id == SG_INVALID_ID) {
-        log_error("render: couldn't grow the draw budget to %d vertices, %d commands", vertices, commands);
+        wgr_logger_error("render: couldn't grow the draw budget to %d vertices, %d commands", vertices, commands);
         return;
     }
-    log_warn("render: a frame ran out of %s (%d vertices, %d commands) and lost the draws past it; "
+    wgr_logger_warn("render: a frame ran out of %s (%d vertices, %d commands) and lost the draws past it; "
              "growing to %d vertices, %d commands",
              vertices_full && commands_full ? "vertices and draw commands"
              : vertices_full                ? "vertices"
@@ -596,7 +596,7 @@ void wgr_render_end_frame(void)
 {
     sgl_error_t sgl_err;
     if (wgr_render_current_pass_index != 0) {
-        log_warn("wgr_render_end_frame: still drawing into a texture (missing wgr_render_end_texture)");
+        wgr_logger_warn("wgr_render_end_frame: still drawing into a texture (missing wgr_render_end_texture)");
         wgr_render_end_texture();
     }
     clip_end_frame();
@@ -700,7 +700,7 @@ static bool wgr_clip_warned;
 static void warn_clips(const char *what)
 {
     if (!wgr_clip_warned) {
-        log_warn("render: %s", what);
+        wgr_logger_warn("render: %s", what);
         wgr_clip_warned = true;
     }
 }

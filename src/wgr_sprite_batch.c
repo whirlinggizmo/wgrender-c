@@ -144,7 +144,7 @@ static bool reserve(void **items, int *capacity, int count, size_t item_size, in
     void *moved = realloc(*items, item_size * (size_t)grown);
     if (moved == NULL) {
         if (!wgr_sb.overflow_logged) {
-            log_error("sprites: out of memory");
+            wgr_logger_error("sprites: out of memory");
             wgr_sb.overflow_logged = true;
         }
         return false;
@@ -593,7 +593,7 @@ static void flush_pulled(void)
 
     if (rows > max_rows) {
         if (!wgr_sb.overflow_logged) {
-            log_error("sprites: %d in a frame, more than the sprite texture holds", wgr_sb.instance_count);
+            wgr_logger_error("sprites: %d in a frame, more than the sprite texture holds", wgr_sb.instance_count);
             wgr_sb.overflow_logged = true;
         }
         wgr_sb.instance_count = max_rows * PULLED_SPRITES_PER_ROW;

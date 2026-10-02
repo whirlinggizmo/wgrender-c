@@ -10,7 +10,7 @@
 static bool unsupported(bool *logged, const char *what)
 {
     if (!*logged) {
-        log_warn("%s isn't supported on this platform", what);
+        wgr_logger_warn("%s isn't supported on this platform", what);
         *logged = true;
     }
     return false;
@@ -48,7 +48,7 @@ bool wgr_window_set_size(int width, int height)
 {
     static bool logged;
     if (width <= 0 || height <= 0) {
-        log_warn("wgr_window_set_size: invalid size %dx%d", width, height);
+        wgr_logger_warn("wgr_window_set_size: invalid size %dx%d", width, height);
         return false;
     }
     return wgri_platform_set_window_size(width, height) || unsupported(&logged, "wgr_window_set_size");
@@ -87,7 +87,7 @@ WGRI_KEEP
 bool wgr_window_set_monitor(int monitor)
 {
     if (monitor < 0 || monitor >= wgri_platform_monitor_count()) {
-        log_warn("wgr_window_set_monitor: no monitor %d (%d available)", monitor, wgri_platform_monitor_count());
+        wgr_logger_warn("wgr_window_set_monitor: no monitor %d (%d available)", monitor, wgri_platform_monitor_count());
         return false;
     }
     return wgri_platform_set_monitor(monitor);

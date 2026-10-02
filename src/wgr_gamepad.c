@@ -271,7 +271,7 @@ static void try_open(const char *event_name, wgr_pad_t pads[WGR_INPUT_MAX_GAMEPA
         }
     }
     pad->connected = true;
-    log_info("gamepad %d: %s (%s)", slot, pad->name, path);
+    wgr_logger_info("gamepad %d: %s (%s)", slot, pad->name, path);
 }
 
 static void rescan(wgr_pad_t pads[WGR_INPUT_MAX_GAMEPADS])
@@ -289,7 +289,7 @@ static void close_slot(int slot, wgr_pad_t pads[WGR_INPUT_MAX_GAMEPADS])
 {
     if (wgr_evdevs[slot].fd >= 0) {
         close(wgr_evdevs[slot].fd);
-        log_info("gamepad %d: disconnected", slot);
+        wgr_logger_info("gamepad %d: disconnected", slot);
     }
     wgr_evdevs[slot].fd = -1;
     memset(&pads[slot], 0, sizeof(pads[slot]));
@@ -558,7 +558,7 @@ WGRI_KEEP float wgr_input_get_gamepad_axis(int pad, wgr_gamepad_axis_t axis)
 WGRI_KEEP bool wgr_input_set_gamepad_deadzone(float radius)
 {
     if (!(radius >= 0.0f && radius <= 0.9f)) {
-        log_warn("wgr_input_set_gamepad_deadzone: %g: the dead zone is 0 .. 0.9", radius);
+        wgr_logger_warn("wgr_input_set_gamepad_deadzone: %g: the dead zone is 0 .. 0.9", radius);
         return false;
     }
     wgr_gp.deadzone = radius;

@@ -30,7 +30,7 @@ void wgri_text_init(void)
     wgr_text_default_font = 0;
     wgr_text_builtin_font = wgri_font_create_builtin();
     if (wgr_text_builtin_font == 0) {
-        log_error("text: the built-in font couldn't be created");
+        wgr_logger_error("text: the built-in font couldn't be created");
     }
 }
 
@@ -269,7 +269,7 @@ WGRI_KEEP
 bool wgr_text_set_default_font(wgr_handle_t font)
 {
     if (font != 0 && wgri_font_fons_id(font) == FONS_INVALID) {
-        log_warn("wgr_text_set_default_font: %u isn't a loaded font", (unsigned int)font);
+        wgr_logger_warn("wgr_text_set_default_font: %u isn't a loaded font", (unsigned int)font);
         return false;
     }
     wgri_font_retain(font); /* the default font holds a reference; no-op for 0 */

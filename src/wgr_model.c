@@ -377,7 +377,7 @@ static void decode_image(wgr_gltf_textures_t *cache, const cgltf_image *img)
     }
     bytes = image_bytes(cache, img, &size, &owned);
     if (bytes == NULL) {
-        log_warn("model: %s: image %zu (%s) couldn't be read; using the placeholder texture", cache->path,
+        wgr_logger_warn("model: %s: image %zu (%s) couldn't be read; using the placeholder texture", cache->path,
                  index, img->uri != NULL && strncmp(img->uri, "data:", 5) != 0 ? img->uri : "embedded");
         cache->images[index].failed = true;
         return;
@@ -385,7 +385,7 @@ static void decode_image(wgr_gltf_textures_t *cache, const cgltf_image *img)
     cache->images[index].pixels = wgri_texture_pixels_decode(bytes, size);
     free(owned);
     if (cache->images[index].pixels == NULL) {
-        log_warn("model: %s: image %zu couldn't be decoded (%s); using the placeholder texture", cache->path, index,
+        wgr_logger_warn("model: %s: image %zu couldn't be decoded (%s); using the placeholder texture", cache->path, index,
                  wgri_texture_pixels_error());
         cache->images[index].failed = true;
     }
@@ -441,7 +441,7 @@ static bool read_ktx(wgr_gltf_textures_t *cache, const cgltf_image *img, const c
     }
     slot->ktx_bytes = read_file_bytes(path, &size);
     if (slot->ktx_bytes == NULL || !wgri_ktx_parse(slot->ktx_bytes, (size_t)size, &slot->ktx, &error)) {
-        log_warn("model: %s: %s can't be used (%s); using the texture's own image", cache->path, uri,
+        wgr_logger_warn("model: %s: %s can't be used (%s); using the texture's own image", cache->path, uri,
                  error != NULL ? error : "missing or unreadable");
         free(slot->ktx_bytes);
         slot->ktx_bytes = NULL;
@@ -484,7 +484,7 @@ static void set_texture(wgr_gltf_textures_t *cache, wgr_handle_t material, const
         texture = load_image(cache, compressed);
     } else {
         if (view->texture->image == NULL) {
-            log_warn("model: %s: a texture has no image in a supported format (PNG, JPEG); using the placeholder "
+            wgr_logger_warn("model: %s: a texture has no image in a supported format (PNG, JPEG); using the placeholder "
                      "texture", cache->path);
         }
         texture = load_image(cache, view->texture->image);
@@ -504,7 +504,7 @@ static void set_texture(wgr_gltf_textures_t *cache, wgr_handle_t material, const
     snprintf(param, sizeof(param), "%s_texcoord", name);
     if (texcoord > 1) {
         if (!cache->texcoord_warned) {
-            log_warn("model: texture coordinate set %d isn't supported (0 and 1 are); set 0 is used", texcoord);
+            wgr_logger_warn("model: texture coordinate set %d isn't supported (0 and 1 are); set 0 is used", texcoord);
             cache->texcoord_warned = true;
         }
         texcoord = 0;
@@ -894,7 +894,7 @@ static void parse_skeleton(wgr_mesh_t *mesh, const cgltf_data *g)
 
     mesh->joint_count = (int)skin->joints_count;
     if (mesh->joint_count > WGR_MAX_JOINTS) {
-        log_warn("model has %d joints; clamping to %d", mesh->joint_count, WGR_MAX_JOINTS);
+        wgr_logger_warn("model has %d joints; clamping to %d", mesh->joint_count, WGR_MAX_JOINTS);
         mesh->joint_count = WGR_MAX_JOINTS;
     }
     mesh->joint_nodes = (int *)calloc((size_t)mesh->joint_count, sizeof(int));
@@ -1007,7 +1007,7 @@ static bool parse_model(wgr_mesh_t *mesh, const unsigned char *data, int size, c
     if (cgltf_parse(&options, data, (cgltf_size)size, &g) != cgltf_result_success) return false;
     /* `path` lets buffers in files next to a .gltf load (wgr_asset ensured them) */
     if (cgltf_load_buffers(&options, g, path) != cgltf_result_success) {
-        log_error("model: buffers of %s couldn't be loaded", path != NULL ? path : "(memory)");
+        wgr_logger_error("model: buffers of %s couldn't be loaded", path != NULL ? path : "(memory)");
         cgltf_free(g);
         return false;
     }
@@ -1289,7 +1289,7 @@ static wgr_mesh_t *resolve_mesh(wgr_handle_t handle)
 {
     uint16_t index = 0;
     if (!wgri_handle_pool_resolve(&wgr_mesh_pool, handle, &index)) {
-        if (handle != 0) log_warn("Invalid mesh handle (%u)", (unsigned int)handle);
+        if (handle != 0) wgr_logger_warn("Invalid mesh handle (%u)", (unsigned int)handle);
         return NULL;
     }
     return &wgr_meshes[index];
@@ -1299,7 +1299,7 @@ static wgr_model_t *resolve(wgr_handle_t handle)
 {
     uint16_t index = 0;
     if (!wgri_handle_pool_resolve(&wgr_model_pool, handle, &index)) {
-        if (handle != 0) log_warn("Invalid model handle (%u)", (unsigned int)handle);
+        if (handle != 0) wgr_logger_warn("Invalid model handle (%u)", (unsigned int)handle);
         return NULL;
     }
     return &wgr_models[index];
@@ -1401,13 +1401,13 @@ static void *prepare_mesh(const char *path)
 
     bytes = read_file_bytes(path, &size);
     if (bytes == NULL) {
-        log_error("failed to open model: %s", path != NULL ? path : "(null)");
+        wgr_logger_error("failed to open model: %s", path != NULL ? path : "(null)");
         return NULL;
     }
     prepared = (wgr_mesh_prepared_t *)calloc(1, sizeof(wgr_mesh_prepared_t));
     ok = prepared != NULL && parse_model(&prepared->mesh, bytes, size, path, &prepared->gltf);
     if (!ok) {
-        log_error("failed to load model: %s", path != NULL ? path : "(null)");
+        wgr_logger_error("failed to load model: %s", path != NULL ? path : "(null)");
         if (prepared != NULL) free_mesh_cpu_data(&prepared->mesh);
         free(prepared);
         free(bytes);
@@ -1524,7 +1524,7 @@ static bool upload_primitive(wgr_primitive_t *prim)
     prim->upload_vertices = NULL;
     if (sg_query_buffer_state(prim->vbuf) != SG_RESOURCESTATE_VALID ||
         sg_query_buffer_state(prim->ibuf) != SG_RESOURCESTATE_VALID) {
-        log_error("model: couldn't create GPU buffers (see the sokol error above)");
+        wgr_logger_error("model: couldn't create GPU buffers (see the sokol error above)");
         return false;
     }
     return true;
@@ -1571,7 +1571,7 @@ static wgri_loader_step_t finish_mesh(void *data, const char *path, wgr_handle_t
     prepared->textures.path = NULL;
     const wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_mesh_pool);
     if (handle == 0) {
-        log_error("mesh: pool full (%u)", (unsigned)wgr_mesh_pool.max - 1u);
+        wgr_logger_error("mesh: pool full (%u)", (unsigned)wgr_mesh_pool.max - 1u);
         return WGRI_LOADER_FAILED;
     }
     if (path != NULL && path[0] != '\0') {
@@ -1606,7 +1606,7 @@ static wgr_handle_t create_generated(const char *key, wgri_mesh_shape_t *shape)
     mesh.prims = calloc(1, sizeof(wgr_primitive_t));
     mesh.materials = calloc(1, sizeof(wgr_handle_t));
     if (tangents == NULL || verts == NULL || mesh.prims == NULL || mesh.materials == NULL) {
-        log_error("mesh: out of memory");
+        wgr_logger_error("mesh: out of memory");
         free(tangents);
         free(verts);
         free(mesh.prims);
@@ -1679,7 +1679,7 @@ static wgr_handle_t find_generated(const char *key)
         const wgr_handle_t existing = find_generated(key);                        \
         if (existing != 0) return existing;                                      \
         if (!(build)) {                                                          \
-            log_error("%s: sizes must be positive (or out of memory)", __func__); \
+            wgr_logger_error("%s: sizes must be positive (or out of memory)", __func__); \
             return 0;                                                            \
         }                                                                        \
         return create_generated(key, &shape);                                    \
@@ -1769,7 +1769,7 @@ static wgr_handle_t create_model(wgr_handle_t mesh_handle)
      * with wgr_model_set_mesh(); draw/animate no-op until then. */
     handle = wgri_handle_pool_alloc(&wgr_model_pool);
     if (handle == 0) {
-        log_error("model: pool full (%u)", (unsigned)wgr_model_pool.max - 1u);
+        wgr_logger_error("model: pool full (%u)", (unsigned)wgr_model_pool.max - 1u);
         return 0;
     }
     model.mesh = mesh_handle;
@@ -1943,11 +1943,11 @@ WGRI_KEEP bool wgr_model_set_material(wgr_handle_t handle, int slot, wgr_handle_
     wgr_model_t *model_ptr = resolve(handle);
     if (model_ptr == NULL) return false;
     if (material != 0 && wgri_material_get(material) == NULL) {
-        log_warn("wgr_model_set_material: invalid material handle (%u)", (unsigned int)material);
+        wgr_logger_warn("wgr_model_set_material: invalid material handle (%u)", (unsigned int)material);
         return false;
     }
     if (wgri_material_is_screen(material)) {
-        log_warn("wgr_model_set_material: that material's shader is a screen effect (wgr_render_add_effect), "
+        wgr_logger_warn("wgr_model_set_material: that material's shader is a screen effect (wgr_render_add_effect), "
                  "not a surface shader");
         return false;
     }
@@ -1956,7 +1956,7 @@ WGRI_KEEP bool wgr_model_set_material(wgr_handle_t handle, int slot, wgr_handle_
         return true;
     }
     if (slot < 0 || slot >= WGR_MAX_MATERIAL_SLOTS) {
-        log_warn("wgr_model_set_material: slot %d out of range (0..%d)", slot, WGR_MAX_MATERIAL_SLOTS - 1);
+        wgr_logger_warn("wgr_model_set_material: slot %d out of range (0..%d)", slot, WGR_MAX_MATERIAL_SLOTS - 1);
         return false;
     }
     set_material_slot(model_ptr, slot, material);
@@ -2368,7 +2368,7 @@ static vec3_t prim_center(const wgr_primitive_t *prim)
 static void log_queue_full(void)
 {
     if (!wgr_model_queue_full_logged) {
-        log_warn("model: draw queue full (%d placements / %d primitives per frame); "
+        wgr_logger_warn("model: draw queue full (%d placements / %d primitives per frame); "
                  "the rest of this frame's models aren't drawn",
                  MAX_MODEL_DRAWS, MAX_MODEL_ITEMS);
         wgr_model_queue_full_logged = true;
@@ -2466,7 +2466,7 @@ static int begin_draw(wgr_handle_t handle, wgr_model_t *model_ptr)
             }
             wgr_model_joint_count += count;
         } else if (!wgr_model_joints_overflow_logged) {
-            log_error("model: out of memory for the frame's joint matrices");
+            wgr_logger_error("model: out of memory for the frame's joint matrices");
             wgr_model_joints_overflow_logged = true;
         }
     }
@@ -3385,7 +3385,7 @@ static void upload_joints(void)
     if (!ensure_data_texture(&wgr_model_joint_image, &wgr_model_joint_view, &wgr_model_joint_rows,
                              JOINT_TEXTURE_WIDTH, rows, "wgr-model-joints")) {
         if (!wgr_model_joints_overflow_logged) { /* more than the GPU's largest texture holds */
-            log_error("model: %d joint matrices in a frame, more than the joint texture holds", wgr_model_joint_count);
+            wgr_logger_error("model: %d joint matrices in a frame, more than the joint texture holds", wgr_model_joint_count);
             wgr_model_joints_overflow_logged = true;
         }
         return;
@@ -3444,7 +3444,7 @@ static void upload_instances(void)
     if (!ensure_data_texture(&wgr_model_instance_image, &wgr_model_instance_view, &wgr_model_instance_rows,
                              INSTANCE_TEXTURE_WIDTH, rows, "wgr-model-instances")) {
         if (!wgr_model_instances_overflow_logged) {
-            log_error("model: %d placements in a frame, more than the instance texture holds",
+            wgr_logger_error("model: %d placements in a frame, more than the instance texture holds",
                       wgr_model_item_count);
             wgr_model_instances_overflow_logged = true;
         }
@@ -3585,11 +3585,11 @@ void wgri_model_init(void)
     wgri_model_end_frame();
     if (!wgri_handle_pool_init(&wgr_model_pool, WGR_HANDLE_KIND_MODEL, "model", (void **)&wgr_models,
                              sizeof(wgr_model_t), MODELS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("model: out of memory");
+        wgr_logger_error("model: out of memory");
     }
     if (!wgri_handle_pool_init(&wgr_mesh_pool, WGR_HANDLE_KIND_MESH, "mesh", (void **)&wgr_meshes,
                              sizeof(wgr_mesh_t), MESHES_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("mesh: out of memory");
+        wgr_logger_error("mesh: out of memory");
     }
 
     wgr_model_white_img = sg_make_image(&(sg_image_desc){

@@ -59,7 +59,7 @@ void wgri_light_init(void)
     wgri_scene_hooks.light_env_get = wgri_light_env_get;
     if (!wgri_handle_pool_init(&wgr_light_pool, WGR_HANDLE_KIND_LIGHT, "light", (void **)&wgr_lights,
                              sizeof(wgr_light_t), LIGHTS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("light: out of memory");
+        wgr_logger_error("light: out of memory");
     }
     wgri_light_end_frame();
 }
@@ -79,7 +79,7 @@ static wgr_light_t *resolve(wgr_handle_t light)
     uint16_t index = 0;
     if (!wgri_handle_pool_resolve(&wgr_light_pool, light, &index)) {
         if (light != 0) {
-            log_warn("Invalid light handle (%u)", (unsigned int)light);
+            wgr_logger_warn("Invalid light handle (%u)", (unsigned int)light);
         }
         return NULL;
     }
@@ -95,12 +95,12 @@ wgr_handle_t wgr_light_create(wgr_light_type_t type)
     uint16_t index = 0;
 
     if (type != WGR_LIGHT_DIRECTIONAL && type != WGR_LIGHT_POINT && type != WGR_LIGHT_SPOT) {
-        log_error("wgr_light_create: unknown light type %d", (int)type);
+        wgr_logger_error("wgr_light_create: unknown light type %d", (int)type);
         return 0;
     }
     handle = wgri_handle_pool_alloc(&wgr_light_pool);
     if (handle == 0) {
-        log_error("light: pool full (%u)", (unsigned)wgr_light_pool.max - 1u);
+        wgr_logger_error("light: pool full (%u)", (unsigned)wgr_light_pool.max - 1u);
         return 0;
     }
     wgri_handle_pool_resolve(&wgr_light_pool, handle, &index);
@@ -172,7 +172,7 @@ bool wgr_light_set_direction(wgr_handle_t light, float x, float y, float z)
     vec3_t direction = wgri_v3_norm((vec3_t){x, y, z});
     if (light_ptr == NULL) return false;
     if (direction.x == 0.0f && direction.y == 0.0f && direction.z == 0.0f) {
-        log_warn("wgr_light_set_direction: a zero vector has no direction");
+        wgr_logger_warn("wgr_light_set_direction: a zero vector has no direction");
         return false;
     }
     light_ptr->direction = direction;
@@ -295,7 +295,7 @@ bool wgri_light_shadow_set_casts(wgr_handle_t light, bool casts)
     wgr_light_t *light_ptr = resolve(light);
     if (light_ptr == NULL) return false;
     if (casts && light_ptr->type == WGR_LIGHT_POINT) {
-        log_warn("wgr_light_set_casts_shadows: point lights don't cast shadows yet — a point light "
+        wgr_logger_warn("wgr_light_set_casts_shadows: point lights don't cast shadows yet — a point light "
                  "needs six maps, one each way (docs/PLAN-shadows.md)");
         return false;
     }
@@ -314,7 +314,7 @@ bool wgri_light_shadow_set_distance(wgr_handle_t light, float distance)
     wgr_light_t *light_ptr = resolve(light);
     if (light_ptr == NULL) return false;
     if (!(distance > 0.0f)) {
-        log_warn("wgr_light_set_shadow_distance: %g: the distance has to be more than 0", distance);
+        wgr_logger_warn("wgr_light_set_shadow_distance: %g: the distance has to be more than 0", distance);
         return false;
     }
     light_ptr->shadow_distance = distance;
@@ -326,7 +326,7 @@ bool wgri_light_shadow_set_map_size(wgr_handle_t light, int size)
     wgr_light_t *light_ptr = resolve(light);
     if (light_ptr == NULL) return false;
     if (size < 1) { /* a size, so <= 0 means nothing; in range it's a fidelity, so clamp */
-        log_warn("wgr_light_set_shadow_map_size: %d: a map has at least 1 pixel (256 after clamping)", size);
+        wgr_logger_warn("wgr_light_set_shadow_map_size: %d: a map has at least 1 pixel (256 after clamping)", size);
         return false;
     }
     light_ptr->shadow_map_size = shadow_map_size(size);
@@ -368,7 +368,7 @@ bool wgri_light_shadow_set_bias(wgr_handle_t light, float constant, float slope)
     wgr_light_t *light_ptr = resolve(light);
     if (light_ptr == NULL) return false;
     if (constant < 0.0f || slope < 0.0f) {
-        log_warn("wgr_light_set_shadow_bias: %g, %g: a bias can't be negative", constant, slope);
+        wgr_logger_warn("wgr_light_set_shadow_bias: %g, %g: a bias can't be negative", constant, slope);
         return false;
     }
     light_ptr->shadow_bias_constant = constant;
@@ -491,7 +491,7 @@ int wgri_light_env_push(const wgri_light_env_t *env)
     }
     if (wgr_light_env_count >= WGRI_MAX_LIGHT_ENVS) {
         if (!wgr_light_env_full_logged) {
-            log_warn("lighting: more than %d scene draws in one frame; extra scenes render unlit",
+            wgr_logger_warn("lighting: more than %d scene draws in one frame; extra scenes render unlit",
                      WGRI_MAX_LIGHT_ENVS);
             wgr_light_env_full_logged = true;
         }

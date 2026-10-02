@@ -117,13 +117,13 @@ static int add_font(const char *path)
     int fid;
 
     if (bytes == NULL) {
-        log_error("Failed to read font: %s", path);
+        wgr_logger_error("Failed to read font: %s", path);
         return FONS_INVALID;
     }
     snprintf(name, sizeof(name), "font%d", wgr_font_added++);
     fid = fonsAddFontMem(wgr_fons, name, bytes, size, 1);
     if (fid == FONS_INVALID) {
-        log_error("fontstash failed to add font: %s", path);
+        wgr_logger_error("fontstash failed to add font: %s", path);
     }
     return fid;
 }
@@ -144,7 +144,7 @@ wgr_handle_t wgr_font_create(const char *path)
         return handle;
     }
     if (strlen(path) >= sizeof(wgr_fonts[0].path)) {
-        log_error("Font path too long: %s", path);
+        wgr_logger_error("Font path too long: %s", path);
         return 0;
     }
     fid = take_parked(path);
@@ -161,7 +161,7 @@ wgr_handle_t wgr_font_create(const char *path)
     }
     handle = wgri_handle_pool_alloc(&wgr_font_pool);
     if (handle == 0) {
-        log_error("font: pool full (%u)", (unsigned)wgr_font_pool.max - 1u);
+        wgr_logger_error("font: pool full (%u)", (unsigned)wgr_font_pool.max - 1u);
         park(fid, path); /* keep it for later */
         return 0;
     }
@@ -264,7 +264,7 @@ static void on_fons_error(void *user, int error, int value)
     if (error == FONS_ATLAS_FULL) {
         wgr_font_grow_pending = true;
     } else {
-        log_warn("font: fontstash error %d", error);
+        wgr_logger_warn("font: fontstash error %d", error);
     }
 }
 
@@ -282,12 +282,12 @@ void wgri_font_end_frame(void)
         const bool grow_width = width <= height && width < WGR_FONT_ATLAS_MAX;
         const int new_width = grow_width ? width * 2 : width, new_height = grow_width ? height : height * 2;
         if (fonsExpandAtlas(wgr_fons, new_width, new_height)) {
-            log_info("font: glyph atlas grew to %dx%d", new_width, new_height);
+            wgr_logger_info("font: glyph atlas grew to %dx%d", new_width, new_height);
             return;
         }
     }
     if (!full_warned) {
-        log_warn("font: glyph atlas full at %dx%d; glyphs that don't fit aren't drawn", width, height);
+        wgr_logger_warn("font: glyph atlas full at %dx%d; glyphs that don't fit aren't drawn", width, height);
         full_warned = true;
     }
 }
@@ -299,7 +299,7 @@ void wgri_font_init(void)
     wgr_font_added = 0;
     if (!wgri_handle_pool_init(&wgr_font_pool, WGR_HANDLE_KIND_FONT, "font", (void **)&wgr_fonts,
                              sizeof(wgr_font_t), FONTS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("font: out of memory");
+        wgr_logger_error("font: out of memory");
     }
 
     wgr_fons = sfons_create(&(sfons_desc_t){
@@ -307,7 +307,7 @@ void wgri_font_init(void)
         .height = WGR_FONT_ATLAS_DIM,
     });
     if (wgr_fons == NULL) {
-        log_error("failed to create fontstash context");
+        wgr_logger_error("failed to create fontstash context");
         return;
     }
     fonsSetErrorCallback(wgr_fons, on_fons_error, NULL);

@@ -66,7 +66,7 @@ static wgri_material_t *resolve(wgr_handle_t handle)
     uint16_t index = 0;
     if (!wgri_handle_pool_resolve(&wgr_material_pool, handle, &index)) {
         if (handle != 0) {
-            log_warn("Invalid material handle (%u)", (unsigned int)handle);
+            wgr_logger_warn("Invalid material handle (%u)", (unsigned int)handle);
         }
         return NULL;
     }
@@ -98,11 +98,11 @@ static const param_t *lookup(wgr_handle_t material, const char *name, param_kind
         return NULL;
     }
     if (param == NULL) {
-        log_warn("material: unknown parameter '%s'", name != NULL ? name : "(null)");
+        wgr_logger_warn("material: unknown parameter '%s'", name != NULL ? name : "(null)");
         return NULL;
     }
     if (param->kind != kind && param->kind != alt_kind) {
-        log_warn("material: parameter '%s' has a different type", name);
+        wgr_logger_warn("material: parameter '%s' has a different type", name);
         return NULL;
     }
     *material_out = material_ptr;
@@ -157,12 +157,12 @@ static unsigned char *custom_param(wgri_material_t *material_ptr, const char *na
     const wgri_shader_param_t *param;
 
     if (i < 0) {
-        log_warn("material: its shader has no parameter '%s'", name != NULL ? name : "(null)");
+        wgr_logger_warn("material: its shader has no parameter '%s'", name != NULL ? name : "(null)");
         return NULL;
     }
     param = &shader->params[i];
     if (!(types & (1 << param->type))) {
-        log_warn("material: parameter '%s' has a different type", name);
+        wgr_logger_warn("material: parameter '%s' has a different type", name);
         return NULL;
     }
     if (type_out != NULL) *type_out = param->type;
@@ -175,7 +175,7 @@ static wgri_material_texture_t *custom_texture(wgri_material_t *material_ptr, co
     const wgri_shader_t *shader = wgri_shader_hooks.get != NULL ? wgri_shader_hooks.get(material_ptr->shader) : NULL;
     const int i = shader != NULL ? wgri_shader_hooks.find_texture(shader, name) : -1;
     if (i < 0) {
-        log_warn("material: its shader has no texture '%s'", name != NULL ? name : "(null)");
+        wgr_logger_warn("material: its shader has no texture '%s'", name != NULL ? name : "(null)");
         return NULL;
     }
     return &material_ptr->textures[i];
@@ -246,7 +246,7 @@ void wgri_material_init(void)
 {
     if (!wgri_handle_pool_init(&wgr_material_pool, WGR_HANDLE_KIND_MATERIAL, "material", (void **)&wgr_materials,
                              sizeof(wgri_material_t), MATERIALS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("material: out of memory");
+        wgr_logger_error("material: out of memory");
     }
 }
 
@@ -280,12 +280,12 @@ wgr_handle_t wgr_material_create(wgr_material_shading_t shading)
     uint16_t index = 0;
 
     if (shading != WGR_MATERIAL_PBR && shading != WGR_MATERIAL_UNLIT) {
-        log_error("wgr_material_create: unknown shading %d", (int)shading);
+        wgr_logger_error("wgr_material_create: unknown shading %d", (int)shading);
         return 0;
     }
     handle = wgri_handle_pool_alloc(&wgr_material_pool);
     if (handle == 0) {
-        log_error("material: pool full (%u)", (unsigned)wgr_material_pool.max - 1u);
+        wgr_logger_error("material: pool full (%u)", (unsigned)wgr_material_pool.max - 1u);
         return 0;
     }
     wgri_handle_pool_resolve(&wgr_material_pool, handle, &index);
@@ -316,7 +316,7 @@ wgr_handle_t wgr_material_create_custom(wgr_handle_t shader)
     size_t size;
 
     if (shader_ptr == NULL) {
-        log_error("wgr_material_create_custom: needs a shader (wgr_shader_create)");
+        wgr_logger_error("wgr_material_create_custom: needs a shader (wgr_shader_create)");
         return 0;
     }
     size = (size_t)(shader_ptr->block_size[WGRI_SHADER_BLOCK_FS_PARAMS] + shader_ptr->block_size[WGRI_SHADER_BLOCK_VS_PARAMS]);
@@ -349,7 +349,7 @@ bool wgr_material_set_shading(wgr_handle_t material, wgr_material_shading_t shad
         return false;
     }
     if (material_ptr->shader != 0) {
-        log_warn("wgr_material_set_shading: a custom material keeps its shader");
+        wgr_logger_warn("wgr_material_set_shading: a custom material keeps its shader");
         return false;
     }
     material_ptr->shading = shading;
@@ -414,7 +414,7 @@ bool wgr_material_set_int(wgr_handle_t material, const char *name, int value)
         return false;
     }
     if (value < 0 || value > 1) { /* the only int parameters are texture coordinate sets */
-        log_warn("material: '%s' must be 0 or 1 (got %d)", name, value);
+        wgr_logger_warn("material: '%s' must be 0 or 1 (got %d)", name, value);
         return false;
     }
     *(int *)((char *)material_ptr + param->offset) = value;
@@ -524,7 +524,7 @@ bool wgr_material_set_texture(wgr_handle_t material, const char *name, wgr_handl
         return false;
     }
     if (texture != 0 && wgr_handle_get_kind(texture) != WGR_HANDLE_KIND_TEXTURE) {
-        log_warn("material: '%s' needs a texture handle", name);
+        wgr_logger_warn("material: '%s' needs a texture handle", name);
         return false;
     }
     slot = custom != NULL ? &custom->texture : &material_ptr->textures[param->offset].texture;
@@ -553,7 +553,7 @@ bool wgr_material_set_texture_sampling(wgr_handle_t material, const char *name, 
     }
     if (wrap_u < WGR_TEXTURE_WRAP_REPEAT || wrap_u > WGR_TEXTURE_WRAP_MIRROR || wrap_v < WGR_TEXTURE_WRAP_REPEAT ||
         wrap_v > WGR_TEXTURE_WRAP_MIRROR || filter < WGR_TEXTURE_FILTER_LINEAR || filter > WGR_TEXTURE_FILTER_NEAREST) {
-        log_warn("material: invalid sampling for '%s'", name);
+        wgr_logger_warn("material: invalid sampling for '%s'", name);
         return false;
     }
     texture->wrap_u = wrap_u;

@@ -50,7 +50,7 @@ static wgr_text3d_t *resolve(wgr_handle_t handle)
 {
     uint16_t index = 0;
     if (!wgri_handle_pool_resolve(&wgr_text3d_pool, handle, &index)) {
-        if (handle != 0) log_warn("Invalid text3d handle (%u)", (unsigned int)handle);
+        if (handle != 0) wgr_logger_warn("Invalid text3d handle (%u)", (unsigned int)handle);
         return NULL;
     }
     return &wgr_text3ds[index];
@@ -320,7 +320,7 @@ wgr_handle_t wgr_text3d_create(wgr_handle_t font)
     wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_text3d_pool);
     uint16_t index = 0;
     if (handle == 0) {
-        log_error("text3d: pool full (%u)", (unsigned)wgr_text3d_pool.max - 1u);
+        wgr_logger_error("text3d: pool full (%u)", (unsigned)wgr_text3d_pool.max - 1u);
         return 0;
     }
     wgri_handle_pool_resolve(&wgr_text3d_pool, handle, &index);
@@ -385,7 +385,7 @@ bool wgr_text3d_set_font_size(wgr_handle_t handle, float size)
     wgr_text3d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL) return false;
     if (size <= 0.0f) {
-        log_warn("wgr_text3d_set_font_size: %g: the size has to be more than 0", size);
+        wgr_logger_warn("wgr_text3d_set_font_size: %g: the size has to be more than 0", size);
         return false;
     }
     text_ptr->size = size;
@@ -406,7 +406,7 @@ bool wgr_text3d_set_align(wgr_handle_t handle, wgr_text_align_t horizontal, wgr_
     wgr_text3d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL) return false;
     if (horizontal > WGR_TEXT_ALIGN_RIGHT || vertical < WGR_TEXT_ALIGN_TOP || vertical > WGR_TEXT_ALIGN_BOTTOM) {
-        log_warn("wgr_text3d_set_align: horizontal is LEFT/CENTER/RIGHT, vertical TOP/MIDDLE/BOTTOM");
+        wgr_logger_warn("wgr_text3d_set_align: horizontal is LEFT/CENTER/RIGHT, vertical TOP/MIDDLE/BOTTOM");
         return false;
     }
     text_ptr->align_x = horizontal;
@@ -471,7 +471,7 @@ bool wgr_text3d_set_facing(wgr_handle_t handle, wgr_sprite3d_facing_t facing)
     wgr_text3d_t *text_ptr = resolve(handle);
     if (text_ptr == NULL) return false;
     if (facing < WGR_SPRITE3D_FACING_CAMERA || facing > WGR_SPRITE3D_FACING_FREE) {
-        log_warn("wgr_text3d_set_facing: %d is not a wgr_sprite3d_facing_t", (int)facing);
+        wgr_logger_warn("wgr_text3d_set_facing: %d is not a wgr_sprite3d_facing_t", (int)facing);
         return false;
     }
     text_ptr->facing = facing;
@@ -566,7 +566,7 @@ void wgri_text3d_init(void)
 {
     if (!wgri_handle_pool_init(&wgr_text3d_pool, WGR_HANDLE_KIND_TEXT3D, "text3d", (void **)&wgr_text3ds,
                              sizeof(wgr_text3d_t), TEXT3D_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("text3d: out of memory");
+        wgr_logger_error("text3d: out of memory");
     }
     wgri_scene_register_passes(WGR_HANDLE_KIND_TEXT3D, NULL, collect_transparent, draw_transparent);
     wgri_scene_register_bounds(WGR_HANDLE_KIND_TEXT3D, text_bounds);

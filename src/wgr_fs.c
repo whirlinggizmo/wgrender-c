@@ -397,14 +397,14 @@ void wgri_fs_init(const char *root_dir)
 #ifdef __EMSCRIPTEN__
     /* Open the cache (its list of files); wgri_fs_is_ready() reflects it. */
     wgr_fs_store_open(wgr_fs_root, WGR_FS_CACHE_EPOCH);
-    log_info("wgr_fs: files in %s, kept in IndexedDB", wgr_fs_root);
+    wgr_logger_info("wgr_fs: files in %s, kept in IndexedDB", wgr_fs_root);
 #else
 #if defined(_WIN32)
     char *cwd = _getcwd(NULL, 0); /* same NULL, 0 -> malloc contract as POSIX */
 #else
     char *cwd = getcwd(NULL, 0);
 #endif
-    log_info("wgr_fs: using stdio relative to working dir (absolute path=%s/%s)", cwd != NULL ? cwd : "?", wgr_fs_root);
+    wgr_logger_info("wgr_fs: using stdio relative to working dir (absolute path=%s/%s)", cwd != NULL ? cwd : "?", wgr_fs_root);
     free(cwd);
 #endif
 }
@@ -665,7 +665,7 @@ bool wgri_fs_write_meta(const char *path, const unsigned char *data, int size, c
 #else
     if (meta != NULL && !meta_write(path, meta)) {
         /* the bytes landed; without their metadata they are only fetched once more */
-        log_warn("wgr_fs: couldn't keep the metadata of %s", path);
+        wgr_logger_warn("wgr_fs: couldn't keep the metadata of %s", path);
     }
 #endif
     return true;

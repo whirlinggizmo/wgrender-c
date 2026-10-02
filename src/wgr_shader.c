@@ -55,7 +55,7 @@ static wgri_shader_t *resolve(wgr_handle_t handle)
 {
     uint16_t index = 0;
     if (!wgri_handle_pool_resolve(&wgr_shader_pool, handle, &index)) {
-        if (handle != 0) log_warn("Invalid shader handle (%u)", (unsigned int)handle);
+        if (handle != 0) wgr_logger_warn("Invalid shader handle (%u)", (unsigned int)handle);
         return NULL;
     }
     return &wgr_shaders[index];
@@ -362,7 +362,7 @@ static void *prepare_shader(const char *path)
     long size;
 
     if (f == NULL) {
-        log_error("wgr_shader_create: can't open %s", path != NULL ? path : "(null)");
+        wgr_logger_error("wgr_shader_create: can't open %s", path != NULL ? path : "(null)");
         return NULL;
     }
     fseek(f, 0, SEEK_END);
@@ -371,7 +371,7 @@ static void *prepare_shader(const char *path)
     file = calloc(1, sizeof(*file));
     if (file == NULL || size <= 0 || (file->bytes = malloc((size_t)size)) == NULL ||
         fread(file->bytes, 1, (size_t)size, f) != (size_t)size) {
-        log_error("wgr_shader_create: can't read %s", path);
+        wgr_logger_error("wgr_shader_create: can't read %s", path);
         fclose(f);
         if (file != NULL) free(file->bytes);
         free(file);
@@ -402,7 +402,7 @@ static wgri_loader_step_t finish_shader(void *data, const char *path, wgr_handle
 
     *resource = 0;
     if (slang == NULL) {
-        log_error("wgr_shader_create: %s: custom shaders aren't supported on this graphics backend", path);
+        wgr_logger_error("wgr_shader_create: %s: custom shaders aren't supported on this graphics backend", path);
         return WGRI_LOADER_FAILED;
     }
     programs = calloc(WGRI_SHADER_PROGRAM_COUNT, sizeof(program_desc_t));
@@ -468,7 +468,7 @@ static wgri_loader_step_t finish_shader(void *data, const char *path, wgr_handle
     if (programs != NULL) free_programs(programs);
     free(programs);
     if (!ok) {
-        log_error("wgr_shader_create: %s: %s", path != NULL ? path : "(null)", error != NULL ? error : "out of memory");
+        wgr_logger_error("wgr_shader_create: %s: %s", path != NULL ? path : "(null)", error != NULL ? error : "out of memory");
         destroy_gpu(&shader);
         return WGRI_LOADER_FAILED;
     }
@@ -479,7 +479,7 @@ static wgri_loader_step_t finish_shader(void *data, const char *path, wgr_handle
     shader.ref_count = 1;
     const wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_shader_pool);
     if (handle == 0) {
-        log_error("shader: pool full (%u)", (unsigned)wgr_shader_pool.max - 1u);
+        wgr_logger_error("shader: pool full (%u)", (unsigned)wgr_shader_pool.max - 1u);
         destroy_gpu(&shader);
         return WGRI_LOADER_FAILED;
     }
@@ -541,7 +541,7 @@ void wgri_shader_init(void)
 {
     if (!wgri_handle_pool_init(&wgr_shader_pool, WGR_HANDLE_KIND_SHADER, "shader", (void **)&wgr_shaders,
                              sizeof(wgri_shader_t), SHADERS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("shader: out of memory");
+        wgr_logger_error("shader: out of memory");
     }
     wgri_asset_register_loader(".wgrshader", &wgr_shader_loader);
     wgri_shader_hooks = (wgri_shader_hooks_t){

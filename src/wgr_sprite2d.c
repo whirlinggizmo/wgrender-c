@@ -53,11 +53,11 @@ static bool assign_material(wgr_handle_t *slot, wgr_handle_t material, const cha
     const wgri_material_t *material_ptr = material != 0 ? wgri_material_get(material) : NULL;
     if (material != 0 && (material_ptr == NULL || material_ptr->shader == 0)) {
         /* built-in materials light a surface, and 2D has no lights (wgr_sprite3d) */
-        log_warn("%s: 2D sprites take custom materials (wgr_material_create_custom) or 0", who);
+        wgr_logger_warn("%s: 2D sprites take custom materials (wgr_material_create_custom) or 0", who);
         return false;
     }
     if (wgri_material_is_screen(material)) {
-        log_warn("%s: that material's shader is a screen effect (wgr_render_add_effect), not a surface shader", who);
+        wgr_logger_warn("%s: that material's shader is a screen effect (wgr_render_add_effect), not a surface shader", who);
         return false;
     }
     if (*slot != material) {
@@ -79,7 +79,7 @@ void wgri_sprite2d_init(void)
     wgri_sprite_batch_init(); /* shared with sprite3d: counted */
     if (!wgri_handle_pool_init(&wgr_sprite2d_pool, WGR_HANDLE_KIND_SPRITE2D, "sprite2d", (void **)&wgr_sprites2d,
                              sizeof(wgr_sprite2d_t), SPRITES_INITIAL, WGR_MAX_SPRITE2D)) {
-        log_error("sprite2d: out of memory");
+        wgr_logger_error("sprite2d: out of memory");
     }
     wgri_scene_register_2d(WGR_HANDLE_KIND_SPRITE2D, draw_handle, pick_handle);
     wgri_scene_register_enabled(WGR_HANDLE_KIND_SPRITE2D, wgr_sprite2d_is_enabled);
@@ -101,7 +101,7 @@ static wgr_sprite2d_t *resolve(wgr_handle_t sprite)
     uint16_t index = 0;
     if (!wgri_handle_pool_resolve(&wgr_sprite2d_pool, sprite, &index)) {
         if (sprite != 0) {
-            log_warn("Invalid sprite2d handle (%u)", (unsigned int)sprite);
+            wgr_logger_warn("Invalid sprite2d handle (%u)", (unsigned int)sprite);
         }
         return NULL;
     }
@@ -375,7 +375,7 @@ wgr_handle_t wgr_sprite2d_create(wgr_handle_t texture)
     uint16_t index = 0;
 
     if (handle == 0) {
-        log_error("sprite2d: pool full (%u)", (unsigned)wgr_sprite2d_pool.max - 1u);
+        wgr_logger_error("sprite2d: pool full (%u)", (unsigned)wgr_sprite2d_pool.max - 1u);
         return 0;
     }
     wgri_handle_pool_resolve(&wgr_sprite2d_pool, handle, &index);
@@ -654,7 +654,7 @@ bool wgr_sprite2d_set_alpha_mode(wgr_handle_t sprite, wgr_alpha_mode_t mode, flo
     wgr_sprite2d_t *sprite_ptr = resolve(sprite);
     if (sprite_ptr == NULL) return false;
     if (mode < WGR_ALPHA_OPAQUE || mode > WGR_ALPHA_ADD) {
-        log_warn("wgr_sprite2d_set_alpha_mode: %d is not a wgr_alpha_mode_t", (int)mode);
+        wgr_logger_warn("wgr_sprite2d_set_alpha_mode: %d is not a wgr_alpha_mode_t", (int)mode);
         return false;
     }
     sprite_ptr->alpha_mode = mode;

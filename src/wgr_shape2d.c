@@ -59,7 +59,7 @@ void wgri_shape2d_init(void)
 {
     if (!wgri_handle_pool_init(&wgr_shape2d_pool, WGR_HANDLE_KIND_SHAPE2D, "shape2d", (void **)&wgr_shapes2d,
                              sizeof(wgr_shape2d_t), SHAPES2D_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("shape2d: out of memory");
+        wgr_logger_error("shape2d: out of memory");
     }
     wgri_scene_register_2d(WGR_HANDLE_KIND_SHAPE2D, draw_2d, pick_2d);
     wgri_scene_register_enabled(WGR_HANDLE_KIND_SHAPE2D, wgr_shape2d_is_enabled);
@@ -75,7 +75,7 @@ static wgr_shape2d_t *resolve(wgr_handle_t shape)
     uint16_t index = 0;
     if (!wgri_handle_pool_resolve(&wgr_shape2d_pool, shape, &index)) {
         if (shape != 0) {
-            log_warn("Invalid shape2d handle (%u)", (unsigned int)shape);
+            wgr_logger_warn("Invalid shape2d handle (%u)", (unsigned int)shape);
         }
         return NULL;
     }
@@ -180,7 +180,7 @@ wgr_handle_t wgr_shape2d_create(void)
     uint16_t index = 0;
 
     if (handle == 0) {
-        log_error("shape2d: pool full (%u)", (unsigned)wgr_shape2d_pool.max - 1u);
+        wgr_logger_error("shape2d: pool full (%u)", (unsigned)wgr_shape2d_pool.max - 1u);
         return 0;
     }
     wgri_handle_pool_resolve(&wgr_shape2d_pool, handle, &index);

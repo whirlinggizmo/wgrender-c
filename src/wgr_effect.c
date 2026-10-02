@@ -90,7 +90,7 @@ static void draw_effect(wgr_handle_t material, wgr_handle_t source)
 
     if (program == NULL || material_ptr == NULL) {
         if (!wgr_fx.warned) {
-            log_warn("render: a screen effect's material lost its shader; the frame is drawn as it is");
+            wgr_logger_warn("render: a screen effect's material lost its shader; the frame is drawn as it is");
             wgr_fx.warned = true;
         }
         return;
@@ -185,16 +185,16 @@ WGRI_KEEP
 bool wgr_render_add_effect(wgr_handle_t material)
 {
     if (wgri_material_get(material) == NULL) {
-        log_warn("wgr_render_add_effect: needs a material made with wgr_material_create_custom");
+        wgr_logger_warn("wgr_render_add_effect: needs a material made with wgr_material_create_custom");
         return false;
     }
     if (!wgri_material_is_screen(material)) {
-        log_warn("wgr_render_add_effect: that material's shader draws surfaces; a screen effect's fragment shader "
+        wgr_logger_warn("wgr_render_add_effect: that material's shader draws surfaces; a screen effect's fragment shader "
                  "includes wgr_screen (see shaders/wgr.glsl)");
         return false;
     }
     if (wgr_fx.count >= WGR_MAX_EFFECTS) {
-        log_warn("wgr_render_add_effect: at most %d effects", WGR_MAX_EFFECTS);
+        wgr_logger_warn("wgr_render_add_effect: at most %d effects", WGR_MAX_EFFECTS);
         return false;
     }
     wgri_material_retain(material);

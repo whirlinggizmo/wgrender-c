@@ -103,8 +103,8 @@ class Report:
 BUILD_FLAGS = {'WGR_HEADLESS', 'WGR_EXPORT_FULL_API'}
 
 # Public macros without the prefix, each a known gap: the check fails when one is gone
-# and still listed.
-MACROS_TODO = {'log_debug', 'log_error', 'log_fatal', 'log_info', 'log_trace', 'log_warn'}
+# and still listed. Empty: every program that includes a header gets its names.
+MACROS_TODO = set()
 
 
 def check_naming(r, api, src):

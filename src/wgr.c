@@ -536,7 +536,7 @@ void wgr_set_app_company(const char *company)
 {
     if (!wgri_app_clean_name(company, wgr_app_company, sizeof(wgr_app_company))) {
         if (company != NULL && company[0] != '\0') {
-            log_warn("wgr_set_app_company: \"%s\" can't name a directory (too long, or nothing left of "
+            wgr_logger_warn("wgr_set_app_company: \"%s\" can't name a directory (too long, or nothing left of "
                      "it); the company is \"DefaultCompany\"", company);
         }
         wgr_app_company[0] = '\0';
@@ -554,7 +554,7 @@ void wgr_set_app_name(const char *name)
 {
     if (!wgri_app_clean_name(name, wgr_app_name, sizeof(wgr_app_name))) {
         if (name != NULL && name[0] != '\0') {
-            log_warn("wgr_set_app_name: \"%s\" can't name a directory (too long, or nothing left of it); "
+            wgr_logger_warn("wgr_set_app_name: \"%s\" can't name a directory (too long, or nothing left of it); "
                      "the app is the executable's name", name);
         }
         wgr_app_name[0] = '\0';

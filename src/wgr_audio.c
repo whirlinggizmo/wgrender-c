@@ -299,7 +299,7 @@ static wgr_audio_t *resolve_audio(wgr_handle_t handle)
 {
     uint16_t index = 0;
     if (!wgri_handle_pool_resolve(&wgr_audio_pool, handle, &index)) {
-        if (handle != 0) log_warn("Invalid audio handle (%u)", (unsigned int)handle);
+        if (handle != 0) wgr_logger_warn("Invalid audio handle (%u)", (unsigned int)handle);
         return NULL;
     }
     return &wgr_audios[index];
@@ -335,13 +335,13 @@ static void *prepare_audio_mode(const char *path, wgri_audio_mode_t mode)
     }
     bytes = read_file(path, &size);
     if (bytes == NULL) {
-        log_error("Failed to read audio: %s", path != NULL ? path : "(null)");
+        wgr_logger_error("Failed to read audio: %s", path != NULL ? path : "(null)");
         free(audio);
         return NULL;
     }
     audio->format = probe(bytes, size, path, audio);
     if (audio->format == FORMAT_UNKNOWN || audio->channels <= 0 || audio->frame_count == 0) {
-        log_error("audio decode failed for %s", path);
+        wgr_logger_error("audio decode failed for %s", path);
         free(bytes);
         free(audio);
         return NULL;
@@ -353,7 +353,7 @@ static void *prepare_audio_mode(const char *path, wgri_audio_mode_t mode)
         const bool ok = decode_all(bytes, size, audio);
         free(bytes);
         if (!ok) {
-            log_error("audio decode failed for %s", path);
+            wgr_logger_error("audio decode failed for %s", path);
             free(audio->pcm);
             free(audio);
             return NULL;
@@ -393,7 +393,7 @@ static wgri_loader_step_t finish_audio(void *prepared, const char *path, wgr_han
     *resource = wgri_handle_pool_alloc(&wgr_audio_pool);
     if (*resource == 0) {
         wgri_audio_unlock();
-        log_error("audio: pool full (%u)", (unsigned)wgr_audio_pool.max - 1u);
+        wgr_logger_error("audio: pool full (%u)", (unsigned)wgr_audio_pool.max - 1u);
         return WGRI_LOADER_FAILED;
     }
     wgri_handle_pool_resolve(&wgr_audio_pool, *resource, &index);
@@ -644,7 +644,7 @@ static void ensure_device(void)
         .logger.func = 0,
     });
     if (!saudio_isvalid()) {
-        log_warn("audio device unavailable; playback disabled");
+        wgr_logger_warn("audio device unavailable; playback disabled");
     } else {
         wgri_audio_lock();
         wgr_audio_device_rate = saudio_sample_rate();
@@ -658,13 +658,13 @@ void wgri_audio_init(void)
     lock_init();
     if (!wgri_handle_pool_init(&wgr_audio_pool, WGR_HANDLE_KIND_AUDIO, "audio", (void **)&wgr_audios,
                              sizeof(wgr_audio_t), AUDIO_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("audio: out of memory");
+        wgr_logger_error("audio: out of memory");
     }
     wgri_asset_register_loader(".wav", &wgr_audio_loader);
     wgri_asset_register_loader(".ogg", &wgr_audio_loader);
     wgri_asset_register_loader(".mp3", &wgr_audio_loader);
 #if defined(WGR_HEADLESS)
-    log_info("audio: headless build, no playback");
+    wgr_logger_info("audio: headless build, no playback");
 #endif
 }
 

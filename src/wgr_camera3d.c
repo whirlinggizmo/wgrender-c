@@ -25,7 +25,7 @@ static bool resolve(wgr_handle_t handle, uint16_t *index_out)
 {
     if (!wgri_handle_pool_resolve(&wgr_camera_pool, handle, index_out)) {
         if (handle != 0) {
-            log_warn("Invalid camera3d handle (%u)", (unsigned int)handle);
+            wgr_logger_warn("Invalid camera3d handle (%u)", (unsigned int)handle);
         }
         return false;
     }
@@ -54,7 +54,7 @@ wgr_handle_t wgr_camera3d_create(wgr_camera3d_projection_t projection)
     uint16_t index = 0;
 
     if (handle == 0) {
-        log_error("camera3d: pool full (%u)", (unsigned)wgr_camera_pool.max - 1u);
+        wgr_logger_error("camera3d: pool full (%u)", (unsigned)wgr_camera_pool.max - 1u);
         return 0;
     }
     wgri_handle_pool_resolve(&wgr_camera_pool, handle, &index);
@@ -93,7 +93,7 @@ bool wgr_camera3d_set_projection(wgr_handle_t camera, wgr_camera3d_projection_t 
     wgri_camera3d_t *camera_ptr = lookup(camera);
     if (camera_ptr == NULL) return false;
     if (projection != WGR_CAMERA3D_PERSPECTIVE && projection != WGR_CAMERA3D_ORTHOGRAPHIC) {
-        log_warn("wgr_camera3d_set_projection: %d is not PERSPECTIVE or ORTHOGRAPHIC", (int)projection);
+        wgr_logger_warn("wgr_camera3d_set_projection: %d is not PERSPECTIVE or ORTHOGRAPHIC", (int)projection);
         return false;
     }
     camera_ptr->projection = projection;
@@ -114,7 +114,7 @@ bool wgr_camera3d_set_fov(wgr_handle_t camera, float fov)
     wgri_camera3d_t *camera_ptr = lookup(camera);
     if (camera_ptr == NULL) return false;
     if (!(fov > 0.0f && fov < 3.14159f)) {
-        log_warn("wgr_camera3d_set_fov: %g: the field of view is radians, more than 0 and less than pi", fov);
+        wgr_logger_warn("wgr_camera3d_set_fov: %g: the field of view is radians, more than 0 and less than pi", fov);
         return false;
     }
     camera_ptr->fov = fov;
@@ -135,7 +135,7 @@ bool wgr_camera3d_set_ortho_height(wgr_handle_t camera, float height)
     wgri_camera3d_t *camera_ptr = lookup(camera);
     if (camera_ptr == NULL) return false;
     if (!(height > 0.0f)) {
-        log_warn("wgr_camera3d_set_ortho_height: %g: the height has to be more than 0", height);
+        wgr_logger_warn("wgr_camera3d_set_ortho_height: %g: the height has to be more than 0", height);
         return false;
     }
     camera_ptr->ortho_height = height;
@@ -176,7 +176,7 @@ void wgr_camera3d_destroy(wgr_handle_t handle)
         return;
     }
     if (index <= WGR_CAMERA3D_BUILTIN_COUNT) {
-        log_error("Cannot destroy built-in camera handle (%u)", (unsigned int)handle);
+        wgr_logger_error("Cannot destroy built-in camera handle (%u)", (unsigned int)handle);
         return;
     }
     if (wgr_active_camera == handle) {
@@ -257,7 +257,7 @@ void wgri_camera3d_init(void)
 {
     if (!wgri_handle_pool_init(&wgr_camera_pool, WGR_HANDLE_KIND_CAMERA3D, "camera3d", (void **)&wgr_cameras,
                              sizeof(wgri_camera3d_t), CAMERAS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("camera3d: out of memory");
+        wgr_logger_error("camera3d: out of memory");
     }
 
     /* reserve the built-in default slot */

@@ -136,7 +136,7 @@ static wgr_emitter_t *resolve(wgr_handle_t handle)
     uint16_t index = 0;
     if (wgri_handle_pool_resolve(&wgr_emitter3d_pool, handle, &index)) return &wgr_emitters3d[index];
     if (wgri_handle_pool_resolve(&wgr_emitter2d_pool, handle, &index)) return &wgr_emitters2d[index];
-    if (handle != 0) log_warn("Invalid emitter handle (%u)", (unsigned int)handle);
+    if (handle != 0) wgr_logger_warn("Invalid emitter handle (%u)", (unsigned int)handle);
     return NULL;
 }
 
@@ -577,7 +577,7 @@ void wgri_emitter_init(void)
                              sizeof(wgr_emitter_t), EMITTERS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS) ||
         !wgri_handle_pool_init(&wgr_emitter2d_pool, WGR_HANDLE_KIND_EMITTER2D, "emitter2d", (void **)&wgr_emitters2d,
                              sizeof(wgr_emitter_t), EMITTERS_INITIAL, WGRI_HANDLE_POOL_MAX_SLOTS)) {
-        log_error("emitters: out of memory");
+        wgr_logger_error("emitters: out of memory");
     }
     wgri_scene_register_passes(WGR_HANDLE_KIND_EMITTER3D, draw_opaque, collect_transparent, draw_transparent);
     wgri_scene_register_additive(WGR_HANDLE_KIND_EMITTER3D, draw_additive);
@@ -619,7 +619,7 @@ static wgr_handle_t create_emitter(wgr_handle_t texture, bool two_d)
     wgr_emitter_t *emitter_ptr;
 
     if (handle == 0) {
-        log_error("%s: pool full", two_d ? "emitter2d" : "emitter3d");
+        wgr_logger_error("%s: pool full", two_d ? "emitter2d" : "emitter3d");
         return 0;
     }
     ensure_gpu();
@@ -651,7 +651,7 @@ static wgr_handle_t create_emitter(wgr_handle_t texture, bool two_d)
     if (emitter_ptr->rng == 0) emitter_ptr->rng = 1;
     if (emitter_ptr->ring == NULL) {
         wgri_handle_pool_free(pool, handle);
-        log_error("emitters: out of memory");
+        wgr_logger_error("emitters: out of memory");
         return 0;
     }
     if (texture != 0) wgri_texture_retain(texture);
@@ -674,7 +674,7 @@ static bool set_max(wgr_emitter_t *emitter_ptr, int count)
     wgr_particle_t *ring;
     if (emitter_ptr == NULL) return false;
     if (count < 1 || count > MAX_PARTICLES) {
-        log_warn("emitter: set_max %d: 1 to %d particles", count, MAX_PARTICLES);
+        wgr_logger_warn("emitter: set_max %d: 1 to %d particles", count, MAX_PARTICLES);
         return false;
     }
     ring = calloc((size_t)count, sizeof(wgr_particle_t));
@@ -732,7 +732,7 @@ int wgri_emitter_size_keys(wgr_handle_t emitter, float times[8], float values[8]
 static bool set_life(wgr_emitter_t *emitter_ptr, float min_s, float max_s)
 {
     if (!(min_s > 0.0f) || max_s < min_s) {
-        log_warn("emitter: set_life %g .. %g: min has to be more than 0 and max at least min", min_s, max_s);
+        wgr_logger_warn("emitter: set_life %g .. %g: min has to be more than 0 and max at least min", min_s, max_s);
         return false;
     }
     emitter_ptr->life_min = min_s;
@@ -743,7 +743,7 @@ static bool set_life(wgr_emitter_t *emitter_ptr, float min_s, float max_s)
 static bool set_alpha_mode(wgr_emitter_t *emitter_ptr, wgr_alpha_mode_t mode, float cutoff)
 {
     if (mode < WGR_ALPHA_OPAQUE || mode > WGR_ALPHA_ADD) {
-        log_warn("emitter: set_alpha_mode %d is not a wgr_alpha_mode_t", (int)mode);
+        wgr_logger_warn("emitter: set_alpha_mode %d is not a wgr_alpha_mode_t", (int)mode);
         return false;
     }
     emitter_ptr->alpha_mode = mode;
@@ -768,7 +768,7 @@ static bool insert_key(float *times, int *count, float t, int *at)
 {
     int i;
     if (*count >= MAX_KEYS || !(t >= 0.0f && t <= 1.0f)) {
-        log_warn("emitter: add key at %g: t is 0 .. 1 and a curve holds %d keys", t, MAX_KEYS);
+        wgr_logger_warn("emitter: add key at %g: t is 0 .. 1 and a curve holds %d keys", t, MAX_KEYS);
         return false;
     }
     for (i = *count; i > 0 && times[i - 1] > t; i--) times[i] = times[i - 1];
@@ -782,7 +782,7 @@ static bool add_size_key(wgr_emitter_t *emitter_ptr, float t, float size)
 {
     int at, n = emitter_ptr->size_keys;
     if (!(size >= 0.0f)) {
-        log_warn("emitter: add_size_key %g: a size can't be negative", size);
+        wgr_logger_warn("emitter: add_size_key %g: a size can't be negative", size);
         return false;
     }
     if (!insert_key(emitter_ptr->size_times, &emitter_ptr->size_keys, t, &at)) return false;
@@ -803,7 +803,7 @@ static bool add_color_key(wgr_emitter_t *emitter_ptr, float t, wgr_color_t color
 static bool set_size(wgr_emitter_t *emitter_ptr, float start, float end, float variance)
 {
     if (!(start >= 0.0f) || !(end >= 0.0f)) {
-        log_warn("emitter: set_size %g .. %g: a size can't be negative", start, end);
+        wgr_logger_warn("emitter: set_size %g .. %g: a size can't be negative", start, end);
         return false;
     }
     emitter_ptr->size_keys = 0;
@@ -823,7 +823,7 @@ static void set_color(wgr_emitter_t *emitter_ptr, wgr_color_t start, wgr_color_t
 static bool add_palette_color(wgr_emitter_t *emitter_ptr, wgr_color_t color)
 {
     if (emitter_ptr->palette_count >= MAX_PALETTE) {
-        log_warn("emitter: add_palette_color: a palette holds %d colors", MAX_PALETTE);
+        wgr_logger_warn("emitter: add_palette_color: a palette holds %d colors", MAX_PALETTE);
         return false;
     }
     emitter_ptr->palette[emitter_ptr->palette_count++] = color;
@@ -833,7 +833,7 @@ static bool add_palette_color(wgr_emitter_t *emitter_ptr, wgr_color_t color)
 static bool set_frames(wgr_emitter_t *emitter_ptr, int columns, int rows, int count, float per_second)
 {
     if (columns < 1 || rows < 1 || columns * rows > 4096 || count > columns * rows || !(per_second >= 0.0f)) {
-        log_warn("emitter: set_frames %d x %d, %d at %g/s: at least 1 x 1 and at most 4096 frames, count within them, "
+        wgr_logger_warn("emitter: set_frames %d x %d, %d at %g/s: at least 1 x 1 and at most 4096 frames, count within them, "
                  "rate not negative", columns, rows, count, per_second);
         return false;
     }
@@ -851,7 +851,7 @@ static bool prewarm(wgr_emitter_t *emitter_ptr, float seconds)
     float window;
     int count;
     if (!(seconds >= 0.0f)) {
-        log_warn("emitter: prewarm %g: seconds can't be negative", seconds);
+        wgr_logger_warn("emitter: prewarm %g: seconds can't be negative", seconds);
         return false;
     }
     emitter_ptr->live = 0;
@@ -870,7 +870,7 @@ static bool prewarm(wgr_emitter_t *emitter_ptr, float seconds)
 static bool burst(wgr_emitter_t *emitter_ptr, int count)
 {
     if (count < 0) {
-        log_warn("emitter: burst %d: a count can't be negative", count);
+        wgr_logger_warn("emitter: burst %d: a count can't be negative", count);
         return false;
     }
     if (count > emitter_ptr->max) count = emitter_ptr->max;
@@ -922,7 +922,7 @@ WGRI_KEEP vec2_t wgr_emitter2d_get_position(wgr_handle_t e)
 WGRI_KEEP bool wgr_emitter3d_set_rate(wgr_handle_t e, float per_second)
 {
     if (per_second < 0.0f) {
-        log_warn("wgr_emitter3d_set_rate: %g: a rate can't be negative", per_second);
+        wgr_logger_warn("wgr_emitter3d_set_rate: %g: a rate can't be negative", per_second);
         return false;
     }
     WITH_EMITTER(e, false, emitter_ptr->rate = per_second);
@@ -930,7 +930,7 @@ WGRI_KEEP bool wgr_emitter3d_set_rate(wgr_handle_t e, float per_second)
 WGRI_KEEP bool wgr_emitter2d_set_rate(wgr_handle_t e, float per_second)
 {
     if (per_second < 0.0f) {
-        log_warn("wgr_emitter2d_set_rate: %g: a rate can't be negative", per_second);
+        wgr_logger_warn("wgr_emitter2d_set_rate: %g: a rate can't be negative", per_second);
         return false;
     }
     WITH_EMITTER(e, true, emitter_ptr->rate = per_second);
@@ -986,7 +986,7 @@ WGRI_KEEP bool wgr_emitter2d_set_spawn_box(wgr_handle_t e, float hw, float hh)
 WGRI_KEEP bool wgr_emitter3d_set_spawn_sphere(wgr_handle_t e, float radius)
 {
     if (!(radius >= 0.0f)) {
-        log_warn("wgr_emitter3d_set_spawn_sphere: %g: a radius can't be negative", radius);
+        wgr_logger_warn("wgr_emitter3d_set_spawn_sphere: %g: a radius can't be negative", radius);
         return false;
     }
     WITH_EMITTER(e, false, (emitter_ptr->sphere = radius, emitter_ptr->box = (vec3_t){0, 0, 0}));
@@ -994,7 +994,7 @@ WGRI_KEEP bool wgr_emitter3d_set_spawn_sphere(wgr_handle_t e, float radius)
 WGRI_KEEP bool wgr_emitter2d_set_spawn_circle(wgr_handle_t e, float radius)
 {
     if (!(radius >= 0.0f)) {
-        log_warn("wgr_emitter2d_set_spawn_circle: %g: a radius can't be negative", radius);
+        wgr_logger_warn("wgr_emitter2d_set_spawn_circle: %g: a radius can't be negative", radius);
         return false;
     }
     WITH_EMITTER(e, true, (emitter_ptr->sphere = radius, emitter_ptr->box = (vec3_t){0, 0, 0}));
@@ -1040,7 +1040,7 @@ WGRI_KEEP bool wgr_emitter2d_set_gravity(wgr_handle_t e, float x, float y)
 WGRI_KEEP bool wgr_emitter3d_set_drag(wgr_handle_t e, float per_second)
 {
     if (!(per_second >= 0.0f)) {
-        log_warn("wgr_emitter3d_set_drag: %g: drag can't be negative", per_second);
+        wgr_logger_warn("wgr_emitter3d_set_drag: %g: drag can't be negative", per_second);
         return false;
     }
     WITH_EMITTER(e, false, emitter_ptr->drag = per_second);
@@ -1048,7 +1048,7 @@ WGRI_KEEP bool wgr_emitter3d_set_drag(wgr_handle_t e, float per_second)
 WGRI_KEEP bool wgr_emitter2d_set_drag(wgr_handle_t e, float per_second)
 {
     if (!(per_second >= 0.0f)) {
-        log_warn("wgr_emitter2d_set_drag: %g: drag can't be negative", per_second);
+        wgr_logger_warn("wgr_emitter2d_set_drag: %g: drag can't be negative", per_second);
         return false;
     }
     WITH_EMITTER(e, true, emitter_ptr->drag = per_second);
@@ -1056,7 +1056,7 @@ WGRI_KEEP bool wgr_emitter2d_set_drag(wgr_handle_t e, float per_second)
 WGRI_KEEP bool wgr_emitter3d_set_stretch(wgr_handle_t e, float seconds)
 {
     if (!(seconds >= 0.0f)) {
-        log_warn("wgr_emitter3d_set_stretch: %g: seconds can't be negative", seconds);
+        wgr_logger_warn("wgr_emitter3d_set_stretch: %g: seconds can't be negative", seconds);
         return false;
     }
     WITH_EMITTER(e, false, emitter_ptr->stretch = seconds);
@@ -1064,7 +1064,7 @@ WGRI_KEEP bool wgr_emitter3d_set_stretch(wgr_handle_t e, float seconds)
 WGRI_KEEP bool wgr_emitter2d_set_stretch(wgr_handle_t e, float seconds)
 {
     if (!(seconds >= 0.0f)) {
-        log_warn("wgr_emitter2d_set_stretch: %g: seconds can't be negative", seconds);
+        wgr_logger_warn("wgr_emitter2d_set_stretch: %g: seconds can't be negative", seconds);
         return false;
     }
     WITH_EMITTER(e, true, emitter_ptr->stretch = seconds);
