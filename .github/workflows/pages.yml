@@ -43,14 +43,14 @@ jobs:
           actions-cache-folder: emsdk-cache
       - uses: krdlab/setup-haxe@v2
         with:
-          haxe-version: 4.3.6
+          haxe-version: 4.3.7
       - name: Build every example and assemble the site
         run: |
           cmake --preset wasm32-release && cmake --build --preset wasm32-release
           python3 tools/build_site.py out/wasm32/release/site
       - name: The Haxe examples, under /haxe/
         run: |
-          haxelib install hxcpp --always
+          haxelib install hxcpp 4.3.2 --always  # pinned, as ci.yml (bindings/haxe/BUILDING.md)
           haxelib dev wgrender-hx bindings/haxe
           python3 bindings/haxe/tools/run_examples.py web
           python3 bindings/haxe/tools/run_examples.py site
