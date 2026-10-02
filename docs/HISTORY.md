@@ -2244,7 +2244,7 @@ lights, glTF light import, clustered culling if scenes need hundreds of lights.
 
 ## Load on create, and polled tasks instead of callbacks
 
-Phase 1, as planned and as built. The rest of the plan is open: [PLAN-tasks.md](PLAN-tasks.md).
+Phases 1 and 2, as planned and as built. The rest of the plan is open: [PLAN-tasks.md](PLAN-tasks.md).
 
 ### Why
 
@@ -2398,6 +2398,143 @@ the design above:
   hxcpp builds of the binding depend on wgrender's headers (a stale object had called
   the old variadic logger); `check_asset_cache.py`'s replacement sheet is cyan, told
   apart from the placeholder it now expects when a load fails.
+
+### Design: phase 2, callbacks out
+
+### 2. Making a file local is a task of its own
+
+```c
+wgr_handle_t wgr_asset_ensure(const char *path, const char *fetch_url, unsigned int flags);
+
+typedef enum {
+    WGR_ASSET_TASK_NONE    = 0,  /* not a task */
+    WGR_ASSET_TASK_PENDING = 1,
+    WGR_ASSET_TASK_DONE    = 2,  /* the file is local (and every file it names) */
+    WGR_ASSET_TASK_FAILED  = 3,
+} wgr_asset_task_status_t;
+
+wgr_asset_task_status_t wgr_asset_task_get_status(wgr_handle_t task);  /* a file's, or a group's */
+const char *wgr_asset_task_get_path(wgr_handle_t task);   /* the local path, once DONE */
+float       wgr_asset_task_get_progress(wgr_handle_t task);   /* 0..1, as wgr_asset_get_progress */
+bool        wgr_asset_task_destroy(wgr_handle_t task);
+```
+
+- `wgr_asset_ensure` (renamed from `ensure_async`: everything is async now) only makes
+  files local: prefetching a level, warming the cache, a loading screen. It loads
+  nothing (`WGR_ASSET_FILE_ONLY` already went with phase 1); `WGR_ASSET_FORCE_FETCH` and
+  `fetch_url` stay.
+- A task lives until it's destroyed, so its status and path can be read any number of
+  times. Destroying one still pending lets it finish and discards the result (the
+  file still lands in the cache).
+- Groups stay (`wgr_asset_group_create`, `_add`), over ensure tasks: DONE once every
+  member is, FAILED if any failed. Destroying a group destroys its members.
+- `wgr_asset_add_task`, `wgr_asset_callback_fn` and `wgr_asset_add_task_result_t` go,
+  and with them the resources held out of sight: every loaded resource is one the
+  program created.
+- A program that wants a loading screen for resources (not just files) reads their
+  statuses; one that wants to fetch everything first and load later ensures a group,
+  then creates once it's DONE.
+
+### 3. The event bus goes
+
+`wgr_event.h` and `wgr_event.c`: nothing in wgrender emits an event, no example or test
+uses it, only the Haxe binding wraps it (`wgr.Event`, which only its own test calls).
+Publish/subscribe with untyped payloads is a utility (the org's conventions list `event`
+with path, logger and json: wgutils' kind of module), and every language a binding
+serves has its own. libwgt has none either.
+
+### 4. The asset layer's two other callbacks
+
+- **`wgr_asset_ping_host(host, timeout_ms)`** returns a task: DONE or FAILED, and
+  `wgr_asset_ping_get_milliseconds(task)` for the round trip.
+- **The fetcher** is the reverse direction (wgrender asks the *program* to download), so
+  polled, the program asks for work:
+
+  ```c
+  bool         wgr_asset_set_fetching(bool enabled);  /* a program downloads (desktop) */
+  wgr_handle_t wgr_asset_fetch_next(void);            /* a download to do, or 0 */
+  const char  *wgr_asset_fetch_get_url(wgr_handle_t request);
+  const char  *wgr_asset_fetch_get_dest(wgr_handle_t request);
+  bool         wgr_asset_fetch_done(wgr_handle_t request, bool ok);  /* as today, any thread */
+  ```
+
+  The contract holds as it is: at most 6 out at once, a download written apart and moved
+  into place only on success, the answer taken at the next frame. On the web
+  `set_fetching` answers false: the browser is the downloader.
+
+### 5. The loop setters stay, and are the only callbacks
+
+`wgr_set_init`, `wgr_set_tick`, `wgr_set_frame`, `wgr_set_shutdown`: the platform owns the
+loop (sokol_app, or the browser), so something must call in; libwgt keeps the same
+exception. They are `tools/check_rules.py`'s `TYPES_EXEMPT`, the type rule's one
+exemption, with the reason beside them.
+
+### What changes beside the library (phases 1 and 2, as planned)
+
+- **Examples** get simpler: a callback that only created a resource becomes the create
+  itself, in init (audio, clay, environment, and the binding's loading, touch and ui).
+  `loading.c` shows both ways a loading screen can wait: a group of ensures, and
+  resources' statuses. `fetch.c` polls `wgr_asset_fetch_next`.
+- **The Haxe binding**: `wgr.Event` goes; resource classes gain `status`; `Asset` keeps a
+  callback helper as sugar over polling its open tasks (plumbing, so one name per C call
+  holds); five of its six JS omissions go (`wgr_set_*` stay C-only on the guest ABI).
+  `Asset.setFetcher(Asset.httpFetcher)` reads as it does now: it stores the Haxe
+  function and turns fetching on, and the binding's frame wrapper drains
+  `wgr_asset_fetch_next` before the program's frame, handing each request to it.
+  `httpFetcher` is unchanged (a thread per download, `fetchDone` from it), the
+  `fetchTrampoline` goes, and a cppia script can supply a fetcher, which it can't
+  through a C callback.
+- **Tests**: load on create (PENDING, then READY or FAILED, never called back inside the
+  call; the same handle for the same path while pending; 0 only when full), task
+  lifetime, groups, the polled fetcher, each resource's status. `check_asset_cache.py`
+  with and without `--manifest`.
+- **check_rules.py**: `TYPES_TODO` empties, leaving the loop setters as the only calls
+  the type rule exempts.
+
+### Decisions (phase 2)
+
+1. **The fetcher polled** (section 4) rather than kept as the one other callback: a
+   download is what a binding wants to do in its own language, and polling is what lets
+   a JS guest or a cppia script supply one. Recommended.
+
+### Phase 2 as built (2026-10-02, branch polled-tasks)
+
+One commit a step: the event bus, ensure as a task, ping as a task, the polled fetcher.
+What changed on the way, against the design above:
+
+- **A task's status changes only at a tick**, as a resource's does: an ensure, a group or
+  a ping is PENDING when the call returns, even when the answer is already known (a
+  desktop ping of a directory). A finished task is kept, DONE or FAILED, and no longer
+  counts as pending (`wgri_asset_pending_count`, which the web check waits on).
+- **Groups:** FAILED once every member has finished and any failed, not at the first
+  failure, so a loading screen's progress runs to the end. A member that already
+  finished can join (it counts as it finished); a group that has finished takes no
+  more; destroying a member while it's pending takes it out of the group's count. An
+  empty group is DONE at the next tick. A ping can't join: a group is of files.
+- **A ping is a task in the same pool** (`is_ping`), so the eight fixed ping slots went,
+  and with them the limit; `wgr_asset_ping_get_milliseconds` reads 0 unless DONE.
+- **The fetcher's getter:** `wgr_asset_is_fetching` (the getter rule). A request is the
+  task's own handle; `fetch_next` hands them out oldest first, once each, and
+  `_get_url` / `_get_dest` are worked out when asked rather than stored, so a task
+  record didn't grow. Turning fetching off fails the requests not yet taken, at the next
+  tick.
+- **The guest ABI lost its `asset` op**, so a guest registers three ops, not four:
+  `wgr_guest_asset_load` existed only to stand in for the callback, and a guest now
+  polls a task like any program. Every Haxe example's `GuestAbi.register` lost its
+  third argument.
+- **The binding:** `AssetTask` gained `getStatus`, `getPath`, `getProgress`, `destroy`
+  and `getPingMilliseconds`; `wgr.impl.Trampoline` and the user-pointer helpers went
+  with the ping, the last callback that crossed. `Asset.setFetcher` is sugar over
+  `setFetching`, and the binding's frame op hands each request to the Haxe function
+  before the program's frame (`Asset.takeFetches`), on both targets. The callback
+  helper the plan kept as sugar (`AssetTask.then`) wasn't rebuilt: nothing used it.
+- **Examples:** `loading.c` (and its Haxe port) gained E, fetch first: a group of
+  ensures, then the creates, the second way of waiting the plan asked it to show.
+  `force_fetch` and `fetch` poll. On js the binding reaches all but the four loop
+  setters now.
+- **Tests:** `test_assets_ensure` (ensure, tick until finished, read, destroy) and
+  `test_assets_tick` / `test_assets_set_fetcher` (a tick, then each request handed to a
+  test's downloader, as a program's frame does). `TYPES_TODO` is empty.
 
 *From docs/PLAN-tasks.md.*
 
@@ -5223,6 +5360,11 @@ TASKS.md's ticked items, by the section they were in.
 - [x] Networking decided (2026-09-20): libwgrender fetches assets only (desktop HTTP(S)
       through the OS's clients, deferred); WebSockets and general networking go in a
       separate library outside libwgrender (ROADMAP "Future")
+- [x] Fonts want a .ttf/.otf loader (2026-10-02, phase 1 of
+      [load on create](#load-on-create-and-polled-tasks-instead-of-callbacks)): a font
+      loads on create through a registered loader, read on a worker; a file fontstash
+      won't take fails the load, so the asset layer fetches it once more, as it heals
+      any other file's bad cached copy
 
 ### Platform
 
