@@ -16,6 +16,7 @@ source or than any header its .d file names, or when the flags changed.
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -54,6 +55,23 @@ def tool(name):
     if not found:
         sys.exit(f'build_web_library: no {name} on PATH (emsdk: emsdk activate, or emsdk_env)')
     return found
+
+
+def check_version(emcc, pinned):
+    """Refuse an Emscripten other than build.json's pin, unless WGRENDER_EMSCRIPTEN_VERSION
+    names it on purpose (announced), as CMakeLists.txt does. The version is read from
+    emcc's own --version output."""
+    out = subprocess.run([emcc, '--version'], capture_output=True, text=True).stdout
+    found = re.search(r'\) (\d+\.\d+\.\d+)', out)
+    have = found.group(1) if found else '(unknown)'
+    wanted = os.environ.get('WGRENDER_EMSCRIPTEN_VERSION') or pinned
+    if wanted != pinned:
+        print(f'build_web_library: Emscripten {wanted} allowed by WGRENDER_EMSCRIPTEN_VERSION '
+              f'(build.json pins {pinned})', flush=True)
+    if have != wanted:
+        sys.exit(f'build_web_library: Emscripten is {have} ({emcc}), but the web builds use {wanted}: '
+                 f'`emsdk install {wanted} && emsdk activate {wanted}`, or set '
+                 f'WGRENDER_EMSCRIPTEN_VERSION={have} to build with it on purpose')
 
 
 def depends(d_file):
@@ -112,6 +130,7 @@ def main():
     build.mkdir(parents=True, exist_ok=True)
 
     emcc, emar = tool('emcc'), tool('emar')
+    check_version(emcc, manifest['emscripten'])
     flags = [f"-std={manifest['std']}", *manifest['warn'], *target['cflags'],
              *[f'-I{d}' for d in manifest['include']],
              *[x for d in manifest['system_include'] for x in ('-isystem', d)]]

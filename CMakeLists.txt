@@ -60,6 +60,25 @@ project(wgrender LANGUAGES C)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/build.json" WGR_MANIFEST)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS build.json)
 
+# The web builds use exactly the Emscripten build.json pins, as CI does: its releases
+# change behavior and output within a version series, so "close" isn't the same build.
+# WGRENDER_EMSCRIPTEN_VERSION names another on purpose, announced at every configure.
+if(WGR_WEB)
+  string(JSON wgr_emscripten_pin GET "${WGR_MANIFEST}" emscripten)
+  set(wgr_emscripten_wanted "${wgr_emscripten_pin}")
+  if(NOT "$ENV{WGRENDER_EMSCRIPTEN_VERSION}" STREQUAL "")
+    set(wgr_emscripten_wanted "$ENV{WGRENDER_EMSCRIPTEN_VERSION}")
+    message(STATUS "wgrender: Emscripten ${wgr_emscripten_wanted} allowed by WGRENDER_EMSCRIPTEN_VERSION "
+                   "(build.json pins ${wgr_emscripten_pin})")
+  endif()
+  if(NOT "${EMSCRIPTEN_VERSION}" STREQUAL "${wgr_emscripten_wanted}")
+    message(FATAL_ERROR "wgrender: Emscripten is ${EMSCRIPTEN_VERSION} (${CMAKE_C_COMPILER}), but the web builds "
+                        "use ${wgr_emscripten_wanted}: `emsdk install ${wgr_emscripten_wanted} && emsdk activate "
+                        "${wgr_emscripten_wanted}`, or set WGRENDER_EMSCRIPTEN_VERSION=${EMSCRIPTEN_VERSION} to build "
+                        "with it on purpose. A new pin goes in build.json (\"emscripten\"), which CI reads too.")
+  endif()
+endif()
+
 # A JSON array in the manifest, as a CMake list: wgr_manifest_list(out key [key ...])
 function(wgr_manifest_list out)
   string(JSON length ERROR_VARIABLE err LENGTH "${WGR_MANIFEST}" ${ARGN})

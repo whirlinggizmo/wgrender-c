@@ -1,6 +1,7 @@
 {
   "schema": 1,
-  "about": "wgrender's build as data: CMakeLists.txt, tools/build_web_library.py and the bindings read it. Edited by hand; tools/check_rules.py checks sources against src/*.c. sources, include (-I) and system_include (-isystem: vendored headers) are relative to this file; std, opt and warn are the desktop builds' (gcc/clang spelling); desktop.<os>[-headless]: defines, libs by name (-l<name>, or <name>.lib for MSVC), macOS frameworks, and static (link the runtime statically with MinGW); web.<variant> (release or debug, then -webgpu for that backend, then -threads; the wasm32 preset of the same name): emcc's cflags for the library, program_cflags a program compiled against it must match, and ldflags.",
+  "about": "wgrender's build as data: CMakeLists.txt, tools/build_web_library.py and the bindings read it. Edited by hand; tools/check_rules.py checks sources against src/*.c. sources, include (-I) and system_include (-isystem: vendored headers) are relative to this file; std, opt and warn are the desktop builds' (gcc/clang spelling); desktop.<os>[-headless]: defines, libs by name (-l<name>, or <name>.lib for MSVC), macOS frameworks, and static (link the runtime statically with MinGW); emscripten: the Emscripten version every web build is checked against (CMake and tools/build_web_library.py refuse another unless WGRENDER_EMSCRIPTEN_VERSION names it on purpose; CI installs this one); web.<variant> (release or debug, then -webgpu for that backend, then -threads; the wasm32 preset of the same name): emcc's cflags for the library, program_cflags a program compiled against it must match, and ldflags.",
+  "emscripten": "5.0.7",
   "sources": [
     "src/wgr.c",
     "src/wgr_asset.c",

@@ -108,7 +108,12 @@ web library from it with nothing but emsdk). Checked on Windows 11 with Visual S
 
 ## Web: WebGL2 and WebGPU
 
-Needs Emscripten: `$EMSDK` set, or `emcc` on `PATH` (`source <emsdk>/emsdk_env.sh`).
+Needs Emscripten, exactly the version `build.json` pins (`"emscripten"`, which CI installs
+too): `emsdk install <version> && emsdk activate <version>`, then `$EMSDK` set, or `emcc`
+on `PATH` (`source <emsdk>/emsdk_env.sh`). Configuring a web preset, and
+`tools/build_web_library.py`, refuse another version, naming both; set
+`WGRENDER_EMSCRIPTEN_VERSION=<version>` to build with another on purpose (announced every
+time), and change the pin in `build.json` to move to it.
 
 ```sh
 cmake --preset wasm32-release && cmake --build --preset wasm32-release   # every example -> out/wasm32/release/site/

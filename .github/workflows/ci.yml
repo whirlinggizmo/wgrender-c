@@ -52,13 +52,16 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      - name: The Emscripten version build.json pins
+        id: pins
+        run: echo "emscripten=$(python3 -c "import json; print(json.load(open('build.json'))['emscripten'])")" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
           path: emsdk-cache
-          key: emsdk-5.0.7-${{ runner.os }}
+          key: emsdk-${{ steps.pins.outputs.emscripten }}-${{ runner.os }}
       - uses: mymindstorm/setup-emsdk@v16
         with:
-          version: 5.0.7
+          version: ${{ steps.pins.outputs.emscripten }}
           actions-cache-folder: emsdk-cache
       - name: Link a web example (compiles every EM_JS body)
         run: cmake --preset wasm32-release-threads && cmake --build --preset wasm32-release-threads --target hello
@@ -69,13 +72,16 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      - name: The Emscripten version build.json pins
+        id: pins
+        run: echo "emscripten=$(python3 -c "import json; print(json.load(open('build.json'))['emscripten'])")" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
           path: emsdk-cache
-          key: emsdk-5.0.7-${{ runner.os }}
+          key: emsdk-${{ steps.pins.outputs.emscripten }}-${{ runner.os }}
       - uses: mymindstorm/setup-emsdk@v16
         with:
-          version: 5.0.7
+          version: ${{ steps.pins.outputs.emscripten }}
           actions-cache-folder: emsdk-cache
       - name: Build and check in headless Chrome
         # Two vCPUs: two examples at a time (each spins up decode workers of its own),
@@ -107,13 +113,16 @@ jobs:
         run: |
           sudo apt-get update
           python3 tools/setup_system_packages.py install
+      - name: The Emscripten version build.json pins
+        id: pins
+        run: echo "emscripten=$(python3 -c "import json; print(json.load(open('build.json'))['emscripten'])")" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
           path: emsdk-cache
-          key: emsdk-5.0.7-${{ runner.os }}
+          key: emsdk-${{ steps.pins.outputs.emscripten }}-${{ runner.os }}
       - uses: mymindstorm/setup-emsdk@v16
         with:
-          version: 5.0.7
+          version: ${{ steps.pins.outputs.emscripten }}
           actions-cache-folder: emsdk-cache
       - uses: krdlab/setup-haxe@v2
         with:

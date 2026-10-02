@@ -32,7 +32,9 @@ make and no shell script: everything below works the same on Windows, Linux and 
   `windows-x64-mingw-release` / `windows-x64-mingw-debug-headless` (cross-built with
   MinGW on Linux or macOS and tested under Wine, or gcc on Windows), and the web:
   `wasm32-release`, `wasm32-release-threads`, `wasm32-release-webgpu`,
-  `wasm32-release-webgpu-threads`, `wasm32-debug`, `wasm32-debug-threads` (Emscripten:
+  `wasm32-release-webgpu-threads`, `wasm32-debug`, `wasm32-debug-threads` (Emscripten,
+  exactly `build.json`'s `"emscripten"` version, which CI reads too; another is refused
+  unless `WGRENDER_EMSCRIPTEN_VERSION` names it:
   `$EMSDK`, or `emcc` on PATH). Tests run on debug builds. A native platform's presets
   show only on that host. `cmake --preset P && cmake --build
   --preset P`, then `ctest --preset P` where it has tests. Visual Studio and VS Code
