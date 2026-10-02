@@ -12,6 +12,7 @@
 #include "wgr_logger.h"
 #include "wgr_scene.h"
 #include "test.h"
+#include "test_assets.h"
 #include "tests.h"
 
 #include "sokol_gfx.h"
@@ -235,25 +236,39 @@ void test_environment_half_float(void)
     CHECK(wgri_environment_half_from_float(1.99999f) == 0x4000); /* rounding carries into the exponent */
 }
 
+#define STUDIO "environments/studio_small_09_1k.hdr" /* under examples/assets */
+
 /* Resource and scene bookkeeping on sokol's dummy backend. */
 void test_environment_api(void)
 {
     sg_setup(&(sg_desc){.environment = wgri_platform_environment()});
     wgri_scene_init();
     wgri_environment_init();
+    test_assets_start(0, "examples/assets");
     wgr_logger_set_level(WGR_LOGGER_LEVEL_FATAL);
 
     if (!sg_query_pixelformat(SG_PIXELFORMAT_RGBA16F).filter) {
-        CHECK(wgr_environment_create("examples/assets/environments/studio_small_09_1k.hdr") == 0);
+        const wgr_handle_t env = wgr_environment_create(STUDIO); /* environments are off: failed at once */
+        CHECK(env != 0 && wgr_resource_get_status(env) == WGR_RESOURCE_FAILED);
+        wgr_resource_release(env);
     } else {
-        wgr_handle_t env = wgr_environment_create("examples/assets/environments/studio_small_09_1k.hdr");
+        wgri_environment_binding_t binding;
+        wgr_handle_t env = wgr_environment_create(STUDIO);
         CHECK(env != 0);
         CHECK(wgr_handle_get_kind(env) == WGR_HANDLE_KIND_ENVIRONMENT);
-        CHECK(wgr_environment_create("examples/assets/environments/studio_small_09_1k.hdr") == env); /* deduped */
-        wgr_environment_release(env);
-        CHECK(wgr_environment_create("missing.hdr") == 0);
+        CHECK(wgr_resource_get_status(env) == WGR_RESOURCE_PENDING);
+        wgri_environment_get_binding(env, &binding);
+        CHECK(!binding.valid); /* loading: lit as if there were none */
+        CHECK(wgr_environment_create(STUDIO) == env); /* deduped */
+        wgr_resource_release(env);
+        const wgr_handle_t missing = wgr_environment_create("missing.hdr");
+        CHECK(test_assets_run() > 0);
+        CHECK(wgr_resource_get_status(env) == WGR_RESOURCE_READY);
+        CHECK(wgr_resource_get_status(missing) == WGR_RESOURCE_FAILED);
+        wgri_environment_get_binding(missing, &binding);
+        CHECK(!binding.valid); /* failed: as if there were none */
+        wgr_resource_release(missing);
 
-        wgri_environment_binding_t binding;
         wgri_environment_get_binding(env, &binding);
         CHECK(binding.valid);
         CHECK(binding.sh.c[0][0] > 0.0f); /* a studio has light */
@@ -266,7 +281,7 @@ void test_environment_api(void)
         CHECK(!wgr_scene_set_environment(scene, scene, 1.0f, 0.0f)); /* not an environment */
         CHECK(wgr_scene_set_tonemap(scene, WGR_TONEMAP_ACES, 1.0f));
         CHECK(!wgr_scene_set_tonemap(scene, (wgr_tonemap_t)9, 0.0f));
-        wgr_environment_release(env); /* the scene still holds two references */
+        wgr_resource_release(env); /* the scene still holds two references */
         wgri_environment_get_binding(env, &binding);
         CHECK(binding.valid);
         wgr_scene_destroy(scene); /* last references */
@@ -275,6 +290,7 @@ void test_environment_api(void)
     }
 
     wgr_logger_set_level(WGR_LOGGER_LEVEL_INFO);
+    test_assets_stop();
     wgri_environment_deinit();
     wgri_scene_deinit();
     sg_shutdown();

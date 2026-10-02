@@ -12,9 +12,10 @@
 //   LEFT/RIGHT   rotate the environment
 //   ESC          quit
 //
-// `Environment.create` does real work — it prepares the lighting from the HDR, a
-// fraction of a second — so it happens once per map on the asset op and the three
-// scene settings are re-applied together whenever anything changes.
+// `Environment.create` starts real work — preparing the lighting from the HDR, a
+// fraction of a second on a worker — so each map is created once, in init, and the
+// three scene settings are re-applied together whenever anything changes; the scene
+// uses each map once it's loaded.
 //
 // The class is `EnvironmentDemo` because a module named `Environment` would shadow
 // `wgr.Environment` inside itself.
@@ -87,9 +88,9 @@ class EnvironmentDemo {
 		character.setAnimation(3);
 		scene.add(character);
 
-		applyEnvironment();
 		for (i in 0...ENVIRONMENT_PATHS.length)
-			load(ENVIRONMENT_PATHS[i], i + 1);
+			environments[i] = new Environment(ENVIRONMENT_PATHS[i]);
+		applyEnvironment();
 		load(SPHERE_PATH, ASSET_SPHERE);
 		load(CHARACTER_PATH, ASSET_CHARACTER);
 	}
@@ -152,11 +153,6 @@ class EnvironmentDemo {
 				final mesh = new Mesh(path);
 				character.setMesh(mesh);
 				mesh.release();
-
-			default:
-				// an environment: preparing its lighting is the slow part, done once
-				environments[id - 1] = new Environment(path);
-				applyEnvironment();
 		}
 	}
 

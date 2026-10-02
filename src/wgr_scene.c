@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "internal/wgr_resource_internal.h"
 #include "internal/exports_internal.h"
 #include "internal/wgr_color_internal.h"
 #include "internal/wgr_camera3d_internal.h"
@@ -25,12 +26,12 @@ wgri_scene_hooks_t wgri_scene_hooks;
  * them through its hooks, and does without when they aren't linked. */
 static void retain_environment(wgr_handle_t environment)
 {
-    if (environment != 0 && wgri_scene_hooks.environment_retain != NULL) wgri_scene_hooks.environment_retain(environment);
+    if (environment != 0) wgri_resource_retain(environment);
 }
 
 static void release_environment(wgr_handle_t environment)
 {
-    if (environment != 0 && wgri_scene_hooks.environment_release != NULL) wgri_scene_hooks.environment_release(environment);
+    if (environment != 0) wgr_resource_release(environment);
 }
 
 static void begin_unordered(void)

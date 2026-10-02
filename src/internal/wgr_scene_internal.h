@@ -112,8 +112,6 @@ bool wgri_drawable_pick(wgr_handle_t handle, vec3_t origin, vec3_t dir, wgr_pick
 /* What scenes reach through optional modules (internal/wgri_module.h): set by each
  * module's init, cleared by its deinit; NULL while it isn't linked or running. */
 typedef struct {
-    void (*environment_retain)(wgr_handle_t environment); /* wgr_environment */
-    void (*environment_release)(wgr_handle_t environment);
     void (*environment_background)(wgr_handle_t environment, float blur, float intensity, float rotation,
                                    int tonemap, float exposure);
     bool (*scene_light)(wgr_handle_t light, wgri_scene_light_t *out); /* wgr_light */

@@ -41,7 +41,6 @@ class Shaders {
 	static inline final ASSET_DISSOLVE = 2;
 	static inline final ASSET_WAVE = 3;
 	static inline final ASSET_SPRITE_FX = 4;
-	static inline final ASSET_ENVIRONMENT = 5;
 	static inline final ASSET_CHARACTER = 6;
 
 	static inline final FLOOR_Y = -0.3;
@@ -90,7 +89,9 @@ class Shaders {
 
 		for (i in 0...SHADER_PATHS.length)
 			load(SHADER_PATHS[i], i + 1);
-		load(ENVIRONMENT_PATH, ASSET_ENVIRONMENT);
+		final environment = new Environment(ENVIRONMENT_PATH); // lights the scene once loaded
+		scene.setEnvironment(environment, 1.0, 0.0); // lighting only: the background stays dark
+		environment.release(); // the scene holds its own reference
 		load(CHARACTER_PATH, ASSET_CHARACTER);
 	}
 
@@ -224,12 +225,6 @@ class Shaders {
 		switch id {
 			case ASSET_TOON | ASSET_DISSOLVE | ASSET_WAVE | ASSET_SPRITE_FX:
 				onShader(id, path);
-
-			case ASSET_ENVIRONMENT:
-				final environment = new Environment(path);
-				// lighting only: the background stays dark
-				scene.setEnvironment(environment, 1.0, 0.0);
-				environment.release(); // the scene holds its own reference
 
 			case ASSET_CHARACTER:
 				final mesh = new Mesh(path);

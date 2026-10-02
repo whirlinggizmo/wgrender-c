@@ -572,8 +572,9 @@ class CheckBindings {
 		check(!Scene.isClicked(s, m), "nothing is clicked");
 
 		check(Scene.setTonemap(s, Aces, 1), "a tonemap and exposure are set");
-		final missing = Environment.create("no/such.hdr");
-		check(Environment.isNone(missing), "a missing environment does not load");
+		final missing = Environment.create("no/such.hdr"); // loads on create: pending, failing later
+		check(!Environment.isNone(missing) && missing.getStatus() == Pending, "a missing environment is pending at first");
+		missing.release();
 		check(Scene.setEnvironment(s, Handle.NONE), "a none environment removes it");
 		check(Scene.setBackground(s, Handle.NONE), "a none background removes it");
 

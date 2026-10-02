@@ -81,8 +81,9 @@ wgr_resource_status_t wgr_resource_get_status(wgr_handle_t resource);
 - **Drawing a resource that isn't READY is always safe.** PENDING is "not there yet":
   a sprite or texture draw using a PENDING texture draws nothing (and isn't picked), a
   material slot draws as if unset (its own default), a model whose mesh isn't READY
-  isn't drawn, a font draws as the default font, a sound whose audio isn't READY plays
-  when it is. FAILED is "visibly broken": a texture draws the placeholder
+  isn't drawn, a scene whose environment isn't READY is lit as if it had none and
+  draws no background (FAILED too: there's no sensible placeholder sky), a font draws
+  as the default font, a sound whose audio isn't READY plays when it is. FAILED is "visibly broken": a texture draws the placeholder
   (`wgr_texture_set_placeholder`). Decided over the placeholder while PENDING too
   (libwgt's choice): on a slow first visit to the web build, every texture would show
   the magenta checker for seconds. Each header says so.

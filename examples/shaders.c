@@ -59,14 +59,6 @@ static void on_character_loaded(const char *path, void *user)
     wgr_mesh_release(mesh);
 }
 
-static void on_environment_loaded(const char *path, void *user)
-{
-    wgr_handle_t environment = wgr_environment_create(path);
-    (void)user;
-    wgr_scene_set_environment(g.scene, environment, 1.0f, 0.0f); /* lighting only: the background stays dark */
-    wgr_environment_release(environment); /* the scene holds its own reference */
-}
-
 /* A shader is loaded: make its material and give it to its model. */
 static void on_shader_loaded(const char *path, void *user)
 {
@@ -193,8 +185,11 @@ static void init(void *user_data)
         wgr_asset_add_task(wgr_asset_ensure_async(SHADER_PATHS[i], NULL, WGR_ASSET_NONE), on_shader_loaded, on_failed,
                           (void *)(intptr_t)i);
     }
-    wgr_asset_add_task(wgr_asset_ensure_async(ENVIRONMENT_PATH, NULL, WGR_ASSET_NONE), on_environment_loaded, on_failed,
-                      NULL);
+    {
+        const wgr_handle_t environment = wgr_environment_create(ENVIRONMENT_PATH); /* lights the scene once loaded */
+        wgr_scene_set_environment(g.scene, environment, 1.0f, 0.0f); /* lighting only: the background stays dark */
+        wgr_resource_release(environment); /* the scene holds its own reference */
+    }
     wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_character_loaded, on_failed, NULL);
 }
 

@@ -55,7 +55,7 @@ static void release_all(void)
     wgr_material_set_texture(g.material, "normal_texture", 0);
     for (int i = 0; i < FILES; i++) {
         if (g.resources[i] == 0) continue;
-        if (i < ENVIRONMENTS) wgr_environment_release(g.resources[i]);
+        if (i < ENVIRONMENTS) wgr_resource_release(g.resources[i]);
         else if (i < ENVIRONMENTS + MESHES) wgr_mesh_release(g.resources[i]);
         else wgr_resource_release(g.resources[i]);
         g.resources[i] = 0;
@@ -68,7 +68,7 @@ static void release_all(void)
 static void create_all(void)
 {
     const double start = wgr_get_time();
-    for (int i = 0; i < ENVIRONMENTS; i++) g.resources[i] = wgr_environment_create(g.paths[i]);
+    for (int i = 0; i < ENVIRONMENTS; i++) g.resources[i] = wgr_environment_create(PATHS[i]); /* loads on create */
     for (int i = ENVIRONMENTS; i < ENVIRONMENTS + MESHES; i++) g.resources[i] = wgr_mesh_create(g.paths[i]);
     for (int i = ENVIRONMENTS + MESHES; i < FILES; i++) g.resources[i] = wgr_texture_create(PATHS[i]); /* loads on create */
     g.create_ms = (wgr_get_time() - start) * 1000.0;

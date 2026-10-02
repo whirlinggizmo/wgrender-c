@@ -73,7 +73,6 @@ uint16_t wgri_environment_half_from_float(float value);
 
 void wgri_environment_init(void);
 void wgri_environment_deinit(void);
-void wgri_environment_retain(wgr_handle_t environment);
 
 /* What shaders bind for an environment (0 or invalid: a black cubemap and zero
  * lighting). Also returns the shared BRDF table and samplers. */

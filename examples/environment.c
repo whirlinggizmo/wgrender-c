@@ -13,7 +13,6 @@
  *   ESC          quit */
 #include <math.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 
 #include "shared/example_assets.h"
@@ -55,13 +54,6 @@ static void apply_environment(void)
     wgr_scene_set_environment(g.scene, env, 1.0f, g.rotation);
     wgr_scene_set_background(g.scene, g.blur < 3 ? env : 0, g.blur < 3 ? BLURS[g.blur] : 0.0f);
     wgr_scene_set_tonemap(g.scene, g.tonemap, g.exposure);
-}
-
-static void on_environment_loaded(const char *path, void *user)
-{
-    const int index = (int)(intptr_t)user;
-    g.environments[index] = wgr_environment_create(path); /* prepares the lighting: a fraction of a second */
-    apply_environment();
 }
 
 static void on_sphere_loaded(const char *path, void *user)
@@ -137,11 +129,11 @@ static void init(void *user_data)
     wgr_model_set_animation(g.character, 3);
     wgr_scene_add(g.scene, g.character, 0);
 
-    apply_environment();
     for (int i = 0; i < ENVIRONMENT_COUNT; i++) {
-        wgr_asset_add_task(wgr_asset_ensure_async(ENVIRONMENT_PATHS[i], NULL, WGR_ASSET_NONE), on_environment_loaded,
-                          on_failed, (void *)(intptr_t)i);
+        /* the lighting is prepared on a worker; the scene uses each once it's loaded */
+        g.environments[i] = wgr_environment_create(ENVIRONMENT_PATHS[i]);
     }
+    apply_environment();
     wgr_asset_add_task(wgr_asset_ensure_async(SPHERE_PATH, NULL, WGR_ASSET_NONE), on_sphere_loaded, on_failed, NULL);
     wgr_asset_add_task(wgr_asset_ensure_async(CHARACTER_PATH, NULL, WGR_ASSET_NONE), on_character_loaded, on_failed, NULL);
 }

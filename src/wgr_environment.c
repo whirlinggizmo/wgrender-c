@@ -10,6 +10,7 @@
 #include "internal/wgr_camera3d_internal.h"
 #include "internal/wgr_environment_internal.h"
 #include "internal/wgr_handle_pool_internal.h"
+#include "internal/wgr_resource_internal.h"
 #include "internal/wgr_loader_internal.h"
 #include "internal/wgr_math_internal.h"
 #include "internal/wgr_render_internal.h"
@@ -31,15 +32,13 @@
 
 /* Environment resource: the prefiltered cubemap on the GPU and its irradiance. */
 typedef struct {
+    wgri_resource_t resource; /* first: the resource core's part (internal/wgr_resource_internal.h) */
     sg_image cube;            /* prefiltered for lighting: mip = roughness */
     sg_view cube_view;
     sg_image background;      /* the image at its own resolution, box-filtered mips (for blur) */
     sg_view background_view;
     int background_mip_count;
     wgri_env_sh_t sh;
-    int ref_count;
-    char path[256];
-    bool has_path;
 } wgr_environment_t;
 
 typedef struct {
@@ -544,19 +543,6 @@ static bool load_image(const char *path, wgri_env_image_t *out)
     return out->rgb != NULL && w > 0 && h > 0;
 }
 
-static wgr_handle_t find_by_path(const char *path)
-{
-    if (path == NULL || path[0] == '\0') return 0;
-    for (uint16_t i = 1; i < wgr_environment_pool.capacity; i++) {
-        if (wgr_environment_pool.occupied[i] && wgr_environments[i].has_path &&
-            strcmp(wgr_environments[i].path, path) == 0) {
-            return wgri_handle_pool_handle_from_index(&wgr_environment_pool, i);
-        }
-    }
-    return 0;
-}
-
-/* The CPU half of loading an environment (any thread). */
 typedef struct {
     wgri_env_sh_t sh;
     wgri_env_cube_t source;
@@ -602,96 +588,71 @@ static void discard_environment(void *data)
     free(prepared);
 }
 
-static wgri_loader_step_t finish_environment(void *data, const char *path, wgr_handle_t *resource)
+/* Upload the prepared cubes into the PENDING `environment` (the resource core makes
+ * it READY). */
+static wgri_loader_step_t fill(void *data, const char *path, wgr_handle_t environment)
 {
     const wgr_env_prepared_t *prepared = (const wgr_env_prepared_t *)data;
-    wgr_environment_t env = {0};
-    uint16_t index = 0;
+    wgr_environment_t *env_ptr = resolve(environment);
 
-    *resource = 0;
-    if (!wgr_env.ready) {
-        wgr_logger_error("wgr_environment_create: environments aren't supported by this graphics backend");
+    (void)path;
+    if (env_ptr == NULL) {
         return WGRI_LOADER_FAILED;
     }
-    env.sh = prepared->sh;
-    env.background = make_cube_image(&prepared->source);
-    env.background_mip_count = prepared->source.mip_count;
-    env.background_view = sg_make_view(&(sg_view_desc){.texture.image = env.background});
-    env.cube = make_cube_image(&prepared->prefiltered);
-    env.cube_view = sg_make_view(&(sg_view_desc){.texture.image = env.cube});
-    if (path != NULL) {
-        snprintf(env.path, sizeof(env.path), "%s", path);
-        env.has_path = path[0] != '\0';
-    }
-    env.ref_count = 1;
-
-    const wgr_handle_t handle = wgri_handle_pool_alloc(&wgr_environment_pool);
-    if (handle == 0) {
-        wgr_logger_error("environment: pool full (%u)", (unsigned)wgr_environment_pool.max - 1u);
-        sg_destroy_view(env.cube_view);
-        sg_destroy_image(env.cube);
-        sg_destroy_view(env.background_view);
-        sg_destroy_image(env.background);
-        return WGRI_LOADER_FAILED;
-    }
-    wgri_handle_pool_resolve(&wgr_environment_pool, handle, &index);
-    wgr_environments[index] = env;
-    *resource = handle;
+    env_ptr->sh = prepared->sh;
+    env_ptr->background = make_cube_image(&prepared->source);
+    env_ptr->background_mip_count = prepared->source.mip_count;
+    env_ptr->background_view = sg_make_view(&(sg_view_desc){.texture.image = env_ptr->background});
+    env_ptr->cube = make_cube_image(&prepared->prefiltered);
+    env_ptr->cube_view = sg_make_view(&(sg_view_desc){.texture.image = env_ptr->cube});
     return WGRI_LOADER_DONE;
-}
-
-static wgr_handle_t find_environment(const char *path)
-{
-    const wgr_handle_t environment = find_by_path(path);
-    if (environment != 0) wgri_environment_retain(environment);
-    return environment;
 }
 
 static const wgri_loader_t wgr_environment_loader = {
     .name = "environment",
     .prepare = prepare_environment,
-    .finish = finish_environment,
     .discard = discard_environment,
-    .find = find_environment,
-    .release = wgr_environment_release,
+    .fill = fill,
+};
+
+/* Free what a record holds past its resource header. */
+static void free_record(void *record)
+{
+    wgr_environment_t *env_ptr = (wgr_environment_t *)record;
+    sg_destroy_view(env_ptr->cube_view); /* invalid ids (still loading) are ignored */
+    sg_destroy_image(env_ptr->cube);
+    sg_destroy_view(env_ptr->background_view);
+    sg_destroy_image(env_ptr->background);
+}
+
+static const wgri_resource_kind_t wgr_environment_kind = {
+    .create = "wgr_environment_create",
+    .loader = &wgr_environment_loader,
+    .free = free_record,
 };
 
 WGRI_KEEP
 wgr_handle_t wgr_environment_create(const char *path)
 {
-    if (!wgr_env.ready) { /* before the CPU work */
+    if (!wgr_env.ready) { /* before any work: nothing could be done with it */
+        const wgr_handle_t environment = wgri_resource_add(WGR_HANDLE_KIND_ENVIRONMENT);
+        wgri_resource_t *resource_ptr = wgri_resource_get(environment);
         wgr_logger_error("wgr_environment_create: environments aren't supported by this graphics backend");
-        return 0;
+        if (resource_ptr != NULL) resource_ptr->status = WGR_RESOURCE_FAILED;
+        return environment;
     }
-    return wgri_loader_create(&wgr_environment_loader, path);
+    return wgri_resource_create(WGR_HANDLE_KIND_ENVIRONMENT, path);
 }
 
-void wgri_environment_retain(wgr_handle_t environment)
-{
-    wgr_environment_t *env_ptr = resolve(environment);
-    if (env_ptr != NULL) env_ptr->ref_count++;
-}
-
-WGRI_KEEP
-void wgr_environment_release(wgr_handle_t environment)
-{
-    wgr_environment_t *env_ptr = resolve(environment);
-    if (env_ptr == NULL) return;
-    if (env_ptr->ref_count > 0) env_ptr->ref_count--;
-    if (env_ptr->ref_count == 0) {
-        sg_destroy_view(env_ptr->cube_view);
-        sg_destroy_image(env_ptr->cube);
-        sg_destroy_view(env_ptr->background_view);
-        sg_destroy_image(env_ptr->background);
-        memset(env_ptr, 0, sizeof(*env_ptr));
-        wgri_handle_pool_free(&wgr_environment_pool, environment);
-    }
-}
+/* --------------------------------------------------------------- binding ---- */
 
 void wgri_environment_get_binding(wgr_handle_t environment, wgri_environment_binding_t *out)
 {
     uint16_t index = 0;
-    const bool valid = environment != 0 && wgri_handle_pool_resolve(&wgr_environment_pool, environment, &index);
+    /* lighting comes only from one that's READY: loading or failed, the scene is lit as
+       if it had none */
+    const bool valid = environment != 0 && wgri_handle_pool_resolve(&wgr_environment_pool, environment, &index) &&
+                       wgr_environments[index].resource.status == WGR_RESOURCE_READY;
 
     *out = (wgri_environment_binding_t){
         .cube = valid ? wgr_environments[index].cube_view : wgr_env.black_cube_view,
@@ -714,8 +675,9 @@ static void draw_background(int index)
     uint16_t env_index = 0;
     bg_params_t params;
 
-    if (!wgri_handle_pool_resolve(&wgr_environment_pool, bg->environment, &env_index)) {
-        return; /* destroyed after it was queued */
+    if (!wgri_handle_pool_resolve(&wgr_environment_pool, bg->environment, &env_index) ||
+        wgr_environments[env_index].resource.status != WGR_RESOURCE_READY) {
+        return; /* destroyed after it was queued, or not loaded: no background */
     }
     const wgr_environment_t *env_ptr = &wgr_environments[env_index];
     memcpy(params.inv_view_proj, bg->inv_view_proj.m, sizeof(params.inv_view_proj));
@@ -743,7 +705,8 @@ void wgri_environment_submit_background(wgr_handle_t environment, float blur, fl
     wgri_camera3d_t cam;
     wgr_background_draw_t *bg;
 
-    if (!wgr_env.ready || resolve(environment) == NULL || !wgri_camera3d_get_active_data(&cam)) {
+    if (!wgr_env.ready || resolve(environment) == NULL ||
+        resolve(environment)->resource.status != WGR_RESOURCE_READY || !wgri_camera3d_get_active_data(&cam)) {
         return;
     }
     if (wgr_env.background_count >= MAX_BACKGROUND_DRAWS) {
@@ -781,8 +744,6 @@ static sg_backend shader_backend(void)
 void wgri_environment_init(void)
 {
     wgri_environment_hooks.get_binding = wgri_environment_get_binding;
-    wgri_scene_hooks.environment_retain = wgri_environment_retain;
-    wgri_scene_hooks.environment_release = wgr_environment_release;
     wgri_scene_hooks.environment_background = wgri_environment_submit_background;
     static const float triangle[] = {-1.0f, -1.0f, 3.0f, -1.0f, -1.0f, 3.0f};
     const int n = WGRI_ENVIRONMENT_LUT_SIZE;
@@ -794,6 +755,8 @@ void wgri_environment_init(void)
                              WGRI_HANDLE_POOL_MAX_SLOTS)) {
         wgr_logger_error("environment: out of memory");
     }
+    wgri_resource_register(&wgr_environment_pool, &wgr_environment_kind); /* before the backend check: a
+                                                                            create then fails with a reason */
 
     if (!sg_query_pixelformat(SG_PIXELFORMAT_RGBA16F).filter || !sg_query_pixelformat(SG_PIXELFORMAT_RG16F).filter) {
         wgr_logger_warn("environment: half-float textures can't be filtered on this backend; environments disabled");
@@ -839,21 +802,16 @@ void wgri_environment_init(void)
         .label = "wgr-background-triangle",
     });
     wgr_env.ready = true;
-    wgri_asset_register_loader(".hdr", &wgr_environment_loader);
 }
 
 void wgri_environment_deinit(void)
 {
     wgri_environment_hooks.get_binding = NULL;
-    wgri_scene_hooks.environment_retain = NULL;
-    wgri_scene_hooks.environment_release = NULL;
+    wgri_resource_register(&wgr_environment_pool, NULL);
     wgri_scene_hooks.environment_background = NULL;
     for (uint16_t i = 1; i < wgr_environment_pool.capacity; i++) {
         if (wgr_environment_pool.occupied[i]) {
-            sg_destroy_view(wgr_environments[i].cube_view);
-            sg_destroy_image(wgr_environments[i].cube);
-            sg_destroy_view(wgr_environments[i].background_view);
-            sg_destroy_image(wgr_environments[i].background);
+            free_record(&wgr_environments[i]);
         }
     }
     if (wgr_env.ready) {

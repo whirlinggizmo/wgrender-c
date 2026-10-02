@@ -139,7 +139,7 @@ class Loading {
 	static function createAll():Void {
 		final start = Wgr.getTime();
 		for (i in 0...ENVIRONMENTS)
-			environments.push(new Environment(paths[i]));
+			environments.push(new Environment(PATHS[i])); // an asset path: loads on create
 		for (i in ENVIRONMENTS...ENVIRONMENTS + MESHES)
 			meshes.push(new Mesh(paths[i]));
 		for (i in ENVIRONMENTS + MESHES...PATHS.length)
