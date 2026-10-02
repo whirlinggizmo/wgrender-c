@@ -80,6 +80,10 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
 `from-libwgt` first, then the API items, each on a branch of its own.
 
 - [ ] The org's CONVENTIONS.md takes the same names (another repo: the user's call).
+- [ ] The logger's exported calls take finished text: `wgr_logger_message` and
+      `wgr_logger_message_source` are printf-style (`...`), which no binding can call;
+      libwgt's `wgt_log_message` takes one string, and C formats in the macros (inline
+      in the caller, skipped when the level filters it). check_rules.py: VARIADIC_TODO.
 - [ ] Hidden symbol visibility: only `wgr_*` exported.
 - [ ] Pixel tests: frames read back in headless Chrome and in a GL window on Xvfb; a
       desktop check of every example with screenshots.

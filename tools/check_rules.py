@@ -10,6 +10,10 @@ that parse what they check, never by scanning text.
   manifest  build.json's sources are src/*.c, no more and no fewer
   values    AGENTS.md § Public API shape: a struct in a public signature is one of the
             fixed-layout math values (VALUE_STRUCTS), or a record RECORDS_TODO lists
+  types     AGENTS.md § Public API shape: every parameter and return value is a number,
+            bool, enum, handle, `const char *` or math value -- no other pointer, no
+            callback, no `void *`, no `...` -- but the loop setters (CALLBACKS_ALLOWED)
+            and the known gaps (CALLBACKS_TODO, VARIADIC_TODO)
   getters   AGENTS.md § Public API shape: every value a setter stores has a getter,
             unless GETTERS_EXEMPT says why not, or GETTERS_TODO lists it as a known gap
   modules   the core never calls an optional subsystem by name (src/internal/
@@ -198,6 +202,50 @@ def check_values(r, api):
              'a public call takes or returns a record by value:')
 
 
+# The types a public call may take and return (AGENTS.md § Public API shape): numbers,
+# bool, enums, a typedef of a number (wgr_handle_t, wgr_color_t), `const char *`, and
+# the math values (VALUE_STRUCTS; records are check_values'). Nothing else: no other
+# pointer, no function pointer, no `void *`, no `...`.
+SCALARS = {'void', 'bool', 'char', 'int', 'unsigned int', 'float', 'double', 'short', 'unsigned short',
+           'long', 'unsigned long', 'long long', 'unsigned long long', 'int8_t', 'uint8_t', 'int16_t',
+           'uint16_t', 'int32_t', 'uint32_t', 'int64_t', 'uint64_t', 'size_t'}
+
+# The one exception: the platform owns the loop (sokol_app, the browser), so these take
+# the program's callbacks and the `void *` they hand back. A new one is a decision.
+CALLBACKS_ALLOWED = {'wgr_set_init', 'wgr_set_tick', 'wgr_set_frame', 'wgr_set_cleanup'}
+
+# Known gaps, each going (docs/PLAN-tasks.md): a callback or a `void *` where a polled
+# task belongs, or the event bus. The check fails when one is gone and still listed.
+CALLBACKS_TODO = {'wgr_asset_add_task', 'wgr_asset_ping_host', 'wgr_asset_set_fetcher',
+                  'wgr_event_on', 'wgr_event_once', 'wgr_event_off', 'wgr_event_emit'}
+
+# Known gaps: printf-style calls, which a binding can't call; a public call takes the
+# finished text, and C formats in the wgr_logger_* macros (libwgt's wgt_log_message).
+VARIADIC_TODO = {'wgr_logger_message', 'wgr_logger_message_source'}
+
+
+def check_types(r, api):
+    """Every parameter and return value is a type the rule allows."""
+    def allowed(t):
+        if t in SCALARS or t == 'const char *' or t in api.enums or t in VALUE_STRUCTS or t in api.structs:
+            return True  # (a struct that isn't a math value is check_values')
+        return t in api.typedefs and api.typedefs[t][0] in SCALARS
+    bad, listed = [], CALLBACKS_ALLOWED | CALLBACKS_TODO
+    for name, f in api.functions.items():
+        wrong = [t for t in [f.returns] + [p.type for p in f.params] if not allowed(t)]
+        if wrong and name not in listed:
+            bad.append(f'{f.header}: {name}: {", ".join(dict.fromkeys(wrong))}')
+        if f.variadic and name not in VARIADIC_TODO:
+            bad.append(f'{f.header}: {name}: ... (take the finished text; format in a macro)')
+    gone = [f'{n}: listed, but it takes nothing the rule refuses now; take it off'
+            for n in sorted(CALLBACKS_TODO | VARIADIC_TODO)
+            if n not in api.functions or (not api.functions[n].variadic and all(
+                allowed(t) for t in [api.functions[n].returns] + [p.type for p in api.functions[n].params]))]
+    r.result(bad + gone, f'public calls take and return only allowed types ({len(CALLBACKS_ALLOWED)} loop '
+             f'callbacks; {len(CALLBACKS_TODO) + len(VARIADIC_TODO)} known gaps)',
+             'a public call takes or returns a type the rule refuses (a pointer, a callback, `void *`, `...`):')
+
+
 # Setters whose values are read back by getters named otherwise: one getter per value,
 # or a part getter the transform rule already requires.
 GETTERS_PAIRED = {
@@ -370,6 +418,7 @@ def main():
     check_naming(r, api, src_declarations(clang))
     check_manifest(r)
     check_values(r, api)
+    check_types(r, api)
     check_getters(r, api)
     check_modules(r, args.lib)
     check_tools(r)
