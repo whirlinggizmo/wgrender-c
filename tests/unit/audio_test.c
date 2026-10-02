@@ -260,6 +260,7 @@ void test_audio_pending(void)
  * (the tsan preset) to check the locking. */
 static wgri_mutex_t mixer_lock;
 static bool mixer_running;
+static int mixer_blocks; /* mixed so far, under mixer_lock */
 
 static bool mixer_should_run(void)
 {
@@ -272,18 +273,27 @@ static bool mixer_should_run(void)
 static void mixer_thread(void *user)
 {
     float buffer[512 * 2];
-    int *blocks = (int *)user;
+    (void)user;
     while (mixer_should_run()) {
         wgri_audio_mix(buffer, 512, 44100);
-        (*blocks)++;
+        wgri_mutex_lock(&mixer_lock);
+        mixer_blocks++;
+        wgri_mutex_unlock(&mixer_lock);
         test_sleep_ms(1); /* like a device: blocks arrive over time, not in a spin */
     }
+}
+
+static int blocks_mixed(void)
+{
+    wgri_mutex_lock(&mixer_lock);
+    const int blocks = mixer_blocks;
+    wgri_mutex_unlock(&mixer_lock);
+    return blocks;
 }
 
 void test_audio_threads(void)
 {
     wgri_thread_t thread;
-    int blocks = 0;
 
     wgri_audio_init();
     wgri_sound_init();
@@ -302,7 +312,11 @@ void test_audio_threads(void)
 
     wgri_mutex_init(&mixer_lock);
     mixer_running = true;
-    CHECK(wgri_thread_create(&thread, mixer_thread, &blocks));
+    mixer_blocks = 0;
+    CHECK(wgri_thread_create(&thread, mixer_thread, NULL));
+    /* the steps below are quick, so wait for the mixer to be running before them, or
+       they can all be over before it's even scheduled (Windows) */
+    for (int waited = 0; blocks_mixed() == 0 && waited < 5000; waited++) test_sleep_ms(1);
     for (int step = 0; step < 4000; step++) {
         wgr_handle_t s = sounds[step % 4];
         switch (step % 9) {
@@ -341,8 +355,8 @@ void test_audio_threads(void)
     mixer_running = false;
     wgri_mutex_unlock(&mixer_lock);
     wgri_thread_join(&thread);
+    CHECK(blocks_mixed() > 0);
     wgri_mutex_destroy(&mixer_lock);
-    CHECK(blocks > 0);
 
     for (int i = 0; i < 4; i++) wgr_sound_destroy(sounds[i]);
     wgr_resource_release(music);
