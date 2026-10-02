@@ -47,8 +47,8 @@ typedef struct {
     unsigned tick_generation; /* bumped by wgr_set_tick, to notice changes made inside a tick */
     wgr_lifecycle_fn init_fn;
     void *init_user_data;
-    wgr_lifecycle_fn cleanup_fn;
-    void *cleanup_user_data;
+    wgr_lifecycle_fn shutdown_fn;
+    void *shutdown_user_data;
 
     int target_fps;
     wgri_frame_pace_t pace;
@@ -130,10 +130,10 @@ void wgr_set_init(wgr_lifecycle_fn init_fn, void *user_data)
 }
 
 WGRI_KEEP
-void wgr_set_cleanup(wgr_lifecycle_fn cleanup_fn, void *user_data)
+void wgr_set_shutdown(wgr_lifecycle_fn shutdown_fn, void *user_data)
 {
-    wgr_rt.cleanup_fn = cleanup_fn;
-    wgr_rt.cleanup_user_data = user_data;
+    wgr_rt.shutdown_fn = shutdown_fn;
+    wgr_rt.shutdown_user_data = user_data;
 }
 
 static const char *backend_name(sg_backend b)
@@ -351,10 +351,10 @@ static void on_event(const void *ev)
     wgri_input_handle_event((const struct sapp_event *)ev);
 }
 
-static void on_cleanup(void)
+static void on_shutdown(void)
 {
-    if (wgr_rt.cleanup_fn != NULL) {
-        wgr_rt.cleanup_fn(wgr_rt.cleanup_user_data);
+    if (wgr_rt.shutdown_fn != NULL) {
+        wgr_rt.shutdown_fn(wgr_rt.shutdown_user_data);
     }
 
     wgri_module_deinit_all(); /* before the core they use */
@@ -395,7 +395,7 @@ int wgr_run(void)
         .init = on_init,
         .frame = on_frame,
         .event = on_event,
-        .cleanup = on_cleanup,
+        .shutdown = on_shutdown,
         .width = wgr_rt.window_width,
         .height = wgr_rt.window_height,
         .title = wgr_rt.window_title,

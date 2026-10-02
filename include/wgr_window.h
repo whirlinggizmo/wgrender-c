@@ -35,7 +35,7 @@ extern "C" {
  * Window lifecycle is owned by the core runtime:
  * - wgr_init_values(...) configures the window
  * - wgr_run() opens it (sokol_app owns the message loop)
- * - the cleanup callback (wgr_set_cleanup) runs as it closes
+ * - the shutdown callback (wgr_set_shutdown) runs as it closes
  */
 
 void wgr_window_set_title(const char *title);

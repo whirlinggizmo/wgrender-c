@@ -4,7 +4,7 @@ package wgr;
 
 /**
 	The window is owned by the runtime: `Wgr.initValues` configures it, `Wgr.run`
-	opens it, and the cleanup callback runs as it closes. Everything here adjusts it
+	opens it, and the shutdown callback runs as it closes. Everything here adjusts it
 	while it is open.
 
 	Sizes are logical pixels; positions are the desktop's coordinates with a top-left

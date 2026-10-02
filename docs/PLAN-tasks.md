@@ -1,8 +1,9 @@
 # Plan: Load on create, and polled tasks instead of callbacks
 
-Status: **proposed — awaiting approval.** No code changed yet. Decided so far: the four
-loop setters stay; the event bus goes; making a file local and loading it are separate
-(libwgt's split), and a resource loads on create.
+Status: **approved; phase 1 next.** No code changed yet. Decided: the four loop setters
+stay (`wgr_set_cleanup` renamed `wgr_set_shutdown`); the event bus goes; making a file
+local and loading it are separate (libwgt's split), and a resource loads on create; and
+the four decisions below, as recommended.
 
 ## Why
 
@@ -141,7 +142,7 @@ serves has its own. libwgt has none either.
 
 ### 5. The loop setters stay, and are the only callbacks
 
-`wgr_set_init`, `wgr_set_tick`, `wgr_set_frame`, `wgr_set_cleanup`: the platform owns the
+`wgr_set_init`, `wgr_set_tick`, `wgr_set_frame`, `wgr_set_shutdown`: the platform owns the
 loop (sokol_app, or the browser), so something must call in; libwgt keeps the same
 exception. They are `tools/check_rules.py`'s `TYPES_EXEMPT`, the type rule's one
 exemption, with the reason beside them.
@@ -169,6 +170,12 @@ or a `_get_data` beside a `_get_size`.
 - **The Haxe binding**: `wgr.Event` goes; resource classes gain `status`; `Asset` keeps a
   callback helper as sugar over polling its open tasks (plumbing, so one name per C call
   holds); five of its six JS omissions go (`wgr_set_*` stay C-only on the guest ABI).
+  `Asset.setFetcher(Asset.httpFetcher)` reads as it does now: it stores the Haxe
+  function and turns fetching on, and the binding's frame wrapper drains
+  `wgr_asset_fetch_next` before the program's frame, handing each request to it.
+  `httpFetcher` is unchanged (a thread per download, `fetchDone` from it), the
+  `fetchTrampoline` goes, and a cppia script can supply a fetcher, which it can't
+  through a C callback.
 - **Tests**: load on create (PENDING, then READY or FAILED, never called back inside the
   call; the same handle for the same path while pending; 0 only when full), task
   lifetime, groups, the polled fetcher, each resource's status. `check_asset_cache.py`

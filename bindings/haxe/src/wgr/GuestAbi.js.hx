@@ -32,12 +32,12 @@ class GuestAbi {
 		Declare the ops, all of them at once.
 
 		Every slot is written, including `shutdown` when it is left out — so this
-		*clears* a handler set earlier by `setShutdown` or `wgr.Wgr.setCleanup`. That
+		*clears* a handler set earlier by `setShutdown` or `wgr.Wgr.setShutdown`. That
 		is what "these are my ops" means, and it is the reason to reach for the
 		single-op setters instead when changing one and leaving the rest alone.
 
 		`shutdown` is optional and runs once, after the last frame, on the way out --
-		wgrender's `wgr_set_cleanup` for a guest. It is the op to release anything the
+		wgrender's `wgr_set_shutdown` for a guest. It is the op to release anything the
 		guest owns outside wgrender; anything wgrender owns is already being torn down.
 	**/
 	public static function register(init:() -> Void, frame:(dt:Float, frameId:Int) -> Void,

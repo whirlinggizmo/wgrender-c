@@ -9,7 +9,7 @@
 //
 // It is also the example that made the binding expose the guest ABI's fourth op:
 // `wgr_guest.h` has had a shutdown slot all along and `GuestAbi.register` was passing
-// 0 for it, because nothing had needed wgrender's `wgr_set_cleanup` yet.
+// 0 for it, because nothing had needed wgrender's `wgr_set_shutdown` yet.
 //
 //   Q    quit now
 //   ESC  quit now (desktop)
@@ -83,7 +83,7 @@ class Quit {
 		Render.clearBackground(background);
 		Text.draw("wgrender quit (Haxe guest)   Q: quit now", 12, 12, 16, Color.RAYWHITE);
 		if (quitting)
-			Text.draw("quit requested: cleanup runs after this frame", 12, 40, 16, Color.LIGHTGRAY);
+			Text.draw("quit requested: shutdown runs after this frame", 12, 40, 16, Color.LIGHTGRAY);
 		else
 			Text.draw('loading, stalling and quitting in ${fixed(quitAt - Wgr.getTime(), 1)} s', 12, 40, 16,
 				Color.LIGHTGRAY);
@@ -100,9 +100,9 @@ class Quit {
 		}
 	}
 
-	/** wgrender's `wgr_set_cleanup`, reached through the guest ABI's shutdown op. **/
+	/** wgrender's `wgr_set_shutdown`, reached through the guest ABI's shutdown op. **/
 	static function onShutdown():Void {
-		Log.info("quit: cleanup");
+		Log.info("quit: shutdown");
 	}
 
 	/** The same by-hand formatter the other examples carry; Haxe has no printf. **/

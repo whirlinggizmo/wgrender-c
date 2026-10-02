@@ -212,7 +212,7 @@ SCALARS = {'void', 'bool', 'char', 'int', 'unsigned int', 'float', 'double', 'sh
 # Calls whose signatures break the rule on purpose, and why. A decision, not a backlog.
 TYPES_EXEMPT = {
     **{f'wgr_set_{c}': 'the platform owns the loop (sokol_app, the browser), so it calls the '
-       "program's function, with the `void *` it was given" for c in ('init', 'tick', 'frame', 'cleanup')},
+       "program's function, with the `void *` it was given" for c in ('init', 'tick', 'frame', 'shutdown')},
 }
 
 # Known gaps, each going (docs/PLAN-tasks.md): a callback or a `void *` where a polled

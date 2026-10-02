@@ -34,7 +34,7 @@ void wgri_platform_run(const wgri_platform_desc_t *desc)
         .init_cb = desc->init,
         .frame_cb = desc->frame,
         .event_cb = forward_event,
-        .cleanup_cb = desc->cleanup,
+        .cleanup_cb = desc->shutdown,
         .width = desc->width,
         .height = desc->height,
         .window_title = desc->title,
@@ -267,8 +267,8 @@ void wgri_platform_run(const wgri_platform_desc_t *desc)
         }
         wgr_headless.frame_duration = stm_sec(stm_laptime(&last));
     }
-    if (desc->cleanup != NULL) {
-        desc->cleanup();
+    if (desc->shutdown != NULL) {
+        desc->shutdown();
     }
 }
 

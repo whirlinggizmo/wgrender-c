@@ -26,7 +26,7 @@ WGRI_KEEP
 int wgr_window_close_requested(void)
 {
     /* sokol_app drives the loop and tears down on quit, so there is no
-     * poll-style "should close" query. Reported via the cleanup callback. */
+     * poll-style "should close" query. Reported via the shutdown callback. */
     return 0;
 }
 

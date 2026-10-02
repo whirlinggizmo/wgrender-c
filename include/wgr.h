@@ -80,12 +80,12 @@ int wgr_init_values(int window_width,
                    const char *window_title,
                    unsigned int window_flags);
 
-/* Register the per-frame callback (required) and optional init/cleanup hooks
- * that fire after the GPU is ready / before it is torn down. */
+/* Register the per-frame callback (required) and the optional init and shutdown
+ * callbacks, which run once after the GPU is ready / before it is torn down. */
 void wgr_set_frame(wgr_frame_fn frame_fn, void *user_data);
 void wgr_set_tick(wgr_tick_fn tick_fn, void *user_data, int hz); /* hz <= 0 or NULL: no tick */
 void wgr_set_init(wgr_lifecycle_fn init_fn, void *user_data);
-void wgr_set_cleanup(wgr_lifecycle_fn cleanup_fn, void *user_data);
+void wgr_set_shutdown(wgr_lifecycle_fn shutdown_fn, void *user_data);
 
 /* Enter the runtime loop. Blocks on desktop, returns immediately on web.
  * Returns 0 on normal exit. */

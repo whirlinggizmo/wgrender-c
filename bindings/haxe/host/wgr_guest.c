@@ -112,7 +112,7 @@ static void host_frame(float dt, float tick_fraction, void *user)
 }
 
 /* The last op to run, once, on the way out. It was stored by wgr_guest_register from
- * the beginning and never called: nothing here registered a cleanup with wgrender, so
+ * the beginning and never called: nothing here registered a shutdown callback with wgrender, so
  * the slot existed and no guest could observe it. Porting examples/quit.c, whose whole
  * subject is what happens after the last frame, is what noticed.
  *
@@ -173,7 +173,7 @@ GUEST_EXPORT void wgr_guest_install(void)
     installed = 1;
     wgr_set_init(host_init, NULL);
     wgr_set_frame(host_frame, NULL);
-    wgr_set_cleanup(host_shutdown, NULL);
+    wgr_set_shutdown(host_shutdown, NULL);
     if (guest_tick != NULL && guest_tick_hz > 0) {
         wgr_set_tick(host_tick, NULL, guest_tick_hz);
     }

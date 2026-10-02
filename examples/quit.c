@@ -3,10 +3,10 @@
  * Plays music, and after a second starts loading two environments, keeps the main
  * thread busy for half a second (like a long synchronous load) and quits. That is
  * the path that used to crash on web: audio events queued during the busy frame
- * ran after shutdown. Cleanup then runs with loads still in progress.
+ * ran after shutdown. The shutdown callback then runs with loads still in progress.
  *
- * On web, quitting stops the frame loop and runs cleanup; the canvas keeps showing
- * the last frame.
+ * On web, quitting stops the frame loop and runs the shutdown callback; the canvas
+ * keeps showing the last frame.
  *
  *   Q    quit now
  *   ESC  quit now (desktop) */
@@ -70,7 +70,7 @@ static void frame(float dt, float tick_fraction, void *user_data)
     wgr_render_clear_background(g.bg);
     wgr_text_draw("libwgrender quit   Q: quit now", 12, 12, 16, WGR_COLOR_RAYWHITE);
     if (g.quitting) {
-        wgr_text_draw("quit requested: cleanup runs after this frame", 12, 40, 16, WGR_COLOR_LIGHTGRAY);
+        wgr_text_draw("quit requested: shutdown runs after this frame", 12, 40, 16, WGR_COLOR_LIGHTGRAY);
     } else {
         snprintf(line, sizeof(line), "loading, stalling and quitting in %.1f s", g.quit_at - wgr_get_time());
         wgr_text_draw(line, 12, 40, 16, WGR_COLOR_LIGHTGRAY);
@@ -90,10 +90,10 @@ static void frame(float dt, float tick_fraction, void *user_data)
     }
 }
 
-static void cleanup(void *user_data)
+static void on_shutdown(void *user_data)
 {
     (void)user_data;
-    wgr_logger_info("quit: cleanup");
+    wgr_logger_info("quit: shutdown");
 }
 
 int main(void)
@@ -101,6 +101,6 @@ int main(void)
     wgr_init_values(640, 200, "libwgrender quit", WGR_WINDOW_FLAG_WINDOW_RESIZABLE);
     wgr_set_init(init, NULL);
     wgr_set_frame(frame, NULL);
-    wgr_set_cleanup(cleanup, NULL);
+    wgr_set_shutdown(on_shutdown, NULL);
     return wgr_run();
 }

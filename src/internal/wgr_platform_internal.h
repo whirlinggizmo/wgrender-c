@@ -21,7 +21,7 @@ typedef struct {
     bool transparent;           /* the framebuffer's alpha shows what's behind the window */
     void (*init)(void);
     void (*frame)(void);
-    void (*cleanup)(void);
+    void (*shutdown)(void);
     void (*event)(const void *sapp_event); /* sokol_app builds only */
 } wgri_platform_desc_t;
 

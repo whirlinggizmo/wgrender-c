@@ -87,7 +87,7 @@ class Wgr {
 		GuestAbi.registerTick(cb, hz);
 
 	/** Runs as the window closes, before the GPU is torn down. **/
-	public static function setCleanup(cb:() -> Void):Void
+	public static function setShutdown(cb:() -> Void):Void
 		GuestAbi.setShutdown(cb);
 
 	#if cpp
