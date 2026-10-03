@@ -14,6 +14,14 @@ moves to "Tasks dropped" with the reason. What's here is what's left.
 
 ## Bugs and measurements
 
+- [ ] A sound's pitch has no stated range: `wgr_sound_set_pitch` stores any float and its
+      header says nothing. The mixer steps by it (`mix_sound` in `src/wgr_audio.c`), so a
+      negative pitch plays backwards from the current position and stops at the start,
+      ignoring loop -- from `play`, which starts at 0, it plays one frame -- and 0 holds
+      the position silently while `is_playing` stays true. Safe (a position below 0
+      stops the sound) but not a promise anyone made. Decide and say it in the header:
+      refuse a negative pitch, or play backwards from the end as libwgt's player does
+      (2026-10-02: reverse for decoded audio, refused for streamed, 0 holds).
 - [ ] The normal-mapped sphere in `examples/loading.c` (and environment, materials)
       shows a straight vertical cut on its left edge, where its outline is round.
       On main too, and gone without the normal map: either a tile groove at a grazing
