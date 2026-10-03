@@ -284,6 +284,23 @@ VertexColorTest, TextureSettingsTest and BoxTextured on desktop, WebGL2, WebGPU)
       decodes a whole file at once (decodeAudioData), which undoes libwgrender's streamed
       music (PLAN-audio: ~108 MB -> 6 MB for a long track)
 
+## Bindings
+
+- [ ] Haxe's JS target goes through the JS binding (`bindings/js`) by default, and
+      Raw.js.hx's own marshalling goes (Rob, 2026-10-03). hxcpp keeps its direct C
+      calls. Measured level with Haxe direct in speed, GC and trimmed size (157.5 against
+      152.9 KB brotli); `-D wgr-js-binding` is the experiment to promote.
+- [ ] `into` in Haxe's public API: a getter that fills a caller-owned object or array,
+      as the JS binding's does, so a per-frame read makes no garbage. The array form is
+      the one that survives the caller's own property mangling.
+- [ ] `tools/headers.py`'s `_doc` joins a comment's text pieces with spaces, so the
+      generated doc comments (`wgrender.d.ts`, the Haxe externs) lose their line
+      breaks: a parameter list or an example reads as one paragraph. Keep clang's
+      paragraph and line structure.
+- [ ] A plain-JS program's trimmed listing (`build_host.py --trimmed`) derived from
+      something that parses the program, such as a bundler that reports the exports it
+      kept (Rollup's `renderedExports`). Written by hand today; Haxe derives its own.
+
 ## Outside the library
 
 - [ ] Scripting, as its own module/repo on top of the public API
