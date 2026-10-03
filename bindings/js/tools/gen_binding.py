@@ -75,7 +75,7 @@ RESERVED = {'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger', 
             'typeof', 'var', 'void', 'while', 'with', 'yield', 'let', 'static', 'await'}
 # ...nor one of the names the generated code itself uses: a C parameter called `host`
 # (wgr_asset_set_host's) would shadow the module every call goes through.
-RESERVED |= {'host', 'cstr', 'str', 'record', 'opaqueSlot', 'out', 'mark', 'result', 'readI32'}
+RESERVED |= {'host', 'cstr', 'str', 'record', 'opaqueSlot', 'out', 'into', 'mark', 'result', 'readI32'}
 
 DIGEST_TAG = '// wgrender-headers: '
 
@@ -209,12 +209,25 @@ class Gen:
             return
         if ret in self.structs:
             self.records.add(ret)
-            _, size = layout(self.structs, ret)
-            self.js.append(f'{comment}export function {name}({args}) {{\n'
+            fields, size = layout(self.structs, ret)
+            flat = all(ftype not in self.structs and not count for _, ftype, _, count in fields)
+            if not flat:
+                self.js.append(f'{comment}export function {name}({args}) {{\n'
+                               f'    const out = record({size});\n{save}'
+                               f'    host._{name}(out{", " if call_args else ""}{call_args});\n{restore}'
+                               f'    return {self.read_record(ret, "out")};\n}}\n')
+                self.dts.append(f'{comment}export declare function {name}({sig}): {ret};\n')
+                return
+            # A flat record (vec2_t, vec3_t, ...) can be read into an object the caller
+            # owns: pass it last and it is filled and returned, so a getter in a hot loop
+            # makes no garbage. Without it, a new object, as before. One name either way.
+            fill = ' '.join(f'into.{field} = {self.read_scalar(ftype, f"out + {at}")};' for field, ftype, at, _ in fields)
+            self.js.append(f'{comment}export function {name}({args}{", " if args else ""}into) {{\n'
                            f'    const out = record({size});\n{save}'
                            f'    host._{name}(out{", " if call_args else ""}{call_args});\n{restore}'
+                           f'    if (into) {{ {fill} return into; }}\n'
                            f'    return {self.read_record(ret, "out")};\n}}\n')
-            self.dts.append(f'{comment}export declare function {name}({sig}): {ret};\n')
+            self.dts.append(f'{comment}export declare function {name}({sig}{", " if sig else ""}into?: Out<{ret}>): {ret};\n')
             return
 
         call = f'host._{name}({call_args})'
@@ -309,6 +322,8 @@ def generate():
           'export { readI32 } from "./src/runtime.js";\n\n'
           + built + '\n' + define_js + '\n' + '\n'.join(enum_js) + '\n' + '\n'.join(layout_js) + '\n' + '\n'.join(gen.js))
     dts = (head + '\nexport type wgr_handle_t = number;\n'
+           '/** A record a getter can fill instead of making a new one: its fields, writable. */\n'
+           'export type Out<T> = { -readonly [K in keyof T]: T[K] };\n'
            '/** Packed 8-bit RGBA, 0xRRGGBBAA: a value, not a handle (include/wgr_types.h). */\nexport type wgr_color_t = number;\n\n'
            'export declare const BUILT_VERSION: { readonly major: number; readonly minor: number; '
            'readonly patch: number; readonly commit: string; readonly headers: string };\n'
