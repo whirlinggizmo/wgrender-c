@@ -74,6 +74,7 @@ let rng = 0;
 let entities = null;
 let texture = 0;
 let scene = 0;
+let camera = 0;
 let background = 0;
 
 /** xorshift32, as the spec gives it: logical shifts on 32 bits. */
@@ -103,7 +104,7 @@ function init() {
     wgr.wgr_set_target_fps(60);
     rng = 0x92D68CA2 | 0; // 2463534242
 
-    const camera = wgr.wgr_camera3d_create(wgr.WGR_CAMERA3D_PERSPECTIVE);
+    camera = wgr.wgr_camera3d_create(wgr.WGR_CAMERA3D_PERSPECTIVE);
     wgr.wgr_camera3d_set_view(camera, 0, 14, 30, 0, 3, 0, 0, 1, 0);
     scene = wgr.wgr_scene_create();
     wgr.wgr_scene_set_active_camera(scene, camera);
@@ -151,16 +152,27 @@ function drawText() {
 }
 
 const screen = { x: 0, y: 0 }; // the screen size, filled each frame (no garbage)
+const FOV = Math.PI / 4; // the camera's vertical field of view on a screen at least as wide as tall
+
+/** On a portrait screen (a phone held upright), widen the vertical field of view so the
+ * horizontal one stays what a square screen shows: the scene keeps its width instead of
+ * looking zoomed in. Landscape keeps FOV. */
+function fitCamera() {
+    wgr.wgr_window_get_screen_size(screen);
+    const aspect = screen.y > 0 ? screen.x / screen.y : 1;
+    wgr.wgr_camera3d_set_fov(camera, aspect >= 1 ? FOV : 2 * Math.atan(Math.tan(FOV / 2) / aspect));
+}
 
 function frame() {
     acc.sum = 0;
     for (let i = 0; i < n; i++) update(i);
+    fitCamera();
     wgr.wgr_render_begin_frame();
     wgr.wgr_render_clear_background(background);
     wgr.wgr_scene_draw(scene);
     drawText();
     // the frame rate, top right: one draw beyond the stress spec (tools/bench/stress.c)
-    wgr.wgr_text_draw_fps(wgr.wgr_window_get_screen_size(screen).x - 110, 10);
+    wgr.wgr_text_draw_fps(screen.x - 110, 10);
     wgr.wgr_render_end_frame();
 }
 
