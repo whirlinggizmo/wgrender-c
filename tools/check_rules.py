@@ -344,8 +344,8 @@ def check_modules(r, lib):
 
 # Where tools live, and the modules among them: imported by tools, never run. Every other
 # file is a script.
-TOOL_FILES = ['tools/*.py', 'tools/bench/*.py', 'bindings/haxe/tools/*.py']
-TOOL_MODULES = {'tools/builds.py', 'tools/cli.py', 'tools/headers.py', 'tools/hostcache.py', 'tools/shdc.py',
+TOOL_FILES = ['tools/*.py', 'tools/bench/*.py', 'bindings/haxe/tools/*.py', 'bindings/js/tools/*.py']
+TOOL_MODULES = {'tools/builds.py', 'tools/cabi.py', 'tools/cli.py', 'tools/headers.py', 'tools/hostcache.py', 'tools/shdc.py',
                 'tools/spirv.py', 'tools/weblib.py', 'tools/wine.py', 'tools/bench/measure.py', 'tools/bench/pages.py',
                 'bindings/haxe/tools/guestbuild.py', 'bindings/haxe/tools/members.py',
                 'bindings/haxe/tools/wgrpath.py', 'bindings/haxe/tools/wgrweb.py'}
