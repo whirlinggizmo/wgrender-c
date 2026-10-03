@@ -5,6 +5,11 @@ from wgrender's public headers.
     bindings/js/tools/gen_binding.py          write all three
     bindings/js/tools/gen_binding.py --check  say whether they are current, and exit
                                               non-zero if not
+    bindings/js/tools/gen_binding.py --only NAMES OUT
+                                              write OUT/wgrender.js with only the functions
+                                              NAMES lists (one per line or comma-separated,
+                                              with or without the leading _, as a host's
+                                              export list has them): a program's own binding
 
 The binding is plain JavaScript with TypeScript declarations beside it, so a JS program
 uses it as it is and a TypeScript one gets every type and the header's doc comment for
@@ -41,7 +46,7 @@ import headers  # noqa: E402  (the headers as clang reads them)
 from cabi import layout  # noqa: E402  (the structs' wasm32 layout)
 
 if __name__ == '__main__':
-    cli.parse(__doc__, ('--check',), positional=0)
+    cli.parse(__doc__, ('--check', '--only'), positional=None)
 
 OUT = WGRENDER / 'bindings/js'
 FILES = ('wgrender.js', 'wgrender.d.ts', 'wgrender.exports.json')
@@ -302,11 +307,13 @@ def defines(api):
     return '\n'.join(js) + '\n', '\n'.join(dts) + '\n', skipped
 
 
-def generate():
+def generate(only=None):
+    """The three files; `only`, a set of function names, keeps just those functions."""
     api = headers.read(WGRENDER, tool='gen_binding')
     gen = Gen(api)
     for fn in api.functions.values():
-        gen.function(fn)
+        if only is None or fn.name in only:
+            gen.function(fn)
     version, commit, digest, count = provenance(api)
     head = banner(version, commit, digest, count)
     major, minor, patch = (version + ['0', '0', '0'])[:3]
@@ -359,6 +366,17 @@ def check():
 def main():
     if '--check' in sys.argv:
         sys.exit(check())
+    if '--only' in sys.argv:
+        rest = [a for a in sys.argv[1:] if not a.startswith('-')]
+        if len(rest) != 2:
+            sys.exit('gen_binding: --only takes a names file and an output directory')
+        wanted = {n.strip().lstrip('_') for n in re.split(r'[,\s]+', pathlib.Path(rest[0]).read_text()) if n.strip()}
+        files, gen, _ = generate(wanted)
+        out = pathlib.Path(rest[1])
+        out.mkdir(parents=True, exist_ok=True)
+        (out / 'wgrender.js').write_text(files['wgrender.js'], encoding='utf-8')
+        print(f'gen_binding: {len(gen.exports)} of the functions -> {out / "wgrender.js"}')
+        return
     files, gen, _ = generate()
     for name, text in files.items():
         (OUT / name).write_text(text, encoding='utf-8')
