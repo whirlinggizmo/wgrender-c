@@ -231,6 +231,14 @@ VertexColorTest, TextureSettingsTest and BoxTextured on desktop, WebGL2, WebGPU)
       prepares a whole glTF in one frame (~1 s for FlightHelmet); `.glb` dependency
       listing reads the whole file on the main thread
 
+- [ ] A large web download stalls a frame on arrival (measured in libwgt 605d64b,
+      2026-10-03, whose fetch is ported from ours): a 64 MB file held one frame ~80 ms,
+      hashed or not, which is the copy into the wasm heap plus the store write in one
+      step. Measure ours the same way; the fix is writing in pieces, or JS writing
+      the bytes to IndexedDB directly. libwgt's measurement also confirmed our
+      manifest hashing in crypto.subtle is what keeps hashing off the frame (wasm
+      SHA-256 is ~350 MB/s, so a 100 MB file hashed in one step holds a frame ~300 ms)
+
 ## Platform
 
 - [ ] Windows on real Windows: windows (the window flags), WASAPI audio, XInput
