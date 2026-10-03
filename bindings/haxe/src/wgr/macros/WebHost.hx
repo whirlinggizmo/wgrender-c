@@ -20,8 +20,9 @@ using StringTools;
 	```
 
 	Put it anywhere in the section that builds your guest to JS. It links
-	`wgrender-host.js` and `wgrender-host.wasm` next to your `--js` output, exporting
-	exactly the wgrender calls your guest makes, and writes a page to load them. Your own
+	`wgrender-host.js` and `wgrender-host.wasm` next to your `--js` output, and writes a
+	page to load them. The host is **trimmed** by default, exporting exactly the wgrender
+	calls your guest makes (about half the size of a full one): for release. Your own
 	build is untouched: keep `-dce no --debug` or whatever else you like.
 
 	How it knows what your guest calls: it compiles your program a second time, in a
@@ -37,11 +38,16 @@ using StringTools;
 	flags, wgrender's library, and this binding's host glue.
 
 	Options, as defines:
-	- `-D wgr-host=full` exports the whole binding and skips the listing compile. A
-	  fallback, and the way to rule this out when something misbehaves.
+	- `-D wgr-host=trimmed`, the default: the host exports exactly the calls the listing
+	  compile finds. For release.
+	- `-D wgr-host=full` exports the whole binding and skips the listing compile. One host
+	  serves any guest, so it relinks only when wgrender changes: for development, for a
+	  hot-reloading guest (which may call what the first build didn't), and the way to
+	  rule the listing out when something misbehaves.
 	- `-D wgr-host=none` leaves the host and page as they are: nothing built, linked or
 	  copied. For a guest rebuilt while a page runs it, whose host is already loaded (a
 	  hot reload, say).
+	- Any other value is refused, by name.
 	- `-D wgr-build-dir=<dir>` where the linked host is cached (default
 	  `build/wasm32-<variant>/webhost`, e.g. `build/wasm32-release/webhost`, named as
 	  wgrender's builds are).
@@ -92,7 +98,10 @@ class WebHost {
 		#if macro
 		if (Context.defined(LISTING))
 			return; // we are the listing compile this macro spawned
-		if (define("wgr-host", "") == "none")
+		final mode = define("wgr-host", "trimmed");
+		if (mode != "trimmed" && mode != "full" && mode != "none")
+			fail('WebHost: -D wgr-host=$mode is not a mode; it is trimmed (the default), full or none');
+		if (mode == "none")
 			return; // the host is already loaded: only the guest is wanted
 		if (!Context.defined("js")) {
 			Sys.println("WebHost: not a JS build, nothing to do");
@@ -109,20 +118,20 @@ class WebHost {
 		run(python(), [Path.join([wgrender, "tools/build_web_library.py"])].concat([for (k => v in web) '$k=$v']));
 		final flags = webFlags(wgrender, web);
 
-		final full = define("wgr-host", "") == "full";
+		final full = mode == "full";
 		final api = full ? bindingExports(binding) : listExports(state);
 		final exported = ["_main"].concat([for (n in dedupe(GUEST_ABI.concat(api))) '_$n']).concat([for (n in LIBRARY_EXPORTS) '_$n']);
 
 		final lib = Path.join([wgrender, flags.lib]);
 		final glue = Path.join([wgrender, "bindings/host/wgr_guest.c"]);
 		final header = Path.join([wgrender, "bindings/host/wgr_guest.h"]);
-		final out = Path.join([state, full ? "host-full" : "host"]);
+		final out = Path.join([state, 'host-$mode']);
 		final stamp = [
 			exported.join(","), RUNTIME_METHODS.join(","), flags.ldflags.join(" "),
 			lib + "@" + mtime(lib), glue + "@" + mtime(glue), header + "@" + mtime(header)
 		].join("\n");
 		final stampFile = Path.join([out, "stamp.txt"]);
-		final what = full ? "the whole binding" : '${api.length} wgrender calls';
+		final what = full ? "full: the whole binding" : 'trimmed: ${api.length} wgrender calls';
 
 		if (FileSystem.exists(Path.join([out, "wgrender-host.wasm"])) && FileSystem.exists(stampFile)
 			&& File.getContent(stampFile) == stamp) {
@@ -150,7 +159,15 @@ class WebHost {
 		final viaJs = Context.defined("wgr-js-binding");
 		if (viaJs) {
 			FileSystem.createDirectory(Path.join([site, "src"]));
-			File.copy(Path.join([wgrender, "bindings/js/wgrender.js"]), Path.join([site, "wgrender.js"]));
+			if (full)
+				File.copy(Path.join([wgrender, "bindings/js/wgrender.js"]), Path.join([site, "wgrender.js"]));
+			else {
+				// trimmed: the binding module carries only the calls the host exports, without
+				// the constants (Haxe has its own enums)
+				final listing = Path.join([state, "js-binding.txt"]);
+				File.saveContent(listing, api.join("\n") + "\n");
+				run(python(), [Path.join([wgrender, "bindings/js/tools/gen_binding.py"]), "--trim", "--no-constants", listing, site]);
+			}
 			File.copy(Path.join([wgrender, "bindings/js/src/runtime.js"]), Path.join([site, "src/runtime.js"]));
 		}
 		// boot.js is glue that has to match the host, so it is always ours. The page is

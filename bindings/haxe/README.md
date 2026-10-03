@@ -304,8 +304,10 @@ It builds wgrender's web library if it has to, links `wgrender-host.js` and
 the host; `index.html` is written once and is yours after that. The line can sit
 anywhere in the section — Haxe reads the whole section before it runs the macro.
 
-The host exports exactly what your guest calls, which is about a quarter smaller
-gzipped than exporting the whole binding. To find out what that is, the macro compiles
+By default the host is **trimmed**: it exports exactly what your guest calls, about half
+the size of a **full** host, which exports the whole binding (the stress scene's wasm:
+158 KB gzipped trimmed, 331 KB full; measured 2026-10-03, wasm32-release). To find out
+what your guest calls, the macro compiles
 your program a second time in a child `haxe`, with your own arguments plus
 `-dce full -D no-inline --no-output --json`: with inlining off, dead-code elimination
 leaves the `wgr.impl.Raw` wrappers you reach as declarations, and `--json` lists them.
@@ -315,9 +317,15 @@ so the worst case is a slightly bigger wasm. The child takes a fraction of a sec
 and the link is skipped when the list, the flags, wgrender's library and the host glue
 are all unchanged.
 
-- `-D wgr-host=full` exports the whole binding and skips the child compile. Good for
-  development, since the host then only relinks when wgrender changes, and the way to
-  rule the listing out if something misbehaves.
+- `-D wgr-host=trimmed` is the default: the host exports what the child compile lists.
+  For release.
+- `-D wgr-host=full` exports the whole binding and skips the child compile. For
+  development, since the host then only relinks when wgrender changes; for a
+  hot-reloading guest, whose reloaded code may call what the first build didn't
+  (hotreload-hx); and the way to rule the listing out if something misbehaves.
+- `-D wgr-host=none` builds no host and no page, for a guest rebuilt while a page that
+  already loaded its host runs it (a hot reload's builds).
+- Any other value is refused, by name.
 - `-D wgr-build-dir=<dir>` is where linked hosts are cached; by default
   `build/wasm32-<variant>/webhost` (`build/wasm32-release/webhost`, ...).
 - `-D wgr-title=<text>` and `-D wgr-background=<css colour>` shape the first `index.html`.

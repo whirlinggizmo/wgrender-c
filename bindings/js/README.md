@@ -98,3 +98,12 @@ python3 bindings/js/tools/check_binding.py    # TSC=<path to tsc> for the TypeSc
 python3 tools/serve_site.py 8000 out/wasm32/release/site/js
 # http://localhost:8000/examples/hello/
 ```
+
+`build_host.py` makes a **full** host by default: it exports every function, so any
+program runs against it, which is what development and a hot-reloading guest need.
+`--trimmed LISTING` makes a release host instead, exporting only the functions LISTING
+names, with `wgrender.js` trimmed to the same: the stress scene's wasm is 158 KB gzipped
+trimmed against 331 KB full, and its `wgrender.js` 3.9 KB against 34 KB. The listing is
+what the program calls; for plain JS it has to come from something that parses the
+program (a bundler that reports the exports it kept), and nothing here derives it yet.
+The Haxe binding derives its own (`-D wgr-host=trimmed`, its default).

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the JS binding's web site: wgrender as a wasm host, the binding, and the examples.
 
-    bindings/js/tools/build_host.py [--webgpu] [--debug]
+    bindings/js/tools/build_host.py [--webgpu] [--debug] [--full | --trimmed LISTING]
 
 Writes out/wasm32/<variant>/site/js/ (wasm32-release's by default), beside the C
 examples' site, so tools/serve_site.py serves it with /assets/ mounted:
@@ -11,10 +11,20 @@ examples' site, so tools/serve_site.py serves it with /assets/ mounted:
     wgrender.js, .d.ts, src/  the binding
     examples/<name>/          each example's page and script
 
-The host exports every function in wgrender.exports.json (the generator's list), so any
-program built on the binding runs against it: the full host, as a hot-reloading guest
-needs. Trimming a host to what one program calls comes later, from a bundler's view of
-what the program imports.
+Two modes, as the Haxe binding's host has them:
+
+    --full     the default: the host exports every function in wgrender.exports.json
+               (the generator's list), so any program on the binding runs against it,
+               and wgrender.js is the whole binding. For development, and what a
+               hot-reloading guest needs: reloaded code may call what the first build
+               didn't.
+    --trimmed LISTING
+               the host exports only the functions LISTING names (one per line or
+               comma-separated, with or without the leading _), and wgrender.js is
+               trimmed to the same (gen_binding.py --trim). About half the size: for
+               release. LISTING is what the program calls. For a plain JS program it
+               comes from something that parses it, such as a bundler that reports which
+               exports it kept (Rollup's renderedExports); nothing here derives it yet.
 
 Runs tools/build_web_library.py first, which builds the library from build.json when
 it's out of date. Needs emcc (exactly build.json's Emscripten).
@@ -22,6 +32,7 @@ it's out of date. Needs emcc (exactly build.json's Emscripten).
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -33,7 +44,7 @@ import cli  # noqa: E402
 import headers  # noqa: E402
 
 if __name__ == '__main__':
-    cli.parse(__doc__, ('--webgpu', '--debug'), positional=0)
+    cli.parse(__doc__, ('--webgpu', '--debug', '--full', '--trimmed'), positional=None)
 
 BINDING = WGRENDER / 'bindings/js'
 HOST = WGRENDER / 'bindings/host'
@@ -62,9 +73,22 @@ def main():
     target = json.loads((WGRENDER / 'build.json').read_text(encoding='utf-8'))['web'][variant]
     lib = builds.lib(preset) / 'libwgrender.a'
 
-    listed = json.loads((BINDING / 'wgrender.exports.json').read_text(encoding='utf-8'))['functions']
+    rest = [a for a in sys.argv[1:] if not a.startswith('-')]
+    trimmed = '--trimmed' in sys.argv
+    if trimmed and '--full' in sys.argv:
+        sys.exit('build_host: --full or --trimmed, not both')
+    if trimmed != (len(rest) == 1) or len(rest) > 1:
+        sys.exit('build_host: --trimmed takes one LISTING file, and nothing else takes an argument')
+    if trimmed:
+        listing = pathlib.Path(rest[0])
+        listed = sorted({'_' + n.strip().lstrip('_') for n in re.split(r'[,\s]+', listing.read_text()) if n.strip()})
+    else:
+        listed = json.loads((BINDING / 'wgrender.exports.json').read_text(encoding='utf-8'))['functions']
     guest = sorted('_' + n for n in headers.functions_in(HOST / 'wgr_guest.h', WGRENDER, tool='build_host'))
-    exports = ['_main'] + guest + sorted(set(listed)) + ['_malloc', '_free']
+    # guest.js's start() reads the host's version before anything else, so even a
+    # trimmed host keeps those three
+    version = ['_wgr_version_major', '_wgr_version_minor', '_wgr_version_patch']
+    exports = ['_main'] + guest + sorted(set(listed) | set(version)) + ['_malloc', '_free']
     (work / 'exports.txt').write_text('\n'.join(exports) + '\n', encoding='utf-8')
 
     site.mkdir(parents=True, exist_ok=True)
@@ -76,13 +100,17 @@ def main():
          f'-sEXPORTED_FUNCTIONS=@{work / "exports.txt"}',
          '-o', site / 'wgrender-host.js'])
 
-    for name in ('wgrender.js', 'wgrender.d.ts'):
-        shutil.copy2(BINDING / name, site / name)
+    if trimmed:
+        run([sys.executable, BINDING / 'tools/gen_binding.py', '--trim', listing, site])
+    else:
+        shutil.copy2(BINDING / 'wgrender.js', site / 'wgrender.js')
+    shutil.copy2(BINDING / 'wgrender.d.ts', site / 'wgrender.d.ts')
     shutil.copytree(BINDING / 'src', site / 'src', dirs_exist_ok=True)
     examples = sorted(p for p in (BINDING / 'examples').iterdir() if p.is_dir())
     for example in examples:
         shutil.copytree(example, site / 'examples' / example.name, dirs_exist_ok=True)
-    print(f'build_host: {len(exports)} exports, {len(examples)} examples -> {os.path.relpath(site, WGRENDER)}')
+    print(f'build_host: {"trimmed" if trimmed else "full"}, {len(exports)} exports, {len(examples)} examples '
+          f'-> {os.path.relpath(site, WGRENDER)}')
 
 
 if __name__ == '__main__':

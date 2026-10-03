@@ -5,11 +5,14 @@ from wgrender's public headers.
     bindings/js/tools/gen_binding.py          write all three
     bindings/js/tools/gen_binding.py --check  say whether they are current, and exit
                                               non-zero if not
-    bindings/js/tools/gen_binding.py --only NAMES OUT
-                                              write OUT/wgrender.js with only the functions
+    bindings/js/tools/gen_binding.py --trim [--no-constants] NAMES OUT
+                                              write OUT/wgrender.js trimmed to the functions
                                               NAMES lists (one per line or comma-separated,
                                               with or without the leading _, as a host's
-                                              export list has them): a program's own binding
+                                              export list has them): a program's own module,
+                                              matching its trimmed host. --no-constants
+                                              leaves out the enums and defines, for a guest
+                                              in a language with its own (Haxe)
 
 The binding is plain JavaScript with TypeScript declarations beside it, so a JS program
 uses it as it is and a TypeScript one gets every type and the header's doc comment for
@@ -50,7 +53,7 @@ import headers  # noqa: E402  (the headers as clang reads them)
 from cabi import layout  # noqa: E402  (the structs' wasm32 layout)
 
 if __name__ == '__main__':
-    cli.parse(__doc__, ('--check', '--only'), positional=None)
+    cli.parse(__doc__, ('--check', '--trim', '--no-constants'), positional=None)
 
 OUT = WGRENDER / 'bindings/js'
 FILES = ('wgrender.js', 'wgrender.d.ts', 'wgrender.exports.json')
@@ -322,8 +325,9 @@ def defines(api):
     return '\n'.join(js) + '\n', '\n'.join(dts) + '\n', skipped
 
 
-def generate(only=None):
-    """The three files; `only`, a set of function names, keeps just those functions."""
+def generate(only=None, constants=True):
+    """The three files; `only`, a set of function names, keeps just those functions, and
+    constants=False leaves out the enums and defines."""
     api = headers.read(WGRENDER, tool='gen_binding')
     gen = Gen(api)
     for fn in api.functions.values():
@@ -342,7 +346,7 @@ def generate(only=None):
 
     js = (head + '\nimport { host, cstr, str, record, opaqueSlot } from "./src/runtime.js";\n'
           'export { readI32 } from "./src/runtime.js";\n\n'
-          + built + '\n' + define_js + '\n' + '\n'.join(enum_js) + '\n' + '\n'.join(layout_js) + '\n' + '\n'.join(gen.js))
+          + built + '\n' + (define_js + '\n' + '\n'.join(enum_js) if constants else '') + '\n' + '\n'.join(layout_js) + '\n' + '\n'.join(gen.js))
     dts = (head + '\nexport type wgr_handle_t = number;\n'
            '/** A record a getter can fill instead of making a new one: its fields, writable. */\n'
            'export type Out<T> = { -readonly [K in keyof T]: T[K] };\n'
@@ -381,16 +385,16 @@ def check():
 def main():
     if '--check' in sys.argv:
         sys.exit(check())
-    if '--only' in sys.argv:
+    if '--trim' in sys.argv:
         rest = [a for a in sys.argv[1:] if not a.startswith('-')]
         if len(rest) != 2:
-            sys.exit('gen_binding: --only takes a names file and an output directory')
+            sys.exit('gen_binding: --trim takes a names file and an output directory')
         wanted = {n.strip().lstrip('_') for n in re.split(r'[,\s]+', pathlib.Path(rest[0]).read_text()) if n.strip()}
-        files, gen, _ = generate(wanted)
+        files, gen, _ = generate(wanted, constants='--no-constants' not in sys.argv)
         out = pathlib.Path(rest[1])
         out.mkdir(parents=True, exist_ok=True)
         (out / 'wgrender.js').write_text(files['wgrender.js'], encoding='utf-8')
-        print(f'gen_binding: {len(gen.exports)} of the functions -> {out / "wgrender.js"}')
+        print(f'gen_binding: trimmed to {len(gen.exports)} functions -> {out / "wgrender.js"}')
         return
     files, gen, _ = generate()
     for name, text in files.items():
