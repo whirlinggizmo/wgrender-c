@@ -140,6 +140,13 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
       headers with one exported copy each for bindings; types `wgr_vec3_t`,
       `wgr_quat_t`, `wgr_mat4_t` (column-major `float m[16]`; `matrix_t` goes); the
       internal `wgri_mat4_*` / `wgri_v3_*` replaced by it; AGENTS.md allows mat4.
+- [ ] The load budget is a resource setting, not an asset one (Rob, 2026-10-03, as
+      libwgt's `wgt_resource_set_load_budget`): it paces every resource load,
+      bundled, cached or local, so `wgr_asset_set_upload_budget` becomes
+      `wgr_resource_set_load_budget` / `_get_load_budget` in `wgr_resource.h`, its
+      ~45 ms 4096² note kept. Callers: `examples/loading.c`,
+      `tools/bench/loadbench.c`, `tests/unit/pipeline_test.c`, `tools/check_rules.py`;
+      regenerate both bindings.
 - [ ] Maybe: a node tree (parenting, cached transforms, enabled / visible / pickable
       as separate flags). Biggest API change here; only if a hierarchy is wanted.
 
