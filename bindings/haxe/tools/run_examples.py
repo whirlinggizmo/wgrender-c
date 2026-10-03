@@ -230,7 +230,8 @@ SITE_BAR_STYLE = """<style>
   #bar b a { color: #7ea2ff; }
   #bar select { background: #0f1115; color: #cdd3de; border: 1px solid #3a4150;
     border-radius: 6px; padding: 4px 8px; font: inherit; }
-  #canvas { inset: 38px 0 0 0; height: calc(100vh - 38px); }
+  /* dvh is the visible height, without the browser bars on a phone; vh, before it, is the fallback for browsers without dvh */
+  #canvas { inset: 38px 0 0 0; height: calc(100vh - 38px); height: calc(100dvh - 38px); }
   /* A console on the page, because a phone has no easy one: what the program logs,
      and anything the browser refuses to do. As wgrender's own page has it. */
   #log { position: fixed; inset: auto 0 0 0; max-height: 45vh; z-index: 11; display: none;

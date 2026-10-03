@@ -381,7 +381,8 @@ class WebHost {
 <style>
   html, body { margin: 0; height: 100%; background: $background; overflow: hidden; }
   /* CSS sizes the canvas; sokol sizes the drawing buffer from it. */
-  #canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; outline: none; }
+  /* dvh is the visible height, without the browser bars on a phone; vh, before it, is the fallback for browsers without dvh */
+  #canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; outline: none; }
 </style>
 </head>
 <body>
