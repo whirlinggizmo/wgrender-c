@@ -237,7 +237,10 @@ VertexColorTest, TextureSettingsTest and BoxTextured on desktop, WebGL2, WebGPU)
       step. Measure ours the same way; the fix is writing in pieces, or JS writing
       the bytes to IndexedDB directly. libwgt's measurement also confirmed our
       manifest hashing in crypto.subtle is what keeps hashing off the frame (wasm
-      SHA-256 is ~350 MB/s, so a 100 MB file hashed in one step holds a frame ~300 ms)
+      SHA-256 is ~350 MB/s, so a 100 MB file hashed in one step holds a frame ~300 ms).
+      Natively we have that stall: `download_matches` reads and hashes a listed
+      download whole on the main thread; libwgt hashes it 64 KB at a time, at most
+      2 ms an update
 
 ## Platform
 
