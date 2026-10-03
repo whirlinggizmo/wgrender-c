@@ -14,6 +14,15 @@ moves to "Tasks dropped" with the reason. What's here is what's left.
 
 ## Bugs and measurements
 
+- [ ] Ogg files go through stb_vorbis 1.22 (`deps/stb`), which has open memory-safety
+      issues upstream on malformed files: nothings/stb #2005 (2026-09, a heap overflow in
+      the comment header), #1947 and #1933 (codebook allocation overflows), #1949 (a
+      codebook out-of-bounds read), #1934 (an incomplete fix of CVE-2019-13220), #1552
+      (CVE-2023-45675), and fuzz crashes #1491, #1248 and #1168. A downloaded `.ogg` is
+      untrusted input, as the dr_libs pin already assumes for WAV and MP3. libwgt
+      (2026-10-02) drops stb_vorbis: on the web the browser decodes all audio, and
+      natively it takes Xiph's decoder (libvorbis or Tremor, plus libogg). Here: the
+      same, or at least a broken-file test of the Ogg decoder under asan.
 - [ ] A sound's pitch has no stated range: `wgr_sound_set_pitch` stores any float and its
       header says nothing. The mixer steps by it (`mix_sound` in `src/wgr_audio.c`), so a
       negative pitch plays backwards from the current position and stops at the start,
