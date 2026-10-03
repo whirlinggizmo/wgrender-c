@@ -212,7 +212,7 @@ any of the eight combinations of backend, threads and debug, into the same
 `tools/check_web_examples.py` needs a Chromium-based browser: Brave, Chrome, Chromium or Edge,
 found on PATH or where they install (override with `WEBCHECK_BROWSER`), and nothing
 but Python's standard library: it drives the browser over the DevTools protocol
-itself (`tools/weblib.py`). It checks
+itself (`tools/browser.py`). It checks
 four examples at a time, each in its own browser context, waits until each has
 finished loading its assets, and fails an example on console errors, wgrender
 `[ERROR]`/`[FATAL]` logs, exceptions, sokol panics, a wrong/missing backend, or

@@ -55,7 +55,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
 import builds  # noqa: E402
-from weblib import (PYTHON, ROOT, RunProcesses, find_browser, find_xvfb, free_port, launch_browser,  # noqa: E402
+from browser import (PYTHON, ROOT, RunProcesses, find_browser, find_xvfb, free_port, launch_browser,  # noqa: E402
                     open_session, wait_for)
 
 NETS = {

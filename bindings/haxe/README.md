@@ -61,7 +61,7 @@ tools/run_benchmarks.py   size, frame cost, GC and call cost against the C -> do
 tools/build_hxcpp_example.py     an example all-in-one through hxcpp for the web, for the benchmarks
 tools/drive_example.py        run a built example and fail on anything the console calls an error
 tools/measure_example_startup.py     startup timing of any web build (--site=DIR); tools/show_waterfall.py, its requests
-tools/wgrweb.py       what the browser checks share: weblib, the wgrender they run against, serving
+tools/wgrweb.py       what the browser checks share: wgrender's browser.py, the wgrender they run against, serving
 web/index.html        the page for the all-in-one hxcpp builds (the JS guests' pages are WebHost's)
 ```
 

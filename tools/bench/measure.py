@@ -44,7 +44,7 @@ WGRENDER = HERE.parents[1]
 sys.path.insert(0, str(WGRENDER / 'tools'))
 sys.path.insert(0, str(HERE))
 import pages  # noqa: E402  (the browser measurements)
-import weblib  # noqa: E402
+from browser import find_browser  # noqa: E402  (wgrender's tools/browser.py)
 
 SCHEMA = 1
 
@@ -202,7 +202,7 @@ def _cpu():
 
 def _browser():
     try:
-        path = weblib.find_browser()
+        path = find_browser()
     except RuntimeError:
         return None
     return _first_line([path, '--version'])

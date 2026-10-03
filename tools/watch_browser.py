@@ -3,7 +3,7 @@
 
     tools/watch_browser.py TOOL_PID PROFILE
 
-tools/weblib.py starts one per run, detached. It waits for the process TOOL_PID (the tool) to
+tools/browser.py starts one per run, detached. It waits for the process TOOL_PID (the tool) to
 exit, however it went (a crash, a kill), then kills every process the run recorded in
 PROFILE.pids (with its children) and every process whose command line names PROFILE, the
 run's browser profile directory, and removes the profile and its files. When the run

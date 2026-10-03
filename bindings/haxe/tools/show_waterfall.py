@@ -15,7 +15,8 @@ import urllib.parse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
-from wgrweb import serve_command, weblib  # noqa: E402
+from wgrweb import serve_command  # noqa: E402
+from browser import RunProcesses, find_browser, free_port, launch_browser, open_session, wait_for  # noqa: E402  (wgrender's tools/browser.py)
 
 RESOURCES = r"""JSON.stringify(performance.getEntriesByType("resource")
     .filter(r => !/\/wgr\//.test(r.name))
@@ -29,15 +30,15 @@ def main():
         sys.exit(__doc__)
     site = Path(sys.argv[1]).resolve()
     label = site.parent.parent.name
-    run = weblib.RunProcesses(f'waterfall-{label}')
+    run = RunProcesses(f'waterfall-{label}')
     run.install_handlers()
     try:
-        port = weblib.free_port()
+        port = free_port()
         run.spawn(serve_command(port, site, '--cache', '--gzip'))
-        weblib.wait_for(f'http://127.0.0.1:{port}/index.html', 'serve_site.py')
-        debug_base, browser = weblib.launch_browser(run, weblib.find_browser(), 'headless')
+        wait_for(f'http://127.0.0.1:{port}/index.html', 'serve_site.py')
+        debug_base, browser = launch_browser(run, find_browser(), 'headless')
         target = browser.send('Target.createTarget', {'url': 'about:blank'})['targetId']
-        page = weblib.open_session(f'ws://{urllib.parse.urlsplit(debug_base).netloc}/devtools/page/{target}')
+        page = open_session(f'ws://{urllib.parse.urlsplit(debug_base).netloc}/devtools/page/{target}')
         for domain in ('Runtime', 'Page', 'Network'):
             page.send(f'{domain}.enable')
         page.send('Network.emulateNetworkConditions',

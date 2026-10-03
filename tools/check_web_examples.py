@@ -8,7 +8,7 @@ Chromium-based browser (Brave, Chrome, Chromium, Edge) through the DevTools prot
 and fails an example if it logs a console error or a libwgrender [ERROR]/[FATAL] line,
 throws, hits a sokol panic, never reports starting on the expected backend, or is
 still loading assets when its time runs out. A screenshot of every example is saved
-for a visual check. Standard library only (tools/weblib.py).
+for a visual check. Standard library only (tools/browser.py).
 
   --backend=webgl2|webgpu  backend to check (default webgl2); the site is
                       out/wasm32/release[-webgpu]/site (what wasm32-release[-webgpu] makes)
@@ -36,7 +36,7 @@ for a visual check. Standard library only (tools/weblib.py).
                       console calls, so this is how to see them)
 
 The browser and server are always stopped, including when this is interrupted or
-killed (RunProcesses in tools/weblib.py).
+killed (RunProcesses in tools/browser.py).
 
 Never call canvas.getContext() from here: a canvas that already has a WebGL context
 can't be used for WebGPU, which breaks the example under test.
@@ -53,7 +53,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
 import builds  # noqa: E402
-from weblib import (PYTHON, ROOT, RunProcesses, find_browser, find_xvfb, free_port, launch_browser,
+from browser import (PYTHON, ROOT, RunProcesses, find_browser, find_xvfb, free_port, launch_browser,
                     open_session, wait_for)
 
 BACKEND_LOG = {'webgl2': 'GLES3/WebGL2 backend', 'webgpu': 'WebGPU backend'}

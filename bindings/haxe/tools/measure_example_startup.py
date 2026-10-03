@@ -20,7 +20,8 @@ import urllib.parse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
-from wgrweb import serve_command, weblib  # noqa: E402
+from wgrweb import serve_command  # noqa: E402
+from browser import RunProcesses, find_browser, free_port, launch_browser, open_session, wait_for  # noqa: E402  (wgrender's tools/browser.py)
 
 NETS = {'local': None, '4g': {'offline': False, 'latency': 150, 'downloadThroughput': 9e6 / 8,
                               'uploadThroughput': 1.5e6 / 8}}
@@ -55,18 +56,18 @@ def main():
     for site in (Path(s).resolve() for s in args.site):
         label = site.parent.parent.name
         for net in nets:
-            run = weblib.RunProcesses(f'webstart-{label}')
+            run = RunProcesses(f'webstart-{label}')
             run.install_handlers()
             try:
-                port = weblib.free_port()
+                port = free_port()
                 run.spawn(serve_command(port, site, '--cache', '--gzip'))
                 entry = 'wgrender-host.js' if (site / 'wgrender-host.js').exists() else 'index.html'
-                weblib.wait_for(f'http://127.0.0.1:{port}/{entry}', 'serve_site.py')
+                wait_for(f'http://127.0.0.1:{port}/{entry}', 'serve_site.py')
                 for i in range(args.runs):
-                    debug_base, browser = weblib.launch_browser(run, weblib.find_browser(), 'headless',
+                    debug_base, browser = launch_browser(run, find_browser(), 'headless',
                                                                 profile=f'{run.profile}-{net}-{i}')
                     target = browser.send('Target.createTarget', {'url': 'about:blank'})['targetId']
-                    page = weblib.open_session(f'ws://{urllib.parse.urlsplit(debug_base).netloc}/devtools/page/{target}')
+                    page = open_session(f'ws://{urllib.parse.urlsplit(debug_base).netloc}/devtools/page/{target}')
                     page.send('Runtime.enable')
                     page.send('Page.enable')
                     url = f'http://127.0.0.1:{port}/'

@@ -30,7 +30,8 @@ import urllib.parse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # an embedded Python (Windows) doesn't add it
-from wgrweb import serve_command, weblib  # noqa: E402
+from wgrweb import serve_command  # noqa: E402
+from browser import RunProcesses, distinct_colours, find_browser, free_port, launch_browser, open_session, wait_for  # noqa: E402  (wgrender's tools/browser.py)
 
 
 def main():
@@ -49,16 +50,16 @@ def main():
     shot_path = (Path(args.shot).resolve() if args.shot
                  else site.parents[3] / 'build' / f'{site.parents[1].name}-{site.parent.name}' / 'check.png')
 
-    run = weblib.RunProcesses(args.label)
+    run = RunProcesses(args.label)
     run.install_handlers()
     errors, lines = [], []
     try:
-        port = weblib.free_port()
+        port = free_port()
         run.spawn(serve_command(port, site))
-        weblib.wait_for(f'http://127.0.0.1:{port}/{args.ready}', 'serve_site.py')
-        debug_base, browser = weblib.launch_browser(run, weblib.find_browser(), 'headless')
+        wait_for(f'http://127.0.0.1:{port}/{args.ready}', 'serve_site.py')
+        debug_base, browser = launch_browser(run, find_browser(), 'headless')
         target = browser.send('Target.createTarget', {'url': 'about:blank'})['targetId']
-        page = weblib.open_session(f'ws://{urllib.parse.urlsplit(debug_base).netloc}/devtools/page/{target}')
+        page = open_session(f'ws://{urllib.parse.urlsplit(debug_base).netloc}/devtools/page/{target}')
 
         def on_event(msg):
             params = msg.get('params', {})
@@ -100,7 +101,7 @@ def main():
         shot_path.parent.mkdir(parents=True, exist_ok=True)
         shot_path.write_bytes(base64.b64decode(data))
         if args.min_colours > 0:
-            colours = weblib.distinct_colours(page, data)
+            colours = distinct_colours(page, data)
             if colours < args.min_colours:
                 errors.append(f'the screen is {"one flat colour" if colours == 1 else f"only {colours} colours"}'
                               f': nothing was drawn ({shot_path})')

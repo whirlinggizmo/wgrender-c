@@ -54,8 +54,8 @@ import time
 import urllib.parse
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools/: weblib
-import weblib  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tools/: browser
+from browser import PYTHON, ROOT, RunProcesses, find_browser, free_port, launch_browser, open_session, wait_for  # noqa: E402  (wgrender's tools/browser.py)
 
 
 @contextlib.contextmanager
@@ -66,7 +66,7 @@ def page_on(site, label, probe='wgrender-host.js', display='headless', extra_arg
     [ERROR] or [FATAL], a browser error -- fails the measurement rather than returning a
     number: a frame that faults partway does less work and times as faster, which is
     how a stack overflow once passed for a speedup (2026-10-02)."""
-    run = weblib.RunProcesses(label)
+    run = RunProcesses(label)
     errors = []
 
     def on_error(msg):
@@ -83,12 +83,12 @@ def page_on(site, label, probe='wgrender-host.js', display='headless', extra_arg
             errors.append(f'[{params["entry"]["source"]}] {params["entry"].get("text", "")}')
 
     try:
-        port = weblib.free_port()
-        run.spawn([weblib.PYTHON, weblib.ROOT / 'tools' / 'serve_site.py', port, Path(site).resolve()])
-        weblib.wait_for(f'http://127.0.0.1:{port}/{probe}', 'serve_site.py')
-        debug_base, browser = weblib.launch_browser(run, weblib.find_browser(), display, extra_args=extra_args)
+        port = free_port()
+        run.spawn([PYTHON, ROOT / 'tools' / 'serve_site.py', port, Path(site).resolve()])
+        wait_for(f'http://127.0.0.1:{port}/{probe}', 'serve_site.py')
+        debug_base, browser = launch_browser(run, find_browser(), display, extra_args=extra_args)
         target = browser.send('Target.createTarget', {'url': 'about:blank'})['targetId']
-        page = weblib.open_session(f'ws://{urllib.parse.urlsplit(debug_base).netloc}/devtools/page/{target}')
+        page = open_session(f'ws://{urllib.parse.urlsplit(debug_base).netloc}/devtools/page/{target}')
         page.on_event(on_error)
         page.send('Runtime.enable')
         page.send('Log.enable')

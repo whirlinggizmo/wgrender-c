@@ -391,7 +391,7 @@ What they come to here:
   files, `check_` fails on what's wrong, `run_`, `build_`, `measure_`, `setup_`,
   `update_`, `verify_`... (`verify_builds.py`, `check_web_examples.py`,
   `measure_example_sizes.py`); a bare verb doesn't say to what. **A module, imported and
-  never run, is one word** (`builds.py`, `weblib.py`, `shdc.py`), and a script is never
+  never run, is one word** (`builds.py`, `browser.py`, `shdc.py`), and a script is never
   imported: what scripts share goes in a module. The same in `bindings/`. Every script
   takes `--help` (its docstring, and nothing else done) and stops on an argument it
   doesn't take: `tools/cli.py`'s `parse`, first thing in its `__main__` block.

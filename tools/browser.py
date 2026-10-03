@@ -3,7 +3,7 @@ launching a Chromium-based browser (headless, on a virtual X display, or on the
 screen), a minimal DevTools-protocol session, and a record of every process a run
 starts so all of it is stopped, whatever happens to the run. Standard library only.
 
-    from weblib import RunProcesses, find_browser, free_port, launch_browser, open_session, wait_for
+    from browser import RunProcesses, find_browser, free_port, launch_browser, open_session, wait_for
 
 The DevTools protocol is JSON over a WebSocket; the client here is the small part of
 RFC 6455 that talking to a local browser needs (text frames, no extensions, no TLS).
@@ -223,7 +223,7 @@ class Session:
                         try:
                             fn(msg)
                         except Exception as e:  # a listener's bug must not end the session
-                            print(f'weblib: event listener failed: {e!r}', file=sys.stderr)
+                            print(f'browser: event listener failed: {e!r}', file=sys.stderr)
         except (OSError, ConnectionError, ValueError):
             pass
         self.closed = True

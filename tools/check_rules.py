@@ -346,7 +346,7 @@ def check_modules(r, lib):
 # file is a script.
 TOOL_FILES = ['tools/*.py', 'tools/bench/*.py', 'bindings/haxe/tools/*.py', 'bindings/js/tools/*.py']
 TOOL_MODULES = {'tools/builds.py', 'tools/cabi.py', 'tools/cli.py', 'tools/headers.py', 'tools/hostcache.py', 'tools/shdc.py',
-                'tools/spirv.py', 'tools/weblib.py', 'tools/wine.py', 'tools/bench/measure.py', 'tools/bench/pages.py',
+                'tools/spirv.py', 'tools/browser.py', 'tools/wine.py', 'tools/bench/measure.py', 'tools/bench/pages.py',
                 'bindings/haxe/tools/guestbuild.py', 'bindings/haxe/tools/members.py',
                 'bindings/haxe/tools/wgrpath.py', 'bindings/haxe/tools/wgrweb.py'}
 # What a script's name may start with: what it does. Then what it does it to.
