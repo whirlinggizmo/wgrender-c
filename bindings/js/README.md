@@ -63,6 +63,32 @@ Level: the same marshalling, so the same cost. The host here exports every call 
 which is what a hot-reloading guest needs; trimming it to what one program imports comes
 later, from a bundler's module graph.
 
+## Minifying
+
+Plain minification (esbuild `--minify`, terser's defaults: local names and whitespace)
+is safe. Mangling **property** names (esbuild `--mangle-props`, terser
+`mangle.properties`, Closure's advanced mode) is safe for the binding, with two rules
+for your own code:
+
+- **Keep `wgr_` out of the pattern.** The binding's functions are module exports;
+  mangling export names breaks a namespace import (`import * as wgr`) in a bundle, as it
+  would for any ES module.
+- **Read vectors into an array if your own `x`/`y`/`z` get mangled.**
+  `wgr_sprite3d_get_position(s, v)` fills `v` by index when it is an array or a typed
+  array, which nothing can rename. With an object of your own, or the object a getter
+  returns, your mangled `x` is not the binding's `x`: it runs without an error and
+  reads `0` or `undefined`.
+
+Everything the binding itself sends across a file boundary is a quoted key
+(`host["_wgr_..."]`, `into["x"]`), which manglers leave alone; V8 compiles a constant
+quoted key exactly as a dotted one, so it costs nothing.
+
+Measured (2026-10-03, esbuild 0.28, each file minified separately with
+`--mangle-props=^(_|HEAP|stack|wgr_|x$|y$|z$)`, 5,000 position reads a frame, the sum
+checked on screen): a getter into an array reads right, separately minified or bundled
+(bundled with `wgr_` left out of the pattern); a returned object read `NaN`, and `into` an
+object read `0`.
+
 ## Build and check
 
 ```

@@ -379,6 +379,27 @@ with a line each. One more, [`stress`](examples/stress), ports wgrender's benchm
 [`simple-hxcpp`](examples/simple-hxcpp) is `simple` built the other way, for the size
 comparison against the C, Nim and Beef ports.
 
+## Minifying the web build
+
+Plain minification of the JS output (esbuild `--minify`, terser's defaults) is safe.
+Under **property** mangling (esbuild `--mangle-props`, terser `mangle.properties`,
+Closure's advanced mode) the binding stays safe: every name it sends to the wasm host is
+a quoted key (`Raw.host["_wgr_..."]`, `Raw.host["HEAPF32"]`), which manglers leave alone,
+and `Raw.host` is a `haxe.DynamicAccess`, so a dotted access that a mangler could break
+doesn't compile. V8 compiles a constant quoted key exactly as a dotted one, so it costs
+nothing. Your own code needs nothing special: `getPosition` and the other vector getters
+return the binding's `Vec3`, whose fields a mangler renames consistently within your
+output.
+
+Don't minify Haxe's output with esbuild `--format=esm`: esbuild reads Haxe's module
+wrapper (`typeof exports != "undefined" ? exports : window`) as CommonJS, and the guest's
+`@:expose`d entry point never reaches the page (`WgrGuest` is undefined). Without
+`--format` it works.
+
+Measured (2026-10-03, esbuild 0.28, the stress scene with 5,000 position reads a frame,
+the output minified with `--mangle-props=^(_|HEAP|stack|wgr_|x$|y$|z$)`): runs, and the
+positions read back right.
+
 ## Status
 
 `wgr.impl.Raw` covers all 480 of wgrender's calls on hxcpp and 470 on js; the
