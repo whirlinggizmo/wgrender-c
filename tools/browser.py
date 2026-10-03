@@ -68,10 +68,40 @@ def find_xvfb():
     return None if WINDOWS else shutil.which('Xvfb')
 
 
+def display_in_use(n):
+    """Whether X display :n is taken: its lock file names a process still running, as an
+    X server itself decides. A server killed before it cleaned up leaves its lock and
+    socket behind; that display is free, and the next server there replaces both."""
+    lock = Path(f'/tmp/.X{n}-lock')
+    try:
+        pid = int(lock.read_text().strip())
+    except FileNotFoundError:
+        return Path(f'/tmp/.X11-unix/X{n}').exists() and not stale_socket(n)
+    except (OSError, ValueError):
+        return True  # unreadable: someone else's, or being written
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # running, as another user
+    return True
+
+
+def stale_socket(n):
+    """A display socket with nothing listening on it."""
+    try:
+        with socket.socket(socket.AF_UNIX) as s:
+            s.connect(f'/tmp/.X11-unix/X{n}')
+        return False
+    except OSError:
+        return True
+
+
 def start_xvfb(run):
     """Xvfb on a free display number: ':<n>' once its socket exists."""
     for n in range(90, 200):
-        if Path(f'/tmp/.X11-unix/X{n}').exists() or Path(f'/tmp/.X{n}-lock').exists():
+        if display_in_use(n):
             continue
         run.spawn([find_xvfb(), f':{n}', '-screen', '0', '1280x1024x24', '-nolisten', 'tcp'])
         for _ in range(100):
@@ -286,6 +316,7 @@ class RunProcesses:
     def __init__(self, name):
         self.profile = tempfile.mkdtemp(prefix=f'libwgrender-{name}-')
         self.pids = []
+        self.children = []
         self.stopped = False
         self.lock = threading.Lock()
         flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS if WINDOWS else 0
@@ -315,6 +346,7 @@ class RunProcesses:
                 out.close()
         with self.lock:
             self.pids.append(child.pid)
+            self.children.append(child)
             Path(f'{self.profile}.pids').write_text(' '.join(map(str, self.pids)))
         return child
 
@@ -376,8 +408,8 @@ class RunProcesses:
             self.signal_all(None)
         else:
             self.signal_all(signal.SIGTERM)
-            for _ in range(20):
-                if not self.strays():
+            for _ in range(20):  # its own children too: Xvfb names no profile, and cleans up on SIGTERM
+                if not self.strays() and all(child.poll() is not None for child in self.children):
                     break
                 time.sleep(0.1)
             self.signal_all(signal.SIGKILL)
