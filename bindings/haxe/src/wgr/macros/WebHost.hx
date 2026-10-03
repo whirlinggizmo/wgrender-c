@@ -371,6 +371,7 @@ class WebHost {
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>$title</title>
 <!-- Fetch the host, the guest and the wasm in parallel rather than one after another. -->
 <link rel="modulepreload" href="./boot.js">
