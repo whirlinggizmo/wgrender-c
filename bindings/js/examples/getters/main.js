@@ -150,6 +150,8 @@ function drawText() {
     }
 }
 
+const screen = { x: 0, y: 0 }; // the screen size, filled each frame (no garbage)
+
 function frame() {
     acc.sum = 0;
     for (let i = 0; i < n; i++) update(i);
@@ -157,6 +159,8 @@ function frame() {
     wgr.wgr_render_clear_background(background);
     wgr.wgr_scene_draw(scene);
     drawText();
+    // the frame rate, top right: one draw beyond the stress spec (tools/bench/stress.c)
+    wgr.wgr_text_draw_fps(wgr.wgr_window_get_screen_size(screen).x - 110, 10);
     wgr.wgr_render_end_frame();
 }
 
