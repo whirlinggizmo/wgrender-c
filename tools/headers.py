@@ -73,6 +73,8 @@ class Api:
     enums: dict = field(default_factory=dict)       # typedef name -> Enum
     typedefs: dict = field(default_factory=dict)    # name -> (type, header): every other typedef
     defines: dict = field(default_factory=dict)     # name -> (value text, header): object-like
+    values: dict = field(default_factory=dict)      # name -> int: the defines that are integer
+                                                    # constants, as clang evaluates them
     macros: dict = field(default_factory=dict)      # name -> header: function-like (wgr_log_debug)
     headers: list = field(default_factory=list)     # every public header, sorted
 
@@ -265,8 +267,61 @@ def read(root=ROOT, clang=None, tool='headers'):
                     api.macros[name.split('(')[0]] = path.name
                 elif not name.endswith('_H'):
                     api.defines[name] = (value.strip(), path.name)
+    api.values = _evaluate(clang, flags, source, root, [n for n, (v, _) in api.defines.items() if v])
     _cache[root] = api
     return api
+
+
+def _evaluate(clang, flags, source, root, names):
+    """The defines among `names` that are integer constants, {name: value}, as clang
+    evaluates them: each becomes an enum constant (C23's 64-bit underlying type, so a
+    color's 0xF5F5F5FFu fits), and its value is read from the AST, as an enum's are.
+    _Generic picks 0 for a string or a floating define and a flag says which it was, so
+    nothing here reads a define's spelling as C."""
+    if not names:
+        return {}
+    probes = []
+    for i, name in enumerate(names):
+        kind = (f'_Generic(({name}), char *: 0, const char *: 0, float: 0, double: 0, long double: 0, '
+                f'default: 1)')
+        value = f'_Generic(({name}), char *: 0, const char *: 0, float: 0, double: 0, long double: 0, default: ({name}))'
+        probes.append(f'enum : long long {{ __wgr_define_is_{i} = {kind}, __wgr_define_value_{i} = {value} }};')
+    out = _run(clang, ['-fsyntax-only', '-std=gnu2x', *flags, '-Xclang', '-ast-dump=json',
+                       '-Xclang', '-ast-dump-filter=__wgr_define_'],
+               source + '\n' + '\n'.join(probes) + '\n', root)
+    # with a filter, clang prints one JSON document per declaration it matched, in a row
+    decoder, documents, at = json.JSONDecoder(), [], 0
+    while at < len(out):
+        while at < len(out) and out[at].isspace():
+            at += 1
+        if at < len(out):
+            document, at = decoder.raw_decode(out, at)
+            documents.append(document)
+    ast = documents
+    found = {}
+
+    def evaluated(node):
+        # the ConstantExpr clang evaluated, under the cast to the enum's type
+        for child in node.get('inner') or ():
+            if 'value' in child:
+                return int(child['value'])
+            deeper = evaluated(child)
+            if deeper is not None:
+                return deeper
+        return None
+
+    def walk(node):
+        if isinstance(node, dict):
+            if node.get('kind') == 'EnumConstantDecl' and node.get('name', '').startswith('__wgr_define_'):
+                found[node['name']] = evaluated(node)
+            for child in node.get('inner') or ():
+                walk(child)
+        elif isinstance(node, list):
+            for child in node:
+                walk(child)
+    walk(ast)
+    return {name: found[f'__wgr_define_value_{i}'] for i, name in enumerate(names)
+            if found.get(f'__wgr_define_is_{i}') == 1 and found.get(f'__wgr_define_value_{i}') is not None}
 
 
 def functions_in(header, root=ROOT, include=(), clang=None, tool='headers'):
