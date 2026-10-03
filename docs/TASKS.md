@@ -144,7 +144,8 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
       libwgt's `wgt_resource_set_load_budget`): it paces every resource load,
       bundled, cached or local, so `wgr_asset_set_upload_budget` becomes
       `wgr_resource_set_load_budget` / `_get_load_budget` in `wgr_resource.h`, its
-      ~45 ms 4096² note kept. Callers: `examples/loading.c`,
+      ~45 ms 4096² note kept; a bool setter, false for a negative or non-finite
+      value (Rob: refuse, not clamp; 0 is one step a frame). Callers: `examples/loading.c`,
       `tools/bench/loadbench.c`, `tests/unit/pipeline_test.c`, `tools/check_rules.py`;
       regenerate both bindings.
 - [ ] Maybe: a node tree (parenting, cached transforms, enabled / visible / pickable
