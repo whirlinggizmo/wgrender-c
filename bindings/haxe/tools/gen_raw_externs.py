@@ -36,6 +36,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from wgrpath import WGRENDER  # noqa: E402
 import headers  # noqa: E402  (wgrender's tools/headers.py: the headers as clang reads them)
+from cabi import layout  # noqa: E402  (wgrender's tools/cabi.py: the structs' wasm32 layout)
 import cli  # noqa: E402
 
 if __name__ == '__main__':
@@ -119,21 +120,6 @@ def read_headers():
     functions = [(f.header, f.returns, f.name, None if f.variadic else [(p.type, p.name) for p in f.params])
                  for f in sorted(api.functions.values(), key=lambda f: order[f.header])]
     return enums, structs, functions
-
-
-def layout(structs, name):
-    """Field offsets in bytes, C rules — every member here is 4-aligned or a nest."""
-    offsets, at = [], 0
-    for ctype, field, count in structs[name]:
-        if ctype in structs:
-            size = layout(structs, ctype)[1] * max(count, 1)
-            offsets.append((field, ctype, at, count))
-        else:
-            unit = SCALARS.get(ctype, (None, None, 4, None))[2]
-            size = unit * max(count, 1)
-            offsets.append((field, ctype, at, count))
-        at += size
-    return offsets, at
 
 
 # ------------------------------------------------------------- the output ---
