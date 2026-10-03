@@ -3,7 +3,7 @@
 calls an error. tools/run_examples.py drive runs it for every example:
 
     tools/drive_example.py --site=out/wasm32/<variant>/site [--label=NAME] [--settle=MS] [--click] [--min-colours=N]
-                   [--ready=FILE] [--shot=PATH]
+                   [--ready=FILE] [--shot=PATH] [--page=PATH]
 
 It serves the site with tools/serve_site.py (wgrender's assets at /assets), waits --settle
 ms (default 6000), moves the mouse over the middle of the canvas, a little low (over
@@ -11,7 +11,8 @@ whatever the example puts there, which exercises picking and the hover state a s
 keeps), with --click clicks there, and takes a screenshot (--shot, default the
 example's build/wasm32-<variant>/check.png: the example's work, not its site). --ready is
 the file whose serving means the server is up (default wgrender-host.js, a guest's
-host).
+host). --page is the page to load, under the site (default /): the JS binding's site
+holds one per example, /examples/<name>/.
 
 The screenshot is saved because three bugs in this port were visible there and
 invisible to every assertion: a canvas with no CSS size, a model drawn off screen, and
@@ -38,6 +39,7 @@ def main():
     ap.add_argument('--label', default='guest')
     ap.add_argument('--settle', type=int, default=6000)
     ap.add_argument('--click', action='store_true')
+    ap.add_argument('--page', default='/')
     ap.add_argument('--min-colours', type=int, default=2)
     ap.add_argument('--ready', default='wgrender-host.js')
     ap.add_argument('--shot')
@@ -78,7 +80,7 @@ def main():
         page.on_event(on_event)
         for domain in ('Runtime', 'Log', 'Page'):
             page.send(f'{domain}.enable')
-        page.send('Page.navigate', {'url': f'http://127.0.0.1:{port}/'})
+        page.send('Page.navigate', {'url': f'http://127.0.0.1:{port}{args.page}'})
         time.sleep(args.settle / 1000)
         centre = page.send('Runtime.evaluate', {
             'expression': "(() => { const r = document.getElementById('canvas').getBoundingClientRect();"
