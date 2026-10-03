@@ -65,6 +65,8 @@ def run(cmd, **kw):
 def main():
     for tool in ('gen_raw_externs.py', 'gen_keys.py', 'check_coverage.py', 'check_refusals.py', 'gen_hxcpp_sources.py'):
         run([sys.executable, ROOT / 'tools' / tool, '--check'])
+    # the JS target calls through wgrender's JS binding, so it has to be current too
+    run([sys.executable, WGRENDER / 'bindings/js/tools/gen_binding.py', '--check'])
 
     # wgrender's sources compiled in, as every build of the binding does
     # (project/Build.xml), with its headless flags
@@ -195,11 +197,8 @@ def check_webhost_lists():
         print(f'  GUEST_ABI lists {n}, which bindings/host/wgr_guest.h does not declare')
         failed = True
 
-    library = {'_' + n for n in lists['library']}  # exported C library functions (WebHost.LIBRARY_EXPORTS)
     reached = {n for r in members.by_target(ROOT)['js'] if r['file'].endswith('.js.hx')
                for n in r['host'] if not n.startswith('_wgr_')}
-    for n in sorted(reached & library):
-        reached.discard(n)
     runtime = set(lists['runtime'])
     for n in sorted(reached - runtime):
         print(f'  RUNTIME_METHODS is missing {n}, which src/wgr reaches on the host module')

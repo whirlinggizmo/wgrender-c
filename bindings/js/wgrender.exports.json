@@ -519,5 +519,22 @@
   "_wgr_get_app_name",
   "_wgr_set_target_fps",
   "_wgr_get_time"
+ ],
+ "library": [
+  "_malloc",
+  "_free"
+ ],
+ "runtime": [
+  "addFunction",
+  "stringToUTF8",
+  "lengthBytesUTF8",
+  "UTF8ToString",
+  "stackAlloc",
+  "stackSave",
+  "stackRestore",
+  "HEAPU8",
+  "HEAP32",
+  "HEAPU32",
+  "HEAPF32"
  ]
 }

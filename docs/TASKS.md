@@ -286,10 +286,6 @@ VertexColorTest, TextureSettingsTest and BoxTextured on desktop, WebGL2, WebGPU)
 
 ## Bindings
 
-- [ ] Haxe's JS target goes through the JS binding (`bindings/js`) by default, and
-      Raw.js.hx's own marshalling goes (Rob, 2026-10-03). hxcpp keeps its direct C
-      calls. Measured level with Haxe direct in speed, GC and trimmed size (157.5 against
-      152.9 KB brotli); `-D wgr-js-binding` is the experiment to promote.
 - [ ] `into` in Haxe's public API: a getter that fills a caller-owned object or array,
       as the JS binding's does, so a per-frame read makes no garbage. The array form is
       the one that survives the caller's own property mangling.

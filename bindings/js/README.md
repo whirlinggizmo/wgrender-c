@@ -2,11 +2,10 @@
 
 wgrender from JavaScript and TypeScript in the browser: plain ES modules with TypeScript
 declarations beside them, generated from wgrender's public headers. The game runs as a
-JS *guest* of wgrender's wasm *host* (the guest ABI, `bindings/host/wgr_guest.h`), the
-same arrangement the Haxe binding's JS target uses.
-
-An experiment for now (2026-10-02): proving that a generated binding is usable before
-libwgt's binding phase builds on the same approach.
+JS *guest* of wgrender's wasm *host* (the guest ABI, `bindings/host/wgr_guest.h`).
+The Haxe binding's JS target calls through it (since 2026-10-03), so it is the one
+marshalling for every JS guest; `wgrender.exports.json` is what a host links for it,
+read by `tools/build_host.py` and by Haxe's `WebHost`.
 
 ## Files
 
@@ -59,7 +58,8 @@ The stress scene at 5,000 entities, against the Haxe binding's JS guest on the s
 | JS binding | 1.71, 1.79, 1.56 | 72.8 MB/min | 5-6 minor, max 0.8 ms, no late frames |
 | Haxe JS guest | 1.63, 1.57, 1.79 | 78.8 MB/min | 5-6 minor, max 0.7 ms, no late frames |
 
-Level: the same marshalling, so the same cost. The host here exports every call (528),
+Level: the same marshalling, so the same cost. (The Haxe guest marshalled for itself
+then, the same way; it has called through this binding since.) The host here exports every call (528),
 which is what a hot-reloading guest needs; trimming it to what one program imports comes
 later, from a bundler's module graph.
 

@@ -49,10 +49,6 @@ if __name__ == '__main__':
 BINDING = WGRENDER / 'bindings/js'
 HOST = WGRENDER / 'bindings/host'
 
-# What the binding's JS reaches on the Emscripten module besides the exports.
-RUNTIME_METHODS = ['addFunction', 'stringToUTF8', 'lengthBytesUTF8', 'UTF8ToString',
-                   'stackAlloc', 'stackSave', 'stackRestore', 'HEAPU8', 'HEAP32', 'HEAPU32', 'HEAPF32']
-
 
 def run(cmd, **kw):
     print('+ ' + ' '.join(str(c) for c in cmd), flush=True)
@@ -79,16 +75,18 @@ def main():
         sys.exit('build_host: --full or --trimmed, not both')
     if trimmed != (len(rest) == 1) or len(rest) > 1:
         sys.exit('build_host: --trimmed takes one LISTING file, and nothing else takes an argument')
+    # what the binding calls, its runtime's C library functions and runtime methods
+    binding = json.loads((BINDING / 'wgrender.exports.json').read_text(encoding='utf-8'))
     if trimmed:
         listing = pathlib.Path(rest[0])
         listed = sorted({'_' + n.strip().lstrip('_') for n in re.split(r'[,\s]+', listing.read_text()) if n.strip()})
     else:
-        listed = json.loads((BINDING / 'wgrender.exports.json').read_text(encoding='utf-8'))['functions']
+        listed = binding['functions']
     guest = sorted('_' + n for n in headers.functions_in(HOST / 'wgr_guest.h', WGRENDER, tool='build_host'))
     # guest.js's start() reads the host's version before anything else, so even a
     # trimmed host keeps those three
     version = ['_wgr_version_major', '_wgr_version_minor', '_wgr_version_patch']
-    exports = ['_main'] + guest + sorted(set(listed) | set(version)) + ['_malloc', '_free']
+    exports = ['_main'] + guest + sorted(set(listed) | set(version)) + binding['library']
     (work / 'exports.txt').write_text('\n'.join(exports) + '\n', encoding='utf-8')
 
     site.mkdir(parents=True, exist_ok=True)
@@ -96,7 +94,7 @@ def main():
     run([emcc, '-O2', f'-I{WGRENDER / "include"}', f'-I{HOST}', *target['program_cflags'],
          HOST / 'wgr_guest.c', lib, *target['ldflags'],
          '-sALLOW_TABLE_GROWTH=1', '-sMODULARIZE=1', '-sEXPORT_ES6=1', '-sEXPORT_NAME=createWgrHost',
-         f'-sEXPORTED_RUNTIME_METHODS={",".join(RUNTIME_METHODS)}',
+         f'-sEXPORTED_RUNTIME_METHODS={",".join(binding["runtime"])}',
          f'-sEXPORTED_FUNCTIONS=@{work / "exports.txt"}',
          '-o', site / 'wgrender-host.js'])
 

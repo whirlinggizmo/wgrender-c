@@ -5659,6 +5659,22 @@ TASKS.md's ticked items, by the section they were in.
 - [x] Optional subsystems (2026-09-19): linked by use, no build flags (see web size,
       structure, above); `make websize` reports per example
 
+### Bindings
+
+- [x] Haxe's JS target goes through the JS binding (2026-10-03, Rob's direction):
+      `Raw.js.hx` is wrappers over `bindings/js/wgrender.js`, which does the
+      marshalling for every JS guest; Haxe's own marshalling (the record slot, the
+      keyboard slot, strings per call) is gone, and hxcpp keeps its direct C calls.
+      `WebHost` always puts the binding beside the host (whole for `wgr-host=full`,
+      `gen_binding.py --trim --no-constants` otherwise) and `boot.js` sets `WgrJs`.
+      What the JS binding links (its exports, `_malloc`/`_free`, its runtime methods)
+      is data in its `wgrender.exports.json`, read by `build_host.py` and `WebHost`;
+      Haxe's `exports.json`, `LIBRARY_EXPORTS` and the `-D wgr-js-binding` /
+      `--via-js` experiment went. Haxe's `RUNTIME_METHODS` is now only what its guest
+      ABI reaches (7). Measured before switching (2026-10-02, stress at 5,000): level
+      in script time and GC, a trimmed page 157.5 against 152.9 KB brotli. All 34 Haxe
+      web examples driven clean after it
+
 ### Outside the library
 
 - [x] First language binding (2026-09-21): Haxe, as its own repo -- wgrender-hx

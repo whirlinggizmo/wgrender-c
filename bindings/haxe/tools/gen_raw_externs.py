@@ -4,10 +4,6 @@ wgrender's public headers.
 
     tools/gen_raw_externs.py          write both files
     tools/gen_raw_externs.py --check  say whether they are current, and exit non-zero if not
-    tools/gen_raw_externs.py --via-js DIR
-                                      an experiment: write DIR/wgr/impl/Raw.js.hx whose calls go
-                                      through the JS binding (bindings/js/wgrender.js) instead of
-                                      marshalling here. Put `-cp DIR` last on a web build to use it.
 
 Both files are written whole; neither is ever patched. Run it when wgrender's API
 moves, read what it reports, and rebuild.
@@ -23,21 +19,20 @@ four things, all declared in SPEC below rather than edited into the output:
   callbacks   a C function-pointer parameter has no shape the parser can infer
   values      a struct returned by value maps to a Haxe class in the public layer,
               whose constructor is expected to take the C fields in order
-  opaque      a struct too big to copy per frame; JS gets a heap pointer and a
-              generated table of field offsets to read it with
+  opaque      a struct too big to copy per frame; JS gets a heap pointer (the JS
+              binding's) and a generated table of field offsets to read it with
   skips       varargs, and anything else with no sane rendering
 
-Raw.js.hx reaches the host through quoted keys (Raw.host["_wgr_..."], not
-Raw.host._wgr_...), so a property-mangling minifier can't break it; V8 compiles a
-constant quoted key as a dotted one, so it costs nothing. It also writes
-src/wgr/impl/exports.json, every C function Raw.js.hx calls, which WebHost's full host
-exports: data the generator wrote, so nothing reads the Haxe back.
+Raw.js.hx calls wgrender's JS binding (bindings/js/wgrender.js, generated from the same
+headers by bindings/js/tools/gen_binding.py), which does the marshalling for every JS
+guest; Raw.cpp.hx calls C directly. It reaches the binding through quoted keys
+(WgrJs["wgr_..."], not WgrJs.wgr_...), so a property-mangling minifier can't break it;
+V8 compiles a constant quoted key as a dotted one, so it costs nothing.
 
 Everything else is mechanical. Functions whose types it cannot map are left out and
 listed at the end, so the gap is reported rather than silent.
 """
 import hashlib
-import json
 import os
 import pathlib
 import re
@@ -51,7 +46,7 @@ from cabi import layout  # noqa: E402  (wgrender's tools/cabi.py: the structs' w
 import cli  # noqa: E402
 
 if __name__ == '__main__':
-    cli.parse(__doc__, ('--check', '--via-js'), positional=None)
+    cli.parse(__doc__, ('--check',), positional=0)
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / 'src/wgr/impl'
@@ -97,21 +92,21 @@ MANUAL_JS = '''
 
 '''
 
-SCALARS = {  # C type -> (hxcpp, js), size, how JS reads it out of the heap
-    'void': ('Void', 'Void', 0, None),
-    'bool': ('Bool', 'Bool', 4, 'HEAPU8:1'),
-    'int': ('Int', 'Int', 4, 'HEAP32:4'),
-    'unsigned int': ('UInt32', 'Int', 4, 'HEAPU32:4'),
-    'unsigned': ('UInt32', 'Int', 4, 'HEAPU32:4'),
-    'float': ('Single', 'Float', 4, 'HEAPF32:4'),
-    'double': ('Float', 'Float', 8, None),
-    'wgr_handle_t': ('WgrHandle', 'Int', 4, 'HEAPU32:4'),
-    'wgr_color_t': ('WgrColor', 'Int', 4, 'HEAPU32:4'),
-    'const char *': ('ConstCharStar', 'String', 4, None),
-    'char *': ('ConstCharStar', 'String', 4, None),
+SCALARS = {  # C type -> (hxcpp, js), size
+    'void': ('Void', 'Void', 0),
+    'bool': ('Bool', 'Bool', 4),
+    'int': ('Int', 'Int', 4),
+    'unsigned int': ('UInt32', 'Int', 4),
+    'unsigned': ('UInt32', 'Int', 4),
+    'float': ('Single', 'Float', 4),
+    'double': ('Float', 'Float', 8),
+    'wgr_handle_t': ('WgrHandle', 'Int', 4),
+    'wgr_color_t': ('WgrColor', 'Int', 4),
+    'const char *': ('ConstCharStar', 'String', 4),
+    'char *': ('ConstCharStar', 'String', 4),
     # the opaque user pointer: hxcpp passes it, js never needs to (the guest ABI
     # carries an id instead), so it has no JS mapping and those calls drop out there.
-    'void *': ('VoidStar', None, 4, None),
+    'void *': ('VoidStar', None, 4),
 }
 
 # ------------------------------------------------------------- the headers ---
@@ -287,97 +282,6 @@ def emit_cpp(enums, structs, functions):
     return len(body), skipped
 
 
-def emit_js(enums, structs, functions):
-    body, skipped, values_used, opaque_used = [], [], set(), set()
-    emit_js.exports = []  # every C function a wrapper calls on the host, for exports.json
-    for header, ret, name, params in functions:
-        if name in SKIP:
-            continue
-        args = params
-        if args is None:
-            continue
-        types = [ret] + [t for t, _ in args]
-        if any(t in CALLBACKS for t in types):
-            skipped.append((name, 'takes a C callback — the guest ABI replaces it on js'))
-            continue
-        if ret in OPAQUE:
-            if any(hx(t, enums, 'js') is None for t, _ in args):
-                continue
-            opaque_used.add(ret)
-            emit_js.exports.append(name)
-            osig = ', '.join(f'{n}:{hx(t, enums, "js")}' for t, n in args)
-            ocall = ', '.join(f'cstr({n})' if t in ('const char *', 'char *') else n
-                              for t, n in args)
-            size = layout(structs, ret)[1]
-            body.append(
-                f'\t/**\n'
-                f'\t\tA pointer to a `{ret}` in the wasm heap — {size} bytes is too much to\n'
-                f'\t\tcopy per frame, so the public layer reads the fields it wants through\n'
-                f'\t\t`{layout_name(ret)}`. It has a slot of its own, so it stays valid until\n'
-                f'\t\tthe next call to this getter, however many other calls come between.\n'
-                f'\t**/\n'
-                f'\tpublic static function {name}({osig}):Int {{\n'
-                f'\t\tfinal out = opaqueSlot("{name}", {size});\n'
-                f'\t\tRaw.host["_{name}"](out{", " if ocall else ""}{ocall});\n'
-                f'\t\treturn out;\n\t}}')
-            continue
-        if any(hx(t, enums, 'js') is None for t in types):
-            continue
-        sig = ', '.join(f'{n}:{hx(t, enums, "js")}' for t, n in args)
-        call_args = ', '.join(f'cstr({n})' if t in ('const char *', 'char *') else n for t, n in args)
-        emit_js.exports.append(name)
-        if ret in VALUES:
-            values_used.add(ret)
-            fields, size = layout(structs, ret)
-            reads, heaps = [], set()
-            for field, ctype, at, count in fields:
-                if ctype in structs and ctype not in SCALARS:
-                    sub, _ = layout(structs, ctype)
-                    heaps.add('HEAPF32')
-                    reads.append(f'new {VALUES.get(ctype, "Vec3")}('
-                                 + ', '.join(f'f32[base + {(at + o) // 4}]' for _, _, o, _ in sub) + ')')
-                elif count:
-                    heaps.add('HEAP32')
-                    reads.append('[' + ', '.join(f'i32[base + {(at + i * 4) // 4}]' for i in range(count)) + ']')
-                else:
-                    heap, width = SCALARS[ctype][3].split(':')
-                    heaps.add(heap)
-                    if width == '1':
-                        reads.append(f'u8[out + {at}] != 0')
-                    else:
-                        reads.append(f'{ {"HEAP32": "i32", "HEAPU32": "u32", "HEAPF32": "f32"}[heap] }[base + {at // 4}]')
-            locals_ = '\n\t\t'.join(
-                f'final {v} = Raw.host["{k}"];' for k, v in
-                [('HEAP32', 'i32'), ('HEAPU32', 'u32'), ('HEAPF32', 'f32'), ('HEAPU8', 'u8')] if k in heaps)
-            body.append(
-                f'\tpublic static function {name}({sig}):{VALUES[ret]} {{\n'
-                f'\t\tfinal out = record({size});\n'
-                f'\t\tRaw.host["_{name}"](out{", " if call_args else ""}{call_args});\n'
-                f'\t\t{locals_}\n\t\tfinal base = out >> 2;\n'
-                f'\t\treturn new {VALUES[ret]}({", ".join(reads)});\n\t}}')
-        else:
-            call = f'Raw.host["_{name}"]({call_args})'
-            hret = hx(ret, enums, 'js')
-            out_type = "String" if ret in ("const char *", "char *") else hret
-            if any(t in ('const char *', 'char *') for t, _ in args):
-                # a call that passes a string releases its stack space as it returns, so a
-                # frame making thousands of them can't overflow the 64 KB wasm stack
-                value = (None if hret == 'Void' else 'result != 0' if hret == 'Bool'
-                         else 'str(result)' if ret in ('const char *', 'char *') else 'result')
-                lines = ['\t\tfinal mark = Raw.host["stackSave"]();',
-                         f'\t\t{call};' if value is None else f'\t\tfinal result:Dynamic = {call};',
-                         '\t\tRaw.host["stackRestore"](mark);'] + ([f'\t\treturn {value};'] if value else [])
-                body.append(f'\tpublic static inline function {name}({sig}):{out_type} {{\n'
-                            + '\n'.join(lines) + '\n\t}')
-            else:
-                line = (f'\t\t{call};' if hret == 'Void'
-                        else f'\t\treturn {call} != 0;' if hret == 'Bool'
-                        else f'\t\treturn str({call});' if ret in ('const char *', 'char *')
-                        else f'\t\treturn {call};')
-                body.append(f'\tpublic static inline function {name}({sig}):{out_type}\n{line}')
-    return body, skipped, values_used, opaque_used
-
-
 JS_PREAMBLE = '''
 import wgr.Handle;
 import wgr.MouseState;
@@ -398,26 +302,25 @@ typedef VoidStar = Int;
 typedef CStr = Int;
 
 /**
-	The same C surface Raw.cpp.hx declares, reached through the host module's exports.
+	The same C surface Raw.cpp.hx declares, reached through wgrender's JS binding
+	(bindings/js/wgrender.js), which does the marshalling: strings on the wasm stack,
+	released as each call returns; a struct through one fixed slot, read out at once
+	into a plain object; the keyboard state's own slot. One marshalling for every JS
+	guest, so Haxe's is the JS binding's and can't drift from it. Measured level with
+	marshalling here in speed and GC (V8 removes the binding's intermediate objects), at
+	about 3% more download for a trimmed page (2026-10-02).
 
-	Three rules this layer keeps, all of them measured hazards:
+	What stays here is the guest ABI's (`wgr.GuestAbi`), which the JS binding's own guest
+	runtime doesn't share: the host module, a C string for the window title, the stack
+	mark an op restores, and reads of the keyboard state in place.
 
-	- **Never hold a heap view.** The host links with `ALLOW_MEMORY_GROWTH`, so any
-	  allocation detaches every `HEAPF32`/`HEAP32` JS holds. Every read goes through
-	  `host.HEAPF32` at the point of use. Pointers survive growth; views do not.
-	- **Nothing accumulates within an op.** A struct comes back through one fixed slot
-	  (`record`), malloc'd once and read out at once; a string goes in on the wasm stack
-	  and the call that passed it releases it as it returns. An arena that lasted the
-	  whole op overflowed the 64 KB wasm stack at 5,000 vec3 getters in one frame
-	  (2026-10-02). The guest's op edge still restores the stack once, fault or not
-	  (`wgr.GuestAbi`), for a call that throws between saving and restoring it.
-	- **Names that cross into the host are quoted keys** (`host["_wgr_..."]`,
-	  `host["HEAPF32"]`): a minifier that mangles properties leaves quoted ones alone,
-	  and the host's export names can't change to match. V8 compiles a constant quoted
+	- **Names that cross into another module are quoted keys** (`WgrJs["wgr_..."]`,
+	  `host["HEAP32"]`): a minifier that mangles properties leaves quoted ones alone,
+	  and the other module's names can't change to match. V8 compiles a constant quoted
 	  key exactly as a dotted one.
-	- **Structs come back through a pointer.** The wasm C ABI returns anything larger
-	  than a scalar through a hidden first argument, so these read the fields out of
-	  the heap rather than getting a value.
+	- **Never hold a heap view.** The host links with `ALLOW_MEMORY_GROWTH`, so any
+	  allocation detaches every `HEAP32` JS holds. Every read goes through
+	  `host["HEAP32"]` at the point of use. Pointers survive growth; views do not.
 **/
 class Raw {
 	/** The Emscripten module, handed over at boot. **/
@@ -441,53 +344,21 @@ class Raw {
 		});
 	}
 
-	public static function attach(module:Dynamic):Void {
+	/** The host module, for the guest ABI; the boot page attaches the JS binding to it too. **/
+	public static function attach(module:Dynamic):Void
 		host = module;
-		slot = 0;
-		slotBytes = 0;
-		opaque = new Map();
-	}
 
-	static var slot = 0;
-	static var slotBytes = 0;
-	static var opaque = new Map<String, Int>();
-
-	/** The one slot a struct comes back through, at least `bytes` long: read it before the next. **/
-	static function record(bytes:Int):Int {
-		if (bytes > slotBytes) {
-			if (slot != 0)
-				host["_free"](slot);
-			slotBytes = bytes > 256 ? bytes : 256;
-			slot = host["_malloc"](slotBytes);
-		}
-		return slot;
-	}
-
-	/** An opaque struct's own slot, `bytes` long: valid until the next call to `name`. **/
-	static function opaqueSlot(name:String, bytes:Int):Int {
-		var pointer = opaque.get(name);
-		if (pointer == null) {
-			pointer = host["_malloc"](bytes);
-			opaque.set(name, pointer);
-		}
-		return pointer;
-	}
-
-	/** Where the op arena started; `GuestAbi` restores to here when an op ends. **/
+	/** Where the op's stack started; `GuestAbi` restores to here when an op ends. **/
 	public static inline function stackMark():Int
 		return host["stackSave"]();
 
 	public static inline function stackRelease(mark:Int):Void
 		host["stackRestore"](mark);
 
-	/** A NUL-terminated copy of `s` in the op's arena. **/
 	/**
-		A Haxe string as a C string in the wasm heap, and `null` as a null pointer.
-
-		The distinction matters: wgr_asset_ensure treats a null fetch_url as "use
-		the host, with redirects and variants" and a non-null one as "the caller chose
-		this exact file". An empty string is not the same thing, so null has to survive
-		the crossing — as it already does on hxcpp, through Native.cstr.
+		A Haxe string as a C string on the wasm stack, and `null` as a null pointer, for
+		the guest ABI's calls (the window title) and `Native.cstr`'s shared signature. The
+		caller releases it (`stackMark`, `stackRelease`).
 	**/
 	public static inline function cstr(s:String):Int {
 		if (s == null)
@@ -497,9 +368,6 @@ class Raw {
 		host["stringToUTF8"](s, pointer, length);
 		return pointer;
 	}
-
-	public static inline function str(pointer:Int):String
-		return host["UTF8ToString"](pointer);
 '''
 
 
@@ -549,7 +417,7 @@ class BuiltVersion {{
 
 
 
-# --------------------------------------------- the experiment: via the JS binding ---
+# ------------------------------------------------- js: over the JS binding ---
 
 def js_record(structs, ctype):
     """A Haxe anonymous structure for a record the JS binding returns as a plain object."""
@@ -586,25 +454,33 @@ def js_call(name, params):
     return f"js.Syntax.code('WgrJs[\"{name}\"]({holes})'{args})"
 
 
-def emit_js_via(enums, structs, functions):
+def emit_js(enums, structs, functions):
     """Raw.js.hx's calls as thin wrappers over the JS binding's functions, which do the
-    marshalling (strings, records, the scratch slot) themselves."""
-    externs, body = [], []
+    marshalling (strings, records, the keyboard state's slot) themselves. Returns the
+    wrappers, the extern declarations of the binding they call, what has no js rendering
+    and why, and the opaque structs read in place."""
+    externs, body, skipped, opaque_used = [], [], [], set()
     for header, ret, name, params in functions:
         if name in SKIP or params is None:
             continue
         types = [ret] + [t for t, _ in params]
         if any(t in CALLBACKS for t in types):
+            skipped.append((name, 'takes a C callback — the guest ABI replaces it on js'))
             continue
         if ret not in OPAQUE and any(hx(t, enums, 'js') is None for t in types):
             continue
         if any(hx(t, enums, 'js') is None for t, _ in params):
             continue
         sig = ', '.join(f'{n}:{hx(t, enums, "js")}' for t, n in params)
-        names = ', '.join(n for _, n in params)
         if ret in OPAQUE:
+            opaque_used.add(ret)
             externs.append(f'\tstatic function {name}({sig}):Int;')
-            body.append(f'\tpublic static inline function {name}({sig}):Int\n\t\treturn {js_call(name, params)};')
+            body.append(f'\t/**\n'
+                        f'\t\tA pointer to a `{ret}` in the wasm heap, too big to copy per frame: the\n'
+                        f'\t\tpublic layer reads the fields it wants through `{layout_name(ret)}`. Valid\n'
+                        f'\t\tuntil the next call to this getter.\n'
+                        f'\t**/\n'
+                        f'\tpublic static inline function {name}({sig}):Int\n\t\treturn {js_call(name, params)};')
         elif ret in VALUES:
             externs.append(f'\tstatic function {name}({sig}):{js_record(structs, ret)};')
             body.append(f'\tpublic static inline function {name}({sig}):{VALUES[ret]} {{\n'
@@ -615,48 +491,28 @@ def emit_js_via(enums, structs, functions):
             externs.append(f'\tstatic function {name}({sig}):{hret};')
             body.append(f'\tpublic static inline function {name}({sig}):{hret}\n'
                         f'\t\t{"" if hret == "Void" else "return "}{js_call(name, params)};')
-    return externs, body
-
-
-def write_via_js(out_dir, enums, structs, functions):
-    externs, body = emit_js_via(enums, structs, functions)
-    _, js_opaque = emit_js(enums, structs, functions)[2:]
-    layouts = emit_layouts(structs, js_opaque)
-    target = pathlib.Path(out_dir) / 'wgr/impl/Raw.js.hx'
-    target.parent.mkdir(parents=True, exist_ok=True)
-    extern_class = ('/** The JS binding (bindings/js/wgrender.js), which the page puts on the global as\n'
-                    '    WgrJs before the guest starts. **/\n'
-                    '@:native("WgrJs") extern class WgrJs {\n' + '\n'.join(externs) + '\n}\n')
-    target.write_text(header_comment() + JS_PREAMBLE + '\n' + '\n\n'.join(body) + '\n' + MANUAL_JS + '\n}\n\n'
-                      + extern_class + ''.join('\n' + c + '\n' for c in layouts), encoding='utf-8')
-    print(f'via-js: {len(body)} wrappers over the JS binding -> {target}')
+    return body, externs, skipped, opaque_used
 
 
 def main():
     if '--check' in sys.argv:
         sys.exit(check())
     enums, structs, functions = read_headers()
-    if '--via-js' in sys.argv:
-        rest = [a for a in sys.argv[1:] if not a.startswith('-')]
-        if len(rest) != 1:
-            sys.exit('gen_raw_externs: --via-js takes one directory')
-        write_via_js(rest[0], enums, structs, functions)
-        return
     print(f'{WGRENDER.name}: {len(functions)} functions, {len(enums)} enums, {len(structs)} structs')
 
     emit_built_version()
     n_cpp, cpp_skipped = emit_cpp(enums, structs, functions)
-    js_body, js_skipped, _, js_opaque = emit_js(enums, structs, functions)
-    layouts = emit_layouts(structs, js_opaque)
-    js_exports = sorted(set(emit_js.exports))
-    (OUT / 'exports.json').write_text(json.dumps({'headers': provenance()[2], 'functions': js_exports}, indent=1) + '\n',
-                                      encoding='utf-8')
+    js_body, js_externs, js_skipped, js_opaque = emit_js(enums, structs, functions)
+    extern_class = ('/** The JS binding (bindings/js/wgrender.js), which the boot page puts on the global\n'
+                    '    as WgrJs before the guest starts. **/\n'
+                    '@:native("WgrJs") extern class WgrJs {\n' + '\n'.join(js_externs) + '\n}\n')
     (OUT / 'Raw.js.hx').write_text(header_comment() + JS_PREAMBLE + '\n' + '\n\n'.join(js_body)
-                                   + '\n' + MANUAL_JS + '\n}\n'
-                                   + ''.join('\n' + c + '\n' for c in layouts), encoding='utf-8')
+                                   + '\n' + MANUAL_JS + '\n}\n\n' + extern_class
+                                   + ''.join('\n' + c + '\n' for c in emit_layouts(structs, js_opaque)),
+                                   encoding='utf-8')
 
     print(f'  Raw.cpp.hx  {n_cpp} externs')
-    print(f'  Raw.js.hx   {len(js_body)} wrappers')
+    print(f'  Raw.js.hx   {len(js_body)} wrappers over the JS binding')
     by_reason = {}
     for name, why in cpp_skipped:
         by_reason.setdefault(why, []).append(name)

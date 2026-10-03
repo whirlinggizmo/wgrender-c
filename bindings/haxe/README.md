@@ -37,7 +37,7 @@ src/wgr/impl/         the generated C surface, chosen by target. Nothing outside
                       binding imports from here; an app needs `import wgr.*` and no more
   Raw.hx                #error for a target with no implementation
   Raw.cpp.hx            hxcpp externs against wgr.h
-  Raw.js.hx             calls the host module's exports, and marshals
+  Raw.js.hx             calls wgrender's JS binding (bindings/js), which marshals
   GuestRaw.cpp.hx       externs for bindings/host/wgr_guest.h, which is this binding's own C
 bindings/host/wgr_guest.{c,h}  the guest ABI: wgrender as a host, five ops
 examples/             the guests, and simple-hxcpp the other way (all-in-one)
@@ -391,10 +391,11 @@ comparison against the C, Nim and Beef ports.
 
 Plain minification of the JS output (esbuild `--minify`, terser's defaults) is safe.
 Under **property** mangling (esbuild `--mangle-props`, terser `mangle.properties`,
-Closure's advanced mode) the binding stays safe: every name it sends to the wasm host is
-a quoted key (`Raw.host["_wgr_..."]`, `Raw.host["HEAPF32"]`), which manglers leave alone,
-and `Raw.host` is a `haxe.DynamicAccess`, so a dotted access that a mangler could break
-doesn't compile. V8 compiles a constant quoted key exactly as a dotted one, so it costs
+Closure's advanced mode) the binding stays safe: every name it sends to another module is
+a quoted key, which manglers leave alone: to the JS binding (`WgrJs["wgr_..."]`), to the
+fields of what the JS binding returns (`r["x"]`), and to the wasm host
+(`Raw.host["_wgr_guest_start"]`, `Raw.host["HEAP32"]`). `Raw.host` is a
+`haxe.DynamicAccess`, so a dotted access that a mangler could break doesn't compile. V8 compiles a constant quoted key exactly as a dotted one, so it costs
 nothing. Your own code needs nothing special: `getPosition` and the other vector getters
 return the binding's `Vec3`, whose fields a mangler renames consistently within your
 output.
@@ -410,8 +411,9 @@ positions read back right.
 
 ## Status
 
-`wgr.impl.Raw` covers all 480 of wgrender's calls on hxcpp and 470 on js; the
-hand-written API layer above it wraps 478. All 33 of wgrender's C examples could be
+`wgr.impl.Raw` covers all 521 of wgrender's calls on hxcpp and 517 on js (the other
+four take a C callback, which the guest ABI replaces); `tools/check_coverage.py` reports
+what the hand-written API layer above it wraps. All 33 of wgrender's C examples could be
 written against it without a gap.
 
 The two it leaves alone are a decision, not a backlog: `wgr_text_draw_n` and
@@ -471,10 +473,25 @@ to run it and read what it says:
 
 ```
 $ tools/gen_raw_externs.py
-wgrender-c: 480 functions, 18 enums, 12 structs
-  Raw.cpp.hx  478 externs
-  Raw.js.hx   467 wrappers
+wgrender-c: 521 functions, 20 enums, 12 structs
+  Raw.cpp.hx  521 externs
+  Raw.js.hx   517 wrappers over the JS binding
 ```
+
+**On js, the calls go through wgrender's JS binding** (`bindings/js/wgrender.js`,
+generated from the same headers by `bindings/js/tools/gen_binding.py`): each `Raw.js.hx`
+wrapper calls the binding's function of the same name, and the binding does the
+marshalling (strings on the wasm stack, a record read out of one fixed slot into a plain
+object, the keyboard state's own slot). One marshalling for every JS guest, so this
+binding's can't drift from it. `WebHost` puts the binding beside the host: whole for
+`-D wgr-host=full`, trimmed to the calls the guest makes otherwise, and the generated
+`boot.js` hands it the host and puts it on the global as `WgrJs` before the guest loads.
+What `Raw.js.hx` keeps for itself is the guest ABI's: the host module, the window
+title's C string, the stack mark an op restores, and the keyboard state's field offsets.
+Measured against marshalling here (2026-10-02, the stress scene at 5,000 entities):
+level in script time and GC, since V8 removes the binding's intermediate objects, and a
+trimmed page about 3% larger (157.5 against 152.9 KB brotli). Regenerate the JS binding
+(`bindings/js/tools/gen_binding.py`) whenever this one is.
 
 **hxcpp reaches every one of wgrender's public functions.** On js it reaches all but
 four, and those four take a C function pointer: the lifecycle setters, which the guest

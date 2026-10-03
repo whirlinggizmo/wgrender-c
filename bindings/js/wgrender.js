@@ -9,14 +9,14 @@
 // a constant quoted key exactly as a dotted one (measured: 0.757 ns per access either
 // way), and a minifier that isn't mangling turns it back into the dotted form.
 //
-// wgrender 0.0.1 at before-libwgt-harvest-274-gfdc61e7-dirty, 34 headers.
+// wgrender 0.0.1 at before-libwgt-harvest-286-g1628f98-dirty, 34 headers.
 // wgrender-headers: 6827926d0b71a752
 
 import { host, cstr, str, record, opaqueSlot } from "./src/runtime.js";
 export { readI32 } from "./src/runtime.js";
 
 /** The wgrender this binding was generated from; guest.start() compares it with the host's. */
-export const BUILT_VERSION = Object.freeze({ major: 0, minor: 0, patch: 1, commit: "before-libwgt-harvest-274-gfdc61e7-dirty", headers: "6827926d0b71a752" });
+export const BUILT_VERSION = Object.freeze({ major: 0, minor: 0, patch: 1, commit: "before-libwgt-harvest-286-g1628f98-dirty", headers: "6827926d0b71a752" });
 
 export const WGR_KEYBOARD_MAX_KEYS = 0x200;
 export const WGR_KEYBOARD_MAX_PRESSED_KEYS = 32;

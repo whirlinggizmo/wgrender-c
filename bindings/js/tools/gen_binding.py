@@ -36,8 +36,10 @@ Calls that take a C callback (wgr_set_init and the rest) aren't here: a JS guest
 registers its ops through src/guest.js and the guest ABI (bindings/host) instead.
 Anything else with no rendering is listed when the tool runs, never dropped silently.
 
-wgrender.exports.json lists the wasm exports the binding calls, for tools/build_host.py
-to link the host with: data the generator writes, so nothing reads the JS back.
+wgrender.exports.json lists what a host links for the binding: the wasm exports it
+calls, the C library functions its runtime calls (the allocator) and the Emscripten
+runtime methods it reaches. tools/build_host.py and the Haxe binding's WebHost link
+from it: data the generator writes, so nothing reads the JS back.
 """
 import hashlib
 import json
@@ -56,6 +58,15 @@ if __name__ == '__main__':
     cli.parse(__doc__, ('--check', '--trim', '--no-constants'), positional=None)
 
 OUT = WGRENDER / 'bindings/js'
+
+# What the binding reaches on the Emscripten module besides wgrender's exports: the C
+# library functions its runtime calls (the allocator, for the record slots), and the
+# runtime methods (-sEXPORTED_RUNTIME_METHODS) of src/runtime.js, src/guest.js and the
+# generated calls. Those files are written by hand, so these lists are too; they go
+# into wgrender.exports.json for every host that links the binding.
+LIBRARY = ['_malloc', '_free']
+RUNTIME = ['addFunction', 'stringToUTF8', 'lengthBytesUTF8', 'UTF8ToString',
+           'stackAlloc', 'stackSave', 'stackRestore', 'HEAPU8', 'HEAP32', 'HEAPU32', 'HEAPF32']
 FILES = ('wgrender.js', 'wgrender.d.ts', 'wgrender.exports.json')
 
 # C callback typedefs: replaced by the guest ABI for a JS guest.
@@ -358,7 +369,7 @@ def generate(only=None, constants=True):
            + '\n'.join(gen.record_types()) + '\n' + define_dts + '\n' + '\n'.join(enum_dts) + '\n' + '\n'.join(layout_dts) + '\n'
            + '\n'.join(gen.dts))
     exports = json.dumps({'generated': head.splitlines()[0][3:], 'headers': digest,
-                          'functions': gen.exports}, indent=1) + '\n'
+                          'functions': gen.exports, 'library': LIBRARY, 'runtime': RUNTIME}, indent=1) + '\n'
     return {'wgrender.js': js, 'wgrender.d.ts': dts, 'wgrender.exports.json': exports}, gen, digest
 
 

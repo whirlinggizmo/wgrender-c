@@ -20,8 +20,9 @@ using StringTools;
 	```
 
 	Put it anywhere in the section that builds your guest to JS. It links
-	`wgrender-host.js` and `wgrender-host.wasm` next to your `--js` output, and writes a
-	page to load them. The host is **trimmed** by default, exporting exactly the wgrender
+	`wgrender-host.js` and `wgrender-host.wasm` next to your `--js` output, puts
+	wgrender's JS binding beside them (`wgrender.js` and `src/runtime.js`, which your
+	guest's calls go through), and writes a page to load them. The host is **trimmed** by default, exporting exactly the wgrender
 	calls your guest makes (about half the size of a full one): for release. Your own
 	build is untouched: keep `-dce no --debug` or whatever else you like.
 
@@ -75,21 +76,15 @@ class WebHost {
 	];
 
 	/**
-		What the binding's JS reaches on the Emscripten module besides the exports.
-		`tools/check_binding.py` fails if `src/wgr` starts reaching one that is not here.
+		What `src/wgr` reaches on the Emscripten module besides the exports: the guest
+		ABI's (`GuestAbi.js.hx`, `Raw.js.hx`). `tools/check_binding.py` fails if it starts
+		reaching one that is not here, or stops reaching one that is. The JS binding's own
+		(its runtime's methods and C library functions) come from its
+		`wgrender.exports.json`, and the host links both.
 	**/
 	public static final RUNTIME_METHODS = [
-		"addFunction", "stringToUTF8", "lengthBytesUTF8", "UTF8ToString",
-		"stackAlloc", "stackSave", "stackRestore", "HEAPU8", "HEAP32", "HEAPU32", "HEAPF32"
+		"addFunction", "stringToUTF8", "lengthBytesUTF8", "stackAlloc", "stackSave", "stackRestore", "HEAP32"
 	];
-
-	/**
-		C library functions the host always exports, which the binding's JS calls on the
-		module as `_name`: the allocator, for the fixed slots structs come back through
-		(Raw.js.hx's `record`, `opaqueSlot`). `tools/check_binding.py` fails if the JS
-		reaches one that is not here.
-	**/
-	public static final LIBRARY_EXPORTS = ["malloc", "free"];
 
 	static inline final LISTING = "wgr-listing";
 	#end
@@ -119,15 +114,17 @@ class WebHost {
 		final flags = webFlags(wgrender, web);
 
 		final full = mode == "full";
-		final api = full ? bindingExports(binding) : listExports(state);
-		final exported = ["_main"].concat([for (n in dedupe(GUEST_ABI.concat(api))) '_$n']).concat([for (n in LIBRARY_EXPORTS) '_$n']);
+		final jsb = jsBinding(wgrender);
+		final api = full ? [for (n in jsb.functions) n.substr(1)] : listExports(state);
+		final exported = ["_main"].concat([for (n in dedupe(GUEST_ABI.concat(api))) '_$n']).concat(jsb.library);
+		final runtime = dedupe(RUNTIME_METHODS.concat(jsb.runtime));
 
 		final lib = Path.join([wgrender, flags.lib]);
 		final glue = Path.join([wgrender, "bindings/host/wgr_guest.c"]);
 		final header = Path.join([wgrender, "bindings/host/wgr_guest.h"]);
 		final out = Path.join([state, 'host-$mode']);
 		final stamp = [
-			exported.join(","), RUNTIME_METHODS.join(","), flags.ldflags.join(" "),
+			exported.join(","), runtime.join(","), flags.ldflags.join(" "),
 			lib + "@" + mtime(lib), glue + "@" + mtime(glue), header + "@" + mtime(header)
 		].join("\n");
 		final stampFile = Path.join([out, "stamp.txt"]);
@@ -144,7 +141,7 @@ class WebHost {
 				"-sMODULARIZE=1",
 				"-sEXPORT_ES6=1",
 				"-sEXPORT_NAME=createWgrHost",
-				'-sEXPORTED_RUNTIME_METHODS=${RUNTIME_METHODS.join(",")}',
+				'-sEXPORTED_RUNTIME_METHODS=${runtime.join(",")}',
 				'-sEXPORTED_FUNCTIONS=${exported.join(",")}',
 				"-o", Path.join([out, "wgrender-host.js"])
 			]));
@@ -154,25 +151,21 @@ class WebHost {
 		FileSystem.createDirectory(site);
 		for (f in ["wgrender-host.js", "wgrender-host.wasm"])
 			File.copy(Path.join([out, f]), Path.join([site, f]));
-		// An experiment (-D wgr-js-binding, with gen_raw_externs.py --via-js's Raw.js.hx on
-		// the class path): the calls go through the JS binding, which the page loads too.
-		final viaJs = Context.defined("wgr-js-binding");
-		if (viaJs) {
-			FileSystem.createDirectory(Path.join([site, "src"]));
-			if (full)
-				File.copy(Path.join([wgrender, "bindings/js/wgrender.js"]), Path.join([site, "wgrender.js"]));
-			else {
-				// trimmed: the binding module carries only the calls the host exports, without
-				// the constants (Haxe has its own enums)
-				final listing = Path.join([state, "js-binding.txt"]);
-				File.saveContent(listing, api.join("\n") + "\n");
-				run(python(), [Path.join([wgrender, "bindings/js/tools/gen_binding.py"]), "--trim", "--no-constants", listing, site]);
-			}
-			File.copy(Path.join([wgrender, "bindings/js/src/runtime.js"]), Path.join([site, "src/runtime.js"]));
+		// The calls go through wgrender's JS binding (Raw.js.hx calls it), which the page
+		// loads beside the host: whole for a full host, else trimmed to the same calls the
+		// host exports, without the constants (Haxe has its own enums).
+		FileSystem.createDirectory(Path.join([site, "src"]));
+		if (full)
+			File.copy(Path.join([wgrender, "bindings/js/wgrender.js"]), Path.join([site, "wgrender.js"]));
+		else {
+			final listing = Path.join([state, "js-binding.txt"]);
+			File.saveContent(listing, api.join("\n") + "\n");
+			run(python(), [Path.join([wgrender, "bindings/js/tools/gen_binding.py"]), "--trim", "--no-constants", listing, site]);
 		}
+		File.copy(Path.join([wgrender, "bindings/js/src/runtime.js"]), Path.join([site, "src/runtime.js"]));
 		// boot.js is glue that has to match the host, so it is always ours. The page is
 		// yours once it exists: written only when missing, never overwritten.
-		writeIfChanged(Path.join([site, "boot.js"]), viaJs ? bootJsViaJs(name) : bootJs(name));
+		writeIfChanged(Path.join([site, "boot.js"]), bootJs(name));
 		final page = Path.join([site, "index.html"]);
 		if (!FileSystem.exists(page))
 			File.saveContent(page, indexHtml(name, define("wgr-title", name), define("wgr-background", "#101218")));
@@ -262,13 +255,14 @@ class WebHost {
 		return Path.directory(Path.directory(Path.directory(Path.directory(self))));
 	}
 
-	/** Everything the JS binding can call: `-D wgr-host=full`. **/
-	static function bindingExports(binding:String):Array<String> {
-		// gen_raw_externs.py writes the list as data beside Raw.js.hx, rather than this
-		// reading the generated Haxe as text
-		final listed:{functions:Array<String>} = haxe.Json.parse(File.getContent(Path.join([binding, "src/wgr/impl/exports.json"])));
-		return dedupe(listed.functions);
-	}
+	/**
+		What the JS binding links against: every export it calls (`_wgr_...`, all of them
+		for `-D wgr-host=full`), the C library functions and the runtime methods its
+		runtime reaches. Its generator writes them as data beside wgrender.js, rather than
+		this reading generated code as text.
+	**/
+	static function jsBinding(wgrender:String):{functions:Array<String>, library:Array<String>, runtime:Array<String>}
+		return haxe.Json.parse(File.getContent(Path.join([wgrender, "bindings/js/wgrender.exports.json"])));
 
 	/**
 		The web build's settings, as wgrender's web build spells them: `WEB_THREADS`
@@ -393,6 +387,8 @@ class WebHost {
 <!-- Fetch the host, the guest and the wasm in parallel rather than one after another. -->
 <link rel="modulepreload" href="./boot.js">
 <link rel="modulepreload" href="./wgrender-host.js">
+<link rel="modulepreload" href="./wgrender.js">
+<link rel="modulepreload" href="./src/runtime.js">
 <link rel="modulepreload" href="./$name.js">
 <link rel="preload" href="./wgrender-host.wasm" as="fetch" type="application/wasm" crossorigin>
 <style>
@@ -409,28 +405,19 @@ class WebHost {
 </html>
 ';
 
-	static function bootJsViaJs(name:String):String
-		return '// Generated by wgr.macros.WebHost (-D wgr-js-binding): the calls go through the JS binding.
+	static function bootJs(name:String):String
+		return '// Generated by wgr.macros.WebHost on every build: it has to match the host.
+// Load the host, hand it to the JS binding (which the guest calls as WgrJs) and to the
+// Haxe guest, and let the guest start it.
 import createWgrHost from "./wgrender-host.js";
 import * as WgrJs from "./wgrender.js";
 import { attach } from "./src/runtime.js";
-globalThis.WgrJs = WgrJs; // Raw.js.hx (--via-js) calls it as WgrJs
+globalThis.WgrJs = WgrJs; // before the guest loads: Raw.js.hx calls it as WgrJs
 import "./$name.js"; // Haxe output; @:expose puts WgrGuest on the global
 
 const canvas = document.getElementById("canvas");
 const host = await createWgrHost({ canvas, print: (t) => console.log(t), printErr: (t) => console.log(t) });
 attach(host);
-globalThis.WgrGuest.start(host);
-';
-
-	static function bootJs(name:String):String
-		return '// Generated by wgr.macros.WebHost on every build: it has to match the host.
-// Load the host, hand it to the Haxe guest, and let the guest start it.
-import createWgrHost from "./wgrender-host.js";
-import "./$name.js"; // Haxe output; @:expose puts WgrGuest on the global
-
-const canvas = document.getElementById("canvas");
-const host = await createWgrHost({ canvas, print: (t) => console.log(t), printErr: (t) => console.log(t) });
 globalThis.WgrGuest.start(host);
 ';
 	#end
