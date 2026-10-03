@@ -16,7 +16,7 @@ What crosses the boundary, and how (the runtime that does it is src/runtime.js):
   numbers, handles, enums  passed as they are; unsigned results come back unsigned
   bool                     true/false in, true/false out
   const char *             copied into the wasm stack in, read back as a string out
-  vec2_t, vec3_t, records  read out of a scratch slot into a fresh plain object
+  vec2_t, vec3_t, records  read out of one fixed slot into a fresh plain object
   wgr_keyboard_state_t     too big to copy each frame: a pointer, read through the
                            generated WGR_KEYBOARD_STATE layout
 
@@ -75,7 +75,7 @@ RESERVED = {'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger', 
             'typeof', 'var', 'void', 'while', 'with', 'yield', 'let', 'static', 'await'}
 # ...nor one of the names the generated code itself uses: a C parameter called `host`
 # (wgr_asset_set_host's) would shadow the module every call goes through.
-RESERVED |= {'host', 'cstr', 'str', 'scratch', 'out', 'readI32'}
+RESERVED |= {'host', 'cstr', 'str', 'record', 'opaqueSlot', 'out', 'mark', 'result', 'readI32'}
 
 DIGEST_TAG = '// wgrender-headers: '
 
@@ -192,12 +192,18 @@ class Gen:
         self.exports.append('_' + name)
         comment = doc(fn.doc)
 
+        # A call that passes a string releases its stack space as it returns, so a frame
+        # making thousands of them can't overflow the wasm stack (runtime.js).
+        strings = any(t in ('const char *', 'char *') for t, _ in params)
+        save = '    const mark = host.stackSave();\n' if strings else ''
+        restore = '    host.stackRestore(mark);\n' if strings else ''
+
         if ret in OPAQUE:
             self.opaque.add(ret)
             _, size = layout(self.structs, ret)
             self.js.append(f'{comment}export function {name}({args}) {{\n'
-                           f'    const out = scratch({size});\n'
-                           f'    host._{name}(out{", " if call_args else ""}{call_args});\n'
+                           f'    const out = opaqueSlot("{name}", {size});\n{save}'
+                           f'    host._{name}(out{", " if call_args else ""}{call_args});\n{restore}'
                            f'    return out;\n}}\n')
             self.dts.append(f'{comment}export declare function {name}({sig}): number;\n')
             return
@@ -205,17 +211,24 @@ class Gen:
             self.records.add(ret)
             _, size = layout(self.structs, ret)
             self.js.append(f'{comment}export function {name}({args}) {{\n'
-                           f'    const out = scratch({size});\n'
-                           f'    host._{name}(out{", " if call_args else ""}{call_args});\n'
+                           f'    const out = record({size});\n{save}'
+                           f'    host._{name}(out{", " if call_args else ""}{call_args});\n{restore}'
                            f'    return {self.read_record(ret, "out")};\n}}\n')
             self.dts.append(f'{comment}export declare function {name}({sig}): {ret};\n')
             return
 
         call = f'host._{name}({call_args})'
         how = SCALARS[ret][1] if ret in SCALARS else 'raw'   # an enum is a number
-        body = {None: f'{call};', 'bool': f'return {call} !== 0;', 'raw': f'return {call};',
-                'u32': f'return {call} >>> 0;', 'str': f'return str({call});'}[how]
-        self.js.append(f'{comment}export function {name}({args}) {{\n    {body}\n}}\n')
+        if strings:
+            value = {None: None, 'bool': 'result !== 0', 'raw': 'result', 'u32': 'result >>> 0',
+                     'str': 'str(result)'}[how]
+            body = (f'{save}    {"" if value is None else "const result = "}{call};\n{restore}'
+                    + (f'    return {value};\n' if value else ''))
+            self.js.append(f'{comment}export function {name}({args}) {{\n{body}}}\n')
+        else:
+            body = {None: f'{call};', 'bool': f'return {call} !== 0;', 'raw': f'return {call};',
+                    'u32': f'return {call} >>> 0;', 'str': f'return str({call});'}[how]
+            self.js.append(f'{comment}export function {name}({args}) {{\n    {body}\n}}\n')
         self.dts.append(f'{comment}export declare function {name}({sig}): {self.ts(ret)};\n')
 
     # ------------------------------------------------------------ output ---
@@ -292,7 +305,7 @@ def generate():
     gen.skipped += define_skipped
     layout_js, layout_dts = gen.layouts()
 
-    js = (head + '\nimport { host, cstr, str, scratch } from "./src/runtime.js";\n'
+    js = (head + '\nimport { host, cstr, str, record, opaqueSlot } from "./src/runtime.js";\n'
           'export { readI32 } from "./src/runtime.js";\n\n'
           + built + '\n' + define_js + '\n' + '\n'.join(enum_js) + '\n' + '\n'.join(layout_js) + '\n' + '\n'.join(gen.js))
     dts = (head + '\nexport type wgr_handle_t = number;\n'

@@ -7,7 +7,8 @@
 // - it catches, turning a throw into the nonzero return the ABI expects, because an
 //   exception escaping into the host's frames freezes the page on an opaque
 //   "Uncaught [object WebAssembly.Exception]";
-// - it releases the scratch arena (runtime.js) once when the op ends, fault or not.
+// - it restores the wasm stack once when the op ends, fault or not: a call that throws
+//   between saving and restoring the stack (runtime.js) can't leave it moved.
 
 import { host, attach, cstr } from './runtime.js';
 import { BUILT_VERSION } from '../wgrender.js';

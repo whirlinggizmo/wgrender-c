@@ -14,7 +14,7 @@ libwgt's binding phase builds on the same approach.
 |---|---|
 | `wgrender.js`, `wgrender.d.ts` | every C function under its C name, the enums, the integer defines (colors, window flags) and the records; generated, never edited |
 | `wgrender.exports.json` | the wasm exports the binding calls, for the host's link; generated |
-| `src/runtime.js` | how a call crosses: strings in, records out, the scratch arena |
+| `src/runtime.js` | how a call crosses: strings in on the stack, records out through one fixed slot |
 | `src/guest.js` | the ops (`register`, `registerTick`, `start`) and their fault handling |
 | `examples/` | `hello` and `stress` (the scene every binding ports, `tools/bench/stress.c`) |
 | `tests/types.ts` | what TypeScript must accept and reject |
@@ -44,8 +44,10 @@ guest.register({ frame });
 guest.start(host, 800, 600, 'hello');
 ```
 
-A call that passes a string or returns a record uses the op's scratch arena, released
-when the op ends; outside an op, wrap such calls in `arena()` from `src/runtime.js`.
+Nothing a call allocates outlives it: a string goes in on the wasm stack and is released
+as the call returns, and a record comes back through one fixed slot, read out at once.
+(An arena that lasted the whole op overflowed the 64 KB wasm stack at 5,000 vec3 getters
+in one frame.) The keyboard state's pointer is valid until the next call that reads it.
 
 ## Measured
 

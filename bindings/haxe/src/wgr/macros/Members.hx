@@ -54,7 +54,7 @@ class Members {
 
 	/** WebHost's two hand-kept lists, as the compiler has them, printed as JSON. **/
 	public static function lists() {
-		Sys.println(Json.stringify({abi: WebHost.GUEST_ABI, runtime: WebHost.RUNTIME_METHODS}));
+		Sys.println(Json.stringify({abi: WebHost.GUEST_ABI, runtime: WebHost.RUNTIME_METHODS, library: WebHost.LIBRARY_EXPORTS}));
 	}
 
 	public static function collect():Array<Field> {

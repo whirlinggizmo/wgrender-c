@@ -4,6 +4,10 @@ wgrender's public headers.
 
     tools/gen_raw_externs.py          write both files
     tools/gen_raw_externs.py --check  say whether they are current, and exit non-zero if not
+    tools/gen_raw_externs.py --via-js DIR
+                                      an experiment: write DIR/wgr/impl/Raw.js.hx whose calls go
+                                      through the JS binding (bindings/js/wgrender.js) instead of
+                                      marshalling here. Put `-cp DIR` last on a web build to use it.
 
 Both files are written whole; neither is ever patched. Run it when wgrender's API
 moves, read what it reports, and rebuild.
@@ -40,7 +44,7 @@ from cabi import layout  # noqa: E402  (wgrender's tools/cabi.py: the structs' w
 import cli  # noqa: E402
 
 if __name__ == '__main__':
-    cli.parse(__doc__, ('--check',), positional=0)
+    cli.parse(__doc__, ('--check', '--via-js'), positional=None)
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / 'src/wgr/impl'
@@ -300,11 +304,11 @@ def emit_js(enums, structs, functions):
                 f'\t/**\n'
                 f'\t\tA pointer to a `{ret}` in the wasm heap — {size} bytes is too much to\n'
                 f'\t\tcopy per frame, so the public layer reads the fields it wants through\n'
-                f'\t\t`{layout_name(ret)}`. Valid until the current guest op returns, which is\n'
-                f'\t\twhen the op edge resets the stack this was taken from.\n'
+                f'\t\t`{layout_name(ret)}`. It has a slot of its own, so it stays valid until\n'
+                f'\t\tthe next call to this getter, however many other calls come between.\n'
                 f'\t**/\n'
                 f'\tpublic static function {name}({osig}):Int {{\n'
-                f'\t\tfinal out = scratch({size});\n'
+                f'\t\tfinal out = opaqueSlot("{name}", {size});\n'
                 f'\t\tRaw.host._{name}(out{", " if ocall else ""}{ocall});\n'
                 f'\t\treturn out;\n\t}}')
             continue
@@ -337,19 +341,30 @@ def emit_js(enums, structs, functions):
                 [('HEAP32', 'i32'), ('HEAPU32', 'u32'), ('HEAPF32', 'f32'), ('HEAPU8', 'u8')] if k in heaps)
             body.append(
                 f'\tpublic static function {name}({sig}):{VALUES[ret]} {{\n'
-                f'\t\tfinal out = scratch({size});\n'
+                f'\t\tfinal out = record({size});\n'
                 f'\t\tRaw.host._{name}(out{", " if call_args else ""}{call_args});\n'
                 f'\t\t{locals_}\n\t\tfinal base = out >> 2;\n'
                 f'\t\treturn new {VALUES[ret]}({", ".join(reads)});\n\t}}')
         else:
             call = f'Raw.host._{name}({call_args})'
             hret = hx(ret, enums, 'js')
-            line = (f'\t\t{call};' if hret == 'Void'
-                    else f'\t\treturn {call} != 0;' if hret == 'Bool'
-                    else f'\t\treturn str({call});' if ret in ('const char *', 'char *')
-                    else f'\t\treturn {call};')
-            body.append(f'\tpublic static inline function {name}({sig}):'
-                        f'{"String" if ret in ("const char *", "char *") else hret}\n{line}')
+            out_type = "String" if ret in ("const char *", "char *") else hret
+            if any(t in ('const char *', 'char *') for t, _ in args):
+                # a call that passes a string releases its stack space as it returns, so a
+                # frame making thousands of them can't overflow the 64 KB wasm stack
+                value = (None if hret == 'Void' else 'result != 0' if hret == 'Bool'
+                         else 'str(result)' if ret in ('const char *', 'char *') else 'result')
+                lines = ['\t\tfinal mark = Raw.host.stackSave();',
+                         f'\t\t{call};' if value is None else f'\t\tfinal result:Dynamic = {call};',
+                         '\t\tRaw.host.stackRestore(mark);'] + ([f'\t\treturn {value};'] if value else [])
+                body.append(f'\tpublic static inline function {name}({sig}):{out_type} {{\n'
+                            + '\n'.join(lines) + '\n\t}')
+            else:
+                line = (f'\t\t{call};' if hret == 'Void'
+                        else f'\t\treturn {call} != 0;' if hret == 'Bool'
+                        else f'\t\treturn str({call});' if ret in ('const char *', 'char *')
+                        else f'\t\treturn {call};')
+                body.append(f'\tpublic static inline function {name}({sig}):{out_type}\n{line}')
     return body, skipped, values_used, opaque_used
 
 
@@ -380,9 +395,12 @@ typedef CStr = Int;
 	- **Never hold a heap view.** The host links with `ALLOW_MEMORY_GROWTH`, so any
 	  allocation detaches every `HEAPF32`/`HEAP32` JS holds. Every read goes through
 	  `host.HEAPF32` at the point of use. Pointers survive growth; views do not.
-	- **Scratch is an arena per op.** Strings and struct-return slots come from
-	  `stackAlloc`, and the guest's op edge restores the stack pointer once when the op
-	  ends, fault or not (`wgr.GuestAbi`).
+	- **Nothing accumulates within an op.** A struct comes back through one fixed slot
+	  (`record`), malloc'd once and read out at once; a string goes in on the wasm stack
+	  and the call that passed it releases it as it returns. An arena that lasted the
+	  whole op overflowed the 64 KB wasm stack at 5,000 vec3 getters in one frame
+	  (2026-10-02). The guest's op edge still restores the stack once, fault or not
+	  (`wgr.GuestAbi`), for a call that throws between saving and restoring it.
 	- **Structs come back through a pointer.** The wasm C ABI returns anything larger
 	  than a scalar through a hidden first argument, so these read the fields out of
 	  the heap rather than getting a value.
@@ -409,6 +427,34 @@ class Raw {
 
 	public static function attach(module:Dynamic):Void {
 		host = module;
+		slot = 0;
+		slotBytes = 0;
+		opaque = new Map();
+	}
+
+	static var slot = 0;
+	static var slotBytes = 0;
+	static var opaque = new Map<String, Int>();
+
+	/** The one slot a struct comes back through, at least `bytes` long: read it before the next. **/
+	static function record(bytes:Int):Int {
+		if (bytes > slotBytes) {
+			if (slot != 0)
+				host._free(slot);
+			slotBytes = bytes > 256 ? bytes : 256;
+			slot = host._malloc(slotBytes);
+		}
+		return slot;
+	}
+
+	/** An opaque struct's own slot, `bytes` long: valid until the next call to `name`. **/
+	static function opaqueSlot(name:String, bytes:Int):Int {
+		var pointer = opaque.get(name);
+		if (pointer == null) {
+			pointer = host._malloc(bytes);
+			opaque.set(name, pointer);
+		}
+		return pointer;
 	}
 
 	/** Where the op arena started; `GuestAbi` restores to here when an op ends. **/
@@ -435,9 +481,6 @@ class Raw {
 		host.stringToUTF8(s, pointer, length);
 		return pointer;
 	}
-
-	static inline function scratch(bytes:Int):Int
-		return host.stackAlloc(bytes);
 
 	public static inline function str(pointer:Int):String
 		return host.UTF8ToString(pointer);
@@ -489,10 +532,88 @@ class BuiltVersion {{
 """, encoding='utf-8')
 
 
+
+# --------------------------------------------- the experiment: via the JS binding ---
+
+def js_record(structs, ctype):
+    """A Haxe anonymous structure for a record the JS binding returns as a plain object."""
+    fields = []
+    for field, ftype, _, count in layout(structs, ctype)[0]:
+        if ftype in structs:
+            t = js_record(structs, ftype)
+        else:
+            t = {'float': 'Float', 'bool': 'Bool'}.get(ftype, 'Int')
+        fields.append(f'final {field}:{"Array<" + t + ">" if count else t}')
+    return '{' + ' '.join(f + ';' for f in fields) + '}'
+
+
+def from_record(structs, ctype, expr):
+    """Haxe building the public layer's value from the JS binding's object `expr`."""
+    args = []
+    for field, ftype, _, count in layout(structs, ctype)[0]:
+        if ftype in structs:
+            args.append(from_record(structs, ftype, f'{expr}.{field}'))
+        else:
+            args.append(f'{expr}.{field}')
+    return f'new {VALUES.get(ctype, "Vec3")}({", ".join(args)})'
+
+
+def emit_js_via(enums, structs, functions):
+    """Raw.js.hx's calls as thin wrappers over the JS binding's functions, which do the
+    marshalling (strings, records, the scratch slot) themselves."""
+    externs, body = [], []
+    for header, ret, name, params in functions:
+        if name in SKIP or params is None:
+            continue
+        types = [ret] + [t for t, _ in params]
+        if any(t in CALLBACKS for t in types):
+            continue
+        if ret not in OPAQUE and any(hx(t, enums, 'js') is None for t in types):
+            continue
+        if any(hx(t, enums, 'js') is None for t, _ in params):
+            continue
+        sig = ', '.join(f'{n}:{hx(t, enums, "js")}' for t, n in params)
+        names = ', '.join(n for _, n in params)
+        if ret in OPAQUE:
+            externs.append(f'\tstatic function {name}({sig}):Int;')
+            body.append(f'\tpublic static inline function {name}({sig}):Int\n\t\treturn WgrJs.{name}({names});')
+        elif ret in VALUES:
+            externs.append(f'\tstatic function {name}({sig}):{js_record(structs, ret)};')
+            body.append(f'\tpublic static inline function {name}({sig}):{VALUES[ret]} {{\n'
+                        f'\t\tfinal r = WgrJs.{name}({names});\n'
+                        f'\t\treturn {from_record(structs, ret, "r")};\n\t}}')
+        else:
+            hret = 'String' if ret in ('const char *', 'char *') else hx(ret, enums, 'js')
+            externs.append(f'\tstatic function {name}({sig}):{hret};')
+            body.append(f'\tpublic static inline function {name}({sig}):{hret}\n'
+                        f'\t\t{"" if hret == "Void" else "return "}WgrJs.{name}({names});')
+    return externs, body
+
+
+def write_via_js(out_dir, enums, structs, functions):
+    externs, body = emit_js_via(enums, structs, functions)
+    _, js_opaque = emit_js(enums, structs, functions)[2:]
+    layouts = emit_layouts(structs, js_opaque)
+    target = pathlib.Path(out_dir) / 'wgr/impl/Raw.js.hx'
+    target.parent.mkdir(parents=True, exist_ok=True)
+    extern_class = ('/** The JS binding (bindings/js/wgrender.js), which the page puts on the global as\n'
+                    '    WgrJs before the guest starts. **/\n'
+                    '@:native("WgrJs") extern class WgrJs {\n' + '\n'.join(externs) + '\n}\n')
+    target.write_text(header_comment() + JS_PREAMBLE + '\n' + '\n\n'.join(body) + '\n' + MANUAL_JS + '\n}\n\n'
+                      + extern_class + ''.join('\n' + c + '\n' for c in layouts), encoding='utf-8')
+    print(f'via-js: {len(body)} wrappers over the JS binding -> {target}')
+
+
 def main():
     if '--check' in sys.argv:
         sys.exit(check())
     enums, structs, functions = read_headers()
+    if '--via-js' in sys.argv:
+        rest = [a for a in sys.argv[1:] if not a.startswith('-')]
+        if len(rest) != 1:
+            sys.exit('gen_raw_externs: --via-js takes one directory')
+        write_via_js(rest[0], enums, structs, functions)
+        return
     print(f'{WGRENDER.name}: {len(functions)} functions, {len(enums)} enums, {len(structs)} structs')
 
     emit_built_version()

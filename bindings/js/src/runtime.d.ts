@@ -8,9 +8,9 @@ export declare function attach(module: unknown): void;
 export declare function cstr(s: string | null | undefined): number;
 /** A C string out ("" for a null pointer). */
 export declare function str(pointer: number): string;
-/** `bytes` of the op's scratch arena. */
-export declare function scratch(bytes: number): number;
+/** The one slot a record comes back through (at least `bytes`); read it before the next. */
+export declare function record(bytes: number): number;
+/** An opaque record's own slot: valid until the next call to the same getter. */
+export declare function opaqueSlot(name: string, bytes: number): number;
 /** A 32-bit word at `index` words from `pointer`, for the opaque layouts. */
 export declare function readI32(pointer: number, index: number): number;
-/** Run `fn` with its own scratch arena: for calls made outside an op. */
-export declare function arena<T>(fn: () => T): T;

@@ -47,6 +47,7 @@ site changes; the wrapper adds a call to each wgr call, so time frames with fram
 """
 import contextlib
 import json
+import re
 import sys
 import threading
 import time
@@ -59,8 +60,28 @@ import weblib  # noqa: E402
 
 @contextlib.contextmanager
 def page_on(site, label, probe='wgrender-host.js', display='headless', extra_args=()):
-    """(page session, site base URL): a browser on its own profile, the site served."""
+    """(page session, site base URL): a browser on its own profile, the site served.
+
+    A page that logs an error -- a console error, an uncaught exception, a wgrender
+    [ERROR] or [FATAL], a browser error -- fails the measurement rather than returning a
+    number: a frame that faults partway does less work and times as faster, which is
+    how a stack overflow once passed for a speedup (2026-10-02)."""
     run = weblib.RunProcesses(label)
+    errors = []
+
+    def on_error(msg):
+        params = msg.get('params', {})
+        if msg['method'] == 'Runtime.consoleAPICalled':
+            text = ' '.join(str(a['value']) if 'value' in a else a.get('description', '') for a in params['args'])
+            if params.get('type') == 'error' or re.search(r'\[(ERROR|FATAL)', text):
+                errors.append(text)
+        elif msg['method'] == 'Runtime.exceptionThrown':
+            d = params['exceptionDetails']
+            errors.append('UNCAUGHT ' + ((d.get('exception') or {}).get('description') or d.get('text') or ''))
+        elif msg['method'] == 'Log.entryAdded' and params['entry']['level'] == 'error' \
+                and params['entry']['source'] != 'network':
+            errors.append(f'[{params["entry"]["source"]}] {params["entry"].get("text", "")}')
+
     try:
         port = weblib.free_port()
         run.spawn([weblib.PYTHON, weblib.ROOT / 'tools' / 'serve_site.py', port, Path(site).resolve()])
@@ -68,13 +89,18 @@ def page_on(site, label, probe='wgrender-host.js', display='headless', extra_arg
         debug_base, browser = weblib.launch_browser(run, weblib.find_browser(), display, extra_args=extra_args)
         target = browser.send('Target.createTarget', {'url': 'about:blank'})['targetId']
         page = weblib.open_session(f'ws://{urllib.parse.urlsplit(debug_base).netloc}/devtools/page/{target}')
+        page.on_event(on_error)
         page.send('Runtime.enable')
+        page.send('Log.enable')
         page.send('Page.enable')
         yield page, f'http://127.0.0.1:{port}'
         page.close()
         browser.close()
     finally:
         run.stop()
+    if errors:
+        shown = '\n  '.join(e.split('\n')[0][:200] for e in errors[:5])
+        raise RuntimeError(f'{label}: the page logged {len(errors)} error(s), so its numbers mean nothing:\n  {shown}')
 
 
 def evaluate(page, expression, timeout=15):

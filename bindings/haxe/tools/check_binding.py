@@ -195,8 +195,11 @@ def check_webhost_lists():
         print(f'  GUEST_ABI lists {n}, which bindings/host/wgr_guest.h does not declare')
         failed = True
 
+    library = {'_' + n for n in lists['library']}  # exported C library functions (WebHost.LIBRARY_EXPORTS)
     reached = {n for r in members.by_target(ROOT)['js'] if r['file'].endswith('.js.hx')
                for n in r['host'] if not n.startswith('_wgr_')}
+    for n in sorted(reached & library):
+        reached.discard(n)
     runtime = set(lists['runtime'])
     for n in sorted(reached - runtime):
         print(f'  RUNTIME_METHODS is missing {n}, which src/wgr reaches on the host module')
