@@ -46,7 +46,7 @@ class Guest {
 		GuestAbi.autostart(start);
 	}
 
-	// --- the guest ABI (host/wgr_guest.h) ---
+	// --- the guest ABI (bindings/host/wgr_guest.h) ---
 
 	/**
 		Register the ops, then start the host. `wgr.GuestAbi` is per-target — the JS

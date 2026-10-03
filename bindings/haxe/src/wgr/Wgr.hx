@@ -50,7 +50,7 @@ class Wgr {
 	/**
 		The lifecycle, on both targets.
 
-		These go through the guest glue (`host/wgr_guest.h`), which owns wgrender's
+		These go through the guest glue (`bindings/host/wgr_guest.h`), which owns wgrender's
 		lifecycle slots and dispatches to whatever is set here. That is what the js
 		host already does, so routing hxcpp the same way makes one source build either
 		shape: all-in-one, where the Haxe program is linked with wgrender, or as a

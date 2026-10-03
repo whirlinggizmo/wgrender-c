@@ -58,7 +58,7 @@ using StringTools;
 class WebHost {
 	#if macro
 	/**
-		The host glue (`host/wgr_guest.h`), which every guest needs whatever it calls. It
+		The host glue (`bindings/host/wgr_guest.h`), which every guest needs whatever it calls. It
 		is our own contract and a handful of small functions, so it is listed rather than
 		derived; `tools/check_binding.py` fails if the header gains or loses one.
 	**/
@@ -106,8 +106,8 @@ class WebHost {
 		final exported = ["_main"].concat([for (n in dedupe(GUEST_ABI.concat(api))) '_$n']).concat(["_malloc", "_free"]);
 
 		final lib = Path.join([wgrender, flags.lib]);
-		final glue = Path.join([binding, "host/wgr_guest.c"]);
-		final header = Path.join([binding, "host/wgr_guest.h"]);
+		final glue = Path.join([wgrender, "bindings/host/wgr_guest.c"]);
+		final header = Path.join([wgrender, "bindings/host/wgr_guest.h"]);
 		final out = Path.join([state, full ? "host-full" : "host"]);
 		final stamp = [
 			exported.join(","), RUNTIME_METHODS.join(","), flags.ldflags.join(" "),
@@ -122,7 +122,7 @@ class WebHost {
 		} else {
 			Sys.println('WebHost: linking the host ($what)');
 			FileSystem.createDirectory(out);
-			run("emcc", ["-O2", '-I$wgrender/include', '-I$binding/host'].concat(flags.cflags).concat([glue, lib]).concat(flags.ldflags).concat([
+			run("emcc", ["-O2", '-I$wgrender/include', '-I$wgrender/bindings/host'].concat(flags.cflags).concat([glue, lib]).concat(flags.ldflags).concat([
 				"-sALLOW_TABLE_GROWTH=1", // the guest installs its ops as JS functions turned into C pointers
 				"-sMODULARIZE=1",
 				"-sEXPORT_ES6=1",

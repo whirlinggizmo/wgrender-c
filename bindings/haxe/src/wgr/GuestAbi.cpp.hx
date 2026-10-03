@@ -6,7 +6,7 @@ package wgr;
 import wgr.impl.GuestRaw;
 
 /**
-	The guest side of `host/wgr_guest.h`, for the hxcpp target: the host is the same C
+	The guest side of `bindings/host/wgr_guest.h`, for the hxcpp target: the host is the same C
 	glue compiled into this binary, and the ops are plain function pointers.
 
 	The counterpart of `GuestAbi.js.hx`. There is no scratch arena here — hxcpp passes

@@ -6,7 +6,7 @@ import wgr.impl.Raw.VoidStar;
 import wgr.impl.Raw.WgrHandle;
 
 /**
-	The guest ABI (`host/wgr_guest.h`) as C function pointers.
+	The guest ABI (`bindings/host/wgr_guest.h`) as C function pointers.
 
 	Hand-written, and deliberately not in `Raw.cpp.hx`: that file is generated whole
 	from wgrender's own headers, so anything added to it is lost on the next run. This

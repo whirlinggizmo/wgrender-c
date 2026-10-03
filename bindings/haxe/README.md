@@ -38,8 +38,8 @@ src/wgr/impl/         the generated C surface, chosen by target. Nothing outside
   Raw.hx                #error for a target with no implementation
   Raw.cpp.hx            hxcpp externs against wgr.h
   Raw.js.hx             calls the host module's exports, and marshals
-  GuestRaw.cpp.hx       externs for host/wgr_guest.h, which is this binding's own C
-host/wgr_guest.{c,h}  the guest ABI: wgrender as a host, five ops
+  GuestRaw.cpp.hx       externs for bindings/host/wgr_guest.h, which is this binding's own C
+bindings/host/wgr_guest.{c,h}  the guest ABI: wgrender as a host, five ops
 examples/             the guests, and simple-hxcpp the other way (all-in-one)
 project/              how a build compiles wgrender (the repository two directories up)
 
@@ -160,7 +160,7 @@ correctness, and `@:using` gives the autocomplete back.
 
 An **all-in-one** app calls `Wgr.initValues` / `setInit` / `setFrame` / `run` and is
 compiled into the binary (or the wasm) with wgrender. A **guest** app implements
-`host/wgr_guest.h`'s ops — `init`, `frame`, `asset`, `shutdown`, and an optional
+`bindings/host/wgr_guest.h`'s ops — `init`, `frame`, `asset`, `shutdown`, and an optional
 fixed-rate `tick` — and the host
 calls them; on js the host is a wasm module the page loads, on hxcpp it is linked in
 and the Haxe program's `main` is the entry point.

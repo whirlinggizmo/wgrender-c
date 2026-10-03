@@ -2,7 +2,7 @@ package wgr;
 
 
 /**
-	The guest side of `host/wgr_guest.h`, for the JS target: the host is an Emscripten
+	The guest side of `bindings/host/wgr_guest.h`, for the JS target: the host is an Emscripten
 	module and the ops are JS functions turned into C function pointers.
 
 	Haxe picks this over `GuestAbi.cpp.hx` by target, so `Guest.hx` carries no `#if` of

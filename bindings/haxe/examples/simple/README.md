@@ -21,7 +21,7 @@ renderer rather than a simulation:
 | Game state and logic | When ops are called, and in what order |
 | The handles it creates | The window, the loop, assets, input, the scene |
 
-`host/wgr_guest.h` is the whole contract — three ops (`init`, `frame`, `shutdown`),
+`bindings/host/wgr_guest.h` is the whole contract — three ops (`init`, `frame`, `shutdown`),
 registered once. wgrender was already most of the way to being a host:
 it owns the loop through `sapp_run`, hands out handles rather than pointers, and
 keeps a retained scene that draws in one call.
@@ -177,7 +177,7 @@ Three measured hazards, all handled in one place:
 ## Desktop: the same guest, native
 
 `haxe build.desktop.hxml` builds `Guest.hx` through hxcpp instead of to JS. There is no
-wasm and no host module: hxcpp compiles `host/wgr_guest.c` and links wgrender straight
+wasm and no host module: hxcpp compiles `bindings/host/wgr_guest.c` and links wgrender straight
 into the binary, so the guest ABI is a set of plain function pointers. Verified
 running the same scene with `Platform: desktop`.
 
@@ -192,7 +192,7 @@ picks `Raw`:
 | `src/wgr/impl/Raw.js.hx` | 1,723 | 0 |
 | `src/wgr/impl/Raw.cpp.hx` | 1,150 | 0 |
 | `src/wgr/*.hx` — the shared API | 5,014 | 119 |
-| `host/wgr_guest.c` | 214 | 5 |
+| `bindings/host/wgr_guest.c` | 214 | 5 |
 
 The game itself now has none at all. The three that used to be there were the asset
 base — a served origin on the web, a directory on desktop — and they moved into
@@ -208,7 +208,7 @@ Three places, and no more:
 - **Who calls `main`.** On the web nothing in the module can be the entry point, so
   Emscripten gets a stub and the page's boot script registers the guest and calls
   `wgr_guest_start`. On desktop the guest is compiled in and hxcpp supplies `main`, so
-  the glue's stub is a duplicate symbol — `host/wgr_guest.c`'s one line of `#ifdef`.
+  the glue's stub is a duplicate symbol — `bindings/host/wgr_guest.c`'s one line of `#ifdef`.
   `GuestAbi.autostart` is the Haxe side of the same fact.
 - **How an op becomes a function pointer.** `addFunction` on a JS function, against
   `cpp.Callable.fromStaticFunction` on a static one.

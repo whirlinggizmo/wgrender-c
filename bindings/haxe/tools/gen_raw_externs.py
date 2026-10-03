@@ -47,7 +47,7 @@ OUT = ROOT / 'src/wgr/impl'
 # ---------------------------------------------------------------- the spec ---
 
 # C callback typedefs: the Haxe function type, and whether the JS layer can offer it.
-# The guest ABI (host/wgr_guest.h) replaces every one of these on js, so none can.
+# The guest ABI (bindings/host/wgr_guest.h) replaces every one of these on js, so none can.
 CALLBACKS = {
     'wgr_lifecycle_fn': '(user:VoidStar) -> Void',
     'wgr_frame_fn': '(dt:Single, tickFraction:Single, user:VoidStar) -> Void',

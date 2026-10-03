@@ -30,7 +30,7 @@ Then check-cppia: the whole binding in a -D scriptable executable, and a cppia m
 that calls every public function of it, loaded into that, which is what hot reload
 does with an application's code (README, "Calling it from cppia").
 
-And it compiles the binding's own C, host/wgr_guest.c, with wgrender's warnings as
+And it compiles the binding's own C, bindings/host/wgr_guest.c, with wgrender's warnings as
 errors, which no build of the binding otherwise holds it to.
 
 Then it builds the suite twice: native, where it runs, and against the js binding,
@@ -102,7 +102,7 @@ def main():
 
     check_cppia()
 
-    print("host/wgr_guest.c with wgrender's warnings, as errors")
+    print("bindings/host/wgr_guest.c with wgrender's warnings, as errors")
     check_guest_warnings()
 
     print('WebHost lists')
@@ -137,7 +137,7 @@ def check_cppia():
 
 
 def check_guest_warnings():
-    """The binding's own C -- host/wgr_guest.c, the only C here that isn't wgrender's --
+    """The binding's own C -- bindings/host/wgr_guest.c, the only C here that isn't wgrender's --
     compiled with the warnings wgrender's own build uses, as errors.
 
     hxcpp compiles it with the compiler's defaults and Emscripten's, so nothing else here
@@ -150,16 +150,16 @@ def check_guest_warnings():
     import shutil
     manifest = json.loads((WGRENDER / 'build.json').read_text(encoding='utf-8'))
     BUILD.mkdir(parents=True, exist_ok=True)
-    source, includes = ROOT / 'host/wgr_guest.c', [WGRENDER / 'include', ROOT / 'host']
+    source, includes = WGRENDER / 'bindings/host/wgr_guest.c', [WGRENDER / 'include', WGRENDER / 'bindings/host']
     if os.name == 'nt':
         if not shutil.which('cl'):
-            sys.exit('check_binding: no cl.exe on PATH to compile host/wgr_guest.c with (run vcvars64.bat first)')
+            sys.exit('check_binding: no cl.exe on PATH to compile bindings/host/wgr_guest.c with (run vcvars64.bat first)')
         run(['cl', '/nologo', '/c', '/W3', '/WX', '/O2', *(f'/I{d}' for d in includes),
              f'/Fo{BUILD / "wgr_guest.obj"}', source])
     else:
         cc = os.environ.get('CC') or shutil.which('cc') or shutil.which('gcc') or shutil.which('clang')
         if not cc:
-            sys.exit('check_binding: no C compiler (CC, cc, gcc or clang) to compile host/wgr_guest.c with')
+            sys.exit('check_binding: no C compiler (CC, cc, gcc or clang) to compile bindings/host/wgr_guest.c with')
         run([cc, f'-std={manifest["std"]}', '-O2', *manifest['warn'], '-Werror',
              *(f'-I{d}' for d in includes), '-c', '-o', BUILD / 'wgr_guest.o', source])
 
@@ -185,14 +185,14 @@ def check_webhost_lists():
     lists = json.loads(done.stdout.strip().splitlines()[-1])
 
     failed = False
-    abi = {n for n in headers.functions_in(ROOT / 'host/wgr_guest.h', WGRENDER, tool='check')
+    abi = {n for n in headers.functions_in(WGRENDER / 'bindings/host/wgr_guest.h', WGRENDER, tool='check')
            if n.startswith('wgr_guest_')}
     have = set(lists['abi'])
     for n in sorted(abi - have):
-        print(f'  GUEST_ABI is missing {n}, which host/wgr_guest.h declares')
+        print(f'  GUEST_ABI is missing {n}, which bindings/host/wgr_guest.h declares')
         failed = True
     for n in sorted(have - abi):
-        print(f'  GUEST_ABI lists {n}, which host/wgr_guest.h does not declare')
+        print(f'  GUEST_ABI lists {n}, which bindings/host/wgr_guest.h does not declare')
         failed = True
 
     reached = {n for r in members.by_target(ROOT)['js'] if r['file'].endswith('.js.hx')
@@ -207,7 +207,7 @@ def check_webhost_lists():
 
     if failed:
         return 1
-    print(f'  GUEST_ABI matches host/wgr_guest.h ({len(abi)}); '
+    print(f'  GUEST_ABI matches bindings/host/wgr_guest.h ({len(abi)}); '
           f'RUNTIME_METHODS matches src/wgr ({len(runtime)})')
     return 0
 

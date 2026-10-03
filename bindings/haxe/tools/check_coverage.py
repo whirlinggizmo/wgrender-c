@@ -111,7 +111,7 @@ def main():
     by_header = c_functions()
     every = {fn for fns in by_header.values() for fn in fns}
     api, raw = reached()
-    # The guest ABI's own calls (wgr_guest_*) live in host/wgr_guest.h, not in
+    # The guest ABI's own calls (wgr_guest_*) live in bindings/host/wgr_guest.h, not in
     # wgrender's public headers, so they are not part of the surface being measured.
     # Counting them made the headline read 467/466.
     api &= every
