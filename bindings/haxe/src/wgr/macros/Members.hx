@@ -95,6 +95,9 @@ class Members {
 				calls.push(name);
 			case EField({expr: EConst(CIdent("host")) | EField({expr: EConst(CIdent("Raw"))}, "host")}, name) if (!host.contains(name)):
 				host.push(name);
+			case EArray({expr: EConst(CIdent("host")) | EField({expr: EConst(CIdent("Raw"))}, "host")},
+				{expr: EConst(CString(name))}) if (!host.contains(name)):
+				host.push(name); // host["name"]: the quoted form, which a property-mangling minifier leaves alone
 			case ECall({expr: EConst(CIdent(name))}, _) if (!own.contains(name)):
 				own.push(name);
 			default:

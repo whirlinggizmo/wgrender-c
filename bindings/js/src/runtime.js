@@ -12,6 +12,10 @@
 //   (the generated code saves and restores the stack around the call). An arena that
 //   lasted the whole op overflowed the 64 KB wasm stack: 5,000 vec3 getters in one
 //   frame need 80 KB (2026-10-02, measured in the stress scene).
+// - Every name that crosses into the host is a quoted key (host["_wgr_..."],
+//   host["HEAPF32"]): a minifier that mangles properties leaves quoted ones alone, and
+//   the host's export names can't change to match. V8 compiles a constant quoted key
+//   exactly as a dotted one (measured: 0.757 ns either way).
 // - Records come back through a pointer. wasm returns anything bigger than a scalar
 //   through a hidden first argument, so the generated getters read the fields out of
 //   the heap into a fresh object. An opaque record (the keyboard state) has a slot of
@@ -41,9 +45,9 @@ const opaque = new Map();
  * next call that returns a record. */
 export function record(bytes) {
     if (bytes > slotBytes) {
-        if (slot) host._free(slot);
+        if (slot) host["_free"](slot);
         slotBytes = Math.max(bytes, 256);
-        slot = host._malloc(slotBytes);
+        slot = host["_malloc"](slotBytes);
     }
     return slot;
 }
@@ -52,7 +56,7 @@ export function record(bytes) {
 export function opaqueSlot(name, bytes) {
     let pointer = opaque.get(name);
     if (pointer === undefined) {
-        pointer = host._malloc(bytes);
+        pointer = host["_malloc"](bytes);
         opaque.set(name, pointer);
     }
     return pointer;
@@ -62,19 +66,19 @@ export function opaqueSlot(name, bytes) {
  * tell NULL from "", as wgr_asset_ensure does). */
 export function cstr(s) {
     if (s === null || s === undefined) return 0;
-    const length = host.lengthBytesUTF8(s) + 1;
-    const pointer = host.stackAlloc(length);
-    host.stringToUTF8(s, pointer, length);
+    const length = host["lengthBytesUTF8"](s) + 1;
+    const pointer = host["stackAlloc"](length);
+    host["stringToUTF8"](s, pointer, length);
     return pointer;
 }
 
 /** A C string out, as a JS string ("" for a null pointer). */
 export function str(pointer) {
-    return pointer === 0 ? '' : host.UTF8ToString(pointer);
+    return pointer === 0 ? '' : host["UTF8ToString"](pointer);
 }
 
 
 /** A 32-bit word at `index` words from `pointer`, for the opaque layouts (WGR_KEYBOARD_STATE). */
 export function readI32(pointer, index) {
-    return host.HEAP32[(pointer >> 2) + index];
+    return host["HEAP32"][(pointer >> 2) + index];
 }

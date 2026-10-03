@@ -3,6 +3,7 @@
 //
 //   obj    wgr_sprite3d_get_position(sprite): a new {x, y, z} per call
 //   into   wgr_sprite3d_get_position(sprite, v): fills a vector the caller owns
+//   intoa  the same into a Float64Array, filled by index
 //   view   a Float32Array onto the binding's one record slot, as librl's scratch
 //          buffer: nothing made, nothing copied, valid until the next getter
 //   none   no read: the baseline
@@ -23,6 +24,7 @@ import { host as wasm, record } from '../../src/runtime.js';
 const mode = new URLSearchParams(location.search).get('mode') || 'obj';
 const acc = { sum: 0 };
 const owned = { x: 0, y: 0, z: 0 };
+const ownedArray = new Float64Array(3); // filled by index, which no minifier renames
 let view = null;
 let viewBuffer = null;
 let viewAt = 0;
@@ -46,6 +48,8 @@ function readBack(e) {
         return;
     } else if (mode === 'into') {
         acc.sum += wgr.wgr_sprite3d_get_position(e.sprite, owned).x;
+    } else if (mode === 'intoa') {
+        acc.sum += wgr.wgr_sprite3d_get_position(e.sprite, ownedArray)[0];
     } else if (mode === 'view') {
         acc.sum += positionView(e.sprite)[0];
     } else if (mode === 'keep') {

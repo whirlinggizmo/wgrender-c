@@ -27,10 +27,17 @@ four things, all declared in SPEC below rather than edited into the output:
               generated table of field offsets to read it with
   skips       varargs, and anything else with no sane rendering
 
+Raw.js.hx reaches the host through quoted keys (Raw.host["_wgr_..."], not
+Raw.host._wgr_...), so a property-mangling minifier can't break it; V8 compiles a
+constant quoted key as a dotted one, so it costs nothing. It also writes
+src/wgr/impl/exports.json, every C function Raw.js.hx calls, which WebHost's full host
+exports: data the generator wrote, so nothing reads the Haxe back.
+
 Everything else is mechanical. Functions whose types it cannot map are left out and
 listed at the end, so the gap is reported rather than silent.
 """
 import hashlib
+import json
 import os
 import pathlib
 import re
@@ -86,7 +93,7 @@ MANUAL_JS = '''
 
 	/** Fill wgrender's lifecycle slots with the guest glue's dispatchers. **/
 	public static inline function wgr_guest_install():Void
-		Raw.host._wgr_guest_install();
+		Raw.host["_wgr_guest_install"]();
 
 '''
 
@@ -144,9 +151,9 @@ def header_digest(wgrender):
 def provenance():
     """What wgrender this was generated from, and a digest that moves when it does."""
     digest, count = header_digest(WGRENDER)
-    defines = headers.read(WGRENDER, tool='gen_raw').defines
-    version = [defines[f'WGR_VERSION_{part}'][0] for part in ('MAJOR', 'MINOR', 'PATCH')
-               if f'WGR_VERSION_{part}' in defines]
+    values = headers.read(WGRENDER, tool='gen_raw').values  # the defines clang evaluated
+    version = [str(values[f'WGR_VERSION_{part}']) for part in ('MAJOR', 'MINOR', 'PATCH')
+               if f'WGR_VERSION_{part}' in values]
     try:
         commit = subprocess.run(['git', '-C', str(WGRENDER), 'describe', '--always', '--dirty'],
                                 check=True, capture_output=True, text=True).stdout.strip()
@@ -209,7 +216,7 @@ def emit_layouts(structs, opaque_used):
                          f' = {at // 4};' + (f' // [{count}]' if count else ''))
         lines += ['',
                   '\tpublic static inline function read(pointer:Int, index:Int):Int',
-                  '\t\treturn (Raw.host.HEAP32 : Array<Int>)[(pointer >> 2) + index];',
+                  '\t\treturn (Raw.host["HEAP32"] : Array<Int>)[(pointer >> 2) + index];',
                   '}']
         out.append('\n'.join(lines))
     return out
@@ -282,6 +289,7 @@ def emit_cpp(enums, structs, functions):
 
 def emit_js(enums, structs, functions):
     body, skipped, values_used, opaque_used = [], [], set(), set()
+    emit_js.exports = []  # every C function a wrapper calls on the host, for exports.json
     for header, ret, name, params in functions:
         if name in SKIP:
             continue
@@ -296,6 +304,7 @@ def emit_js(enums, structs, functions):
             if any(hx(t, enums, 'js') is None for t, _ in args):
                 continue
             opaque_used.add(ret)
+            emit_js.exports.append(name)
             osig = ', '.join(f'{n}:{hx(t, enums, "js")}' for t, n in args)
             ocall = ', '.join(f'cstr({n})' if t in ('const char *', 'char *') else n
                               for t, n in args)
@@ -309,13 +318,14 @@ def emit_js(enums, structs, functions):
                 f'\t**/\n'
                 f'\tpublic static function {name}({osig}):Int {{\n'
                 f'\t\tfinal out = opaqueSlot("{name}", {size});\n'
-                f'\t\tRaw.host._{name}(out{", " if ocall else ""}{ocall});\n'
+                f'\t\tRaw.host["_{name}"](out{", " if ocall else ""}{ocall});\n'
                 f'\t\treturn out;\n\t}}')
             continue
         if any(hx(t, enums, 'js') is None for t in types):
             continue
         sig = ', '.join(f'{n}:{hx(t, enums, "js")}' for t, n in args)
         call_args = ', '.join(f'cstr({n})' if t in ('const char *', 'char *') else n for t, n in args)
+        emit_js.exports.append(name)
         if ret in VALUES:
             values_used.add(ret)
             fields, size = layout(structs, ret)
@@ -337,16 +347,16 @@ def emit_js(enums, structs, functions):
                     else:
                         reads.append(f'{ {"HEAP32": "i32", "HEAPU32": "u32", "HEAPF32": "f32"}[heap] }[base + {at // 4}]')
             locals_ = '\n\t\t'.join(
-                f'final {v} = Raw.host.{k};' for k, v in
+                f'final {v} = Raw.host["{k}"];' for k, v in
                 [('HEAP32', 'i32'), ('HEAPU32', 'u32'), ('HEAPF32', 'f32'), ('HEAPU8', 'u8')] if k in heaps)
             body.append(
                 f'\tpublic static function {name}({sig}):{VALUES[ret]} {{\n'
                 f'\t\tfinal out = record({size});\n'
-                f'\t\tRaw.host._{name}(out{", " if call_args else ""}{call_args});\n'
+                f'\t\tRaw.host["_{name}"](out{", " if call_args else ""}{call_args});\n'
                 f'\t\t{locals_}\n\t\tfinal base = out >> 2;\n'
                 f'\t\treturn new {VALUES[ret]}({", ".join(reads)});\n\t}}')
         else:
-            call = f'Raw.host._{name}({call_args})'
+            call = f'Raw.host["_{name}"]({call_args})'
             hret = hx(ret, enums, 'js')
             out_type = "String" if ret in ("const char *", "char *") else hret
             if any(t in ('const char *', 'char *') for t, _ in args):
@@ -354,9 +364,9 @@ def emit_js(enums, structs, functions):
                 # frame making thousands of them can't overflow the 64 KB wasm stack
                 value = (None if hret == 'Void' else 'result != 0' if hret == 'Bool'
                          else 'str(result)' if ret in ('const char *', 'char *') else 'result')
-                lines = ['\t\tfinal mark = Raw.host.stackSave();',
+                lines = ['\t\tfinal mark = Raw.host["stackSave"]();',
                          f'\t\t{call};' if value is None else f'\t\tfinal result:Dynamic = {call};',
-                         '\t\tRaw.host.stackRestore(mark);'] + ([f'\t\treturn {value};'] if value else [])
+                         '\t\tRaw.host["stackRestore"](mark);'] + ([f'\t\treturn {value};'] if value else [])
                 body.append(f'\tpublic static inline function {name}({sig}):{out_type} {{\n'
                             + '\n'.join(lines) + '\n\t}')
             else:
@@ -401,6 +411,10 @@ typedef CStr = Int;
 	  whole op overflowed the 64 KB wasm stack at 5,000 vec3 getters in one frame
 	  (2026-10-02). The guest's op edge still restores the stack once, fault or not
 	  (`wgr.GuestAbi`), for a call that throws between saving and restoring it.
+	- **Names that cross into the host are quoted keys** (`host["_wgr_..."]`,
+	  `host["HEAPF32"]`): a minifier that mangles properties leaves quoted ones alone,
+	  and the host's export names can't change to match. V8 compiles a constant quoted
+	  key exactly as a dotted one.
 	- **Structs come back through a pointer.** The wasm C ABI returns anything larger
 	  than a scalar through a hidden first argument, so these read the fields out of
 	  the heap rather than getting a value.
@@ -415,7 +429,9 @@ class Raw {
 		"Cannot read properties of undefined (reading '_wgr_color_rgba')", which names
 		the call and not the cause. Build such values in the init op instead.
 	**/
-	public static var host(default, null):Dynamic = notAttached();
+	/** Typed for string keys only (host["_wgr_..."]), so a dotted access, which a
+		property-mangling minifier would break, doesn't compile. **/
+	public static var host(default, null):haxe.DynamicAccess<Dynamic> = notAttached();
 
 	static function notAttached():Dynamic {
 		return new js.lib.Proxy<Dynamic>(cast {}, {
@@ -440,9 +456,9 @@ class Raw {
 	static function record(bytes:Int):Int {
 		if (bytes > slotBytes) {
 			if (slot != 0)
-				host._free(slot);
+				host["_free"](slot);
 			slotBytes = bytes > 256 ? bytes : 256;
-			slot = host._malloc(slotBytes);
+			slot = host["_malloc"](slotBytes);
 		}
 		return slot;
 	}
@@ -451,7 +467,7 @@ class Raw {
 	static function opaqueSlot(name:String, bytes:Int):Int {
 		var pointer = opaque.get(name);
 		if (pointer == null) {
-			pointer = host._malloc(bytes);
+			pointer = host["_malloc"](bytes);
 			opaque.set(name, pointer);
 		}
 		return pointer;
@@ -459,10 +475,10 @@ class Raw {
 
 	/** Where the op arena started; `GuestAbi` restores to here when an op ends. **/
 	public static inline function stackMark():Int
-		return host.stackSave();
+		return host["stackSave"]();
 
 	public static inline function stackRelease(mark:Int):Void
-		host.stackRestore(mark);
+		host["stackRestore"](mark);
 
 	/** A NUL-terminated copy of `s` in the op's arena. **/
 	/**
@@ -476,14 +492,14 @@ class Raw {
 	public static inline function cstr(s:String):Int {
 		if (s == null)
 			return 0;
-		final length = host.lengthBytesUTF8(s) + 1;
-		final pointer = host.stackAlloc(length);
-		host.stringToUTF8(s, pointer, length);
+		final length = host["lengthBytesUTF8"](s) + 1;
+		final pointer = host["stackAlloc"](length);
+		host["stringToUTF8"](s, pointer, length);
 		return pointer;
 	}
 
 	public static inline function str(pointer:Int):String
-		return host.UTF8ToString(pointer);
+		return host["UTF8ToString"](pointer);
 '''
 
 
@@ -548,14 +564,26 @@ def js_record(structs, ctype):
 
 
 def from_record(structs, ctype, expr):
-    """Haxe building the public layer's value from the JS binding's object `expr`."""
+    """Haxe building the public layer's value from the JS binding's object `expr`, reading
+    its fields by quoted key (`(r : haxe.DynamicAccess<Dynamic>)["x"]`): they cross from one file to another,
+    so a property-mangling minifier must not rename them on this side only."""
     args = []
     for field, ftype, _, count in layout(structs, ctype)[0]:
+        read = f'({expr} : haxe.DynamicAccess<Dynamic>)["{field}"]'
         if ftype in structs:
-            args.append(from_record(structs, ftype, f'{expr}.{field}'))
+            args.append(from_record(structs, ftype, read))
         else:
-            args.append(f'{expr}.{field}')
+            args.append(read)
     return f'new {VALUES.get(ctype, "Vec3")}({", ".join(args)})'
+
+
+def js_call(name, params):
+    """A call into the JS binding by quoted key, WgrJs["name"](...), so a minifier that
+    mangles properties can't rename it on the Haxe side only. Looked up when called: the
+    page sets WgrJs after this module has loaded."""
+    holes = ', '.join('{' + str(i) + '}' for i in range(len(params)))
+    args = ''.join(', ' + n for _, n in params)
+    return f"js.Syntax.code('WgrJs[\"{name}\"]({holes})'{args})"
 
 
 def emit_js_via(enums, structs, functions):
@@ -576,17 +604,17 @@ def emit_js_via(enums, structs, functions):
         names = ', '.join(n for _, n in params)
         if ret in OPAQUE:
             externs.append(f'\tstatic function {name}({sig}):Int;')
-            body.append(f'\tpublic static inline function {name}({sig}):Int\n\t\treturn WgrJs.{name}({names});')
+            body.append(f'\tpublic static inline function {name}({sig}):Int\n\t\treturn {js_call(name, params)};')
         elif ret in VALUES:
             externs.append(f'\tstatic function {name}({sig}):{js_record(structs, ret)};')
             body.append(f'\tpublic static inline function {name}({sig}):{VALUES[ret]} {{\n'
-                        f'\t\tfinal r = WgrJs.{name}({names});\n'
+                        f'\t\tfinal r:Dynamic = {js_call(name, params)};\n'
                         f'\t\treturn {from_record(structs, ret, "r")};\n\t}}')
         else:
             hret = 'String' if ret in ('const char *', 'char *') else hx(ret, enums, 'js')
             externs.append(f'\tstatic function {name}({sig}):{hret};')
             body.append(f'\tpublic static inline function {name}({sig}):{hret}\n'
-                        f'\t\t{"" if hret == "Void" else "return "}WgrJs.{name}({names});')
+                        f'\t\t{"" if hret == "Void" else "return "}{js_call(name, params)};')
     return externs, body
 
 
@@ -620,6 +648,9 @@ def main():
     n_cpp, cpp_skipped = emit_cpp(enums, structs, functions)
     js_body, js_skipped, _, js_opaque = emit_js(enums, structs, functions)
     layouts = emit_layouts(structs, js_opaque)
+    js_exports = sorted(set(emit_js.exports))
+    (OUT / 'exports.json').write_text(json.dumps({'headers': provenance()[2], 'functions': js_exports}, indent=1) + '\n',
+                                      encoding='utf-8')
     (OUT / 'Raw.js.hx').write_text(header_comment() + JS_PREAMBLE + '\n' + '\n\n'.join(js_body)
                                    + '\n' + MANUAL_JS + '\n}\n'
                                    + ''.join('\n' + c + '\n' for c in layouts), encoding='utf-8')

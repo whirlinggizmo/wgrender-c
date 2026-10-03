@@ -60,10 +60,10 @@ class GuestAbi {
 
 	static function installOps():Void {
 		opsInstalled = true;
-		Raw.host._wgr_guest_register(op("init", "i", () -> callInit()),
+		Raw.host["_wgr_guest_register"](op("init", "i", () -> callInit()),
 			op("frame", "ifi", (dt:Float, frameId:Int) -> callFrame(dt, frameId)),
 			op("shutdown", "i", () -> callShutdown()));
-		Raw.host._wgr_guest_install();
+		Raw.host["_wgr_guest_install"]();
 	}
 
 	// Null-tolerant, because a program may set only the ops it cares about.
@@ -128,15 +128,15 @@ class GuestAbi {
 	**/
 	public static function registerTick(tick:(dt:Float) -> Void, hz:Int):Void {
 		onTick = tick;
-		Raw.host._wgr_guest_register_tick(op("tick", "if", (dt:Float) -> onTick(dt)), hz);
+		Raw.host["_wgr_guest_register_tick"](op("tick", "if", (dt:Float) -> onTick(dt)), hz);
 	}
 
 	/** How far this frame is into the next tick, 0..1. 0 without a tick. **/
 	public static inline function tickFraction():Float
-		return Raw.host._wgr_guest_tick_fraction();
+		return Raw.host["_wgr_guest_tick_fraction"]();
 
 	static function op(name:String, signature:String, body:Dynamic):Int {
-		return Raw.host.addFunction(Reflect.makeVarArgs(args -> {
+		return Raw.host["addFunction"](Reflect.makeVarArgs(args -> {
 			final mark = Raw.stackMark();
 			var code = 0;
 			try
@@ -162,7 +162,7 @@ class GuestAbi {
 		if (!Version.check())
 			return false;
 		final mark = Raw.stackMark();
-		Raw.host._wgr_guest_start(width, height, Raw.cstr(title), flags == null ? 0 : (flags : Int));
+		Raw.host["_wgr_guest_start"](width, height, Raw.cstr(title), flags == null ? 0 : (flags : Int));
 		Raw.stackRelease(mark);
 		return true;
 	}

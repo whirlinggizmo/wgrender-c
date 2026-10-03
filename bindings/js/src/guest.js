@@ -21,8 +21,8 @@ let installed = false;
 let attached = false; // start() attaches; ops registered before it are installed there
 
 function op(name, signature, body) {
-    return host.addFunction((...args) => {
-        const mark = host.stackSave();
+    return host["addFunction"]((...args) => {
+        const mark = host["stackSave"]();
         let code = 0;
         try {
             body(...args);
@@ -30,7 +30,7 @@ function op(name, signature, body) {
             console.error(`wgrender guest: uncaught exception in ${name}:`, e);
             code = 1;
         }
-        host.stackRestore(mark);
+        host["stackRestore"](mark);
         return code;
     }, signature);
 }
@@ -40,11 +40,11 @@ function op(name, signature, body) {
 function install() {
     if (installed) return;
     installed = true;
-    host._wgr_guest_register(
+    host["_wgr_guest_register"](
         op('init', 'i', () => onInit && onInit()),
         op('frame', 'ifi', (dt, frameId) => onFrame && onFrame(dt, frameId >>> 0)),
         op('shutdown', 'i', () => onShutdown && onShutdown()));
-    host._wgr_guest_install();
+    host["_wgr_guest_install"]();
 }
 
 /**
@@ -71,23 +71,23 @@ export function registerTick(tick, hz) {
 }
 
 function installTick() {
-    host._wgr_guest_register_tick(op('tick', 'if', (dt) => onTick && onTick(dt)), tickHz);
+    host["_wgr_guest_register_tick"](op('tick', 'if', (dt) => onTick && onTick(dt)), tickHz);
 }
 
 /** How far this frame is into the next tick, 0..1; 0 without a tick. */
 export function tickFraction() {
-    return host._wgr_guest_tick_fraction();
+    return host["_wgr_guest_tick_fraction"]();
 }
 
 /** What the host does when an op throws: WGR_GUEST_FAULT_CONTINUE (0, the default) logs
  * and keeps calling; WGR_GUEST_FAULT_FATAL (1) logs, stops calling, and quits. */
 export function setFaultPolicy(policy) {
-    host._wgr_guest_set_fault_policy(policy);
+    host["_wgr_guest_set_fault_policy"](policy);
 }
 
 /** True once an op has faulted. */
 export function faulted() {
-    return host._wgr_guest_faulted() !== 0;
+    return host["_wgr_guest_faulted"]() !== 0;
 }
 
 /**
@@ -99,7 +99,7 @@ export function faulted() {
  */
 export function start(module, width, height, title, flags = 0) {
     attach(module);
-    const running = [module._wgr_version_major(), module._wgr_version_minor(), module._wgr_version_patch()];
+    const running = [module["_wgr_version_major"](), module["_wgr_version_minor"](), module["_wgr_version_patch"]()];
     const built = [BUILT_VERSION.major, BUILT_VERSION.minor, BUILT_VERSION.patch];
     if (running[0] !== built[0] || running[1] !== built[1]) {
         console.error(`wgrender: the host is ${running.join('.')}, but this binding was generated from `
@@ -112,8 +112,8 @@ export function start(module, width, height, title, flags = 0) {
     attached = true;
     install();
     if (onTick) installTick();
-    const mark = module.stackSave();
-    module._wgr_guest_start(width, height, cstr(title), flags);
-    module.stackRestore(mark);
+    const mark = module["stackSave"]();
+    module["_wgr_guest_start"](width, height, cstr(title), flags);
+    module["stackRestore"](mark);
     return true;
 }

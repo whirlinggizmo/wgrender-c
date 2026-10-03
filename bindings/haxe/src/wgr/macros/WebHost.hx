@@ -247,13 +247,10 @@ class WebHost {
 
 	/** Everything the JS binding can call: `-D wgr-host=full`. **/
 	static function bindingExports(binding:String):Array<String> {
-		final raw = File.getContent(Path.join([binding, "src/wgr/impl/Raw.js.hx"]));
-		final found = [];
-		~/\b_(wgr_[a-z0-9_]+)\(/g.map(raw, r -> {
-			found.push(r.matched(1));
-			return "";
-		});
-		return dedupe(found);
+		// gen_raw_externs.py writes the list as data beside Raw.js.hx, rather than this
+		// reading the generated Haxe as text
+		final listed:{functions:Array<String>} = haxe.Json.parse(File.getContent(Path.join([binding, "src/wgr/impl/exports.json"])));
+		return dedupe(listed.functions);
 	}
 
 	/**
