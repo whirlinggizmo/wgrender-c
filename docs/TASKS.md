@@ -255,6 +255,11 @@ VertexColorTest, TextureSettingsTest and BoxTextured on desktop, WebGL2, WebGPU)
 
 ## Infrastructure and tooling
 
+- [ ] `tools/check_asset_cache.py` may wait out every visit on a GPU display
+      (libwgt, 2026-10-03, on its port of the same judge): there DevTools never
+      reported a 404's `Network.loadingFinished`, so each visit ran its full 20 s
+      settle (126 s for 8). libwgt settles a request on a response of 300 or more.
+      Time ours with `--backend=webgpu` on the desktop display; same fix if it bites
 - [ ] Unit tests still missing: the web half of `wgr_fs` (MEMFS + IndexedDB) needs a
       browser, so it wants the wasm-side tests below; `wgr_asset` loader/mapper
       registration is only exercised through real loaders
