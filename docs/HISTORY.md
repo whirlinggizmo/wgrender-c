@@ -5675,6 +5675,18 @@ TASKS.md's ticked items, by the section they were in.
       in script time and GC, a trimmed page 157.5 against 152.9 KB brotli. All 34 Haxe
       web examples driven clean after it
 
+- [x] Header comments keep their layout in the generated docs (2026-10-03):
+      `tools/headers.py`'s `_doc` joined clang's text pieces with spaces, so a
+      parameter list or a list read as one paragraph in `wgrender.d.ts`, and it was
+      worse than flattened: clang splits `<cache>/<app>` as if it were HTML and drops a
+      backslash it reads as a command, so the docs said `<cache >/ <app >` and lost
+      `%LOCALAPPDATA%\...\cache`'s backslashes. Clang's pieces can't give the text back,
+      so the comment's own bytes do: clang says which comment and where its first text
+      is; the opener is just before that past whitespace and `*`, the end the first
+      `*/` (clang's end stops at a command such as `{@link}`), and only the ` * `
+      decoration and the shared indent come off. Only the JS binding renders them (the
+      Haxe externs carry none)
+
 ### Outside the library
 
 - [x] First language binding (2026-09-21): Haxe, as its own repo -- wgrender-hx

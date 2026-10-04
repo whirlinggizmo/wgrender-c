@@ -17,9 +17,11 @@ on PATH. Standard library only.
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
+import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -150,15 +152,42 @@ def _walk_files(node, current=None):
     return current
 
 
-def _doc(node):
-    """The comment clang attached to a declaration, as plain text."""
-    def texts(n):
-        if n.get('kind') == 'TextComment' and n.get('text', '').strip():
-            yield n['text'].strip()
-        for kid in n.get('inner') or ():
-            yield from texts(kid)
+def _doc(node, sources):
+    """The comment clang attached to a declaration, as text with its lines and paragraphs
+    kept: a parameter list or an example reads as the header lays it out.
+
+    Clang says which comment belongs to the declaration and where it starts; the prose
+    comes from the header's bytes there, since clang's own text pieces
+    can't give it back -- it drops a backslash it reads as a command and splits
+    "<cache>/<app>" into pieces as if they were HTML. All that is taken off is the
+    comment's decoration: the " * " opening each line and the indent every line shares."""
     comment = next((k for k in node.get('inner') or () if k.get('kind') == 'FullComment'), None)
-    return ' '.join(texts(comment)) if comment else ''
+    if not comment:
+        return ''
+    path = node.get('_file') or ''
+    if path not in sources:
+        sources[path] = Path(path).read_bytes()
+    data = sources[path]
+    # clang's start is the comment's first text; between it and the /* that opens the
+    # comment there is only whitespace and *, so step back over those to the opener. It
+    # ends at the first */ after that, as C defines a block comment (clang's own end stops
+    # short at a command such as {@link}).
+    first = comment['range']['begin']['offset']
+    start = first
+    while start > 0 and data[start - 1:start] in (b' ', b'\t', b'\r', b'\n', b'*'):
+        start -= 1
+    if data[start - 1:start + 1] != b'/*':
+        raise SystemExit(f'headers: the comment before {node.get("name")} ({path}) is not a /* */ '
+                         f'comment; only those are read')
+    lines = data[start + 1:data.index(b'*/', first)].decode('utf-8').replace('\r\n', '\n').split('\n')
+    lines[0] = lines[0].lstrip('*')  # the opener's own *, and a doc comment's second
+    lines = [lines[0]] + [re.sub(r'^\s*\*(?!/)', '', line, count=1) for line in lines[1:]]
+    lines = [line.rstrip() for line in lines]
+    while lines and not lines[-1]:
+        lines.pop()
+    while lines and not lines[0]:
+        lines.pop(0)
+    return textwrap.dedent('\n'.join(lines))
 
 
 def _split_array(spelling):
@@ -200,6 +229,7 @@ def read(root=ROOT, clang=None, tool='headers'):
                           source, root))
     _walk_files(ast)
     api = Api(headers=sorted(h.name for h in include.glob('*.h')))
+    sources = {}  # each header's bytes, for its comments (_doc)
 
     def ours(node):
         f = node.get('_file') or ''
@@ -219,7 +249,7 @@ def read(root=ROOT, clang=None, tool='headers'):
                             p['type'].get('desugaredQualType', p['type']['qualType']))
                       for p in node.get('inner') or () if p.get('kind') == 'ParmVarDecl']
             api.functions.setdefault(node['name'], Function(
-                node['name'], _returns(node['type']['qualType']), params, header, _doc(node),
+                node['name'], _returns(node['type']['qualType']), params, header, _doc(node, sources),
                 variadic=bool(node.get('variadic'))))
         elif kind == 'TypedefDecl':
             pending.append((node, header))
@@ -238,7 +268,7 @@ def read(root=ROOT, clang=None, tool='headers'):
                     continue
                 base, count = _split_array(f['type']['qualType'])
                 fields.append(Field(f['name'], base, count))
-            api.structs[name] = Struct(name, fields, header, _doc(node) or _doc(owned))
+            api.structs[name] = Struct(name, fields, header, _doc(node, sources) or _doc(owned, sources))
         elif owned is not None and owned['kind'] == 'EnumDecl':
             values, last = {}, -1
             for c in owned.get('inner') or ():
@@ -246,7 +276,7 @@ def read(root=ROOT, clang=None, tool='headers'):
                     continue
                 value = next((int(k['value']) for k in c.get('inner') or () if 'value' in k), last + 1)
                 values[c['name']] = last = value
-            api.enums[name] = Enum(name, values, header, _doc(node) or _doc(owned))
+            api.enums[name] = Enum(name, values, header, _doc(node, sources) or _doc(owned, sources))
         else:
             api.typedefs[name] = (node['type']['qualType'], header)
 

@@ -9,14 +9,14 @@
 // a constant quoted key exactly as a dotted one (measured: 0.757 ns per access either
 // way), and a minifier that isn't mangling turns it back into the dotted form.
 //
-// wgrender 0.0.1 at before-libwgt-harvest-286-g1628f98-dirty, 34 headers.
+// wgrender 0.0.1 at before-libwgt-harvest-291-ga7be842-dirty, 34 headers.
 // wgrender-headers: 6827926d0b71a752
 
 import { host, cstr, str, record, opaqueSlot } from "./src/runtime.js";
 export { readI32 } from "./src/runtime.js";
 
 /** The wgrender this binding was generated from; guest.start() compares it with the host's. */
-export const BUILT_VERSION = Object.freeze({ major: 0, minor: 0, patch: 1, commit: "before-libwgt-harvest-286-g1628f98-dirty", headers: "6827926d0b71a752" });
+export const BUILT_VERSION = Object.freeze({ major: 0, minor: 0, patch: 1, commit: "before-libwgt-harvest-291-ga7be842-dirty", headers: "6827926d0b71a752" });
 
 export const WGR_KEYBOARD_MAX_KEYS = 0x200;
 export const WGR_KEYBOARD_MAX_PRESSED_KEYS = 32;
@@ -64,7 +64,8 @@ export const WGR_WINDOW_FLAG_WINDOW_HIDDEN = 128;
 export const WGR_WINDOW_FLAG_LOW_DPI = 0x2000;
 
 /**
- * How a sprite or material uses alpha. Blended surfaces are drawn after the opaque ones, back to front; the others aren't sorted.
+ * How a sprite or material uses alpha. Blended surfaces are drawn after the opaque
+ * ones, back to front; the others aren't sorted.
  */
 export const WGR_ALPHA_OPAQUE = 0;
 export const WGR_ALPHA_MASK = 1;
@@ -72,14 +73,53 @@ export const WGR_ALPHA_BLEND = 2;
 export const WGR_ALPHA_ADD = 3;
 
 /**
- * How a cached asset is treated on a later visit. On the web the cache keeps each file with what its response said about it (ETag, Last-Modified, Cache-Control); on desktop, downloads in the cache directory are used as they are in every mode (asking the server there is not built yet). WGR_ASSET_CACHE_REVALIDATE, the default: a copy still fresh by its Cache-Control (max-age not passed, or immutable) is used without a request. Any other copy is checked with the server first, and its answer decides: 304, the copy is used (and is fresh again for the new max-age); 200, the new file replaces it; 4xx, the copy is deleted and the load fails as it would without one; no answer (offline, DNS, a timeout) or a 5xx, the copy is used. no-cache and no-store make a copy never fresh, but it is still kept, for the next check and for starting offline. For a host on the page's own origin the check is a conditional GET; on another origin it is a GET that the browser revalidates from its own cache (a conditional header there needs the host's CORS consent), so a changed file is always noticed, but an unchanged one is stored again. WGR_ASSET_CACHE_TRUST: a cached copy is used without asking, however old: for a program that must start without the network, or evicts by itself (wgr_asset_evict). WGR_ASSET_CACHE_OFF: nothing is kept between visits, and what earlier visits kept is neither used nor deleted (development). WGR_ASSET_FORCE_FETCH is a plain GET in every mode, and fails without an answer. A mode applies to every file checked after it is set.
+ * How a cached asset is treated on a later visit. On the web the cache keeps each
+ * file with what its response said about it (ETag, Last-Modified, Cache-Control);
+ * on desktop, downloads in the cache directory are used as they are in every mode
+ * (asking the server there is not built yet).
+ *
+ * WGR_ASSET_CACHE_REVALIDATE, the default: a copy still fresh by its Cache-Control
+ * (max-age not passed, or immutable) is used without a request. Any other copy is
+ * checked with the server first, and its answer decides: 304, the copy is used (and
+ * is fresh again for the new max-age); 200, the new file replaces it; 4xx, the copy
+ * is deleted and the load fails as it would without one; no answer (offline, DNS, a
+ * timeout) or a 5xx, the copy is used. no-cache and no-store make a copy never
+ * fresh, but it is still kept, for the next check and for starting offline. For a
+ * host on the page's own origin the check is a conditional GET; on another origin it
+ * is a GET that the browser revalidates from its own cache (a conditional header
+ * there needs the host's CORS consent), so a changed file is always noticed, but an
+ * unchanged one is stored again.
+ *
+ * WGR_ASSET_CACHE_TRUST: a cached copy is used without asking, however old: for a
+ * program that must start without the network, or evicts by itself
+ * (wgr_asset_evict).
+ *
+ * WGR_ASSET_CACHE_OFF: nothing is kept between visits, and what earlier visits kept
+ * is neither used nor deleted (development).
+ *
+ * WGR_ASSET_FORCE_FETCH is a plain GET in every mode, and fails without an answer.
+ * A mode applies to every file checked after it is set.
  */
 export const WGR_ASSET_CACHE_REVALIDATE = 0;
 export const WGR_ASSET_CACHE_TRUST = 1;
 export const WGR_ASSET_CACHE_OFF = 2;
 
 /**
- * The asset layer makes files local: from disk, from the cache, or downloaded from the asset host, and on the web it checks a cached copy as the cache mode says (wgr_asset_set_cache_mode, wgr_asset_set_manifest). A resource does this itself when it's created (wgr_resource.h: wgr_texture_create(path) loads on create), so a program only ENSURES a file to have it local without loading it: to fetch ahead (a level's files during a menu), from an explicit source (a fetch_url), or to read it itself. An ensure is a task: a handle whose status, local path and progress the program reads, nothing called back, and which it destroys when done with it. A key ensured from an explicit source is what a later create of that key loads, wherever the file was found. Files that reference other files are ensured together: ensuring a .gltf (or .glb) also ensures the buffers and images it references, relative to it, and the task is DONE once all of them are local. A missing buffer fails it; a missing image only warns.
+ * The asset layer makes files local: from disk, from the cache, or downloaded from the
+ * asset host, and on the web it checks a cached copy as the cache mode says
+ * (wgr_asset_set_cache_mode, wgr_asset_set_manifest). A resource does this itself when
+ * it's created (wgr_resource.h: wgr_texture_create(path) loads on create), so a
+ * program only ENSURES a file to have it local without loading it: to fetch ahead (a
+ * level's files during a menu), from an explicit source (a fetch_url), or to read it
+ * itself. An ensure is a task: a handle whose status, local path and progress the
+ * program reads, nothing called back, and which it destroys when done with it. A key
+ * ensured from an explicit source is what a later create of that key loads, wherever
+ * the file was found.
+ *
+ * Files that reference other files are ensured together: ensuring a .gltf (or .glb)
+ * also ensures the buffers and images it references, relative to it, and the task is
+ * DONE once all of them are local. A missing buffer fails it; a missing image only
+ * warns.
  */
 export const WGR_ASSET_TASK_NONE = 0;
 export const WGR_ASSET_TASK_PENDING = 1;
@@ -92,7 +132,12 @@ export const WGR_BUTTON_DOWN = 2;
 export const WGR_BUTTON_RELEASED = 3;
 
 /**
- * Camera3d object. All angles in the libwgrender API are radians. A camera has both a perspective field of view and an orthographic height; the projection type decides which one is used, so switching types loses nothing. Defaults for a new camera: projection as given, position (0, 0, 10) looking at the origin with +y up, fov pi/4 (45 degrees), ortho height 10.
+ * Camera3d object. All angles in the libwgrender API are radians.
+ *
+ * A camera has both a perspective field of view and an orthographic height; the
+ * projection type decides which one is used, so switching types loses nothing.
+ * Defaults for a new camera: projection as given, position (0, 0, 10) looking at
+ * the origin with +y up, fov pi/4 (45 degrees), ortho height 10.
  */
 export const WGR_CAMERA3D_PERSPECTIVE = 0;
 export const WGR_CAMERA3D_ORTHOGRAPHIC = 1;
@@ -125,7 +170,7 @@ export const WGR_GAMEPAD_BUTTON_DPAD_RIGHT = 16;
 export const WGR_GAMEPAD_BUTTON_COUNT = 17;
 
 /**
- * Resource kind encoded in the high 6 bits of {
+ * Resource kind encoded in the high 6 bits of {@link wgr_handle_t}.
  */
 export const WGR_HANDLE_KIND_NONE = 0;
 export const WGR_HANDLE_KIND_CAMERA3D = 2;
@@ -156,7 +201,10 @@ export const WGR_INIT_ERR_ALREADY_INITIALIZED = -2;
 export const WGR_INIT_ERR_WINDOW = -5;
 
 /**
- * Key codes used to index wgr_keyboard_state_t.keys[]. These are libwgrender's public key identifiers; consumers should use these names rather than raw integers. (The numeric values currently follow the GLFW/sokol layout, but that is an implementation detail — code to the WGR_KEY_* names.)
+ * Key codes used to index wgr_keyboard_state_t.keys[]. These are libwgrender's public
+ * key identifiers; consumers should use these names rather than raw integers.
+ * (The numeric values currently follow the GLFW/sokol layout, but that is an
+ * implementation detail — code to the WGR_KEY_* names.)
  */
 export const WGR_KEY_SPACE = 32;
 export const WGR_KEY_APOSTROPHE = 39;
@@ -243,7 +291,28 @@ export const WGR_KEY_RIGHT_ALT = 346;
 export const WGR_KEY_RIGHT_SUPER = 347;
 
 /**
- * Lights (objects). Angles are radians, like the rest of the libwgrender API. Add a light to a scene with wgr_scene_add(scene, light, 0); a light can be in several scenes. Scenes also have an ambient term (wgr_scene_set_ambient). See docs/HISTORY.md, "Lighting (light objects, per-scene lighting)". - Nothing is lit implicitly: a new scene has no lights, no ambient and no environment (wgr_scene_set_environment), so its models render black until you light them. Models drawn outside a scene (wgr_model_draw) are unlit: base color x tint. - Lights affect models only. Shapes and sprites are unlit. - Each model uses up to 8 lights: the ones contributing most to it (brightness, intensity and falloff at the model's bounds). Point and spot lights whose range doesn't reach a model are skipped for it. - Parameters follow glTF KHR_lights_punctual, and shading follows glTF materials (wgr_material.h), so lights exported from glTF tools look the same here. Light colors are sRGB; lighting happens in linear space. A white directional light with intensity pi (about 3) shows a white, rough, non-metal surface facing it at full brightness. Point and spot lights fall off with the inverse square of distance and fade smoothly to zero at `range` (0 = no range limit). - Setters store values even when they don't apply to the light's type (e.g. range on a directional light).
+ * Lights (objects). Angles are radians, like the rest of the libwgrender API.
+ * Add a light to a scene with wgr_scene_add(scene, light, 0); a light can be in
+ * several scenes. Scenes also have an ambient term
+ * (wgr_scene_set_ambient). See docs/HISTORY.md, "Lighting (light objects, per-scene lighting)".
+ *
+ * - Nothing is lit implicitly: a new scene has no lights, no ambient and no
+ *   environment (wgr_scene_set_environment), so its models render black until you
+ *   light them. Models drawn outside a scene
+ *   (wgr_model_draw) are unlit: base color x tint.
+ * - Lights affect models only. Shapes and sprites are unlit.
+ * - Each model uses up to 8 lights: the ones contributing most to it (brightness,
+ *   intensity and falloff at the model's bounds). Point and spot lights whose range
+ *   doesn't reach a model are skipped for it.
+ * - Parameters follow glTF KHR_lights_punctual, and shading follows glTF
+ *   materials (wgr_material.h), so lights exported from glTF tools look the same
+ *   here. Light colors are sRGB; lighting happens in linear space. A white
+ *   directional light with intensity pi (about 3) shows a white, rough, non-metal
+ *   surface facing it at full brightness. Point and spot lights fall off with the
+ *   inverse square of distance and fade smoothly to zero at `range` (0 = no range
+ *   limit).
+ * - Setters store values even when they don't apply to the light's type (e.g.
+ *   range on a directional light).
  */
 export const WGR_LIGHT_DIRECTIONAL = 0;
 export const WGR_LIGHT_POINT = 1;
@@ -257,7 +326,55 @@ export const WGR_LOGGER_LEVEL_ERROR = 4;
 export const WGR_LOGGER_LEVEL_FATAL = 5;
 
 /**
- * Materials (resources): how a surface is shaded. See docs/HISTORY.md, "Materials and shaders". - A mesh loaded from glTF creates one material per glTF material (wgr_mesh_get_material). They're shared by every model using that mesh, so changing one changes all of them. To change one model only, create a material and assign it with wgr_model_set_material. - wgr_material_create returns a material with glTF's defaults (white, fully metallic, fully rough, opaque, single sided) and a reference owned by the caller. Models hold their own reference, so destroy yours when done. - Shading follows glTF metallic-roughness and lights in linear color space. Colors from color handles and color textures (base color, emissive) are sRGB and converted to linear; numeric color values (vec3/vec4) are already linear, like glTF factors. Metallic-roughness, normal and occlusion textures are linear data. Textures use texture coordinate set 0 unless <t >_texcoord says otherwise (below). Parameters are set by name. Setters return false for an unknown name or a value of the wrong kind. On a custom material whose shader is still loading, the names aren't known yet: the value is kept and the setter returns true, and once the shader is READY what was kept is applied, an unknown name or wrong kind logged then and ignored. name                          kind     default    notes base_color                    vec4     1,1,1,1    linear rgba; alpha drives MASK/BLEND base_color_texture            texture  none       sRGB rgba metallic                      float    1          0..1 roughness                     float    1          0..1 metallic_roughness_texture    texture  none       green = roughness, blue = metallic normal_texture                texture  none       tangent-space normal map normal_scale                  float    1 occlusion_texture             texture  none       red = ambient occlusion occlusion_strength            float    1          0..1 emissive                      vec3     0,0,0      linear rgb, may exceed 1 emissive_texture              texture  none       sRGB rgb Each texture <t > above (e.g. base_color_texture) also has: <t >_texcoord                  int      0          texture coordinate set: 0 or 1 <t >_offset                    vec2     0,0        texture transform (glTF <t >_rotation                  float    0          KHR_texture_transform): <t >_scale                     vec2     1,1        uv' = offset + rotate(scale * uv) Scale tiles the texture (2,2 repeats it twice each way); rotation is radians, counterclockwise in texture space. Textures repeat, sample smoothly and use mipmaps unless wgr_material_set_texture_sampling says otherwise. wgr_material_set_color accepts vec3 and vec4 parameters (vec3 ignores alpha). glTF vertex colors (COLOR_0) multiply the base color of models that have them.
+ * Materials (resources): how a surface is shaded. See docs/HISTORY.md, "Materials and shaders".
+ *
+ * - A mesh loaded from glTF creates one material per glTF material
+ *   (wgr_mesh_get_material). They're shared by every model using that mesh, so
+ *   changing one changes all of them. To change one model only, create a
+ *   material and assign it with wgr_model_set_material.
+ * - wgr_material_create returns a material with glTF's defaults (white, fully
+ *   metallic, fully rough, opaque, single sided) and a reference owned by the
+ *   caller. Models hold their own reference, so destroy yours when done.
+ * - Shading follows glTF metallic-roughness and lights in linear color space.
+ *   Colors from color handles and color textures (base color, emissive) are sRGB
+ *   and converted to linear; numeric color values (vec3/vec4) are already linear,
+ *   like glTF factors. Metallic-roughness, normal and occlusion textures are
+ *   linear data. Textures use texture coordinate set 0 unless <t>_texcoord says
+ *   otherwise (below).
+ *
+ * Parameters are set by name. Setters return false for an unknown name or a
+ * value of the wrong kind. On a custom material whose shader is still loading, the
+ * names aren't known yet: the value is kept and the setter returns true, and once
+ * the shader is READY what was kept is applied, an unknown name or wrong kind logged
+ * then and ignored.
+ *
+ *   name                          kind     default    notes
+ *   base_color                    vec4     1,1,1,1    linear rgba; alpha drives MASK/BLEND
+ *   base_color_texture            texture  none       sRGB rgba
+ *   metallic                      float    1          0..1
+ *   roughness                     float    1          0..1
+ *   metallic_roughness_texture    texture  none       green = roughness, blue = metallic
+ *   normal_texture                texture  none       tangent-space normal map
+ *   normal_scale                  float    1
+ *   occlusion_texture             texture  none       red = ambient occlusion
+ *   occlusion_strength            float    1          0..1
+ *   emissive                      vec3     0,0,0      linear rgb, may exceed 1
+ *   emissive_texture              texture  none       sRGB rgb
+ *
+ * Each texture <t> above (e.g. base_color_texture) also has:
+ *
+ *   <t>_texcoord                  int      0          texture coordinate set: 0 or 1
+ *   <t>_offset                    vec2     0,0        texture transform (glTF
+ *   <t>_rotation                  float    0          KHR_texture_transform):
+ *   <t>_scale                     vec2     1,1        uv' = offset + rotate(scale * uv)
+ *
+ * Scale tiles the texture (2,2 repeats it twice each way); rotation is radians,
+ * counterclockwise in texture space. Textures repeat, sample smoothly and use
+ * mipmaps unless wgr_material_set_texture_sampling says otherwise.
+ *
+ * wgr_material_set_color accepts vec3 and vec4 parameters (vec3 ignores alpha).
+ *
+ * glTF vertex colors (COLOR_0) multiply the base color of models that have them.
  */
 export const WGR_MATERIAL_PBR = 0;
 export const WGR_MATERIAL_UNLIT = 1;
@@ -271,7 +388,24 @@ export const WGR_MOUSE_BUTTON_RIGHT = 1;
 export const WGR_MOUSE_BUTTON_MIDDLE = 2;
 
 /**
- * Resources: the shared, reference counted data an object uses (a texture, a mesh, an audio clip, a font, an environment, a shader). What every resource has in common is here; each kind's own calls are in its header (wgr_texture.h, ...). A resource loads on create: wgr_ <kind >_create(path) takes an asset path (relative to the asset root, the same file on every platform) and returns the handle at once, PENDING. The file is made local (from the cache, downloaded, or through a redirect), prepared on a worker and finished on the main thread, and the handle turns READY or FAILED in a later frame, at the start of it, so a frame callback that checks sees each change once, in order. Nothing is called back. Creating the same path again gives the same handle, with one more reference, whatever its status; releasing the last reference of one still loading cancels the load. A create returns 0 only when there's no room for another resource of its kind. A resource made from nothing but numbers (a render target, a generated mesh) is READY from the start. Objects take a resource in any status and do the right thing until it is READY (each kind's header says what), so a program can create everything at once and never wait; the status is for what a program wants to show, such as a loading screen.
+ * Resources: the shared, reference counted data an object uses (a texture, a mesh, an
+ * audio clip, a font, an environment, a shader). What every resource has in common is
+ * here; each kind's own calls are in its header (wgr_texture.h, ...).
+ *
+ * A resource loads on create: wgr_<kind>_create(path) takes an asset path (relative to
+ * the asset root, the same file on every platform) and returns the handle at once,
+ * PENDING. The file is made local (from the cache, downloaded, or through a redirect),
+ * prepared on a worker and finished on the main thread, and the handle turns READY or
+ * FAILED in a later frame, at the start of it, so a frame callback that checks sees
+ * each change once, in order. Nothing is called back. Creating the same path again
+ * gives the same handle, with one more reference, whatever its status; releasing the
+ * last reference of one still loading cancels the load. A create returns 0 only when
+ * there's no room for another resource of its kind. A resource made from nothing but
+ * numbers (a render target, a generated mesh) is READY from the start.
+ *
+ * Objects take a resource in any status and do the right thing until it is READY (each
+ * kind's header says what), so a program can create everything at once and never
+ * wait; the status is for what a program wants to show, such as a loading screen.
  */
 export const WGR_RESOURCE_NONE = 0;
 export const WGR_RESOURCE_PENDING = 1;
@@ -279,7 +413,8 @@ export const WGR_RESOURCE_READY = 2;
 export const WGR_RESOURCE_FAILED = 3;
 
 /**
- * Sprite3d object (kind SPRITE3D): a textured billboard in 3D that references a shared Texture resource. See docs/ARCHITECTURE.md.
+ * Sprite3d object (kind SPRITE3D): a textured billboard in 3D that references
+ * a shared Texture resource. See docs/ARCHITECTURE.md.
  */
 export const WGR_SPRITE3D_FACING_CAMERA = 0;
 export const WGR_SPRITE3D_FACING_CAMERA_FIXED_Y = 1;
@@ -287,7 +422,9 @@ export const WGR_SPRITE3D_FACING_Y_UP = 2;
 export const WGR_SPRITE3D_FACING_FREE = 3;
 
 /**
- * Where a block of text sits relative to its position, per axis: LEFT / CENTER / RIGHT horizontally, TOP / MIDDLE / BOTTOM vertically. Wrapped lines line up the same way inside the block.
+ * Where a block of text sits relative to its position, per axis: LEFT / CENTER /
+ * RIGHT horizontally, TOP / MIDDLE / BOTTOM vertically. Wrapped lines line up the
+ * same way inside the block.
  */
 export const WGR_TEXT_ALIGN_LEFT = 0;
 export const WGR_TEXT_ALIGN_CENTER = 1;
@@ -307,7 +444,9 @@ export const WGR_TEXTURE_WRAP_CLAMP = 1;
 export const WGR_TEXTURE_WRAP_MIRROR = 2;
 
 /**
- * How the scene's lit colors map to the display. Lighting can exceed what a screen shows; tone mapping rolls off highlights instead of clipping them. Applies to models and the background, not to sprites, shapes or text.
+ * How the scene's lit colors map to the display. Lighting can exceed what a screen
+ * shows; tone mapping rolls off highlights instead of clipping them. Applies to
+ * models and the background, not to sprites, shapes or text.
  */
 export const WGR_TONEMAP_NONE = 0;
 export const WGR_TONEMAP_NEUTRAL = 1;
@@ -318,7 +457,17 @@ export const WGR_TONEMAP_ACES = 2;
 export const WGR_KEYBOARD_STATE = Object.freeze({ BYTES: 2324, max_num_keys: 0, keys: 1, pressed_key: 513, pressed_char: 514, num_pressed_keys: 515, pressed_keys: 516, num_pressed_chars: 548, pressed_chars: 549 });
 
 /**
- * Set the asset base that logical paths resolve against. A URL ("https://host/assets") is a fetch origin on both platforms: a missing file is downloaded from it and cached, on the web in the browser's storage (IndexedDB, checked as wgr_asset_set_cache_mode says) and on desktop in the cache directory, by the program (fetching, below). Anything else is a local directory ("examples/assets"), as it has always been on desktop, and a file: URL ("file:///opt/game/assets") names one too -- on desktop only, since a browser reads no file: URLs. A local host is only ever read, as a browser only reads its host: what is downloaded under one -- a fetch_url's file, or one a "://" redirect finds missing -- goes in the cache directory, so a shipped file is never overwritten, and it can sit where the program can't write (Program Files, an app bundle). Pass the same logical paths everywhere; only the base differs.
+ * Set the asset base that logical paths resolve against. A URL ("https://host/assets")
+ * is a fetch origin on both platforms: a missing file is downloaded from it and cached,
+ * on the web in the browser's storage (IndexedDB, checked as wgr_asset_set_cache_mode
+ * says) and on desktop in the cache directory, by the program (fetching, below). Anything else is a
+ * local directory ("examples/assets"), as it has always been on desktop, and a file:
+ * URL ("file:///opt/game/assets") names one too -- on desktop only, since a browser
+ * reads no file: URLs. A local host is only ever read, as a browser only reads its
+ * host: what is downloaded under one -- a fetch_url's file, or one a "://" redirect
+ * finds missing -- goes in the cache directory, so a shipped file is never
+ * overwritten, and it can sit where the program can't write (Program Files, an app
+ * bundle). Pass the same logical paths everywhere; only the base differs.
  */
 export function wgr_asset_set_host(host_) {
     const mark = host["stackSave"]();
@@ -334,7 +483,12 @@ export function wgr_asset_get_host() {
 }
 
 /**
- * Where downloads land on desktop, and where later runs find them: a local directory, created as needed. By default the user's cache directory for this program, <cache >/ <company >/ <app > (wgr_set_app_company, wgr_set_app_name): ~/.cache/... or $XDG_CACHE_HOME/... on Linux, ~/Library/Caches/... on macOS, %LOCALAPPDATA% . .. on Windows; ".wgr-cache" where there is none. Ignored on the web, which caches in the browser. Set it before the first wgr_asset_set_host with a URL.
+ * Where downloads land on desktop, and where later runs find them: a local directory,
+ * created as needed. By default the user's cache directory for this program,
+ * <cache>/<company>/<app> (wgr_set_app_company, wgr_set_app_name): ~/.cache/... or
+ * $XDG_CACHE_HOME/... on Linux, ~/Library/Caches/... on macOS, %LOCALAPPDATA%\...\cache
+ * on Windows; ".wgr-cache" where there is none. Ignored on the web, which caches in the
+ * browser. Set it before the first wgr_asset_set_host with a URL.
  */
 export function wgr_asset_set_cache_dir(dir) {
     const mark = host["stackSave"]();
@@ -351,7 +505,9 @@ export function wgr_asset_get_cache_dir() {
 }
 
 /**
- * Turn the program's downloading on or off (off by default). Turning it off fails the requests not yet taken, at the next frame; ones taken are still answered. False on the web, where the browser is the downloader: nothing to turn on.
+ * Turn the program's downloading on or off (off by default). Turning it off fails the
+ * requests not yet taken, at the next frame; ones taken are still answered. False on
+ * the web, where the browser is the downloader: nothing to turn on.
  */
 export function wgr_asset_set_fetching(enabled) {
     return host["_wgr_asset_set_fetching"](enabled) !== 0;
@@ -362,14 +518,16 @@ export function wgr_asset_is_fetching() {
 }
 
 /**
- * The next download to do, oldest first, or 0 when there's none. Each is handed out once.
+ * The next download to do, oldest first, or 0 when there's none. Each is handed out
+ * once.
  */
 export function wgr_asset_fetch_next() {
     return host["_wgr_asset_fetch_next"]() >>> 0;
 }
 
 /**
- * What a request downloads, and where to write it. "" for anything that isn't a request waiting on its answer. Borrowed: valid until the next call.
+ * What a request downloads, and where to write it. "" for anything that isn't a
+ * request waiting on its answer. Borrowed: valid until the next call.
  */
 export function wgr_asset_fetch_get_url(request) {
     return str(host["_wgr_asset_fetch_get_url"](request));
@@ -380,14 +538,26 @@ export function wgr_asset_fetch_get_dest(request) {
 }
 
 /**
- * What became of a download; any thread. False when it can't be taken: libwgrender isn't running (shut down while the download ran, say).
+ * What became of a download; any thread. False when it can't be taken: libwgrender
+ * isn't running (shut down while the download ran, say).
  */
 export function wgr_asset_fetch_done(request, ok) {
     return host["_wgr_asset_fetch_done"](request, ok) !== 0;
 }
 
 /**
- * Forget a cached asset, so the next ensure fetches it again: the file and what was kept about it, on the web from the browser's storage and from this visit, on desktop from the cache directory -- never a local host's own file. False when there was no such file, or for a path that isn't under the host (as wgr_asset_ensure reads one). A cache can hold a file that is wrong rather than old (a host that compresses once served gzip bytes under an asset's name): the host says it hasn't changed, so revalidation keeps it, and only something that drops it helps. libwgrender also drops an entry by itself when a loader rejects a cached file and fetches it once more, so this is for a program that knows better -- a new version of an asset, or a user asking to free the space.
+ * Forget a cached asset, so the next ensure fetches it again: the file and what was
+ * kept about it, on the web from the browser's storage and from this visit, on
+ * desktop from the cache directory -- never a local host's own file. False when there
+ * was no such file, or for a path that isn't under the host (as
+ * wgr_asset_ensure reads one). A cache can hold a file that is wrong rather
+ * than old (a host that compresses once served gzip bytes under an asset's name):
+ * the host says it hasn't changed, so revalidation keeps it, and only something that
+ * drops it helps.
+ *
+ * libwgrender also drops an entry by itself when a loader rejects a cached file and
+ * fetches it once more, so this is for a program that knows better -- a new version of
+ * an asset, or a user asking to free the space.
  */
 export function wgr_asset_evict(path) {
     const mark = host["stackSave"]();
@@ -397,7 +567,14 @@ export function wgr_asset_evict(path) {
 }
 
 /**
- * Forget every cached asset, so the next ensure of any file fetches it again, and what was read of the manifest (wgr_asset_set_manifest), so the root is asked about again. On the web: the browser's storage and this visit's copies. On desktop: every file libwgrender downloaded into the cache directory (wgr_asset_set_cache_dir) is deleted, with its metadata and the directories that leaves empty, and a warning says how many; it keeps a list of its downloads there, ".wgr-downloads", and never deletes a file it didn't download. Resources already created stay as they are. Call it while nothing is loading: a load in flight may fail.
+ * Forget every cached asset, so the next ensure of any file fetches it again, and
+ * what was read of the manifest (wgr_asset_set_manifest), so the root is asked about
+ * again. On the web: the browser's storage and this visit's copies. On desktop: every
+ * file libwgrender downloaded into the cache directory (wgr_asset_set_cache_dir) is
+ * deleted, with its metadata and the directories that leaves empty, and a warning
+ * says how many; it keeps a list of its downloads there, ".wgr-downloads", and never
+ * deletes a file it didn't download. Resources already created stay as they are.
+ * Call it while nothing is loading: a load in flight may fail.
  */
 export function wgr_asset_clear_cache() {
     host["_wgr_asset_clear_cache"]();
@@ -415,7 +592,28 @@ export function wgr_asset_get_cache_mode() {
 }
 
 /**
- * An asset manifest: a hash of each file's contents, so a cached copy whose hash still matches is used with no request at all, and one that changed is fetched once (docs/HISTORY.md, "a web asset cache that notices changed files"; tools/gen_manifest.py writes them). `path` is the root manifest's logical path under the host ("manifest.json"). A manifest lists the files beside it and, for each directory, the hash of that directory's own manifest.json, which is fetched only when a file under it is first ensured, and then only if its hash changed. The root is asked about once per run, as WGR_ASSET_CACHE_REVALIDATE asks whatever the mode is; without an answer the cached root is used, and without either, nothing is listed. A listed file is fetched past the browser's cache and its bytes are hashed before they are kept: bytes that don't match (a host still serving the old file, a broken deploy) are not kept, and the load fails. A file no manifest lists, a file ensured with a fetch_url, and every file under a manifest that couldn't be read or didn't match its hash are cached as the cache mode says. On desktop a manifest needs a URL host and fetching (wgr_asset_set_fetching), and a download is hashed once the program reports it. NULL or "" for none (the default). False for a path that isn't relative (one starting with "/" or holding "://"), or is 512 bytes or longer. Set it before the ensures it should cover; setting it again forgets what was read of the last one.
+ * An asset manifest: a hash of each file's contents, so a cached copy whose hash
+ * still matches is used with no request at all, and one that changed is fetched once
+ * (docs/HISTORY.md, "a web asset cache that notices changed files"; tools/gen_manifest.py writes them). `path` is the root
+ * manifest's logical path under the host ("manifest.json"). A manifest lists the
+ * files beside it and, for each directory, the hash of that directory's own
+ * manifest.json, which is fetched only when a file under it is first ensured, and
+ * then only if its hash changed.
+ *
+ * The root is asked about once per run, as WGR_ASSET_CACHE_REVALIDATE asks whatever
+ * the mode is; without an answer the cached root is used, and without either, nothing
+ * is listed. A listed file is fetched past the browser's cache and its bytes are
+ * hashed before they are kept: bytes that don't match (a host still serving the old
+ * file, a broken deploy) are not kept, and the load fails. A file no manifest lists,
+ * a file ensured with a fetch_url, and every file under a manifest that couldn't be
+ * read or didn't match its hash are cached as the cache mode says. On desktop a
+ * manifest needs a URL host and fetching (wgr_asset_set_fetching), and a download is
+ * hashed once the program reports it.
+ *
+ * NULL or "" for none (the default). False for a path that isn't relative (one
+ * starting with "/" or holding "://"), or is 512 bytes or longer. Set it before the
+ * ensures it should cover;
+ * setting it again forgets what was read of the last one.
  */
 export function wgr_asset_set_manifest(path) {
     const mark = host["stackSave"]();
@@ -425,7 +623,30 @@ export function wgr_asset_set_manifest(path) {
 }
 
 /**
- * Ensure a file is local: a task that is PENDING, then DONE or FAILED at the start of a later frame (never inside this call), with a directly openable local path. path      logical key: the cache path on web, the read path under the configured host on desktop, and (host + path) the default download location when fetched. It stays under the host: "\\" is read as "/", and "." and ".." segments are resolved; a path that is absolute, names a drive (any ":"), or climbs above the host with ".." is refused (0). fetch_url optional per-call override of the SOURCE only — a mirror, a signed link, a versioned name; bytes are still cached and resolved under `path`. NULL = the default host + path. It is read against the host as a browser reads a URL against a directory, on every platform: "music/v2/a.mp3" is under the host, "../x" beside it, "/x" at its origin's root, and an absolute URL is used as it is. On desktop an absolute one has to be http or https, and needs fetching (wgr_asset_set_fetching) but not a URL host. Under a local host a relative one is a file under it, read where it is (nothing is copied); it is held to `path`'s rules, so it can't climb out of the host. Anything else -- a file: URL, one leaving a local host -- is refused (0). flags     bitmask of WGR_ASSET_* (e.g. WGR_ASSET_FORCE_FETCH). Returns a task handle (kind ASSET_TASK), kept until wgr_asset_task_destroy, or 0 (refused as above, or no room).
+ * Ensure a file is local: a task that is PENDING, then DONE or FAILED at the start of
+ * a later frame (never inside this call), with a directly openable local path.
+ *
+ *   path      logical key: the cache path on web, the read path under the
+ *             configured host on desktop, and (host + path) the default
+ *             download location when fetched. It stays under the host: "\\" is
+ *             read as "/", and "." and ".." segments are resolved; a path that is
+ *             absolute, names a drive (any ":"), or climbs above the host with ".."
+ *             is refused (0).
+ *   fetch_url optional per-call override of the SOURCE only — a mirror, a signed
+ *             link, a versioned name; bytes are still cached and resolved under
+ *             `path`. NULL = the default host + path. It is read against the host
+ *             as a browser reads a URL against a directory, on every platform:
+ *             "music/v2/a.mp3" is under the host, "../x" beside it, "/x" at its
+ *             origin's root, and an absolute URL is used as it is.
+ *             On desktop an absolute one has to be http or https, and needs
+ *             fetching (wgr_asset_set_fetching) but not a URL host. Under a local host a relative one is a
+ *             file under it, read where it is (nothing is copied); it is held to
+ *             `path`'s rules, so it can't climb out of the host. Anything else --
+ *             a file: URL, one leaving a local host -- is refused (0).
+ *   flags     bitmask of WGR_ASSET_* (e.g. WGR_ASSET_FORCE_FETCH).
+ *
+ * Returns a task handle (kind ASSET_TASK), kept until wgr_asset_task_destroy, or 0
+ * (refused as above, or no room).
  */
 export function wgr_asset_ensure(path, fetch_url, flags) {
     const mark = host["stackSave"]();
@@ -435,49 +656,85 @@ export function wgr_asset_ensure(path, fetch_url, flags) {
 }
 
 /**
- * A task's status: a file's, a group's or a ping's. NONE for anything that isn't a task. It changes only at the start of a frame, so a frame that reads it sees each change once.
+ * A task's status: a file's, a group's or a ping's. NONE for anything that isn't a
+ * task. It changes only at the start of a frame, so a frame that reads it sees each change
+ * once.
  */
 export function wgr_asset_task_get_status(task) {
     return host["_wgr_asset_task_get_status"](task);
 }
 
 /**
- * The local path of a DONE file task, directly openable (where the file was found: a redirect's, a fetch_url's). "" until then, for a group, and for anything that isn't a task. Borrowed: valid while the task is, until the next ensure.
+ * The local path of a DONE file task, directly openable (where the file was found:
+ * a redirect's, a fetch_url's). "" until then, for a group, and for anything that
+ * isn't a task. Borrowed: valid while the task is, until the next ensure.
  */
 export function wgr_asset_task_get_path(task) {
     return str(host["_wgr_asset_task_get_path"](task));
 }
 
 /**
- * Rough progress of a task or group, 0..1: a file counts half for being made local and half for the files it names; a group, its members' average. 1 once it is DONE or FAILED, 0 for anything that isn't a task. For resources loading, read their statuses (wgr_resource.h).
+ * Rough progress of a task or group, 0..1: a file counts half for being made local
+ * and half for the files it names; a group, its members' average. 1 once it is DONE
+ * or FAILED, 0 for anything that isn't a task. For resources loading, read their
+ * statuses (wgr_resource.h).
  */
 export function wgr_asset_task_get_progress(task) {
     return host["_wgr_asset_task_get_progress"](task);
 }
 
 /**
- * Free a task. One still PENDING runs on and its result is dropped (a file still lands in the cache). Destroying a group destroys its members. False for anything that isn't a task.
+ * Free a task. One still PENDING runs on and its result is dropped (a file still
+ * lands in the cache). Destroying a group destroys its members. False for anything
+ * that isn't a task.
  */
 export function wgr_asset_task_destroy(task) {
     return host["_wgr_asset_task_destroy"](task) !== 0;
 }
 
 /**
- * Groups: one task for many files (fetching a level's files ahead, say). A group is DONE once every member is, FAILED once every member has finished and any failed (an empty one is DONE at the next frame). Members keep their own statuses and paths.
+ * Groups: one task for many files (fetching a level's files ahead, say). A group is
+ * DONE once every member is, FAILED once every member has finished and any failed
+ * (an empty one is DONE at the next frame). Members keep their own statuses and
+ * paths.
  */
 export function wgr_asset_group_create() {
     return host["_wgr_asset_group_create"]() >>> 0;
 }
 
 /**
- * Add a file task (wgr_asset_ensure) to a group, finished or not. False for anything else, a task already in a group, or a group that has finished.
+ * Add a file task (wgr_asset_ensure) to a group, finished or not. False for anything
+ * else, a task already in a group, or a group that has finished.
  */
 export function wgr_asset_group_add(group, task) {
     return host["_wgr_asset_group_add"](group, task) !== 0;
 }
 
 /**
- * Redirects: load files from somewhere else, for mods, translations or a CDN. Files whose path starts with `prefix` are looked for under `target` instead: wgr_asset_add_redirect("textures/", "mods/hd/textures/"); textures/rock.png loads mods/hd/textures/rock.png if it exists, else textures/rock.png wgr_asset_add_redirect("models/", "https://cdn.example.com/game/models/"); a target with "://" is where the file downloads from -- the browser on the web, the program on desktop (wgr_asset_set_fetching): it's still cached and loaded as models/... Rules stack: every path rule matching a file is tried, the one added last first, then the file's own path, so later rules sit on top (a mod over a mod, fr-CA over fr). A missing file under a path rule isn't an error; the next one is tried (on the web that costs a request). A download rule doesn't stack: the newest one matching a path is where it downloads from. Prefixes are plain text, matched at the start of the path ("textures/", not "*.png"). Redirects apply to every file a create loads or an ensure makes local (unless it gave an explicit fetch_url), and to the files they reference (a model's buffers and images, found next to wherever the model came from); wgr_resource_get_path and wgr_asset_task_get_path say which file was found. Up to 32 rules; false when full, given an empty prefix or target, or a prefix or path target that isn't under the host (as wgr_asset_ensure reads a path; a trailing "/" is kept).
+ * Redirects: load files from somewhere else, for mods, translations or a CDN.
+ * Files whose path starts with `prefix` are looked for under `target` instead:
+ *
+ *   wgr_asset_add_redirect("textures/", "mods/hd/textures/");
+ *       textures/rock.png loads mods/hd/textures/rock.png if it exists, else
+ *       textures/rock.png
+ *   wgr_asset_add_redirect("models/", "https://cdn.example.com/game/models/");
+ *       a target with "://" is where the file downloads from -- the browser on the
+ *       web, the program on desktop (wgr_asset_set_fetching): it's still cached and
+ *       loaded as models/...
+ *
+ * Rules stack: every path rule matching a file is tried, the one added last first,
+ * then the file's own path, so later rules sit on top (a mod over a mod, fr-CA over
+ * fr). A missing file under a path rule isn't an error; the next one is tried (on
+ * the web that costs a request). A download rule doesn't stack: the newest one
+ * matching a path is where it downloads from. Prefixes are plain text, matched at
+ * the start of the path ("textures/", not "*.png").
+ *
+ * Redirects apply to every file a create loads or an ensure makes local (unless it
+ * gave an explicit fetch_url), and to the files they reference (a model's buffers and
+ * images, found next to wherever the model came from); wgr_resource_get_path and
+ * wgr_asset_task_get_path say which file was found. Up to 32 rules; false
+ * when full, given an empty prefix or target, or a prefix or path target that isn't
+ * under the host (as wgr_asset_ensure reads a path; a trailing "/" is kept).
  */
 export function wgr_asset_add_redirect(prefix, target) {
     const mark = host["stackSave"]();
@@ -491,7 +748,13 @@ export function wgr_asset_clear_redirects() {
 }
 
 /**
- * Ping an asset host: a task (wgr_asset_task_get_status, _destroy) that is DONE on a later frame when the host answered within `timeout_ms` ( < = 0: 5000), FAILED when it didn't. `host` NULL pings the current one (wgr_asset_set_host). On the web it's a HEAD request to the host (any response counts, even a 404; another origin needs no CORS headers). On desktop the host is a local directory: DONE if it exists, FAILED if not (or a URL: no host ping on desktop, whose downloads are files, not round trips). Returns 0 before the asset layer is up, or when there's no room.
+ * Ping an asset host: a task (wgr_asset_task_get_status, _destroy) that is DONE on a
+ * later frame when the host answered within `timeout_ms` (<= 0: 5000), FAILED when it
+ * didn't. `host` NULL pings the current one (wgr_asset_set_host). On the web it's a
+ * HEAD request to the host (any response counts, even a 404; another origin needs no
+ * CORS headers). On desktop the host is a local directory: DONE if it exists, FAILED
+ * if not (or a URL: no host ping on desktop, whose downloads are files, not round
+ * trips). Returns 0 before the asset layer is up, or when there's no room.
  */
 export function wgr_asset_ping_host(host_, timeout_ms) {
     const mark = host["stackSave"]();
@@ -501,14 +764,17 @@ export function wgr_asset_ping_host(host_, timeout_ms) {
 }
 
 /**
- * The round trip of a DONE ping, in milliseconds (0 on desktop); 0 for one that isn't DONE, and for anything that isn't a ping.
+ * The round trip of a DONE ping, in milliseconds (0 on desktop); 0 for one that isn't
+ * DONE, and for anything that isn't a ping.
  */
 export function wgr_asset_ping_get_milliseconds(ping) {
     return host["_wgr_asset_ping_get_milliseconds"](ping);
 }
 
 /**
- * Milliseconds per frame spent finishing loads on the main thread (GPU uploads), default 4. At least one step runs each frame, so one large texture can exceed it: a 4096x4096 texture is one upload of ~45 ms.
+ * Milliseconds per frame spent finishing loads on the main thread (GPU uploads),
+ * default 4. At least one step runs each frame, so one large texture can exceed
+ * it: a 4096x4096 texture is one upload of ~45 ms.
  */
 export function wgr_asset_set_upload_budget(milliseconds) {
     host["_wgr_asset_set_upload_budget"](milliseconds);
@@ -522,21 +788,35 @@ export function wgr_resource_get_status(resource) {
 }
 
 /**
- * The file it was read from, as a path under the asset root: for "name.ktx" the variant this GPU got (or the PNG), for a redirected path where the redirect found it. "" until it is READY, for one made from numbers, and for anything that isn't a resource. Borrowed: valid while the resource is, until the next create.
+ * The file it was read from, as a path under the asset root: for "name.ktx" the
+ * variant this GPU got (or the PNG), for a redirected path where the redirect found
+ * it. "" until it is READY, for one made from numbers, and for anything that isn't a
+ * resource. Borrowed: valid while the resource is, until the next create.
  */
 export function wgr_resource_get_path(resource) {
     return str(host["_wgr_resource_get_path"](resource));
 }
 
 /**
- * Drop this handle's reference. Resources are shared and reference counted (creating the same path again gives the same handle, with one more reference), so a resource is freed when its last reference goes, not when you call this; one still loading then stops loading. Objects hold their own references, so handing a resource to one and releasing it right away is the normal pattern. A built-in (the default texture, the placeholder) is never freed. False for a handle that isn't a resource: 0, an object, or one already freed.
+ * Drop this handle's reference. Resources are shared and reference counted (creating
+ * the same path again gives the same handle, with one more reference), so a resource
+ * is freed when its last reference goes, not when you call this; one still loading
+ * then stops loading. Objects hold their own references, so handing a resource to one
+ * and releasing it right away is the normal pattern. A built-in (the default texture,
+ * the placeholder) is never freed. False for a handle that isn't a resource: 0, an
+ * object, or one already freed.
  */
 export function wgr_resource_release(resource) {
     return host["_wgr_resource_release"](resource) !== 0;
 }
 
 /**
- * The audio at asset path `path`, loading on create (wgr_resource.h): PENDING at once, then READY, or FAILED in a later frame for a file that is missing, fails to download or won't decode, and FAILED at once for a path outside the asset root or before wgr_run has started the asset layer. 0 only when there's no room for another. A sound playing it before it is READY waits, and plays from the start when it is; FAILED, the sound stays silent.
+ * The audio at asset path `path`, loading on create (wgr_resource.h): PENDING at once,
+ * then READY, or FAILED in a later frame for a file that is missing, fails to download
+ * or won't decode, and FAILED at once for a path outside the asset root or before
+ * wgr_run has started the asset layer. 0 only when there's no room for another. A
+ * sound playing it before it is READY waits, and plays from the start when it is;
+ * FAILED, the sound stays silent.
  */
 export function wgr_audio_create(path) {
     const mark = host["stackSave"]();
@@ -584,7 +864,8 @@ export function wgr_camera3d_get_fov(camera) {
 }
 
 /**
- * Orthographic: full visible height in world units (> 0). Width follows the window's aspect ratio.
+ * Orthographic: full visible height in world units (> 0). Width follows the
+ * window's aspect ratio.
  */
 export function wgr_camera3d_set_ortho_height(camera, height) {
     return host["_wgr_camera3d_set_ortho_height"](camera, height) !== 0;
@@ -603,7 +884,9 @@ export function wgr_camera3d_get_active() {
 }
 
 /**
- * Build a color from components, clamped to range: 0..255 for wgr_color_rgba, 0..1 for wgr_color_rgbaf (which rounds to the nearest 8-bit step). Out-of-range components saturate; they never wrap into the neighbouring channel.
+ * Build a color from components, clamped to range: 0..255 for wgr_color_rgba,
+ * 0..1 for wgr_color_rgbaf (which rounds to the nearest 8-bit step). Out-of-range
+ * components saturate; they never wrap into the neighbouring channel.
  */
 export function wgr_color_rgba(r, g, b, a) {
     return host["_wgr_color_rgba"](r, g, b, a) >>> 0;
@@ -637,7 +920,8 @@ export function wgr_color_get_alpha(color) {
 }
 
 /**
- * Straight-line blend of two colors, component by component; t is clamped to 0..1 (0 gives `from`, 1 gives `to`).
+ * Straight-line blend of two colors, component by component; t is clamped to
+ * 0..1 (0 gives `from`, 1 gives `to`).
  */
 export function wgr_color_lerp(from, to, t) {
     return host["_wgr_color_lerp"](from, to, t) >>> 0;
@@ -652,7 +936,13 @@ export function wgr_debug_disable_fps() {
 }
 
 /**
- * The environment at asset path `path`, loading on create (wgr_resource.h): PENDING at once, then READY, or FAILED in a later frame for a file that is missing, fails to download or won't decode. FAILED at once for a path outside the asset root, before wgr_run has started the asset layer, or on a graphics backend that can't filter half-float textures (environments are off there). 0 only when there's no room for another environment. Until it is READY a scene using it is lit as if it had none and draws no background; FAILED stays that way (the log says why).
+ * The environment at asset path `path`, loading on create (wgr_resource.h): PENDING
+ * at once, then READY, or FAILED in a later frame for a file that is missing, fails
+ * to download or won't decode. FAILED at once for a path outside the asset root,
+ * before wgr_run has started the asset layer, or on a graphics backend that can't
+ * filter half-float textures (environments are off there). 0 only when there's no
+ * room for another environment. Until it is READY a scene using it is lit as if it
+ * had none and draws no background; FAILED stays that way (the log says why).
  */
 export function wgr_environment_create(path) {
     const mark = host["stackSave"]();
@@ -662,7 +952,12 @@ export function wgr_environment_create(path) {
 }
 
 /**
- * The font at asset path `path`, loading on create (wgr_resource.h): PENDING at once, then READY, or FAILED in a later frame for a file that is missing, fails to download or isn't a font fontstash takes, and FAILED at once for a path outside the asset root or before wgr_run has started the asset layer. 0 only when there's no room for another font. Text using it draws in the built-in font until it is READY, and stays in it if it FAILED.
+ * The font at asset path `path`, loading on create (wgr_resource.h): PENDING at once,
+ * then READY, or FAILED in a later frame for a file that is missing, fails to download
+ * or isn't a font fontstash takes, and FAILED at once for a path outside the asset
+ * root or before wgr_run has started the asset layer. 0 only when there's no room for
+ * another font. Text using it draws in the built-in font until it is READY, and stays
+ * in it if it FAILED.
  */
 export function wgr_font_create(path) {
     const mark = host["stackSave"]();
@@ -672,7 +967,7 @@ export function wgr_font_create(path) {
 }
 
 /**
- * Returns {
+ * Returns {@link WGR_HANDLE_KIND_NONE} for handle {@code 0}; otherwise the kind field.
  */
 export function wgr_handle_get_kind(handle) {
     return host["_wgr_handle_get_kind"](handle);
@@ -740,7 +1035,8 @@ export function wgr_input_get_keyboard_state() {
 }
 
 /**
- * Fingers down, plus those lifted this frame (or tick); wgr_input_get_touch(0 .. count - 1) reads them, oldest first.
+ * Fingers down, plus those lifted this frame (or tick); wgr_input_get_touch(0 .. count - 1)
+ * reads them, oldest first.
  */
 export function wgr_input_get_touch_count() {
     return host["_wgr_input_get_touch_count"]();
@@ -785,14 +1081,28 @@ export function wgr_input_get_gamepad_axis(pad, axis) {
 }
 
 /**
- * Sticks: how far from the middle counts as the middle (0 .. 0.9; default 0.15). Past it, values rescale to reach 1 at the edge. False outside that range.
+ * Sticks: how far from the middle counts as the middle (0 .. 0.9; default 0.15).
+ * Past it, values rescale to reach 1 at the edge. False outside that range.
  */
 export function wgr_input_set_gamepad_deadzone(radius) {
     return host["_wgr_input_set_gamepad_deadzone"](radius) !== 0;
 }
 
 /**
- * Whether game controls (camera drags, 3D selection, hotkeys) should leave the pointer or the keyboard alone because a UI has it. Advisory: libwgrender keeps reporting input; game code checks these first. The pointer is captured while either: - the current press (left button, or the primary touch) started on a 2D member of an interactive scene (wgr_scene_set_interactive), from the frame it was pressed through the frame it's released; or - the game's UI says so with wgr_input_set_pointer_captured. The UI's captures are sticky: they stay until the UI changes them. Set them every frame from the UI's own hit-testing (pointer over UI, or a press that started on UI still held; a text field with focus for the keyboard). A UI lays out in the frame callback, after that frame's ticks, so ticks see the previous frame's value.
+ * Whether game controls (camera drags, 3D selection, hotkeys) should leave the pointer
+ * or the keyboard alone because a UI has it. Advisory: libwgrender keeps reporting input;
+ * game code checks these first.
+ *
+ * The pointer is captured while either:
+ * - the current press (left button, or the primary touch) started on a 2D member of an
+ *   interactive scene (wgr_scene_set_interactive), from the frame it was pressed through
+ *   the frame it's released; or
+ * - the game's UI says so with wgr_input_set_pointer_captured.
+ *
+ * The UI's captures are sticky: they stay until the UI changes them. Set them every
+ * frame from the UI's own hit-testing (pointer over UI, or a press that started on UI
+ * still held; a text field with focus for the keyboard). A UI lays out in the frame
+ * callback, after that frame's ticks, so ticks see the previous frame's value.
  */
 export function wgr_input_is_pointer_captured() {
     return host["_wgr_input_is_pointer_captured"]() !== 0;
@@ -843,7 +1153,8 @@ export function wgr_light_set_spot_cone(light, inner_angle, outer_angle) {
 }
 
 /**
- * radians from the spot direction, 0..pi/2 (KHR_lights_punctual innerConeAngle / outerConeAngle); default pi/6, pi/4
+ * radians from the spot direction, 0..pi/2 (KHR_lights_punctual
+ * innerConeAngle / outerConeAngle); default pi/6, pi/4
  */
 export function wgr_light_set_enabled(light, enabled) {
     return host["_wgr_light_set_enabled"](light, enabled) !== 0;
@@ -854,7 +1165,8 @@ export function wgr_light_is_enabled(light) {
 }
 
 /**
- * What was set, as the light holds it: a direction normalized, a range or intensity below 0 as 0, cone angles clamped (radians). 0 or (0, 0, 0) for an invalid handle.
+ * What was set, as the light holds it: a direction normalized, a range or intensity
+ * below 0 as 0, cone angles clamped (radians). 0 or (0, 0, 0) for an invalid handle.
  */
 export function wgr_light_get_type(light) {
     return host["_wgr_light_get_type"](light);
@@ -903,7 +1215,15 @@ export function wgr_light_get_spot_outer_angle(light) {
 }
 
 /**
- * Shadows (docs/PLAN-shadows.md). A casting light draws what it can see into a depth map once a frame, and surfaces behind something are darkened. Off by default: a map costs a pass and its memory. Directional and spot lights cast; a point light is ignored (warned once) — it would need six maps, one each way. Up to four lights cast at once, in the order the scene finds them; past that a light lights the scene without shadowing it. Models say whether they take part (wgr_model_set_casts_shadow / wgr_model_set_receives_shadow); sprites with a material receive but don't cast.
+ * Shadows (docs/PLAN-shadows.md). A casting light draws what it can see into a depth
+ * map once a frame, and surfaces behind something are darkened. Off by default: a map
+ * costs a pass and its memory. Directional and spot lights cast; a point light is
+ * ignored (warned once) — it would need six maps, one each way. Up to four lights cast
+ * at once, in the order the scene finds them; past that a light lights the scene
+ * without shadowing it.
+ *
+ * Models say whether they take part (wgr_model_set_casts_shadow /
+ * wgr_model_set_receives_shadow); sprites with a material receive but don't cast.
  */
 export function wgr_light_set_casts_shadows(light, casts) {
     return host["_wgr_light_set_casts_shadows"](light, casts) !== 0;
@@ -914,42 +1234,60 @@ export function wgr_light_get_casts_shadows(light) {
 }
 
 /**
- * How far this light's shadows reach, in world units (default 50). A directional light covers that much of what the camera sees, so less distance is a sharper shadow; a spot light covers its cone out to this or its range, whichever is nearer.
+ * How far this light's shadows reach, in world units (default 50). A directional
+ * light covers that much of what the camera sees, so less distance is a sharper
+ * shadow; a spot light covers its cone out to this or its range, whichever is nearer.
  */
 export function wgr_light_set_shadow_distance(light, distance) {
     return host["_wgr_light_set_shadow_distance"](light, distance) !== 0;
 }
 
 /**
- * Pixels each way of the light's shadow map, rounded down to a power of two (default 2048), clamped to 256 .. 4096; false for a size below 1. Bigger is sharper and slower, and costs 2x the memory each step. The casting lights in a scene share one map, so they all get the largest size any of them asked for: keep them the same unless you mean it.
+ * Pixels each way of the light's shadow map, rounded down to a power of two (default
+ * 2048), clamped to 256 .. 4096; false for a size below 1. Bigger is sharper and slower, and costs
+ * 2x the memory each step.
+ * The casting lights in a scene share one map, so they all get the largest size any of
+ * them asked for: keep them the same unless you mean it.
  */
 export function wgr_light_set_shadow_map_size(light, size) {
     return host["_wgr_light_set_shadow_map_size"](light, size) !== 0;
 }
 
 /**
- * How much of this light a shadow blocks (0..1, clamped; default 1 = all of it). Less leaves some of it through, for a softer look that doesn't depend on the scene's ambient.
+ * How much of this light a shadow blocks (0..1, clamped; default 1 = all of it). Less
+ * leaves some of it through, for a softer look that doesn't depend on the scene's
+ * ambient.
  */
 export function wgr_light_set_shadow_strength(light, strength) {
     return host["_wgr_light_set_shadow_strength"](light, strength) !== 0;
 }
 
 /**
- * A colour mixed into what a shadow leaves behind (default black: nothing added). Shadows are really coloured by the ambient and environment light that still reaches them — this is the stylised knob for when you want a blue or warm shadow without changing how the rest of the scene is lit. The tint is scaled by how deep the shadow is, so a half-shadowed edge gets half of it.
+ * A colour mixed into what a shadow leaves behind (default black: nothing added).
+ * Shadows are really coloured by the ambient and environment light that still reaches
+ * them — this is the stylised knob for when you want a blue or warm shadow without
+ * changing how the rest of the scene is lit. The tint is scaled by how deep the
+ * shadow is, so a half-shadowed edge gets half of it.
  */
 export function wgr_light_set_shadow_color(light, color) {
     return host["_wgr_light_set_shadow_color"](light, color) !== 0;
 }
 
 /**
- * Depth offsets that keep a surface from shadowing itself, measured in shadow-map texels (what the artifact is made of, so the same numbers hold at any map size or distance): `constant` always, `slope` scaled by how steeply the surface faces the light. Defaults (1, 4). Too little and lit surfaces get a striped "shadow acne"; too much and a shadow creeps away from what casts it, leaving a gap at its feet.
+ * Depth offsets that keep a surface from shadowing itself, measured in shadow-map
+ * texels (what the artifact is made of, so the same numbers hold at any map size or
+ * distance): `constant` always, `slope` scaled by how steeply the surface faces the
+ * light. Defaults (1, 4). Too little and lit surfaces get a striped "shadow acne"; too
+ * much and a shadow creeps away from what casts it, leaving a gap at its feet.
  */
 export function wgr_light_set_shadow_bias(light, constant, slope) {
     return host["_wgr_light_set_shadow_bias"](light, constant, slope) !== 0;
 }
 
 /**
- * The shadow settings as held: the map size is the power of two the GPU gets (what set_shadow_map_size clamped and rounded to), strength is clamped. 0 for an invalid handle.
+ * The shadow settings as held: the map size is the power of two the GPU gets (what
+ * set_shadow_map_size clamped and rounded to), strength is clamped. 0 for an invalid
+ * handle.
  */
 export function wgr_light_get_shadow_distance(light) {
     return host["_wgr_light_get_shadow_distance"](light);
@@ -976,7 +1314,8 @@ export function wgr_light_get_shadow_bias_slope(light) {
 }
 
 /**
- * Messages at `level` and above are written (to stderr: the browser console on the web); the rest are dropped. WGR_LOGGER_LEVEL_INFO by default.
+ * Messages at `level` and above are written (to stderr: the browser console on the web);
+ * the rest are dropped. WGR_LOGGER_LEVEL_INFO by default.
  */
 export function wgr_logger_set_level(level) {
     host["_wgr_logger_set_level"](level);
@@ -987,7 +1326,8 @@ export function wgr_logger_get_level() {
 }
 
 /**
- * Write a message: finished text, UTF-8, one line. A binding formats in its own language and calls these. _source adds where it came from ("file.c:42: ...").
+ * Write a message: finished text, UTF-8, one line. A binding formats in its own
+ * language and calls these. _source adds where it came from ("file.c:42: ...").
  */
 export function wgr_logger_message(level, text) {
     const mark = host["stackSave"]();
@@ -1006,7 +1346,11 @@ export function wgr_texture_get_default() {
 }
 
 /**
- * The texture drawn in place of one that FAILED, and of an image a glTF file references that is missing or broken (the model still loads, with a warning). Default: a built-in magenta and black checker. Set your own (the placeholder holds a reference), or 0 to restore the built-in one. A glTF's missing images take the placeholder set when the model loaded; failed textures draw the current one.
+ * The texture drawn in place of one that FAILED, and of an image a glTF file
+ * references that is missing or broken (the model still loads, with a warning).
+ * Default: a built-in magenta and black checker. Set your own (the placeholder holds
+ * a reference), or 0 to restore the built-in one. A glTF's missing images take the
+ * placeholder set when the model loaded; failed textures draw the current one.
  */
 export function wgr_texture_get_placeholder() {
     return host["_wgr_texture_get_placeholder"]() >>> 0;
@@ -1017,7 +1361,24 @@ export function wgr_texture_set_placeholder(texture) {
 }
 
 /**
- * The texture at asset path `path`, loading on create (wgr_resource.h): PENDING at once, then READY, or FAILED in a later frame for a file that is missing, fails to download or won't decode, and FAILED at once for a path that isn't under the asset root (absolute, a drive, or climbing out with "..") or before wgr_run has started the asset layer; each failure is logged with why. 0 only when there's no room for another texture. While it is PENDING it isn't there yet: a sprite or a texture draw using it draws nothing (and a sprite isn't picked), and a material draws as if the slot had no texture. FAILED, it draws as the placeholder (wgr_texture_set_placeholder). Its size reads 0, 0 until it is READY. A texture not loaded from a file (a render target, a model's image) is READY. A path ending .ktx names a texture compressed for GPUs (tools/compress_textures.py): name.bc7.ktx, name.astc.ktx or name.etc2.ktx is loaded, whichever this GPU can sample first, and name.png when none of them can or the variant is missing. On the web only the chosen one downloads. Name the plain "name.ktx"; naming a variant outright loads that one, with no fallback.
+ * The texture at asset path `path`, loading on create (wgr_resource.h): PENDING at
+ * once, then READY, or FAILED in a later frame for a file that is missing, fails to
+ * download or won't decode, and FAILED at once for a path that isn't under the asset
+ * root (absolute, a drive, or climbing out with "..") or before wgr_run has started
+ * the asset layer; each failure is logged with why. 0 only when there's no room for
+ * another texture.
+ *
+ * While it is PENDING it isn't there yet: a sprite or a texture draw using it draws
+ * nothing (and a sprite isn't picked), and a material draws as if the slot had no
+ * texture. FAILED, it draws as the placeholder (wgr_texture_set_placeholder). Its
+ * size reads 0, 0 until it is READY. A texture not loaded from a file (a render
+ * target, a model's image) is READY.
+ *
+ * A path ending .ktx names a texture compressed for GPUs (tools/compress_textures.py):
+ * name.bc7.ktx, name.astc.ktx or name.etc2.ktx is loaded, whichever this GPU can
+ * sample first, and name.png when none of them can or the variant is missing. On the
+ * web only the chosen one downloads. Name the plain "name.ktx"; naming a variant
+ * outright loads that one, with no fallback.
  */
 export function wgr_texture_create(path) {
     const mark = host["stackSave"]();
@@ -1027,14 +1388,20 @@ export function wgr_texture_create(path) {
 }
 
 /**
- * A texture you can draw into (a render target): width x height pixels, cleared to transparent black each time it's drawn into. Draw into it between wgr_render_begin_texture and wgr_render_end_texture, then use it like any texture. It matches the screen's pixel format and anti-aliasing (MSAA) and has no mipmaps. See docs/HISTORY.md, "Render to texture".
+ * A texture you can draw into (a render target): width x height pixels, cleared
+ * to transparent black each time it's drawn into. Draw into it between
+ * wgr_render_begin_texture and wgr_render_end_texture, then use it like any
+ * texture. It matches the screen's pixel format and anti-aliasing (MSAA) and has
+ * no mipmaps. See docs/HISTORY.md, "Render to texture".
  */
 export function wgr_texture_create_target(width, height) {
     return host["_wgr_texture_create_target"](width, height) >>> 0;
 }
 
 /**
- * How the texture is sampled where it's drawn directly (sprites, wgr_texture_draw). Materials set their own sampling per texture. Default: clamp, linear. Use WGR_TEXTURE_FILTER_NEAREST for crisp scaled-up pixel art.
+ * How the texture is sampled where it's drawn directly (sprites, wgr_texture_draw).
+ * Materials set their own sampling per texture. Default: clamp, linear. Use
+ * WGR_TEXTURE_FILTER_NEAREST for crisp scaled-up pixel art.
  */
 export function wgr_texture_set_sampling(texture, wrap_u, wrap_v, filter) {
     return host["_wgr_texture_set_sampling"](texture, wrap_u, wrap_v, filter) !== 0;
@@ -1055,21 +1422,29 @@ export function wgr_texture_get_size(handle, into) {
 }
 
 /**
- * Draw a texture once, axis-aligned, top-left at (x, y) in logical pixels (no object needed). width or height < = 0 uses the texture's size. Draw outside 3D mode; follows call order. For rotation, source regions or picking use sprite2d.
+ * Draw a texture once, axis-aligned, top-left at (x, y) in logical pixels (no
+ * object needed). width or height <= 0 uses the texture's size. Draw outside 3D
+ * mode; follows call order. For rotation, source regions or picking use sprite2d.
  */
 export function wgr_texture_draw(texture, x, y, width, height, tint) {
     host["_wgr_texture_draw"](texture, x, y, width, height, tint);
 }
 
 /**
- * A region of the texture (source rectangle in texture pixels; width or height < = 0: the whole texture) drawn into the rectangle (x, y, width, height); width or height < = 0 draws it at its own size. Axis-aligned, top-left at (x, y), in call order, like wgr_texture_draw — for icons and panels cut from an atlas.
+ * A region of the texture (source rectangle in texture pixels; width or height <= 0:
+ * the whole texture) drawn into the rectangle (x, y, width, height); width or
+ * height <= 0 draws it at its own size. Axis-aligned, top-left at (x, y), in call
+ * order, like wgr_texture_draw — for icons and panels cut from an atlas.
  */
 export function wgr_texture_draw_ex(texture, source_x, source_y, source_width, source_height, x, y, width, height, tint) {
     host["_wgr_texture_draw_ex"](texture, source_x, source_y, source_width, source_height, x, y, width, height, tint);
 }
 
 /**
- * The same, nine-sliced: borders (left, top, right, bottom) in source pixels keep their size, the edges stretch along one axis and the middle along both — a skinned panel or button at any size. Borders that don't fit shrink to fill it, as with wgr_sprite2d_set_nine_slice; all 0 draws the plain region.
+ * The same, nine-sliced: borders (left, top, right, bottom) in source pixels keep their
+ * size, the edges stretch along one axis and the middle along both — a skinned panel
+ * or button at any size. Borders that don't fit shrink to fill it, as with
+ * wgr_sprite2d_set_nine_slice; all 0 draws the plain region.
  */
 export function wgr_texture_draw_nine_slice(texture, source_x, source_y, source_width, source_height, left, top, right, bottom, x, y, width, height, tint) {
     host["_wgr_texture_draw_nine_slice"](texture, source_x, source_y, source_width, source_height, left, top, right, bottom, x, y, width, height, tint);
@@ -1080,7 +1455,19 @@ export function wgr_material_create(shading) {
 }
 
 /**
- * A material drawn by a custom shader (wgr_shader.h). Its parameters and textures are the ones the shader declares, set by those names with the setters below (texture transforms like <t >_offset are the shader's business); the built-in names above don't apply. Alpha mode and double-sided work as for built-in materials. Picking treats its surfaces as solid everywhere. The material holds its own reference to the shader. The shader may still be loading (wgr_resource.h): the material is made at once, its settings are kept until the shader is READY (above), and until then what uses it isn't drawn (an effect is left out of the chain). If the shader FAILED, a model using it draws flat magenta and unlit (the shader's version of the texture placeholder), a sprite draws plainly, and an effect stays out. 0 for a handle that isn't a shader, or no room for another material.
+ * A material drawn by a custom shader (wgr_shader.h). Its parameters and textures are
+ * the ones the shader declares, set by those names with the setters below (texture
+ * transforms like <t>_offset are the shader's business); the built-in names above
+ * don't apply. Alpha mode and double-sided work as for built-in materials. Picking
+ * treats its surfaces as solid everywhere. The material holds its own reference to
+ * the shader.
+ *
+ * The shader may still be loading (wgr_resource.h): the material is made at once, its
+ * settings are kept until the shader is READY (above), and until then what uses it
+ * isn't drawn (an effect is left out of the chain). If the shader FAILED, a model
+ * using it draws flat magenta and unlit (the shader's version of the texture
+ * placeholder), a sprite draws plainly, and an effect stays out. 0 for a handle that
+ * isn't a shader, or no room for another material.
  */
 export function wgr_material_create_custom(shader) {
     return host["_wgr_material_create_custom"](shader) >>> 0;
@@ -1102,7 +1489,8 @@ export function wgr_material_get_shading(material) {
 }
 
 /**
- * cutoff applies to WGR_ALPHA_MASK (default 0.5). WGR_ALPHA_ADD isn't supported for materials yet: refused.
+ * cutoff applies to WGR_ALPHA_MASK (default 0.5). WGR_ALPHA_ADD isn't supported for
+ * materials yet: refused.
  */
 export function wgr_material_set_alpha_mode(material, mode, cutoff) {
     return host["_wgr_material_set_alpha_mode"](material, mode, cutoff) !== 0;
@@ -1186,7 +1574,14 @@ export function wgr_material_set_texture_sampling(material, name, wrap_u, wrap_v
 }
 
 /**
- * The glTF or GLB file at asset path `path`, loading on create (wgr_resource.h): PENDING at once, then READY, or FAILED in a later frame for a file that is missing, fails to download or won't parse, or whose buffers are missing; FAILED at once for a path outside the asset root or before wgr_run has started the asset layer. The files it names load with it: a missing image warns and draws the placeholder texture. 0 only when there's no room for another mesh. A model using it isn't drawn (or picked) until it is READY, and keeps its animation choice and material overrides for when it is.
+ * The glTF or GLB file at asset path `path`, loading on create (wgr_resource.h):
+ * PENDING at once, then READY, or FAILED in a later frame for a file that is missing,
+ * fails to download or won't parse, or whose buffers are missing; FAILED at once for a
+ * path outside the asset root or before wgr_run has started the asset layer. The files
+ * it names load with it: a missing image warns and draws the placeholder texture. 0
+ * only when there's no room for another mesh. A model using it isn't drawn (or
+ * picked) until it is READY, and keeps its animation choice and material overrides
+ * for when it is.
  */
 export function wgr_mesh_create(path) {
     const mark = host["stackSave"]();
@@ -1196,7 +1591,27 @@ export function wgr_mesh_create(path) {
 }
 
 /**
- * Generated meshes: shapes made in code, with normals, texture coordinates (both sets) and tangents, so any material lights them, normal maps and custom shaders included. Centered on the origin, y up, in meters. Like a loaded mesh they're resources: deduplicated (the same parameters return the same mesh, with one more reference) and never changed after they're made; to size one model differently, scale it (wgr_model_set_transform) or make another mesh. One material slot, white, not metallic, roughness 0.5: replace it with wgr_model_set_material. 0 (logged) for sizes < = 0; counts are clamped to their ranges. plane     flat in XZ, facing +Y; subdivisions 0..256 cells more each way. Texture coordinates span it once (tile with the material's <texture >_scale) cube      each face its own vertices (sharp edges), textured 0..1 per face sphere    rings 2..256 from pole to pole, segments 3..512 around; u around, v pole to pole cylinder  capped; segments 3..512 around cone      tip up, capped base capsule   height from end to end (at least 2 x radius; less: a sphere); rings across both round ends torus     around y; radius to the middle of the tube, thickness the tube's radius; rings around the ring, segments around the tube (3..512)
+ * Generated meshes: shapes made in code, with normals, texture coordinates (both
+ * sets) and tangents, so any material lights them, normal maps and custom shaders
+ * included. Centered on the origin, y up, in meters. Like a loaded mesh they're
+ * resources: deduplicated (the same parameters return the same mesh, with one more
+ * reference) and never changed after they're made; to size one model differently,
+ * scale it (wgr_model_set_transform) or make another mesh. One material slot, white,
+ * not metallic, roughness 0.5: replace it with wgr_model_set_material. 0 (logged) for
+ * sizes <= 0; counts are clamped to their ranges.
+ *
+ *   plane     flat in XZ, facing +Y; subdivisions 0..256 cells more each way.
+ *             Texture coordinates span it once (tile with the material's
+ *             <texture>_scale)
+ *   cube      each face its own vertices (sharp edges), textured 0..1 per face
+ *   sphere    rings 2..256 from pole to pole, segments 3..512 around; u around, v
+ *             pole to pole
+ *   cylinder  capped; segments 3..512 around
+ *   cone      tip up, capped base
+ *   capsule   height from end to end (at least 2 x radius; less: a sphere); rings
+ *             across both round ends
+ *   torus     around y; radius to the middle of the tube, thickness the tube's
+ *             radius; rings around the ring, segments around the tube (3..512)
  */
 export function wgr_mesh_create_plane(width, length, subdivisions) {
     return host["_wgr_mesh_create_plane"](width, length, subdivisions) >>> 0;
@@ -1227,7 +1642,9 @@ export function wgr_mesh_create_torus(radius, thickness, rings, segments) {
 }
 
 /**
- * The mesh's materials, one slot per glTF material (see wgr_material.h). The returned handle is borrowed: it stays valid while the mesh lives, and changing it changes every model using the mesh.
+ * The mesh's materials, one slot per glTF material (see wgr_material.h). The
+ * returned handle is borrowed: it stays valid while the mesh lives, and changing
+ * it changes every model using the mesh.
  */
 export function wgr_mesh_get_material_count(mesh) {
     return host["_wgr_mesh_get_material_count"](mesh);
@@ -1238,7 +1655,9 @@ export function wgr_mesh_get_material(mesh, slot) {
 }
 
 /**
- * Model object: a drawable instance of a Mesh (kind MODEL). `mesh` may be 0 to create an empty model now (placed/animated immediately) and attach the mesh later with wgr_model_set_mesh — draw/animate no-op until then.
+ * Model object: a drawable instance of a Mesh (kind MODEL). `mesh` may be 0 to
+ * create an empty model now (placed/animated immediately) and attach the mesh
+ * later with wgr_model_set_mesh — draw/animate no-op until then.
  */
 export function wgr_model_create(mesh) {
     return host["_wgr_model_create"](mesh) >>> 0;
@@ -1249,7 +1668,9 @@ export function wgr_model_set_mesh(handle, mesh) {
 }
 
 /**
- * The mesh it draws (borrowed: the model holds the reference), or 0 for none and for a handle that isn't a model. A model is ready when its mesh is: wgr_resource_get_status(wgr_model_get_mesh(model)).
+ * The mesh it draws (borrowed: the model holds the reference), or 0 for none and for a
+ * handle that isn't a model. A model is ready when its mesh is:
+ * wgr_resource_get_status(wgr_model_get_mesh(model)).
  */
 export function wgr_model_get_mesh(handle) {
     return host["_wgr_model_get_mesh"](handle) >>> 0;
@@ -1260,7 +1681,8 @@ export function wgr_model_set_transform(handle, position_x, position_y, position
 }
 
 /**
- * One part of the transform, leaving the others as they are; the getters read them back (0, 0, 0 for a handle that isn't one).
+ * One part of the transform, leaving the others as they are; the getters read them back
+ * (0, 0, 0 for a handle that isn't one).
  */
 export function wgr_model_set_position(handle, x, y, z) {
     return host["_wgr_model_set_position"](handle, x, y, z) !== 0;
@@ -1312,7 +1734,10 @@ export function wgr_model_set_tint(handle, color) {
 }
 
 /**
- * Draw this model's material slot `slot` (a mesh material slot, 0..31) with `material` instead of the mesh's; -1 sets every slot. 0 restores the mesh's material. Overrides stay when the mesh changes. The model holds its own reference.
+ * Draw this model's material slot `slot` (a mesh material slot, 0..31) with
+ * `material` instead of the mesh's; -1 sets every slot. 0 restores the mesh's
+ * material. Overrides stay when the mesh changes. The model holds its own
+ * reference.
  */
 export function wgr_model_set_material(handle, slot, material) {
     return host["_wgr_model_set_material"](handle, slot, material) !== 0;
@@ -1342,7 +1767,8 @@ export function wgr_model_is_pickable(handle) {
 }
 
 /**
- * Enabled (default): a hit reacts (hover, press, click in an interactive scene). Disabled: still drawn and picked, and still blocks the pointer, but doesn't react.
+ * Enabled (default): a hit reacts (hover, press, click in an interactive scene).
+ * Disabled: still drawn and picked, and still blocks the pointer, but doesn't react.
  */
 export function wgr_model_set_enabled(model, enabled) {
     return host["_wgr_model_set_enabled"](model, enabled) !== 0;
@@ -1353,7 +1779,10 @@ export function wgr_model_is_enabled(model) {
 }
 
 /**
- * Shadows (docs/PLAN-shadows.md), when a light in the scene casts them. Casting (default): the model is drawn into the light's depth map, so it shadows what's behind it — turn it off for a skybox or a glow. Receiving (default): shadows darken it — turn it off for something that shouldn't be shaded by them at all.
+ * Shadows (docs/PLAN-shadows.md), when a light in the scene casts them. Casting
+ * (default): the model is drawn into the light's depth map, so it shadows what's
+ * behind it — turn it off for a skybox or a glow. Receiving (default): shadows darken
+ * it — turn it off for something that shouldn't be shaded by them at all.
  */
 export function wgr_model_set_casts_shadow(model, casts) {
     return host["_wgr_model_set_casts_shadow"](model, casts) !== 0;
@@ -1399,14 +1828,17 @@ export function wgr_model_set_animation_loop(handle, loop) {
 }
 
 /**
- * Advance the active animation by delta_seconds (times its speed) and recompute joint matrices.
+ * Advance the active animation by delta_seconds (times its speed) and recompute
+ * joint matrices.
  */
 export function wgr_model_animate(handle, delta_seconds) {
     return host["_wgr_model_animate"](handle, delta_seconds) !== 0;
 }
 
 /**
- * Pose the active animation at `seconds` (wrapped when looping, else clamped). glTF animations are timed in seconds, not frames. Set before the mesh arrives, it applies once it does.
+ * Pose the active animation at `seconds` (wrapped when looping, else clamped). glTF
+ * animations are timed in seconds, not frames. Set before the mesh arrives, it
+ * applies once it does.
  */
 export function wgr_model_set_animation_time(handle, seconds) {
     return host["_wgr_model_set_animation_time"](handle, seconds) !== 0;
@@ -1424,7 +1856,13 @@ export function wgr_model_get_animation_duration(handle, animation_index) {
 }
 
 /**
- * Picking one object. To pick among many, add them to a scene and use wgr_scene_pick, which returns the nearest hit (2D members first). (x, y) is a screen point in logical pixels, e.g. the mouse. 2D objects (sprite2d, text2d) are hit-tested in screen space; 3D objects (model, shape, sprite3d, text3d) with a ray through `camera` (0 = the active camera). Objects that are hidden or not pickable (wgr_ <kind >_set_pickable) are never hit.
+ * Picking one object. To pick among many, add them to a scene and use
+ * wgr_scene_pick, which returns the nearest hit (2D members first).
+ *
+ * (x, y) is a screen point in logical pixels, e.g. the mouse. 2D objects
+ * (sprite2d, text2d) are hit-tested in screen space; 3D objects (model, shape,
+ * sprite3d, text3d) with a ray through `camera` (0 = the active camera). Objects
+ * that are hidden or not pickable (wgr_<kind>_set_pickable) are never hit.
  */
 export function wgr_pick_object(object, camera, x, y) {
     const out = record(60);
@@ -1460,7 +1898,8 @@ export function wgr_render_clear_background(color) {
 }
 
 /**
- * Screen space (logical pixels, top-left origin): what wgr_render_begin_frame already sets up, so this only matters after 3D mode.
+ * Screen space (logical pixels, top-left origin): what wgr_render_begin_frame already
+ * sets up, so this only matters after 3D mode.
  */
 export function wgr_render_begin_mode_2d() {
     host["_wgr_render_begin_mode_2d"]();
@@ -1479,7 +1918,13 @@ export function wgr_render_end_mode_3d() {
 }
 
 /**
- * Clip drawing to a rectangle (logical pixels, top-left origin; the texture's pixels inside wgr_render_begin_texture) until the matching pop. Clips nest: each push intersects with the clip it's pushed inside, so a scroll area inside a panel stays inside the panel, and a scene's layer clips (wgr_scene_set_clip) intersect with a clip pushed around wgr_scene_draw. A width or height of 0 clips everything away. Each render pass starts unclipped, and every push should be popped within the frame (unmatched ones are dropped at wgr_render_end_frame, with a warning). Up to 32 deep.
+ * Clip drawing to a rectangle (logical pixels, top-left origin; the texture's pixels
+ * inside wgr_render_begin_texture) until the matching pop. Clips nest: each push
+ * intersects with the clip it's pushed inside, so a scroll area inside a panel stays
+ * inside the panel, and a scene's layer clips (wgr_scene_set_clip) intersect with a clip
+ * pushed around wgr_scene_draw. A width or height of 0 clips everything away. Each
+ * render pass starts unclipped, and every push should be popped within the frame
+ * (unmatched ones are dropped at wgr_render_end_frame, with a warning). Up to 32 deep.
  */
 export function wgr_render_push_clip(x, y, width, height) {
     host["_wgr_render_push_clip"](x, y, width, height);
@@ -1490,7 +1935,14 @@ export function wgr_render_pop_clip() {
 }
 
 /**
- * Draw into a render target texture (wgr_texture_create_target) instead of the screen, until wgr_render_end_texture. Call between wgr_render_begin_frame and wgr_render_end_frame; everything works inside (clear, 2D, 3D mode, scenes, models, sprites, text). 2D coordinates are the target's pixels; 3D uses the active camera with the target's aspect ratio. Targets are drawn before the screen, in the order begun; a target drawn more than once in a frame keeps the earlier drawing. Not nestable. A target can't be used as a texture inside its own pass (the default texture is used instead).
+ * Draw into a render target texture (wgr_texture_create_target) instead of the
+ * screen, until wgr_render_end_texture. Call between wgr_render_begin_frame and
+ * wgr_render_end_frame; everything works inside (clear, 2D, 3D mode, scenes, models,
+ * sprites, text). 2D coordinates are the target's pixels; 3D uses the active
+ * camera with the target's aspect ratio. Targets are drawn before the screen, in
+ * the order begun; a target drawn more than once in a frame keeps the earlier
+ * drawing. Not nestable. A target can't be used as a texture inside its own
+ * pass (the default texture is used instead).
  */
 export function wgr_render_begin_texture(texture) {
     return host["_wgr_render_begin_texture"](texture) !== 0;
@@ -1501,7 +1953,19 @@ export function wgr_render_end_texture() {
 }
 
 /**
- * Screen effects (post-processing): the frame is drawn into a texture instead of the screen, and each effect redraws it, in the order added, the last one onto the screen — a vignette, color grading, scanlines. An effect is a custom material whose shader is a screen effect (its fragment shader includes wgr_screen; see shaders/wgr.glsl and tools/pack_shader.py); a surface material is refused, as is a screen material on a model or sprite. Which one a shader is is known once it's READY: until then the material is taken, and an effect is drawn from the frame its shader is ready (a surface shader, it turns out, never is). The material's parameters can be changed any frame (wgr_material_set_float), so an effect can fade in and out. Effects apply to the screen, not to render targets: to post-process a target, draw it with a material of your own. Up to 8. The chain holds a reference to each material; wgr_render_clear_effects drops them. Call outside wgr_render_begin_frame/end_frame.
+ * Screen effects (post-processing): the frame is drawn into a texture instead of the
+ * screen, and each effect redraws it, in the order added, the last one onto the screen
+ * — a vignette, color grading, scanlines. An effect is a custom material whose shader
+ * is a screen effect (its fragment shader includes wgr_screen; see shaders/wgr.glsl and
+ * tools/pack_shader.py); a surface material is refused, as is a screen material on a
+ * model or sprite. Which one a shader is is known once it's READY: until then the
+ * material is taken, and an effect is drawn from the frame its shader is ready (a
+ * surface shader, it turns out, never is). The material's parameters can be changed any frame
+ * (wgr_material_set_float), so an effect can fade in and out.
+ *
+ * Effects apply to the screen, not to render targets: to post-process a target, draw
+ * it with a material of your own. Up to 8. The chain holds a reference to each
+ * material; wgr_render_clear_effects drops them. Call outside wgr_render_begin_frame/end_frame.
  */
 export function wgr_render_add_effect(material) {
     return host["_wgr_render_add_effect"](material) !== 0;
@@ -1516,7 +1980,11 @@ export function wgr_render_effect_count() {
 }
 
 /**
- * A scene is a layered collection of drawables (models, sprites, shapes) and lights, plus an active camera and an ambient term. wgr_scene_draw() activates the scene camera, enters 3D mode and draws each layer (ascending): opaque parts first, then transparent parts sorted back to front. Lights ignore their layer and light the models in the whole scene (see wgr_light.h).
+ * A scene is a layered collection of drawables (models, sprites, shapes) and
+ * lights, plus an active camera and an ambient term. wgr_scene_draw() activates the
+ * scene camera, enters 3D mode and draws each layer (ascending): opaque parts
+ * first, then transparent parts sorted back to front. Lights ignore their layer
+ * and light the models in the whole scene (see wgr_light.h).
  */
 export function wgr_scene_create() {
     return host["_wgr_scene_create"]() >>> 0;
@@ -1527,7 +1995,9 @@ export function wgr_scene_destroy(scene) {
 }
 
 /**
- * Members are objects; a scene doesn't own them. Destroying an object takes it out of every scene it's in (and out of their hover and press state); destroying a camera makes the scenes using it fall back to the active camera.
+ * Members are objects; a scene doesn't own them. Destroying an object takes it out of
+ * every scene it's in (and out of their hover and press state); destroying a camera
+ * makes the scenes using it fall back to the active camera.
  */
 export function wgr_scene_add(scene, drawable, layer) {
     return host["_wgr_scene_add"](scene, drawable, layer) !== 0;
@@ -1546,7 +2016,12 @@ export function wgr_scene_clear(scene) {
 }
 
 /**
- * Clip a layer's 2D members to a screen rectangle (logical pixels, top-left origin): what falls outside isn't drawn and isn't picked, which is what a scrolling list or a panel with content needs. A width or height of 0 removes the layer's rectangle (the default). 3D members are never clipped. The rectangles belong to the scene, not to its members, so they outlive wgr_scene_clear; at most 8 layers per scene are clipped.
+ * Clip a layer's 2D members to a screen rectangle (logical pixels, top-left
+ * origin): what falls outside isn't drawn and isn't picked, which is what a
+ * scrolling list or a panel with content needs. A width or height of 0 removes
+ * the layer's rectangle (the default). 3D members are never clipped. The
+ * rectangles belong to the scene, not to its members, so they outlive
+ * wgr_scene_clear; at most 8 layers per scene are clipped.
  */
 export function wgr_scene_set_clip(scene, layer, x, y, width, height) {
     return host["_wgr_scene_set_clip"](scene, layer, x, y, width, height) !== 0;
@@ -1557,21 +2032,29 @@ export function wgr_scene_set_active_camera(scene, camera) {
 }
 
 /**
- * Light added to every lit model in the scene: color x intensity. Default: none (intensity 0).
+ * Light added to every lit model in the scene: color x intensity. Default: none
+ * (intensity 0).
  */
 export function wgr_scene_set_ambient(scene, color, intensity) {
     return host["_wgr_scene_set_ambient"](scene, color, intensity) !== 0;
 }
 
 /**
- * Environment lighting (wgr_environment.h): lights the scene's PBR models with reflections and diffuse light from the environment, on top of lights and ambient. intensity scales it (1 = as authored); rotation (radians) turns it around the world up (+y) axis. environment 0 removes it. The scene holds its own reference. Default: none.
+ * Environment lighting (wgr_environment.h): lights the scene's PBR models with
+ * reflections and diffuse light from the environment, on top of lights and
+ * ambient. intensity scales it (1 = as authored); rotation (radians) turns it
+ * around the world up (+y) axis. environment 0 removes it. The scene holds its
+ * own reference. Default: none.
  */
 export function wgr_scene_set_environment(scene, environment, intensity, rotation) {
     return host["_wgr_scene_set_environment"](scene, environment, intensity, rotation) !== 0;
 }
 
 /**
- * Draw an environment behind everything the scene draws (a skybox), with the scene's environment intensity and rotation when it's the same environment, else intensity 1 and no rotation. blur 0..1: sharp to fully blurred. environment 0 removes it. Default: none.
+ * Draw an environment behind everything the scene draws (a skybox), with the
+ * scene's environment intensity and rotation when it's the same environment, else
+ * intensity 1 and no rotation. blur 0..1: sharp to fully blurred. environment 0
+ * removes it. Default: none.
  */
 export function wgr_scene_set_background(scene, environment, blur) {
     return host["_wgr_scene_set_background"](scene, environment, blur) !== 0;
@@ -1589,14 +2072,29 @@ export function wgr_scene_draw(scene) {
 }
 
 /**
- * Pointer interaction (docs/HISTORY.md, "2D / UI layer"). An interactive scene picks under the pointer (the mouse, or the primary touch) once per frame, before the frame's ticks, against where its members were last drawn, and tracks hover and press per member: 2D members first (topmost), then the nearest 3D member. Only pickable, visible members are hit; a member that isn't enabled (wgr_ <kind >_set_enabled) is still hit and blocks the pointer, but its hover and press stay UP and it's never clicked. States use the button enum with the same edge rules as keys and buttons: PRESSED and RELEASED are since the previous frame in the frame callback, and since the previous tick in a tick callback. A press that starts on a 2D member captures the pointer (wgr_input_is_pointer_captured). Changing interactive resets the scene's state. Default: not interactive.
+ * Pointer interaction (docs/HISTORY.md, "2D / UI layer"). An interactive scene picks under the pointer
+ * (the mouse, or the primary touch) once per frame, before the frame's ticks, against
+ * where its members were last drawn, and tracks hover and press per member: 2D
+ * members first (topmost), then the nearest 3D member. Only pickable, visible members
+ * are hit; a member that isn't enabled (wgr_<kind>_set_enabled) is still hit and blocks
+ * the pointer, but its hover and press stay UP and it's never clicked.
+ *
+ * States use the button enum with the same edge rules as keys and buttons: PRESSED and
+ * RELEASED are since the previous frame in the frame callback, and since the previous
+ * tick in a tick callback. A press that starts on a 2D member captures the pointer
+ * (wgr_input_is_pointer_captured). Changing interactive resets the scene's state.
+ * Default: not interactive.
  */
 export function wgr_scene_set_interactive(scene, interactive) {
     return host["_wgr_scene_set_interactive"](scene, interactive) !== 0;
 }
 
 /**
- * Skip members the camera can't see (on by default). A scene tests each member's bounds against the view before submitting it, which is far cheaper than drawing it; a caster whose shadow could still fall into view is kept. Turn it off to see everything submitted — when checking whether a drawable's bounds are right, say. Members without bounds (2D ones) are never culled.
+ * Skip members the camera can't see (on by default). A scene tests each member's
+ * bounds against the view before submitting it, which is far cheaper than drawing it;
+ * a caster whose shadow could still fall into view is kept. Turn it off to see
+ * everything submitted — when checking whether a drawable's bounds are right, say.
+ * Members without bounds (2D ones) are never culled.
  */
 export function wgr_scene_set_culling(scene, culling) {
     return host["_wgr_scene_set_culling"](scene, culling) !== 0;
@@ -1625,7 +2123,8 @@ export function wgr_scene_get_hover(scene, object) {
 }
 
 /**
- * The primary button, for a press that started on this object: PRESSED when it went down, DOWN while held (also when the pointer moved off), RELEASED when let go.
+ * The primary button, for a press that started on this object: PRESSED when it went
+ * down, DOWN while held (also when the pointer moved off), RELEASED when let go.
  */
 export function wgr_scene_get_press(scene, object) {
     return host["_wgr_scene_get_press"](scene, object);
@@ -1639,7 +2138,10 @@ export function wgr_scene_is_clicked(scene, object) {
 }
 
 /**
- * Ray-pick the scene at screen pixel (mouse_x, mouse_y) using `camera` (or the scene's active camera if `camera` is 0). Broadphase uses world-space AABBs; narrow phase (when registered) tests the actual shape bounds. Returns the nearest hit.
+ * Ray-pick the scene at screen pixel (mouse_x, mouse_y) using `camera` (or the
+ * scene's active camera if `camera` is 0). Broadphase uses world-space AABBs;
+ * narrow phase (when registered) tests the actual shape bounds. Returns the
+ * nearest hit.
  */
 export function wgr_scene_pick(scene, camera, mouse_x, mouse_y) {
     const out = record(60);
@@ -1648,7 +2150,13 @@ export function wgr_scene_pick(scene, camera, mouse_x, mouse_y) {
 }
 
 /**
- * The shader at asset path `path`, loading on create (wgr_resource.h): PENDING at once, then READY, or FAILED in a later frame for a file that is missing, fails to download, isn't a .wgrshader of this format version, or that this graphics backend refuses, and FAILED at once for a path outside the asset root or before wgr_run has started the asset layer. 0 only when there's no room for another shader. A custom material made from it takes it in any status (wgr_material_create_custom says what it does until the shader is READY).
+ * The shader at asset path `path`, loading on create (wgr_resource.h): PENDING at
+ * once, then READY, or FAILED in a later frame for a file that is missing, fails to
+ * download, isn't a .wgrshader of this format version, or that this graphics backend
+ * refuses, and FAILED at once for a path outside the asset root or before wgr_run has
+ * started the asset layer. 0 only when there's no room for another shader. A custom
+ * material made from it takes it in any status (wgr_material_create_custom says what
+ * it does until the shader is READY).
  */
 export function wgr_shader_create(path) {
     const mark = host["stackSave"]();
@@ -1658,7 +2166,12 @@ export function wgr_shader_create(path) {
 }
 
 /**
- * 2D shapes in screen space: logical pixels, top-left origin, y down; angles in radians, positive turning clockwise on screen. The world's shapes are wgr_shape3d, the same 2D/3D split as sprite2d/sprite3d and text2d/text3d. Immediate primitives draw between wgr_render_begin_frame() and wgr_render_end_frame(), in call order.
+ * 2D shapes in screen space: logical pixels, top-left origin, y down; angles in
+ * radians, positive turning clockwise on screen. The world's shapes are
+ * wgr_shape3d, the same 2D/3D split as sprite2d/sprite3d and text2d/text3d.
+ *
+ * Immediate primitives draw between wgr_render_begin_frame() and wgr_render_end_frame(), in
+ * call order.
  */
 export function wgr_shape2d_draw_rectangle(x, y, width, height, color) {
     host["_wgr_shape2d_draw_rectangle"](x, y, width, height, color);
@@ -1685,21 +2198,34 @@ export function wgr_shape2d_draw_triangle(x0, y0, x1, y1, x2, y2, color) {
 }
 
 /**
- * A filled rectangle from (x, y), with each corner rounded by its own radius (clamped to half the shorter side; 0 is square).
+ * A filled rectangle from (x, y), with each corner rounded by its own radius
+ * (clamped to half the shorter side; 0 is square).
  */
 export function wgr_shape2d_draw_rounded_rectangle(x, y, width, height, r_top_left, r_top_right, r_bottom_right, r_bottom_left, color) {
     host["_wgr_shape2d_draw_rounded_rectangle"](x, y, width, height, r_top_left, r_top_right, r_bottom_right, r_bottom_left, color);
 }
 
 /**
- * A border just inside the rectangle (x, y, width, height), each side its own width, each outer corner its own radius, as in CSS. Inner corners are rounded by the outer radius less the wider of the two sides meeting there; borders wider than the box fill it.
+ * A border just inside the rectangle (x, y, width, height), each side its own width,
+ * each outer corner its own radius, as in CSS. Inner corners are rounded by the outer
+ * radius less the wider of the two sides meeting there; borders wider than the box
+ * fill it.
  */
 export function wgr_shape2d_draw_border(x, y, width, height, left, top, right, bottom, r_top_left, r_top_right, r_bottom_right, r_bottom_left, color) {
     host["_wgr_shape2d_draw_border"](x, y, width, height, left, top, right, bottom, r_top_left, r_top_right, r_bottom_right, r_bottom_left, color);
 }
 
 /**
- * Retained 2D shapes — handle-based drawables with a kind, a transform, a color, and visible / pickable / enabled flags. Add one to a scene (wgr_scene_add): 2D members draw over all 3D, in layer then insertion order, and are picked first, topmost first, by their exact area. Or draw it directly with wgr_shape2d_draw. - rectangle: from its origin (top-left) to (width, height), corners rounded by corner_radius (clamped to half the shorter side); - circle: centered on its origin; - line: from (x0, y0) to (x1, y1), thickness pixels wide (butt ends). Rectangles and circles are filled unless an outline is set.
+ * Retained 2D shapes — handle-based drawables with a kind, a transform, a color,
+ * and visible / pickable / enabled flags. Add one to a scene (wgr_scene_add): 2D
+ * members draw over all 3D, in layer then insertion order, and are picked first,
+ * topmost first, by their exact area. Or draw it directly with wgr_shape2d_draw.
+ *
+ * - rectangle: from its origin (top-left) to (width, height), corners rounded by
+ *   corner_radius (clamped to half the shorter side);
+ * - circle: centered on its origin;
+ * - line: from (x0, y0) to (x1, y1), thickness pixels wide (butt ends).
+ * Rectangles and circles are filled unless an outline is set.
  */
 export function wgr_shape2d_create() {
     return host["_wgr_shape2d_create"]() >>> 0;
@@ -1729,7 +2255,8 @@ export function wgr_shape2d_set_transform(shape, x, y, rotation, scale_x, scale_
 }
 
 /**
- * One part of the transform, leaving the others as they are; the getters read them back (0 for a handle that isn't one).
+ * One part of the transform, leaving the others as they are; the getters read them back
+ * (0 for a handle that isn't one).
  */
 export function wgr_shape2d_set_position(shape, x, y) {
     return host["_wgr_shape2d_set_position"](shape, x, y) !== 0;
@@ -1770,14 +2297,20 @@ export function wgr_shape2d_get_scale(shape, into) {
 }
 
 /**
- * The point the position refers to and rotation and scale turn around, as a fraction of the shape's bounds: (0, 0) their top-left, (1, 1) their bottom-right, (0.5, 0.5) the middle. Values outside 0..1 are allowed. Default: the shape's own origin — a rectangle's top-left corner, a circle's center — so nothing moves until you set one. Lines have explicit endpoints, so they ignore the pivot.
+ * The point the position refers to and rotation and scale turn around, as a
+ * fraction of the shape's bounds: (0, 0) their top-left, (1, 1) their
+ * bottom-right, (0.5, 0.5) the middle. Values outside 0..1 are allowed.
+ * Default: the shape's own origin — a rectangle's top-left corner, a circle's
+ * center — so nothing moves until you set one. Lines have explicit endpoints, so
+ * they ignore the pivot.
  */
 export function wgr_shape2d_set_pivot(shape, x, y) {
     return host["_wgr_shape2d_set_pivot"](shape, x, y) !== 0;
 }
 
 /**
- * The pivot in effect: before set_pivot, the kind's own origin as a fraction -- (0, 0) for a rectangle, (0.5, 0.5) for a circle. 0, 0 for a handle that isn't one.
+ * The pivot in effect: before set_pivot, the kind's own origin as a fraction --
+ * (0, 0) for a rectangle, (0.5, 0.5) for a circle. 0, 0 for a handle that isn't one.
  */
 export function wgr_shape2d_get_pivot(shape, into) {
     const out = record(8);
@@ -1815,7 +2348,8 @@ export function wgr_shape2d_is_pickable(shape) {
 }
 
 /**
- * Enabled (default): a hit reacts (hover, press, click in an interactive scene). Disabled: still drawn and picked, and still blocks the pointer, but doesn't react.
+ * Enabled (default): a hit reacts (hover, press, click in an interactive scene).
+ * Disabled: still drawn and picked, and still blocks the pointer, but doesn't react.
  */
 export function wgr_shape2d_set_enabled(shape, enabled) {
     return host["_wgr_shape2d_set_enabled"](shape, enabled) !== 0;
@@ -1830,7 +2364,12 @@ export function wgr_shape2d_draw(shape) {
 }
 
 /**
- * Shapes in the world: right-handed, +y up, angles in radians. Screen-space shapes are wgr_shape2d, the same 2D/3D split as sprite2d/sprite3d and text2d/text3d. Immediate primitives draw between wgr_render_begin_mode_3d() and wgr_render_end_mode_3d(), in call order.
+ * Shapes in the world: right-handed, +y up, angles in radians. Screen-space
+ * shapes are wgr_shape2d, the same 2D/3D split as sprite2d/sprite3d and
+ * text2d/text3d.
+ *
+ * Immediate primitives draw between wgr_render_begin_mode_3d() and
+ * wgr_render_end_mode_3d(), in call order.
  */
 export function wgr_shape3d_draw_line(x0, y0, z0, x1, y1, z1, color) {
     host["_wgr_shape3d_draw_line"](x0, y0, z0, x1, y1, z1, color);
@@ -1853,7 +2392,8 @@ export function wgr_shape3d_draw_grid(slices, spacing, color) {
 }
 
 /**
- * A filled rectangle / circle outline in their local XY plane, centered at (cx, cy, cz) and turned by euler rotation (radians).
+ * A filled rectangle / circle outline in their local XY plane, centered at
+ * (cx, cy, cz) and turned by euler rotation (radians).
  */
 export function wgr_shape3d_draw_rectangle(cx, cy, cz, width, height, rx, ry, rz, color) {
     host["_wgr_shape3d_draw_rectangle"](cx, cy, cz, width, height, rx, ry, rz, color);
@@ -1864,7 +2404,12 @@ export function wgr_shape3d_draw_circle(cx, cy, cz, radius, rx, ry, rz, color) {
 }
 
 /**
- * Retained 3D shapes — handle-based drawables that can be added to a scene. A shape has a kind (cube, sphere, rectangle, circle, line, line strip) with local geometry, a transform, a color, and visible / pickable / enabled flags. Rectangles and circles lie in the local XY plane; picks hit rectangles and the inside of circles; lines and strips have no area and aren't hit. Draw directly with wgr_shape3d_draw() inside 3D mode, or add it to a scene via wgr_scene_add().
+ * Retained 3D shapes — handle-based drawables that can be added to a scene.
+ * A shape has a kind (cube, sphere, rectangle, circle, line, line strip) with
+ * local geometry, a transform, a color, and visible / pickable / enabled flags.
+ * Rectangles and circles lie in the local XY plane; picks hit rectangles and the
+ * inside of circles; lines and strips have no area and aren't hit. Draw directly
+ * with wgr_shape3d_draw() inside 3D mode, or add it to a scene via wgr_scene_add().
  */
 export function wgr_shape3d_create() {
     return host["_wgr_shape3d_create"]() >>> 0;
@@ -1895,7 +2440,8 @@ export function wgr_shape3d_set_line(shape, x0, y0, z0, x1, y1, z1) {
 }
 
 /**
- * A line strip is built point by point: set_line_strip empties it, add_point appends (in local space). Rebuild it the same way to change it.
+ * A line strip is built point by point: set_line_strip empties it, add_point
+ * appends (in local space). Rebuild it the same way to change it.
  */
 export function wgr_shape3d_set_line_strip(shape) {
     return host["_wgr_shape3d_set_line_strip"](shape) !== 0;
@@ -1914,7 +2460,8 @@ export function wgr_shape3d_set_transform(shape, position_x, position_y, positio
 }
 
 /**
- * One part of the transform, leaving the others as they are; the getters read them back (0, 0, 0 for a handle that isn't one).
+ * One part of the transform, leaving the others as they are; the getters read them back
+ * (0, 0, 0 for a handle that isn't one).
  */
 export function wgr_shape3d_set_position(handle, x, y, z) {
     return host["_wgr_shape3d_set_position"](handle, x, y, z) !== 0;
@@ -1982,7 +2529,8 @@ export function wgr_shape3d_is_pickable(shape) {
 }
 
 /**
- * Enabled (default): a hit reacts (hover, press, click in an interactive scene). Disabled: still drawn and picked, and still blocks the pointer, but doesn't react.
+ * Enabled (default): a hit reacts (hover, press, click in an interactive scene).
+ * Disabled: still drawn and picked, and still blocks the pointer, but doesn't react.
  */
 export function wgr_shape3d_set_enabled(shape, enabled) {
     return host["_wgr_shape3d_set_enabled"](shape, enabled) !== 0;
@@ -1997,7 +2545,9 @@ export function wgr_shape3d_draw(shape) {
 }
 
 /**
- * Sound object (kind SOUND): a playable instance of an Audio resource. One-shot sfx and looping background music are both Sounds — looping is just a flag, and streamed-vs-decoded is a property of the Audio (see docs/ARCHITECTURE.md).
+ * Sound object (kind SOUND): a playable instance of an Audio resource. One-shot
+ * sfx and looping background music are both Sounds — looping is just a flag, and
+ * streamed-vs-decoded is a property of the Audio (see docs/ARCHITECTURE.md).
  */
 export function wgr_sound_create(audio) {
     return host["_wgr_sound_create"](audio) >>> 0;
@@ -2008,7 +2558,9 @@ export function wgr_sound_set_audio(handle, audio) {
 }
 
 /**
- * The Audio it plays (borrowed: the sound holds the reference), or 0 for none and for a handle that isn't a sound. Its status (wgr_resource_get_status) says whether the sound is waiting for it to load.
+ * The Audio it plays (borrowed: the sound holds the reference), or 0 for none and for
+ * a handle that isn't a sound. Its status (wgr_resource_get_status) says whether the
+ * sound is waiting for it to load.
  */
 export function wgr_sound_get_audio(handle) {
     return host["_wgr_sound_get_audio"](handle) >>> 0;
@@ -2058,7 +2610,10 @@ export function wgr_sound_is_playing(handle) {
 }
 
 /**
- * Particle emitters in screen space: the same as wgr_emitter3d.h in 2D. Positions, sizes and velocities are logical pixels (top-left origin, y down), gravity pixels per second squared; `spread` turns the velocity by up to that many radians either way. In a scene a 2D emitter draws with the 2D members, in layer and member order.
+ * Particle emitters in screen space: the same as wgr_emitter3d.h in 2D. Positions,
+ * sizes and velocities are logical pixels (top-left origin, y down), gravity pixels
+ * per second squared; `spread` turns the velocity by up to that many radians either
+ * way. In a scene a 2D emitter draws with the 2D members, in layer and member order.
  */
 export function wgr_emitter2d_create(texture) {
     return host["_wgr_emitter2d_create"](texture) >>> 0;
@@ -2212,7 +2767,18 @@ export function wgr_emitter2d_draw(emitter) {
 }
 
 /**
- * Particle emitters in the 3D world (docs/HISTORY.md, "a sprite renderer, and particle emitters", step 4). An emitter is one object that owns many particles, drawn from a texture (Texture -> Emitter, as Texture -> Sprite). A particle is decided when it's born (where, how fast, how long it lives, how big, how it spins, all within the ranges set here) and the GPU works out where it is from its age: gravity pulls it, and its size and color move from their start values to their end values over its life. The CPU only spawns, so thousands of particles cost about what spawning them does. libwgrender advances every emitter once a frame, by the frame's time. Particles stay where they were born when the emitter moves (trails), face the camera, and aren't sorted among themselves; in a scene an emitter is one member (wgr_scene_add), sorted as a whole when blended. Destroying an emitter takes it out of its scenes.
+ * Particle emitters in the 3D world (docs/HISTORY.md, "a sprite renderer, and particle emitters", step 4). An emitter is one
+ * object that owns many particles, drawn from a texture (Texture -> Emitter, as
+ * Texture -> Sprite). A particle is decided when it's born (where, how fast, how long
+ * it lives, how big, how it spins, all within the ranges set here) and the GPU works
+ * out where it is from its age: gravity pulls it, and its size and color move from
+ * their start values to their end values over its life. The CPU only spawns, so
+ * thousands of particles cost about what spawning them does.
+ *
+ * libwgrender advances every emitter once a frame, by the frame's time. Particles stay where
+ * they were born when the emitter moves (trails), face the camera, and aren't sorted
+ * among themselves; in a scene an emitter is one member (wgr_scene_add), sorted as a
+ * whole when blended. Destroying an emitter takes it out of its scenes.
  */
 export function wgr_emitter3d_create(texture) {
     return host["_wgr_emitter3d_create"](texture) >>> 0;
@@ -2223,21 +2789,28 @@ export function wgr_emitter3d_destroy(emitter) {
 }
 
 /**
- * Region of the texture each particle shows, in texture pixels (an atlas cell). Default: the whole texture; width or height < = 0 resets to that.
+ * Region of the texture each particle shows, in texture pixels (an atlas cell).
+ * Default: the whole texture; width or height <= 0 resets to that.
  */
 export function wgr_emitter3d_set_source(emitter, x, y, width, height) {
     return host["_wgr_emitter3d_set_source"](emitter, x, y, width, height) !== 0;
 }
 
 /**
- * Flipbook: the source split into `columns` x `rows` frames (left to right, top to bottom), of which the first `count` are used ( < = 0: all). With `per_second` 0 each particle plays them once over its life (puffs, explosions); above 0 it loops at that rate from a random frame (flames). Default: one frame.
+ * Flipbook: the source split into `columns` x `rows` frames (left to right, top to
+ * bottom), of which the first `count` are used (<= 0: all). With `per_second` 0 each
+ * particle plays them once over its life (puffs, explosions); above 0 it loops at that
+ * rate from a random frame (flames). Default: one frame.
  */
 export function wgr_emitter3d_set_frames(emitter, columns, rows, count, per_second) {
     return host["_wgr_emitter3d_set_frames"](emitter, columns, rows, count, per_second) !== 0;
 }
 
 /**
- * set_position moves the emitter: the next frame's steady spawns are spread along the way from where it was (a smooth trail however fast it goes), and the move is the velocity particles inherit (set_inherit_velocity). The first position isn't a move. jump puts it somewhere without either: nothing spawns along the way.
+ * set_position moves the emitter: the next frame's steady spawns are spread along the
+ * way from where it was (a smooth trail however fast it goes), and the move is the
+ * velocity particles inherit (set_inherit_velocity). The first position isn't a move.
+ * jump puts it somewhere without either: nothing spawns along the way.
  */
 export function wgr_emitter3d_set_position(emitter, x, y, z) {
     return host["_wgr_emitter3d_set_position"](emitter, x, y, z) !== 0;
@@ -2259,7 +2832,15 @@ export function wgr_emitter3d_get_position(emitter, into) {
 }
 
 /**
- * Emission: a steady rate (particles per second; 0 for bursts only), and bursts of `count` at once. set_emitting(false) stops the steady rate; the particles alive finish their lives. At most `max` are alive at once (default 1024): new ones replace the oldest. False for a max below 1 or above 65536 -- refused, not clamped, since fewer particles than asked is a different effect. Life: each particle's, seconds, between min and max. Particles are unlit: the texture times the particle's color, with no material and no scene lighting (a lit effect wants sprite3d objects with a material).
+ * Emission: a steady rate (particles per second; 0 for bursts only), and bursts of
+ * `count` at once. set_emitting(false) stops the steady rate; the particles alive
+ * finish their lives. At most `max` are alive at once (default 1024): new ones
+ * replace the oldest. False for a max below 1 or above 65536 -- refused, not
+ * clamped, since fewer particles than asked is a different effect. Life: each
+ * particle's, seconds, between min and max.
+ *
+ * Particles are unlit: the texture times the particle's color, with no material and
+ * no scene lighting (a lit effect wants sprite3d objects with a material).
  */
 export function wgr_emitter3d_set_rate(emitter, per_second) {
     return host["_wgr_emitter3d_set_rate"](emitter, per_second) !== 0;
@@ -2286,14 +2867,20 @@ export function wgr_emitter3d_set_life(emitter, min_seconds, max_seconds) {
 }
 
 /**
- * Start over as if the steady rate had been running for `seconds` (smoke already rising when a scene appears): the particles alive go, and those the rate would have made over that time, and still alive now, are made where the emitter is.
+ * Start over as if the steady rate had been running for `seconds` (smoke already rising
+ * when a scene appears): the particles alive go, and those the rate would have made
+ * over that time, and still alive now, are made where the emitter is.
  */
 export function wgr_emitter3d_prewarm(emitter, seconds) {
     return host["_wgr_emitter3d_prewarm"](emitter, seconds) !== 0;
 }
 
 /**
- * Birth: anywhere in a box around the position (half sizes; default a point), or evenly within a sphere (each replaces the other), moving along (x, y, z) at its length's speed, turned up to `spread` radians off it (a cone) and faster or slower by up to `speed_variance` (0..1) of it. Gravity: an acceleration, world units per second squared (default none).
+ * Birth: anywhere in a box around the position (half sizes; default a point), or evenly
+ * within a sphere (each replaces the other), moving
+ * along (x, y, z) at its length's speed, turned up to `spread` radians off it (a
+ * cone) and faster or slower by up to `speed_variance` (0..1) of it. Gravity: an
+ * acceleration, world units per second squared (default none).
  */
 export function wgr_emitter3d_set_spawn_box(emitter, half_x, half_y, half_z) {
     return host["_wgr_emitter3d_set_spawn_box"](emitter, half_x, half_y, half_z) !== 0;
@@ -2312,7 +2899,11 @@ export function wgr_emitter3d_set_gravity(emitter, x, y, z) {
 }
 
 /**
- * After birth: drag slows particles in proportion to their speed (per second: 1 loses about 63% of the speed in a second, less gravity's pull; gravity / drag is how fast they end up falling). Inherit velocity adds that fraction of the emitter's own velocity (its movement, from set_position) at birth: 1 carries them along with it. Defaults 0.
+ * After birth: drag slows particles in proportion to their speed (per second: 1 loses
+ * about 63% of the speed in a second, less gravity's pull; gravity / drag is how fast
+ * they end up falling). Inherit velocity adds that fraction of the emitter's own
+ * velocity (its movement, from set_position) at birth: 1 carries them along with it.
+ * Defaults 0.
  */
 export function wgr_emitter3d_set_drag(emitter, per_second) {
     return host["_wgr_emitter3d_set_drag"](emitter, per_second) !== 0;
@@ -2323,7 +2914,10 @@ export function wgr_emitter3d_set_inherit_velocity(emitter, fraction) {
 }
 
 /**
- * Over a particle's life: its size (world units; each particle's scaled by up to `variance`, 0..1) and color (tint, alpha included, so a fade) move from start to end. Spin: radians per second between min and max, positive clockwise on screen, from a random angle. Defaults: size 1 -> 1, white -> white, no spin.
+ * Over a particle's life: its size (world units; each particle's scaled by up to
+ * `variance`, 0..1) and color (tint, alpha included, so a fade) move from start to
+ * end. Spin: radians per second between min and max, positive clockwise on screen,
+ * from a random angle. Defaults: size 1 -> 1, white -> white, no spin.
  */
 export function wgr_emitter3d_set_size(emitter, start, end, variance) {
     return host["_wgr_emitter3d_set_size"](emitter, start, end, variance) !== 0;
@@ -2334,7 +2928,10 @@ export function wgr_emitter3d_set_color(emitter, start, end) {
 }
 
 /**
- * Curves: set_size and set_color make two keys, at 0 (birth) and 1 (death). For more, clear the keys and add up to 8, each at `t` (0..1 of a particle's life); between two keys the value moves in a line, before the first and after the last it holds. Keys at the same time make a step. An emitter without size or color keys draws nothing.
+ * Curves: set_size and set_color make two keys, at 0 (birth) and 1 (death). For more,
+ * clear the keys and add up to 8, each at `t` (0..1 of a particle's life); between two
+ * keys the value moves in a line, before the first and after the last it holds. Keys
+ * at the same time make a step. An emitter without size or color keys draws nothing.
  */
 export function wgr_emitter3d_add_size_key(emitter, t, size) {
     return host["_wgr_emitter3d_add_size_key"](emitter, t, size) !== 0;
@@ -2353,7 +2950,8 @@ export function wgr_emitter3d_clear_color_keys(emitter) {
 }
 
 /**
- * Palette: up to 8 colors; each particle picks one at birth, and it tints the color over its life (confetti from one emitter). Empty by default: no tint.
+ * Palette: up to 8 colors; each particle picks one at birth, and it tints the color over
+ * its life (confetti from one emitter). Empty by default: no tint.
  */
 export function wgr_emitter3d_add_palette_color(emitter, color) {
     return host["_wgr_emitter3d_add_palette_color"](emitter, color) !== 0;
@@ -2368,7 +2966,10 @@ export function wgr_emitter3d_set_spin(emitter, min, max) {
 }
 
 /**
- * Stretch along the motion (sparks, rain, streaks): each particle's texture points its top along its velocity across the screen, and is as long as the distance it moves in `seconds` (plus its size), trailing behind it. Stretched particles don't spin. Default 0: off.
+ * Stretch along the motion (sparks, rain, streaks): each particle's texture points its
+ * top along its velocity across the screen, and is as long as the distance it moves in
+ * `seconds` (plus its size), trailing behind it. Stretched particles don't spin.
+ * Default 0: off.
  */
 export function wgr_emitter3d_set_stretch(emitter, seconds) {
     return host["_wgr_emitter3d_set_stretch"](emitter, seconds) !== 0;
@@ -2382,7 +2983,8 @@ export function wgr_emitter3d_set_alpha_mode(emitter, mode, cutoff) {
 }
 
 /**
- * Where the emitter's random numbers start: the same seed and settings give the same particles (default: a different seed per emitter).
+ * Where the emitter's random numbers start: the same seed and settings give the same
+ * particles (default: a different seed per emitter).
  */
 export function wgr_emitter3d_set_seed(emitter, seed) {
     return host["_wgr_emitter3d_set_seed"](emitter, seed) !== 0;
@@ -2405,7 +3007,16 @@ export function wgr_emitter3d_draw(emitter) {
 }
 
 /**
- * Sprite2d object: a textured quad in screen space that references a Texture resource. See docs/HISTORY.md, "sprite2d (screen-space sprites)". - Coordinates are logical pixels: top-left origin, y down. On high-DPI displays one logical pixel spans several framebuffer pixels. - Angles are radians; positive rotates clockwise on screen (y points down). - Draw it in a scene (wgr_scene_add): a scene draws all 3D first, then its 2D members by layer and insertion order, and wgr_scene_pick tests 2D members first, topmost first. Or draw it directly with wgr_sprite2d_draw, in call order. - A sprite with no texture (or one still loading) isn't drawn or picked.
+ * Sprite2d object: a textured quad in screen space that references a Texture
+ * resource. See docs/HISTORY.md, "sprite2d (screen-space sprites)".
+ *
+ * - Coordinates are logical pixels: top-left origin, y down. On high-DPI displays
+ *   one logical pixel spans several framebuffer pixels.
+ * - Angles are radians; positive rotates clockwise on screen (y points down).
+ * - Draw it in a scene (wgr_scene_add): a scene draws all 3D first, then its 2D
+ *   members by layer and insertion order, and wgr_scene_pick tests 2D members first,
+ *   topmost first. Or draw it directly with wgr_sprite2d_draw, in call order.
+ * - A sprite with no texture (or one still loading) isn't drawn or picked.
  */
 export function wgr_sprite2d_create(texture) {
     return host["_wgr_sprite2d_create"](texture) >>> 0;
@@ -2420,7 +3031,8 @@ export function wgr_sprite2d_set_texture(sprite, texture) {
 }
 
 /**
- * Region of the texture to show, in texture pixels (sprite sheets, atlases). Default: the whole texture. width or height < = 0 resets to the whole texture.
+ * Region of the texture to show, in texture pixels (sprite sheets, atlases).
+ * Default: the whole texture. width or height <= 0 resets to the whole texture.
  */
 export function wgr_sprite2d_set_source(sprite, x, y, width, height) {
     return host["_wgr_sprite2d_set_source"](sprite, x, y, width, height) !== 0;
@@ -2434,7 +3046,8 @@ export function wgr_sprite2d_set_transform(sprite, x, y, rotation, scale_x, scal
 }
 
 /**
- * One part of the transform, leaving the others as they are; the getters read them back (0 for a handle that isn't one).
+ * One part of the transform, leaving the others as they are; the getters read them back
+ * (0 for a handle that isn't one).
  */
 export function wgr_sprite2d_set_position(sprite, x, y) {
     return host["_wgr_sprite2d_set_position"](sprite, x, y) !== 0;
@@ -2475,14 +3088,16 @@ export function wgr_sprite2d_get_scale(sprite, into) {
 }
 
 /**
- * On-screen size in logical pixels before scale. width or height < = 0 means the source region's size (the default).
+ * On-screen size in logical pixels before scale. width or height <= 0 means the
+ * source region's size (the default).
  */
 export function wgr_sprite2d_set_size(sprite, width, height) {
     return host["_wgr_sprite2d_set_size"](sprite, width, height) !== 0;
 }
 
 /**
- * Point that position refers to and rotation turns around, as a fraction of the sprite: (0, 0) top-left, (1, 1) bottom-right. Default (0.5, 0.5), the center.
+ * Point that position refers to and rotation turns around, as a fraction of the
+ * sprite: (0, 0) top-left, (1, 1) bottom-right. Default (0.5, 0.5), the center.
  */
 export function wgr_sprite2d_set_pivot(sprite, x, y) {
     return host["_wgr_sprite2d_set_pivot"](sprite, x, y) !== 0;
@@ -2500,7 +3115,12 @@ export function wgr_sprite2d_get_pivot(sprite, into) {
 }
 
 /**
- * Nine-slice: borders in source pixels that keep their size when the sprite is drawn at another size (panels, buttons, frames). The corners stay as they are, the edges stretch along one axis and the middle along both; borders of 0 on an axis leave it unsliced, all 0 turns nine-slice off (the default). Set the on-screen size with wgr_sprite2d_set_size. Picks hit the whole rectangle: the alpha test is skipped while a sprite is sliced.
+ * Nine-slice: borders in source pixels that keep their size when the sprite is
+ * drawn at another size (panels, buttons, frames). The corners stay as they are,
+ * the edges stretch along one axis and the middle along both; borders of 0 on an
+ * axis leave it unsliced, all 0 turns nine-slice off (the default). Set the
+ * on-screen size with wgr_sprite2d_set_size. Picks hit the whole rectangle: the
+ * alpha test is skipped while a sprite is sliced.
  */
 export function wgr_sprite2d_set_nine_slice(sprite, left, top, right, bottom) {
     return host["_wgr_sprite2d_set_nine_slice"](sprite, left, top, right, bottom) !== 0;
@@ -2527,7 +3147,8 @@ export function wgr_sprite2d_is_pickable(sprite) {
 }
 
 /**
- * Enabled (default): a hit reacts (hover, press, click in an interactive scene). Disabled: still drawn and picked, and still blocks the pointer, but doesn't react.
+ * Enabled (default): a hit reacts (hover, press, click in an interactive scene).
+ * Disabled: still drawn and picked, and still blocks the pointer, but doesn't react.
  */
 export function wgr_sprite2d_set_enabled(sprite, enabled) {
     return host["_wgr_sprite2d_set_enabled"](sprite, enabled) !== 0;
@@ -2538,7 +3159,9 @@ export function wgr_sprite2d_is_enabled(sprite) {
 }
 
 /**
- * How the sprite uses its texture's alpha (default WGR_ALPHA_BLEND): blended, added (glows), opaque (alpha ignored) or masked (texels below `cutoff`, 0..1, cut out). 2D sprites always draw in order; the mode only changes how they're blended.
+ * How the sprite uses its texture's alpha (default WGR_ALPHA_BLEND): blended, added
+ * (glows), opaque (alpha ignored) or masked (texels below `cutoff`, 0..1, cut out). 2D
+ * sprites always draw in order; the mode only changes how they're blended.
  */
 export function wgr_sprite2d_set_alpha_mode(sprite, mode, cutoff) {
     return host["_wgr_sprite2d_set_alpha_mode"](sprite, mode, cutoff) !== 0;
@@ -2549,7 +3172,9 @@ export function wgr_sprite2d_get_alpha_mode(sprite) {
 }
 
 /**
- * As wgr_sprite3d_set_material: a custom material's shader draws the sprite (in screen pixels: wgr_world_pos is the pixel, and the scene's lights don't reach 2D). A nine-slice sprite's wgr_uv1 spans each slice. 0: libwgrender's sprite shader.
+ * As wgr_sprite3d_set_material: a custom material's shader draws the sprite (in screen
+ * pixels: wgr_world_pos is the pixel, and the scene's lights don't reach 2D). A
+ * nine-slice sprite's wgr_uv1 spans each slice. 0: libwgrender's sprite shader.
  */
 export function wgr_sprite2d_set_material(sprite, material) {
     return host["_wgr_sprite2d_set_material"](sprite, material) !== 0;
@@ -2583,7 +3208,8 @@ export function wgr_sprite3d_set_transform(handle, position_x, position_y, posit
 }
 
 /**
- * One part of the transform, leaving the others as they are; the getters read them back (0, 0, 0 for a handle that isn't one).
+ * One part of the transform, leaving the others as they are; the getters read them back
+ * (0, 0, 0 for a handle that isn't one).
  */
 export function wgr_sprite3d_set_position(handle, x, y, z) {
     return host["_wgr_sprite3d_set_position"](handle, x, y, z) !== 0;
@@ -2598,7 +3224,8 @@ export function wgr_sprite3d_set_scale(handle, x, y, z) {
 }
 
 /**
- * World size of the quad before scale: set_size is the square shorthand for set_extent(size, size). Default 1x1; a width or height < = 0 is refused.
+ * World size of the quad before scale: set_size is the square shorthand for
+ * set_extent(size, size). Default 1x1; a width or height <= 0 is refused.
  */
 export function wgr_sprite3d_set_size(handle, size) {
     return host["_wgr_sprite3d_set_size"](handle, size) !== 0;
@@ -2609,14 +3236,19 @@ export function wgr_sprite3d_set_extent(handle, width, height) {
 }
 
 /**
- * Region of the texture to show, in texture pixels (sprite sheets, atlases). Default: the whole texture; width or height < = 0 resets to that.
+ * Region of the texture to show, in texture pixels (sprite sheets, atlases).
+ * Default: the whole texture; width or height <= 0 resets to that.
  */
 export function wgr_sprite3d_set_source(handle, x, y, width, height) {
     return host["_wgr_sprite3d_set_source"](handle, x, y, width, height) !== 0;
 }
 
 /**
- * The point of the quad that sits on the sprite's position and that it turns around, as a fraction of the quad: (0, 0) its top-left, (1, 1) its bottom-right, (0.5, 0.5) its center (the default). y runs down the texture, so (0.5, 1) puts the position at the bottom edge — what a sprite standing on the ground wants.
+ * The point of the quad that sits on the sprite's position and that it turns
+ * around, as a fraction of the quad: (0, 0) its top-left, (1, 1) its
+ * bottom-right, (0.5, 0.5) its center (the default). y runs down the texture, so
+ * (0.5, 1) puts the position at the bottom edge — what a sprite standing on the
+ * ground wants.
  */
 export function wgr_sprite3d_set_pivot(handle, x, y) {
     return host["_wgr_sprite3d_set_pivot"](handle, x, y) !== 0;
@@ -2691,7 +3323,8 @@ export function wgr_sprite3d_is_pickable(handle) {
 }
 
 /**
- * Enabled (default): a hit reacts (hover, press, click in an interactive scene). Disabled: still drawn and picked, and still blocks the pointer, but doesn't react.
+ * Enabled (default): a hit reacts (hover, press, click in an interactive scene).
+ * Disabled: still drawn and picked, and still blocks the pointer, but doesn't react.
  */
 export function wgr_sprite3d_set_enabled(sprite, enabled) {
     return host["_wgr_sprite3d_set_enabled"](sprite, enabled) !== 0;
@@ -2702,7 +3335,11 @@ export function wgr_sprite3d_is_enabled(sprite) {
 }
 
 /**
- * How the sprite uses its texture's alpha (default WGR_ALPHA_BLEND). In a scene, blended sprites are sorted back to front with the other transparent parts; opaque and masked sprites (cutoff: texels below it are cut out, 0..1) write depth and aren't sorted, and additive ones are drawn after the blended parts, unsorted. Unsorted sprites are grouped by texture, so they draw in fewer batches.
+ * How the sprite uses its texture's alpha (default WGR_ALPHA_BLEND). In a scene, blended
+ * sprites are sorted back to front with the other transparent parts; opaque and
+ * masked sprites (cutoff: texels below it are cut out, 0..1) write depth and aren't
+ * sorted, and additive ones are drawn after the blended parts, unsorted. Unsorted
+ * sprites are grouped by texture, so they draw in fewer batches.
  */
 export function wgr_sprite3d_set_alpha_mode(handle, mode, cutoff) {
     return host["_wgr_sprite3d_set_alpha_mode"](handle, mode, cutoff) !== 0;
@@ -2713,7 +3350,21 @@ export function wgr_sprite3d_get_alpha_mode(handle) {
 }
 
 /**
- * Draw the sprite with a material (wgr_material.h); 0 goes back to libwgrender's sprite shader (texture x tint, unlit). The sprite keeps its texture, region, tint, facing and alpha mode, and holds its own reference to the material. built-in (WGR_MATERIAL_PBR): lit like a model, by the scene's lights and environment. The sprite's texture is the base color (its tint multiplies it), the material's factors and its normal, metallic-roughness, occlusion and emissive maps do the rest, over the sprite's texture region. The quad's facing is the surface normal, so normal maps work on billboards. Sprites drawn together (one batch) share the lights chosen for where they are: a sprite far from the rest of its batch can miss a light near it. built-in (WGR_MATERIAL_UNLIT): its base color x the sprite's texture and tint. custom (wgr_material_create_custom): its shader draws the sprite (shaders/wgr.glsl: wgr_sprite_color() is the sprite's texture times its tint), with the same lights and environment.
+ * Draw the sprite with a material (wgr_material.h); 0 goes back to libwgrender's sprite
+ * shader (texture x tint, unlit). The sprite keeps its texture, region, tint, facing
+ * and alpha mode, and holds its own reference to the material.
+ *
+ *   built-in (WGR_MATERIAL_PBR): lit like a model, by the scene's lights and
+ *     environment. The sprite's texture is the base color (its tint multiplies it),
+ *     the material's factors and its normal, metallic-roughness, occlusion and
+ *     emissive maps do the rest, over the sprite's texture region. The quad's facing
+ *     is the surface normal, so normal maps work on billboards. Sprites drawn
+ *     together (one batch) share the lights chosen for where they are: a sprite far
+ *     from the rest of its batch can miss a light near it.
+ *   built-in (WGR_MATERIAL_UNLIT): its base color x the sprite's texture and tint.
+ *   custom (wgr_material_create_custom): its shader draws the sprite (shaders/wgr.glsl:
+ *     wgr_sprite_color() is the sprite's texture times its tint), with the same lights
+ *     and environment.
  */
 export function wgr_sprite3d_set_material(handle, material) {
     return host["_wgr_sprite3d_set_material"](handle, material) !== 0;
@@ -2724,7 +3375,8 @@ export function wgr_sprite3d_get_material(handle) {
 }
 
 /**
- * When enabled, picking ignores hits on texels whose alpha is below `threshold` (0..1). Builds a CPU alpha mask from the texture's source path on demand.
+ * When enabled, picking ignores hits on texels whose alpha is below `threshold`
+ * (0..1). Builds a CPU alpha mask from the texture's source path on demand.
  */
 export function wgr_sprite3d_set_pick_alpha_test(handle, enable, threshold) {
     return host["_wgr_sprite3d_set_pick_alpha_test"](handle, enable, threshold) !== 0;
@@ -2739,7 +3391,16 @@ export function wgr_sprite3d_destroy(handle) {
 }
 
 /**
- * The default font: what wgr_text_draw, wgr_text_measure and wgr_text_draw_fps use, and what font handle 0 means everywhere (wgr_text_draw_ex, text2d, text3d). Built in, it's JetBrains Mono (printable ASCII only, embedded in the library). Set a font of your own for other characters (UTF-8) or another look. The default font holds a reference to the font, so it stays loaded after wgr_resource_release until the default changes. Pass 0 to go back to the built-in font. False for a handle that isn't a font. Sizes are pixel sizes; a size < = 0 means 16.
+ * The default font: what wgr_text_draw, wgr_text_measure and wgr_text_draw_fps use,
+ * and what font handle 0 means everywhere (wgr_text_draw_ex, text2d, text3d).
+ *
+ * Built in, it's JetBrains Mono (printable ASCII only, embedded in the library).
+ * Set a font of your own for other characters (UTF-8) or another look. The default
+ * font holds a reference to the font, so it stays loaded after wgr_resource_release until
+ * the default changes. Pass 0 to go back to the built-in font. False for a handle
+ * that isn't a font.
+ *
+ * Sizes are pixel sizes; a size <= 0 means 16.
  */
 export function wgr_text_set_default_font(font) {
     return host["_wgr_text_set_default_font"](font) !== 0;
@@ -2774,7 +3435,9 @@ export function wgr_text_measure(text, font_size) {
 }
 
 /**
- * Text in a font (0 = the default font). (x, y) is the top-left of the text; size is the pixel height. A font that isn't loaded (invalid or destroyed handle) falls back to the built-in font.
+ * Text in a font (0 = the default font). (x, y) is the top-left of the text; size
+ * is the pixel height. A font that isn't loaded (invalid or destroyed handle)
+ * falls back to the built-in font.
  */
 export function wgr_text_draw_ex(font, text, x, y, size, color) {
     const mark = host["stackSave"]();
@@ -2796,7 +3459,8 @@ export function wgr_text_measure_ex(font, text, size, into) {
 }
 
 /**
- * The same for `length` bytes of `text` (a slice of a longer string, as layout libraries pass it); a negative length means up to the NUL.
+ * The same for `length` bytes of `text` (a slice of a longer string, as layout
+ * libraries pass it); a negative length means up to the NUL.
  */
 export function wgr_text_draw_n(font, text, length, x, y, size, color) {
     const mark = host["stackSave"]();
@@ -2818,7 +3482,19 @@ export function wgr_text_measure_n(font, text, length, size, into) {
 }
 
 /**
- * Text2d object (kind TEXT2D): a placed string drawn from a Font resource, with retained STATE. The string and its placement/color are set once and stored on the object, so your code doesn't re-pass them every frame — but the geometry is still shaped on each wgr_text2d_draw() (it delegates to the immediate wgr_text path), i.e. same per-frame cost as wgr_text_draw_ex(). For normal UI text that cost is negligible; cached/retained geometry would only pay off for very large amounts of text and isn't implemented. `font` may be 0: the text uses the default font (wgr_text_set_default_font, else the built-in font) until a font is attached with wgr_text2d_set_font. So you can create, place and show text before its font asset is ready, the same create-now / set-resource-later pattern as sprite3d, model and sound. The text holds a reference to its font.
+ * Text2d object (kind TEXT2D): a placed string drawn from a Font resource,
+ * with retained STATE. The string and its placement/color are set once and
+ * stored on the object, so your code doesn't re-pass them every frame — but the
+ * geometry is still shaped on each wgr_text2d_draw() (it delegates to the
+ * immediate wgr_text path), i.e. same per-frame cost as wgr_text_draw_ex(). For
+ * normal UI text that cost is negligible; cached/retained geometry would only
+ * pay off for very large amounts of text and isn't implemented.
+ *
+ * `font` may be 0: the text uses the default font (wgr_text_set_default_font, else
+ * the built-in font) until a font is attached with wgr_text2d_set_font. So you can
+ * create, place and show text before its font asset is ready, the same
+ * create-now / set-resource-later pattern as sprite3d, model and sound. The text
+ * holds a reference to its font.
  */
 export function wgr_text2d_create(font) {
     return host["_wgr_text2d_create"](font) >>> 0;
@@ -2871,7 +3547,8 @@ export function wgr_text2d_is_visible(handle) {
 }
 
 /**
- * Picked by its text's rectangle (wgr_pick_object, or wgr_scene_pick when in a scene, where it's drawn over 3D like sprite2d). Default: pickable.
+ * Picked by its text's rectangle (wgr_pick_object, or wgr_scene_pick when in a
+ * scene, where it's drawn over 3D like sprite2d). Default: pickable.
  */
 export function wgr_text2d_set_pickable(handle, pickable) {
     return host["_wgr_text2d_set_pickable"](handle, pickable) !== 0;
@@ -2882,7 +3559,8 @@ export function wgr_text2d_is_pickable(handle) {
 }
 
 /**
- * Enabled (default): a hit reacts (hover, press, click in an interactive scene). Disabled: still drawn and picked, and still blocks the pointer, but doesn't react.
+ * Enabled (default): a hit reacts (hover, press, click in an interactive scene).
+ * Disabled: still drawn and picked, and still blocks the pointer, but doesn't react.
  */
 export function wgr_text2d_set_enabled(text, enabled) {
     return host["_wgr_text2d_set_enabled"](text, enabled) !== 0;
@@ -2893,21 +3571,28 @@ export function wgr_text2d_is_enabled(text) {
 }
 
 /**
- * Where the text sits relative to its position: LEFT/CENTER/RIGHT horizontally, TOP/MIDDLE/BOTTOM vertically (default: left, top, so the position is the block's top-left corner). Wrapped lines line up the same way inside the block, and picks use the block's rectangle. False for another axis's value.
+ * Where the text sits relative to its position: LEFT/CENTER/RIGHT horizontally,
+ * TOP/MIDDLE/BOTTOM vertically (default: left, top, so the position is the
+ * block's top-left corner). Wrapped lines line up the same way inside the block,
+ * and picks use the block's rectangle. False for another axis's value.
  */
 export function wgr_text2d_set_align(handle, horizontal, vertical) {
     return host["_wgr_text2d_set_align"](handle, horizontal, vertical) !== 0;
 }
 
 /**
- * Wrap the text to `width` logical pixels, between words (a word wider than that keeps a line to itself); 0 turns wrapping off (the default). Newlines in the text always break a line. A wrapped block is `width` wide for alignment and picking, however short its lines are.
+ * Wrap the text to `width` logical pixels, between words (a word wider than that
+ * keeps a line to itself); 0 turns wrapping off (the default). Newlines in the
+ * text always break a line. A wrapped block is `width` wide for alignment and
+ * picking, however short its lines are.
  */
 export function wgr_text2d_set_max_width(handle, width) {
     return host["_wgr_text2d_set_max_width"](handle, width) !== 0;
 }
 
 /**
- * The laid-out text at its font size: x the widest line, y the lines' total height ((0, 0) with no text). Uses the font it draws with (its own, or the default font).
+ * The laid-out text at its font size: x the widest line, y the lines' total height
+ * ((0, 0) with no text). Uses the font it draws with (its own, or the default font).
  */
 export function wgr_text2d_measure(handle, into) {
     const out = record(8);
@@ -2929,7 +3614,20 @@ export function wgr_text2d_destroy(handle) {
 }
 
 /**
- * Text3d object (kind TEXT3D): a string placed in the 3D world, drawn with a TrueType font (wgr_font_create), centered on its position. - font size is in world units (default 1): one line's height, from the lowest descender to the highest ascender. - Newlines break lines; wgr_text3d_set_max_width wraps between words, and wgr_text3d_set_align says where the block sits relative to the position. - Facing uses sprite3d's modes: face the camera (default), face it with world up kept, lie flat facing up, or FREE (oriented by the rotation, like a sign). - Depth-tested against the scene; a scene sorts it with other transparent parts. - Font 0 (at create, or until set) draws with the default font (wgr_text_set_default_font, else the built-in font). The text holds a reference to its font. - Picked by its text's rectangle (wgr_pick_object, wgr_scene_pick).
+ * Text3d object (kind TEXT3D): a string placed in the 3D world, drawn with a
+ * TrueType font (wgr_font_create), centered on its position.
+ *
+ * - font size is in world units (default 1): one line's height, from the
+ *   lowest descender to the highest ascender.
+ * - Newlines break lines; wgr_text3d_set_max_width wraps between words, and
+ *   wgr_text3d_set_align says where the block sits relative to the position.
+ * - Facing uses sprite3d's modes: face the camera (default), face it with world up
+ *   kept, lie flat facing up, or FREE (oriented by the rotation, like a sign).
+ * - Depth-tested against the scene; a scene sorts it with other transparent parts.
+ * - Font 0 (at create, or until set) draws with the default font
+ *   (wgr_text_set_default_font, else the built-in font). The text holds a reference
+ *   to its font.
+ * - Picked by its text's rectangle (wgr_pick_object, wgr_scene_pick).
  */
 export function wgr_text3d_create(font) {
     return host["_wgr_text3d_create"](font) >>> 0;
@@ -2959,14 +3657,18 @@ export function wgr_text3d_get_font_size(text) {
 }
 
 /**
- * Where the text sits relative to its position: LEFT/CENTER/RIGHT horizontally, TOP/MIDDLE/BOTTOM vertically. Default: centered both ways, so the position is the middle of the block. Wrapped lines line up the same way inside it.
+ * Where the text sits relative to its position: LEFT/CENTER/RIGHT horizontally,
+ * TOP/MIDDLE/BOTTOM vertically. Default: centered both ways, so the position is
+ * the middle of the block. Wrapped lines line up the same way inside it.
  */
 export function wgr_text3d_set_align(text, horizontal, vertical) {
     return host["_wgr_text3d_set_align"](text, horizontal, vertical) !== 0;
 }
 
 /**
- * Wrap the text to `width` world units, between words (a word wider than that keeps a line to itself); 0 turns wrapping off (the default). Newlines in the text always break a line, wrapped or not.
+ * Wrap the text to `width` world units, between words (a word wider than that
+ * keeps a line to itself); 0 turns wrapping off (the default). Newlines in the
+ * text always break a line, wrapped or not.
  */
 export function wgr_text3d_set_max_width(text, width) {
     return host["_wgr_text3d_set_max_width"](text, width) !== 0;
@@ -2977,7 +3679,8 @@ export function wgr_text3d_set_transform(text, x, y, z, rotation_x, rotation_y, 
 }
 
 /**
- * One part of the transform, leaving the other as it is; the getters read them back (0, 0, 0 for a handle that isn't one). A 3D text's font size stands in for a scale.
+ * One part of the transform, leaving the other as it is; the getters read them back
+ * (0, 0, 0 for a handle that isn't one). A 3D text's font size stands in for a scale.
  */
 export function wgr_text3d_set_position(text, x, y, z) {
     return host["_wgr_text3d_set_position"](text, x, y, z) !== 0;
@@ -3034,7 +3737,8 @@ export function wgr_text3d_is_pickable(text) {
 }
 
 /**
- * Enabled (default): a hit reacts (hover, press, click in an interactive scene). Disabled: still drawn and picked, and still blocks the pointer, but doesn't react.
+ * Enabled (default): a hit reacts (hover, press, click in an interactive scene).
+ * Disabled: still drawn and picked, and still blocks the pointer, but doesn't react.
  */
 export function wgr_text3d_set_enabled(text, enabled) {
     return host["_wgr_text3d_set_enabled"](text, enabled) !== 0;
@@ -3066,7 +3770,8 @@ export function wgr_text3d_draw(text) {
 }
 
 /**
- * Draw text once at a 3D point, facing the camera, line height `size` in world units (inside 3D mode).
+ * Draw text once at a 3D point, facing the camera, line height `size` in world
+ * units (inside 3D mode).
  */
 export function wgr_text_draw_3d(font, text, x, y, z, size, color) {
     const mark = host["stackSave"]();
@@ -3099,7 +3804,10 @@ export function wgr_version_string() {
 }
 
 /**
- * Window lifecycle is owned by the core runtime: - wgr_init_values(...) configures the window - wgr_run() opens it (sokol_app owns the message loop) - the shutdown callback (wgr_set_shutdown) runs as it closes
+ * Window lifecycle is owned by the core runtime:
+ * - wgr_init_values(...) configures the window
+ * - wgr_run() opens it (sokol_app owns the message loop)
+ * - the shutdown callback (wgr_set_shutdown) runs as it closes
  */
 export function wgr_window_set_title(title) {
     const mark = host["stackSave"]();
@@ -3123,14 +3831,25 @@ export function wgr_window_get_screen_size(into) {
 }
 
 /**
- * Window size, position and monitors (docs/HISTORY.md, "Window and monitor control"). Sizes are logical pixels, like wgr_window_get_screen_size; positions are the desktop's coordinates (top-left origin). Functions return false where the platform can't do what's asked, logging why once: - web: the canvas is the window. Setting its size works (unless the page's CSS overrides it); there's no position and one monitor, the screen. - Linux: under XWayland, compositors usually ignore a program moving its own window (and may ignore resizing); the call still succeeds. - fullscreen on web only takes effect during a user gesture (a key or click).
+ * Window size, position and monitors (docs/HISTORY.md, "Window and monitor control").
+ *
+ * Sizes are logical pixels, like wgr_window_get_screen_size; positions are the
+ * desktop's coordinates (top-left origin). Functions return false where the platform
+ * can't do what's asked, logging why once:
+ *   - web: the canvas is the window. Setting its size works (unless the page's CSS
+ *     overrides it); there's no position and one monitor, the screen.
+ *   - Linux: under XWayland, compositors usually ignore a program moving its own
+ *     window (and may ignore resizing); the call still succeeds.
+ *   - fullscreen on web only takes effect during a user gesture (a key or click).
  */
 export function wgr_window_set_size(width, height) {
     return host["_wgr_window_set_size"](width, height) !== 0;
 }
 
 /**
- * Moving the window (and wgr_window_set_monitor) needs a desktop that lets programs place their windows: not the web, and not a Wayland desktop (libwgrender runs there through XWayland, and the compositor places windows). There they return false.
+ * Moving the window (and wgr_window_set_monitor) needs a desktop that lets programs
+ * place their windows: not the web, and not a Wayland desktop (libwgrender runs there
+ * through XWayland, and the compositor places windows). There they return false.
  */
 export function wgr_window_set_position(x, y) {
     return host["_wgr_window_set_position"](x, y) !== 0;
@@ -3148,14 +3867,23 @@ export function wgr_window_get_position(into) {
 }
 
 /**
- * Whether this platform can go fullscreen at all: true on the desktop, false headless, and on the web what the browser says (document.fullscreenEnabled: false in an iframe without allowfullscreen, or under a permissions policy). Ask this to hide the button. It doesn't cover the web's other condition, a user gesture, which only the request meets.
+ * Whether this platform can go fullscreen at all: true on the desktop, false headless,
+ * and on the web what the browser says (document.fullscreenEnabled: false in an iframe
+ * without allowfullscreen, or under a permissions policy). Ask this to hide the button.
+ * It doesn't cover the web's other condition, a user gesture, which only the request
+ * meets.
  */
 export function wgr_window_has_fullscreen() {
     return host["_wgr_window_has_fullscreen"]() !== 0;
 }
 
 /**
- * Ask to go fullscreen; the answer is wgr_window_is_fullscreen, not the return. False for what has_fullscreen says (nothing to request); true means the request was made, not that it was granted: on the web it only takes effect during a user gesture and arrives a frame or more later as a fullscreenchange, and even on the desktop the toggle has not happened yet when this returns. Named request_ for that reason -- wgr_input_set_pointer_captured has the same shape and returns void.
+ * Ask to go fullscreen; the answer is wgr_window_is_fullscreen, not the return. False
+ * for what has_fullscreen says (nothing to request); true means the request was made,
+ * not that it was granted: on the web it only takes effect during a user gesture and
+ * arrives a frame or more later as a fullscreenchange, and even on the desktop the
+ * toggle has not happened yet when this returns. Named request_ for that reason --
+ * wgr_input_set_pointer_captured has the same shape and returns void.
  */
 export function wgr_window_request_fullscreen(fullscreen) {
     return host["_wgr_window_request_fullscreen"](fullscreen) !== 0;
@@ -3166,7 +3894,8 @@ export function wgr_window_is_fullscreen() {
 }
 
 /**
- * Show or hide the window (WGR_WINDOW_FLAG_WINDOW_HIDDEN starts it hidden); it keeps running either way. Web: the canvas.
+ * Show or hide the window (WGR_WINDOW_FLAG_WINDOW_HIDDEN starts it hidden); it keeps
+ * running either way. Web: the canvas.
  */
 export function wgr_window_set_visible(visible) {
     return host["_wgr_window_set_visible"](visible) !== 0;
@@ -3222,7 +3951,8 @@ export function wgr_window_get_monitor_name(monitor) {
 }
 
 /**
- * Configure the runtime (logger + window settings). Does NOT open the window; wgr_run() does that. Returns an wgr_init_result_t.
+ * Configure the runtime (logger + window settings). Does NOT open the window;
+ * wgr_run() does that. Returns an wgr_init_result_t.
  */
 export function wgr_init_values(window_width, window_height, window_title, window_flags) {
     const mark = host["stackSave"]();
@@ -3232,7 +3962,8 @@ export function wgr_init_values(window_width, window_height, window_title, windo
 }
 
 /**
- * Enter the runtime loop. Blocks on desktop, returns immediately on web. Returns 0 on normal exit.
+ * Enter the runtime loop. Blocks on desktop, returns immediately on web.
+ * Returns 0 on normal exit.
  */
 export function wgr_run() {
     return host["_wgr_run"]();
@@ -3254,21 +3985,42 @@ export function wgr_get_platform() {
 }
 
 /**
- * Which renderer is running: "GL core", "GLES3/WebGL2", "WebGPU", "D3D11", "Metal (macOS)", or "headless". Display text — it names the backend libwgrender chose, which the API otherwise hides. "none" before wgr_run starts.
+ * Which renderer is running: "GL core", "GLES3/WebGL2", "WebGPU", "D3D11",
+ * "Metal (macOS)", or "headless". Display text — it names the backend libwgrender
+ * chose, which the API otherwise hides. "none" before wgr_run starts.
  */
 export function wgr_get_renderer() {
     return str(host["_wgr_get_renderer"]());
 }
 
 /**
- * What this build and host can do, so a program can say why something is missing instead of quietly behaving differently. Threads decode and upload assets off the main thread. A web build has them only if it was built with them (a -threads variant, such as wasm32-release-threads) *and* the page is cross-origin isolated, which needs COOP/COEP headers from the host. A build without them, the default, runs on any static host (GitHub Pages), and loading blocks the frame it happens on.
+ * What this build and host can do, so a program can say why something is missing
+ * instead of quietly behaving differently.
+ *
+ * Threads decode and upload assets off the main thread. A web build has them only if
+ * it was built with them (a -threads variant, such as wasm32-release-threads) *and*
+ * the page is cross-origin isolated, which needs COOP/COEP headers from the host. A
+ * build without them, the default, runs on any static host (GitHub Pages), and loading
+ * blocks the frame it happens on.
  */
 export function wgr_has_threads() {
     return host["_wgr_has_threads"]() !== 0;
 }
 
 /**
- * Who the program is: the company and the app, the two directories a program's own files go under on desktop -- the asset cache now (wgr_asset_set_cache_dir), and saves or settings later -- as <user 's cache>/ <company >/ <app >. The company is "DefaultCompany" until set, so that nothing unset looks like anyone's; the app is the executable's name, less its extension. Set both for anything shipped: two programs left with the defaults and the same name share a cache, and renaming the executable would leave its cache behind. Each is made safe as one path component (separators and characters Windows refuses become "_", leading and trailing dots and spaces go, a Windows device name such as "CON" gets a "_" in front); NULL, a name with nothing left, or one of 128 bytes or more goes back to the default -- a name that can't be used is refused with a warning, never cut short. Set them before anything is cached, that is before wgr_asset_set_host with a URL. Kept across wgr_init_values.
+ * Who the program is: the company and the app, the two directories a program's own
+ * files go under on desktop -- the asset cache now (wgr_asset_set_cache_dir), and
+ * saves or settings later -- as <user's cache>/<company>/<app>. The company is
+ * "DefaultCompany" until set, so that nothing unset looks like anyone's; the app is
+ * the executable's name, less its extension. Set both for anything shipped: two
+ * programs left with the defaults and the same name share a cache, and renaming the
+ * executable would leave its cache behind. Each is made safe as one path component
+ * (separators and characters Windows refuses become "_", leading and trailing dots and
+ * spaces go, a Windows device name such as "CON" gets a "_" in front); NULL, a name
+ * with nothing left, or one of 128 bytes or more goes back to the default -- a name
+ * that can't be used is refused with a warning, never cut short. Set them before
+ * anything is cached, that is before wgr_asset_set_host with a URL. Kept across
+ * wgr_init_values.
  */
 export function wgr_set_app_company(company) {
     const mark = host["stackSave"]();
@@ -3291,7 +4043,12 @@ export function wgr_get_app_name() {
 }
 
 /**
- * Frame rate (a power/heat cap; use a tick for simulation rate). Frames are locked to the display's vsync by default. wgr_set_target_fps(fps) caps the rate: fps < = 0 means no cap (vsync rate, or as fast as possible with WGR_WINDOW_FLAG_VSYNC_OFF). With vsync on, a cap can only lower the rate. On desktop the runtime sleeps until each frame is due; on the web it skips browser frames that come too early. Can be called at any time.
+ * Frame rate (a power/heat cap; use a tick for simulation rate).
+ * Frames are locked to the display's vsync by default. wgr_set_target_fps(fps)
+ * caps the rate: fps <= 0 means no cap (vsync rate, or as fast as possible with
+ * WGR_WINDOW_FLAG_VSYNC_OFF). With vsync on, a cap can only lower the rate. On
+ * desktop the runtime sleeps until each frame is due; on the web it skips browser
+ * frames that come too early. Can be called at any time.
  */
 export function wgr_set_target_fps(fps) {
     host["_wgr_set_target_fps"](fps);
