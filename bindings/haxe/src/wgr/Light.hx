@@ -42,8 +42,8 @@ abstract Light(Handle) from Handle to Handle {
 
 	/** Directional and spot; default (0, -1, 0). Held normalized, so reading it back
 		gives a unit vector rather than what was passed. **/
-	public static inline function getDirection(light:Light):Vec3
-		return Vec3.of(Raw.wgr_light_get_direction(light));
+	public static inline function getDirection(light:Light, ?result:Vec3):Vec3
+		return Vec3.of(Raw.wgr_light_get_direction(light), result);
 
 	/** Directional and spot; default (0, -1, 0). Held normalized, so reading it back
 		gives a unit vector rather than what was passed. **/
@@ -67,8 +67,8 @@ abstract Light(Handle) from Handle to Handle {
 		return Raw.wgr_light_set_color(light, value);
 
 	/** Point and spot. **/
-	public static inline function getPosition(light:Light):Vec3
-		return Vec3.of(Raw.wgr_light_get_position(light));
+	public static inline function getPosition(light:Light, ?result:Vec3):Vec3
+		return Vec3.of(Raw.wgr_light_get_position(light), result);
 
 	/** Point and spot. **/
 	public static overload extern inline function setPosition(light:Light, value:Vec3):Bool

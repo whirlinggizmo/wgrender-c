@@ -238,7 +238,7 @@ class Shaders {
 		lamp.setPosition(lx, ly, lz);
 		lampMarker.setPosition(lx, ly, lz);
 		lampMarker.setVisible(lamp.isEnabled());
-		dissolving.setTransform(new Vec3(0, SPHERE_Y, 0), new Vec3(0, elapsed * 0.4, 0), Vec3.ONE);
+		dissolving.setTransform(new Vec3(0, SPHERE_Y, 0), new Vec3(0, elapsed * 0.4, 0), Vec3.one());
 		character.animate(dt);
 
 		Render.beginFrame();

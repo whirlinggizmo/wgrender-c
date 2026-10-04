@@ -62,7 +62,7 @@ class PickDemo {
 
 		cube = new Shape3D();
 		cube.setCube(new Vec3(2.0, 2.0, 2.0));
-		cube.setTransform(new Vec3(-3.5, 1.0, 0), new Vec3(0, 0.6, 0), Vec3.ONE);
+		cube.setTransform(new Vec3(-3.5, 1.0, 0), new Vec3(0, 0.6, 0), Vec3.one());
 		cube.setColor(Color.ORANGE);
 		scene.add(cube);
 

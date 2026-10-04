@@ -96,15 +96,15 @@ abstract Model(Handle) from Handle to Handle {
 		return Raw.wgr_model_set_scale(model, x, y, z);
 
 	/** Where it is, as last set. **/
-	public static inline function getPosition(model:Model):Vec3
-		return Vec3.of(Raw.wgr_model_get_position(model));
+	public static inline function getPosition(model:Model, ?result:Vec3):Vec3
+		return Vec3.of(Raw.wgr_model_get_position(model), result);
 
 	/** Radians, as last set. **/
-	public static inline function getRotation(model:Model):Vec3
-		return Vec3.of(Raw.wgr_model_get_rotation(model));
+	public static inline function getRotation(model:Model, ?result:Vec3):Vec3
+		return Vec3.of(Raw.wgr_model_get_rotation(model), result);
 
-	public static inline function getScale(model:Model):Vec3
-		return Vec3.of(Raw.wgr_model_get_scale(model));
+	public static inline function getScale(model:Model, ?result:Vec3):Vec3
+		return Vec3.of(Raw.wgr_model_get_scale(model), result);
 
 	public static inline function setTint(model:Model, color:Color):Bool
 		return Raw.wgr_model_set_tint(model, color);

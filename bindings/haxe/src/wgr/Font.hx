@@ -33,8 +33,8 @@ abstract Font(Handle) from Handle to Handle {
 	public static inline function draw(font:Font, text:String, x:Float, y:Float, size:Float, color:Color):Void
 		Raw.wgr_text_draw_ex(font, text, x, y, size, color);
 
-	public static inline function measure(font:Font, text:String, size:Float):Vec2
-		return Vec2.of(Raw.wgr_text_measure_ex(font, text, size));
+	public static inline function measure(font:Font, text:String, size:Float, ?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_text_measure_ex(font, text, size), result);
 
 	/** The frame rate, in this font; a none font draws in the built-in one. **/
 	public static inline function drawFps(font:Font, x:Float, y:Float, size:Float, color:Color):Void

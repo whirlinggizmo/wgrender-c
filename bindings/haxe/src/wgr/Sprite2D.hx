@@ -64,15 +64,15 @@ abstract Sprite2D(Handle) from Handle to Handle {
 		return Raw.wgr_sprite2d_set_scale(sprite2D, x, y);
 
 	/** Where the pivot is, as last set. **/
-	public static inline function getPosition(sprite2D:Sprite2D):Vec2
-		return Vec2.of(Raw.wgr_sprite2d_get_position(sprite2D));
+	public static inline function getPosition(sprite2D:Sprite2D, ?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_sprite2d_get_position(sprite2D), result);
 
 	/** Radians, as last set. **/
 	public static inline function getRotation(sprite2D:Sprite2D):Float
 		return Raw.wgr_sprite2d_get_rotation(sprite2D);
 
-	public static inline function getScale(sprite2D:Sprite2D):Vec2
-		return Vec2.of(Raw.wgr_sprite2d_get_scale(sprite2D));
+	public static inline function getScale(sprite2D:Sprite2D, ?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_sprite2d_get_scale(sprite2D), result);
 
 	public static inline function setTint(sprite2D:Sprite2D, value:Color):Bool
 		return Raw.wgr_sprite2d_set_tint(sprite2D, value);
@@ -148,8 +148,8 @@ abstract Sprite2D(Handle) from Handle to Handle {
 		return Raw.wgr_sprite2d_set_pivot(sprite2D, x, y);
 
 	/** The pivot, as set; (0.5, 0.5) by default. **/
-	public static inline function getPivot(sprite2D:Sprite2D):Vec2
-		return Vec2.of(Raw.wgr_sprite2d_get_pivot(sprite2D));
+	public static inline function getPivot(sprite2D:Sprite2D, ?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_sprite2d_get_pivot(sprite2D), result);
 
 	/**
 		Nine-slice: borders in source pixels that keep their size when the sprite is

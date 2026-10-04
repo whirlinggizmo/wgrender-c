@@ -106,7 +106,7 @@ class Loading {
 		scene.add(character);
 
 		sphere = new Model(Handle.NONE);
-		sphere.setTransform(new Vec3(1.2, 0.8, 0), Vec3.ZERO, new Vec3(0.8, 0.8, 0.8));
+		sphere.setTransform(new Vec3(1.2, 0.8, 0), Vec3.zero(), new Vec3(0.8, 0.8, 0.8));
 		material = new Material(Pbr);
 		material.setBaseColor(0.9, 0.9, 0.9, 1.0);
 		material.setRoughness(0.25);

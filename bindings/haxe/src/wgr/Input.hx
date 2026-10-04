@@ -10,16 +10,16 @@ class Input {
 	public static inline var MAX_TOUCHES = 8;
 
 	/** In logical pixels, top-left origin. **/
-	public static inline function getMousePosition():Vec2
-		return Vec2.of(Raw.wgr_input_get_mouse_position());
+	public static inline function getMousePosition(?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_input_get_mouse_position(), result);
 
 	/** How far it moved this frame (or tick). **/
-	public static inline function getMouseDelta():Vec2
-		return Vec2.of(Raw.wgr_input_get_mouse_delta());
+	public static inline function getMouseDelta(?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_input_get_mouse_delta(), result);
 
 	/** This frame's (or tick's) wheel: y vertical, x horizontal; fractional on trackpads. **/
-	public static inline function getMouseWheel():Vec2
-		return Vec2.of(Raw.wgr_input_get_mouse_wheel());
+	public static inline function getMouseWheel(?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_input_get_mouse_wheel(), result);
 
 	/**
 		Whether game controls — camera drags, 3D selection, hotkeys — should leave the

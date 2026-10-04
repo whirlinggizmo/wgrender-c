@@ -21,8 +21,8 @@ abstract Emitter3D(Handle) from Handle to Handle {
 		return (emitter3D : Handle).isNone;
 
 	/** Where it is, as last set. **/
-	public static inline function getPosition(emitter3D:Emitter3D):Vec3
-		return Vec3.of(Raw.wgr_emitter3d_get_position(emitter3D));
+	public static inline function getPosition(emitter3D:Emitter3D, ?result:Vec3):Vec3
+		return Vec3.of(Raw.wgr_emitter3d_get_position(emitter3D), result);
 
 	/** `new Emitter3D(...)` is `Emitter3D.create(...)`, the same call. **/
 	public inline function new(texture:Texture)

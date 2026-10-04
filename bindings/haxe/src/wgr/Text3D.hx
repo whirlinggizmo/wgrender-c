@@ -103,16 +103,16 @@ abstract Text3D(Handle) from Handle to Handle {
 		return Raw.wgr_text3d_set_rotation(text3D, x, y, z);
 
 	/** Where it is, as last set. **/
-	public static inline function getPosition(text3D:Text3D):Vec3
-		return Vec3.of(Raw.wgr_text3d_get_position(text3D));
+	public static inline function getPosition(text3D:Text3D, ?result:Vec3):Vec3
+		return Vec3.of(Raw.wgr_text3d_get_position(text3D), result);
 
 	/** Radians, as last set. **/
-	public static inline function getRotation(text3D:Text3D):Vec3
-		return Vec3.of(Raw.wgr_text3d_get_rotation(text3D));
+	public static inline function getRotation(text3D:Text3D, ?result:Vec3):Vec3
+		return Vec3.of(Raw.wgr_text3d_get_rotation(text3D), result);
 
 	/** World-space width and height of the current text; (0, 0) until the font loads. **/
-	public static inline function measure(text3D:Text3D):Vec2
-		return Vec2.of(Raw.wgr_text3d_measure(text3D));
+	public static inline function measure(text3D:Text3D, ?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_text3d_measure(text3D), result);
 
 	/** Draw it now, inside 3D mode; a scene draws its members itself. **/
 	public static inline function draw(text3D:Text3D):Void

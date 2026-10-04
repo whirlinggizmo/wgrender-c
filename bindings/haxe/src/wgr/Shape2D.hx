@@ -69,15 +69,15 @@ abstract Shape2D(Handle) from Handle to Handle {
 		return Raw.wgr_shape2d_set_scale(shape2D, x, y);
 
 	/** Where the pivot is, as last set. **/
-	public static inline function getPosition(shape2D:Shape2D):Vec2
-		return Vec2.of(Raw.wgr_shape2d_get_position(shape2D));
+	public static inline function getPosition(shape2D:Shape2D, ?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_shape2d_get_position(shape2D), result);
 
 	/** Radians, as last set. **/
 	public static inline function getRotation(shape2D:Shape2D):Float
 		return Raw.wgr_shape2d_get_rotation(shape2D);
 
-	public static inline function getScale(shape2D:Shape2D):Vec2
-		return Vec2.of(Raw.wgr_shape2d_get_scale(shape2D));
+	public static inline function getScale(shape2D:Shape2D, ?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_shape2d_get_scale(shape2D), result);
 
 	/**
 		What the transform turns and scales about, as a **fraction of the shape's own
@@ -100,8 +100,8 @@ abstract Shape2D(Handle) from Handle to Handle {
 		return Raw.wgr_shape2d_set_pivot(shape2D, x, y);
 
 	/** The pivot in effect: before `setPivot`, the kind's own origin -- (0, 0) for a rectangle, (0.5, 0.5) for a circle. **/
-	public static inline function getPivot(shape2D:Shape2D):Vec2
-		return Vec2.of(Raw.wgr_shape2d_get_pivot(shape2D));
+	public static inline function getPivot(shape2D:Shape2D, ?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_shape2d_get_pivot(shape2D), result);
 
 	public static inline function setColor(shape2D:Shape2D, value:Color):Bool
 		return Raw.wgr_shape2d_set_color(shape2D, value);

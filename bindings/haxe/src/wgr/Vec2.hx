@@ -13,15 +13,24 @@ package wgr;
 @:headerCode('#include <wgr.h>')
 #end
 @:structInit
+/**
+	A 2D vector, mutable. A getter makes a new one, or fills one you pass as its
+	optional last argument and returns it, so a loop can read into one vector it keeps
+	and make no garbage (`Model.getPosition(model, pos)`). Mutable, so there are no shared
+	constants to change by accident: `zero()` and `one()` make one, and cost nothing when
+	passed straight to a setter, which the compiler reduces to plain numbers.
+**/
 class Vec2 {
-	public final x:Float;
-	public final y:Float;
+	public var x:Float;
+	public var y:Float;
 
 	/** No rotation, no offset: what to pass for a part of a transform that is not turned or moved. **/
-	public static final ZERO:Vec2 = new Vec2(0, 0);
+	public static inline function zero():Vec2
+		return new Vec2(0, 0);
 
 	/** Unit scale. **/
-	public static final ONE:Vec2 = new Vec2(1, 1);
+	public static inline function one():Vec2
+		return new Vec2(1, 1);
 
 	public inline function new(x:Float = 0, y:Float = 0) {
 		this.x = x;
@@ -29,16 +38,24 @@ class Vec2 {
 	}
 
 	/**
-		The C struct as a `Vec2`. hxcpp gives us the struct itself; on js Raw has already
-		read it out of the heap, so there is nothing left to do.
+		A getter's result: a new `Vec2`, or `result` filled and returned. hxcpp gives the C
+		struct itself; on js, Raw's one reused array (`Raw.vector`), read out at once.
 	**/
 	@:allow(wgr)
-	static extern inline function of(v:#if cpp CVec2 #else Vec2 #end):Vec2
+	static extern inline function of(v:#if cpp CVec2 #else Array<Float> #end, ?result:Vec2):Vec2 {
 		#if cpp
-		return new Vec2(v.x, v.y);
+		if (result == null)
+			return new Vec2(v.x, v.y);
+		result.x = v.x;
+		result.y = v.y;
 		#else
-		return v;
+		if (result == null)
+			return new Vec2(v[0], v[1]);
+		result.x = v[0];
+		result.y = v[1];
 		#end
+		return result;
+	}
 
 	public function toString():String
 		return '($x, $y)';

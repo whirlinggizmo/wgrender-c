@@ -203,7 +203,7 @@ class Postprocess {
 		// isNone, not != null: Model is an abstract over Int, so on a static target
 		// there is no null to compare against.
 		if (!torus.isNone())
-			torus.setTransform(new Vec3(2.2, 0.7, -0.6), new Vec3(0, elapsed * 40.0, elapsed * 25.0), Vec3.ONE);
+			torus.setTransform(new Vec3(2.2, 0.7, -0.6), new Vec3(0, elapsed * 40.0, elapsed * 25.0), Vec3.one());
 
 		// An effect's parameters are its material's: change them any frame you like.
 		final live = breathing ? strength * (0.55 + 0.45 * Math.sin(elapsed * 0.8)) : strength;

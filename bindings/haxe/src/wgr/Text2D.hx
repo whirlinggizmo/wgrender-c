@@ -49,8 +49,8 @@ abstract Text2D(Handle) from Handle to Handle {
 		return Raw.wgr_text2d_set_position(text2D, x, y);
 
 	/** Where it is, as last set. **/
-	public static inline function getPosition(text2D:Text2D):Vec2
-		return Vec2.of(Raw.wgr_text2d_get_position(text2D));
+	public static inline function getPosition(text2D:Text2D, ?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_text2d_get_position(text2D), result);
 
 	/** Pixel height of one line. **/
 	public static inline function setFontSize(text2D:Text2D, value:Float):Bool
@@ -93,8 +93,8 @@ abstract Text2D(Handle) from Handle to Handle {
 		return Raw.wgr_text2d_set_align(text2D, horizontal, vertical);
 
 	/** The laid-out text at its font size: x the widest line, y the lines' total height. **/
-	public static inline function measure(text2D:Text2D):Vec2
-		return Vec2.of(Raw.wgr_text2d_measure(text2D));
+	public static inline function measure(text2D:Text2D, ?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_text2d_measure(text2D), result);
 
 	/** Draw it now; a scene draws its members itself. **/
 	public static inline function draw(text2D:Text2D):Void

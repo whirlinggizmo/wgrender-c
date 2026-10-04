@@ -49,7 +49,7 @@ class Scene3D {
 			final a = i * 2 * Math.PI / RING;
 			final cube = new Shape3D();
 			cube.setCube(new Vec3(1.5, 1.5, 1.5));
-			cube.setTransform(new Vec3(Math.cos(a) * 6.0, 0.75, Math.sin(a) * 6.0), new Vec3(0, a, 0), Vec3.ONE);
+			cube.setTransform(new Vec3(Math.cos(a) * 6.0, 0.75, Math.sin(a) * 6.0), new Vec3(0, a, 0), Vec3.one());
 			cube.setColor(defaultColorFor(i));
 			scene.add(cube);
 			ring.push(cube);
@@ -99,7 +99,7 @@ class Scene3D {
 		final mouse = Input.getMouseState();
 
 		camera.setView(new Vec3(Math.cos(t * 0.35) * 18.0, 11.0, Math.sin(t * 0.35) * 18.0), target);
-		spinner.setTransform(new Vec3(0, 5.0, 0), new Vec3(t * 1.3, t * 0.9, 0), Vec3.ONE);
+		spinner.setTransform(new Vec3(0, 5.0, 0), new Vec3(t * 1.3, t * 0.9, 0), Vec3.one());
 
 		if (mouse.left == ButtonState.Pressed) {
 			final pick = scene.pick(mouse.x, mouse.y);

@@ -26,12 +26,12 @@ class Window {
 		return Raw.wgr_window_close_requested() != 0;
 
 	/** The drawable area in logical pixels. **/
-	public static inline function getScreenSize():Vec2
-		return Vec2.of(Raw.wgr_window_get_screen_size());
+	public static inline function getScreenSize(?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_window_get_screen_size(), result);
 
 	/** Where it sits on the desktop; (0, 0) where there is no such thing. **/
-	public static inline function getPosition():Vec2
-		return Vec2.of(Raw.wgr_window_get_position());
+	public static inline function getPosition(?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_window_get_position(), result);
 
 	/**
 		Whether the window is fullscreen *now*. Setting it asks; it does not arrive on
@@ -120,11 +120,11 @@ class Window {
 	public static inline function setPosition(x:Int, y:Int):Bool
 		return Raw.wgr_window_set_position(x, y);
 
-	public static inline function getMonitorSize(monitor:Int):Vec2
-		return Vec2.of(Raw.wgr_window_get_monitor_size(monitor));
+	public static inline function getMonitorSize(monitor:Int, ?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_window_get_monitor_size(monitor), result);
 
-	public static inline function getMonitorPosition(monitor:Int):Vec2
-		return Vec2.of(Raw.wgr_window_get_monitor_position(monitor));
+	public static inline function getMonitorPosition(monitor:Int, ?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_window_get_monitor_position(monitor), result);
 
 	/** The monitor's name, or "" if the platform doesn't know it. **/
 	public static inline function getMonitorName(monitor:Int):String

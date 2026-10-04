@@ -512,7 +512,7 @@ class CheckBindings {
 		vec3(Model.getRotation(model), 0, 1, 0, "model rotation");
 
 		final sprite = Sprite3D.create(Handle.NONE);
-		check(Sprite3D.setTransform(sprite, new Vec3(1, 2, 3), Vec3.ZERO, Vec3.ONE), "sprite3d setTransform");
+		check(Sprite3D.setTransform(sprite, new Vec3(1, 2, 3), Vec3.zero(), Vec3.one()), "sprite3d setTransform");
 		check(Sprite3D.setRotation(sprite, new Vec3(0, 0.5, 0)) && Sprite3D.setScale(sprite, new Vec3(3, 3, 3)), "sprite3d setRotation, setScale");
 		vec3(Sprite3D.getPosition(sprite), 1, 2, 3, "sprite3d position survives the parts");
 
@@ -534,13 +534,27 @@ class CheckBindings {
 		vec2(Sprite2D.getScale(sprite2D), 2, 3, "sprite2d scale");
 
 		final shape2D = Shape2D.create();
-		check(Shape2D.setTransform(shape2D, new Vec2(5, 6), 0, Vec2.ONE) && Shape2D.setRotation(shape2D, 1.25), "shape2d setTransform, setRotation");
+		check(Shape2D.setTransform(shape2D, new Vec2(5, 6), 0, Vec2.one()) && Shape2D.setRotation(shape2D, 1.25), "shape2d setTransform, setRotation");
 		vec2(Shape2D.getPosition(shape2D), 5, 6, "shape2d position survives setRotation");
 		near(Shape2D.getRotation(shape2D), 1.25, "shape2d rotation");
 
 		final text2D = Text2D.create(Handle.NONE);
 		Text2D.setPosition(text2D, new Vec2(12, 34));
 		vec2(Text2D.getPosition(text2D), 12, 34, "text2d position");
+
+		// a getter given a vector fills that one and returns it, rather than making one
+		final into3 = new Vec3(-1, -1, -1);
+		check(Model.getPosition(model, into3) == into3, "model getPosition(result) returns result");
+		vec3(into3, 7, 8, 9, "model position into result");
+		check(Model.getScale(model, into3) == into3, "the same result reused");
+		vec3(into3, 2, 2, 2, "model scale into the reused result");
+		final into2 = new Vec2(-1, -1);
+		check(Sprite2D.getPosition(sprite2D, into2) == into2, "sprite2d getPosition(result) returns result");
+		vec2(into2, 30, 40, "sprite2d position into result");
+		check(Model.getPosition(model) != into3, "without a result, a new vector");
+		final zero = Vec3.zero();
+		zero.x = 5;
+		vec3(Vec3.zero(), 0, 0, 0, "zero() is a new vector each time, so one changed can't leak");
 
 		Model.destroy(model);
 		Sprite3D.destroy(sprite);
@@ -1044,8 +1058,8 @@ class CheckBindings {
 		Shape3D.drawCubeWires(new Vec3(0, 0, 0), new Vec3(1, 1, 1), Color.WHITE);
 		Shape3D.drawSphere(new Vec3(0, 0, 0), 1, Color.GOLD);
 		Shape3D.drawLine(new Vec3(0, 0, 0), new Vec3(1, 1, 1), Color.LIME);
-		Shape3D.drawRectangle(new Vec3(0, 0, 0), 1, 1, Vec3.ZERO, Color.RED);
-		Shape3D.drawCircle(new Vec3(0, 0, 0), 1, Vec3.ZERO, Color.VIOLET);
+		Shape3D.drawRectangle(new Vec3(0, 0, 0), 1, 1, Vec3.zero(), Color.RED);
+		Shape3D.drawCircle(new Vec3(0, 0, 0), 1, Vec3.zero(), Color.VIOLET);
 		Render.endMode3D();
 		Scene.draw(scene);
 		Shape2D.drawRectangle(0, 0, 10, 10, Color.SKYBLUE);

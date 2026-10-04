@@ -76,6 +76,10 @@ VALUES = {
     'wgr_pick_stats_t': 'PickStats',
 }
 
+# Vectors come back on js through one reused array (Raw.vector), which the public layer's
+# Vec2.of / Vec3.of copy into a new vector or the caller's own.
+VECTORS = {'vec2_t', 'vec3_t'}
+
 # No sane rendering: varargs, or a pointer the public API rule says should not exist.
 SKIP = set()
 
@@ -344,6 +348,12 @@ class Raw {
 		});
 	}
 
+	/**
+		The array every vector getter fills (the JS binding's array form of `into`), read
+		out at once by `Vec2.of` / `Vec3.of`: valid until the next vector getter.
+	**/
+	public static final vector:Array<Float> = [0.0, 0.0, 0.0];
+
 	/** The host module, for the guest ABI; the boot page attaches the JS binding to it too. **/
 	public static function attach(module:Dynamic):Void
 		host = module;
@@ -481,6 +491,12 @@ def emit_js(enums, structs, functions):
                         f'\t\tuntil the next call to this getter.\n'
                         f'\t**/\n'
                         f'\tpublic static inline function {name}({sig}):Int\n\t\treturn {js_call(name, params)};')
+        elif ret in VECTORS:
+            # into the one reused array, by index: no object made, and nothing read by a
+            # field name a property-mangling minifier could rename (Vec2.of / Vec3.of copy it out)
+            externs.append(f'\tstatic function {name}({sig}{", " if sig else ""}into:Array<Float>):Array<Float>;')
+            body.append(f'\tpublic static inline function {name}({sig}):Array<Float>\n'
+                        f'\t\treturn {js_call(name, params + [("", "Raw.vector")])};')
         elif ret in VALUES:
             externs.append(f'\tstatic function {name}({sig}):{js_record(structs, ret)};')
             body.append(f'\tpublic static inline function {name}({sig}):{VALUES[ret]} {{\n'

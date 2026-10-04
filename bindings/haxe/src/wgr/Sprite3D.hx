@@ -21,15 +21,15 @@ abstract Sprite3D(Handle) from Handle to Handle {
 		return (Raw.wgr_sprite3d_create(texture) : Handle);
 
 	/** Where it is, as last set. **/
-	public static inline function getPosition(sprite3D:Sprite3D):Vec3
-		return Vec3.of(Raw.wgr_sprite3d_get_position(sprite3D));
+	public static inline function getPosition(sprite3D:Sprite3D, ?result:Vec3):Vec3
+		return Vec3.of(Raw.wgr_sprite3d_get_position(sprite3D), result);
 
 	/** Its own rotation in radians — what `Free` facing uses. **/
-	public static inline function getRotation(sprite3D:Sprite3D):Vec3
-		return Vec3.of(Raw.wgr_sprite3d_get_rotation(sprite3D));
+	public static inline function getRotation(sprite3D:Sprite3D, ?result:Vec3):Vec3
+		return Vec3.of(Raw.wgr_sprite3d_get_rotation(sprite3D), result);
 
-	public static inline function getScale(sprite3D:Sprite3D):Vec3
-		return Vec3.of(Raw.wgr_sprite3d_get_scale(sprite3D));
+	public static inline function getScale(sprite3D:Sprite3D, ?result:Vec3):Vec3
+		return Vec3.of(Raw.wgr_sprite3d_get_scale(sprite3D), result);
 
 	/** Drawn at all. **/
 	public static inline function isVisible(sprite3D:Sprite3D):Bool
@@ -154,8 +154,8 @@ abstract Sprite3D(Handle) from Handle to Handle {
 		return Raw.wgr_sprite3d_set_pivot(sprite3D, x, y);
 
 	/** The pivot, as set; (0.5, 0.5) by default. **/
-	public static inline function getPivot(sprite3D:Sprite3D):Vec2
-		return Vec2.of(Raw.wgr_sprite3d_get_pivot(sprite3D));
+	public static inline function getPivot(sprite3D:Sprite3D, ?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_sprite3d_get_pivot(sprite3D), result);
 
 	/**
 		How it uses its texture's alpha; `Blend` by default. In a scene, blended sprites

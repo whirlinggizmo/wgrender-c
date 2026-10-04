@@ -77,7 +77,7 @@ class Text3DDemo {
 
 		panel = new Shape3D();
 		panel.setRectangle(1.4, 1.0);
-		panel.setTransform(new Vec3(3, 0.8, 0), new Vec3(0, -0.5, 0), Vec3.ONE);
+		panel.setTransform(new Vec3(3, 0.8, 0), new Vec3(0, -0.5, 0), Vec3.one());
 		scene.add(panel);
 
 		addRings();
@@ -107,7 +107,7 @@ class Text3DDemo {
 		for (i in 0...3) {
 			final ring = new Shape3D();
 			ring.setCircle(1.0);
-			ring.setTransform(new Vec3(-3.0 + 3.0 * i, 0.01, 0), new Vec3(-Math.PI / 2, 0, 0), Vec3.ONE);
+			ring.setTransform(new Vec3(-3.0 + 3.0 * i, 0.01, 0), new Vec3(-Math.PI / 2, 0, 0), Vec3.one());
 			ring.setColor(ringColor);
 			ring.setPickable(false);
 			scene.add(ring);
@@ -160,7 +160,7 @@ class Text3DDemo {
 			cube.setPickable(!cube.isPickable());
 
 		elapsed += dt;
-		cube.setTransform(new Vec3(-3, 0.6, 0), new Vec3(0, elapsed * 0.7, 0), Vec3.ONE);
+		cube.setTransform(new Vec3(-3, 0.6, 0), new Vec3(0, elapsed * 0.7, 0), Vec3.one());
 		sign.setTransform(new Vec3(0, 3.2, -3), new Vec3(0, Math.sin(elapsed * 0.6) * 0.6, 0));
 
 		// hover: the nearest pickable object under the mouse

@@ -303,9 +303,6 @@ VertexColorTest, TextureSettingsTest and BoxTextured on desktop, WebGL2, WebGPU)
 
 ## Bindings
 
-- [ ] `into` in Haxe's public API: a getter that fills a caller-owned object or array,
-      as the JS binding's does, so a per-frame read makes no garbage. The array form is
-      the one that survives the caller's own property mangling.
 - [ ] A plain-JS program's trimmed listing (`build_host.py --trimmed`) derived from
       something that parses the program, such as a bundler that reports the exports it
       kept (Rollup's `renderedExports`). Written by hand today; Haxe derives its own.

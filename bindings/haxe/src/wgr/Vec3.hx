@@ -13,16 +13,25 @@ package wgr;
 @:headerCode('#include <wgr.h>')
 #end
 @:structInit
+/**
+	A 3D vector, mutable. A getter makes a new one, or fills one you pass as its
+	optional last argument and returns it, so a loop can read into one vector it keeps
+	and make no garbage (`Model.getPosition(model, pos)`). Mutable, so there are no shared
+	constants to change by accident: `zero()` and `one()` make one, and cost nothing when
+	passed straight to a setter, which the compiler reduces to plain numbers.
+**/
 class Vec3 {
-	public final x:Float;
-	public final y:Float;
-	public final z:Float;
+	public var x:Float;
+	public var y:Float;
+	public var z:Float;
 
 	/** No rotation, no offset: what to pass for a part of a transform that is not turned or moved. **/
-	public static final ZERO:Vec3 = new Vec3(0, 0, 0);
+	public static inline function zero():Vec3
+		return new Vec3(0, 0, 0);
 
 	/** Unit scale. **/
-	public static final ONE:Vec3 = new Vec3(1, 1, 1);
+	public static inline function one():Vec3
+		return new Vec3(1, 1, 1);
 
 	public inline function new(x:Float = 0, y:Float = 0, z:Float = 0) {
 		this.x = x;
@@ -31,16 +40,26 @@ class Vec3 {
 	}
 
 	/**
-		The C struct as a `Vec3`. hxcpp gives us the struct itself; on js Raw has already
-		read it out of the heap, so there is nothing left to do.
+		A getter's result: a new `Vec3`, or `result` filled and returned. hxcpp gives the C
+		struct itself; on js, Raw's one reused array (`Raw.vector`), read out at once.
 	**/
 	@:allow(wgr)
-	static extern inline function of(v:#if cpp CVec3 #else Vec3 #end):Vec3
+	static extern inline function of(v:#if cpp CVec3 #else Array<Float> #end, ?result:Vec3):Vec3 {
 		#if cpp
-		return new Vec3(v.x, v.y, v.z);
+		if (result == null)
+			return new Vec3(v.x, v.y, v.z);
+		result.x = v.x;
+		result.y = v.y;
+		result.z = v.z;
 		#else
-		return v;
+		if (result == null)
+			return new Vec3(v[0], v[1], v[2]);
+		result.x = v[0];
+		result.y = v[1];
+		result.z = v[2];
 		#end
+		return result;
+	}
 
 	public function toString():String
 		return '($x, $y, $z)';

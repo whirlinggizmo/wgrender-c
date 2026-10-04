@@ -95,17 +95,37 @@ part it has (none of them optional), and `setPosition`, `setRotation`, `setScale
 their getters for one part at a time, which leave the others as they are. So moving a
 model is `model.setPosition(p)`, with no need to know or keep its rotation and
 scale; `setTransform` is the one call a frame for something whose parts all change.
-Pass `Vec3.ZERO` or `Vec3.ONE` for a part that isn't turned or scaled. Each one-part
+Pass `Vec3.zero()` or `Vec3.one()` for a part that isn't turned or scaled. Each one-part
 setter, and a pivot or an emitter's `jump`, also takes the components, as Nim's
 overloads do: `model.setPosition(x, y, 0)` is `model.setPosition(new Vec3(x, y, 0))`,
 the same C call, which takes three floats either way. Neither allocates -- a
 `new Vec3(...)` handed to an inline call compiles away -- so the split form is for the
-reader, not the frame. A getter is where a vector is real: on js it reads C's
-`vec3_t` into a new `Vec3` on every call.
+reader, not the frame. A getter is where a vector is real: it makes a new `Vec3` on
+every call, unless you pass one to fill as its optional last argument, which it fills
+and returns (`model.getPosition(pos)`), as Flixel's getters take `?result`. A loop
+reading many positions keeps one `Vec3` and allocates nothing. `Vec2` and `Vec3` are
+mutable for that, so there are no shared constants: `zero()` and `one()` make one, and
+compile away when handed straight to an inline setter, as `new Vec3(...)` does
+(measured on js and hxcpp, 2026-10-04). On js the getter's numbers come through one
+reused array (`Raw.vector`, the JS binding's array `into`), read by index, so no
+intermediate object is made and a property-mangling minifier has no field name to break.
+
+When a vector costs anything: a getter's vector used where it is read -- `.x` read off
+it, or held in a local and only its fields read, or handed to an inline setter -- is
+compiled away by Haxe's inline constructors, so it is free without a `result`. One that
+is kept is a real object on every call: stored in a field, an array or a map, passed to
+a function that isn't inline (`trace` included), returned, or captured by a closure.
+Haxe falls back to an allocation there without a word, so where a read must be cheap
+wherever its vector goes, pass one to fill. Measured (2026-10-04, Chromium, 5,000
+`getPosition` reads a frame): used where read, 0.5 KB a frame (2.0 KB before this
+change, when the JS binding still made an object V8 mostly removed); kept, 287 KB a
+frame, about 1 GB a minute and a collection every 0.4 s; kept with one `Vec3` passed to
+fill, 1 KB a frame and no collections. On hxcpp nothing removes a kept vector either.
 
 Every handle kind is an `abstract` over `Int` and every member is `inline`, so the API
 layer compiles away: a call costs what the C call costs. The only allocations are the
-small value objects (`Vec2`, `Vec3`, `MouseState`, `PickResult`) the wrappers return.
+small value objects (`Vec2`, `Vec3`, `MouseState`, `PickResult`) the wrappers return,
+and a vector getter makes none when it is given one to fill.
 The typed abstracts are free too, and they earn their place twice: a `Mesh` where a
 `Texture` belongs is a compile error, and so is a bare literal `0` where `Handle.NONE`
 is accepted — which makes "0 is a value you pass on purpose" enforceable rather than

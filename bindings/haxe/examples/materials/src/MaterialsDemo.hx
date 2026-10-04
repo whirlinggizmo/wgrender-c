@@ -190,7 +190,7 @@ class MaterialsDemo {
 
 		// turn the bottom row, so the normal map has something to catch
 		for (i in 0...bottomRow.length)
-			bottomRow[i].setTransform(new Vec3((i - 2.0) * SPACING, 0.0, 0), new Vec3(0, elapsed * 0.5, 0), Vec3.ONE);
+			bottomRow[i].setTransform(new Vec3((i - 2.0) * SPACING, 0.0, 0), new Vec3(0, elapsed * 0.5, 0), Vec3.one());
 		character.animate(dt);
 
 		Render.beginFrame();

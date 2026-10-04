@@ -73,8 +73,8 @@ abstract Texture(Handle) from Handle to Handle {
 		return Raw.wgr_texture_set_placeholder(value);
 
 	/** Its size in pixels: 0, 0 until it's `Ready`. **/
-	public static inline function getSize(texture:Texture):Vec2
-		return Vec2.of(Raw.wgr_texture_get_size(texture));
+	public static inline function getSize(texture:Texture, ?result:Vec2):Vec2
+		return Vec2.of(Raw.wgr_texture_get_size(texture), result);
 
 	/**
 		Draw it once, axis-aligned, top-left at (`x`, `y`) in logical pixels — no object

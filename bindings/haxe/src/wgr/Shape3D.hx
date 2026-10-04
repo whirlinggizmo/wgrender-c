@@ -100,15 +100,15 @@ abstract Shape3D(Handle) from Handle to Handle {
 		return Raw.wgr_shape3d_set_scale(shape3D, x, y, z);
 
 	/** Where it is, as last set. **/
-	public static inline function getPosition(shape3D:Shape3D):Vec3
-		return Vec3.of(Raw.wgr_shape3d_get_position(shape3D));
+	public static inline function getPosition(shape3D:Shape3D, ?result:Vec3):Vec3
+		return Vec3.of(Raw.wgr_shape3d_get_position(shape3D), result);
 
 	/** Radians, as last set. **/
-	public static inline function getRotation(shape3D:Shape3D):Vec3
-		return Vec3.of(Raw.wgr_shape3d_get_rotation(shape3D));
+	public static inline function getRotation(shape3D:Shape3D, ?result:Vec3):Vec3
+		return Vec3.of(Raw.wgr_shape3d_get_rotation(shape3D), result);
 
-	public static inline function getScale(shape3D:Shape3D):Vec3
-		return Vec3.of(Raw.wgr_shape3d_get_scale(shape3D));
+	public static inline function getScale(shape3D:Shape3D, ?result:Vec3):Vec3
+		return Vec3.of(Raw.wgr_shape3d_get_scale(shape3D), result);
 
 	public static inline function setColor(shape3D:Shape3D, value:Color):Bool
 		return Raw.wgr_shape3d_set_color(shape3D, value);

@@ -5675,6 +5675,19 @@ TASKS.md's ticked items, by the section they were in.
       in script time and GC, a trimmed page 157.5 against 152.9 KB brotli. All 34 Haxe
       web examples driven clean after it
 
+- [x] Haxe's vector getters fill a vector the caller passes (2026-10-04, Rob's):
+      `Model.getPosition(model, ?result:Vec3)` fills `result` and returns it, or makes a
+      new one -- Flixel's idiom (`getPosition(?result:FlxPoint)`), the Haxe one, so the
+      same name and no exception to one name per C call. Considered and set aside:
+      Babylon's `getPositionToRef` (explicit, but a second name for one C call, and not
+      Haxe's idiom) and an `Array<Float>` to fill (not a `Vec3`). `Vec2`/`Vec3` became
+      mutable, and their shared `ZERO`/`ONE` became `zero()`/`one()`, which inline
+      constructors compile away when passed straight to an inline setter (checked on js
+      and hxcpp). Getters are `inline`, not `extern inline`, so cppia has bodies to call.
+      On js, Raw passes the JS binding one reused array (`Raw.vector`) and reads it by
+      index, so no intermediate object, and nothing a minifier can rename. The JS
+      binding keeps its optional `into`. Measured, 5,000 reads a frame: kept vectors 287
+      KB a frame, with a `result` 1 KB (bindings/haxe/README.md has the table)
 - [x] Header comments keep their layout in the generated docs (2026-10-03):
       `tools/headers.py`'s `_doc` joined clang's text pieces with spaces, so a
       parameter list or a list read as one paragraph in `wgrender.d.ts`, and it was

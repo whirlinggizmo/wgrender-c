@@ -82,7 +82,7 @@ class ModelDemo {
 			camera.setView(new Vec3(Math.cos(t * ORBIT_SPEED) * ORBIT_RADIUS, 7.0,
 				Math.sin(t * ORBIT_SPEED) * ORBIT_RADIUS), target);
 		if (spinModel)
-			model.setTransform(new Vec3(0, 0, 0), new Vec3(0, t * 0.5, 0), Vec3.ONE);
+			model.setTransform(new Vec3(0, 0, 0), new Vec3(0, t * 0.5, 0), Vec3.one());
 		model.animate(dt);
 
 		Render.beginFrame();

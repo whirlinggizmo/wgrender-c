@@ -146,6 +146,9 @@ class Sprite2DDemo {
 		return pick.hit && pick.handle == model ? "model" : name;
 	}
 
+	// read into each frame rather than made each frame: a getter given a vector fills it
+	static final screen = new Vec2();
+
 	static function onFrame(dt:Float):Void {
 		final mouse = Input.getMouseState();
 		// on the web Escape is the browser's (it leaves fullscreen), and a page has nothing to quit to
@@ -159,7 +162,7 @@ class Sprite2DDemo {
 		Render.clearBackground(background);
 		scene.draw();
 		// one-off, with no object behind it
-		logo.draw(Window.getScreenSize().x - 74, 10, 64, 64, Color.WHITE);
+		logo.draw(Window.getScreenSize(screen).x - 74, 10, 64, 64, Color.WHITE);
 
 		Text.draw("wgrender sprite2d: source rect, pivot, rotation, flip, picking", 12, 12, 16, Color.RAYWHITE);
 		Text.draw('mouse (${mouse.x}, ${mouse.y})  hover: $hovering  sheet frame $sheetFrame', 12, 36, 16,
