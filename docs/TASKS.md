@@ -235,6 +235,14 @@ VertexColorTest, TextureSettingsTest and BoxTextured on desktop, WebGL2, WebGPU)
 
 ## Platform
 
+- [ ] A threaded web build served without cross-origin isolation should say so (libwgt,
+      2026-10-05): without COOP/COEP the page starts no workers, loads on the main
+      thread, and then stalls on an unhandled promise in Emscripten's startup instead of
+      failing cleanly. wgrender's checks never see it, since serve_site.py always sends
+      the headers; a host that doesn't would. The page shell should check
+      `self.crossOriginIsolated` before Emscripten starts, and when it's false say so on
+      the page and in the console ("this build uses threads; the server must send
+      COOP/COEP")
 - [ ] Windows on real Windows: windows (the window flags), WASAPI audio, XInput
       gamepads; Direct3D 11 (sokol-shdc HLSL output) instead of OpenGL
 - [ ] Native iOS / Android: long stretch goal. sokol supports both (Metal/GLES3,
