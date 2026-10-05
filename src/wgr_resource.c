@@ -1,5 +1,6 @@
 #include "wgr_resource.h"
 
+#include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -180,6 +181,30 @@ void wgri_resource_failed(wgr_handle_t resource)
         resource_ptr->status = WGR_RESOURCE_FAILED;
     }
     unlock(WGRI_HANDLE_KIND(resource));
+}
+
+/* wgr_resource_set_load_budget's, read by the finishing step each frame. */
+static float load_budget_ms = 4.0f;
+
+WGRI_KEEP
+bool wgr_resource_set_load_budget(float milliseconds)
+{
+    if (!isfinite(milliseconds) || milliseconds < 0.0f) {
+        return false;
+    }
+    load_budget_ms = milliseconds;
+    return true;
+}
+
+WGRI_KEEP
+float wgr_resource_get_load_budget(void)
+{
+    return load_budget_ms;
+}
+
+float wgri_resource_load_budget(void)
+{
+    return load_budget_ms;
 }
 
 WGRI_KEEP

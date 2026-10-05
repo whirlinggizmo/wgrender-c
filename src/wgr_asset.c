@@ -71,7 +71,6 @@ enum {
     TASK_FAILED,
 };
 #define MAX_WORKERS 4
-#define DEFAULT_UPLOAD_BUDGET_MS 4.0f
 enum { FETCH_PENDING = 0, FETCH_OK, FETCH_FAILED, FETCH_USE_CACHE /* the cached copy is current */ };
 
 typedef struct {
@@ -213,7 +212,6 @@ static struct {
     wgr_asset_ring_t done;
 } wgr_asset_jobs;
 static int wgr_asset_worker_request = -1; /* -1 = default */
-static float wgr_asset_upload_budget_ms = DEFAULT_UPLOAD_BUDGET_MS;
 static uint32_t wgr_asset_finish_counter;
 
 static wgr_handle_t alloc_task(void);
@@ -2093,11 +2091,6 @@ int wgri_asset_get_worker_count(void)
     return wgr_asset_jobs.worker_count;
 }
 
-WGRI_KEEP
-void wgr_asset_set_upload_budget(float milliseconds)
-{
-    wgr_asset_upload_budget_ms = milliseconds > 0.0f ? milliseconds : 0.0f;
-}
 
 /* ------------------------------------------------- tasks, groups, progress */
 
@@ -2499,7 +2492,7 @@ static void load(void)
                 complete(i, step == WGRI_LOADER_DONE);
             }
         }
-        if ((wgri_thread_now() - start) * 1000.0 >= (double)wgr_asset_upload_budget_ms) {
+        if ((wgri_thread_now() - start) * 1000.0 >= (double)wgri_resource_load_budget()) {
             break;
         }
     }

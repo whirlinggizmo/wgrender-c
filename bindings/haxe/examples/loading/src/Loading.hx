@@ -10,7 +10,7 @@
 // is `Done`.
 //
 //   A    load spread out: files are decoded on worker threads, and the GPU uploads
-//        are given a few milliseconds a frame (`Asset.setUploadBudget`, 4 ms)
+//        are given a few milliseconds a frame (`Resource.setLoadBudget`, 4 ms)
 //   S    load at once: no upload budget, so everything decoded is uploaded in the
 //        same frame, which the graph shows as a spike
 //   E    fetch first: ensure every file as a group (on the web, downloads; on
@@ -137,7 +137,7 @@ class Loading {
 		releaseAll();
 		atOnce = allAtOnce;
 		fetchFirst = false;
-		Asset.setUploadBudget(allAtOnce ? 1000.0 : 4.0); // 4 ms is the default
+		Resource.setLoadBudget(allAtOnce ? 1000.0 : 4.0); // 4 ms is the default
 		loadStarted = Wgr.getTime();
 		loading = true;
 		for (i in 0...GRAPH)

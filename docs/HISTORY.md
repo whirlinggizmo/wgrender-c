@@ -5168,6 +5168,17 @@ TASKS.md's ticked items, by the section they were in.
 
 ### From libwgt
 
+- [x] The load budget is a resource setting (2026-10-05, Rob's, as libwgt's
+      `wgt_resource_set_load_budget`): it paces every load, bundled, cached or
+      downloaded, so `wgr_asset_set_upload_budget` became
+      `wgr_resource_set_load_budget` / `wgr_resource_get_load_budget` in
+      `wgr_resource.h`, the value kept by `src/wgr_resource.c` and read by the asset
+      layer's finishing step. It refuses a negative or non-finite value, where the old
+      setter turned a negative into 0 (Rob: refuse, not clamp); 0 is one step a frame.
+      Its getter took it off check_rules' GETTERS_TODO. A unit test
+      (`pipeline_load_budget_setter`) covers the default, a set, the refusals and 0; the
+      Haxe binding has `Resource.setLoadBudget` / `getLoadBudget`
+
 - [x] WebGPU clips depth 0..1: the 3D camera's projection goes through
       `wgri_render_clip_depth` where it reaches the GPU; CPU math keeps GL's -1..1.
 - [x] Shadows on the same rule: light matrices -1..1 on the CPU (caster culling was

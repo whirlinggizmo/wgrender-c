@@ -262,7 +262,6 @@ GETTERS_EXEMPT = {
 # Known gaps: each wants a getter, and gets one as its subsystem is next worked on.
 # The check fails when one gains a getter and is still listed, so this only shrinks.
 GETTERS_TODO = {
-    'wgr_asset_set_upload_budget',
     'wgr_camera3d_set_view',
     *(f'wgr_emitter{d}_set_{v}' for d in ('2d', '3d') for v in (
         'alpha_mode', 'color', 'drag', 'frames', 'gravity', 'inherit_velocity', 'life', 'max',

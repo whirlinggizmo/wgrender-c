@@ -9,14 +9,14 @@
 // a constant quoted key exactly as a dotted one (measured: 0.757 ns per access either
 // way), and a minifier that isn't mangling turns it back into the dotted form.
 //
-// wgrender 0.0.1 at before-libwgt-harvest-291-ga7be842-dirty, 34 headers.
-// wgrender-headers: 6827926d0b71a752
+// wgrender 0.0.1 at before-libwgt-harvest-295-g2e96ba9-dirty, 34 headers.
+// wgrender-headers: 94037e108e16eee3
 
 import { host, cstr, str, record, opaqueSlot } from "./src/runtime.js";
 export { readI32 } from "./src/runtime.js";
 
 /** The wgrender this binding was generated from; guest.start() compares it with the host's. */
-export const BUILT_VERSION = Object.freeze({ major: 0, minor: 0, patch: 1, commit: "before-libwgt-harvest-291-ga7be842-dirty", headers: "6827926d0b71a752" });
+export const BUILT_VERSION = Object.freeze({ major: 0, minor: 0, patch: 1, commit: "before-libwgt-harvest-295-g2e96ba9-dirty", headers: "94037e108e16eee3" });
 
 export const WGR_KEYBOARD_MAX_KEYS = 0x200;
 export const WGR_KEYBOARD_MAX_PRESSED_KEYS = 32;
@@ -772,15 +772,6 @@ export function wgr_asset_ping_get_milliseconds(ping) {
 }
 
 /**
- * Milliseconds per frame spent finishing loads on the main thread (GPU uploads),
- * default 4. At least one step runs each frame, so one large texture can exceed
- * it: a 4096x4096 texture is one upload of ~45 ms.
- */
-export function wgr_asset_set_upload_budget(milliseconds) {
-    host["_wgr_asset_set_upload_budget"](milliseconds);
-}
-
-/**
  * PENDING, READY or FAILED for a resource of any kind; NONE for anything else.
  */
 export function wgr_resource_get_status(resource) {
@@ -808,6 +799,25 @@ export function wgr_resource_get_path(resource) {
  */
 export function wgr_resource_release(resource) {
     return host["_wgr_resource_release"](resource) !== 0;
+}
+
+/**
+ * Milliseconds a frame spent finishing loads on the main thread, such as GPU uploads
+ * (default 4), so loading doesn't stall the frames it runs beside. At least one step
+ * runs each frame however small the budget, so one large file can exceed it: a
+ * 4096x4096 texture is one upload of about 45 ms. 0 finishes one step a frame. It
+ * applies to every load, from a bundled, cached or downloaded file alike. False, and
+ * nothing changed, for a negative or non-finite value.
+ */
+export function wgr_resource_set_load_budget(milliseconds) {
+    return host["_wgr_resource_set_load_budget"](milliseconds) !== 0;
+}
+
+/**
+ * The budget: set, or the default 4.
+ */
+export function wgr_resource_get_load_budget() {
+    return host["_wgr_resource_get_load_budget"]();
 }
 
 /**

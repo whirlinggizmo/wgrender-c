@@ -9,8 +9,8 @@
 // a constant quoted key exactly as a dotted one (measured: 0.757 ns per access either
 // way), and a minifier that isn't mangling turns it back into the dotted form.
 //
-// wgrender 0.0.1 at before-libwgt-harvest-291-ga7be842-dirty, 34 headers.
-// wgrender-headers: 6827926d0b71a752
+// wgrender 0.0.1 at before-libwgt-harvest-295-g2e96ba9-dirty, 34 headers.
+// wgrender-headers: 94037e108e16eee3
 
 export type wgr_handle_t = number;
 /** A record a getter can fill instead of making a new one: its fields, writable. */
@@ -789,13 +789,6 @@ export declare function wgr_asset_ping_host(host_: string, timeout_ms: number): 
 export declare function wgr_asset_ping_get_milliseconds(ping: wgr_handle_t): number;
 
 /**
- * Milliseconds per frame spent finishing loads on the main thread (GPU uploads),
- * default 4. At least one step runs each frame, so one large texture can exceed
- * it: a 4096x4096 texture is one upload of ~45 ms.
- */
-export declare function wgr_asset_set_upload_budget(milliseconds: number): void;
-
-/**
  * PENDING, READY or FAILED for a resource of any kind; NONE for anything else.
  */
 export declare function wgr_resource_get_status(resource: wgr_handle_t): wgr_resource_status_t;
@@ -818,6 +811,21 @@ export declare function wgr_resource_get_path(resource: wgr_handle_t): string;
  * object, or one already freed.
  */
 export declare function wgr_resource_release(resource: wgr_handle_t): boolean;
+
+/**
+ * Milliseconds a frame spent finishing loads on the main thread, such as GPU uploads
+ * (default 4), so loading doesn't stall the frames it runs beside. At least one step
+ * runs each frame however small the budget, so one large file can exceed it: a
+ * 4096x4096 texture is one upload of about 45 ms. 0 finishes one step a frame. It
+ * applies to every load, from a bundled, cached or downloaded file alike. False, and
+ * nothing changed, for a negative or non-finite value.
+ */
+export declare function wgr_resource_set_load_budget(milliseconds: number): boolean;
+
+/**
+ * The budget: set, or the default 4.
+ */
+export declare function wgr_resource_get_load_budget(): number;
 
 /**
  * The audio at asset path `path`, loading on create (wgr_resource.h): PENDING at once,

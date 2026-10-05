@@ -1,5 +1,6 @@
 /* Loading pipeline (docs/HISTORY.md, "Loading pipeline (background preparation, budgeted GPU upload)"), on sokol's dummy backend. */
 #include <errno.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -347,12 +348,28 @@ void test_pipeline_failures(void)
     stop_assets();
 }
 
+/* The load budget is 4 ms until set; 0 is accepted (one step a frame), and a negative
+ * or non-finite value is refused with the budget left as it was. */
+void test_pipeline_load_budget_setter(void)
+{
+    CHECK(wgr_resource_get_load_budget() == 4.0f);
+    CHECK(wgr_resource_set_load_budget(10.0f));
+    CHECK(wgr_resource_get_load_budget() == 10.0f);
+    CHECK(!wgr_resource_set_load_budget(-1.0f));
+    CHECK(!wgr_resource_set_load_budget(NAN));
+    CHECK(!wgr_resource_set_load_budget(INFINITY));
+    CHECK(wgr_resource_get_load_budget() == 10.0f);
+    CHECK(wgr_resource_set_load_budget(0.0f));
+    CHECK(wgr_resource_get_load_budget() == 0.0f);
+    CHECK(wgr_resource_set_load_budget(4.0f));
+}
+
 /* A mesh finishes over several frames (buffers, then one texture each) when the
  * budget is used up by each step. */
 void test_pipeline_budget(void)
 {
     start_assets(0, ASSETS);
-    wgr_asset_set_upload_budget(0.0f);
+    wgr_resource_set_load_budget(0.0f);
     got.mesh = wgr_mesh_create(CHARACTER_PATH);
     const int frames = run_until_done();
     const int textures = got.mesh != 0 ? loaded_textures(got.mesh) : 0;
@@ -361,7 +378,7 @@ void test_pipeline_budget(void)
     CHECK(textures >= 2);
     CHECK(frames == 1 + textures + 1);
     wgr_resource_release(got.mesh);
-    wgr_asset_set_upload_budget(4.0f);
+    wgr_resource_set_load_budget(4.0f);
     stop_assets();
 }
 
@@ -371,7 +388,7 @@ void test_pipeline_shutdown(void)
 {
     for (int round = 0; round < 3; round++) {
         start_assets(2, ASSETS);
-        wgr_asset_set_upload_budget(0.0f);
+        wgr_resource_set_load_budget(0.0f);
         got.mesh = wgr_mesh_create(CHARACTER_PATH);
         got.texture = wgr_texture_create(TEXTURE);
         got.audio = wgr_audio_create("sounds/click_004.ogg");
@@ -381,7 +398,7 @@ void test_pipeline_shutdown(void)
         if (got.mesh != 0) wgr_resource_release(got.mesh);
         if (got.texture != 0) wgr_resource_release(got.texture);
         if (got.audio != 0) wgr_resource_release(got.audio);
-        wgr_asset_set_upload_budget(4.0f);
+        wgr_resource_set_load_budget(4.0f);
         stop_assets();
     }
 }

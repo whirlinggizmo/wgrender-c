@@ -283,11 +283,6 @@ wgr_handle_t wgr_asset_ping_host(const char *host, int timeout_ms);
  * DONE, and for anything that isn't a ping. */
 float wgr_asset_ping_get_milliseconds(wgr_handle_t ping);
 
-/* Milliseconds per frame spent finishing loads on the main thread (GPU uploads),
- * default 4. At least one step runs each frame, so one large texture can exceed
- * it: a 4096x4096 texture is one upload of ~45 ms. */
-void wgr_asset_set_upload_budget(float milliseconds);
-
 #ifdef __cplusplus
 }
 #endif

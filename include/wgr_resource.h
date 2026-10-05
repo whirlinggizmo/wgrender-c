@@ -52,6 +52,16 @@ const char *wgr_resource_get_path(wgr_handle_t resource);
  * object, or one already freed. */
 bool wgr_resource_release(wgr_handle_t resource);
 
+/* Milliseconds a frame spent finishing loads on the main thread, such as GPU uploads
+ * (default 4), so loading doesn't stall the frames it runs beside. At least one step
+ * runs each frame however small the budget, so one large file can exceed it: a
+ * 4096x4096 texture is one upload of about 45 ms. 0 finishes one step a frame. It
+ * applies to every load, from a bundled, cached or downloaded file alike. False, and
+ * nothing changed, for a negative or non-finite value. */
+bool wgr_resource_set_load_budget(float milliseconds);
+/* The budget: set, or the default 4. */
+float wgr_resource_get_load_budget(void);
+
 #ifdef __cplusplus
 }
 #endif

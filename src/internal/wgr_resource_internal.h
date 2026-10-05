@@ -64,5 +64,7 @@ void wgri_resource_retain(wgr_handle_t resource);
  * (a path under the asset root), or FAILED. */
 void wgri_resource_loaded(wgr_handle_t resource, const char *found);
 void wgri_resource_failed(wgr_handle_t resource);
+/* wgr_resource_set_load_budget's milliseconds, for the asset layer's finishing step. */
+float wgri_resource_load_budget(void);
 
 #endif // WGRI_INTERNAL_RESOURCE_H

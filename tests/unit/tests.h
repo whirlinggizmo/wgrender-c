@@ -131,6 +131,7 @@ void test_pipeline_mesh_textures(void);
 void test_pipeline_async(void);
 void test_pipeline_cancel(void);
 void test_pipeline_failures(void);
+void test_pipeline_load_budget_setter(void);
 void test_pipeline_budget(void);
 void test_pipeline_shutdown(void);
 void test_pipeline_group(void);

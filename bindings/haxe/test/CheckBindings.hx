@@ -772,7 +772,11 @@ class CheckBindings {
 		check(!Asset.addRedirect("", "somewhere/"), "an empty prefix is refused");
 		Asset.clearRedirects();
 
-		Asset.setUploadBudget(8);
+		check(Resource.setLoadBudget(8), "a load budget is accepted");
+		near(Resource.getLoadBudget(), 8, "and read back");
+		check(!Resource.setLoadBudget(-1), "a negative load budget is refused");
+		near(Resource.getLoadBudget(), 8, "and the budget is kept");
+		check(Resource.setLoadBudget(4), "the default budget again");
 		check(Asset.setCacheDir(".wgr-cache"), "a cache directory is accepted");
 		#if (sys && !emscripten)
 		eq(Asset.getCacheDir(), ".wgr-cache", "and is the one downloads go in");

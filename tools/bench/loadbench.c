@@ -1,6 +1,6 @@
 /* Loading benchmark (docs/HISTORY.md, "Loading pipeline (background preparation, budgeted GPU upload)"): loads Sponza and FlightHelmet during
  * a running frame loop, on create, first with the GPU uploads given a budget a frame
- * (wgr_asset_set_upload_budget, 4 ms: the default), then with none (everything
+ * (wgr_resource_set_load_budget, 4 ms: the default), then with none (everything
  * prepared is uploaded in the frame it's ready), and prints the worst frame and total
  * time of each, then the worst of the first frames that draw the loaded models. A
  * warm-up load of the same models comes first, drawn and released, unmeasured: it takes
@@ -62,7 +62,7 @@ static void start(bool budget)
 {
     const char *env = getenv("WGR_LOADBENCH_KTX");
     const bool ktx = env != NULL ? env[0] == '1' : LOADBENCH_KTX;
-    wgr_asset_set_upload_budget(budget ? 4.0f : 1000.0f);
+    wgr_resource_set_load_budget(budget ? 4.0f : 1000.0f);
     for (int i = 0; i < MODELS; i++) {
         b.meshes[i] = wgr_mesh_create(ktx ? KTX_PATHS[i] : PATHS[i]); /* loads on create */
     }

@@ -153,6 +153,7 @@ static const test_case_t TESTS[] = {
     {"pipeline_async", test_pipeline_async},
     {"pipeline_cancel", test_pipeline_cancel},
     {"pipeline_failures", test_pipeline_failures},
+    {"pipeline_load_budget_setter", test_pipeline_load_budget_setter},
     {"pipeline_budget", test_pipeline_budget},
     {"pipeline_shutdown", test_pipeline_shutdown},
     {"pipeline_group", test_pipeline_group},

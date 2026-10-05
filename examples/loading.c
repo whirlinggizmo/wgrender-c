@@ -9,7 +9,7 @@
  * and everything is created once the group is DONE.
  *
  *   A    load spread out: files are decoded on worker threads, and the GPU uploads
- *        are given a few milliseconds a frame (wgr_asset_set_upload_budget, 4 ms)
+ *        are given a few milliseconds a frame (wgr_resource_set_load_budget, 4 ms)
  *   S    load at once: no upload budget, so everything decoded is uploaded in the
  *        same frame, which the graph shows as a spike
  *   E    fetch first: ensure every file as a group (on the web, downloads; on
@@ -97,7 +97,7 @@ static void start_clock(bool at_once)
     release_all();
     g.at_once = at_once;
     g.fetch_first = false;
-    wgr_asset_set_upload_budget(at_once ? 1000.0f : 4.0f); /* 4 ms is the default */
+    wgr_resource_set_load_budget(at_once ? 1000.0f : 4.0f); /* 4 ms is the default */
     g.load_started = wgr_get_time();
     g.loading = true;
     for (int i = 0; i < GRAPH; i++) g.frame_ms[i] = 0.0f; /* "worst" covers this load */
