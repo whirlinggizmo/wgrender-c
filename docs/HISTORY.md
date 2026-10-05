@@ -5807,6 +5807,19 @@ TASKS.md's items taken off without being done, by the section they were in, each
 with why. Earlier drops were recorded where they happened, in their plan's history
 (as polled tasks' phase 3 was) rather than here.
 
+### From libwgt
+
+- [ ] Hidden symbol visibility, only `wgr_*` exported, as libwgt's `WGT_API` (dropped
+      2026-10-05, Rob's): wgrender is only ever built as a static library, and
+      visibility changes only what a shared library or DLL exports, so it would buy
+      nothing an executable or a wasm build sees. Its cost was an export macro on ~520
+      declarations across 34 headers, the hidden default in CMake, the web flags and
+      hxcpp's build, and a check that every public function is marked, which needs care
+      on Windows (the macro is empty there, so clang's AST has no visibility attribute
+      to read, and libwgt's way round that, parsing for the wasm target, meets a public
+      header that includes `<stdio.h>`). It matters once a build is a shared library,
+      which libwgt plans for its native hot-reload host and wgrender doesn't
+
 ## ARCHITECTURE.md status log
 
 ARCHITECTURE.md's section 8, "Status", from the first phases.

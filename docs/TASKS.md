@@ -108,7 +108,6 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
 `from-libwgt` first, then the API items, each on a branch of its own.
 
 - [ ] The org's CONVENTIONS.md takes the same names (another repo: the user's call).
-- [ ] Hidden symbol visibility: only `wgr_*` exported.
 - [ ] A spot light's shadow bias (a bug; libwgt 0c9ea22): `src/wgr_shadow.c` converts
       the bias to depth units as `texel_world / depth_range` for every light, which
       is right only for an orthographic (directional) map. A spot's map stores depth
