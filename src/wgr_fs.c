@@ -369,8 +369,10 @@ static void mkdir_parents(const char *full)
  * the program's own directory (its executable's: a double-clicked program finds its
  * files, wherever it was started from), never the working directory, which is used
  * only where the executable's directory can't be told. */
+#ifndef __EMSCRIPTEN__
 static bool wgr_fs_default_overridden;
 static char wgr_fs_default_dir[1024];
+#endif
 
 const char *wgri_fs_default_root(void)
 {
@@ -388,11 +390,15 @@ const char *wgri_fs_default_root(void)
 
 void wgri_fs_set_default_root(const char *root)
 {
+#ifdef __EMSCRIPTEN__
+    (void)root; /* the web's root is its store's; there is no program directory to stand in for */
+#else
     wgr_fs_default_overridden = root != NULL;
     snprintf(wgr_fs_default_dir, sizeof(wgr_fs_default_dir), "%s", root != NULL ? root : "");
     if (root == NULL && !wgri_app_executable_dir(wgr_fs_default_dir, sizeof(wgr_fs_default_dir))) {
         wgr_fs_default_dir[0] = '\0';
     }
+#endif
 }
 
 /* Override the local root (base dir reads/writes resolve against). Trailing
