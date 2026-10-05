@@ -271,14 +271,19 @@ the Haxe binding's `check_refusals.py` rule 5.
   `*.glsl.h` for every backend. Read the **generated** `glsl300es`, not just what you
   wrote: shdc flattens a uniform block to one `uniform vec4 name[N]`, and GLES drivers
   are strictest about how that array is indexed.
-- **Index a flattened uniform array at a constant, unconditionally.** Adreno's compiler
-  clamps a dynamic index only when it can bound it: a divided index (`arr[i / 4]`) and a
-  *branch* around the read both defeat it, and a ternary is a branch once shdc is done
-  with it. It fails the link with `cannot compute gv size for oob` -- a driver assertion,
-  not a limit -- and the draw silently produces nothing. Read every candidate and select
-  arithmetically (`mix(lo, hi, step(...))`). An affine `arr[i + k]` and a dynamic vector
-  component (`v[i % 4]`) are both fine. `src/shaders/wgr_sprite.glsl`'s `curve_key` is
-  the worked example.
+- **Index a flattened uniform array only where the compiler can bound the index.**
+  Adreno's compiler clamps a dynamic index only when it can bound it, and fails the link
+  with `cannot compute gv size for oob` -- a driver assertion, not a limit -- when it
+  can't, and the draw silently produces nothing. What the on-device bisect found
+  (HISTORY.md, "the emitter's shader didn't link on Adreno 610", 2026-09-20, driver
+  V@0502.0): a divided index (`arr[i / 4]`) defeats it, and so does a branch picking
+  between reads whose indexes it can't relate (`i < 4 ? a[...] : b[...]`; a ternary is
+  a branch once shdc is done with it). An affine `arr[i + k]`, a dynamic vector
+  component (`v[i % 4]`), and reads at a loop counter with a constant bound inside an
+  `if` (the model shader's light loop) all link. So where a value derived from a
+  uniform picks between reads, read every candidate unconditionally and select
+  arithmetically (`mix(lo, hi, step(...))`): `src/shaders/wgr_sprite.glsl`'s
+  `curve_key` is the worked example.
 - A shader that only *some* GPUs reject won't show up in `tools/verify_builds.py --web`
   or CI. Link-check on a real low-end device when you touch one.
 
