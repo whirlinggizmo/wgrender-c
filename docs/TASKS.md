@@ -139,6 +139,18 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
       headers with one exported copy each for bindings; types `wgr_vec3_t`,
       `wgr_quat_t`, `wgr_mat4_t` (column-major `float m[16]`; `matrix_t` goes); the
       internal `wgri_mat4_*` / `wgri_v3_*` replaced by it; CONVENTIONS.md's "Public API shape" adds mat4 to the math values a call may take.
+- [ ] A relative asset host resolves against the program's location (Rob, 2026-10-05,
+      libwgt first): the executable's directory natively, the page's directory on the
+      web, and leaving the host unset means the same. Today wgrender resolves a
+      relative host natively against the working directory, so the same host string
+      means different things on the two platforms, and `examples/shared/example_assets.h`
+      hides it behind an `#if` ("assets" on the web, "examples/assets" natively, valid
+      only when run from the repo root). That `#if` is wgrender working around the rule
+      and must not be ported into libwgt. When libwgt's commit lands, port it back with
+      its header wording and test: the native examples set `"../assets"`, the build
+      links `out/<platform>/<variant>/assets` to `examples/assets`, and the examples
+      run from any directory. Dropping the `#if` entirely needs libwgt's per-example
+      pages too: layout, later
 - [ ] The load budget is a resource setting, not an asset one (Rob, 2026-10-03, as
       libwgt's `wgt_resource_set_load_budget`): it paces every resource load,
       bundled, cached or local, so `wgr_asset_set_upload_budget` becomes
