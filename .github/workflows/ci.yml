@@ -1,4 +1,4 @@
-# wgrender CI: the same checks as a local "done" (see AGENTS.md), minus WebGPU (needs a
+# wgrender CI: the same checks as a local "done" (see docs/CONVENTIONS.md, "Build and verify"), minus WebGPU (needs a
 # GPU).
 #
 # - desktop: every push and pull request (skipped for docs-only changes), daily,

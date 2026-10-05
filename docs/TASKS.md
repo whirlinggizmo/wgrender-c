@@ -1,13 +1,12 @@
 # wgrender Tasks
 
-> Carried into libwgt (17f3f18, cb5dee5): every open item here is in libwgt's ROADMAP or
-> TASKS, or closed in its HISTORY; where each went is in HISTORY.md, "Carried into libwgt".
-> The items stay here while wgrender is maintained.
+> Carried into libwgt (17f3f18, cb5dee5), and kept here while wgrender is maintained:
+> CONVENTIONS.md, "Docs".
 
 Working checklist. Order and reasoning live in [ROADMAP.md](ROADMAP.md); this file
 is what's left to do; what's done is in [HISTORY.md](HISTORY.md).
 
-Workflow: pick the top unchecked item, outline a plan (AGENTS.md), implement with
+Workflow: pick the top unchecked item, outline a plan (AGENTS.md, "Agent practice"), implement with
 tests, keep `python3 tools/verify_builds.py` passing, and move the item to
 [HISTORY.md](HISTORY.md) ("Tasks done") in the same commit. A task dropped instead
 moves to "Tasks dropped" with the reason. What's here is what's left.
@@ -139,7 +138,7 @@ better, wgrender adopts it, and where wgrender's is better it stays. Branch
 - [ ] Public math (own branch): vec2/3/4, quat, mat4 operations `inline` in public
       headers with one exported copy each for bindings; types `wgr_vec3_t`,
       `wgr_quat_t`, `wgr_mat4_t` (column-major `float m[16]`; `matrix_t` goes); the
-      internal `wgri_mat4_*` / `wgri_v3_*` replaced by it; AGENTS.md allows mat4.
+      internal `wgri_mat4_*` / `wgri_v3_*` replaced by it; CONVENTIONS.md's "Public API shape" adds mat4 to the math values a call may take.
 - [ ] The load budget is a resource setting, not an asset one (Rob, 2026-10-03, as
       libwgt's `wgt_resource_set_load_budget`): it paces every resource load,
       bundled, cached or local, so `wgr_asset_set_upload_budget` becomes

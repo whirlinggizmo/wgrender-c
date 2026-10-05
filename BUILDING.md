@@ -93,6 +93,7 @@ else is downloaded, and nothing at all once these are set up.
 - [Web](#web-webgl2-and-webgpu): WebGL2 and WebGPU, with Emscripten
 - [Windows from Linux](#windows-from-linux): MinGW, tested under Wine
 - [Before calling a change done](#before-calling-a-change-done)
+- [Tools](#tools)
 - [Generated files](#generated-files)
 - [Benchmarks](#benchmarks)
 
@@ -289,25 +290,74 @@ tree there over ssh, runs the presets, and deletes it all after.
 
 ## Before calling a change done
 
+What a change has to pass, and which extra checks which change needs, is a rule:
+[docs/CONVENTIONS.md](docs/CONVENTIONS.md), "Build and verify". The commands:
+
 ```sh
-python3 tools/verify_builds.py         # release, headless (unit tests, guardrails, smoke), tsan,
-                                # and windows-x64-mingw-* when MinGW and Wine are there
-python3 tools/verify_builds.py --web   # also every example on wasm32-release, -release-threads and -release-webgpu-threads,
-                                # loaded in the browser: for rendering, assets or web code
+python3 tools/verify_builds.py                  # release, headless (unit tests, guardrails, smoke), tsan,
+                                         # windows-x64-mingw-* with MinGW and Wine, the Haxe suite with Haxe
+python3 tools/verify_builds.py --web            # also every example on the web presets, in a browser,
+                                         # and the Haxe examples built for the web and driven
+python3 tools/verify_builds.py --windows HOST   # also MinGW and MSVC on a Windows machine over ssh
+cmake --build --preset wasm32-release --target hello   # links a web example: what checks EM_JS
 ```
 
-A web example has to link for EM_JS bodies to be checked (closure runs then), so after
-touching one, build one: `cmake --build --preset wasm32-release --target hello`.
+## Tools
+
+Every tool takes `--help`. Beside the ones above:
+
+- `tools/check_asset_cache.py [--manifest] [--backend=webgpu] [--threads]` -- the web
+  asset cache across visits: tilemap in one browser context while its sheet is kept,
+  changed and deleted on the server, and the network blocked; each visit judged by its
+  requests' statuses and the screen. `--manifest` does it with manifests.
+- `tools/measure_example_sizes.py [out/wasm32/<variant>/site]` -- wasm and JS sizes per
+  web example (raw and gzip; brotli if installed).
+- `tools/serve_site.py [port] [site]` -- the dev server (COOP/COEP headers, `/assets/`
+  mounted) on http://localhost:8000. `--tls CERT KEY` serves HTTPS for other devices on
+  the LAN (a phone), which need a secure page for threaded builds; `--assets DIR` mounts
+  DIR at `/assets/` instead.
+- `tools/compress_textures.py [--linear] name.png...` -- compressed texture files beside
+  each PNG (`name.bc7.ktx`, `.astc.ktx`, `.etc2.ktx`), loaded as `name.ktx`; builds a
+  pinned Basis Universal encoder into the per-user cache the first time. `--gltf
+  model.gltf` does a model's textures and writes `model.ktx.gltf`.
+- `tools/pack_shader.py name.glsl` -- compile a custom material shader (written against
+  `shaders/wgr.glsl`) into `name.wgrshader` for every backend.
+- `tools/bench/run_benchmark.py loadbench [--desktop] [--ktx]` -- the worst frame while
+  loading large glTF models on create, with an upload budget and without (it downloads
+  them on first use); `--ktx` with their textures compressed (needs `--desktop`:
+  headless samples no compressed format).
+- `tools/bench/run_benchmark.py shadowbench [--desktop]` -- what a casting light costs a
+  frame: no shadows, one light at three map sizes, two lights, one where nothing
+  receives, one where every model shares a mesh and material (what instancing is worth),
+  and two facing away from everything (culling on and off), at four model counts.
+  Headless is CPU only; `--desktop` opens a window with vsync off for real frame times.
+- `tools/bench/run_benchmark.py spritebench [--desktop]` -- sprite-heavy scenes: frame
+  time, the CPU split into update, scene and submit, and sokol_gl's vertex and command
+  use.
+- The benchmarks are targets of the web presets too (`loadbench`, `shadowbench`,
+  `spritebench`, `stress`; `benches` for all): pages of their own under `bench/` in the
+  site, `/bench/?ex=spritebench` (results in the browser console).
+- `tools/run_benchmarks.py [--doc | --all]` -- the C `simple` against every binding
+  (`docs/benchmarks.md`): download size, frame cost, JS heap and GC, and what a call from
+  a JS guest costs. It measures the C into `bench/results.json` and collects each
+  binding's own; `--doc` only regenerates the page, `--all` also runs each binding's
+  `tools/run_benchmarks.py`. The harness is `tools/bench/` (`measure.py`, which bindings
+  import; `measure_page.py`; `callbench/`; and `stress.c`, the scene the bindings port:
+  `/bench/?ex=stress&n=5000`). The stress runs need Xvfb and a GPU. By hand, not CI;
+  commit both files.
 
 ## Generated files
 
-Committed, and rebuilt by hand when what they come from changes:
+Committed (the manifests excepted), and rebuilt when what they come from changes:
 
 | File | From | Rebuild |
 | --- | --- | --- |
 | `src/shaders/*.glsl.h` | `src/shaders/*.glsl` | `python3 tools/gen_shaders.py` (target `gen-shaders`) |
 | `examples/assets/shaders/*.wgrshader` | `examples/shaders/*.glsl`, `shaders/wgr.glsl` | `python3 tools/gen_shaders.py --examples` (target `gen-example-shaders`) |
 | `src/data/wgr_brdf_lut.h` | `wgri_environment_brdf_lut` | target `gen-brdf-lut` of a Linux, macOS or Windows preset |
+| `bindings/haxe/src/wgr/impl/Raw.*.hx` | `include/*.h` | `python3 bindings/haxe/tools/gen_raw_externs.py` |
+| `bindings/js/wgrender.js`, `.d.ts`, `.exports.json` | `include/*.h` | `python3 bindings/js/tools/gen_binding.py` |
+| `manifest.json` in each directory of a site's assets (not committed) | the files beside it | `python3 tools/gen_manifest.py DIR` (`tools/build_site.py` runs it); every deploy, after the last file is in place |
 
 sokol-shdc is fetched into the per-user cache (`tools/hostcache.py`) the first time, at the version
 `deps/sokol/VERSION` pins. The vendored sokol and Clay are updated with

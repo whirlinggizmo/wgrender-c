@@ -8,7 +8,7 @@
     tools/check_refusals.py --require-clang       fail rather than skip when clang is missing
 
 Two halves, both about refusals. The report reads the C. The check reads prose
-against prose: AGENTS.md makes a header's "false for ..." a contract, so a binding
+against prose: docs/CONVENTIONS.md makes a header's "false for ..." a contract, so a binding
 that does not repeat the sentence is dropping what it was told.
 
 This replaces tools/setters.py, which asked a question that no longer has subjects.

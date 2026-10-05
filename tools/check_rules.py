@@ -4,21 +4,21 @@ that parse what they check, never by scanning text.
 
     tools/check_rules.py [--lib path/to/libwgrender.a]
 
-  naming    AGENTS.md § Naming: wgr_<noun>_t struct types (no _data_t / _instance_t); a
+  naming    docs/CONVENTIONS.md § Naming: no struct type ends _data_t or _instance_t; a
             pointer resolved from a handle is <noun>_ptr; the public API is handle-only;
             wgr_ is public and wgri_ internal, and every public macro carries the prefix
   manifest  build.json's sources are src/*.c, no more and no fewer
-  values    AGENTS.md § Public API shape: a struct in a public signature is one of the
+  values    docs/CONVENTIONS.md § Public API shape: a struct in a public signature is one of the
             fixed-layout math values (VALUE_STRUCTS), or a record RECORDS_TODO lists
-  types     AGENTS.md § Public API shape: every parameter and return value is a number,
+  types     docs/CONVENTIONS.md § Public API shape: every parameter and return value is a number,
             bool, enum, handle, `const char *` or math value, and nothing else, unless
             TYPES_EXEMPT says why not, or TYPES_TODO lists it as a known gap
-  getters   AGENTS.md § Public API shape: every value a setter stores has a getter,
+  getters   docs/CONVENTIONS.md § Public API shape: every value a setter stores has a getter,
             unless GETTERS_EXEMPT says why not, or GETTERS_TODO lists it as a known gap
   modules   the core never calls an optional subsystem by name (src/internal/
-            wgri_module.h), read from the library's symbol table: needs --lib and nm,
+            wgr_module_internal.h), read from the library's symbol table: needs --lib and nm,
             and is skipped without them. ctest's `check` passes the headless library.
-  tools     AGENTS.md § Naming: every tool is named verb first (TOOL_VERBS), and run
+  tools     docs/CONVENTIONS.md § Naming: every tool is named verb first (TOOL_VERBS), and run
             with --help prints its usage and exits 0 having done nothing, and with an
             argument it doesn't take exits non-zero. A tool is every .py in the tool
             folders (TOOL_FILES) but the modules tools import (TOOL_MODULES).
@@ -117,7 +117,7 @@ def check_naming(r, api, src):
                    | {name for name in list(api.structs) + list(api.enums) + list(api.typedefs)
                       if name.endswith(('_data_t', '_instance_t'))})
     r.result(types, 'no _data_t / _instance_t struct types',
-             'struct types must be wgr_<noun>_t (no _data_t / _instance_t):')
+             'struct types name the noun (wgr_<noun>_t, wgri_<noun>_t), never _data_t / _instance_t:')
 
     # A variable of pointer type, initialized from resolve() or resolve_<x>(), in a wgr_ or
     # wgri_ function of src/
@@ -174,7 +174,7 @@ def check_manifest(r):
 
 
 # Structs a public call may take or return by value: math values whose layout can never
-# change (AGENTS.md § Public API shape). matrix_t qualifies too, and joins the day a
+# change (docs/CONVENTIONS.md § Public API shape). matrix_t qualifies too, and joins the day a
 # public call needs one.
 VALUE_STRUCTS = {'vec2_t', 'vec3_t', 'vec4_t', 'quat_t'}
 
@@ -201,7 +201,7 @@ def check_values(r, api):
              'a public call takes or returns a record by value:')
 
 
-# The types a public call may take and return (AGENTS.md § Public API shape): numbers,
+# The types a public call may take and return (docs/CONVENTIONS.md § Public API shape): numbers,
 # bool, enums, a typedef of a number (wgr_handle_t, wgr_color_t), `const char *`, and
 # the math values (VALUE_STRUCTS; records are check_values'). Nothing else: no other
 # pointer, no function pointer, no `void *`, no `...`.
@@ -291,7 +291,7 @@ GETTERS_TODO = {
 
 
 def check_getters(r, api):
-    """Every value a setter stores has a getter (AGENTS.md § Public API shape)."""
+    """Every value a setter stores has a getter (docs/CONVENTIONS.md § Public API shape)."""
     public = set(api.functions)
     missing, rotted = [], []
     for setter in sorted(public):
@@ -339,7 +339,7 @@ def check_modules(r, lib):
            for obj in sorted(set(refs) - optional)
            for name in sorted(refs[obj]) if defs.get(name) in optional]
     r.result(bad, f'core reaches the {len(optional)} optional subsystems only through modules and hooks',
-             'core code calls optional subsystems by name (go through wgri_module.h and the hooks):')
+             'core code calls optional subsystems by name (go through wgr_module_internal.h and the hooks):')
 
 
 # Where tools live, and the modules among them: imported by tools, never run. Every other

@@ -1,6 +1,6 @@
 """wgrender's public API as clang reads it: every function, enum, struct, typedef and
 #define that include/*.h declares, with the doc comment above each. The tools that need
-to know what's in the headers ask this, never the headers' text (AGENTS.md: no tool
+to know what's in the headers ask this, never the headers' text (docs/CONVENTIONS.md: no tool
 scans source).
 
     import headers

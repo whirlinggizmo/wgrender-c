@@ -1,1 +1,1 @@
-Project conventions live in @AGENTS.md — read it before working in this repo.
+Project conventions live in @docs/CONVENTIONS.md (every rule, once) and @AGENTS.md (agent practice on top) — read both before working in this repo.

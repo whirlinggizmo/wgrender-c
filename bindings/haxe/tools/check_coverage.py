@@ -18,7 +18,7 @@ four languages. This one has one binding to audit, and its methods call Raw dire
 rather than through a name mapping, so it is much smaller — but the idea of recording
 *intentional* omissions is taken whole. Without it a decision and a to-do look alike.
 
-`--check` also holds the rule every wgrender binding keeps (wgrender's AGENTS.md,
+`--check` also holds the rule every wgrender binding keeps (wgrender's docs/CONVENTIONS.md,
 "Bindings"): each C call has one public name, and a public member that calls C calls
 one C function. So `Version.runtime` builds its string from `major()`, `minor()` and
 `patch()` rather than calling C three times itself, and the two rounded rectangles are

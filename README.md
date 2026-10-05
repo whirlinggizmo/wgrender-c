@@ -43,14 +43,10 @@ Windows from Linux, generated files, benchmarks — is in [BUILDING.md](BUILDING
 
 ## Invariant: no backend leakage
 
-sokol is an implementation detail. The public API (`include/*.h`) and example
-code (`examples/*.c`) must **not** depend on sokol: no sokol `#include`s and no
-sokol API identifiers (`sapp_`/`sgl_`/`sg_`/`sdtx_`/`saudio_`/`sfetch_`/
-`SOKOL_`/`SAPP_`). Consumers see only `wgr_*` / `WGR_*`. All sokol usage lives in
-`src/` and the vendored headers; all backend linkage lives in `build.json`.
-
-`tools/check_rules.py` (the `check` test) enforces this. The word
-"sokol" in a prose comment is fine — only API symbols are flagged.
+sokol is an implementation detail: the public API and the examples never depend on it,
+and a program sees only `wgr_*` / `WGR_*`. All sokol usage lives in `src/` and the
+vendored headers. The rule, and how the build holds it (each public header compiled
+alone), are [docs/CONVENTIONS.md](docs/CONVENTIONS.md), "Build and verify".
 
 A note on key codes: `WGR_KEY_*` values currently mirror the GLFW/sokol layout
 because input is indexed straight from sokol key codes. That is an internal
@@ -214,13 +210,15 @@ docs/           ARCHITECTURE.md (the design now), ROADMAP.md, TASKS.md, PLAN-*.m
 ## Bindings
 
 wgrender is a plain C library, and its bindings live beside it under `bindings/`, built
-only on the public API, so a change to the API and to each binding land in one commit.
-The handle-only surface (every parameter a handle, a number, an enum or a `const char
-*`; `tools/check_rules.py` enforces it) is what keeps one cheap to write and to keep in step.
+only on the public API and changed with it in one commit. The rules they follow -- what a
+public call may take and return, one name per C call -- are
+[docs/CONVENTIONS.md](docs/CONVENTIONS.md)'s; the handle-only surface is what keeps a
+binding cheap to write and to keep in step.
 
 | Language | Where | State |
 |---|---|---|
-| Haxe | [bindings/haxe](bindings/haxe) (the `wgrender-hx` haxelib) | in development: hxcpp (desktop) and JS (web) targets, generated from the headers |
+| Haxe | [bindings/haxe](bindings/haxe) (the `wgrender-hx` haxelib) | in development: hxcpp (desktop and wasm), and JS through the JS binding |
+| JavaScript / TypeScript | [bindings/js](bindings/js) | in development: generated from the headers, with TypeScript declarations; the Haxe binding's JS target uses it |
 
 ## License
 

@@ -1,7 +1,5 @@
 # libwgrender resource architecture
 
-Status: design locked, implementation in progress (see **Status** at the bottom).
-
 This document captures the resource model libwgrender is converging on: the
 **Asset → Resource → Object** layering, reference counting and deduplication, the
 CPU-side vs GPU-side split, and how picking (including transparent/alpha-mask
@@ -63,9 +61,8 @@ transform / tint / volume / playback state and points at a shared resource via
 | `venice_sunset_1k.hdr` | **Environment** (irradiance + prefiltered cubemap) | Scene (`set_environment`, `set_background`) |
 | *(none)*              | *(none)*                                 | **Light** (added to a Scene)     |
 
-Rule that disambiguates every row: **resource = the data noun, object = the
-concrete placed/heard noun.** `Texture→Sprite`, `Mesh→Model`, `Audio→Sound`,
-`Font→Text`.
+What tells the rows' columns apart is the naming rule (CONVENTIONS.md, "Resource /
+Object model"): the resource is the data noun, the object the placed or heard one.
 
 Naming notes / decisions:
 
@@ -114,11 +111,9 @@ Resources are shared; objects are cheap and private.
      releases it when the object is destroyed or given another (`-1`).
   2. **Ownership references** — creating a resource adds a caller-owned `+1`,
      dropped by `wgr_resource_release`.
-- **The names say which layer you're on:** resources are released with
-  `wgr_resource_release` (drop *a* reference; the resource goes when the last one
-  does, and one still loading stops loading), objects have `*_destroy` (the object is
-  gone when you say so). Retaining is internal: one `create` is one reference, so
-  callers never need a matching `retain`.
+- Releasing a resource (`wgr_resource_release`, CONVENTIONS.md, "Public API shape")
+  drops *a* reference; the resource goes when the last one does, and one still loading
+  stops loading. Destroying an object (`*_destroy`) ends it at once.
 - **Dedup by path:** `*_create(path)` first looks for a resource created from the
   same asset path; if found it retains and returns it, whatever its status. A
   generated mesh is found by its parameters the same way.
@@ -236,44 +231,29 @@ per **object** (`wgr_sprite3d_set_pick_alpha_test`, with a threshold). This is t
 canonical example of the layering paying off: shared CPU data on the resource,
 per-instance policy on the object.
 
-Current surface (pre-rename): `wgr_texture_create_pickable` /
-`wgr_texture_create_from_memory_pickable` opt a texture into keeping the mask.
-Target: the mask is generated from the texture's alpha when a sprite enables
-alpha-test picking, so a separate "pickable" constructor isn't required.
+The mask is built from the texture's source file on demand, the first time a sprite
+enables alpha-test picking, so a texture needs nothing at creation to be picked this
+way.
 
 ---
 
-## 5. The Shape decision
+## 5. Shapes
 
-**Since 2026-09-17 shapes are two types**, `wgr_shape2d` (screen space) and
-`wgr_shape3d` (world), matching sprite2d/sprite3d and text2d/text3d: hat (1) below
-is now `wgr_shape2d_draw_*` plus retained 2D shapes, hats (2) and (3) are
-`wgr_shape3d_*`. The reasoning below stands as written.
+Shapes are two kinds, `wgr_shape2d` (screen space) and `wgr_shape3d` (world), as
+sprites and text are, both drawn through sokol_gl with flat color:
 
-`wgr_shape` wore **three hats**; only one overlaps Model:
+- **Immediate**, re-emitted each frame with no object behind them: `wgr_shape2d_draw_*`
+  (rectangles, rounded and outlined, circles, lines, triangles) and `wgr_shape3d_draw_*`
+  (lines, cubes and wire cubes, spheres, grids, rectangles, circles), for 2D drawing and
+  debug gizmos.
+- **Retained objects** (`wgr_shape2d_create`, `wgr_shape3d_create` with `set_cube`,
+  `set_sphere`, `set_line_strip`, ...), with a transform, a color, visibility and
+  picking, drawn by a scene or by `*_draw`.
 
-1. **Immediate 2D primitives** (`draw_rectangle/circle/line/triangle`) — the 2D
-   drawing API. **Keep.** Not a mesh, not an object.
-2. **Immediate 3D debug draw** (`draw_line_3d`, `draw_cube_wires`, `draw_grid`,
-   `draw_sphere`) — bufferless gizmo/debug drawing, re-emitted each frame.
-   **Keep.** You don't want a GPU mesh for a debug grid.
-3. **Retained cube/sphere *objects*** (`shape_create` + `set_cube/set_sphere`,
-   with transform/color/visible/pickable) — **retire.** A retained cube/sphere
-   is just `Model + generated Mesh + tint`. With mesh generators
-   (`wgr_mesh_create_cube/sphere/plane`), `wgr_model_create_cube()` fully replaces
-   it, giving one 3D scene-object type, one pick path, and materials/lighting/
-   sharing for free.
-
-Costs accepted by retiring (3):
-- Generated primitives go through the buffered lit/textured pipeline instead of
-  immediate `sokol_gl` (a per-object GPU buffer; fine for normal counts, heavier
-  for "500 wireframe boxes" — use the debug-draw API for that).
-- Sphere picking becomes faceted (triangle-accurate) instead of analytic
-  ray↔sphere. Acceptable; reintroduce an analytic "primitive object" later only
-  if needed.
-
-Net: keep hats (1) and (2) as a standalone **draw/gizmo** utility (candidate
-future rename `wgr_shape3d_draw_*` → `wgr_draw_*`); fold hat (3) into Model.
+A lit, textured or shared 3D primitive is a Model over a generated Mesh
+(`wgr_mesh_create_cube`, `_sphere`, `_plane`); shapes are for flat-colored and debug
+drawing. The decision as it was made in 2026-09, when retained 3D shapes were to be
+retired into Model, is in HISTORY.md ("The Shape decision"); they were kept.
 
 ---
 
@@ -281,7 +261,7 @@ future rename `wgr_shape3d_draw_*` → `wgr_draw_*`); fold hat (3) into Model.
 
 Resources and objects are separate handle kinds (`include/wgr_handle.h`).
 
-| Concept        | Layer    | Handle kind (current → target)                |
+| Concept        | Layer    | Handle kind                                    |
 |----------------|----------|-----------------------------------------------|
 | Texture        | resource | `WGR_HANDLE_KIND_TEXTURE`                       |
 | Sprite2d/3d    | object   | `WGR_HANDLE_KIND_SPRITE2D` / `…SPRITE3D`       |
@@ -324,14 +304,9 @@ wrapped lines inside the block. Text uses alignment because it needs that second
 
 ## 7. Public API shape
 
-The public surface is **handle-only**: every parameter/return is a handle, an
-integral/float/enum, or a `const char *` (path/text). No raw pointers in user
-code — enforced by `tools/check_rules.py`. See AGENTS.md § "Public API shape".
-
-**One creation rule, no exceptions:** a *resource* is created from a path (or a
-generator); an *object* is created from a resource handle. Bare `_create` for
-both — the noun says which. No `_create_from_memory`, no "create object from
-file" shortcut.
+What a public call may take and return, and how resources and objects are created and
+freed, are rules: CONVENTIONS.md, "Public API shape" (`tools/check_rules.py`, the
+`check` test, holds them). In code:
 
 ```c
 /* Resource — from a path (loaded on create: deduped, refcounted) or a generator. */
@@ -413,7 +388,7 @@ HTTP client and no TLS. Networking beyond this (WebSockets, HTTP APIs) is outsid
 A program links only the subsystems it uses. The **core** is always there: the
 runtime (`wgr.c`), platform and window, input, rendering (sokol_gl), cameras, scenes,
 picking math, files and assets, fonts and text, 2D/3D shapes, events and debug. The
-rest are **optional modules** (`src/internal/wgri_module.h`): textures, lights,
+rest are **optional modules** (`src/internal/wgr_module_internal.h`): textures, lights,
 materials, environments, models (with glTF), sprites and their batcher, particles,
 2D/3D text objects, audio and sounds (with their decoders), and gamepads.
 

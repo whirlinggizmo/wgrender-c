@@ -181,7 +181,7 @@ naming scheme fixes it -- a fixed list written once, not something parsed out of
 
 **What belongs in wgrender-c either way.** Eight refusals that log nothing anywhere, and
 `wgr_light_set_shadow_map_size` clamping to 256..4096 with no getter to observe the
-result. Those are findings about the C library, whatever shape the binding is.
+result (since given one: `wgr_light_get_shadow_map_size`). Those are findings about the C library, whatever shape the binding is.
 
 ## If wgrender ever gets a Nim binding
 

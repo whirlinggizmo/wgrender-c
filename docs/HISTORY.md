@@ -27,6 +27,7 @@ Text here is kept as it was written, so a name or a path in it may since have ch
 - [Remaining librl parity](#remaining-librl-parity)
 - [Render to texture](#render-to-texture)
 - [Shadows](#shadows) (open part: [PLAN-shadows.md](PLAN-shadows.md))
+- [The Shape decision](#the-shape-decision)
 - [sprite2d (screen-space sprites)](#sprite2d-screen-space-sprites)
 - [UI through libwgrender's public API](#ui-through-libwgrenders-public-api) (open part: [PLAN-ui.md](PLAN-ui.md))
 - [wgr_fs + web-capable ensure (Phase 2)](#wgr_fs--web-capable-ensure-phase-2)
@@ -5051,6 +5052,42 @@ been left in place, marked done). Each links to its own history above.
   rendering fixed scenes to render targets (which exist now) and comparing with a
   per-pixel tolerance; worth it the first time a rendering regression gets past smoke.
 
+## The Shape decision
+
+**Since 2026-09-17 shapes are two types**, `wgr_shape2d` (screen space) and
+`wgr_shape3d` (world), matching sprite2d/sprite3d and text2d/text3d: hat (1) below
+is now `wgr_shape2d_draw_*` plus retained 2D shapes, hats (2) and (3) are
+`wgr_shape3d_*`. The reasoning below stands as written.
+
+`wgr_shape` wore **three hats**; only one overlaps Model:
+
+1. **Immediate 2D primitives** (`draw_rectangle/circle/line/triangle`) — the 2D
+   drawing API. **Keep.** Not a mesh, not an object.
+2. **Immediate 3D debug draw** (`draw_line_3d`, `draw_cube_wires`, `draw_grid`,
+   `draw_sphere`) — bufferless gizmo/debug drawing, re-emitted each frame.
+   **Keep.** You don't want a GPU mesh for a debug grid.
+3. **Retained cube/sphere *objects*** (`shape_create` + `set_cube/set_sphere`,
+   with transform/color/visible/pickable) — **retire.** A retained cube/sphere
+   is just `Model + generated Mesh + tint`. With mesh generators
+   (`wgr_mesh_create_cube/sphere/plane`), `wgr_model_create_cube()` fully replaces
+   it, giving one 3D scene-object type, one pick path, and materials/lighting/
+   sharing for free.
+
+Costs accepted by retiring (3):
+- Generated primitives go through the buffered lit/textured pipeline instead of
+  immediate `sokol_gl` (a per-object GPU buffer; fine for normal counts, heavier
+  for "500 wireframe boxes" — use the debug-draw API for that).
+- Sphere picking becomes faceted (triangle-accurate) instead of analytic
+  ray↔sphere. Acceptable; reintroduce an analytic "primitive object" later only
+  if needed.
+
+Net: keep hats (1) and (2) as a standalone **draw/gizmo** utility (candidate
+future rename `wgr_shape3d_draw_*` → `wgr_draw_*`); fold hat (3) into Model.
+
+(Moved here from ARCHITECTURE.md §5 on 2026-10-04, when it was rewritten to say what shapes are now. As built, retained 3D shapes were kept: `wgr_shape3d_create` with `set_cube`, `set_sphere` and the rest, beside Model over generated meshes.)
+
+---
+
 ## Tasks done
 
 TASKS.md's ticked items, by the section they were in.
@@ -5708,6 +5745,19 @@ TASKS.md's ticked items, by the section they were in.
 - [x] Scripting and language bindings stay out of the core repo (decided; see ROADMAP)
 
 ### Decisions
+
+- [x] Every rule stated once, in a developer doc (2026-10-04, Rob's): AGENTS.md held
+      nearly all of wgrender's rules, so a developer who never opens it saw none, and
+      a sweep found the build facts copied whole into BUILDING.md, the API and creation
+      rules into README and ARCHITECTURE, and five docs contradicting the code (a
+      module header that doesn't exist, bindings as separate repos, the API's types
+      without the math values, a check credited with what the compiler holds, a
+      stale build path). Now docs/CONVENTIONS.md holds every rule; BUILDING.md owns the
+      build facts and the tool catalogue, CONVENTIONS keeping only what a build and a
+      change must keep; AGENTS.md links and adds agent-only practice, never restating;
+      CLAUDE.md loads both. ARCHITECTURE's "The Shape decision", design history, moved
+      here whole. The "kept while wgrender is maintained" banner of the carried plans
+      is stated once, in CONVENTIONS' "Docs". libwgt made the same split (91ecf57)
 
 - [x] Which language binding comes first: Haxe (2026-09-21; wgrender-hx exists and is
       generating against the headers)

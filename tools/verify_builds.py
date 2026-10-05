@@ -28,7 +28,7 @@ the working tree as it is, nothing left there):
   windows-msvc   windows-x64-msvc-debug-headless and -release
 
 Each step is a CMake preset (CMakePresets.json), configured, built and tested: its work
-in build/<platform>/<variant>/, what it makes in out/<platform>/<variant>/; the haxe
+in build/<preset>/, what it makes in out/<platform>/<variant>/; the haxe
 steps are the binding's own scripts. --only takes step names (linux-x64-debug-headless,
 wasm32-release, haxe, ...). Stops at the first step that fails. A step skipped for want
 of a tool (MinGW-w64, Wine, Haxe) is announced before anything runs and named again in

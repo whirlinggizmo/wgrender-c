@@ -70,7 +70,8 @@ Every operation is a static named after the C call it makes, taking the handle f
 `wgr_window_has_fullscreen` is `Window.hasFullscreen`. Some names are Haxe's rather
 than C's — `Mesh.cube` for `wgr_mesh_create_cube`, `Font.draw` for `wgr_text_draw_ex`
 — but every C call has exactly one member, and a member that calls C calls one C
-function. That is what lets the binding be audited mechanically
+function ([wgrender's rule](../../docs/CONVENTIONS.md), "Bindings: one name per C
+call"). That is what lets the binding be audited mechanically
 (`tools/check_coverage.py --check` holds the rule, `tools/check_refusals.py --check` reads each
 member's docs) and what keeps a second binding in step — a property has no counterpart
 in Lua or Nim, and it cannot return the `Bool` a wgrender setter uses to refuse.
@@ -441,7 +442,7 @@ The two it leaves alone are a decision, not a backlog: `wgr_text_draw_n` and
 units, so the two disagree for anything non-ASCII — passing a substring to `draw()` is
 correct and these would not be. `tools/check_coverage.py --check` fails if either is ever
 wrapped after all, so a decision and a to-do stay distinguishable. It holds the js
-omissions the same way: six calls that take a C function pointer, which the guest ABI
+omissions the same way: the four calls that take a C function pointer, which the guest ABI
 replaces there.
 
 `tools/check_refusals.py --check` guards the other direction. wgrender's headers name every value a

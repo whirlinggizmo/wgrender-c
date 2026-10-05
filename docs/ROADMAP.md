@@ -1,8 +1,8 @@
 # libwgrender Roadmap
 
 libwgrender is converging into libwgt, which carries every open item from this file,
-TASKS.md and the plans (libwgt 17f3f18, cb5dee5); where each went is in HISTORY.md,
-"Carried into libwgt". The items stay here while wgrender is maintained.
+TASKS.md and the plans (libwgt 17f3f18, cb5dee5); they are kept here while wgrender is
+maintained (CONVENTIONS.md, "Docs").
 
 ## Now / next
 
@@ -27,8 +27,9 @@ Structural: **subsystems that can't be left out** -- librl linked everything int
 build, and so did wgrender until `WGRI_MODULE` (ARCHITECTURE.md §7b): a program now links
 only the subsystems it uses, and `tools/measure_example_sizes.py` keeps that honest. **Scripting and
 bindings mixed into the core** -- librl carried script hosts, hot-reload plumbing and
-four bindings; here the core stays a plain C library and each binding is its own repo
-on the handle-only API (see the README's Bindings section).
+four bindings; here the core stays a plain C library, and the bindings live beside it
+under `bindings/`, built only on the handle-only API (see the README's Bindings
+section; they were separate repos until 2026-10-02).
 
 Left out on purpose, not gaps: the scratch buffer and `_to_scratch` functions, public
 `fs_*` ([HISTORY.md: wgr_fs + web-capable ensure (Phase 2)](HISTORY.md#wgr_fs--web-capable-ensure-phase-2)), `music_*`, `*_create_from_file`,
@@ -76,7 +77,7 @@ Left out on purpose, not gaps: the scratch buffer and `_to_scratch` functions, p
 
 - **Networking outside libwgrender** (decided 2026-09-20): WebSockets and general
   networking (HTTP APIs, multiplayer) as a separate library and repo built on libwgrender's
-  public API, like scripting and bindings. Why: they're game-specific; secure
+  public API, like scripting. Why: they're game-specific; secure
   WebSockets on desktop need a bundled TLS library (mbedTLS or similar) with its own
   security updates; message payloads (binary data) don't fit libwgrender's handle-only API
   rules; and they need nothing from libwgrender's internals (poll from the frame callback,

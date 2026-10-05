@@ -119,7 +119,7 @@ This example's frame path is 15 wasm calls — 6 plain, 3 returning structs, 6 c
 text — so about **660 ns per frame, 0.004% of a 16.6 ms budget**. It would take
 ~47,000 plain calls per frame, or ~1,600 string calls, to lose 1% of frame time.
 
-Two properties of wgrender make that hold, and both are deliberate (see its AGENTS.md).
+Two properties of wgrender make that hold, and both are deliberate (see its docs/CONVENTIONS.md).
 The scene is retained-mode, so `wgr_scene_draw` is one call whether it draws 3 objects
 or 30,000 — you pay per object you *mutate* each frame, not per object drawn; even
 `spritebench`'s shape, 5,000 sprites each re-transformed every frame, is ~17 µs, about
