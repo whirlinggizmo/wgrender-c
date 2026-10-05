@@ -501,20 +501,42 @@ bool wgri_app_join(const char *base, const char *company, const char *app, const
     return true;
 }
 
+/* The executable's full path, or "" where there isn't one to find. */
+static void executable_path(char *path, size_t size)
+{
+    path[0] = '\0';
+#if defined(_WIN32)
+    const DWORD len = GetModuleFileNameA(NULL, path, (DWORD)size);
+    if (len == 0 || len >= size) path[0] = '\0';
+#elif defined(__APPLE__)
+    uint32_t n = (uint32_t)size;
+    if (_NSGetExecutablePath(path, &n) != 0) path[0] = '\0';
+#elif defined(__linux__)
+    const ssize_t len = readlink("/proc/self/exe", path, size - 1);
+    path[len > 0 ? len : 0] = '\0';
+#else
+    (void)size;
+#endif
+}
+
+bool wgri_app_executable_dir(char *out, size_t out_size)
+{
+    char path[1024];
+    char *slash;
+    executable_path(path, sizeof(path));
+    for (char *c = path; *c != '\0'; c++) {
+        if (*c == '\\') *c = '/'; /* Windows takes either, and wgr_fs joins at "/" */
+    }
+    slash = strrchr(path, '/');
+    if (slash == NULL) return false;
+    return snprintf(out, out_size, "%.*s", slash == path ? 1 : (int)(slash - path), path) < (int)out_size;
+}
+
 /* The executable's name less its extension, or "" where there isn't one to find. */
 static void executable_name(char *out, size_t out_size)
 {
-    char path[1024] = "";
-#if defined(_WIN32)
-    const DWORD len = GetModuleFileNameA(NULL, path, (DWORD)sizeof(path));
-    if (len == 0 || len >= sizeof(path)) path[0] = '\0';
-#elif defined(__APPLE__)
-    uint32_t size = (uint32_t)sizeof(path);
-    if (_NSGetExecutablePath(path, &size) != 0) path[0] = '\0';
-#elif defined(__linux__)
-    const ssize_t len = readlink("/proc/self/exe", path, sizeof(path) - 1);
-    path[len > 0 ? len : 0] = '\0';
-#endif
+    char path[1024];
+    executable_path(path, sizeof(path));
     const char *base = path;
     char *dot;
     for (const char *c = path; *c != '\0'; c++) {
@@ -529,16 +551,28 @@ static void executable_name(char *out, size_t out_size)
     if (dot != NULL && dot != out) *dot = '\0';
 }
 
-WGRI_KEEP
-void wgr_set_app_company(const char *company)
+/* One identity name into `out`: NULL or "" clears it (the default), a usable name
+ * replaces it, and one that can't name a directory is refused, `out` left as it was. */
+static bool set_app_identity(const char *what, const char *name, char *out, size_t out_size)
 {
-    if (!wgri_app_clean_name(company, wgr_app_company, sizeof(wgr_app_company))) {
-        if (company != NULL && company[0] != '\0') {
-            wgr_logger_warn("wgr_set_app_company: \"%s\" can't name a directory (too long, or nothing left of "
-                     "it); the company is \"DefaultCompany\"", company);
-        }
-        wgr_app_company[0] = '\0';
+    char cleaned[WGRI_APP_NAME_SIZE];
+    if (name == NULL || name[0] == '\0') {
+        out[0] = '\0';
+        return true;
     }
+    if (!wgri_app_clean_name(name, cleaned, sizeof(cleaned)) || strlen(cleaned) >= out_size) {
+        wgr_logger_warn("%s: \"%s\" can't name a directory (too long, or nothing left of it); kept as it was",
+                        what, name);
+        return false;
+    }
+    memcpy(out, cleaned, strlen(cleaned) + 1);
+    return true;
+}
+
+WGRI_KEEP
+bool wgr_set_app_company(const char *company)
+{
+    return set_app_identity("wgr_set_app_company", company, wgr_app_company, sizeof(wgr_app_company));
 }
 
 WGRI_KEEP
@@ -548,15 +582,9 @@ const char *wgr_get_app_company(void)
 }
 
 WGRI_KEEP
-void wgr_set_app_name(const char *name)
+bool wgr_set_app_name(const char *name)
 {
-    if (!wgri_app_clean_name(name, wgr_app_name, sizeof(wgr_app_name))) {
-        if (name != NULL && name[0] != '\0') {
-            wgr_logger_warn("wgr_set_app_name: \"%s\" can't name a directory (too long, or nothing left of it); "
-                     "the app is the executable's name", name);
-        }
-        wgr_app_name[0] = '\0';
-    }
+    return set_app_identity("wgr_set_app_name", name, wgr_app_name, sizeof(wgr_app_name));
 }
 
 WGRI_KEEP

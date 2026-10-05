@@ -349,6 +349,12 @@ DONE (with the local path) or FAILED, kept until `wgr_asset_task_destroy`; a gro
 them is one task for a loading screen. A key ensured from an explicit source is then
 what a create of that key loads.
 
+**The host is where paths are read from:** a URL to fetch from, or a directory -- an
+absolute one as it is, a relative one against the program's own directory (the
+executable's on desktop, the page's on the web), never the working directory, so a
+host named in code means the same everywhere and a double-clicked program finds its
+files. No host is that directory itself; so is the native storage root's default.
+
 **The path is logical; the asset layer decides which file it is.** It stays under the
 asset root: `.` and `..` are resolved, and a path that is absolute, names a drive or
 climbs out is refused (the rule wgutils' fileio has), for what a program names and for

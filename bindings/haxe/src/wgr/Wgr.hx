@@ -138,18 +138,21 @@ class Wgr {
 		is "DefaultCompany" until set, so nothing unset looks like anyone's; the app is
 		the executable's name. Set both for anything shipped, before the asset host: two
 		programs left with the defaults and the same name share a cache. Each is made
-		one safe path component; null, or a name with nothing left, is the default again.
+		one safe path component; null or "" puts back the default. False, with a warning
+		and the name as it was, for one with nothing left once cleaned or of 128 bytes or
+		more: a name that can't be used is refused, never cut short.
 	**/
-	public static inline function setAppCompany(company:String):Void {
-		Raw.wgr_set_app_company(company);
+	public static inline function setAppCompany(company:String):Bool {
+		return Raw.wgr_set_app_company(company);
 	}
 
 	public static inline function getAppCompany():String {
 		return Raw.wgr_get_app_company().toString();
 	}
 
-	public static inline function setAppName(name:String):Void {
-		Raw.wgr_set_app_name(name);
+	/** As `setAppCompany`: false, the name kept, for one that can't name a directory. **/
+	public static inline function setAppName(name:String):Bool {
+		return Raw.wgr_set_app_name(name);
 	}
 
 	public static inline function getAppName():String {

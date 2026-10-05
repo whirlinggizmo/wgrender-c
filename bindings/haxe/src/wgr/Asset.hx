@@ -23,12 +23,18 @@ class Asset {
 		return v;
 	}
 
-	/** Where relative asset paths resolve from: a directory or a URL base. **/
-	public static function setHost(host:String):Void {
+	/**
+		Where relative asset paths resolve from: a URL base, or a directory, an absolute
+		one as it is and a relative one against the program's own directory (the
+		executable's natively, the page's on the web), never the working directory. null
+		or "" is that directory. False, and the host as it was, for a host of 256 bytes or
+		more, or a relative one too long a path under the program's directory.
+	**/
+	public static function setHost(host:String):Bool {
 		#if (sys && !emscripten)
 		needsFetcher(host);
 		#end
-		Raw.wgr_asset_set_host(host);
+		return Raw.wgr_asset_set_host(host);
 	}
 
 	#if (sys && !emscripten)

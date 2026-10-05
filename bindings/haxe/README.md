@@ -254,7 +254,7 @@ the same lookup a shipped one does:
 | | |
 |---|---|
 | web (js or hxcpp/Emscripten) | `/assets` — what `tools/serve_site.py` mounts, and what a host should serve |
-| native | `$WGR_ASSET_BASE`, then an `assets` directory beside the executable, then `assets` relative to the working directory |
+| native | `$WGR_ASSET_BASE`, else `assets`, which a relative host makes the `assets` beside the executable, wherever it was started from |
 
 wgrender links no HTTP and no TLS, so a miss on a native build is a question it asks
 the program: `Asset.setFetcher`. The binding ships the answer —

@@ -12,6 +12,7 @@
 
 #include "test.h"
 #include "tests.h"
+#include "internal/wgr_fs_internal.h"
 #include "wgr_asset.h"
 
 typedef struct {
@@ -108,6 +109,7 @@ static const test_case_t TESTS[] = {
     {"model_state", test_model_state},
     {"sound_pan", test_sound_pan},
     {"asset_host", test_asset_host},
+    {"asset_host_program_dir", test_asset_host_program_dir},
     {"window_headless", test_window_headless},
     {"runtime_capabilities", test_runtime_capabilities},
     {"interaction", test_interaction},
@@ -194,6 +196,11 @@ static int matches_filter(const char *name, int argc, char **argv)
 int main(int argc, char **argv)
 {
     int run = 0, failed = 0;
+
+    /* the tests run from the repo root (CMakeLists.txt) and name their files from
+       there, so that is "the program's directory" a relative host and the storage
+       root resolve against, not the test binary's (wgr_asset_set_host) */
+    wgri_fs_set_default_root("");
 
     /* downloads a test doesn't place itself go in this work directory, never the
        user's cache (wgr_asset_get_cache_dir's default) */

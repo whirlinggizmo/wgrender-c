@@ -9,8 +9,8 @@
 // a constant quoted key exactly as a dotted one (measured: 0.757 ns per access either
 // way), and a minifier that isn't mangling turns it back into the dotted form.
 //
-// wgrender 0.0.1 at before-libwgt-harvest-295-g2e96ba9-dirty, 34 headers.
-// wgrender-headers: 94037e108e16eee3
+// wgrender 0.0.1 at before-libwgt-harvest-298-g39eb83d-dirty, 34 headers.
+// wgrender-headers: fda3b88fe90986f1
 
 export type wgr_handle_t = number;
 /** A record a getter can fill instead of making a new one: its fields, writable. */
@@ -549,19 +549,26 @@ export declare const WGR_KEYBOARD_STATE: { readonly BYTES: number; readonly max_
  * Set the asset base that logical paths resolve against. A URL ("https://host/assets")
  * is a fetch origin on both platforms: a missing file is downloaded from it and cached,
  * on the web in the browser's storage (IndexedDB, checked as wgr_asset_set_cache_mode
- * says) and on desktop in the cache directory, by the program (fetching, below). Anything else is a
- * local directory ("examples/assets"), as it has always been on desktop, and a file:
- * URL ("file:///opt/game/assets") names one too -- on desktop only, since a browser
- * reads no file: URLs. A local host is only ever read, as a browser only reads its
- * host: what is downloaded under one -- a fetch_url's file, or one a "://" redirect
- * finds missing -- goes in the cache directory, so a shipped file is never
- * overwritten, and it can sit where the program can't write (Program Files, an app
- * bundle). Pass the same logical paths everywhere; only the base differs.
+ * says) and on desktop in the cache directory, by the program (fetching, below).
+ * Anything else is a local directory: an absolute path as it is, and a relative one
+ * ("../assets") against the program's own directory on every platform -- the
+ * executable's on desktop, the page's on the web -- never the working directory, so
+ * the same line in a program means the same thing everywhere and a double-clicked
+ * program finds its files. A file: URL ("file:///opt/game/assets") names a directory
+ * too -- on desktop only, since a browser reads no file: URLs. A local host is only
+ * ever read, as a browser only reads its host: what is downloaded under one -- a
+ * fetch_url's file, or one a "://" redirect finds missing -- goes in the cache
+ * directory, so a shipped file is never overwritten, and it can sit where the program
+ * can't write (Program Files, an app bundle). Pass the same logical paths everywhere;
+ * only the base differs. NULL or "" is the default: the program's own directory, as
+ * "." is. False, and the host as it was, for a host of 256 bytes or more, or a relative
+ * one too long a path under the program's directory.
  */
-export declare function wgr_asset_set_host(host_: string): void;
+export declare function wgr_asset_set_host(host_: string): boolean;
 
 /**
- * The asset base set with wgr_asset_set_host (without a trailing slash), or "".
+ * The asset base set with wgr_asset_set_host (without a trailing slash), or "" for the
+ * default, the program's directory.
  */
 export declare function wgr_asset_get_host(): string;
 
@@ -2763,17 +2770,17 @@ export declare function wgr_has_threads(): boolean;
  * programs left with the defaults and the same name share a cache, and renaming the
  * executable would leave its cache behind. Each is made safe as one path component
  * (separators and characters Windows refuses become "_", leading and trailing dots and
- * spaces go, a Windows device name such as "CON" gets a "_" in front); NULL, a name
- * with nothing left, or one of 128 bytes or more goes back to the default -- a name
- * that can't be used is refused with a warning, never cut short. Set them before
- * anything is cached, that is before wgr_asset_set_host with a URL. Kept across
- * wgr_init_values.
+ * spaces go, a Windows device name such as "CON" gets a "_" in front). NULL or "" puts
+ * back the default. False, with a warning and the name as it was, for one with nothing
+ * left once cleaned or of 128 bytes or more: a name that can't be used is refused,
+ * never cut short. Set them before anything is cached, that is before
+ * wgr_asset_set_host with a URL. Kept across wgr_init_values.
  */
-export declare function wgr_set_app_company(company: string): void;
+export declare function wgr_set_app_company(company: string): boolean;
 
 export declare function wgr_get_app_company(): string;
 
-export declare function wgr_set_app_name(name: string): void;
+export declare function wgr_set_app_name(name: string): boolean;
 
 export declare function wgr_get_app_name(): string;
 

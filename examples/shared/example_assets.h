@@ -2,9 +2,13 @@
 #define EXAMPLE_ASSETS_H
 
 /* Where the examples load assets from. Asset paths in the examples are LOGICAL
- * (e.g. "sprites/logo/wg-logo.png") and resolve against this base:
- *   - desktop: a local directory, relative to the run cwd (the project root).
- *   - web:     "assets", relative to the page, fetched on a cache miss then stored
+ * (e.g. "sprites/logo/wg-logo.png") and resolve against this base, which a relative
+ * host takes from the program's own directory on both platforms (wgr_asset_set_host):
+ *   - desktop: "../assets", beside the bin/ the examples are in: the build links
+ *              out/<platform>/<variant>/assets to examples/assets, so they run from
+ *              anywhere, double-clicked included.
+ *   - web:     "assets", beside the page, which all the examples share at the site's
+ *              root; fetched on a cache miss then stored
  *              in idbfs. Relative and not "/assets" so the site works wherever it is
  *              hosted: at a domain root (tools/serve_site.py, which mounts examples/assets
  *              at /assets) and equally under a path, as GitHub Pages serves a project
@@ -14,7 +18,7 @@
 #ifdef __EMSCRIPTEN__
 #  define EXAMPLE_ASSET_BASE "assets"
 #else
-#  define EXAMPLE_ASSET_BASE "examples/assets"
+#  define EXAMPLE_ASSET_BASE "../assets"
 #endif
 
 /* The manifest of the asset host (docs/HISTORY.md, "a web asset cache that notices changed files"): the published site's

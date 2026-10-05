@@ -20,6 +20,13 @@ void wgri_fs_deinit(void);
 
 /* Override the local root (base dir reads/writes resolve against). */
 void wgri_fs_set_root(const char *root);
+/* The root until one is set: natively the executable's directory ("" where that can't
+ * be told: the working directory), on the web the store's. */
+const char *wgri_fs_default_root(void);
+/* What wgri_fs_default_root answers from now on, in place of the executable's
+ * directory; NULL goes back to that. For tests: the unit tests run from the repo root
+ * and name their files from there, so theirs is "" (the working directory). */
+void wgri_fs_set_default_root(const char *root);
 
 /* Desktop: a path starting with WGRI_FS_CACHE names a file under the cache root
  * rather than the root -- a download kept apart from a local host, which is only ever

@@ -365,6 +365,36 @@ static void mkdir_parents(const char *full)
     }
 }
 
+/* The root files resolve against until set otherwise: on the web the store's; natively
+ * the program's own directory (its executable's: a double-clicked program finds its
+ * files, wherever it was started from), never the working directory, which is used
+ * only where the executable's directory can't be told. */
+static bool wgr_fs_default_overridden;
+static char wgr_fs_default_dir[1024];
+
+const char *wgri_fs_default_root(void)
+{
+#ifdef __EMSCRIPTEN__
+    return WGR_FS_DEFAULT_ROOT;
+#else
+    static bool looked;
+    if (!wgr_fs_default_overridden && !looked) {
+        looked = true;
+        if (!wgri_app_executable_dir(wgr_fs_default_dir, sizeof(wgr_fs_default_dir))) wgr_fs_default_dir[0] = '\0';
+    }
+    return wgr_fs_default_dir;
+#endif
+}
+
+void wgri_fs_set_default_root(const char *root)
+{
+    wgr_fs_default_overridden = root != NULL;
+    snprintf(wgr_fs_default_dir, sizeof(wgr_fs_default_dir), "%s", root != NULL ? root : "");
+    if (root == NULL && !wgri_app_executable_dir(wgr_fs_default_dir, sizeof(wgr_fs_default_dir))) {
+        wgr_fs_default_dir[0] = '\0';
+    }
+}
+
 /* Override the local root (base dir reads/writes resolve against). Trailing
  * slashes are trimmed so resolve()'s "%s/%s" join stays clean. */
 void wgri_fs_set_root(const char *root)
@@ -392,7 +422,7 @@ void wgri_fs_resolve(const char *path, char *out, size_t out_size)
 
 void wgri_fs_init(const char *root_dir)
 {
-    const char *root = (root_dir != NULL) ? root_dir : WGR_FS_DEFAULT_ROOT;
+    const char *root = (root_dir != NULL) ? root_dir : wgri_fs_default_root();
     snprintf(wgr_fs_root, sizeof(wgr_fs_root), "%s", root);
 #ifdef __EMSCRIPTEN__
     /* Open the cache (its list of files); wgri_fs_is_ready() reflects it. */
@@ -404,7 +434,11 @@ void wgri_fs_init(const char *root_dir)
 #else
     char *cwd = getcwd(NULL, 0);
 #endif
-    wgr_logger_info("wgr_fs: using stdio relative to working dir (absolute path=%s/%s)", cwd != NULL ? cwd : "?", wgr_fs_root);
+    if (wgr_fs_root[0] == '/' || (wgr_fs_root[0] != '\0' && wgr_fs_root[1] == ':')) {
+        wgr_logger_info("wgr_fs: files under %s", wgr_fs_root);
+    } else {
+        wgr_logger_info("wgr_fs: files under the working dir (%s/%s)", cwd != NULL ? cwd : "?", wgr_fs_root);
+    }
     free(cwd);
 #endif
 }

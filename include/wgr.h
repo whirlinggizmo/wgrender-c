@@ -120,14 +120,14 @@ bool wgr_has_threads(void);
  * programs left with the defaults and the same name share a cache, and renaming the
  * executable would leave its cache behind. Each is made safe as one path component
  * (separators and characters Windows refuses become "_", leading and trailing dots and
- * spaces go, a Windows device name such as "CON" gets a "_" in front); NULL, a name
- * with nothing left, or one of 128 bytes or more goes back to the default -- a name
- * that can't be used is refused with a warning, never cut short. Set them before
- * anything is cached, that is before wgr_asset_set_host with a URL. Kept across
- * wgr_init_values. */
-void wgr_set_app_company(const char *company);
+ * spaces go, a Windows device name such as "CON" gets a "_" in front). NULL or "" puts
+ * back the default. False, with a warning and the name as it was, for one with nothing
+ * left once cleaned or of 128 bytes or more: a name that can't be used is refused,
+ * never cut short. Set them before anything is cached, that is before
+ * wgr_asset_set_host with a URL. Kept across wgr_init_values. */
+bool wgr_set_app_company(const char *company);
 const char *wgr_get_app_company(void);
-void wgr_set_app_name(const char *name);
+bool wgr_set_app_name(const char *name);
 const char *wgr_get_app_name(void);
 
 /* Frame rate (a power/heat cap; use a tick for simulation rate).

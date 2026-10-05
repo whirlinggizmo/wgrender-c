@@ -32,12 +32,11 @@ class Assets {
 		elsewhere says where with `<meta name="wgr-asset-base" content="../assets">`
 		(tools/run_examples.py site gives each example's page one, beside the shared tree).
 
-		Natively, in order:
-
-		1. `$WGR_ASSET_BASE`, so a run can be pointed anywhere without rebuilding;
-		2. an `assets` directory beside the executable, which is what a built program
-		   has — a development build gets one as a link to wherever wgrender is;
-		3. `assets` relative to the working directory.
+		Natively, `$WGR_ASSET_BASE`, so a run can be pointed anywhere without rebuilding,
+		or else `assets`: a relative host resolves against the program's own directory
+		(`Asset.setHost`), so that is the `assets` beside the executable, wherever the
+		program was started from, which is what a built program has — a development build
+		gets one as a link to wherever wgrender is.
 	**/
 	public static function defaultBase():String {
 		// Both web builds — Haxe to JS, and hxcpp through Emscripten — are served the
@@ -51,12 +50,7 @@ class Assets {
 		return "assets";
 		#elseif sys
 		final fromEnv = Sys.getEnv(OVERRIDE);
-		if (fromEnv != null && fromEnv != "")
-			return fromEnv;
-		final beside = haxe.io.Path.join([haxe.io.Path.directory(Sys.programPath()), BESIDE]);
-		if (sys.FileSystem.exists(beside))
-			return beside;
-		return BESIDE;
+		return fromEnv != null && fromEnv != "" ? fromEnv : BESIDE;
 		#else
 		return BESIDE;
 		#end

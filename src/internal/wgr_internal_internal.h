@@ -31,6 +31,11 @@ bool wgri_app_join(const char *base, const char *company, const char *app, const
  * False where there is no such directory to name (the web, or no HOME). */
 bool wgri_app_cache_dir(char *out, size_t out_size);
 
+/* The directory this program's executable is in, "/" throughout: what a relative asset
+ * host and the native storage root resolve against (a double-clicked program finds its
+ * files, wherever it was started from). False where it can't be told (the web). */
+bool wgri_app_executable_dir(char *out, size_t out_size);
+
 /* smoothed seconds per frame that actually ran (FPS counter) */
 double wgri_get_fps_delta(void);
 

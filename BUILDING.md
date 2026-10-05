@@ -115,12 +115,15 @@ sanitizer. A name only adds: a build without threads is plain `wasm32-release`, 
 What a preset makes goes to `out/<platform>/<variant>/`: the library in `lib/`
 (`libwgrender.a`; MSVC's `wgrender.lib`), the programs in `bin/`, and for the web the
 site in `site/`. The build writes all of it, so deleting `out/` is a clean. CMake's own
-work (its cache, the objects) stays in `build/<preset>/`, so `out/` is only results. On
+work (its cache, the objects) stays in `build/<preset>/`, so `out/` is only results. A
+desktop build also links `out/<platform>/<variant>/assets` to `examples/assets` (a
+junction on Windows): a relative asset host resolves against the program's own
+directory, and the examples name theirs `../assets`, so they run from anywhere. On
 Linux:
 
 ```sh
 cmake --preset linux-x64-release && cmake --build --preset linux-x64-release   # library + every example
-out/linux-x64/release/bin/simple        # from this directory: examples load examples/assets from here
+out/linux-x64/release/bin/simple        # from anywhere: examples load ../assets, beside bin/, linked to examples/assets
 cmake --preset linux-x64-debug-headless && cmake --build --preset linux-x64-debug-headless   # no window, GPU or audio device
 ctest --preset linux-x64-debug-headless   # unit tests, guardrails, and every example headless for ~3 s
 python3 tools/verify_builds.py         # release, headless, ThreadSanitizer (and Windows, below):

@@ -1,10 +1,12 @@
 /* Object state across subsystems -- text3d, sprite3d, model, sound, asset host -- on
  * sokol's dummy backend. */
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "internal/wgr_audio_internal.h"
 #include "internal/wgr_environment_internal.h"
+#include "internal/wgr_fs_internal.h"
 #include "internal/wgr_internal_internal.h"
 #include "internal/wgr_light_internal.h"
 #include "internal/wgr_material_internal.h"
@@ -237,4 +239,63 @@ void test_asset_host(void)
     CHECK(strcmp(wgr_asset_get_host(), "https://example.com/assets") == 0);
     wgr_asset_set_host(NULL);
     CHECK(strcmp(wgr_asset_get_host(), "") == 0);
+}
+
+/* A relative host resolves against the program's own directory, never the working
+ * directory (the tests run from the repo root, the binary is in out/.../bin), and no
+ * host at all, or ".", is that directory; an absolute one is as it is, and one too long
+ * is refused with the host left as it was (libwgt's asset/tests/wgt_asset_host_test.c). */
+void test_asset_host_program_dir(void)
+{
+    char exe_dir[1024], file[1100], resolved[1300], expected[1300], longer[300];
+    unsigned char *data = NULL;
+    int size = 0;
+    CHECK(wgri_app_executable_dir(exe_dir, sizeof(exe_dir)));
+    wgri_fs_set_default_root(NULL); /* the real rule, not the runner's working directory */
+    CHECK(strcmp(wgri_fs_default_root(), exe_dir) == 0);
+
+    /* a file one level above the program (out/<platform>/<variant>/), which the
+       working directory, the repo root, doesn't have */
+    snprintf(file, sizeof(file), "%s/../asset_host_test.txt", exe_dir);
+    FILE *f = fopen(file, "wb");
+    CHECK(f != NULL);
+    if (f != NULL) {
+        fputs("hello", f);
+        fclose(f);
+    }
+    CHECK(wgr_asset_set_host(".."));
+    CHECK(wgri_fs_read("asset_host_test.txt", &data, &size));
+    CHECK(size == 5 && data != NULL && memcmp(data, "hello", 5) == 0);
+    wgri_fs_read_free(data);
+    data = NULL;
+    CHECK(strcmp(wgr_asset_get_host(), "..") == 0);
+
+    /* none at all, and ".", are the program's directory */
+    CHECK(wgr_asset_set_host(NULL));
+    wgri_fs_resolve("x.txt", resolved, sizeof(resolved));
+    snprintf(expected, sizeof(expected), "%s/x.txt", exe_dir);
+    CHECK(strcmp(resolved, expected) == 0);
+    CHECK(wgr_asset_set_host("."));
+    wgri_fs_resolve("x.txt", resolved, sizeof(resolved));
+    snprintf(expected, sizeof(expected), "%s/./x.txt", exe_dir);
+    CHECK(strcmp(resolved, expected) == 0);
+
+    /* an absolute one as it is */
+    snprintf(expected, sizeof(expected), "%s/..", exe_dir);
+    CHECK(wgr_asset_set_host(expected));
+    CHECK(wgri_fs_read("asset_host_test.txt", &data, &size));
+    wgri_fs_read_free(data);
+    data = NULL;
+
+    /* too long: refused, and the host and its directory as they were */
+    memset(longer, 'a', sizeof(longer) - 1);
+    longer[sizeof(longer) - 1] = '\0';
+    CHECK(!wgr_asset_set_host(longer));
+    CHECK(strcmp(wgr_asset_get_host(), expected) == 0);
+    CHECK(wgri_fs_read("asset_host_test.txt", &data, &size));
+    wgri_fs_read_free(data);
+
+    remove(file);
+    wgri_fs_set_default_root(""); /* the runner's, for the tests after this one */
+    wgr_asset_set_host(NULL);
 }

@@ -231,10 +231,17 @@ static wgr_asset_task_t *resolve(wgr_handle_t handle)
     return &wgr_asset_tasks[index];
 }
 
-void wgr_asset_set_host(const char *host)
+bool wgr_asset_set_host(const char *host)
 {
     size_t n;
     if (host == NULL) host = "";
+    if (strlen(host) >= sizeof(wgr_asset_host)) {
+        wgr_logger_warn("wgr_asset_set_host: a host of %zu bytes is too long (at most %zu)", strlen(host),
+                        sizeof(wgr_asset_host) - 1);
+        return false;
+    }
+    char previous[sizeof(wgr_asset_host)];
+    memcpy(previous, wgr_asset_host, sizeof(previous)); /* put back if refused below */
     snprintf(wgr_asset_host, sizeof(wgr_asset_host), "%s", host);
     n = strlen(wgr_asset_host);
     while (n > 1 && wgr_asset_host[n - 1] == '/') wgr_asset_host[--n] = '\0';
@@ -248,6 +255,26 @@ void wgr_asset_set_host(const char *host)
         !wgri_asset_file_url_path(wgr_asset_host, wgr_asset_local_root, sizeof(wgr_asset_local_root))) {
         wgr_logger_warn("wgr_asset_set_host: %s isn't a file: URL naming a directory on this machine", wgr_asset_host);
     }
+    /* a relative local host against the program's own directory, never the working
+       directory, so a double-clicked program finds its files and a host named in code
+       means the same thing here as on the web (libwgt f0ad43a; Rob, 2026-10-05); none
+       at all is that directory itself */
+    if (!wgr_asset_host_is_url) {
+        const char *base = wgri_fs_default_root();
+        const char *local = wgr_asset_local_root;
+        const bool absolute = local[0] == '/' || local[0] == '\\' || (local[0] != '\0' && local[1] == ':');
+        if (local[0] == '\0') {
+            snprintf(wgr_asset_local_root, sizeof(wgr_asset_local_root), "%s", base);
+        } else if (!absolute && base[0] != '\0') {
+            char joined[sizeof(wgr_asset_local_root)];
+            if (snprintf(joined, sizeof(joined), "%s/%s", base, local) >= (int)sizeof(joined)) {
+                wgr_logger_warn("wgr_asset_set_host: %s is too long a path under the program's directory", local);
+                wgr_asset_set_host(previous); /* the previous host's state, as it was */
+                return false;
+            }
+            memcpy(wgr_asset_local_root, joined, sizeof(joined));
+        }
+    }
     wgri_fs_set_root(wgr_asset_host_is_url ? cache_dir() : wgr_asset_local_root);
     wgri_fs_set_cache_root(cache_dir());
 #else
@@ -255,6 +282,7 @@ void wgr_asset_set_host(const char *host)
         wgr_logger_warn("wgr_asset_set_host: %s: a browser doesn't read file: URLs", wgr_asset_host);
     }
 #endif
+    return true;
 }
 
 #ifndef __EMSCRIPTEN__

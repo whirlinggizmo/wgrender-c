@@ -115,6 +115,7 @@ void test_sprite3d_state(void);
 void test_model_state(void);
 void test_sound_pan(void);
 void test_asset_host(void);
+void test_asset_host_program_dir(void);
 
 void test_window_headless(void);
 void test_runtime_capabilities(void);

@@ -40,16 +40,23 @@ enum {
 /* Set the asset base that logical paths resolve against. A URL ("https://host/assets")
  * is a fetch origin on both platforms: a missing file is downloaded from it and cached,
  * on the web in the browser's storage (IndexedDB, checked as wgr_asset_set_cache_mode
- * says) and on desktop in the cache directory, by the program (fetching, below). Anything else is a
- * local directory ("examples/assets"), as it has always been on desktop, and a file:
- * URL ("file:///opt/game/assets") names one too -- on desktop only, since a browser
- * reads no file: URLs. A local host is only ever read, as a browser only reads its
- * host: what is downloaded under one -- a fetch_url's file, or one a "://" redirect
- * finds missing -- goes in the cache directory, so a shipped file is never
- * overwritten, and it can sit where the program can't write (Program Files, an app
- * bundle). Pass the same logical paths everywhere; only the base differs. */
-void wgr_asset_set_host(const char *host);
-/* The asset base set with wgr_asset_set_host (without a trailing slash), or "". */
+ * says) and on desktop in the cache directory, by the program (fetching, below).
+ * Anything else is a local directory: an absolute path as it is, and a relative one
+ * ("../assets") against the program's own directory on every platform -- the
+ * executable's on desktop, the page's on the web -- never the working directory, so
+ * the same line in a program means the same thing everywhere and a double-clicked
+ * program finds its files. A file: URL ("file:///opt/game/assets") names a directory
+ * too -- on desktop only, since a browser reads no file: URLs. A local host is only
+ * ever read, as a browser only reads its host: what is downloaded under one -- a
+ * fetch_url's file, or one a "://" redirect finds missing -- goes in the cache
+ * directory, so a shipped file is never overwritten, and it can sit where the program
+ * can't write (Program Files, an app bundle). Pass the same logical paths everywhere;
+ * only the base differs. NULL or "" is the default: the program's own directory, as
+ * "." is. False, and the host as it was, for a host of 256 bytes or more, or a relative
+ * one too long a path under the program's directory. */
+bool wgr_asset_set_host(const char *host);
+/* The asset base set with wgr_asset_set_host (without a trailing slash), or "" for the
+ * default, the program's directory. */
 const char *wgr_asset_get_host(void);
 
 /* Where downloads land on desktop, and where later runs find them: a local directory,

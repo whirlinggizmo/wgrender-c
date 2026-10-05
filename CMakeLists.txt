@@ -128,6 +128,25 @@ else()
   set(WGR_PROGRAMS "${CMAKE_BINARY_DIR}")
   set(WGR_LIB "${CMAKE_BINARY_DIR}")
 endif()
+
+# The desktop examples name their assets "../assets": a relative asset host resolves
+# against the program's own directory (wgr_asset_set_host), and theirs is bin/, so
+# out/<platform>/<variant>/assets is a link to examples/assets -- a symbolic link, or
+# on a Windows host a junction, which needs no privilege. Then they run from anywhere.
+if(PROJECT_IS_TOP_LEVEL AND WGR_OUT AND NOT EMSCRIPTEN AND NOT EXISTS "${WGR_OUT}/assets")
+  file(MAKE_DIRECTORY "${WGR_OUT}")
+  if(CMAKE_HOST_WIN32)
+    file(TO_NATIVE_PATH "${WGR_OUT}/assets" _wgr_link)
+    file(TO_NATIVE_PATH "${WGR_ROOT}/examples/assets" _wgr_target)
+    execute_process(COMMAND cmd /c mklink /J "${_wgr_link}" "${_wgr_target}" OUTPUT_QUIET RESULT_VARIABLE _wgr_linked)
+  else()
+    file(CREATE_LINK "${WGR_ROOT}/examples/assets" "${WGR_OUT}/assets" SYMBOLIC RESULT _wgr_linked)
+  endif()
+  if(NOT _wgr_linked EQUAL 0)
+    message(WARNING "wgrender: couldn't link ${WGR_OUT}/assets to examples/assets (${_wgr_linked}); "
+                    "the desktop examples won't find their assets")
+  endif()
+endif()
 foreach(kind ARCHIVE LIBRARY RUNTIME)
   if(kind STREQUAL "RUNTIME")
     set(dir "${WGR_PROGRAMS}")

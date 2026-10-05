@@ -75,13 +75,22 @@ void test_app_identity(void)
     CHECK(strcmp(wgr_get_app_company(), "DefaultCompany") == 0);
     CHECK(strcmp(wgr_get_app_name(), "unit_tests") == 0);
 
-    wgr_set_app_company("Acme/Games");
-    wgr_set_app_name("Rocket");
+    CHECK(wgr_set_app_company("Acme/Games"));
+    CHECK(wgr_set_app_name("Rocket"));
     CHECK(strcmp(wgr_get_app_company(), "Acme_Games") == 0);
     CHECK(strcmp(wgr_get_app_name(), "Rocket") == 0);
-    wgr_set_app_name("..."); /* nothing left: back to the default */
+    CHECK(!wgr_set_app_name("...")); /* nothing left: refused, the name kept */
+    CHECK(strcmp(wgr_get_app_name(), "Rocket") == 0);
+    {
+        char long_name[200];
+        memset(long_name, 'x', sizeof(long_name) - 1);
+        long_name[sizeof(long_name) - 1] = '\0';
+        CHECK(!wgr_set_app_company(long_name)); /* too long: refused, never cut short */
+        CHECK(strcmp(wgr_get_app_company(), "Acme_Games") == 0);
+    }
+    CHECK(wgr_set_app_name("")); /* "" is the default again */
     CHECK(strcmp(wgr_get_app_name(), "unit_tests") == 0);
-    wgr_set_app_name("Rocket");
+    CHECK(wgr_set_app_name("Rocket"));
 
 #if defined(_WIN32)
     set_env("LOCALAPPDATA", "C:\\Users\\u\\AppData\\Local");

@@ -32,7 +32,7 @@ and what was left out on purpose, is in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ```sh
 cmake --preset linux-x64-release && cmake --build --preset linux-x64-release   # library + every example
-out/linux-x64/release/bin/simple                                                # run from this directory
+out/linux-x64/release/bin/simple                                                # runs from anywhere
 ```
 
 That's Linux; a Mac's preset is `macos-arm64-release`, and Windows' `windows-x64-msvc-release`.

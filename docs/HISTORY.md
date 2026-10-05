@@ -5168,6 +5168,28 @@ TASKS.md's ticked items, by the section they were in.
 
 ### From libwgt
 
+- [x] A relative asset host resolves against the program's own directory (2026-10-05,
+      Rob's, ported from libwgt f0ad43a): the executable's on desktop, the page's on the
+      web, never the working directory, so the same host string means the same thing
+      everywhere and a double-clicked program finds its files; no host, or ".", is that
+      directory, and the native storage root defaults to it too (the working directory
+      only where the executable's directory can't be told). `wgr_asset_set_host` returns
+      bool: false, the host as it was, for one of 256 bytes or more or a relative one too
+      long joined. The desktop examples name `../assets` (`example_assets.h`; the web
+      keeps `assets`, since its examples share one page at the site root: a layout
+      difference now, not a semantic one), the benchmarks `../../assets`, and the build
+      links `out/<platform>/<variant>/assets` to `examples/assets` (a junction on a
+      Windows host), so they run from anywhere. The unit tests, which run from the repo
+      root and name files from there, say so once (`wgri_fs_set_default_root("")` in
+      their runner); `asset_host_program_dir` holds the rule from a working directory
+      that isn't the program's, and fails when the join is taken out. The Haxe binding's
+      default base is `$WGR_ASSET_BASE` or `assets`, no longer looking for the directory
+      itself
+- [x] The program's identity refuses rather than resets (2026-10-05, Rob's, as libwgt
+      61bcc1f): `wgr_set_app_company` / `_name` return bool, and a name that can't name a
+      directory is refused with a warning and the previous one kept, where it used to go
+      back to the default; NULL or "" is the default
+
 - [x] The load budget is a resource setting (2026-10-05, Rob's, as libwgt's
       `wgt_resource_set_load_budget`): it paces every load, bundled, cached or
       downloaded, so `wgr_asset_set_upload_budget` became

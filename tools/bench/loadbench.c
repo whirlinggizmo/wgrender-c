@@ -21,7 +21,7 @@
 #ifdef __EMSCRIPTEN__
 #  define ASSET_BASE "/assets"
 #else
-#  define ASSET_BASE "examples/assets"
+#  define ASSET_BASE "../../assets" /* beside bin/, where bench/ is: out/<platform>/<variant>/assets */
 #endif
 
 /* LOADBENCH_HELMET_ONLY: FlightHelmet alone (a phone: less to download);
