@@ -7,6 +7,13 @@
 
     Project URL: https://github.com/floooh/sokol
 
+    Altered source: this is the Whirling Gizmo fork's version
+    (https://github.com/robknopf/sokol), not the original. Changed from
+    floooh/sokol: a release build on emscripten does not call
+    glCheckFramebufferStatus when a pass begins. In WebGL the call waits for
+    the GPU process, which stalls each frame with an offscreen pass.
+    The fork's git history has each change.
+
     Example code: https://github.com/floooh/sokol-samples
 
     Do this:
@@ -11867,6 +11874,12 @@ _SOKOL_PRIVATE GLenum _sg_gl_depth_stencil_attachment_type(const _sg_image_t* ds
 }
 
 _SOKOL_PRIVATE bool _sg_gl_check_framebuffer_status(void) {
+    #if defined(__EMSCRIPTEN__) && defined(NDEBUG)
+    // fork: in WebGL, checkFramebufferStatus waits for all commands in the GPU
+    // process (about 12 ms each frame with a shadow map pass). The attachments
+    // are validated when they are made, so a release build does not ask again.
+    return true;
+    #endif
     const GLenum fb_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (fb_status != GL_FRAMEBUFFER_COMPLETE) {
         switch (fb_status) {

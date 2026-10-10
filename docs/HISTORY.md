@@ -5094,6 +5094,20 @@ TASKS.md's ticked items, by the section they were in.
 
 ### Bugs and measurements
 
+- [x] Every web frame with an offscreen pass stalled on a framebuffer check (2026-10-10,
+      found by libwgf, its 44688c7): sokol's GL backend called glCheckFramebufferStatus
+      as each pass began, and in WebGL that is a synchronous round trip to the browser's
+      GPU process, waiting for every command before it. Fixed once in the sokol fork
+      (robknopf/sokol fix/webgl-framebuffer-check-stall, 3968ffc2, merged at 8194062e,
+      which deps/sokol now vendors): a release web build skips the check, which the
+      attachments already passed when they were made; a debug build still asks. The web
+      shadowbench (Chromium on Xvfb, WebGL2 on the GPU, wasm32-release), CPU ms a frame
+      before and after: sun at 100 models 14.20 / 0.28, two lights 15.31 / 0.42,
+      instanced at 1000 models 22.04 / 1.11, nothing receiving at 1000 12.51 / 1.98,
+      facing away without culling at 100 14.79 / 0.21; no shadows, and looking away, as
+      they were. What it doesn't explain is in TASKS (a shadow pass of 1000 separate
+      draws still ~17 ms)
+
 - [x] Bug: models ignore glTF `alphaMode` (BLEND/MASK). gumshoe's `blobShadow`
       (BLEND, alpha 0.2) drew as a solid black quad. Fixed: MASK discards below
       the cutoff, BLEND and faded models (tint alpha < 1) draw in a sorted blended

@@ -13,6 +13,13 @@ moves to "Tasks dropped" with the reason. What's here is what's left.
 
 ## Bugs and measurements
 
+- [ ] A shadow pass of many separate draws still costs far more on the web than it
+      should (wgrender's web shadowbench, 2026-10-10, after the framebuffer-check fix):
+      1000 models each with its own mesh and material cost ~17 ms a frame with a
+      casting sun, against 1.7 ms without shadows and 1.1 instanced. A second pass of
+      the same draws shouldn't cost ten times the first, so look for another per-draw
+      synchronous call in the depth pass (a binding or uniform path WebGL turns into a
+      round trip), with Chrome's GPU trace or by bisecting the pass's calls
 - [ ] Ogg files go through stb_vorbis 1.22 (`deps/stb`), which has open memory-safety
       issues upstream on malformed files: nothings/stb #2005 (2026-09, a heap overflow in
       the comment header), #1947 and #1933 (codebook allocation overflows), #1949 (a
@@ -62,7 +69,11 @@ moves to "Tasks dropped" with the reason. What's here is what's left.
       ~30 ms) and slower to load; the cost is each large upload itself. Left: smaller
       files (ASTC 6x6 blocks, about half the bytes, some quality), or one mip level per
       frame (needs a change to libwgrender's sokol fork)
-- [ ] Web performance on a low-end phone (Adreno 610, WEB_THREADS=0 build). Frame
+- [ ] Web performance on a low-end phone (Adreno 610, WEB_THREADS=0 build). Measure
+      it again first: these numbers predate the fix for a stall in every frame with an
+      offscreen pass (sokol checked the framebuffer at each pass, a round trip to the
+      GPU process: 2026-10-10, below), so shadows, postprocess, render targets and
+      environments may read very differently now. Frame
       rates measured 2026-09-20: 60 FPS for most examples; instancing 13, shadows 13,
       postprocess 21, meshes 26, materials 30, shaders 31, environment 41. The
       measurement pass that entry asked for is done (2026-09-21, same phone, served
